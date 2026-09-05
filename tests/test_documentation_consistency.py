@@ -28,10 +28,7 @@ README_TOOL_NAMES_BY_KEY = {
     "new_item_studio": "Create New Item",
     "mesh_editor": "Mesh Editor",
     "placement_studio": "Placement & Animations",
-    "texture_workflow": "Texture Workflow",
-    "replace_assistant": "Texture Replacer",
-    "recolor_variants": "Texture Recolor",
-    "texture_editor": "Texture Editor",
+    "textures": "Textures",
     "mod_package_retrofit": "Retrofit/Repackage",
     "format_explorer": "Format Explorer",
     "translation_studio": "Translations",
@@ -45,10 +42,7 @@ DOCUMENTATION_TOPIC_BY_TOOL_KEY = {
     "new_item_studio": "new_item_studio",
     "mesh_editor": "mesh_editor",
     "placement_studio": "placement_studio",
-    "texture_workflow": "workflow_overview",
-    "replace_assistant": "replace_assistant",
-    "recolor_variants": "texture_recolor",
-    "texture_editor": "texture_editor",
+    "textures": "workflow_overview",
     "mod_package_retrofit": "mod_package_retrofit",
     "format_explorer": "format_explorer",
     "translation_studio": "translation_studio",
@@ -207,6 +201,11 @@ def test_readme_lists_the_exact_current_tool_inventory() -> None:
 
 def test_in_app_documentation_covers_the_exact_current_tool_inventory() -> None:
     class _DocumentationSource(AboutDocumentationMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         settings_file_path = ROOT / "settings.cfg"
         archive_cache_root = ROOT / "cache"
 

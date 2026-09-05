@@ -26,7 +26,7 @@ from cdmw.ui.archive_browser.asset_family_references import _asset_family_depend
 
 
 def _asset_family_panel_dependencies(owner: object):
-    current_entry = owner._current_archive_entry()
+    current_entry = owner.archive._current_archive_entry()
     dependencies = _asset_family_dependency_maps(owner, current_entry)
     if dependencies is None:
         return current_entry, {}, {}

@@ -311,13 +311,13 @@ def _refresh_queue_step_019(_state):
 def _refresh_queue_step_020(_state):
 
     def _configure_alignment_tree(tree: QTreeWidget, widths: Sequence[int], *, max_height: int=0, stretch_columns: Sequence[int]=(), persist_key: str='') -> None:
-        _state._configure_alignment_tree_helper(tree, widths, max_height=max_height, stretch_columns=stretch_columns, persist_key=persist_key, settings=_state.self.settings, save_callback=_state.self.schedule_settings_save, persist_columns=_state.make_tree_columns_persistent)
+        _state._configure_alignment_tree_helper(tree, widths, max_height=max_height, stretch_columns=stretch_columns, persist_key=persist_key, settings=_state.self.shell.settings, save_callback=_state.self.shell.schedule_settings_save, persist_columns=_state.make_tree_columns_persistent)
     _state._configure_alignment_tree = _configure_alignment_tree
 
 def _refresh_queue_step_021(_state):
 
     def _configure_texture_mapping_tree(tree: QTreeWidget, *, persist_key: str='') -> None:
-        _state._configure_texture_mapping_tree_helper(tree, persist_key=persist_key, settings=_state.self.settings, save_callback=_state.self.schedule_settings_save, persist_columns=_state.make_tree_columns_persistent)
+        _state._configure_texture_mapping_tree_helper(tree, persist_key=persist_key, settings=_state.self.shell.settings, save_callback=_state.self.shell.schedule_settings_save, persist_columns=_state.make_tree_columns_persistent)
     _state._configure_texture_mapping_tree = _configure_texture_mapping_tree
 
 def _refresh_queue_step_022(_state):
@@ -350,7 +350,7 @@ def _refresh_queue_step_026(_state):
         if _state._mesh_edit_enabled_checked() and callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active():
             message = f'Active Mesh Editor static preview {kind} is disabled; Rust Preview preview payloads are required.'
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return True
         return False
     _state._active_mesh_edit_preview_queue_blocked = _active_mesh_edit_preview_queue_blocked

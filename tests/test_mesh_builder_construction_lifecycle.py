@@ -19,6 +19,8 @@ _APPLICATION = QApplication.instance() or QApplication([])
 class _BuilderOwner(ArchiveMeshBuilderLifecycleMixin, QWidget):
     def __init__(self) -> None:
         QWidget.__init__(self)
+        self.archive = self
+        self.shell = self
         self._modeless_alignment_dialogs: dict[str, QDialog] = {}
         self.archive_preview_refresh_deferred_by_builder = False
         self._shutting_down = False

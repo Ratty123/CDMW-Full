@@ -1,8 +1,8 @@
-"""Compact presentation wrapper around the authoritative nested tab hierarchy."""
+"""Compact navigation and activity controls around the shared tool stack."""
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
 from cdmw.ui.shell.compact.activity import ActivityHistory, CompactStatusSnapshot, tool_log_adapter_for
@@ -15,7 +15,7 @@ from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
 class CompactWorkspace(QWidget):
-    def __init__(self, owner: object, main_tabs: QTabWidget, parent: QWidget | None = None) -> None:
+    def __init__(self, owner: object, main_tabs: QStackedWidget, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("CompactWorkspace")
         self.owner = owner
@@ -27,7 +27,7 @@ class CompactWorkspace(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self.rail = CompactWorkspaceRail(owner, owner.settings, self)
+        self.rail = CompactWorkspaceRail(owner, owner.shell.settings, self)
         layout.addWidget(self.rail)
         right = QWidget()
         right.setObjectName("CompactWorkspaceContent")
@@ -39,15 +39,15 @@ class CompactWorkspace(QWidget):
         self.drawer.setVisible(False)
         right_layout.addWidget(self.drawer)
         self.status_strip = CompactBottomStatusStrip(
-            owner.archive_scan_progress_label,
-            owner.archive_scan_progress_bar,
-            owner.archive_cache_status_chip,
+            owner.archive.archive_scan_progress_label,
+            owner.archive.archive_scan_progress_bar,
+            owner.archive.archive_cache_status_chip,
             right,
         )
         right_layout.addWidget(self.status_strip)
         layout.addWidget(right, stretch=1)
 
-        self.rail.tool_requested.connect(owner._activate_tool_key)
+        self.rail.tool_requested.connect(owner.shell._activate_tool_key)
         self.status_strip.drawer_requested.connect(self.drawer.setVisible)
 
     def set_active_tool(self, tool_key: str) -> None:
@@ -68,7 +68,7 @@ class CompactWorkspace(QWidget):
         self.refresh_tool_enabled_states()
 
     def refresh_tool_enabled_states(self) -> None:
-        containers = getattr(self.owner, "_tool_widgets_by_key", {})
+        containers = getattr(self.owner.shell, "_tool_widgets_by_key", {})
         for key, button in self.rail.tool_buttons.items():
             widget = containers.get(key) if isinstance(containers, dict) else None
             if widget is not None:
@@ -109,13 +109,13 @@ class CompactWorkspace(QWidget):
 
 
 def sync_compact_workspace_selection(owner: object, tool_key: str | None = None) -> str:
-    workspace = getattr(owner, "compact_workspace", None)
+    workspace = getattr(owner.shell, "compact_workspace", None)
     if not isinstance(workspace, CompactWorkspace):
         return ""
     key = str(tool_key or "")
     if not key:
-        current_widget = owner._current_navigation_widget()  # type: ignore[attr-defined]
-        key = owner._tool_key_for_widget(current_widget)  # type: ignore[attr-defined]
+        current_widget = owner.shell._current_navigation_widget()  # type: ignore[attr-defined]
+        key = owner.shell._tool_key_for_widget(current_widget)  # type: ignore[attr-defined]
     workspace.set_active_tool(key)
     return key
 
@@ -128,7 +128,10 @@ def append_compact_activity(
     source: str = "status",
     severity: str = "info",
 ) -> None:
-    workspace = getattr(owner, "compact_workspace", None)
+    from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
+    if tool_key in TEXTURE_TOOL_ALIASES:
+        tool_key = "textures"
+    workspace = getattr(owner.shell, "compact_workspace", None)
     if isinstance(workspace, CompactWorkspace):
         workspace.append_activity(
             message,
@@ -139,7 +142,7 @@ def append_compact_activity(
 
 
 def appearance_theme_target(owner: object) -> str:
-    return active_shell_theme_setting(getattr(owner, "shell_variant", "legacy"))
+    return active_shell_theme_setting(getattr(owner.shell, "shell_variant", "legacy"))
 
 
 def theme_change_payload(owner: object, theme_key: str) -> dict[str, object]:
@@ -175,27 +178,27 @@ def normalize_appearance_payload(
 
 
 def settings_controls_theme_key(owner: object) -> str:
-    return str(owner.current_theme_key)  # type: ignore[attr-defined]
+    return str(owner.shell.current_theme_key)  # type: ignore[attr-defined]
 
 
 def sync_settings_appearance_controls(owner: object) -> None:
-    owner.settings_tab.sync_appearance_controls(  # type: ignore[attr-defined]
+    owner.shell.settings_tab.sync_appearance_controls(  # type: ignore[attr-defined]
         settings_controls_theme_key(owner)
     )
 
 
 def theme_applied(owner: object) -> None:
-    owner.compact_shell_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
-    owner.classic_theme_key = owner.current_theme_key  # type: ignore[attr-defined]
-    workspace = getattr(owner, "compact_workspace", None)
+    owner.shell.compact_shell_theme_key = owner.shell.current_theme_key  # type: ignore[attr-defined]
+    owner.shell.classic_theme_key = owner.shell.current_theme_key  # type: ignore[attr-defined]
+    workspace = getattr(owner.shell, "compact_workspace", None)
     if isinstance(workspace, CompactWorkspace):
         workspace.refresh_palette()
 
 
 def save_theme_setting(owner: object) -> None:
-    owner.settings.setValue(  # type: ignore[attr-defined]
+    owner.shell.settings.setValue(  # type: ignore[attr-defined]
         appearance_theme_target(owner),
-        owner.current_theme_key,  # type: ignore[attr-defined]
+        owner.shell.current_theme_key,  # type: ignore[attr-defined]
     )
 
 

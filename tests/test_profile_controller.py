@@ -51,6 +51,9 @@ class _Owner:
     _apply_profile_import_transaction = ProfileControllerMixin._apply_profile_import_transaction
 
     def __init__(self, *, fail_import: bool = False) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.settings = _Settings({"keep": "old", "removed": "old"})
         self.current_theme_key = "graphite"
         self.previous_config = default_config()

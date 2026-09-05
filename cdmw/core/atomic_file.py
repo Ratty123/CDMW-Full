@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO, Iterator, TextIO
@@ -133,11 +133,67 @@ def atomic_publish_directory(staged: Path | str, target: Path | str) -> None:
         shutil.rmtree(backup, ignore_errors=True)
 
 
+def atomic_publish_paths(
+    paths: Sequence[tuple[Path, Path]],
+    *,
+    check_cancelled: Callable[[], None] | None = None,
+) -> None:
+    """Publish files and directories together, restoring prior output on failure."""
+    pairs = [(Path(staged), Path(target)) for staged, target in paths]
+    if len({os.path.normcase(str(target.absolute())) for _, target in pairs}) != len(pairs):
+        raise ValueError("atomic publication targets must be unique")
+    for staged, target in pairs:
+        if not staged.exists():
+            raise FileNotFoundError(staged)
+        if target.exists() and not target.is_symlink() and staged.is_dir() != target.is_dir():
+            raise ValueError(f"atomic publication cannot change the target type: {target}")
+
+    def remove(path: Path) -> None:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+
+    published: list[tuple[Path, Path | None]] = []
+    try:
+        for staged, target in pairs:
+            if check_cancelled is not None:
+                check_cancelled()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            backup = target.with_name(f".{target.name}.{uuid4().hex}.bak") if target.exists() or target.is_symlink() else None
+            if backup is not None:
+                target.replace(backup)
+            try:
+                staged.replace(target)
+            except BaseException:
+                if backup is not None:
+                    backup.replace(target)
+                raise
+            published.append((target, backup))
+        if check_cancelled is not None:
+            check_cancelled()
+    except BaseException:
+        for target, backup in reversed(published):
+            remove(target)
+            if backup is not None:
+                backup.replace(target)
+        raise
+    else:
+        for _, backup in published:
+            if backup is not None:
+                try:
+                    remove(backup)
+                except OSError:
+                    # Publication already succeeded; retain an undeletable backup.
+                    pass
+
+
 __all__ = [
     "atomic_binary_writer",
     "atomic_copy_file",
     "atomic_publish_directory",
     "atomic_publish_files",
+    "atomic_publish_paths",
     "atomic_text_writer",
     "atomic_write_bytes",
     "atomic_write_text",

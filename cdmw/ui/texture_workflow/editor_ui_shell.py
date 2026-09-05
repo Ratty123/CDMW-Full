@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, QTimer
+from PySide6.QtCore import QSize, QTimer, Qt
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import QApplication
 
@@ -11,11 +11,37 @@ from cdmw.ui.layout_utils import build_responsive_splitter_sizes, clamp_splitter
 class TextureEditorUiShellMixin:
     """Owns Texture Editor tab UI shell sizing, font sync, and signal wiring."""
 
+    def set_workspace_mode(self, mode: str) -> None:
+        self.workspace_preview = None
+        self.canvas.set_editable(mode == "edit")
+        for shortcut in self._shortcut_objects:
+            shortcut.setEnabled(mode == "edit")
+        self._refresh_canvas()
+        self._apply_empty_state_layout(self.document is not None)
+
+    def show_workspace_preview(self, source_image, result_image) -> None:
+        import numpy as np
+        from PySide6.QtGui import QImage
+
+        pixels = []
+        for image in (source_image, result_image):
+            rgba = image.convertToFormat(QImage.Format_RGBA8888)
+            pixels.append(np.frombuffer(rgba.constBits(), dtype=np.uint8).reshape(
+                rgba.height(), rgba.bytesPerLine(),
+            )[:, :rgba.width() * 4].reshape(rgba.height(), rgba.width(), 4).copy())
+        self.workspace_preview = tuple(pixels)
+        self._refresh_canvas()
+        self.canvas_toolbar.setVisible(True)
+
     def _texture_editor_tool_sidebar_bounds(self) -> tuple[int, int, int]:
+        if self.workspace_embedded:
+            return (0, 300, 16777215)
         minimum, preferred, maximum = responsive_sidebar_bounds(self, role="tool")
         return (max(220, minimum), max(286, preferred), max(374, maximum))
 
     def _texture_editor_splitter_total_width(self, has_doc: bool) -> int:
+        if self.workspace_embedded:
+            return max(520, self.width() - 32)
         editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
         if not has_doc:
             return max(self.width() - 32, editor_tool_min + 520)
@@ -25,11 +51,14 @@ class TextureEditorUiShellMixin:
     def _set_texture_editor_splitter_sizes(self, sizes: list[int]) -> None:
         self._texture_editor_splitter_restoring = True
         try:
-            self.main_splitter.setSizes(sizes)
+            self.main_splitter.setSizes(sizes[1:] if self.workspace_embedded and len(sizes) == 3 else sizes)
         finally:
             self._texture_editor_splitter_restoring = False
 
     def _texture_editor_default_splitter_sizes(self, *, has_doc: bool) -> list[int]:
+        if self.workspace_embedded:
+            total = self._texture_editor_splitter_total_width(has_doc)
+            return [max(520, total - 320), 320] if has_doc else [total, 0]
         editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
         total_width = self._texture_editor_splitter_total_width(has_doc)
         if not has_doc:
@@ -38,6 +67,8 @@ class TextureEditorUiShellMixin:
         return build_responsive_splitter_sizes(total_width, [12, 70, 18], [editor_tool_min, 520, editor_inspector_min])
 
     def _texture_editor_document_splitter_sizes(self) -> list[int]:
+        if self.workspace_embedded:
+            return self._texture_editor_default_splitter_sizes(has_doc=True)
         editor_tool_min, _editor_tool_pref, _editor_tool_max = self._texture_editor_tool_sidebar_bounds()
         editor_inspector_min, _editor_inspector_pref, _editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
         total_width = self._texture_editor_splitter_total_width(True)
@@ -57,6 +88,8 @@ class TextureEditorUiShellMixin:
         )
 
     def _apply_saved_texture_editor_splitter_sizes(self, *, has_doc: bool) -> bool:
+        if self.workspace_embedded:
+            return False
         saved_sizes = self._saved_texture_editor_splitter_sizes()
         if len(saved_sizes) < 3:
             return False
@@ -185,10 +218,11 @@ class TextureEditorUiShellMixin:
         self.canvas_toolbar.setVisible(has_doc)
         self.canvas_status_strip.setVisible(has_doc)
         right_sidebar_was_visible = self.right_scroll.isVisible()
-        right_handle = self.main_splitter.handle(2)
-        self.right_panel.setVisible(has_doc)
-        self.right_scroll.setVisible(has_doc)
-        if has_doc:
+        right_handle = self.main_splitter.handle(1 if self.workspace_embedded else 2)
+        show_inspector = has_doc and (not self.workspace_embedded or self.job.mode == "edit")
+        self.right_panel.setVisible(show_inspector)
+        self.right_scroll.setVisible(show_inspector)
+        if show_inspector:
             editor_inspector_min, _editor_inspector_pref, editor_inspector_max = responsive_sidebar_bounds(self, role="narrow")
             self.right_scroll.setMinimumWidth(editor_inspector_min)
             self.right_scroll.setMaximumWidth(editor_inspector_max)
@@ -204,7 +238,7 @@ class TextureEditorUiShellMixin:
             current_sizes = list(self.main_splitter.sizes())
             left_width = max(editor_tool_min, int(current_sizes[0]) if current_sizes else editor_tool_min)
             self._set_texture_editor_splitter_sizes([left_width, max(520, total_width - left_width), 0])
-        if has_doc and not right_sidebar_was_visible:
+        if show_inspector and not right_sidebar_was_visible:
             QTimer.singleShot(0, lambda: self._set_texture_editor_splitter_sizes(self._texture_editor_document_splitter_sizes()))
 
     def _handle_main_splitter_moved(self, *_args: object) -> None:
@@ -253,15 +287,7 @@ class TextureEditorUiShellMixin:
         self.grid_opacity_spin.valueChanged.connect(self._handle_grid_state_changed)
         for tool_key, button in self.tool_buttons.items():
             button.clicked.connect(lambda checked=False, key=tool_key: self._set_active_tool(key))
-        self.canvas.stroke_committed.connect(self._handle_canvas_stroke)
-        self.canvas.selection_committed.connect(self._handle_canvas_selection)
-        self.canvas.clone_source_picked.connect(self._handle_clone_source_picked)
-        self.canvas.color_sampled.connect(self._handle_canvas_color_sampled)
-        self.canvas.hover_info_changed.connect(self._handle_canvas_hover_changed)
-        self.canvas.wheel_zoom_requested.connect(self._handle_canvas_wheel_zoom)
-        self.canvas.floating_transform_requested.connect(self._handle_canvas_floating_transform)
-        self.canvas_scroll.horizontalScrollBar().valueChanged.connect(self._handle_canvas_viewport_changed)
-        self.canvas_scroll.verticalScrollBar().valueChanged.connect(self._handle_canvas_viewport_changed)
+        self._connect_canvas_signals()
         self.navigator_widget.center_requested.connect(self._handle_navigator_center_requested)
         self.show_rulers_checkbox.toggled.connect(self._handle_navigation_overlay_changed)
         self.show_guides_checkbox.toggled.connect(self._handle_navigation_overlay_changed)
@@ -420,6 +446,18 @@ class TextureEditorUiShellMixin:
             elif hasattr(widget, "toggled"):
                 widget.toggled.connect(self._handle_tool_settings_changed)  # type: ignore[attr-defined]
         self.clear_clone_source_button.clicked.connect(self.clear_clone_source_point)
+
+    def _connect_canvas_signals(self) -> None:
+        self.canvas.stroke_committed.connect(self._handle_canvas_stroke)
+        self.canvas.selection_committed.connect(self._handle_canvas_selection)
+        self.canvas.clone_source_picked.connect(self._handle_clone_source_picked)
+        self.canvas.color_sampled.connect(self._handle_canvas_color_sampled)
+        self.canvas.hover_info_changed.connect(self._handle_canvas_hover_changed)
+        self.canvas.wheel_zoom_requested.connect(self._handle_canvas_wheel_zoom)
+        self.canvas.floating_transform_requested.connect(self._handle_canvas_floating_transform)
+        self.canvas.viewport_resized.connect(self._handle_canvas_viewport_changed, Qt.QueuedConnection)
+        self.canvas_scroll.horizontalScrollBar().valueChanged.connect(self._handle_canvas_viewport_changed)
+        self.canvas_scroll.verticalScrollBar().valueChanged.connect(self._handle_canvas_viewport_changed)
 
 
 __all__ = ["TextureEditorUiShellMixin"]

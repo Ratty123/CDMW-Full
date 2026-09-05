@@ -258,10 +258,10 @@ def _source_part_mutation_step_006(_state):
             if callable(_state._mesh_edit_replace_live_triangles_or_queue_rebuild):
                 _state._mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices if source_indices is not None else _state._source_part_current_preview_indices(), replace_all=replace_all)
                 return
-            _state.self.set_status_message('Rust Preview source-part preview commands are unavailable; preview is stale. Retry the preview to resync.', error=True)
+            _state.self.shell.set_status_message('Rust Preview source-part preview commands are unavailable; preview is stale. Retry the preview to resync.', error=True)
             return
         if _state._source_part_mesh_edit_active():
-            _state.self.set_status_message('Active Mesh Editor source-part preview requires a Rust Preview refresh; software preview fallback is disabled.', error=True)
+            _state.self.shell.set_status_message('Active Mesh Editor source-part preview requires a Rust Preview refresh; software preview fallback is disabled.', error=True)
             return
         replacement_mesh_for_mapping = _state._get_replacement_mesh_for_mapping()
         _state._set_replacement_preview_model(_state.parsed_mesh_to_preview_model(replacement_mesh_for_mapping) if replacement_mesh_for_mapping is not None else None)
@@ -274,7 +274,7 @@ def _source_part_mutation_step_007(_state):
     def _source_part_active_geometry_mutation_blocked() -> bool:
         if not _state._source_part_mesh_edit_active():
             return False
-        _state.self.set_status_message('Active Mesh Editor source-part topology changes require native geometry execution; Python mesh mutation fallback is disabled.', error=True)
+        _state.self.shell.set_status_message('Active Mesh Editor source-part topology changes require native geometry execution; Python mesh mutation fallback is disabled.', error=True)
         return True
     _state._source_part_active_geometry_mutation_blocked = _source_part_active_geometry_mutation_blocked
 
@@ -285,7 +285,7 @@ def _source_part_mutation_step_008(_state):
             return False
         if bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False)) and callable(getattr(_state.dialog, '_mesh_editor_embedded_apply_material_parameters', None)):
             return False
-        _state.self.set_status_message('Active Mesh Editor source-part material routing requires native material execution; Python routing mutation fallback is disabled.', error=True)
+        _state.self.shell.set_status_message('Active Mesh Editor source-part material routing requires native material execution; Python routing mutation fallback is disabled.', error=True)
         return True
     _state._source_part_material_routing_mutation_blocked = _source_part_material_routing_mutation_blocked
 
@@ -305,7 +305,7 @@ def _source_part_mutation_step_009(_state):
         def _fallback_allowed(candidate: object) -> bool:
             if _state.allow_python_full_mesh_clone_fallback(candidate, operation, 'Python source-part append rollback clone fallback blocked while native mesh core is available'):
                 return True
-            _state.self.set_status_message('Native source-part append rollback snapshot failed; Python full-mesh clone fallback blocked while native mesh core is available.', error=True)
+            _state.self.shell.set_status_message('Native source-part append rollback snapshot failed; Python full-mesh clone fallback blocked while native mesh core is available.', error=True)
             return False
         return _state.clone_mesh_for_static_replacement_native_first(mesh, operation, 'Python source-part append rollback clone fallback blocked while native mesh core is available', fallback_allowed=_fallback_allowed)
     _state._source_part_append_capture_mesh_snapshot = _source_part_append_capture_mesh_snapshot
@@ -334,7 +334,7 @@ def _source_part_mutation_step_011(_state):
         def _fallback_allowed(candidate: object) -> bool:
             if _state.allow_python_full_mesh_clone_fallback(candidate, 'source_part.append_rollback_restore', 'Python source-part append rollback restore clone fallback blocked while native mesh core is available'):
                 return True
-            _state.self.set_status_message('Native source-part append rollback restore failed; Python full-mesh clone fallback blocked while native mesh core is available.', error=True)
+            _state.self.shell.set_status_message('Native source-part append rollback restore failed; Python full-mesh clone fallback blocked while native mesh core is available.', error=True)
             return False
         restored = _state.clone_mesh_for_static_replacement_native_first(snapshot, 'source_part.append_rollback_restore', 'Python source-part append rollback restore clone fallback blocked while native mesh core is available', fallback_allowed=_fallback_allowed)
         return restored if isinstance(restored, _state.ParsedMesh) else None
@@ -368,7 +368,7 @@ def _source_part_mutation_step_013(_state):
         delete_selection_state = _state._source_part_delete_selection_state_helper(selected_indices, source_count=source_count, marker_source_indices=marker_source_indices)
         source_part_delete_status_text = _state._source_part_delete_status_text_helper()
         if not delete_selection_state.available:
-            _state.self.set_status_message(source_part_delete_status_text[delete_selection_state.status_key])
+            _state.self.shell.set_status_message(source_part_delete_status_text[delete_selection_state.status_key])
             return
         if not resident_state_only and _state._source_part_active_geometry_mutation_blocked():
             return
@@ -460,7 +460,7 @@ def _source_part_mutation_step_013(_state):
         _state._sync_highlight_sets()
         if not resident_state_only:
             _state._source_part_refresh_geometry_preview(_state._source_part_deleted_pending_reason_helper(len(delete_indices)), replace_all=True)
-        _state.self.set_status_message(_state._source_part_deleted_status_helper(len(delete_indices)))
+        _state.self.shell.set_status_message(_state._source_part_deleted_status_helper(len(delete_indices)))
     _state._delete_selected_source_parts = _delete_selected_source_parts
 
 def _source_part_mutation_step_014(_state):
@@ -604,7 +604,7 @@ def _source_part_mutation_step_016(_state):
             _state._refresh_texture_table(selected_texture_row.get('row'))
         _state._load_selected_part_controls()
         _state._source_part_refresh_geometry_preview(duplicate_route.status_text, (new_index,))
-        _state.self.set_status_message(duplicate_route.status_text)
+        _state.self.shell.set_status_message(duplicate_route.status_text)
     _state._duplicate_selected_part = _duplicate_selected_part
 
 def _source_part_mutation_step_017(_state):
@@ -613,7 +613,7 @@ def _source_part_mutation_step_017(_state):
         replacement_mesh_for_mapping = _state._source_part_append_restore_mesh_snapshot(append_rollback_snapshot.replacement_mesh)
         replacement_mesh_base_for_mapping = _state._source_part_append_restore_mesh_snapshot(append_rollback_snapshot.replacement_base_mesh)
         if replacement_mesh_for_mapping is None or replacement_mesh_base_for_mapping is None:
-            _state.self.set_status_message('Could not restore source-part append rollback snapshot; reload the preview before continuing.', error=True)
+            _state.self.shell.set_status_message('Could not restore source-part append rollback snapshot; reload the preview before continuing.', error=True)
             return False
         _state._set_replacement_mesh_for_mapping(replacement_mesh_for_mapping)
         _state._set_replacement_mesh_base_for_mapping(replacement_mesh_base_for_mapping)

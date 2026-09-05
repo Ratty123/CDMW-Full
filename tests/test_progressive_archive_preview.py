@@ -73,6 +73,9 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
     def test_full_texture_status_waits_for_resident_package_acknowledgement(self) -> None:
         class Host(ArchivePreviewDotNetLifecycleMixin, ArchivePreviewLoadingMixin):
             def __init__(self) -> None:
+                self.shell = self
+                self.archive = self
+                self.textures = self
                 self._archive_texture_request_loading = False
                 self.archive_preview_texture_upgrade_pending = True
                 self.archive_preview_texture_upgrade_package_path = str(Path("full") / "package")

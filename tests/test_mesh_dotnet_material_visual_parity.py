@@ -11,9 +11,9 @@ from cdmw.rendering.material_combiner_rules import (
     _authoritative_color_blending_tint_seed,
 )
 from cdmw.services import mesh_dotnet_material_state
-from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_state_payload
 from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
-from tests.test_mesh_dotnet_experiment import _mesh
+from tests.mesh_material_test_support import _mesh
 
 
 def test_textured_material_carries_representative_preview_color_as_inactive_base_tint(tmp_path: Path) -> None:

@@ -42,6 +42,9 @@ class _ModifyOriginalChainOwner(
 
     def __init__(self, settings_file_path: Path) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.settings_file_path = settings_file_path
         self.archive_entries_by_normalized_path: dict[str, tuple[ArchiveEntry, ...]] = {}
         self.archive_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] = {}

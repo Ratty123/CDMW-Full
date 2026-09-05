@@ -123,7 +123,7 @@ def _remaining_manual_profile_control_step_003(_state):
         resource_keys = tuple(sorted(_state.manual_profile_pending_resource_keys))
         _state.manual_profile_pending_resource_keys.clear()
         values = _state._current_manual_material_profile_values()
-        _state.self.settings.setValue(_state.manual_profile_settings_key, _state.json.dumps(values, sort_keys=True, separators=(',', ':')))
+        _state.self.shell.settings.setValue(_state.manual_profile_settings_key, _state.json.dumps(values, sort_keys=True, separators=(',', ':')))
         if persist_only:
             return
         _state._save_complete_swap_material_profile()

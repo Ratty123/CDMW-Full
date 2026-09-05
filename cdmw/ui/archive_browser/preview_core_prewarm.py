@@ -126,7 +126,7 @@ class ArchivePreviewCorePrewarmMixin:
         return None
 
     def _archive_preview_core_prewarm_allowed(self) -> bool:
-        if self._shutting_down or self._startup_benchmark_enabled():
+        if self.shell._shutting_down or self.shell._startup_benchmark_enabled():
             return False
         if bool(getattr(self, "archive_preview_core_prewarm_done", False)):
             return False
@@ -166,7 +166,7 @@ class ArchivePreviewCorePrewarmMixin:
         )
         task.signals.completed.connect(self._finish_archive_preview_core_prewarm)
         self.archive_preview_core_prewarm_task = task
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_core_prewarm_started",
             path=str(getattr(entry, "path", "") or ""),
         )
@@ -188,14 +188,14 @@ class ArchivePreviewCorePrewarmMixin:
     def _finish_archive_preview_core_prewarm(self, result: object) -> None:
         self.archive_preview_core_prewarm_task = None
         self.archive_preview_core_prewarm_stop_event = None
-        if self._shutting_down or not isinstance(result, dict):
+        if self.shell._shutting_down or not isinstance(result, dict):
             return
-        self.append_archive_log(
+        self.shell.append_archive_log(
             "Archive Browser activation timing | cause=preview_core_prewarm"
             f" | status={result.get('status', '')} | elapsed={result.get('elapsed_ms', 0)}ms",
             verbose=True,
         )
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_core_prewarm_finished",
             status=str(result.get("status", "")),
             elapsed_ms=result.get("elapsed_ms", 0),

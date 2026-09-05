@@ -46,7 +46,7 @@ class ShellWindowBootstrapStateMixin:
     ) -> None:
         self.app_context = app_context or AppContext.create_default()
         self.app_state = AppState()
-        self.tab_registry = TabRegistry(self.app_context)
+        self.tab_registry = TabRegistry()
         self.setWindowTitle(APP_TITLE)
 
         self.settings = self.app_context.settings if app_context is not None else create_settings()
@@ -57,7 +57,7 @@ class ShellWindowBootstrapStateMixin:
 
         self.settings_file_path = settings_file_path
         archive_cache_root_override = os.environ.get("CDMW_ARCHIVE_CACHE_ROOT", "").strip()
-        self.archive_cache_root = (
+        self.archive.archive_cache_root = (
             Path(archive_cache_root_override).expanduser()
             if archive_cache_root_override
             else workspace_paths(self.settings_file_path.parent)["archive_cache_root"]
@@ -65,15 +65,15 @@ class ShellWindowBootstrapStateMixin:
         try:
             record_runtime_event(
                 "archive_cache_root_resolved",
-                cache_root=str(self.archive_cache_root),
+                cache_root=str(self.archive.archive_cache_root),
                 override_present=bool(archive_cache_root_override),
                 settings_file_path=str(self.settings_file_path),
             )
         except Exception:
             pass
         if archive_cache_root_override:
-            os.environ["CDMW_TEMP_CACHE_ROOT"] = str(self.archive_cache_root)
-        cache_migration = migrate_runtime_cache_layout(self.archive_cache_root)
+            os.environ["CDMW_TEMP_CACHE_ROOT"] = str(self.archive.archive_cache_root)
+        cache_migration = migrate_runtime_cache_layout(self.archive.archive_cache_root)
         if cache_migration.moved or cache_migration.skipped:
             try:
                 record_runtime_event(
@@ -132,8 +132,8 @@ class ShellWindowBootstrapStateMixin:
         self._initialize_existing_instance_activation_polling()
         self._responsive_screen_signal_connected = False
         self._modeless_alignment_dialogs = {}
-        self.archive_preview_refresh_deferred_by_builder = False
-        self.archive_model_preview_dark_background_enabled = True
+        self.archive.archive_preview_refresh_deferred_by_builder = False
+        self.archive.archive_model_preview_dark_background_enabled = True
         self._current_responsive_control_scale = 0.0
         self._applying_responsive_layout = False
         self._responsive_metrics_dirty = True
@@ -147,14 +147,14 @@ class ShellWindowBootstrapStateMixin:
         self.compact_shell_theme_key = read_compact_shell_theme_key(self.settings)
         self.current_theme_key = active_shell_theme_key(self.settings, self.shell_variant)
         self.app_state.current_theme_key = self.current_theme_key
-        self.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
+        self.archive.archive_model_renderer_backend = ARCHIVE_MODEL_RENDERER_DEFAULT
         self.show_first_run_guide_on_launch = (
             not self.settings.contains("ui/startup_setup_shown")
             or not str(self.settings.value("archive/package_root", "") or "").strip()
         )
-        self._model_preview_render_settings = clamp_model_preview_render_settings()
-        self.model_preview_settings_dialog = None
-        self._archive_performance_settings = clamp_archive_performance_settings()
+        self.archive._model_preview_render_settings = clamp_model_preview_render_settings()
+        self.archive.model_preview_settings_dialog = None
+        self.archive._archive_performance_settings = clamp_archive_performance_settings()
         self.resize(1360, 840)
         self.setMinimumSize(1120, 720)
 

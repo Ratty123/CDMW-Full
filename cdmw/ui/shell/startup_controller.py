@@ -63,20 +63,20 @@ def _continue_startup_archive_autoload(
     startup_splash: object,
     _write_heartbeat: Callable[[str], None],
 ) -> None:
-    if window._startup_archive_autoload_expected():
-        if bool(getattr(window, "_startup_archive_path_prompt_accepted", False)):
+    if window.shell._startup_archive_autoload_expected():
+        if bool(getattr(window.shell, "_startup_archive_path_prompt_accepted", False)):
             startup_splash.set_detail(
                 "Building archive cache. First load can take a while; let it finish.",
                 1,
                 100,
             )
-            QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)
+            QTimer.singleShot(0, window.shell._maybe_autoload_archive_on_startup)
         else:
             startup_splash.set_detail("Loading Archive Browser...")
         _write_heartbeat("archive_autoload_queued")
     else:
         _write_heartbeat("running")
-        window._release_startup_splash()
+        window.shell._release_startup_splash()
 
 
 def queue_startup_archive_autoload(
@@ -87,7 +87,7 @@ def queue_startup_archive_autoload(
     def continue_after_prompt() -> None:
         _continue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
 
-    if window._show_startup_archive_path_prompt_if_needed(
+    if window.shell._show_startup_archive_path_prompt_if_needed(
         startup_splash,
         on_finished=continue_after_prompt,
     ):
@@ -135,7 +135,7 @@ class StartupPromptMixin:
 
     def _startup_splash_progress_detail(self, detail: str) -> str:
         text = str(detail or "Working...").strip() or "Working..."
-        if bool(getattr(self, "archive_startup_hold_until_ready", False)):
+        if bool(getattr(self.archive, "archive_startup_hold_until_ready", False)):
             text = text.replace(" in the background", "")
             text = text.replace(" in background", "")
             text = text.replace(" while the archive list stays available", "")
@@ -145,13 +145,13 @@ class StartupPromptMixin:
     def _archive_startup_progress_work_active(self) -> bool:
         return bool(
             self.worker_thread is not None
-            or self.archive_basic_index_thread is not None
-            or self.archive_enhanced_index_thread is not None
-            or self.archive_derived_cache_thread is not None
-            or self.archive_deferred_basic_index_start_pending
-            or self.archive_deferred_enhanced_index_start_pending
-            or self.archive_deferred_derived_cache_write_pending
-            or self.archive_derived_cache_write_pending
+            or self.archive.archive_basic_index_thread is not None
+            or self.archive.archive_enhanced_index_thread is not None
+            or self.archive.archive_derived_cache_thread is not None
+            or self.archive.archive_deferred_basic_index_start_pending
+            or self.archive.archive_deferred_enhanced_index_start_pending
+            or self.archive.archive_deferred_derived_cache_write_pending
+            or self.archive.archive_derived_cache_write_pending
         )
 
     def _show_main_window_after_startup_splash(self) -> None:
@@ -211,9 +211,9 @@ class StartupPromptMixin:
 
     def _startup_archive_first_paint_needed(self) -> bool:
         return bool(
-            getattr(self, "archive_entries", None)
+            getattr(self.archive, "archive_entries", None)
             and self._is_tool_visible_or_current(self.archive_browser_tab)
-            and not self.archive_browser_first_visible_paint_done
+            and not self.archive.archive_browser_first_visible_paint_done
         )
 
     def _schedule_startup_splash_finish_after_main_window_paint(self, delay_ms: int = 120) -> None:
@@ -235,7 +235,7 @@ class StartupPromptMixin:
         deadline = float(getattr(self, "_startup_splash_finish_after_paint_deadline", 0.0) or 0.0)
         if self._startup_archive_first_paint_needed() and time.monotonic() < deadline:
             self._update_startup_splash("Opening Archive Browser...", 0, 0)
-            self._schedule_archive_browser_first_visible_paint_marker(80)
+            self.archive._schedule_archive_browser_first_visible_paint_marker(80)
             self._schedule_startup_splash_finish_after_main_window_paint(140)
             return
         if self._startup_archive_first_paint_needed():
@@ -254,12 +254,12 @@ class StartupPromptMixin:
             time.monotonic() + _ARCHIVE_FIRST_PAINT_FALLBACK_SECONDS
         )
         if (
-            getattr(self, "archive_entries", None)
+            getattr(self.archive, "archive_entries", None)
             and self._is_tool_visible_or_current(self.archive_browser_tab)
         ):
-            self.archive_browser_first_visible_paint_done = False
-            self.archive_browser_first_visible_started_at = time.perf_counter()
-            self._schedule_archive_browser_first_visible_paint_marker(80)
+            self.archive.archive_browser_first_visible_paint_done = False
+            self.archive.archive_browser_first_visible_started_at = time.perf_counter()
+            self.archive._schedule_archive_browser_first_visible_paint_marker(80)
         self._schedule_startup_splash_finish_after_main_window_paint(180)
         try:
             self.repaint()
@@ -278,8 +278,8 @@ class StartupPromptMixin:
         splash = getattr(self, "_startup_splash_window", None)
         self._startup_splash_released = True
         self._startup_splash_release_pending = False
-        if self.archive_scan_worker is None and self.worker_thread is None:
-            self.archive_startup_index_warmup_required = False
+        if self.archive.archive_scan_worker is None and self.worker_thread is None:
+            self.archive.archive_startup_index_warmup_required = False
         self._record_startup_prompt_event("splash_released")
         if (
             getattr(self, "_startup_splash_holds_main_window", False)
@@ -312,12 +312,12 @@ class StartupPromptMixin:
             self._write_heartbeat("running")
             self._release_startup_splash()
             return
-        if self.worker_thread is not None or self.archive_entries:
+        if self.worker_thread is not None or self.archive.archive_entries:
             self._write_heartbeat("running")
             self._release_startup_splash()
             return
 
-        package_root_text = self.archive_package_root_edit.text().strip()
+        package_root_text = self.archive.archive_package_root_edit.text().strip()
         if not package_root_text:
             self._write_heartbeat("running")
             self._release_startup_splash()
@@ -333,7 +333,7 @@ class StartupPromptMixin:
         self._startup_archive_autoload_dispatched = True
 
         self.append_archive_log("Startup Archive Browser preload is enabled.")
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
         use_remote_backend = bool(remote_bridge is not None and remote_bridge.displays_v2)
         if not use_remote_backend:
             health_report = self._check_archive_cache_health(package_root_text)
@@ -354,15 +354,15 @@ class StartupPromptMixin:
                 )
         else:
             self._update_startup_splash("Loading Archive Browser...")
-        self.archive_startup_autoload_defer_preview = True
-        self.archive_startup_hold_until_ready = not use_remote_backend
-        self.archive_startup_index_warmup_required = not use_remote_backend
-        self.archive_startup_saved_filter_state = {}
-        self.archive_startup_saved_filter_apply_pending = False
-        self.archive_startup_saved_filter_wait_logged = False
-        self._apply_archive_filter_state(self._neutral_archive_filter_state())
-        self.archive_filters_dirty = False
-        self._update_archive_filter_button_state()
+        self.archive.archive_startup_autoload_defer_preview = True
+        self.archive.archive_startup_hold_until_ready = not use_remote_backend
+        self.archive.archive_startup_index_warmup_required = not use_remote_backend
+        self.archive.archive_startup_saved_filter_state = {}
+        self.archive.archive_startup_saved_filter_apply_pending = False
+        self.archive.archive_startup_saved_filter_wait_logged = False
+        self.archive._apply_archive_filter_state(self.archive._neutral_archive_filter_state())
+        self.archive.archive_filters_dirty = False
+        self.archive._update_archive_filter_button_state()
         self._record_runtime_event("startup_autoload_begin", package_root=str(package_root))
         force_refresh = not self._preference_bool("prefer_archive_cache_on_startup", True)
         if use_remote_backend:
@@ -370,14 +370,14 @@ class StartupPromptMixin:
             self._release_startup_splash()
             QTimer.singleShot(
                 0,
-                lambda: self.scan_archives(
+                lambda: self.archive.scan_archives(
                     force_refresh=force_refresh,
                     activate_archive_tab=False,
                 ),
             )
             return
         self._write_heartbeat("archive_autoload")
-        self.scan_archives(force_refresh=force_refresh, activate_archive_tab=False)
+        self.archive.scan_archives(force_refresh=force_refresh, activate_archive_tab=False)
 
     def _load_game_executable_fingerprints(self) -> Dict[str, Dict[str, object]]:
         raw_value = self.settings.value("archive/game_executable_fingerprints", "{}")
@@ -538,7 +538,7 @@ class StartupPromptMixin:
 
         deleted_paths = invalidate_archive_browser_cache(
             package_root,
-            self.archive_cache_root,
+            self.archive.archive_cache_root,
             on_log=self.append_archive_log,
         )
         if deleted_paths:
@@ -558,13 +558,13 @@ class StartupPromptMixin:
 
     def _startup_archive_autoload_expected(self) -> bool:
         if self._startup_benchmark_enabled():
-            package_root_text = self.archive_package_root_edit.text().strip()
+            package_root_text = self.archive.archive_package_root_edit.text().strip()
             return bool(package_root_text and Path(package_root_text).expanduser().exists())
         if self.show_first_run_guide_on_launch:
             return False
         if getattr(self, "_previous_session_unclean", False) and not self._startup_benchmark_enabled():
             return False
-        package_root_text = self.archive_package_root_edit.text().strip()
+        package_root_text = self.archive.archive_package_root_edit.text().strip()
         if not package_root_text:
             return False
         return Path(package_root_text).expanduser().exists()
@@ -583,13 +583,13 @@ class StartupPromptMixin:
             return
         package_root_text = os.environ.get("CDMW_BENCHMARK_PACKAGE_ROOT", "").strip()
         if package_root_text:
-            self.archive_package_root_edit.setText(package_root_text)
+            self.archive.archive_package_root_edit.setText(package_root_text)
         self.show_first_run_guide_on_launch = False
-        self.archive_startup_hold_until_ready = True
-        self.archive_startup_saved_filter_apply_pending = False
-        self.archive_startup_saved_filter_state = {}
-        self._apply_archive_filter_state(self._neutral_archive_filter_state())
-        self.archive_filters_dirty = False
+        self.archive.archive_startup_hold_until_ready = True
+        self.archive.archive_startup_saved_filter_apply_pending = False
+        self.archive.archive_startup_saved_filter_state = {}
+        self.archive._apply_archive_filter_state(self.archive._neutral_archive_filter_state())
+        self.archive.archive_filters_dirty = False
 
     def _record_startup_benchmark_complete(
         self,
@@ -604,8 +604,8 @@ class StartupPromptMixin:
         fields: Dict[str, object] = {
             "reason": str(reason or "archive_ready"),
             "source": str(source or "unknown"),
-            "entry_count": len(getattr(self, "archive_entries", []) or []),
-            "cache_root": str(getattr(self, "archive_cache_root", "")),
+            "entry_count": len(getattr(self.archive, "archive_entries", []) or []),
+            "cache_root": str(getattr(self.archive, "archive_cache_root", "")),
             "timing_summary": timing_summary,
             "total_s": _timing_value(timings, "total_s"),
             "archive_scan_s": _timing_value(timings, "archive_scan_s"),
@@ -633,11 +633,11 @@ class StartupPromptMixin:
         if self._startup_benchmark_search_started_at > 0.0:
             return
         extension_filter = self._startup_benchmark_extension_filter()
-        state = self._neutral_archive_filter_state()
+        state = self.archive._neutral_archive_filter_state()
         state["filter_text"] = search_text
         state["extension_filter"] = extension_filter
-        self._apply_archive_filter_state(state)
-        self.archive_filters_dirty = False
+        self.archive._apply_archive_filter_state(state)
+        self.archive.archive_filters_dirty = False
         self._startup_benchmark_search_started_at = time.perf_counter()
         self._record_startup_prompt_event(
             "startup_benchmark_search_begin",
@@ -647,7 +647,7 @@ class StartupPromptMixin:
         self.append_archive_log(
             f"Startup benchmark search begin: extension={extension_filter}, text={search_text!r}."
         )
-        self._apply_archive_filter()
+        self.archive._apply_archive_filter()
 
     def _schedule_startup_benchmark_search_after_visible(self, delay_ms: int = 120) -> None:
         if not self._startup_benchmark_enabled() or self._startup_benchmark_finish_requested:
@@ -684,7 +684,7 @@ class StartupPromptMixin:
         if started_at <= 0.0:
             return
         search_elapsed_s = max(0.0, time.perf_counter() - started_at)
-        search_count = len(getattr(self, "archive_filtered_entries", []) or [])
+        search_count = len(getattr(self.archive, "archive_filtered_entries", []) or [])
         self._record_startup_prompt_event(
             "startup_benchmark_search_complete",
             search_text=self._startup_benchmark_search_text(),
@@ -723,7 +723,7 @@ class StartupPromptMixin:
                 "startup_benchmark_archive_ready",
                 reason=str(reason or "archive_ready"),
                 source=str(source or "unknown"),
-                entry_count=len(getattr(self, "archive_entries", []) or []),
+                entry_count=len(getattr(self.archive, "archive_entries", []) or []),
                 total_s=_timing_value(timings, "total_s"),
                 cache_load_s=_timing_value(timings, "cache_load_s"),
                 cache_write_s=_timing_value(timings, "cache_write_s"),
@@ -745,7 +745,7 @@ class StartupPromptMixin:
             return
         if bool(getattr(self, "_startup_archive_path_prompt_handled", False)):
             return
-        if not self.archive_package_root_edit.text().strip():
+        if not self.archive.archive_package_root_edit.text().strip():
             if not self._prompt_for_archive_package_root_if_missing(
                 reason="startup",
                 after_autodetect=self._show_first_run_guide_if_needed,
@@ -761,7 +761,7 @@ class StartupPromptMixin:
             return False
         if not self.show_first_run_guide_on_launch:
             return False
-        return not bool(self.archive_package_root_edit.text().strip())
+        return not bool(self.archive.archive_package_root_edit.text().strip())
 
     def _retire_startup_archive_path_dialog(self, dialog: QDialog) -> None:
         thread = getattr(dialog, "_path_task_thread", None)
@@ -797,7 +797,7 @@ class StartupPromptMixin:
             self.set_status_message("Crimson Desert path setup skipped; archive cache build was not started.")
             self._record_startup_prompt_event("startup_path_prompt_skipped")
         else:
-            self.archive_package_root_edit.setText(selected_path)
+            self.archive.archive_package_root_edit.setText(selected_path)
             self.show_first_run_guide_on_launch = False
             self._startup_archive_path_prompt_accepted = True
             self.settings.setValue("ui/startup_setup_shown", True)
@@ -835,7 +835,7 @@ class StartupPromptMixin:
 
         dialog = StartupArchivePathDialog(
             theme_key=self.current_theme_key,
-            initial_path=self.archive_package_root_edit.text().strip(),
+            initial_path=self.archive.archive_package_root_edit.text().strip(),
             startup_splash=startup_splash,
         )
         localizer = getattr(self, "ui_localizer", None)
@@ -869,7 +869,7 @@ class StartupPromptMixin:
         reason: str,
         after_autodetect: Optional[Callable[[], None]] = None,
     ) -> bool:
-        if self.archive_package_root_edit.text().strip():
+        if self.archive.archive_package_root_edit.text().strip():
             return True
 
         self.focus_archive_locations()
@@ -897,10 +897,10 @@ class StartupPromptMixin:
             selected = QFileDialog.getExistingDirectory(
                 self,
                 "Select Archive Package Root",
-                self._pick_existing_directory(self.archive_package_root_edit.text()),
+                self._pick_existing_directory(self.archive.archive_package_root_edit.text()),
             )
             if selected:
-                self.archive_package_root_edit.setText(selected)
+                self.archive.archive_package_root_edit.setText(selected)
                 self.flush_settings_save()
                 self.set_status_message(f"Archive package root set: {selected}")
                 return True

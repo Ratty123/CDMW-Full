@@ -15,7 +15,7 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
     def test_archive_model_surface_uses_resident_vortice_host_only(self) -> None:
         source = _read("cdmw/ui/archive_browser/preview_layout.py")
 
-        self.assertIn("DotNetPreviewHostFrame(", source)
+        self.assertIn('RustPreviewHostFrame(', source)
         self.assertIn("profile=DotNetPreviewProfile.PREVIEW", source)
         self.assertIn('setObjectName("DotNetVorticePreviewHost")', source)
         self.assertIn("self.archive_model_preview.setVisible(False)", source)
@@ -27,7 +27,7 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         self.assertIn('getattr(result, "dotnet_preview_package_path"', source)
         self.assertIn("validate_dotnet_preview_package(package_dir)", source)
         self.assertIn("self.archive_d3d11_preview_host.load_package(", source)
-        self.assertIn('"textured" if show_textures else "untextured_wire"', source)
+        self.assertIn('"textured" if render_settings.use_textures_by_default else "untextured_wire"', source)
         self.assertIn("_preserve_archive_resident_scene_error", source)
         self.assertNotIn("self.archive_d3d11_preview_host.clear_preview()", source)
         self.assertIn("The legacy renderer is not used as a fallback.", source)
@@ -58,12 +58,12 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         lifecycle = _read("cdmw/ui/archive_browser/preview_dotnet_lifecycle.py")
         self.assertIn('self.archive_isolated_renderer_button = QCheckBox("Load textures")', layout)
         self.assertIn(
-            "lambda _checked=False: self._open_archive_isolated_d3d11_preview()",
+            'lambda _checked=False: self.archive._open_archive_isolated_d3d11_preview()',
             wiring,
         )
-        self.assertIn("checkbox.setChecked(preference_enabled)", lifecycle)
+        self.assertIn("checkbox.setChecked(checked)", lifecycle)
         self.assertIn('checkbox.setText("Load textures")', lifecycle)
-        self.assertIn("replace(settings, use_textures_by_default=enabled)", lifecycle)
+        self.assertIn("settings, use_textures_by_default=enabled,", lifecycle)
         self.assertNotIn('setText("Hide Textures")', lifecycle)
 
     def test_settings_keep_legacy_keys_but_name_the_single_renderer(self) -> None:
@@ -71,15 +71,15 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         labels = _read("cdmw/ui/model_preview_native.py")
 
         self.assertIn('ARCHIVE_RENDERER_D3D11 = "d3d11_native"', dialog)
-        self.assertIn('addItem(".NET/Vortice Preview", self.ARCHIVE_RENDERER_D3D11)', dialog)
-        self.assertIn(".NET/Vortice is the only Archive Browser model-preview path.", dialog)
-        self.assertIn('ARCHIVE_MODEL_RENDERER_D3D11: ".NET/Vortice Preview"', labels)
+        self.assertIn('addItem("Rust Preview", self.ARCHIVE_RENDERER_D3D11)', dialog)
+        self.assertIn("Rust Preview is the only Archive Browser model-preview path.", dialog)
+        self.assertIn('ARCHIVE_MODEL_RENDERER_D3D11: "Rust Preview"', labels)
         self.assertNotIn("Native D3D11", dialog)
 
     def test_canonical_package_worker_does_not_invoke_legacy_writer(self) -> None:
         worker = _read("cdmw/workers/d3d11_package_workers.py")
 
-        self.assertIn("build_or_lookup_dotnet_preview_package_from_model", worker)
+        self.assertIn("build_or_lookup_rust_preview_package_from_model", worker)
         self.assertNotIn("write_isolated_d3d11_preview_package", worker)
 
     def test_non_model_preview_routes_remain_unchanged(self) -> None:

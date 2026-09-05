@@ -618,7 +618,7 @@ def _texture_original_texture_material_step_014(_state):
         if not (callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active()):
             return False
         message = 'Active Mesh Editor donor material routing requires native material execution; Python donor material plan mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -674,7 +674,7 @@ def _texture_original_texture_material_step_019(_state):
         sidecar_entries = tuple(_state.self._archive_model_sidecar_entries_for_swap(donor_entry))
         request_id = _state.donor_material_request_state['request_id'] + 1
         _state.donor_material_request_state['request_id'] = request_id
-        _state.self._run_utility_task(status_message=str(_state.donor_control_text['progress_message']), task=lambda _log, stop_event: _state.load_donor_material_source(donor_entry, sidecar_entries, _state.self.archive_entries_by_basename, stop_event=stop_event), on_complete=lambda result: _state._show_donor_material_source_picker(request_id, target_index, target_material_name, donor_entry, result), on_error=lambda message: _state._handle_donor_material_source_error(request_id, message), task_accepts_cancel=True)
+        _state.self.shell._run_utility_task(status_message=str(_state.donor_control_text['progress_message']), task=lambda _log, stop_event: _state.load_donor_material_source(donor_entry, sidecar_entries, _state.self.archive_entries_by_basename, stop_event=stop_event), on_complete=lambda result: _state._show_donor_material_source_picker(request_id, target_index, target_material_name, donor_entry, result), on_error=lambda message: _state._handle_donor_material_source_error(request_id, message), task_accepts_cancel=True)
     _state._open_original_material_source_picker = _open_original_material_source_picker
 
 def _texture_original_texture_material_step_020(_state):
@@ -707,7 +707,7 @@ def _texture_original_texture_material_step_021(_state):
         donor_header.setWordWrap(True)
         donor_layout.addWidget(donor_header)
         donor_splitter = _state.QSplitter(_state.Qt.Horizontal)
-        donor_preview = _state.NativePreviewPanel(str(_state.donor_control_text['donor_preview_note']), theme_key=_state.self.current_theme_key)
+        donor_preview = _state.NativePreviewPanel(str(_state.donor_control_text['donor_preview_note']), theme_key=_state.self.shell.current_theme_key)
         donor_preview.setMinimumSize(330, 320)
         donor_preview.set_render_settings(_state._current_preview_render_settings())
         donor_preview.clear_model(str(_state.donor_control_text['donor_preview_clear']))

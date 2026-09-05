@@ -155,7 +155,7 @@ class ArchiveMeshDirectPatchMixin:
             "A backup of the touched PAPGT/PAMT/PAZ files will be created first and can be restored from Archive Patch Backups.\n\n"
             f"Targets:\n{shown_targets or '- none'}"
         )
-        backup_root = self.app_context.services.require_archive_mutations().backup_root
+        backup_root = self.shell.app_context.services.require_archive_mutations().backup_root
         prompt.setDetailedText(
             "Archive entries that will be patched:\n"
             + "\n".join(compact_paths)

@@ -412,11 +412,11 @@ def dispatch_static_replacement_prompt_preflight(
         supplemental_files=tuple(Path(path) for path in supplemental_files),
         scene_import_result=scene_import_result,
         original_mesh=original_mesh,
-        archive_entries_by_normalized_path=getattr(owner, "archive_entries_by_normalized_path", {}) or {},
-        archive_entries_by_basename=getattr(owner, "archive_entries_by_basename", {}) or {},
-        archive_entries_by_extension=getattr(owner, "archive_entries_by_extension", {}) or {},
+        archive_entries_by_normalized_path=getattr(owner.archive, "archive_entries_by_normalized_path", {}) or {},
+        archive_entries_by_basename=getattr(owner.archive, "archive_entries_by_basename", {}) or {},
+        archive_entries_by_extension=getattr(owner.archive, "archive_entries_by_extension", {}) or {},
     )
-    recorder = getattr(owner, "_record_runtime_event", None)
+    recorder = getattr(owner.shell, "_record_runtime_event", None)
     if callable(recorder):
         recorder(
             "mesh_alignment_preflight_requested",
@@ -438,7 +438,7 @@ def dispatch_static_replacement_prompt_preflight(
         if (
             not isinstance(payload, StaticReplacementPromptPreflightResult)
             or payload.request_id != int(getattr(owner, "_static_replacement_prompt_preflight_request_id", 0) or 0)
-            or bool(getattr(owner, "_shutting_down", False))
+            or bool(getattr(owner.shell, "_shutting_down", False))
         ):
             return
         if callable(recorder):
@@ -459,7 +459,7 @@ def dispatch_static_replacement_prompt_preflight(
     def failed(message: str) -> None:
         if (
             request_id != int(getattr(owner, "_static_replacement_prompt_preflight_request_id", 0) or 0)
-            or bool(getattr(owner, "_shutting_down", False))
+            or bool(getattr(owner.shell, "_shutting_down", False))
             or is_expected_cancellation_message(message)
             or "cancel" in str(message).casefold()
         ):
@@ -472,12 +472,12 @@ def dispatch_static_replacement_prompt_preflight(
                 source_path=str(obj_path),
                 message=str(message or ""),
             )
-        getattr(owner, "set_status_message")(
+        getattr(owner.shell, "set_status_message")(
             f"Mesh Replacement Builder setup failed: {message}",
             error=True,
         )
 
-    getattr(owner, "_run_utility_task_when_idle")(
+    getattr(owner.shell, "_run_utility_task_when_idle")(
         status_message="Preparing Mesh Replacement Builder...",
         task=task,
         on_complete=ready,

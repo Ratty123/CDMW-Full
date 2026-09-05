@@ -142,7 +142,7 @@ def _accept_build_step_005(_state):
     def _set_alignment_build_status(message: str) -> None:
         text, applied = _state._apply_alignment_build_status_view(_state._alignment_build_status_started_helper(message))
         if text and (not applied):
-            _state.self.set_status_message(text)
+            _state.self.shell.set_status_message(text)
     _state._set_alignment_build_status = _set_alignment_build_status
 
 def _accept_build_step_006(_state):
@@ -151,7 +151,7 @@ def _accept_build_step_006(_state):
         view_state = _state._alignment_build_status_finished_helper(_state.build_accept_state, message, success=success, export_allowed=bool(_state.replacement_export_allowed['allowed']))
         text, _applied = _state._apply_alignment_build_status_view(view_state)
         if text:
-            _state.self.set_status_message(text, error=bool(view_state.get('status_error')))
+            _state.self.shell.set_status_message(text, error=bool(view_state.get('status_error')))
     _state._finish_alignment_build_state = _finish_alignment_build_state
 
 def _accept_build_step_007(_state):
@@ -162,7 +162,7 @@ def _accept_build_step_007(_state):
         try:
             _state.on_accept(options)
         except Exception as exc:
-            _state.self.set_status_message(_state._alignment_accept_handler_failed_status_helper(exc), error=True)
+            _state.self.shell.set_status_message(_state._alignment_accept_handler_failed_status_helper(exc), error=True)
             _state.QMessageBox.warning(_state.dialog, _state._alignment_builder_warning_title_helper(), str(exc))
     _state._dispatch_alignment_accept = _dispatch_alignment_accept
 

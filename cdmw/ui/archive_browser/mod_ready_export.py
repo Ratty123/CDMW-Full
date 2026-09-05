@@ -292,15 +292,15 @@ class ArchiveModReadyExportMixin:
         include_related_files = bool(result[3])
         export_options = result[4] if isinstance(result[4], ModPackageExportOptions) else ModPackageExportOptions()
 
-        self.mod_ready_export_root_edit.setText(str(export_root))
-        self.mod_ready_package_title_edit.setText(package_info.title)
-        self.mod_ready_package_version_edit.setText(package_info.version)
-        self.mod_ready_package_author_edit.setText(package_info.author)
-        self.mod_ready_package_description_edit.setText(package_info.description)
-        self.mod_ready_create_no_encrypt_checkbox.setChecked(create_no_encrypt_file)
-        for profile, checkbox in self.mod_ready_profile_checkboxes.items():
+        self.textures.mod_ready_export_root_edit.setText(str(export_root))
+        self.textures.mod_ready_package_title_edit.setText(package_info.title)
+        self.textures.mod_ready_package_version_edit.setText(package_info.version)
+        self.textures.mod_ready_package_author_edit.setText(package_info.author)
+        self.textures.mod_ready_package_description_edit.setText(package_info.description)
+        self.textures.mod_ready_create_no_encrypt_checkbox.setChecked(create_no_encrypt_file)
+        for profile, checkbox in self.textures.mod_ready_profile_checkboxes.items():
             checkbox.setChecked(profile in set(export_options.export_profiles or export_options.manager_targets))
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
 
         return export_root, package_info, create_no_encrypt_file, include_related_files, export_options
 
@@ -320,7 +320,7 @@ class ArchiveModReadyExportMixin:
         initial_package_description: str = "",
         parent: Optional[QWidget] = None,
     ) -> Optional[Tuple[Path, ModPackageInfo, bool, bool, ModPackageExportOptions]]:
-        config = self.collect_config()
+        config = self.textures.collect_config()
         export_root_text = str(getattr(config, "mod_ready_export_root", "") or "").strip()
         if export_root_text:
             export_root = Path(export_root_text).expanduser()
@@ -329,7 +329,7 @@ class ArchiveModReadyExportMixin:
             default_root = (
                 resolve_default_mod_ready_export_root(Path(output_root_text).expanduser())
                 if output_root_text
-                else workspace_paths(self.settings_file_path.parent)["mod_ready_export_root"]
+                else workspace_paths(self.shell.settings_file_path.parent)["mod_ready_export_root"]
             )
             selected_dir = QFileDialog.getExistingDirectory(parent if parent is not None else self, browse_title, str(default_root))
             if not selected_dir:

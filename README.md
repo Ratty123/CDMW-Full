@@ -51,50 +51,35 @@ is smaller and safer to hand to someone who is not modding.
 
 ## What it does
 
-CDMW currently exposes 15 tools. **Create New Item** is the end-to-end path for
-creating a brand-new equipment item without overwriting its shipped template;
-Archive Browser, Mesh Editor, Placement & Animations, and the texture tools cover
-inspection and replacement work. In Classic Workspace, Mesh Editor and Placement
-& Animations sit directly on the five-entry main strip while the other tools are
-grouped under Assets, Texture Upscaling & Editing, and Tools.
+CDMW exposes 12 tools. **Create New Item** creates equipment without overwriting
+its shipped template. Archive Browser, Mesh Editor, Placement & Animations, and
+Textures cover inspection and replacement work.
+
+Compact is the native, first-run layout. Classic remains available in
+**Settings > Appearance > Layout**. Both use one tool registry and one content
+stack; only navigation changes. Existing saved layout choices remain authoritative.
+Most tools can be detached and reattached without replacing their widgets or state.
 
 ```mermaid
-flowchart TD
-    MAIN["Main strip"]
-    A["Assets"]
-    M["Mesh Editor"]
-    P["Placement &<br/>Animations"]
-    T["Texture Upscaling<br/>& Editing"]
-    O["Tools"]
-
-    MAIN --> A
-    MAIN --> M
-    MAIN --> P
-    MAIN --> T
-    MAIN --> O
-
-    A --> A1["Archive Browser"]
-    A --> A2["Model Library"]
-    A --> A3["Icon Creator"]
-    A --> A4["Create New Item"]
-    T --> T1["Texture Workflow"]
-    T --> T2["Texture Replacer"]
-    T --> T3["Texture Recolor"]
-    T --> T4["Texture Editor"]
-    O --> O1["Retrofit/Repackage"]
-    O --> O2["Format Explorer"]
-    O --> O3["Translations"]
-    O --> O4["Research"]
-    O --> O5["Text Search"]
+flowchart LR
+    Navigation["Compact rail or Classic tabs"] --> Stack["Shared tool stack"]
+    Stack --> Assets["Archives, models, items and icons"]
+    Stack --> Authoring["Mesh Editor, Placement and Textures"]
+    Authoring --> Textures
+    Stack --> Utilities
+    Textures --> Edit
+    Textures --> Recolor
+    Textures --> Upscale
+    Edit & Recolor & Upscale --> Review["Review & Export"]
 ```
 
-Most Classic workspaces can be detached and restored from the Window menu;
-Format Explorer and Translations stay anchored in Tools. The diagram shows the
-**Classic Workspace** alternative. First run defaults to the restart-selected
-**Compact Workspace**, which presents the same 15 tool widgets in a four-category
-rail with a compact status strip and Activity drawer. An existing Compact or
-Classic choice remains authoritative, and neither layout creates a second set of
-services, workers, previews, or saved tool state.
+**Authoring > Textures** keeps one asset list and canvas across Edit, Recolor, and Upscale.
+Documents retain their layers, history, selection, original DDS, and target binding.
+Review & Export contains native DDS/PNG/project export, replacement matching,
+recolor packages, and upscale output. Ambiguous originals need an explicit match.
+Batch jobs stage their output and publish it only after success, preserving earlier
+results on cancellation or failure. Recolor accepts loose mod folders and ZIPs,
+including supported material-color sidecars and manager profiles.
 
 | Workspace | What you can do |
 |---|---|
@@ -104,12 +89,9 @@ services, workers, previews, or saved tool state.
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
 | **Mesh Editor** | Edit archive or local meshes in the single embedded Rust `wgpu`/D3D12 workspace. It exposes capability-gated Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, topology, cleanup, normals/tangents, UV, rig/weights, history, layers, Morph & Refit, OBJ/FBX export, OBJ/DAE/glTF/GLB import, and Exact/Free Edit controls for the active LOD. Tool scope and disabled reasons are shown in place: topology-changing maintenance remains Free Edit-only, tangent generation cannot silently split Exact geometry, rectangular UV snapping accepts width and height, Refit distinguishes selected from all garments, and Morph sliders support add/edit/delete plus optional scope replacement. Wide layouts use single-row session and navigation/status chrome plus compact grouped tool rows; narrow layouts expand without hiding controls. Live geometry previews use a lightweight tangent update and restore the exact basis at gesture completion, while bounded Cleanup/Normal/UV commands avoid a duplicate native preflight execution; topology-growing actions retain full result preflight. Texture, mip, filtering, AA, material, history, and final-geometry quality remain unchanged. Work stays in an isolated shadow session; only a validated **Finish Edit Mesh** atomically publishes one reversible result. A missing, incompatible, crashed, or unembeddable Rust helper is explained with Retry and never falls back to another renderer. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
-| **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
-| **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
-| **Texture Recolor** | Build reviewed colour variants from source textures while retaining the existing texture workflow and package routes. |
-| **Texture Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. Finished work goes to `Texture Replacer` or `Icon Creator` from the Send To menu. |
+| **Textures** | Edit layered documents, recolor mod textures and supported material values, upscale selected assets, review replacement matches, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
-| **Format Explorer** | What every game file format can and cannot do, and which tool does it, read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
+| **Format Explorer** | What every game file format can and cannot do, and which tool does it, with editing limits and evidence from the maintained [capability manifest](schemas/archive_content_capabilities.v1.json). |
 | **Translations** | Edit language catalogue entries with reference-language context and export reviewed translation data. |
 | **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
 | **Text Search** | Search archive or loose text-like assets such as XML, JSON, CFG, and Lua with preview and export. |
@@ -178,90 +160,26 @@ and do not need a game install.
 
 ## File format decoding status
 
-Crimson Desert ships 141 distinct file extensions. 89 of them are engine formats,
-either Pearl Abyss's own or licensed middleware, and **77 of those actually appear
-in the shipped build**. That last number is the honest denominator: a format the
-game does not contain cannot be modded and should not count against progress.
+Support is specific to an operation and its input. **Format Explorer** lists the
+available tools, editing limits and recorded evidence for each format. Its
+capability manifest is maintained alongside the code; a manifest claim does not
+replace tests of the operation or validation against the target asset.
 
-| Scope | Formats | Read coverage | Write coverage |
-|---|---:|---:|---:|
-| **Engine formats the build ships** | 77 | **41.7%** | **26.0%** |
-| Weighted by archive file count | 1,383,187 files | 65.9% | 53.8% |
-| Engine formats (proprietary + middleware) | 89 | 41.9% | 27.5% |
-| Pearl Abyss formats only | 82 | 42.6% | 28.0% |
-| All formats, open ones included | 141 | 54.3% | 33.0% |
+| Workflow | Supported operations | Limits |
+|---|---|---|
+| Textures | Edit PNG/DDS documents, recolor mod textures and material values, upscale, and export DDS or manager packages | DDS format, mip and semantic rules apply; replacement requires an identified original target. |
+| Mesh Editor | Preview and capability-gated LOD0 authoring, review, validation and output | Individual tools report availability. Parser support does not establish every material, asset or GPU as verified. |
+| Translations | Search and edit PALOC string records | Category IDs are preserved; the engine's category names are not known. |
+| Prefabs | Inspect decoded objects and perform the supported typed edits | Some files cannot be walked completely; editing is limited to supported structures. |
+| Physics / HKX | Inspect records and perform allowed fixed-size value edits | New topology, collision shapes, ragdoll bodies and structural edits are blocked. |
+| Animation / PAA | Read and rebuild supported sampled and packed clips | Unmodelled fields are preserved; they cannot be authored from nothing. |
+| Audio / WEM | Decode to WAV and rebuild PCM WEM | Vorbis and Opus streams cannot be authored. |
 
-Coverage is a weighted mean rather than a file count. Read: `full` = 1.0,
-`partial` = 0.6, `surface` = 0.3, `none` = 0.0. Write: `full` = 1.0,
-`constrained` = 0.5, `none` = 0.0.
-
-### By area
-
-| Area | Formats | Read | Write |
-|---|---:|---|---|
-| `user_interface_text` | 15 | `██████████████████░░` 88.7% | `████████████████░░░░` 80.0% |
-| `texture_image` | 12 | `████████████████░░░░` 80.0% | `███░░░░░░░░░░░░░░░░░` 16.7% |
-| `model_mesh_physics` | 19 | `███████████░░░░░░░░░` 54.2% | `███████░░░░░░░░░░░░░` 36.8% |
-| `audio_video` | 18 | `█████████░░░░░░░░░░░` 47.2% | `██░░░░░░░░░░░░░░░░░░` 8.3% |
-| `material_metadata` | 62 | `█████████░░░░░░░░░░░` 46.0% | `███████░░░░░░░░░░░░░` 33.1% |
-| `animation_scene` | 15 | `████████░░░░░░░░░░░░` 42.0% | `█████░░░░░░░░░░░░░░░` 23.3% |
-
-### What is finished
-
-These read and write completely, and are the formats the modding workflows are
-built on:
-
-`.pac` · `.pam` · `.pamlod` · `.pami` · `.paa` · `.paloc` · `.papr` ·
-`.paprojdesc` · `.pac_xml` · `.pam_xml` · `.pamlod_xml` · `.prefabdata_xml` ·
-`.material` · `.mi` · `.pas` · `.pma` · `.spline` · `.spline2d` · `.app_xml`
-
-Meshes, skeletal animation, textures, materials, and every line of localized
-text in the game round-trip byte for byte. `.papr` closed most recently: all
-twenty shipped jiggle/cloth rigs now tile to their declared entry counts and
-rebuild exactly, across 2,737 configuration blocks.
-
-### What is partly decoded
-
-| Format | Files | Read | Write | What is left |
-|---|---:|---|---|---|
-| `.prefab` | 47,343 | partial | constrained | 38% of archive prefabs do not walk to completion. Component identity is not stated at the failure sites, and the collection-header width rule is ambiguous at 87% of them. Value editing is scoped to objects whose type the file states; whole objects can be duplicated or removed. |
-| `.hkx` | 58,031 | partial | constrained | Structural edits (topology, counts, references, strings, arrays) are blocked pending semantic rebuild proof. No new collision shapes or ragdoll bodies. |
-| `.paac` | 520 | partial | constrained | The chart node structure around the strings is not parsed, so only same-length animation retargets are allowed. |
-| `.wem` | 375,762 | partial | constrained | Only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored. |
-| `.pat` | 1,397 | partial | none | No builder, and LOD1+ plus unrecognised vertex layouts stay undecoded, so static world geometry is view-only. |
-| `.pae` `.paem` | 6,669 | full | constrained | The reflection graph and inline values are decoded to the byte. Fixed-size look values and same-length references can be cloned or edited; strings and collections cannot be resized, and the particle preview is intentionally approximate. |
-| `.parg` `.pasg` `.pcg` | 882 | partial | none | The pointer-addressed heap walk stops at the pointee trailer, so nested values are not read. Closing `.parg` would extend effect render-schema authoring; closing `.pcg` would allow custom collision hulls. |
-| `.pab` | 257 | partial | none | Unknown and truncated variants fall back to a best-effort scan, and there is no writer, so bones cannot be added, removed, or renamed. |
-
-### What is still closed
-
-The highest-value gaps, in the order they would pay off:
-
-- **`.palevel` / `.levelinfo`** (35,597 files): placement records are not parsed,
-  so level layout cannot be edited.
-- **`.paseq` / `.paseqc` / `.pastage`** (10,947 files): track and event layout is
-  not parsed, so cutscene authoring is closed.
-- **`.meshinfo`** (35,310 files): count/offset tables are unproven, which is why
-  mesh replacement treats it as read-only; physics bounds and socket context
-  cannot be edited.
-- **`.paschedule` / `.paschedulepath`** (7,756 files): NPC routines cannot be
-  retimed or rerouted.
-- **`.bnk`** (3,186 files): HIRC event/action tables are not parsed, so sounds
-  can be swapped but not added.
-- **`.padxil`** (89,824 files): the shader bytecode is catalogued but not
-  disassembled here, and there is no route to recompile an edited shader back
-  into the cache.
-
-A handful of entries (`.save`, `.binarystring`, `.paseqh`, `.paasmt`,
-`.questgaugecount`, `.linkedsceneobject`) are encrypted with a key the project
-does not have. Nothing can be decoded there until that is solved.
-
-> The tables above are generated from
-> [`schemas/archive_content_capabilities.v1.json`](schemas/archive_content_capabilities.v1.json)
-> by `tools/report_format_decode_progress.py`, so the status a modder reads and
-> the status the Archive Browser reports cannot disagree. The full per-format
-> breakdown, including the evidence behind each rejected hypothesis, is
-> generated from that manifest and kept outside this repository.
+The [capability manifest](schemas/archive_content_capabilities.v1.json) records
+per-format evidence and remaining work. The generated
+[contributor decoding report](docs/features/format-decode-progress.md) retains a
+weighted research-progress heuristic. Those scores are not percentages of
+supported operations, editable assets or verified game behavior.
 
 ---
 

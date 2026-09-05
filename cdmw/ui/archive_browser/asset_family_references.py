@@ -38,10 +38,10 @@ def _asset_family_dependency_maps(owner: object, entry: object):
     except ArchiveWorkflowDependenciesUnavailable:
         return None
     sidecars_by_path = (
-        {} if dependencies.remote else (getattr(owner, "archive_sidecar_entries_by_texture_path", {}) or {})
+        {} if dependencies.remote else (getattr(owner.archive, "archive_sidecar_entries_by_texture_path", {}) or {})
     )
     sidecars_by_basename = (
-        {} if dependencies.remote else (getattr(owner, "archive_sidecar_entries_by_texture_basename", {}) or {})
+        {} if dependencies.remote else (getattr(owner.archive, "archive_sidecar_entries_by_texture_basename", {}) or {})
     )
     return (
         dependencies.selected_entry,
@@ -260,14 +260,14 @@ class ArchiveAssetFamilyReferenceMixin:
 
     def _scope_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
         if self._archive_lookup_indexes_snapshot() is None:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Archive path lookup is warming; retry family filtering when indexing finishes."
             )
             return
         graph, _references = self._archive_asset_family_graph_for_entry(entry)
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:
-            self.set_status_message("No resolved family entries are available to scope.", error=True)
+            self.shell.set_status_message("No resolved family entries are available to scope.", error=True)
             return
         suffix = " + hints" if include_hints else ""
         self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {entry.basename}{suffix}")
@@ -277,9 +277,9 @@ class ArchiveAssetFamilyReferenceMixin:
         if remote_bridge is not None and remote_bridge.displays_v2:
             selection = remote_bridge.current_family_export_selection()
             if selection is None:
-                self.set_status_message("Select an archive file before exporting its family.", error=True)
+                self.shell.set_status_message("Select an archive file before exporting its family.", error=True)
                 return
-            default_dir = self.settings_file_path.parent / "archive_related_export"
+            default_dir = self.shell.settings_file_path.parent / "archive_related_export"
             output_dir = QFileDialog.getExistingDirectory(
                 self,
                 f"Export Asset Family - {entry.basename}",
@@ -295,14 +295,14 @@ class ArchiveAssetFamilyReferenceMixin:
             )
             return
         if self._archive_lookup_indexes_snapshot() is None:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Archive path lookup is warming; retry family export when indexing finishes."
             )
             return
         graph, _references = self._archive_asset_family_graph_for_entry(entry)
         entries = self._archive_entries_from_asset_family_graph(graph, include_hints=include_hints)
         if not entries:
-            self.set_status_message("No resolved family entries are available to export.", error=True)
+            self.shell.set_status_message("No resolved family entries are available to export.", error=True)
             return
         self._export_archive_reference_entries_to_folder(
             entries,
@@ -443,7 +443,7 @@ class ArchiveAssetFamilyReferenceMixin:
         scope_label: str,
     ) -> None:
         if not entries:
-            self.set_status_message("No resolved referenced files are available to show in Archive Browser.", error=True)
+            self.shell.set_status_message("No resolved referenced files are available to show in Archive Browser.", error=True)
             return
         resolved_count = len(entries)
         applied = self._apply_archive_direct_scope(
@@ -458,12 +458,12 @@ class ArchiveAssetFamilyReferenceMixin:
             log_text=f"Referenced file set scoped Archive Browser to: {scope_label} ({resolved_count:,} file(s); no full archive scan).",
         )
         if applied:
-            self.set_status_message(f"Showing file set in Archive Browser: {scope_label}.")
+            self.shell.set_status_message(f"Showing file set in Archive Browser: {scope_label}.")
 
     def _scope_selected_archive_texture_references(self) -> None:
         selected_entries = self._resolved_archive_reference_entries(self._selected_archive_texture_references())
         if not selected_entries:
-            self.set_status_message("Select one or more resolved referenced files first.", error=True)
+            self.shell.set_status_message("Select one or more resolved referenced files first.", error=True)
             return
         current_entry = self._current_archive_entry()
         source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "selected asset"
@@ -479,7 +479,7 @@ class ArchiveAssetFamilyReferenceMixin:
             entries.append(current_entry)
         entries.extend(self._resolved_archive_reference_entries(self.current_archive_model_texture_references))
         if not entries:
-            self.set_status_message("No resolved referenced files are available to show in Archive Browser.", error=True)
+            self.shell.set_status_message("No resolved referenced files are available to show in Archive Browser.", error=True)
             return
         source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "current asset"
         self._scope_archive_reference_entries(entries, scope_label=f"File set for {source_label}")
@@ -487,7 +487,7 @@ class ArchiveAssetFamilyReferenceMixin:
     def _scope_current_archive_entry_only(self) -> None:
         current_entry = self._current_archive_entry()
         if not isinstance(current_entry, ArchiveEntry):
-            self.set_status_message("Select one archive file first.", error=True)
+            self.shell.set_status_message("Select one archive file first.", error=True)
             return
         self._apply_archive_direct_scope(
             [current_entry],
@@ -535,7 +535,7 @@ class ArchiveAssetFamilyReferenceMixin:
     def _scope_current_archive_asset_set(self, *, include_used_by: bool = False, include_hints: bool = False) -> None:
         entries = self._current_archive_asset_set_entries(include_used_by=include_used_by, include_hints=include_hints)
         if not entries:
-            self.set_status_message("No resolved asset-set files are available to show.", error=True)
+            self.shell.set_status_message("No resolved asset-set files are available to show.", error=True)
             return
         current_entry = self._current_archive_entry()
         source_label = current_entry.basename if isinstance(current_entry, ArchiveEntry) else "current asset"
@@ -552,7 +552,7 @@ class ArchiveAssetFamilyReferenceMixin:
         default_entries = self._current_archive_asset_set_entries(include_used_by=False, include_hints=False)
         used_by_entries = self._resolved_archive_reference_entries(self.current_archive_used_by_references)
         if not default_entries:
-            self.set_status_message("No resolved asset-set files are available to export.", error=True)
+            self.shell.set_status_message("No resolved asset-set files are available to export.", error=True)
             return None
         hint_entries = self._current_archive_asset_set_entries(include_used_by=False, include_hints=True)
         hint_only_count = max(0, len(hint_entries) - len(default_entries))

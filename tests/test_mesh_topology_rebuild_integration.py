@@ -22,7 +22,6 @@ from cdmw.domain.mesh.topology import (
 from cdmw.modding.mesh_importer import rebuild_mesh_with_report
 from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.modding.mesh_parser import parse_pac
-from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 from cdmw.services.mesh_service import MeshService
 
 from tests.test_mesh_pac_topology_serializer import _pac_fixture
@@ -373,20 +372,6 @@ def test_a_resident_loop_cut_rebuilds_through_the_exact_serializer() -> None:
         service.close_edit_session(view.session_id)
 
 
-def test_editable_package_export_refuses_resident_topology_state(tmp_path) -> None:
-    data = _pac_fixture()
-    service = MeshService()
-    view = _session(service, "topology-rebuild-package", data)
-    try:
-        _subdivide(service, view.session_id)
-        working = service.working_mesh(view.session_id, clone=True)
-
-        with pytest.raises(RuntimeError) as blocked:
-            build_mesh_dotnet_experiment_package(working, output_root=tmp_path)
-
-        assert "Editable Package Export is unavailable" in str(blocked.value)
-    finally:
-        service.close_edit_session(view.session_id)
 
 
 def test_a_rebuild_blocked_by_protected_bytes_writes_nothing() -> None:

@@ -94,6 +94,9 @@ class _Bridge:
 class _Window(QWidget):
     def __init__(self, settings: _Settings | None = None) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_catalogue_service = _Service()
         self.archive_remote_bridge = _Bridge()
         self.settings = settings or _Settings()

@@ -95,6 +95,9 @@ def test_stale_basic_index_result_is_rejected() -> None:
         _handle_archive_basic_index_complete = ArchiveIndexWorkerMixin._handle_archive_basic_index_complete
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self._shutting_down = False
             self.archive_basic_index_request_id = 2
             self.archive_entries_by_normalized_path = {"current": ()}
@@ -144,6 +147,11 @@ def test_archive_index_receiver_delivers_worker_lifecycle_on_ui_thread(kind: str
     events: list[tuple[str, QThread, object | None]] = []
 
     class Owner(QObject):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         def record(self, event: str, detail: object | None = None) -> None:
             events.append((event, QThread.currentThread(), detail))
 
@@ -246,6 +254,9 @@ def test_scan_complete_extension_fallback_only_schedules_worker() -> None:
         _ensure_archive_extension_index_ready = ArchiveScanLifecycleMixin._ensure_archive_extension_index_ready
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.archive_entries_by_extension = {}
             self.archive_entries = Entries()
             self.ensure_calls = 0
@@ -268,6 +279,9 @@ def test_mesh_lookup_and_companion_use_scan_worker_indexes() -> None:
         _normalize_archive_entry_path = staticmethod(ArchiveBrowserRowPayloadMixin._normalize_archive_entry_path)
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.archive_entries = [pam, pamlod]
             self.archive_entries_by_normalized_path = {}
             self.archive_mesh_entries_by_normalized_path = {

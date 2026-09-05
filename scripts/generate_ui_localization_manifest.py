@@ -35,14 +35,6 @@ BUILTIN_TRANSLATION_CODES = (
     "zh-Hant",
 )
 EXCLUSIONS_PATH = ROOT / "scripts" / "ui_localization_exclusions.json"
-DOTNET_LOCALIZATION_PATH = (
-    ROOT
-    / "tools"
-    / "dotnet_mesh_editor_experiment"
-    / "ExperimentForm.UiLocalization.cs"
-)
-DOTNET_KEYS_BEGIN = "    // BEGIN GENERATED UI LOCALIZATION KEYS"
-DOTNET_KEYS_END = "    // END GENERATED UI LOCALIZATION KEYS"
 
 PYTHON_SOURCE_ROOTS = (
     ROOT / "cdmw" / "app",
@@ -53,7 +45,6 @@ PYTHON_SOURCE_ROOTS = (
     ROOT / "tools" / "format_explorer",
     ROOT / "tools" / "translation_studio",
 )
-CSHARP_SOURCE_ROOT = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 MANUAL_SOURCE_KEYS = frozenset(
     {
         "Abort",
@@ -372,18 +363,7 @@ _CSHARP_UI_SINK_RE = re.compile(
 )
 _CSHARP_MAX_SINK_REGION_CHARS = 8_000
 
-@dataclass(frozen=True, slots=True)
-class _CSharpString:
-    value: str
-    start: int
-    end: int
-    line: int
 
-@dataclass(frozen=True, slots=True)
-class _CSharpMethod:
-    name: str
-    start: int
-    end: int
 
 def _looks_like_translatable_text(value: str) -> bool:
     text = _WHITESPACE_RE.sub(" ", str(value or "").strip())
@@ -1306,482 +1286,30 @@ def _scan_python() -> dict[str, list[dict[str, object]]]:
     return origins
 
 
-def _csharp_prefix(text: str, index: int) -> tuple[int, bool, bool] | None:
-    for marker, interpolated, verbatim in (
-        ('$@"', True, True),
-        ('@$"', True, True),
-        ('$"', True, False),
-        ('@"', False, True),
-        ('"', False, False),
-    ):
-        if text.startswith(marker, index):
-            return len(marker), interpolated, verbatim
-    return None
 
 
-def _skip_csharp_character(text: str, index: int) -> int:
-    cursor = index + 1
-    while cursor < len(text):
-        if text[cursor] == "\\":
-            cursor += 2
-            continue
-        if text[cursor] == "'":
-            return cursor + 1
-        cursor += 1
-    return cursor
 
 
-def _decode_csharp_escape(text: str, index: int) -> tuple[str, int]:
-    if index + 1 >= len(text):
-        return "\\", index + 1
-    escaped = text[index + 1]
-    replacements = {
-        "\\": "\\",
-        '"': '"',
-        "'": "'",
-        "0": "\0",
-        "a": "\a",
-        "b": "\b",
-        "f": "\f",
-        "n": "\n",
-        "r": "\r",
-        "t": "\t",
-        "v": "\v",
-    }
-    if escaped in replacements:
-        return replacements[escaped], index + 2
-    if escaped == "u" and index + 6 <= len(text):
-        raw = text[index + 2 : index + 6]
-        try:
-            return chr(int(raw, 16)), index + 6
-        except ValueError:
-            pass
-    if escaped == "U" and index + 10 <= len(text):
-        raw = text[index + 2 : index + 10]
-        try:
-            return chr(int(raw, 16)), index + 10
-        except ValueError:
-            pass
-    return escaped, index + 2
 
 
-def _parse_csharp_string(
-    text: str,
-    start: int,
-    *,
-    line_offsets: list[int],
-) -> tuple[_CSharpString, int, tuple[_CSharpString, ...]] | None:
-    prefix = _csharp_prefix(text, start)
-    if prefix is None:
-        return None
-    marker_length, interpolated, verbatim = prefix
-    cursor = start + marker_length
-    output: list[str] = []
-    nested: list[_CSharpString] = []
-    placeholder_index = 0
-    while cursor < len(text):
-        char = text[cursor]
-        if char == '"':
-            if verbatim and cursor + 1 < len(text) and text[cursor + 1] == '"':
-                output.append('"')
-                cursor += 2
-                continue
-            line = bisect.bisect_right(line_offsets, start) + 1
-            end = cursor + 1
-            return (
-                _CSharpString("".join(output), start, end, line),
-                end,
-                tuple(nested),
-            )
-        if not verbatim and char == "\\":
-            decoded, cursor = _decode_csharp_escape(text, cursor)
-            output.append(decoded)
-            continue
-        if interpolated and char == "{" and not text.startswith("{{", cursor):
-            output.append(f"{{value_{placeholder_index}}}")
-            placeholder_index += 1
-            cursor += 1
-            depth = 1
-            while cursor < len(text) and depth > 0:
-                if text.startswith("//", cursor):
-                    newline = text.find("\n", cursor + 2)
-                    cursor = len(text) if newline < 0 else newline + 1
-                    continue
-                if text.startswith("/*", cursor):
-                    end_comment = text.find("*/", cursor + 2)
-                    cursor = len(text) if end_comment < 0 else end_comment + 2
-                    continue
-                expression_prefix = _csharp_prefix(text, cursor)
-                if expression_prefix is not None:
-                    parsed = _parse_csharp_string(
-                        text,
-                        cursor,
-                        line_offsets=line_offsets,
-                    )
-                    if parsed is not None:
-                        inner, cursor, inner_nested = parsed
-                        nested.append(inner)
-                        nested.extend(inner_nested)
-                        continue
-                if text[cursor] == "'":
-                    cursor = _skip_csharp_character(text, cursor)
-                    continue
-                if text[cursor] == "{":
-                    depth += 1
-                elif text[cursor] == "}":
-                    depth -= 1
-                cursor += 1
-            continue
-        if interpolated and text.startswith("{{", cursor):
-            output.append("{")
-            cursor += 2
-            continue
-        if interpolated and text.startswith("}}", cursor):
-            output.append("}")
-            cursor += 2
-            continue
-        output.append(char)
-        cursor += 1
-    return None
 
 
-def _iter_csharp_strings(text: str) -> tuple[_CSharpString, ...]:
-    line_offsets = [match.start() for match in re.finditer(r"\n", text)]
-    strings: list[_CSharpString] = []
-    cursor = 0
-    while cursor < len(text):
-        if text.startswith("//", cursor):
-            newline = text.find("\n", cursor + 2)
-            cursor = len(text) if newline < 0 else newline + 1
-            continue
-        if text.startswith("/*", cursor):
-            end_comment = text.find("*/", cursor + 2)
-            cursor = len(text) if end_comment < 0 else end_comment + 2
-            continue
-        if text[cursor] == "'":
-            cursor = _skip_csharp_character(text, cursor)
-            continue
-        parsed = _parse_csharp_string(text, cursor, line_offsets=line_offsets)
-        if parsed is None:
-            cursor += 1
-            continue
-        value, cursor, nested = parsed
-        strings.append(value)
-        strings.extend(nested)
-    return tuple(strings)
 
 
-def _csharp_sink_regions(text: str) -> tuple[tuple[int, int, str], ...]:
-    regions: list[tuple[int, int, str]] = []
-    for match in _CSHARP_UI_SINK_RE.finditer(text):
-        end_limit = min(len(text), match.start() + _CSHARP_MAX_SINK_REGION_CHARS)
-        semicolon = text.find(";", match.end(), end_limit)
-        newline_limit = text.find("\n\n", match.end(), end_limit)
-        candidates = [
-            value
-            for value in (semicolon, newline_limit)
-            if value >= 0
-        ]
-        end = min(candidates) + 1 if candidates else end_limit
-        sink = re.sub(r"\s+", "", match.group(0))
-        regions.append((match.start(), end, sink))
-    return tuple(regions)
 
 
-def _csharp_call_argument_ranges(
-    text: str,
-    open_paren: int,
-    *,
-    strings: tuple[_CSharpString, ...],
-) -> tuple[tuple[int, int], ...]:
-    by_start = {literal.start: literal for literal in strings}
-    ranges: list[tuple[int, int]] = []
-    argument_start = open_paren + 1
-    cursor = argument_start
-    paren_depth = 1
-    brace_depth = 0
-    bracket_depth = 0
-    while cursor < len(text):
-        literal = by_start.get(cursor)
-        if literal is not None:
-            cursor = literal.end
-            continue
-        if text.startswith("//", cursor):
-            newline = text.find("\n", cursor + 2)
-            cursor = len(text) if newline < 0 else newline + 1
-            continue
-        if text.startswith("/*", cursor):
-            end_comment = text.find("*/", cursor + 2)
-            cursor = len(text) if end_comment < 0 else end_comment + 2
-            continue
-        if text[cursor] == "'":
-            cursor = _skip_csharp_character(text, cursor)
-            continue
-        char = text[cursor]
-        if char == "(":
-            paren_depth += 1
-        elif char == ")":
-            paren_depth -= 1
-            if paren_depth == 0:
-                ranges.append((argument_start, cursor))
-                return tuple(ranges)
-        elif char == "{":
-            brace_depth += 1
-        elif char == "}":
-            brace_depth = max(0, brace_depth - 1)
-        elif char == "[":
-            bracket_depth += 1
-        elif char == "]":
-            bracket_depth = max(0, bracket_depth - 1)
-        elif (
-            char == ","
-            and paren_depth == 1
-            and brace_depth == 0
-            and bracket_depth == 0
-        ):
-            ranges.append((argument_start, cursor))
-            argument_start = cursor + 1
-        cursor += 1
-    return ()
 
 
-def _csharp_wrapper_regions(
-    text: str,
-    strings: tuple[_CSharpString, ...],
-) -> tuple[tuple[int, int, str], ...]:
-    regions: list[tuple[int, int, str]] = []
-    for wrapper, indexes in _CSHARP_WRAPPER_ARG_INDEXES.items():
-        pattern = re.compile(rf"\b{re.escape(wrapper)}\s*\(")
-        for match in pattern.finditer(text):
-            open_paren = text.find("(", match.start(), match.end())
-            arguments = _csharp_call_argument_ranges(
-                text,
-                open_paren,
-                strings=strings,
-            )
-            selected = range(len(arguments)) if indexes is None else indexes
-            for index in selected:
-                if index >= len(arguments):
-                    continue
-                start, end = arguments[index]
-                regions.append((start, end, f"csharp-wrapper:{wrapper}[{index}]"))
-    return tuple(regions)
 
 
-def _csharp_matching_brace(
-    text: str,
-    open_brace: int,
-    *,
-    strings: tuple[_CSharpString, ...],
-) -> int:
-    by_start = {literal.start: literal for literal in strings}
-    cursor = open_brace
-    depth = 0
-    while cursor < len(text):
-        literal = by_start.get(cursor)
-        if literal is not None:
-            cursor = literal.end
-            continue
-        if text.startswith("//", cursor):
-            newline = text.find("\n", cursor + 2)
-            cursor = len(text) if newline < 0 else newline + 1
-            continue
-        if text.startswith("/*", cursor):
-            end_comment = text.find("*/", cursor + 2)
-            cursor = len(text) if end_comment < 0 else end_comment + 2
-            continue
-        if text[cursor] == "'":
-            cursor = _skip_csharp_character(text, cursor)
-            continue
-        if text[cursor] == "{":
-            depth += 1
-        elif text[cursor] == "}":
-            depth -= 1
-            if depth == 0:
-                return cursor
-        cursor += 1
-    return -1
 
 
-def _csharp_string_methods(
-    text: str,
-    *,
-    strings: tuple[_CSharpString, ...],
-) -> tuple[_CSharpMethod, ...]:
-    methods: list[_CSharpMethod] = []
-    pattern = re.compile(
-        r"\b(?:private|internal|public|protected)\s+"
-        r"(?:static\s+)?string\??\s+"
-        r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*"
-        r"\([^;{}]*\)\s*(?P<body>=>|\{)",
-        re.MULTILINE,
-    )
-    for match in pattern.finditer(text):
-        if match.group("body") == "=>":
-            end = text.find(";", match.end())
-            if end >= 0:
-                methods.append(
-                    _CSharpMethod(
-                        name=match.group("name"),
-                        start=match.end(),
-                        end=end,
-                    )
-                )
-            continue
-        open_brace = text.find("{", match.start(), match.end())
-        end = _csharp_matching_brace(
-            text,
-            open_brace,
-            strings=strings,
-        )
-        if end >= 0:
-            methods.append(
-                _CSharpMethod(
-                    name=match.group("name"),
-                    start=open_brace + 1,
-                    end=end,
-                )
-            )
-    return tuple(methods)
 
 
-def _infer_csharp_ui_return_methods(
-    documents: dict[
-        Path,
-        tuple[
-            str,
-            tuple[_CSharpString, ...],
-            tuple[tuple[int, int, str], ...],
-        ],
-    ],
-) -> set[str]:
-    methods: dict[str, list[tuple[Path, _CSharpMethod]]] = defaultdict(list)
-    sink_fragments: list[str] = []
-    for path, (text, strings, sink_regions) in documents.items():
-        if path.name != "ExperimentForm.UiLocalization.cs":
-            for method in _csharp_string_methods(text, strings=strings):
-                methods[method.name].append((path, method))
-        sink_fragments.extend(text[start:end] for start, end, _sink in sink_regions)
-
-    selected: set[str] = set()
-    for fragment in sink_fragments:
-        for method_name in methods:
-            if re.search(rf"\b{re.escape(method_name)}\s*\(", fragment):
-                selected.add(method_name)
-
-    selected.update(
-        method_name
-        for method_name in _CSHARP_CROSS_FILE_UI_RETURN_METHODS
-        if method_name in methods
-    )
-    assignment_pattern = re.compile(
-        r"\b(?:var|string\??)\s+"
-        r"(?P<variable>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*"
-        r"(?P<method>[A-Za-z_][A-Za-z0-9_]*)\s*\("
-    )
-    for text, _strings, sink_regions in documents.values():
-        sink_identifiers = {
-            identifier
-            for start, end, _sink in sink_regions
-            for identifier in re.findall(
-                r"\b[A-Za-z_][A-Za-z0-9_]*\b",
-                text[start:end],
-            )
-        }
-        for match in assignment_pattern.finditer(text):
-            if (
-                match.group("variable") in sink_identifiers
-                and match.group("method") in methods
-            ):
-                selected.add(match.group("method"))
-
-    changed = True
-    while changed:
-        changed = False
-        for method_name in tuple(selected):
-            for path, method in methods.get(method_name, ()):
-                text = documents[path][0]
-                body = text[method.start:method.end]
-                for candidate in methods:
-                    if (
-                        candidate not in selected
-                        and re.search(rf"\b{re.escape(candidate)}\s*\(", body)
-                    ):
-                        selected.add(candidate)
-                        changed = True
-    return selected
 
 
-def _csharp_ui_return_regions(
-    text: str,
-    *,
-    strings: tuple[_CSharpString, ...],
-    selected_methods: set[str],
-) -> tuple[tuple[int, int, str], ...]:
-    return tuple(
-        (
-            method.start,
-            method.end,
-            f"csharp-return:{method.name}",
-        )
-        for method in _csharp_string_methods(text, strings=strings)
-        if method.name in selected_methods
-    )
 
 
-def _scan_csharp() -> dict[str, list[dict[str, object]]]:
-    origins: dict[str, list[dict[str, object]]] = defaultdict(list)
-    if not CSHARP_SOURCE_ROOT.is_dir():
-        return origins
-    documents: dict[
-        Path,
-        tuple[
-            str,
-            tuple[_CSharpString, ...],
-            tuple[tuple[int, int, str], ...],
-        ],
-    ] = {}
-    for path in sorted(CSHARP_SOURCE_ROOT.glob("*.cs")):
-        try:
-            text = path.read_text(encoding="utf-8-sig")
-        except (OSError, UnicodeDecodeError):
-            continue
-        strings = _iter_csharp_strings(text)
-        sink_regions = (
-            *_csharp_sink_regions(text),
-            *_csharp_wrapper_regions(text, strings),
-        )
-        documents[path] = (text, strings, sink_regions)
-
-    selected_methods = _infer_csharp_ui_return_methods(documents)
-    for path, (text, strings, sink_regions) in documents.items():
-        relative = path.relative_to(ROOT).as_posix()
-        regions = (
-            *sink_regions,
-            *_csharp_ui_return_regions(
-                text,
-                strings=strings,
-                selected_methods=selected_methods,
-            ),
-        )
-        if not regions:
-            continue
-        for literal in strings:
-            matching = [
-                sink
-                for start, end, sink in regions
-                if start <= literal.start < end
-            ]
-            if not matching or not _looks_like_translatable_text(literal.value):
-                continue
-            origins[literal.value].append(
-                {
-                    "path": relative,
-                    "line": literal.line,
-                    "sink": f"csharp:{matching[-1]}",
-                }
-            )
-    return origins
 
 
 def _load_existing_manual_sources() -> set[str]:
@@ -1899,40 +1427,10 @@ def _english_catalog(manifest: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _dotnet_keys(manifest: dict[str, object]) -> tuple[str, ...]:
-    keys: list[str] = []
-    for entry in manifest.get("entries", ()):
-        if not isinstance(entry, dict):
-            continue
-        if any(
-            str(origin.get("path", "")).startswith(
-                "tools/dotnet_mesh_editor_experiment/"
-            )
-            for origin in entry.get("origins", ())
-            if isinstance(origin, dict)
-        ):
-            keys.append(str(entry.get("key", "")))
-    return tuple(sorted(filter(None, keys)))
 
 
-def _dotnet_keys_block(keys: Iterable[str]) -> str:
-    lines = [DOTNET_KEYS_BEGIN]
-    for key in keys:
-        lines.append(f"        {json.dumps(key, ensure_ascii=False)},")
-    lines.append(DOTNET_KEYS_END)
-    return "\n".join(lines)
 
 
-def _expected_dotnet_source(manifest: dict[str, object]) -> str:
-    source = DOTNET_LOCALIZATION_PATH.read_text(encoding="utf-8-sig")
-    start = source.find(DOTNET_KEYS_BEGIN)
-    end = source.find(DOTNET_KEYS_END)
-    if start < 0 or end < start:
-        raise ValueError(
-            f"{DOTNET_LOCALIZATION_PATH.relative_to(ROOT)} is missing generated-key markers."
-        )
-    end += len(DOTNET_KEYS_END)
-    return source[:start] + _dotnet_keys_block(_dotnet_keys(manifest)) + source[end:]
 
 
 def _serialized(payload: object) -> str:

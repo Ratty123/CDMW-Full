@@ -326,7 +326,7 @@ class ArchiveSourcePickerDialogMixin:
             _set_source_preview_message(f"Loading preview for {source_entry.basename}...")
             preview_status.setText(f"Building geometry preview for {source_entry.path}...")
             preview_settings = self._current_model_preview_render_settings()
-            preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
+            preview_theme = get_theme(str(getattr(self.shell, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
             worker = ArchivePreviewWorker(
                 request_id,
                 source_entry,

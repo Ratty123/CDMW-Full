@@ -26,14 +26,14 @@ class ArchivePrefabJsonActionsMixin:
         return selected if isinstance(selected, ArchiveEntry) and str(selected.extension or "").lower() == ".prefab" else None
 
     def _default_archive_prefab_edit_json_path(self, entry: ArchiveEntry) -> Path:
-        default_dir = self.settings_file_path.parent / "prefab_edit_json"
+        default_dir = self.shell.settings_file_path.parent / "prefab_edit_json"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "prefab"
         return default_dir / f"{stem}.prefab-edit.json"
 
     def _export_current_archive_prefab_edit_json(self) -> None:
         entry = self._current_archive_prefab_entry()
         if entry is None:
-            self.set_status_message("Select a .prefab archive entry before exporting Prefab Edit JSON.", error=True)
+            self.shell.set_status_message("Select a .prefab archive entry before exporting Prefab Edit JSON.", error=True)
             return
         selected, _selected_filter = QFileDialog.getSaveFileName(
             self,
@@ -61,9 +61,9 @@ class ArchivePrefabJsonActionsMixin:
                 "Prefab Edit JSON Export Complete",
                 f"Wrote editable Prefab JSON:\n{exported}\n\nOnly same-length resource and placement edits are importable in V1.",
             )
-            self.set_status_message(f"Exported Prefab Edit JSON for {entry.basename}.")
+            self.shell.set_status_message(f"Exported Prefab Edit JSON for {entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting Prefab Edit JSON for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -73,7 +73,7 @@ class ArchivePrefabJsonActionsMixin:
     def _import_current_archive_prefab_edit_json(self) -> None:
         entry = self._current_archive_prefab_entry()
         if entry is None:
-            self.set_status_message("Select a .prefab archive entry before importing Prefab Edit JSON.", error=True)
+            self.shell.set_status_message("Select a .prefab archive entry before importing Prefab Edit JSON.", error=True)
             return
         selected, _selected_filter = QFileDialog.getOpenFileName(
             self,
@@ -130,16 +130,16 @@ class ArchivePrefabJsonActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchiveLooseExportResult):
-                self.set_status_message("Prefab Edit JSON import finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Prefab Edit JSON import finished with an unexpected result payload.", error=True)
                 return
             QMessageBox.information(
                 self,
                 "Prefab Edit Package Complete",
                 f"Wrote prefab edit loose package into:\n{result.package_root}",
             )
-            self.set_status_message(f"Wrote prefab edit loose package: {result.package_root}")
+            self.shell.set_status_message(f"Wrote prefab edit loose package: {result.package_root}")
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Building Prefab Edit package for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,

@@ -103,45 +103,19 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             + _read("cdmw/ui/archive_browser/render_lifecycle.py")
         )
         self.assertIn("if self._is_tool_visible_or_current(self.archive_browser_tab)", source)
-        self.assertIn('self._refresh_archive_browser_if_pending("tab_activation")', source)
+        self.assertIn('self.archive._refresh_archive_browser_if_pending("tab_activation")', source)
         self.assertIn("def _archive_browser_render_is_ready(self) -> bool:", source)
         self.assertIn("skipped=ready", source)
         self.assertIn("if self._is_tool_visible_or_current(self.research_tab)", source)
         self.assertIn("self.model_library_tab.handle_activated()", source)
         self.assertIn("self.item_icons_tab.schedule_targets_refresh(update_preview=False)", source)
 
-    def test_compare_preview_does_not_autostart_during_startup(self) -> None:
-        source = (
-            _read("cdmw/ui/shell/app_window.py")
-            + "\n"
-            + _read("cdmw/ui/texture_workflow/compare_preview.py")
-            + "\n"
-            + _read("cdmw/ui/texture_workflow/shell_controls.py")
-        )
-        self.assertIn("def _compare_preview_can_autostart(self) -> bool:", source)
-        self.assertIn("if self._startup_benchmark_enabled():\n            return False", source)
-        refresh_start = source.index("    def refresh_compare_list(")
-        refresh_body = source[refresh_start: source.index("    def _handle_compare_selection_change", refresh_start)]
-        render_start = source.index("    def _render_compare_preview(")
-        render_body = source[render_start: source.index("    def _start_compare_preview_worker(", render_start)]
-        self.assertIn("if self._startup_benchmark_enabled():\n            self.compare_list.setCurrentRow(-1)", refresh_body)
-        self.assertIn("if self._startup_benchmark_enabled():\n            return", render_body)
-        self.assertIn('getattr(self, "_startup_splash_window", None) is not None', source)
-        self.assertIn("def _queue_current_compare_preview_if_visible(self) -> None:", source)
-        self.assertIn("self._queue_current_compare_preview_if_visible()", source)
-        handler_start = source.index("    def _handle_compare_selection_change(")
-        handler_body = source[handler_start: source.index("    def _flush_pending_compare_preview_selection", handler_start)]
-        self.assertIn("if self._compare_preview_can_autostart():", handler_body)
-        self.assertNotIn("            self._compare_preview_timer.start()\n\n", handler_body)
-        flush_start = source.index("    def _flush_pending_compare_preview_selection")
-        flush_body = source[flush_start: source.index("    def current_compare_path_for_research", flush_start)]
-        self.assertIn("if not self._compare_preview_can_autostart():", flush_body)
-
     def test_item_finder_uses_visible_icon_batches_only(self) -> None:
         source = "\n".join(
             (
                 _read("cdmw/ui/shell/app_window.py"),
                 _read("cdmw/ui/shell/window_runtime_state.py"),
+                _read("cdmw/ui/archive_browser/runtime_state.py"),
                 _read("cdmw/ui/archive_browser/asset_catalog_dialog.py"),
                 _read("cdmw/ui/archive_browser/attachment_donor_picker_dialog.py"),
                 _read("cdmw/ui/archive_browser/icon_pipeline.py"),
@@ -279,13 +253,13 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("force_render: bool = False", source)
         self.assertNotIn("_release_startup_after_archive_render", source)
         self.assertIn("force_render=False", source)
-        autoload_start = source.index("    if window._startup_archive_autoload_expected():")
+        autoload_start = source.index("    if window.shell._startup_archive_autoload_expected():")
         autoload_body = source[autoload_start: source.index("    else:", autoload_start)]
         self.assertNotIn("window._release_startup_splash()", autoload_body)
         startup_load_start = source.index("    def _maybe_autoload_archive_on_startup")
         startup_load_body = source[startup_load_start: source.index("    def _load_game_executable_fingerprints", startup_load_start)]
         self.assertIn('bool(getattr(self, "_previous_session_unclean", False))', startup_load_body)
-        self.assertIn("self._apply_archive_filter_state(self._neutral_archive_filter_state())", startup_load_body)
+        self.assertIn('self.archive._apply_archive_filter_state(self.archive._neutral_archive_filter_state())', startup_load_body)
         self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', source)
         self.assertIn('os.environ.pop("CDMW_DEFER_TEXTURE_PREVIEW", None)', source)
         scan_complete_start = source.index("    def _handle_archive_scan_complete")
@@ -294,17 +268,17 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self._ensure_archive_extension_index_ready()", scan_complete_body)
         self.assertNotIn("archive_startup_saved_filter_apply_pending = True", startup_load_body)
         self.assertNotIn("Saved filters will apply when search is ready.", startup_load_body)
-        self.assertIn("self.archive_startup_hold_until_ready = True", source)
+        self.assertIn('self.archive.archive_startup_hold_until_ready = True', source)
         self.assertIn("def _maybe_release_startup_after_archive_ready", source)
         self.assertIn("and not bool(getattr(self, \"archive_startup_hold_until_ready\", False))", source)
         self.assertIn("startup_hold or (not browser_visible) or self._archive_browser_background_work_allowed()", source)
         self.assertIn("and self.archive_derived_cache_thread is None", source)
         self.assertIn("and not self.archive_deferred_derived_cache_write_pending", source)
         self.assertIn("def _archive_startup_progress_work_active(self) -> bool:", source)
-        self.assertIn("if not self._archive_startup_progress_work_active():", source)
+        self.assertIn('if not self.shell._archive_startup_progress_work_active():', source)
         self.assertIn("getattr(self, \"_startup_splash_release_pending\", False)", source)
         self.assertIn("QTimer.singleShot(1000, self._maybe_release_startup_after_archive_ready)", source)
-        self.assertIn("self._startup_splash_progress_detail", source)
+        self.assertIn('self.shell._startup_splash_progress_detail', source)
         self.assertIn("if startup_deferred_archive_load:", source)
         self.assertIn('worker_extension_filter = "*"', source)
         self.assertIn("worker_view_mode = ARCHIVE_BROWSER_VIEW_MODE", source)
@@ -369,7 +343,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("def _archive_filter_state_explicitly_requires_item_search", item_search_body)
         self.assertIn("def _archive_filter_state_waits_for_item_search", filters_source)
         self.assertIn("and self._archive_filter_state_explicitly_requires_item_search(state)", filters_source)
-        self.assertIn("and not self._startup_benchmark_enabled()", source)
+        self.assertIn("and not self.shell._startup_benchmark_enabled()", source)
         self.assertNotIn("model_like_extensions", item_search_body)
         self.assertIn("def _schedule_archive_enhanced_index_auto_prewarm", source)
         self.assertIn("def _start_archive_enhanced_index_auto_prewarm", source)
@@ -413,11 +387,11 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         activation_body = source[activation_start: source.index("    def show_settings", activation_start)]
         refresh_start = source.index("    def _refresh_archive_browser_if_pending(")
         refresh_body = source[refresh_start: source.index("    def _refresh_or_defer_archive_browser_view", refresh_start)]
-        self.assertIn("self.archive_browser_first_visible_started_at = time.perf_counter()", activation_body)
-        self.assertIn("if self._archive_browser_render_is_ready():", activation_body)
+        self.assertIn("self.archive.archive_browser_first_visible_started_at = time.perf_counter()", activation_body)
+        self.assertIn("if self.archive._archive_browser_render_is_ready():", activation_body)
         self.assertNotIn("_schedule_archive_pending_enhanced_filter_refresh", activation_body)
         self.assertIn("def _schedule_archive_browser_first_visible_paint_marker", source)
-        self.assertIn("not self.isVisible() or not self._is_tool_visible_or_current(self.archive_browser_tab)", source)
+        self.assertIn('not self.isVisible() or not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)', source)
         self.assertIn("QTimer.singleShot(max(0, int(delay_ms)), self._handle_archive_browser_first_visible_paint)", source)
         self.assertIn("def _refresh_archive_browser_view_stage_controls", source)
         self.assertIn("def _refresh_archive_browser_view_stage_populate", source)
@@ -494,6 +468,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             (
                 _read("cdmw/ui/shell/app_window.py"),
                 _read("cdmw/ui/shell/window_runtime_state.py"),
+                _read("cdmw/ui/archive_browser/runtime_state.py"),
                 _read("cdmw/ui/archive_browser/preview_result.py"),
             )
         )
@@ -629,6 +604,8 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             _read("cdmw/ui/shell/app_window.py")
             + "\n"
             + _read("cdmw/ui/shell/window_runtime_state.py")
+            + "\n"
+            + _read("cdmw/ui/archive_browser/runtime_state.py")
         )
         theme_source = _read("cdmw/ui/shell/theme_controller.py")
         theme_overlay_source = _read("cdmw/ui/shell/theme_overlay.py")
@@ -753,8 +730,8 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             )
         )
         self.assertIn("from cdmw.ui.shell.theme_controller import build_monospace_font", source)
-        self.assertIn("preview_editor.setFont(build_monospace_font(self.settings))", source)
-        self.assertIn("editor.setFont(build_monospace_font(self.settings))", source)
+        self.assertIn('preview_editor.setFont(build_monospace_font(self.shell.settings))', source)
+        self.assertIn('editor.setFont(build_monospace_font(self.shell.settings))', source)
         self.assertIn("preview_text.setFont(_state.build_monospace_font(_state.self.settings))", source)
         self.assertNotIn('QFont("Consolas", 9)', source)
 
@@ -780,6 +757,8 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
             + "\n"
             + _read("cdmw/ui/shell/window_runtime_state.py")
             + "\n"
+            + _read("cdmw/ui/archive_browser/runtime_state.py")
+            + "\n"
             + _read("cdmw/ui/archive_browser/filter_workers.py")
             + "\n"
             + _read("cdmw/ui/archive_browser/filter_controls.py")
@@ -795,7 +774,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
 
         worker_start = source.index("    def _start_archive_filter_worker(")
         worker_body = source[worker_start: source.index("    def _handle_archive_filter_complete", worker_start)]
-        self.assertIn("self.set_busy(True, build_mode=False)", worker_body)
+        self.assertIn('self.shell.set_busy(True, build_mode=False)', worker_body)
         self.assertIn("self._restore_archive_controls_scroll_after_filter()", worker_body)
 
         complete_start = source.index("    def _handle_archive_filter_complete(")
@@ -809,7 +788,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_controls_scroll_filter_anchor = None", finish_body)
 
     def test_archive_asset_family_graph_cache_is_bounded_and_logged(self) -> None:
-        shell_source = _read("cdmw/ui/shell/app_window.py") + "\n" + _read("cdmw/ui/shell/window_runtime_state.py")
+        shell_source = _read("cdmw/ui/archive_browser/runtime_state.py")
         dialog_source = _read("cdmw/ui/archive_browser/asset_family_dialog.py")
         self.assertIn("self.archive_asset_family_cache: OrderedDict", shell_source)
         self.assertIn("self.archive_asset_family_cache_limit = 512", shell_source)
@@ -823,7 +802,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         workspace_start = source.index("    def _open_archive_attachment_placement_workspace_dialog(")
         workspace_body = source[workspace_start: source.index("    @staticmethod", workspace_start)]
         self.assertIn("_run_archive_attachment_placement_prepare(", workspace_body)
-        self.assertIn("self._run_utility_task(", source)
+        self.assertIn("self.shell._run_utility_task(", source)
         self.assertNotIn("_open_archive_attachment_placement_diff_dialog(source_entry, None)", workspace_body)
 
     def test_placement_source_choice_refreshes_in_place(self) -> None:

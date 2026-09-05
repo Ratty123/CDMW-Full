@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.core.atomic_file import atomic_publish_paths
+
 import dataclasses
 import fnmatch
 import json
@@ -414,6 +416,7 @@ def preview_recolor_variant_target_image(
     *,
     max_dimension: int = 1024,
     stop_event: Optional[threading.Event] = None,
+    source_pixels: Optional[np.ndarray] = None,
 ) -> RecolorVariantPreviewImage:
     target = next((candidate for candidate in analysis.targets if candidate.target_id == target_id), None)
     if target is None:
@@ -434,19 +437,20 @@ def preview_recolor_variant_target_image(
         raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
 
         dds_info = parse_dds(source_dds)
-        source_display_png = ensure_dds_display_preview_png(
-            source_dds,
-            dds_info=dds_info,
-            max_dimension=max(1, int(max_dimension)),
-            slot_kind=target.slot_kind or "base",
-            stop_event=stop_event,
-        )
         source_png = preview_root / "source.png"
         preview_png = preview_root / "preview.png"
-        with Image.open(source_display_png) as image:
-            rgba = image.convert("RGBA")
-            pixels = np.asarray(rgba, dtype=np.uint8).copy()
-            rgba.save(source_png)
+        if source_pixels is None:
+            source_display_png = ensure_dds_display_preview_png(
+                source_dds, dds_info=dds_info, max_dimension=max(1, int(max_dimension)),
+                slot_kind=target.slot_kind or "base", stop_event=stop_event,
+            )
+            with Image.open(source_display_png) as image:
+                rgba = image.convert("RGBA")
+        else:
+            rgba = Image.fromarray(source_pixels, "RGBA")
+            rgba.thumbnail((max_dimension, max_dimension))
+        pixels = np.asarray(rgba, dtype=np.uint8).copy()
+        rgba.save(source_png)
         raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
         edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
         raise_if_cancelled(stop_event, "Recolor target preview cancelled.")
@@ -463,43 +467,19 @@ def preview_recolor_variant_target_image(
     )
 
 
-def _remove_recolor_output_path(path: Path) -> None:
-    if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
-    else:
-        path.unlink(missing_ok=True)
 
 
-def _publish_recolor_output_paths(
-    paths: Sequence[tuple[Path, Path]],
-    *,
-    stop_event: Optional[threading.Event],
-) -> None:
-    published: list[tuple[Path, Optional[Path]]] = []
-    try:
-        for staged_path, final_path in paths:
-            raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
-            backup_path: Optional[Path] = None
-            if final_path.exists() or final_path.is_symlink():
-                backup_path = final_path.with_name(f"cdmw-recolor-backup-{uuid.uuid4().hex}-{final_path.name}")
-                final_path.replace(backup_path)
-            try:
-                staged_path.replace(final_path)
-            except BaseException:
-                if backup_path is not None and backup_path.exists():
-                    backup_path.replace(final_path)
-                raise
-            published.append((final_path, backup_path))
-    except BaseException:
-        for final_path, backup_path in reversed(published):
-            _remove_recolor_output_path(final_path)
-            if backup_path is not None and backup_path.exists():
-                backup_path.replace(final_path)
-        raise
-    else:
-        for _final_path, backup_path in published:
-            if backup_path is not None and backup_path.exists():
-                _remove_recolor_output_path(backup_path)
+
+
+def _recolor_output_is_inside_source(package_path: Path | str, output_root: Path) -> bool:
+    source = Path(package_path).expanduser()
+    if source.exists():
+        try:
+            resolved = source.resolve()
+            return output_root == resolved or resolved in output_root.parents
+        except OSError:
+            pass
+    return False
 
 
 def build_recolor_variant_outputs(
@@ -508,6 +488,7 @@ def build_recolor_variant_outputs(
     output_root: Path,
     output_profiles: Sequence[RecolorVariantOutputProfile],
     *,
+    source_pixels: Optional[Mapping[str, np.ndarray]] = None,
     overwrite_existing: bool = False,
     stop_event: Optional[threading.Event] = None,
     on_log: Optional[Callable[[str], None]] = None,
@@ -529,18 +510,12 @@ def build_recolor_variant_outputs(
             errors=("Template does not match any editable targets.",),
         )
 
-    source_package = Path(analysis.package_path).expanduser()
     resolved_output_root = Path(output_root).expanduser().resolve()
-    if source_package.exists():
-        try:
-            source_resolved = source_package.resolve()
-            if resolved_output_root == source_resolved or source_resolved in resolved_output_root.parents:
-                return RecolorVariantBuildResult(
-                    source_package_path=analysis.package_path,
-                    errors=("Output root cannot be inside the source mod package.",),
-                )
-        except OSError:
-            pass
+    if _recolor_output_is_inside_source(analysis.package_path, resolved_output_root):
+        return RecolorVariantBuildResult(
+            source_package_path=analysis.package_path,
+            errors=("Output root cannot be inside the source mod package.",),
+        )
 
     scratch_root = Path(tempfile.mkdtemp(prefix="cdmw_recolor_variant_work_"))
     staged_output_paths: list[Path] = []
@@ -555,7 +530,7 @@ def build_recolor_variant_outputs(
         source_stage = scratch_root / "source_payloads"
         source_stage.mkdir(parents=True, exist_ok=True)
         _copy_source_payloads_to_stage(
-            source_package,
+            Path(analysis.package_path).expanduser(),
             analysis.payload_paths,
             source_stage,
             stop_event=stop_event,
@@ -582,6 +557,7 @@ def build_recolor_variant_outputs(
                 _apply_texture_rule_to_dds(
                     source_dds,
                     rule,
+                    source_pixels=(source_pixels or {}).get(target.game_path),
                     scratch_root=scratch_root / "textures" / _safe_slug(target.target_id),
                     stop_event=stop_event,
                     on_log=on_log,
@@ -708,7 +684,7 @@ def build_recolor_variant_outputs(
                 on_progress(min(completed_steps, total_steps), total_steps, f"{min(completed_steps, total_steps)} / {total_steps} steps")
 
         raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
-        _publish_recolor_output_paths(publication_paths, stop_event=stop_event)
+        atomic_publish_paths(publication_paths, check_cancelled=lambda: raise_if_cancelled(stop_event, "Recolor variant build cancelled."))
         output_roots.extend(final_root for _profile, _package_info, final_root, _export_options in profile_plans)
         for final_root in output_roots:
             if on_log:
@@ -1064,7 +1040,14 @@ def _materialize_target_dds_for_preview(
     target: RecolorVariantTarget,
     preview_root: Path,
 ) -> Path:
-    source_package = Path(analysis.package_path).expanduser()
+    return materialize_recolor_variant_texture(analysis.package_path, target, preview_root)
+
+
+def materialize_recolor_variant_texture(
+    package_path: Path | str, target: RecolorVariantTarget, destination_root: Path,
+) -> Path:
+    """Read one original DDS from a loose mod or ZIP into an owned staging area."""
+    source_package = Path(package_path).expanduser()
     normalized = normalize_mod_package_payload_path(target.game_path).as_posix().strip("/")
     member_path = target.member_path or target.game_path
     if source_package.is_dir():
@@ -1077,7 +1060,8 @@ def _materialize_target_dds_for_preview(
             payload = _read_zip_member_bytes(archive, member_path, normalized)
         if not payload:
             raise FileNotFoundError(f"Recolor preview source texture was not found in zip: {target.game_path}")
-        extracted = preview_root / "source.dds"
+        destination_root.mkdir(parents=True, exist_ok=True)
+        extracted = destination_root / "source.dds"
         extracted.write_bytes(payload)
         return extracted
     raise ValueError(f"Unsupported recolor preview source package: {source_package}")
@@ -1100,22 +1084,26 @@ def _apply_texture_rule_to_dds(
     rule: RecolorVariantRule,
     *,
     scratch_root: Path,
+    source_pixels: Optional[np.ndarray] = None,
     stop_event: Optional[threading.Event],
     on_log: Optional[Callable[[str], None]],
 ) -> None:
     raise_if_cancelled(stop_event, "Recolor variant build cancelled.")
     scratch_root.mkdir(parents=True, exist_ok=True)
     dds_info = parse_dds(dds_path)
-    source_png = ensure_dds_display_preview_png(
-        dds_path,
-        dds_info=dds_info,
-        max_dimension=0,
-        slot_kind="base",
-        stop_event=stop_event,
-    )
-    with Image.open(source_png) as image:
-        rgba = image.convert("RGBA")
-        pixels = np.asarray(rgba, dtype=np.uint8).copy()
+    if source_pixels is None:
+        source_png = ensure_dds_display_preview_png(
+            dds_path,
+            dds_info=dds_info,
+            max_dimension=0,
+            slot_kind="base",
+            stop_event=stop_event,
+        )
+        with Image.open(source_png) as image:
+            rgba = image.convert("RGBA")
+            pixels = np.asarray(rgba, dtype=np.uint8).copy()
+    else:
+        pixels = source_pixels
     edited = apply_texture_editor_recolor(pixels, _texture_editor_settings_for_recolor_rule(rule))
     edited_png = scratch_root / f"{dds_path.stem}_recolor.png"
     save_rgba_array_png(edited, edited_png)

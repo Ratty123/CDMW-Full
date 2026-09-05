@@ -117,7 +117,7 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
         selected_dir = QFileDialog.getExistingDirectory(
             dialog,
             source_mix_control_text["add_loose"],
-            str(self._suggest_workspace_base_dir()),
+            str(self.shell._suggest_workspace_base_dir()),
         )
         if not selected_dir:
             return
@@ -217,7 +217,7 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
             dialog,
             source_mix_control_text["add_mod_archive"],
-            str(self._suggest_workspace_base_dir()),
+            str(self.shell._suggest_workspace_base_dir()),
             source_mix_control_text["mod_archive_file_filter"],
         )
         if not selected_path:

@@ -60,8 +60,8 @@ def _modify_original_workspace_mode(
     create_workspace = bool(selection.create_workspace)
     include_family = bool(selection.include_family_files)
     open_after = bool(create_workspace and selection.open_workspace_after_create)
-    if include_family and create_workspace and owner._archive_lookup_indexes_snapshot() is None:
-        owner.set_status_message("Archive path lookup is warming; retry Modify Original when indexing finishes.")
+    if include_family and create_workspace and owner.archive._archive_lookup_indexes_snapshot() is None:
+        owner.shell.set_status_message("Archive path lookup is warming; retry Modify Original when indexing finishes.")
         return None
     return create_workspace, include_family, open_after
 
@@ -72,7 +72,7 @@ class ArchiveMeshModifyOriginalMixin:
         self,
         entry: ArchiveEntry,
         ) -> Optional[ModifyOriginalWorkflowSelection]:
-        default_parent = Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original"
+        default_parent = Path(self.shell._suggest_workspace_base_dir()).expanduser() / "modify_original"
         dialog = QDialog(self)
         dialog.setWindowTitle("Modify Original")
         dialog.setModal(True)
@@ -223,7 +223,7 @@ class ArchiveMeshModifyOriginalMixin:
         max_age_seconds: float = 24.0 * 60.0 * 60.0,
         on_log: Optional[Callable[[str], None]] = None,
     ) -> None:
-        session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
+        session_root = workspace_paths(self.shell.settings_file_path.parent)["modify_original_sessions_root"]
         if not session_root.is_dir():
             return
         try:
@@ -272,7 +272,7 @@ class ArchiveMeshModifyOriginalMixin:
             except Exception:
                 failed_count += 1
         if removed_count or failed_count:
-            log = on_log if on_log is not None else self.append_archive_log
+            log = on_log if on_log is not None else self.shell.append_archive_log
             if removed_count:
                 log(f"Cleaned {removed_count:,} stale Modify Original internal session folder(s).")
             if failed_count:
@@ -406,7 +406,7 @@ class ArchiveMeshModifyOriginalMixin:
 
     def _start_archive_modify_original_workspace(self, entry: ArchiveEntry) -> None:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
-            self.set_status_message("Select a supported archive mesh first.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh first.", error=True)
             return
         selection = self._prompt_archive_modify_original_workspace_options(entry)
         if selection is None:
@@ -423,7 +423,7 @@ class ArchiveMeshModifyOriginalMixin:
             )
             return
 
-        session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
+        session_root = workspace_paths(self.shell.settings_file_path.parent)["modify_original_sessions_root"]
 
         def _inspect_source(
             log: Callable[[str], None],
@@ -448,11 +448,11 @@ class ArchiveMeshModifyOriginalMixin:
 
         def _source_inspected(result: object) -> None:
             if not isinstance(result, Mapping):
-                self.set_status_message("Modify Original source inspection returned an unexpected result.", error=True)
+                self.shell.set_status_message("Modify Original source inspection returned an unexpected result.", error=True)
                 return
             source_data = result.get("source_data")
             source_hash = str(result.get("source_hash") or "")
-            recorder = getattr(self, "_record_runtime_event", None)
+            recorder = getattr(self.shell, "_record_runtime_event", None)
             if callable(recorder):
                 recorder(
                     "mesh_modify_original_source_inspected",
@@ -477,7 +477,7 @@ class ArchiveMeshModifyOriginalMixin:
                 resume_manifest_path=manifest_path if resume else None,
             )
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Checking Modify Original drafts for {entry.basename}...",
             task=_inspect_source,
             on_complete=_source_inspected,
@@ -557,10 +557,10 @@ class ArchiveMeshModifyOriginalMixin:
         if resume_manifest_path is not None:
             workspace_dir = Path(resume_manifest_path).expanduser().resolve().parent
         elif create_workspace:
-            parent_root = selection.workspace_parent or (Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original")
+            parent_root = selection.workspace_parent or (Path(self.shell._suggest_workspace_base_dir()).expanduser() / "modify_original")
             workspace_dir = find_available_output_path(parent_root / workspace_name)
         else:
-            session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
+            session_root = workspace_paths(self.shell.settings_file_path.parent)["modify_original_sessions_root"]
             workspace_dir = find_available_output_path(session_root / workspace_name)
         related_entries: Tuple[ArchiveEntry, ...] = ()
         if include_family and create_workspace:
@@ -601,7 +601,7 @@ class ArchiveMeshModifyOriginalMixin:
             source_asset_sha256=str(source_asset_sha256 or ""),
             resume_manifest_path=resume_manifest_path,
         )
-        recorder = getattr(self, "_record_runtime_event", None)
+        recorder = getattr(self.shell, "_record_runtime_event", None)
         if callable(recorder):
             recorder(
                 "mesh_modify_original_preparation_requested",
@@ -642,12 +642,12 @@ class ArchiveMeshModifyOriginalMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, dict):
-                self.set_status_message("Modify Original workspace finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Modify Original workspace finished with an unexpected result payload.", error=True)
                 return
             workspace = result.get("workspace_dir")
             obj_path = result.get("obj_path")
             if not isinstance(workspace, Path) or not isinstance(obj_path, Path):
-                self.set_status_message("Modify Original workspace did not return an editable OBJ clone.", error=True)
+                self.shell.set_status_message("Modify Original workspace did not return an editable OBJ clone.", error=True)
                 return
             performance = result.get("performance")
             performance_values = performance if isinstance(performance, Mapping) else {}
@@ -675,11 +675,11 @@ class ArchiveMeshModifyOriginalMixin:
             if open_after:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(workspace.resolve())))
             if create_workspace:
-                self.set_status_message(f"Modify Original workspace ready: {obj_path.name}. Opening Mesh Replacement setup...")
+                self.shell.set_status_message(f"Modify Original workspace ready: {obj_path.name}. Opening Mesh Replacement setup...")
             elif bool(result.get("resumed_draft")):
-                self.set_status_message(f"Modify Original draft resumed: {obj_path.name}. Opening Geometry...")
+                self.shell.set_status_message(f"Modify Original draft resumed: {obj_path.name}. Opening Geometry...")
             else:
-                self.set_status_message(f"Modify Original in-app clone ready: {obj_path.name}. Opening Geometry...")
+                self.shell.set_status_message(f"Modify Original in-app clone ready: {obj_path.name}. Opening Geometry...")
             QTimer.singleShot(
                 0,
                 lambda current_entry=entry, payload=result: self._open_modify_original_mesh_setup(
@@ -688,7 +688,7 @@ class ArchiveMeshModifyOriginalMixin:
                 ),
             )
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=(
                 f"Creating Modify Original workspace for {entry.basename}..."
                 if create_workspace
@@ -712,7 +712,7 @@ class ArchiveMeshModifyOriginalMixin:
         ) -> None:
         obj_path = result.get("obj_path")
         if not isinstance(obj_path, Path) or not obj_path.is_file():
-            self.set_status_message("Modify Original clone is missing; cannot open Mesh Replacement setup.", error=True)
+            self.shell.set_status_message("Modify Original clone is missing; cannot open Mesh Replacement setup.", error=True)
             return
         supplemental_files = tuple(
             path for path in result.get("supplemental_files", ()) if isinstance(path, Path)

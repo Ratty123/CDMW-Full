@@ -138,7 +138,7 @@ class ArchivePreviewWorkerMixin:
         prefer_loose_preview: bool = False,
         force: bool = False,
     ) -> None:
-        self._ensure_archive_preview_startup_state()
+        self.shell._ensure_archive_preview_startup_state()
         # The chosen sound belongs to the entry it was chosen in. Without this, the
         # fifth sound of one bank would be asked for in the next file opened, which
         # a bank with fewer sounds silently answers with its first.
@@ -178,11 +178,11 @@ class ArchivePreviewWorkerMixin:
             if callable(sync_texture_action):
                 sync_texture_action()
         self.archive_preview_request_id = request_id
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",
             verbose=True,
         )
-        self._set_last_active_operation(
+        self.shell._set_last_active_operation(
             "archive_preview_request",
             request_id=request_id,
             path=getattr(entry, "path", ""),
@@ -280,7 +280,7 @@ class ArchivePreviewWorkerMixin:
                 scheduled_loose,
                 True,
             )
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_request_coalesced",
             request_id=int(scheduled_request_id),
             path=str(getattr(entry, "path", "") or ""),
@@ -350,7 +350,7 @@ class ArchivePreviewWorkerMixin:
             detail,
             include_current_model_debug=False,
         )
-        self.set_status_message(detail)
+        self.shell.set_status_message(detail)
         return None, True
 
     def _schedule_archive_preview_selection_retry(
@@ -396,7 +396,7 @@ class ArchivePreviewWorkerMixin:
         )
 
     def _retry_scheduled_archive_preview_selection(self, request_id: int) -> None:
-        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+        if self.shell._shutting_down or int(request_id) != int(self.archive_preview_request_id):
             return
         scheduled = self.scheduled_archive_preview_request
         if scheduled is None or int(scheduled[0]) != int(request_id):
@@ -434,7 +434,7 @@ class ArchivePreviewWorkerMixin:
         if awaiting_lookup:
             self._ensure_archive_basic_index_worker_started()
             self._archive_preview_pending_lookup_entry = entry
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Preview is loading; archive material and texture lookup is still building."
             )
         self.scheduled_archive_preview_request = None
@@ -478,7 +478,7 @@ class ArchivePreviewWorkerMixin:
             quality_tier="fast",
             dependency_entries=dependency_entries,
         )
-        performance_settings = self._current_archive_performance_settings()
+        performance_settings = self.shell._current_archive_performance_settings()
         progressive_material_preview = bool(
             performance_settings.quick_then_full_preview and not include_loose_preview_assets
         )
@@ -500,7 +500,7 @@ class ArchivePreviewWorkerMixin:
             self.archive_preview_cache.pop(preview_cache_key, None)
             cache_miss_reason = "dotnet_package_expired"
             cache_miss_detail = "; ".join(missing_paths[:4])
-            self._record_runtime_event(
+            self.shell._record_runtime_event(
                 "archive_preview_cache_dotnet_package_expired",
                 request_id=request_id,
                 selected_path=str(getattr(entry, "path", "") or ""),
@@ -540,7 +540,7 @@ class ArchivePreviewWorkerMixin:
                 include_current_model_debug=False,
             )
             self.archive_preview_info_edit.setPlainText(f"{rebuild_text}\n{cache_miss_detail}".strip())
-            self.set_status_message("Cached preview package expired; rebuilding preview package.")
+            self.shell.set_status_message("Cached preview package expired; rebuilding preview package.")
 
         self._start_archive_preview_worker(
             request_id,
@@ -570,7 +570,7 @@ class ArchivePreviewWorkerMixin:
         request_id: int,
         payload: object,
     ) -> None:
-        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+        if self.shell._shutting_down or int(request_id) != int(self.archive_preview_request_id):
             return
         if not isinstance(payload, ArchivePreviewDependencySet):
             self._handle_archive_remote_preview_dependencies_failed(
@@ -587,7 +587,7 @@ class ArchivePreviewWorkerMixin:
         scheduled = self.scheduled_archive_preview_request
         if scheduled is None or int(scheduled[0]) != int(request_id):
             return
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_dependencies_ready",
             request_id=request_id,
             entry_id=payload.entry_id,
@@ -619,7 +619,7 @@ class ArchivePreviewWorkerMixin:
         names are missing, so this fills the metadata in afterwards.
         """
 
-        if not bool(payload.secondary_index_pending) or self._shutting_down:
+        if not bool(payload.secondary_index_pending) or self.shell._shutting_down:
             self._archive_preview_secondary_index_retries = 0
             return
         attempt = int(getattr(self, "_archive_preview_secondary_index_retries", 0) or 0) + 1
@@ -633,7 +633,7 @@ class ArchivePreviewWorkerMixin:
         )
 
     def _retry_archive_preview_for_secondary_index(self, entry: ArchiveEntry) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             return
         current = getattr(self, "_current_archive_entry", lambda: None)()
         if current is None or getattr(current, "identity", None) != getattr(entry, "identity", None):
@@ -650,9 +650,9 @@ class ArchivePreviewWorkerMixin:
         request_id: int,
         message: str,
     ) -> None:
-        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+        if self.shell._shutting_down or int(request_id) != int(self.archive_preview_request_id):
             return
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_dependencies_failed",
             request_id=request_id,
             message=str(message),
@@ -661,7 +661,7 @@ class ArchivePreviewWorkerMixin:
         self.pending_archive_preview_request = None
         self._stop_archive_preview_loading_indicator(success=False)
         self._clear_archive_preview(f"Preview dependencies could not be resolved: {message}")
-        self.set_status_message(f"Archive preview failed: {message}", error=True)
+        self.shell.set_status_message(f"Archive preview failed: {message}", error=True)
 
     def _start_archive_preview_worker(
         self,
@@ -715,7 +715,7 @@ class ArchivePreviewWorkerMixin:
                 dependency_entries=native_preview_dependency_entries,
                 preview_context_components=preview_context_components,
             )
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_worker_start",
             request_id=request_id,
             path=getattr(entry, "path", ""),
@@ -829,7 +829,7 @@ class ArchivePreviewWorkerMixin:
         )
         if native_preview_diagnostics.get("native_preview_core_process_pid") or native_preview_diagnostics.get("preview_core_process_pid"):
             self._schedule_native_preview_core_idle_shutdown()
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_ready",
             request_id=request_id,
             source=source,
@@ -842,11 +842,11 @@ class ArchivePreviewWorkerMixin:
             preview_core_service_job_count=native_preview_diagnostics.get("service_job_count", 0),
             preview_core_service_recycle_reason=native_preview_diagnostics.get("service_recycle_reason", ""),
         )
-        if self._shutting_down or request_id != self.archive_preview_request_id:
+        if self.shell._shutting_down or request_id != self.archive_preview_request_id:
             _record_archive_worker_lifecycle(
                 self,
                 "archive_preview_result_ignored",
-                reason="cancelled_by_shutdown" if self._shutting_down else "stale_result_ignored",
+                reason="cancelled_by_shutdown" if self.shell._shutting_down else "stale_result_ignored",
                 request_id=request_id,
                 current_request_id=self.archive_preview_request_id,
                 source=source,
@@ -879,42 +879,42 @@ class ArchivePreviewWorkerMixin:
                     request_started_at=request_started_at,
                 )
                 if source == "quick_preview":
-                    self.set_status_message("Quick preview loaded; building full 3D preview...")
+                    self.shell.set_status_message("Quick preview loaded; building full 3D preview...")
                 elif is_fast_result:
                     self._set_archive_texture_upgrade_status("loading")
-                    self.set_status_message("Fast preview loaded; refining full-quality preview...")
+                    self.shell.set_status_message("Fast preview loaded; refining full-quality preview...")
                 else:
                     self._stop_archive_preview_loading_indicator(success=True)
                     self._record_archive_memory_audit("archive_preview_ready", log_if_high=True)
         except Exception as exc:
-            self._write_crash_report(
+            self.shell._write_crash_report(
                 "archive_preview_ready_error",
                 "Archive preview apply error",
                 str(exc),
-                context=self._collect_crash_context(),
+                context=self.shell._collect_crash_context(),
             )
             preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
             if callable(preserve_resident) and preserve_resident(str(exc)):
                 return
             self._clear_archive_preview(f"Preview failed: {exc}")
-            self.set_status_message(f"Archive preview failed: {exc}", error=True)
+            self.shell.set_status_message(f"Archive preview failed: {exc}", error=True)
 
     def _handle_archive_preview_error(self, request_id: int, message: str) -> None:
         self.archive_preview_cache_keys.pop(request_id, None)
         self.archive_preview_request_started_at.pop(request_id, None)
         self.archive_preview_request_phase_timings.pop(request_id, None)
         self.archive_preview_request_sources.pop(request_id, None)
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "archive_preview_error",
             request_id=request_id,
             current_request_id=self.archive_preview_request_id,
             message=message,
         )
-        if self._shutting_down or request_id != self.archive_preview_request_id:
+        if self.shell._shutting_down or request_id != self.archive_preview_request_id:
             _record_archive_worker_lifecycle(
                 self,
                 "archive_preview_worker_failed",
-                reason="cancelled_by_shutdown" if self._shutting_down else "stale_result_ignored",
+                reason="cancelled_by_shutdown" if self.shell._shutting_down else "stale_result_ignored",
                 request_id=request_id,
                 current_request_id=self.archive_preview_request_id,
                 message=str(message),
@@ -929,11 +929,11 @@ class ArchivePreviewWorkerMixin:
             self._stop_archive_preview_loading_indicator(success=False)
             return
         self._stop_archive_preview_loading_indicator(success=False)
-        self._write_crash_report(
+        self.shell._write_crash_report(
             "archive_preview_error",
             "Archive preview error",
             str(message),
-            context=self._collect_crash_context(),
+            context=self.shell._collect_crash_context(),
         )
         current_quality = str(getattr(self.current_archive_preview_result, "quality_tier", "") or "").strip().lower()
         if current_quality in {"fast", "quick"}:
@@ -941,7 +941,7 @@ class ArchivePreviewWorkerMixin:
             failure_message = f"Full preview failed after {label} preview: {message}"
             if current_quality == "fast":
                 self._set_archive_texture_upgrade_status("failed", detail=str(message))
-            self.set_status_message(failure_message, error=True)
+            self.shell.set_status_message(failure_message, error=True)
             return
         preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
         if callable(preserve_resident) and preserve_resident(message):
@@ -984,7 +984,7 @@ class ArchivePreviewWorkerMixin:
                 thread.deleteLater()
             except RuntimeError:
                 pass
-        if self._shutting_down:
+        if self.shell._shutting_down:
             _record_archive_worker_lifecycle(
                 self,
                 "archive_preview_worker_cancelled",

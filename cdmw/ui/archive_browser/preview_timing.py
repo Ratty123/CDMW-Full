@@ -57,6 +57,6 @@ class ArchivePreviewTimingMixin:
         if total_s < 0.35 and model_apply_s < 0.15 and not warning_text:
             return
         label = str(entry_name or "selected entry").strip()
-        self.append_archive_log(f"{timing_summary} | entry={label}", verbose=True)
+        self.shell.append_archive_log(f"{timing_summary} | entry={label}", verbose=True)
         if warning_text:
-            self.append_archive_log(f"WARNING: {warning_text}")
+            self.shell.append_archive_log(f"WARNING: {warning_text}")

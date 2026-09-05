@@ -18,11 +18,11 @@ class ArchiveMaterialSidecarDocumentControllerMixin:
         try:
             entry = archive_workflow_dependency_context(self, entry).selected_entry
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
             return
         request_id = int(getattr(self, "_material_sidecar_document_request_id", 0) or 0) + 1
         self._material_sidecar_document_request_id = request_id
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Reading material sidecar {entry.basename}...",
             task=lambda _log, stop_event: load_material_sidecar_editor_document(
                 entry,
@@ -36,9 +36,9 @@ class ArchiveMaterialSidecarDocumentControllerMixin:
         if request_id != int(getattr(self, "_material_sidecar_document_request_id", 0) or 0):
             return
         if not isinstance(result, MaterialSidecarEditorDocument):
-            self.set_status_message("Material sidecar worker returned invalid data.", error=True)
+            self.shell.set_status_message("Material sidecar worker returned invalid data.", error=True)
             return
-        self._run_when_background_idle(
+        self.shell._run_when_background_idle(
             lambda: self._show_material_sidecar_editor(result),
             label="opening the material sidecar editor",
         )

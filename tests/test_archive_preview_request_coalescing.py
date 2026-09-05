@@ -47,6 +47,9 @@ class _DispatchHost(ArchivePreviewWorkerMixin):
     """The dispatcher's collaborators, reduced to what it actually calls."""
 
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_preview_request_id = 0
         self.scheduled_archive_preview_request = None
         self.pending_archive_preview_request = None
@@ -87,6 +90,9 @@ class _DispatchHost(ArchivePreviewWorkerMixin):
 
 class _TextureRequestHost(ArchivePreviewDotNetLifecycleMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.entry = _entry("character/model/body.pac")
         self.archive_preview_request_id = 4
         self._archive_texture_request_loading = False
@@ -157,6 +163,9 @@ class _LoadingHost(ArchivePreviewLoadingMixin):
     """The loading state's collaborators, reduced the same way."""
 
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_preview_requested_loose = False
         self.current_archive_preview_result = SimpleNamespace(quality_tier="full")
         self.archive_preview_surface_identity_shown = ""

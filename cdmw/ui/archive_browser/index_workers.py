@@ -94,7 +94,7 @@ class ArchiveIndexWorkerMixin:
     """Path lookup, item-name search, and derived cache workers."""
 
     def _start_archive_basic_index_worker(self) -> None:
-        if self._shutting_down or not self.archive_entries:
+        if self.shell._shutting_down or not self.archive_entries:
             self.archive_basic_index_state = "idle"
             return
         if self.archive_basic_index_thread is not None:
@@ -110,7 +110,7 @@ class ArchiveIndexWorkerMixin:
         self.archive_basic_index_state = "warming"
         request_id = int(getattr(self, "archive_basic_index_request_id", 0) or 0) + 1
         self.archive_basic_index_request_id = request_id
-        performance_settings = self._current_archive_performance_settings()
+        performance_settings = self.shell._current_archive_performance_settings()
         package_root_text = self.archive_package_root_edit.text().strip()
         worker = ArchiveBasicIndexWorker(
             Path(package_root_text).expanduser(),
@@ -150,17 +150,17 @@ class ArchiveIndexWorkerMixin:
         *,
         request_id: int,
     ) -> None:
-        if self._shutting_down or int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
+        if self.shell._shutting_down or int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
             return
         self._handle_archive_scan_progress(current, total, detail)
 
     def _handle_archive_basic_index_complete(self, result: object) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             return
         payload = result if isinstance(result, Mapping) else {}
         request_id = int(payload.get("request_id", getattr(self, "archive_basic_index_request_id", 0)) or 0)
         if request_id != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
-            self._record_runtime_event(
+            self.shell._record_runtime_event(
                 "archive_basic_index_result_ignored",
                 reason="stale_result_ignored",
                 request_id=request_id,
@@ -204,7 +204,7 @@ class ArchiveIndexWorkerMixin:
                 self.archive_item_icon_preload_pending_after_ready = False
                 self._schedule_archive_asset_catalog_icon_preload(delay_ms=0)
         elapsed_s = max(0.0, float(payload.get("elapsed_s", 0.0) or 0.0))
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "basic_indexes_ready",
             elapsed_s=elapsed_s,
             native_used=bool(payload.get("native_used")),
@@ -214,9 +214,9 @@ class ArchiveIndexWorkerMixin:
             role_keys=len(self.archive_entries_by_role),
         )
         if bool(payload.get("cache_loaded")):
-            self.append_archive_log(f"Path lookup loaded from cache in {elapsed_s:.2f}s.")
+            self.shell.append_archive_log(f"Path lookup loaded from cache in {elapsed_s:.2f}s.")
         else:
-            self.append_archive_log(f"Path lookup ready in {elapsed_s:.2f}s.")
+            self.shell.append_archive_log(f"Path lookup ready in {elapsed_s:.2f}s.")
         self._record_archive_memory_audit("archive_basic_index_ready", log_if_high=True)
         self._set_archive_list_status("Archive list available")
         self._rebuild_archive_extension_filter_choices()
@@ -244,7 +244,7 @@ class ArchiveIndexWorkerMixin:
 
         entry = getattr(self, "_archive_preview_pending_lookup_entry", None)
         self._archive_preview_pending_lookup_entry = None
-        if entry is None or self._shutting_down:
+        if entry is None or self.shell._shutting_down:
             return
         current = getattr(self, "_current_archive_entry", lambda: None)()
         if current is None or getattr(current, "identity", None) != getattr(entry, "identity", None):
@@ -259,8 +259,8 @@ class ArchiveIndexWorkerMixin:
         if request_id is not None and int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):
             return
         self.archive_basic_index_state = "failed"
-        self.append_archive_log(f"Warning: path lookup could not be built: {message}")
-        self.set_status_message("Path lookup failed; direct archive browsing remains available.", error=True)
+        self.shell.append_archive_log(f"Warning: path lookup could not be built: {message}")
+        self.shell.set_status_message("Path lookup failed; direct archive browsing remains available.", error=True)
         self._set_archive_list_status("Archive list available")
         if self.scheduled_archive_preview_request is not None:
             QTimer.singleShot(0, self._flush_scheduled_archive_preview_request)
@@ -272,12 +272,12 @@ class ArchiveIndexWorkerMixin:
             return
         self.archive_basic_index_thread = None
         self.archive_basic_index_worker = None
-        if self.archive_deferred_basic_index_start_pending and not self._shutting_down:
+        if self.archive_deferred_basic_index_start_pending and not self.shell._shutting_down:
             QTimer.singleShot(0, self._start_archive_basic_index_worker)
         self._maybe_release_startup_after_archive_ready()
 
     def _start_archive_enhanced_index_worker(self) -> None:
-        if self._shutting_down or not self.archive_entries:
+        if self.shell._shutting_down or not self.archive_entries:
             self.archive_enhanced_index_state = "idle"
             self.archive_enhanced_index_activity = "idle"
             return
@@ -289,7 +289,7 @@ class ArchiveIndexWorkerMixin:
         request_id = int(getattr(self, "archive_enhanced_index_request_id", 0) or 0) + 1
         self.archive_enhanced_index_request_id = request_id
         self._set_archive_load_progress("Loading archive search cache...", phase="Indexing")
-        self.set_status_message("Loading archive search cache...")
+        self.shell.set_status_message("Loading archive search cache...")
         package_root_text = self.archive_package_root_edit.text().strip()
         worker = ArchiveEnhancedIndexWorker(
             Path(package_root_text).expanduser(),
@@ -328,7 +328,7 @@ class ArchiveIndexWorkerMixin:
         *,
         request_id: int | None = None,
     ) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             return
         if request_id is not None and int(request_id) != int(getattr(self, "archive_enhanced_index_request_id", 0) or 0):
             return
@@ -341,12 +341,12 @@ class ArchiveIndexWorkerMixin:
         self._handle_archive_scan_progress(current, total, detail_text)
 
     def _handle_archive_enhanced_index_complete(self, result: object) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             return
         payload = result if isinstance(result, Mapping) else {}
         request_id = int(payload.get("request_id", getattr(self, "archive_enhanced_index_request_id", 0)) or 0)
         if request_id != int(getattr(self, "archive_enhanced_index_request_id", 0) or 0):
-            self._record_runtime_event(
+            self.shell._record_runtime_event(
                 "archive_enhanced_index_result_ignored",
                 reason="stale_result_ignored",
                 request_id=request_id,
@@ -373,9 +373,9 @@ class ArchiveIndexWorkerMixin:
         self._schedule_archive_asset_catalog_icon_preload()
         self._invalidate_archive_browser_name_columns()
         if cache_loaded:
-            self.append_archive_log("Archive search cache loaded.")
+            self.shell.append_archive_log("Archive search cache loaded.")
         else:
-            self.append_archive_log("Archive search cache ready.")
+            self.shell.append_archive_log("Archive search cache ready.")
         self._record_archive_memory_audit("archive_name_search_ready", log_if_high=True)
         self._set_archive_list_status("Archive list available")
         if self.archive_initial_sort_apply_pending:
@@ -392,8 +392,8 @@ class ArchiveIndexWorkerMixin:
             return
         self.archive_enhanced_index_state = "failed"
         self.archive_enhanced_index_activity = "idle"
-        self.append_archive_log(f"Warning: item-name search could not be built: {message}")
-        self.set_status_message("Item-name search failed; path browsing remains available.", error=True)
+        self.shell.append_archive_log(f"Warning: item-name search could not be built: {message}")
+        self.shell.set_status_message("Item-name search failed; path browsing remains available.", error=True)
         self._set_archive_list_status("Archive list available")
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
@@ -403,12 +403,12 @@ class ArchiveIndexWorkerMixin:
             return
         self.archive_enhanced_index_thread = None
         self.archive_enhanced_index_worker = None
-        if self.archive_deferred_enhanced_index_start_pending and not self._shutting_down:
+        if self.archive_deferred_enhanced_index_start_pending and not self.shell._shutting_down:
             QTimer.singleShot(0, self._start_archive_enhanced_index_worker)
         self._maybe_release_startup_after_archive_ready()
 
     def _start_archive_derived_index_cache_writer(self) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             self.archive_derived_cache_write_pending = False
             return
         if not self.archive_derived_cache_write_pending:
@@ -461,7 +461,7 @@ class ArchiveIndexWorkerMixin:
             return
         self.archive_derived_cache_thread = None
         self.archive_derived_cache_worker = None
-        if self.archive_derived_cache_write_pending and not self._shutting_down:
+        if self.archive_derived_cache_write_pending and not self.shell._shutting_down:
             QTimer.singleShot(0, self._start_archive_derived_index_cache_writer)
         else:
             self._set_archive_list_status("Archive list available")

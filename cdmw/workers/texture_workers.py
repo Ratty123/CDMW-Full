@@ -69,6 +69,7 @@ def _is_texture_workflow_tool_log(message: str) -> bool:
 
 
 class ScanWorker(QObject):
+    assets_ready = Signal(object)
     log_message = Signal(str)
     result_ready = Signal(int)
     error = Signal(str)
@@ -88,6 +89,8 @@ class ScanWorker(QObject):
             self.log_message.emit("Scanning DDS files...")
             result = scan_dds_files(self.config, stop_event=self.stop_event)
             self.result_ready.emit(result.total_files)
+            if not self.stop_event.is_set():
+                self.assets_ready.emit(tuple(result.files))
             self.log_message.emit(f"Scan complete. Found {result.total_files} DDS files.")
         except Exception as exc:
             self.error.emit(str(exc))
@@ -117,8 +120,10 @@ class _TextureWorkflowWorkerBase(QObject):
         *,
         crash_reports_dir: Optional[Path] = None,
         session_id: str = "",
+        job_inputs=None,
     ) -> None:
         super().__init__()
+        self.job_inputs = tuple(job_inputs) if job_inputs is not None else None
         self.config = config
         self.crash_reports_dir = crash_reports_dir
         self.session_id = str(session_id or "")
@@ -214,6 +219,9 @@ class BuildWorker(_TextureWorkflowWorkerBase):
     cancelled_message = "Processing stopped by user."
 
     def _run_pipeline(self, **callbacks: object) -> object:
+        if self.job_inputs is not None:
+            from cdmw.services.texture_job_service import run_texture_job_pipeline
+            return run_texture_job_pipeline(self.config, self.job_inputs, rebuild_dds_files, **callbacks)
         return rebuild_dds_files(self.config, **callbacks)
 
 
@@ -223,6 +231,9 @@ class DdsToPngWorker(_TextureWorkflowWorkerBase):
     cancelled_message = "DDS to PNG conversion stopped by user."
 
     def _run_pipeline(self, **callbacks: object) -> object:
+        if self.job_inputs is not None:
+            from cdmw.services.texture_job_service import run_texture_job_pipeline
+            return run_texture_job_pipeline(self.config, self.job_inputs, convert_dds_to_pngs, **callbacks)
         return convert_dds_to_pngs(self.config, **callbacks)
 
 

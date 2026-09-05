@@ -15,6 +15,9 @@ from cdmw.ui.archive_browser.preview_dotnet_lifecycle import (
 
 class _Harness(ArchivePreviewDotNetLifecycleMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.messages: list[tuple[str, bool]] = []
         self.debug: list[str] = []
 
@@ -44,7 +47,7 @@ def test_rejected_presentation_update_is_reported_with_its_reason() -> None:
         )
     ]
     assert harness.debug == [
-        ".NET/Vortice Preview: presentation update rejected: stale_process_generation"
+        "Rust Preview: presentation update rejected: stale_process_generation"
     ]
     assert harness._archive_presentation_rejection_reason == "stale_process_generation"
 

@@ -131,11 +131,11 @@ class ArchiveScanLifecycleMixin:
         self.archive_tree.setRootIsDecorated(True)
         self.archive_tree.setEnabled(True)
         self.archive_catalogue_service.request_shutdown()
-        self.append_archive_log(
+        self.shell.append_archive_log(
             "Archive backend v2 was disabled for this app session by explicit user choice; "
             "starting the retained legacy archive scanner."
         )
-        recorder = getattr(self, "_record_runtime_event", None)
+        recorder = getattr(self.shell, "_record_runtime_event", None)
         if callable(recorder):
             recorder(
                 "archive_backend_session_legacy_selected",
@@ -154,7 +154,7 @@ class ArchiveScanLifecycleMixin:
         try:
             suspicious_roots = find_suspicious_archive_tree_roots(package_root)
         except (OSError, ValueError) as exc:
-            self.append_log(f"Archive root preflight could not inspect the selected folder: {exc}")
+            self.shell.append_log(f"Archive root preflight could not inspect the selected folder: {exc}")
             return True
         if not suspicious_roots:
             return True
@@ -182,7 +182,7 @@ class ArchiveScanLifecycleMixin:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(suspicious_roots[0])))
         if clicked is scan_button:
             return True
-        self.set_status_message("Archive scan cancelled: possible duplicate game archives found.")
+        self.shell.set_status_message("Archive scan cancelled: possible duplicate game archives found.")
         return False
 
     def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
@@ -202,7 +202,7 @@ class ArchiveScanLifecycleMixin:
             and not self.archive_backend_mode_warning_logged
         ):
             self.archive_backend_mode_warning_logged = True
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Unsupported CDMW_ARCHIVE_BACKEND value "
                 f"{backend_selection.configured_value!r}; using the default v2 archive backend."
             )
@@ -225,11 +225,11 @@ class ArchiveScanLifecycleMixin:
         self.archive_structure_filter_children = {}
         if not bool(getattr(self, "archive_startup_hold_until_ready", False)):
             self.archive_startup_index_warmup_required = False
-        if self._background_task_active(block_on_archive_index=False):
+        if self.shell._background_task_active(block_on_archive_index=False):
             return
         package_root_text = self.archive_package_root_edit.text().strip()
         if not package_root_text:
-            if not self._prompt_for_archive_package_root_if_missing(
+            if not self.shell._prompt_for_archive_package_root_if_missing(
                 reason="refresh" if force_refresh else "scan",
                 after_autodetect=lambda: self.scan_archives(
                     force_refresh=force_refresh,
@@ -249,13 +249,13 @@ class ArchiveScanLifecycleMixin:
         package_root = Path(package_root_text).expanduser()
         if remote_bridge is not None and remote_bridge.displays_v2:
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
-            self.clear_archive_scan_log()
-            self._set_archive_cache_health(
+            self.shell.clear_archive_scan_log()
+            self.shell._set_archive_cache_health(
                 "building",
                 "Cache Status: Building. Standalone archive catalogue is preparing a generation.",
                 package_root=package_root_text,
             )
-            self._set_last_active_operation(
+            self.shell._set_last_active_operation(
                 "archive_catalogue_v2_refresh" if force_refresh else "archive_catalogue_v2_open",
                 package_root=str(package_root),
                 force_refresh=force_refresh,
@@ -270,8 +270,8 @@ class ArchiveScanLifecycleMixin:
             return
         self._activate_archive_browser_on_scan_complete = activate_archive_tab
         if activate_archive_tab:
-            self._activate_tool_widget(self.archive_browser_tab)
-        self._set_archive_cache_health(
+            self.shell._activate_tool_widget(self.shell.archive_browser_tab)
+        self.shell._set_archive_cache_health(
             "building",
             "Cache Status: Building. Archive scan/cache build is running.",
             package_root=package_root_text,
@@ -279,8 +279,8 @@ class ArchiveScanLifecycleMixin:
         self._reset_archive_load_progress()
         preparing_text = "Preparing archive refresh..." if force_refresh else "Preparing archive scan / cache load..."
         self._set_archive_load_progress(preparing_text)
-        self._update_startup_splash(f"{preparing_text} (1%)", 1, 100)
-        self._write_heartbeat("archive_refresh" if force_refresh else "archive_load")
+        self.shell._update_startup_splash(f"{preparing_text} (1%)", 1, 100)
+        self.shell._write_heartbeat("archive_refresh" if force_refresh else "archive_load")
         self._set_archive_warmup_overlay(
             True,
             "Preparing Archive Browser",
@@ -289,20 +289,20 @@ class ArchiveScanLifecycleMixin:
                 "after the browser opens."
             ),
         )
-        self.set_status_message("Refreshing archives..." if force_refresh else "Loading archives...")
-        self.append_log("Refreshing archives..." if force_refresh else "Loading archives...")
-        self.clear_archive_scan_log()
-        self.append_archive_log(
+        self.shell.set_status_message("Refreshing archives..." if force_refresh else "Loading archives...")
+        self.shell.append_log("Refreshing archives..." if force_refresh else "Loading archives...")
+        self.shell.clear_archive_scan_log()
+        self.shell.append_archive_log(
             "Starting archive refresh." if force_refresh else "Starting archive scan (cache-aware)."
         )
-        self._set_last_active_operation(
+        self.shell._set_last_active_operation(
             "archive_scan",
             package_root=str(package_root),
             force_refresh=force_refresh,
         )
 
         browser_view_will_render_now = bool(
-            activate_archive_tab or self._is_tool_visible_or_current(self.archive_browser_tab)
+            activate_archive_tab or self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
         )
         startup_deferred_archive_load = bool(
             getattr(self, "archive_startup_autoload_defer_preview", False)
@@ -318,8 +318,8 @@ class ArchiveScanLifecycleMixin:
                 self.archive_startup_saved_filter_state = dict(queued_filter_state)
                 self.archive_startup_saved_filter_apply_pending = True
                 self.archive_startup_saved_filter_wait_logged = False
-                self.append_archive_log("Current filters will apply when search is ready.")
-                self.set_status_message("Current filters will apply when search is ready.")
+                self.shell.append_archive_log("Current filters will apply when search is ready.")
+                self.shell.set_status_message("Current filters will apply when search is ready.")
                 self._apply_archive_filter_state(
                     {
                         "filter_text": "",
@@ -363,10 +363,10 @@ class ArchiveScanLifecycleMixin:
         initial_worker_sort_column = -1 if initial_sort_deferred else initial_sort_column
         worker_filter_text = self.archive_filter_edit.text().strip()
         worker_exclude_filter_text = self.archive_exclude_filter_edit.text().strip()
-        worker_extension_filter = self._combo_value(self.archive_extension_filter_combo)
+        worker_extension_filter = self.textures._combo_value(self.archive_extension_filter_combo)
         worker_package_filter_text = self.archive_package_filter_edit.text().strip()
         worker_structure_filter = self._current_archive_structure_filter_value()
-        worker_role_filter = self._combo_value(self.archive_role_filter_combo)
+        worker_role_filter = self.textures._combo_value(self.archive_role_filter_combo)
         worker_exclude_common_technical_suffixes = self.archive_exclude_common_technical_checkbox.isChecked()
         worker_min_size_kb = self.archive_min_size_spin.value()
         worker_previewable_only = self.archive_previewable_only_checkbox.isChecked()
@@ -399,11 +399,11 @@ class ArchiveScanLifecycleMixin:
         )
         self.archive_initial_sort_apply_pending = initial_sort_deferred
         if initial_sort_deferred:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Archive Browser first render is skipping active column sort; sort will apply after the first paint.",
                 verbose=True,
             )
-        performance_settings = self._current_archive_performance_settings()
+        performance_settings = self.shell._current_archive_performance_settings()
         startup_index_warmup = bool(
             getattr(self, "archive_startup_hold_until_ready", False)
             and getattr(self, "archive_startup_index_warmup_required", False)
@@ -438,8 +438,8 @@ class ArchiveScanLifecycleMixin:
             defer_enhanced_index_build=bool(startup_deferred_archive_load and not startup_index_warmup),
             native_archive_acceleration=performance_settings.native_archive_acceleration,
             resource_profile=performance_settings.resource_profile,
-            game_executable_fingerprints=self._load_game_executable_fingerprints(),
-            crash_reports_dir=self.crash_reports_dir,
+            game_executable_fingerprints=self.shell._load_game_executable_fingerprints(),
+            crash_reports_dir=self.shell.crash_reports_dir,
         )
         thread = QThread(self)
         thread.setObjectName("archive_scan")
@@ -456,8 +456,8 @@ class ArchiveScanLifecycleMixin:
 
         self.archive_scan_ui_receiver = receiver
         self.archive_scan_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=False)
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=False)
         thread.start()
 
     def _ensure_archive_extension_index_ready(self) -> None:
@@ -470,7 +470,7 @@ class ArchiveScanLifecycleMixin:
         payload = result if isinstance(result, dict) else {}
         updated_fingerprints = payload.get("game_executable_fingerprints")
         if isinstance(updated_fingerprints, Mapping):
-            self._save_game_executable_fingerprints(updated_fingerprints)
+            self.shell._save_game_executable_fingerprints(updated_fingerprints)
         self._clear_archive_preview_cache()
         self._clear_archive_asset_family_cache()
         self.archive_entries = payload.get("entries", []) if isinstance(payload.get("entries"), list) else []
@@ -544,7 +544,7 @@ class ArchiveScanLifecycleMixin:
                 except (TypeError, ValueError):
                     continue
         self.archive_result_filter_signature = tuple(payload.get("result_filter_signature") or self._current_archive_filter_signature())
-        performance_settings = self._current_archive_performance_settings()
+        performance_settings = self.shell._current_archive_performance_settings()
         saved_filter_state = getattr(self, "archive_startup_saved_filter_state", {}) or {}
         if not isinstance(saved_filter_state, Mapping):
             saved_filter_state = {}
@@ -650,11 +650,11 @@ class ArchiveScanLifecycleMixin:
         self.archive_enhanced_index_activity = "loading" if prewarm_enhanced_index else "idle"
         self.archive_deferred_enhanced_index_start_pending = bool(prewarm_enhanced_index)
         if basic_index_needs_build and not prewarm_basic_index:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Path lookup cache deferred; it will build when filters, related-file lookup, preview, or priority indexing need it."
             )
         if enhanced_index_needs_build and not prewarm_enhanced_index:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Item-name search cache deferred; explicit name: searches, Item Finder, or priority indexing can start it."
             )
         self.archive_native_derived_cache_ready = bool(payload.get("archive_native_derived_cache_ready"))
@@ -679,7 +679,7 @@ class ArchiveScanLifecycleMixin:
             and performance_settings.enable_sidecar_indexing
             and not priority_prewarm_indexes
         ):
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Global texture-sidecar indexing deferred; direct model preview resolves its own material dependencies."
             )
         if not performance_settings.enable_sidecar_indexing:
@@ -687,7 +687,7 @@ class ArchiveScanLifecycleMixin:
             self.archive_sidecar_entries_by_texture_basename = {}
         package_root_text = self.archive_package_root_edit.text().strip()
         def update_text_search_entries() -> None:
-            text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+            text_search_tab = created_tool_widget(getattr(self.shell, "text_search_tab", None))
             if text_search_tab is not None:
                 text_search_tab.set_archive_entries(self.archive_entries, package_root_text)
 
@@ -735,7 +735,7 @@ class ArchiveScanLifecycleMixin:
         self.archive_filters_dirty = False
         self._update_archive_filter_button_state()
         def update_replace_assistant_entries() -> None:
-            replace_assistant_tab = created_tool_widget(getattr(self, "replace_assistant_tab", None))
+            replace_assistant_tab = created_tool_widget(getattr(self.shell, "replace_assistant_tab", None))
             if replace_assistant_tab is not None:
                 replace_assistant_tab.set_archive_entries(self.archive_entries, package_root_text)
 
@@ -764,7 +764,7 @@ class ArchiveScanLifecycleMixin:
         rebuilt_count = int(scan_metadata.get("scan_shard_rebuilt_count", 0) or 0)
         if self.archive_entries:
             if source == "cache" and stale_count <= 0 and rebuilt_count <= 0:
-                self._set_archive_cache_health(
+                self.shell._set_archive_cache_health(
                     "healthy",
                     f"Cache Status: Healthy. {len(self.archive_entries):,} archive entries loaded from current cache.",
                     package_root=package_root_text,
@@ -773,21 +773,21 @@ class ArchiveScanLifecycleMixin:
                 rebuild_note = (
                     f" Rebuilt {rebuilt_count:,} stale shard(s)." if rebuilt_count > 0 else ""
                 )
-                self._set_archive_cache_health(
+                self.shell._set_archive_cache_health(
                     "healthy",
                     f"Cache Status: Healthy. Archive cache matches current game files.{rebuild_note}",
                     package_root=package_root_text,
                 )
         rendering_archive_view = (
             self._activate_archive_browser_on_scan_complete
-            or self._is_tool_visible_or_current(self.archive_browser_tab)
+            or self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)
         )
-        self._write_heartbeat("archive_finalize")
+        self.shell._write_heartbeat("archive_finalize")
         finalize_text = "Rendering archive browser view..." if rendering_archive_view else "Finalizing archive load..."
         self._set_archive_load_progress(finalize_text, percent=90 if rendering_archive_view else 96)
-        self._update_startup_splash(f"{finalize_text} ({self._archive_load_progress_percent}%)", self._archive_load_progress_percent, 100)
-        self.set_status_message(finalize_text)
-        self.append_archive_log(finalize_text)
+        self.shell._update_startup_splash(f"{finalize_text} ({self._archive_load_progress_percent}%)", self._archive_load_progress_percent, 100)
+        self.shell.set_status_message(finalize_text)
+        self.shell.append_archive_log(finalize_text)
         self.archive_scan_finalize_pending = True
         QTimer.singleShot(
             0,
@@ -813,7 +813,7 @@ class ArchiveScanLifecycleMixin:
                 if source == "cache"
                 else f"Archive scan complete. Found {len(self.archive_entries):,} entries."
             )
-            self._record_runtime_event(
+            self.shell._record_runtime_event(
                 "archive_scan_complete",
                 source=source,
                 entry_count=len(self.archive_entries),
@@ -821,15 +821,15 @@ class ArchiveScanLifecycleMixin:
                 timing_summary=timing_summary,
             )
             if cache_path_text and source == "scan":
-                self.append_archive_log(f"Archive cache ready: {cache_path_text}")
+                self.shell.append_archive_log(f"Archive cache ready: {cache_path_text}")
             if timing_summary:
-                self.append_archive_log(timing_summary, verbose=True)
+                self.shell.append_archive_log(timing_summary, verbose=True)
             if source == "cache" and _timing_value(timings, "total_s") > 2.0:
-                self.append_archive_log(
+                self.shell.append_archive_log(
                     f"WARNING: Archive cache hit is slower than expected: total={_timing_value(timings, 'total_s'):.2f}s.",
                     verbose=True,
                 )
-            performance_settings = self._current_archive_performance_settings()
+            performance_settings = self.shell._current_archive_performance_settings()
             if (
                 self.archive_sidecar_pending_start
                 and self.archive_entries
@@ -846,18 +846,18 @@ class ArchiveScanLifecycleMixin:
                     percent=96,
                 )
                 self._set_archive_sidecar_status(warmup_text)
-                self.set_status_message(warmup_text)
-                self.append_archive_log(warmup_text)
+                self.shell.set_status_message(warmup_text)
+                self.shell.append_archive_log(warmup_text)
             else:
                 self.archive_sidecar_pending_start = False
             release_startup_now = bool(
-                getattr(self, "_startup_splash_window", None) is not None
+                getattr(self.shell, "_startup_splash_window", None) is not None
                 and not bool(getattr(self, "archive_startup_hold_until_ready", False))
             )
             if release_startup_now:
-                self._update_startup_splash(completion_text, 1, 1)
-                self._write_heartbeat("running")
-                self._release_startup_splash()
+                self.shell._update_startup_splash(completion_text, 1, 1)
+                self.shell._write_heartbeat("running")
+                self.shell._release_startup_splash()
             self._refresh_or_defer_archive_browser_view(
                 activate_tab=self._activate_archive_browser_on_scan_complete,
                 on_complete=None,
@@ -866,10 +866,10 @@ class ArchiveScanLifecycleMixin:
             self._activate_archive_browser_on_scan_complete = False
             self._refresh_or_defer_research_archive_picker()
             self._set_archive_list_status(completion_text)
-            self.append_archive_log(completion_text)
+            self.shell.append_archive_log(completion_text)
             self._record_archive_memory_audit("archive_scan_complete", log_if_high=True)
             self._set_archive_warmup_overlay(False)
-            self._finish_startup_benchmark_after_archive_ready(
+            self.shell._finish_startup_benchmark_after_archive_ready(
                 reason="archive_scan_complete",
                 source=source,
                 timings=timings,
@@ -879,8 +879,8 @@ class ArchiveScanLifecycleMixin:
                 not release_startup_now
                 and not bool(getattr(self, "archive_startup_hold_until_ready", False))
             ):
-                self._write_heartbeat("running")
-                self._release_startup_splash()
+                self.shell._write_heartbeat("running")
+                self.shell._release_startup_splash()
             remote_bridge = getattr(self, "archive_remote_bridge", None)
             if remote_bridge is not None and remote_bridge.shadows_legacy:
                 remote_bridge.schedule_shadow_comparison("scan_complete")
@@ -890,22 +890,22 @@ class ArchiveScanLifecycleMixin:
                 self.archive_deferred_derived_cache_write_pending = True
             if start_sidecar_after_finalize:
                 self.archive_deferred_sidecar_start_pending = True
-            if self._startup_benchmark_enabled():
+            if self.shell._startup_benchmark_enabled():
                 self.archive_deferred_background_start_pending = False
                 self.archive_deferred_basic_index_start_pending = False
                 self.archive_deferred_enhanced_index_start_pending = False
                 self.archive_deferred_derived_cache_write_pending = False
                 self.archive_startup_hold_until_ready = False
                 if not release_startup_now:
-                    self._write_heartbeat("running")
-                    self._release_startup_splash()
+                    self.shell._write_heartbeat("running")
+                    self.shell._release_startup_splash()
             elif bool(getattr(self, "archive_startup_hold_until_ready", False)):
                 self.archive_deferred_background_start_pending = False
                 QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
             else:
                 self._schedule_archive_post_ready_background_work()
-            if self.worker_thread is None:
-                self.set_busy(False, build_mode=False)
+            if self.shell.worker_thread is None:
+                self.shell.set_busy(False, build_mode=False)
 
 
 __all__ = ["ArchiveScanLifecycleMixin"]

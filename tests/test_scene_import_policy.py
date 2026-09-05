@@ -209,6 +209,11 @@ def test_model_library_picker_reissues_worker_request_with_selected_member() -> 
 
 def test_full_import_preflight_continues_after_explicit_zip_selection() -> None:
     class Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_mesh_import_setup_request_id = 0
         archive_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] = {}
         _shutting_down = False

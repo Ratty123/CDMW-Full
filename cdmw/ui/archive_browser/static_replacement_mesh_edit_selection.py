@@ -212,44 +212,44 @@ def _mesh_edit_finish_selection_worker(_state, _callbacks, request_id: int) -> N
 
 def _mesh_edit_selection_worker_progress(_state, _callbacks, request_id: int, _percent: int, message: str) -> None:
     if int(request_id) == int(_state.mesh_edit_selection_worker_state.get("request_id", 0) or 0) and message:
-        _state.self.set_status_message(str(message))
+        _state.self.shell.set_status_message(str(message))
 
 def _mesh_edit_selection_worker_failed(_state, _callbacks, request_id: int, message: str) -> None:
     if int(request_id) == int(_state.mesh_edit_selection_worker_state.get("request_id", 0) or 0):
-        _state.self.set_status_message(str(message or "Selection update failed."), error=True)
+        _state.self.shell.set_status_message(str(message or "Selection update failed."), error=True)
 
 def _mesh_edit_selection_worker_cancelled(_state, _callbacks, request_id: int, message: str) -> None:
     if int(request_id) == int(_state.mesh_edit_selection_worker_state.get("request_id", 0) or 0):
-        _state.self.set_status_message(str(message or "Selection update cancelled."))
+        _state.self.shell.set_status_message(str(message or "Selection update cancelled."))
 
 def _mesh_edit_selection_worker_completed(_state, _callbacks, request_id: int, result: object, session: object) -> None:
     if int(request_id) != int(_state.mesh_edit_selection_worker_state.get("request_id", 0) or 0):
         return
     start_revision = int(_state.mesh_edit_selection_worker_state.get("start_revision", 0) or 0)
     if int(_state.mesh_edit_revision.get("value", 0) or 0) != start_revision:
-        _state.self.set_status_message("Selection result was discarded because the mesh changed while it was running.", error=True)
+        _state.self.shell.set_status_message("Selection result was discarded because the mesh changed while it was running.", error=True)
         return
     view = getattr(result, "session_view", None)
     if view is None:
         controller = getattr(session, "controller", None)
         session_view = getattr(controller, "session_view", None)
         if not callable(session_view):
-            _state.self.set_status_message("Selection update failed.", error=True)
+            _state.self.shell.set_status_message("Selection update failed.", error=True)
             return
         view = session_view()
     selection = view.selection
     _callbacks._mesh_edit_set_vertex_selection(selection.vertex_map())
     diagnostics = tuple(getattr(result, "diagnostics", ()) or ())
     if diagnostics:
-        _state.self.set_status_message(str(diagnostics[0]), error=True)
+        _state.self.shell.set_status_message(str(diagnostics[0]), error=True)
     else:
-        _state.self.set_status_message("Selection updated.")
+        _state.self.shell.set_status_message("Selection updated.")
 
 def _mesh_edit_start_selection_worker(_state, _callbacks, operation: str, action_text: str) -> bool:
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None or _state.QThread is None:
         return False
     if _callbacks._mesh_edit_worker_active():
-        _state.self.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
+        _state.self.shell.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
         return True
     session = _callbacks._mesh_editor_ensure_static_replacement_session(_state._mesh_edit_state.replacement_mesh_for_mapping)
     if not isinstance(session, _state.StaticReplacementMeshEditSession):
@@ -290,7 +290,7 @@ def _mesh_edit_start_selection_worker(_state, _callbacks, operation: str, action
         }
     )
     _callbacks._refresh_mesh_edit_controls()
-    _state.self.set_status_message(f"Updating {action_text} in the background...")
+    _state.self.shell.set_status_message(f"Updating {action_text} in the background...")
     thread.start(_state.QThread.LowPriority)
     return True
 
@@ -531,9 +531,9 @@ def _mesh_editor_embedded_dotnet_failed(_state, _callbacks, reason: str = "", di
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False)
     summary = str(diagnostics or "").strip()
     if summary:
-        _state.self.set_status_message(f"Mesh .NET preview failed: {summary}", error=True)
+        _state.self.shell.set_status_message(f"Mesh .NET preview failed: {summary}", error=True)
     else:
-        _state.self.set_status_message("Mesh .NET preview failed.", error=True)
+        _state.self.shell.set_status_message("Mesh .NET preview failed.", error=True)
     if getattr(_state, "controls_panel", None) is not None:
         _state.controls_panel.setVisible(True)
     _callbacks._record_mesh_edit_event(
@@ -607,7 +607,7 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
             _state.controls_panel.setVisible(False)
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_state", "launching")
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False)
-        _state.self.set_status_message("Launching embedded Mesh .NET editor...", error=False)
+        _state.self.shell.set_status_message("Launching embedded Mesh .NET editor...", error=False)
         _callbacks._refresh_mesh_edit_controls()
         _callbacks._record_mesh_edit_event(
             "mesh_edit_dotnet_launch_requested",
@@ -622,13 +622,13 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
         start_dotnet()
         return
     if not dotnet_available:
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Mesh .NET editor helper unavailable; preview cannot start.",
             error=True,
         )
         _callbacks._refresh_mesh_edit_controls()
         return
-    _state.self.set_status_message("Mesh .NET preview is disabled by configuration.", error=True)
+    _state.self.shell.set_status_message("Mesh .NET preview is disabled by configuration.", error=True)
     _callbacks._refresh_mesh_edit_controls()
 
 

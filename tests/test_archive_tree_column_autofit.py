@@ -36,6 +36,9 @@ class _ArchiveColumnHost(ArchiveBrowserHeaderMixin, ResponsivenessControllerMixi
     """The archive tree plus the window mixins that own its column sizing."""
 
     def __init__(self, settings: QSettings) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.settings = settings
         self._shutting_down = False
         self._archive_tree_header_programmatic_depth = 0

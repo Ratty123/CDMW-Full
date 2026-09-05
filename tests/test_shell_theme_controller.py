@@ -252,19 +252,19 @@ class ShellThemeControllerTests(unittest.TestCase):
             f"Theme probe {function_name} failed.\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
         )
 
-    def test_compact_styles_are_scoped_and_keep_structural_wrappers_flat(self) -> None:
+    def test_native_styles_keep_structural_wrappers_flat(self) -> None:
         stylesheet = build_app_stylesheet("crimson_desert")
 
-        self.assertIn('QWidget[compactPresentation="true"] QGroupBox {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QFrame#FlatSectionBody,', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QGroupBox[compactStructural="true"] {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QWidget[compactFlatSurface="true"]', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QToolButton#SectionToggle {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QToolButton#EditorToolButton {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QPushButton {', stylesheet)
-        self.assertIn('QWidget[compactPresentation="true"] QListWidget#SettingsSectionNav {', stylesheet)
-        compact_group_style = stylesheet.split(
-            'QWidget[compactPresentation="true"] QGroupBox {', 1
+        self.assertNotIn('compactPresentation', stylesheet)
+        self.assertIn('QFrame#FlatSectionBody,', stylesheet)
+        self.assertIn('QGroupBox[compactStructural="true"] {', stylesheet)
+        self.assertIn('QWidget[compactFlatSurface="true"]', stylesheet)
+        self.assertIn('QToolButton#SectionToggle {', stylesheet)
+        self.assertIn('QToolButton#EditorToolButton {', stylesheet)
+        self.assertIn('QPushButton {', stylesheet)
+        self.assertIn('QListWidget#SettingsSectionNav {', stylesheet)
+        compact_group_style = stylesheet.rsplit(
+            '    QGroupBox {', 1
         )[1].split("}", 1)[0]
         self.assertIn("border: none;", compact_group_style)
         self.assertNotIn("border-top:", compact_group_style)
@@ -287,7 +287,7 @@ class ShellThemeControllerTests(unittest.TestCase):
                 tab.show()
                 app.processEvents()
 
-                self.assertTrue(bool(tab.property("compactPresentation")))
+                self.assertIsNone(tab.property("compactPresentation"))
                 self.assertEqual("graphite", tab.current_theme_key())
                 self.assertEqual("", tab.section_nav_list.styleSheet())
                 self.assertEqual(
@@ -324,8 +324,8 @@ class ShellThemeControllerTests(unittest.TestCase):
                         app.processEvents()
 
                         self.assertGreater(tab.section_nav_panel.height(), tab.section_nav_list.height())
-                        self.assertEqual(theme["field"], tab.section_nav_list.palette().color(QPalette.Base).name())
-                        self.assertEqual(theme["field"], tab.section_nav_panel.palette().color(QPalette.Window).name())
+                        self.assertEqual(theme["surface_alt"], tab.section_nav_list.palette().color(QPalette.Base).name())
+                        self.assertEqual(theme["surface_alt"], tab.section_nav_panel.palette().color(QPalette.Window).name())
             finally:
                 tab.deleteLater()
                 app.processEvents()
@@ -339,6 +339,9 @@ class ShellThemeControllerTests(unittest.TestCase):
         class _Window(QWidget, ThemeControllerMixin):
             def __init__(self) -> None:
                 super().__init__()
+                self.shell = self
+                self.archive = self
+                self.textures = self
                 self.current_theme_key = "crimson_desert"
                 self.settings = _Settings({})
                 self._pending_theme_key = None
@@ -753,6 +756,9 @@ class ShellThemeControllerTests(unittest.TestCase):
         class _Window(QWidget, ThemeControllerMixin):
             def __init__(self) -> None:
                 super().__init__()
+                self.shell = self
+                self.archive = self
+                self.textures = self
                 self.settings = _Settings(
                     {
                         "appearance/ui_font_family": previous_font.family(),
@@ -947,6 +953,9 @@ class ShellThemeControllerTests(unittest.TestCase):
             compact_workspace=SimpleNamespace(drawer=drawer),
             _queue_appearance_apply_step=lambda label, callback: queued_steps.append((label, callback)),
         )
+        owner.shell = owner
+        owner.archive = owner
+        owner.textures = owner
 
         ThemeControllerMixin._queue_data_font_apply_steps(owner, schedule_column_autofit=False)  # type: ignore[arg-type]
         compact_callback = next(

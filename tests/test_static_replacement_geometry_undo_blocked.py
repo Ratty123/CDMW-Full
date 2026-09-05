@@ -35,6 +35,7 @@ def _state_with(*, restore_succeeds: bool) -> SimpleNamespace:
         _geometry_undo_status_text_helper=lambda reason: f"Undid {reason}.",
         self=SimpleNamespace(set_status_message=lambda message, **_kw: statuses.append(message)),
     )
+    state.self.shell = state.self
     _remaining_geometry_history_step_028(state)
     return state
 

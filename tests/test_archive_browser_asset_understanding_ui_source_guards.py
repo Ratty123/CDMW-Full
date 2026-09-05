@@ -146,7 +146,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('self.archive_asset_family_button = QPushButton("Asset Family")', source)
         self.assertIn("self.archive_asset_family_button.setCheckable(True)", source)
         self.assertIn(
-            "self.archive_asset_family_button.toggled.connect(self._open_archive_asset_family_workspace_dialog)",
+            "self.archive.archive_asset_family_button.toggled.connect(self.archive._open_archive_asset_family_workspace_dialog)",
             source,
         )
         self.assertIn("self.archive_asset_family_summary_label = QLabel", source)
@@ -315,7 +315,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + MATERIAL_SIDECAR_PREVIEW_SERVICE.read_text(encoding="utf-8")
         )
 
-        self.assertIn('material_preview_host = DotNetPreviewHostFrame(', source)
+        self.assertIn('material_preview_host = RustPreviewHostFrame(', source)
         self.assertIn('profile=DotNetPreviewProfile.PREVIEW', source)
         self.assertIn('material_preview_host.setObjectName("MaterialValuesDotNetVorticePreviewHost")', source)
         self.assertIn("preview_accuracy_warning = QLabel", source)
@@ -325,7 +325,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("write_isolated_d3d11_preview_package(", source)
         self.assertIn("material_preview_host.load_package(package_dir, reset_view=bool(reset_view))", source)
         self.assertIn("material_preview_base_result_state", source)
-        self.assertIn("reused active Archive Browser .NET/Vortice package; no material values changed.", source)
+        self.assertIn("reused active Archive Browser Rust Preview package; no material values changed.", source)
         self.assertIn('cleanup_owned_package=result_kind != "reused"', source)
         self.assertIn("def _current_archive_material_preview_result()", source)
         self.assertIn("def _archive_material_preview_source_package()", source)
@@ -377,7 +377,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('self.archive_appearance_composite_button = QPushButton("Composite Preview...")', source)
         self.assertNotIn('("Preview Composite Appearance", self.archive_appearance_composite_button)', source)
         self.assertIn(
-            "self.archive_appearance_composite_button.clicked.connect(self._open_current_archive_appearance_composite_preview)",
+            "self.archive.archive_appearance_composite_button.clicked.connect(self.archive._open_current_archive_appearance_composite_preview)",
             source,
         )
         self.assertIn("def _prompt_appearance_composite_component_selection", source)
@@ -388,7 +388,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("build_appearance_composite_model", source)
         self.assertIn("find_appearance_composite_candidates", source)
         self.assertIn("model_overrides=model_overrides", source)
-        self.assertIn("Preparing composite appearance preview for .NET/Vortice", source)
+        self.assertIn("Preparing composite appearance preview for Rust Preview", source)
         self.assertIn("prepared_preview_model=prepared_preview_model", source)
         self.assertIn("What-if model override", source)
         self.assertIn("Display-only preview: no archive or game files are modified.", source)
@@ -444,7 +444,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("archive_entries = tuple(self.archive_entries)", body)
         self.assertIn("def task(on_log: Callable[[str], None], stop_event: object) -> object:", body)
         self.assertIn("return build_character_dependency_plan(", body)
-        self.assertIn("self._run_utility_task(", body)
+        self.assertIn("self.shell._run_utility_task(", body)
         self.assertIn("show_archive_progress=True", body)
         self.assertIn("task_accepts_cancel=True", body)
         self.assertIn("QTimer.singleShot(", body)
@@ -491,7 +491,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("model_texture_references=cached_texture_references", source)
         self.assertIn("build_preview_context=create_workspace", source)
         self.assertIn("task_accepts_progress=True", source)
-        self.assertIn("session_root = workspace_paths(self.settings_file_path.parent)[\"modify_original_sessions_root\"]", source)
+        self.assertIn("session_root = workspace_paths(self.shell.settings_file_path.parent)[\"modify_original_sessions_root\"]", source)
         self.assertIn("def _cleanup_stale_modify_original_sessions(", source)
         self.assertNotIn("modify_original_auto", source)
         self.assertIn("force_static_replacement=True", source)
@@ -513,10 +513,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             body = shell_source[start:end]
             self.assertIn("_start_archive_modify_original_workspace", body)
             self.assertIn("_set_last_active_operation", body)
-            self.assertNotIn("self._open_mesh_editor_for_entry(", body)
+            self.assertNotIn("self.shell._open_mesh_editor_for_entry(", body)
 
         self.assertIn("def _start_archive_mesh_patch(", patch_source)
-        self.assertIn("self._open_mesh_editor_for_entry(", patch_source)
+        self.assertIn("self.shell._open_mesh_editor_for_entry(", patch_source)
         start = modify_source.index("    def _start_archive_modify_original_workspace(")
         launch = modify_source.index("    def _launch_archive_modify_original_workspace(", start)
         inspect_body = modify_source[start:launch]
@@ -531,13 +531,13 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         complete_start = modify_source.index("        def _handle_complete(", task_start)
         task_body = modify_source[task_start:complete_start]
         complete_body = modify_source[
-            complete_start:modify_source.index("        self._run_utility_task_when_idle(", complete_start)
+            complete_start:modify_source.index("        self.shell._run_utility_task_when_idle(", complete_start)
         ]
         # The draft check chains into preparation from a completion handler, where the
         # first worker thread is still registered. A plain _run_utility_task is refused
         # there as a concurrent task, and the refusal never reaches the archive log.
-        self.assertIn("self._run_utility_task_when_idle(", modify_source[launch:])
-        self.assertNotIn("self._run_utility_task(", modify_source[launch:])
+        self.assertIn("self.shell._run_utility_task_when_idle(", modify_source[launch:])
+        self.assertNotIn("self.shell._run_utility_task(", modify_source[launch:])
         self.assertIn("cleanup_stale_sessions=False", modify_source[launch:task_start])
         self.assertIn("prepare_modify_original_workspace(", task_body)
         self.assertIn("stop_event=stop_event", task_body)
@@ -710,16 +710,16 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
         )
 
-        self.assertIn("self._archive_scan_progress_timer = QTimer(self)", source)
-        self.assertIn("self._archive_scan_progress_min_interval_s = 1.0 / 30.0", source)
+        self.assertIn("self.archive._archive_scan_progress_timer = QTimer(self)", source)
+        self.assertIn("self.archive._archive_scan_progress_min_interval_s = 1.0 / 30.0", source)
         self.assertIn("def _flush_archive_scan_progress(self) -> None:", source)
         self.assertIn("def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:", source)
         self.assertIn("def _archive_progress_phase_for_detail(self, detail: str) -> Tuple[str, int, int]:", source)
         self.assertIn("def _set_archive_load_progress(", source)
-        self.assertIn("self._startup_splash_progress_detail(str(detail or \"Working...\"))", source)
+        self.assertIn("self.shell._startup_splash_progress_detail(str(detail or \"Working...\"))", source)
         self.assertIn("self._archive_scan_progress_timer.start(delay_ms)", source)
         self.assertIn("self._flush_archive_scan_progress()", source)
-        self.assertIn("self.archive_scan_progress_bar.setRange(0, 100)", source)
+        self.assertIn("self.archive.archive_scan_progress_bar.setRange(0, 100)", source)
         # The coalesced write path binds the bar locally and skips redundant
         # setValue/setFormat pairs, which is the part that keeps the main thread
         # out of QProgressBar.setValue at progress-callback cadence.
@@ -727,8 +727,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("if left_indeterminate or bar.value() != percent_value:", source)
         self.assertIn("bar.setFormat(f\"{percent_value}%\")", source)
         self.assertIn("self.archive_scan_progress_label.setText(phase_text)", source)
-        self.assertIn("self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
-        self.assertIn('self.archive_scan_progress_label = QLabel("Ready")', source)
+        self.assertIn("self.shell._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
+        self.assertIn('self.archive.archive_scan_progress_label = QLabel("Ready")', source)
         controls_source = ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8")
         menus_source = SHELL_MENUS.read_text(encoding="utf-8")
         self.assertNotIn('QGroupBox("Status")', controls_source)
@@ -738,18 +738,18 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("archive_filters_layout.addWidget(self.archive_package_filter_hint_label)", controls_source)
         self.assertIn("archive_log_panel = QWidget()", controls_source)
         self.assertLess(
-            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_label)"),
-            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_bar)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive.archive_scan_progress_label)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive.archive_scan_progress_bar)"),
         )
         self.assertLess(
-            menus_source.index("menu_corner_layout.addWidget(self.archive_scan_progress_bar)"),
-            menus_source.index("menu_corner_layout.addWidget(self.archive_cache_status_chip)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive.archive_scan_progress_bar)"),
+            menus_source.index("menu_corner_layout.addWidget(self.archive.archive_cache_status_chip)"),
         )
         self.assertIn("menu_corner_layout.setSpacing(8)", menus_source)
-        self.assertIn("self.archive_scan_progress_bar.setFixedSize(118, 18)", menus_source)
-        self.assertIn("self.archive_cache_status_chip.setFixedWidth(132)", menus_source)
-        self.assertIn("self.archive_cache_status_chip.setAlignment(Qt.AlignCenter)", menus_source)
-        self.assertIn("self.archive_cache_status_chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)", menus_source)
+        self.assertIn("self.archive.archive_scan_progress_bar.setFixedSize(118, 18)", menus_source)
+        self.assertIn("self.archive.archive_cache_status_chip.setFixedWidth(132)", menus_source)
+        self.assertIn("self.archive.archive_cache_status_chip.setAlignment(Qt.AlignCenter)", menus_source)
+        self.assertIn("self.archive.archive_cache_status_chip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)", menus_source)
         self.assertIn("def _set_archive_cache_status_chip(", source)
         self.assertIn('"building": "Cache: Building"', source)
         self.assertNotIn("percent_text =", source)
@@ -956,7 +956,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("decode timing threshold", source)
 
     def test_mod_generation_ui_uses_target_manager_checklists(self) -> None:
-        app_window_source = (REPO_ROOT / "cdmw" / "ui" / "shell" / "window_feature_providers.py").read_text(
+        app_window_source = (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "workspace.py").read_text(
             encoding="utf-8"
         )
         safe_placement_dialog_source = ARCHIVE_ATTACHMENT_SAFE_PLACEMENT_DIALOG.read_text(encoding="utf-8")
@@ -1028,12 +1028,12 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertNotIn("def _open_archive_attachment_safe_placement_dialog", app_window_source)
         self.assertIn("class ArchiveAttachmentSafePlacementDialogMixin", safe_placement_dialog_source)
         self.assertIn("def _open_archive_attachment_safe_placement_dialog", safe_placement_dialog_source)
-        self.assertIn(".NET/Vortice-only socket selection", source)
+        self.assertIn("Rust Preview-only socket selection", source)
         self.assertIn("return self._open_archive_attachment_safe_placement_dialog(", source)
         self.assertIn("placement_d3d11_available", source)
-        self.assertIn(".NET/Vortice placement preview is available.", source)
+        self.assertIn("Rust Preview placement preview is available.", source)
         self.assertIn("No fallback preview renderer is available.", source)
-        self.assertIn("DotNetPreviewHostFrame", source)
+        self.assertIn("RustPreviewHostFrame", source)
         self.assertIn("profile=DotNetPreviewProfile.PREVIEW", source)
         self.assertNotIn("NativeD3D11PreviewHostFrame", source)
         self.assertIn('preview_style_combo.addItem("Socket schematic (recommended)", "schematic")', source)
@@ -1303,7 +1303,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _install_tree_horizontal_wheel_guard(self, tree: QTreeWidget) -> None:", source)
         self.assertIn('tree.setProperty("cdmw_disable_auto_column_fill", True)', source)
         self.assertIn("tree.viewport().installEventFilter(guard)", source)
-        self.assertIn("self._tree_horizontal_wheel_guards.append(guard)", source)
+        self.assertIn("self.shell._tree_horizontal_wheel_guards.append(guard)", source)
         self.assertIn("self._install_tree_horizontal_wheel_guard(self.archive_texture_refs_tree)", source)
         self.assertIn("self._install_tree_horizontal_wheel_guard(tree)", source)
         self.assertIn("horizontal_scroll_positions = [", source)

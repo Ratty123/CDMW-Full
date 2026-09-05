@@ -218,10 +218,10 @@ def _setup_options_transform_step_004(_state):
     _state._apply_complete_external_swap_routing_to_ui = _state.alignment_complete_swap_callbacks._apply_complete_external_swap_routing_to_ui
     _state._select_complete_swap_material_profile_silently = _state.alignment_complete_swap_callbacks._select_complete_swap_material_profile_silently
     _state._sync_complete_external_swap_mode = _state.alignment_complete_swap_callbacks._sync_complete_external_swap_mode
-    _state.complete_swap_profile_store_path = _state.self.settings_file_path.parent / 'complete_swap_material_profile.json'
+    _state.complete_swap_profile_store_path = _state.self.shell.settings_file_path.parent / 'complete_swap_material_profile.json'
     _state.stored_complete_swap_material_profile_obj = _state.read_complete_swap_calibrated_material_profile(_state.complete_swap_profile_store_path, 'material_authority_detail_mask')
     _state.stored_complete_swap_material_profile = str(getattr(_state.stored_complete_swap_material_profile_obj, 'name', '') or '')
-    _state.saved_complete_swap_material_profile = str(_state.self.settings.value('settings/complete_swap_material_profile', _state.stored_complete_swap_material_profile or 'material_authority_detail_mask') or _state.stored_complete_swap_material_profile or 'material_authority_detail_mask')
+    _state.saved_complete_swap_material_profile = str(_state.self.shell.settings.value('settings/complete_swap_material_profile', _state.stored_complete_swap_material_profile or 'material_authority_detail_mask') or _state.stored_complete_swap_material_profile or 'material_authority_detail_mask')
     _state._select_complete_swap_material_profile(_state.saved_complete_swap_material_profile)
     _state.complete_swap_material_profile_combo.setToolTip(_state._material_authority_complete_swap_tooltip_helper())
     _state.material_route_summary_label = _state.QLabel(_state._material_authority_route_summary_text_helper())
@@ -230,7 +230,7 @@ def _setup_options_transform_step_004(_state):
     _state.material_route_summary_label.setTextInteractionFlags(_state.Qt.TextInteractionFlag.TextSelectableByMouse)
     _state.global_gloss_reduction_tooltip = _state._material_authority_global_gloss_tooltip_helper()
     try:
-        _state.saved_global_gloss_reduction = int(round(float(_state.self.settings.value('settings/complete_swap_global_gloss_reduction', 0) or 0)))
+        _state.saved_global_gloss_reduction = int(round(float(_state.self.shell.settings.value('settings/complete_swap_global_gloss_reduction', 0) or 0)))
     except (TypeError, ValueError, OverflowError):
         _state.saved_global_gloss_reduction = 0
     _state.saved_global_gloss_reduction = max(-100, min(100, _state.saved_global_gloss_reduction))
@@ -252,22 +252,22 @@ def _setup_options_transform_step_004(_state):
     _state.true_source_basic_form.addLayout(_state.global_gloss_reduction_row, 0, 1)
     _state.true_source_basic_form.addWidget(_state.global_gloss_reduction_hint, 1, 0, 1, 2)
     _state.material_authority_adjustment_tooltips = _state._material_authority_adjustment_tooltips_helper()
-    _state.saved_source_brightness = _state._material_authority_clamped_int_helper(_state.self.settings.value('settings/complete_swap_source_brightness', 0), default=0, minimum=-100, maximum=100)
+    _state.saved_source_brightness = _state._material_authority_clamped_int_helper(_state.self.shell.settings.value('settings/complete_swap_source_brightness', 0), default=0, minimum=-100, maximum=100)
     _state.source_brightness_pair = _state._make_int_slider_spin_row_helper(slider_object_name='MeshAlignmentSourceBrightnessSlider', spin_object_name='MeshAlignmentSourceBrightnessSpinBox', minimum=-100, maximum=100, value=_state.saved_source_brightness, tooltip=_state.material_authority_adjustment_tooltips['source_brightness'])
     _state.source_brightness_slider = _state.source_brightness_pair.slider
     _state.source_brightness_spin = _state.source_brightness_pair.spin
     _state.source_brightness_row = _state.source_brightness_pair.row
-    _state.saved_tone_contrast = _state._material_authority_clamped_int_helper(_state.self.settings.value('settings/complete_swap_tone_contrast', 0), default=0, minimum=-100, maximum=100)
+    _state.saved_tone_contrast = _state._material_authority_clamped_int_helper(_state.self.shell.settings.value('settings/complete_swap_tone_contrast', 0), default=0, minimum=-100, maximum=100)
     _state.tone_contrast_pair = _state._make_int_slider_spin_row_helper(slider_object_name='MeshAlignmentToneContrastSlider', spin_object_name='MeshAlignmentToneContrastSpinBox', minimum=-100, maximum=100, value=_state.saved_tone_contrast, tooltip=_state.material_authority_adjustment_tooltips['tone_contrast'])
     _state.tone_contrast_slider = _state.tone_contrast_pair.slider
     _state.tone_contrast_spin = _state.tone_contrast_pair.spin
     _state.tone_contrast_row = _state.tone_contrast_pair.row
-    _state.saved_auto_brightness = _state._material_authority_clamped_int_helper(_state.self.settings.value('settings/complete_swap_auto_brightness', 50), default=50, minimum=0, maximum=100)
+    _state.saved_auto_brightness = _state._material_authority_clamped_int_helper(_state.self.shell.settings.value('settings/complete_swap_auto_brightness', 50), default=50, minimum=0, maximum=100)
     _state.auto_brightness_pair = _state._make_int_slider_spin_row_helper(slider_object_name='MeshAlignmentAutoBrightnessSlider', spin_object_name='MeshAlignmentAutoBrightnessSpinBox', minimum=0, maximum=100, value=_state.saved_auto_brightness, tooltip=_state.material_authority_adjustment_tooltips['auto_brightness'])
     _state.auto_brightness_slider = _state.auto_brightness_pair.slider
     _state.auto_brightness_spin = _state.auto_brightness_pair.spin
     _state.auto_brightness_row = _state.auto_brightness_pair.row
-    _state.saved_edge_relief = _state._material_authority_clamped_int_helper(_state.self.settings.value('settings/complete_swap_edge_relief_strength', 0), default=0, minimum=0, maximum=100)
+    _state.saved_edge_relief = _state._material_authority_clamped_int_helper(_state.self.shell.settings.value('settings/complete_swap_edge_relief_strength', 0), default=0, minimum=0, maximum=100)
     _state.edge_relief_pair = _state._make_int_slider_spin_row_helper(slider_object_name='MeshAlignmentEdgeReliefSlider', spin_object_name='MeshAlignmentEdgeReliefSpinBox', minimum=0, maximum=100, value=_state.saved_edge_relief, tooltip=_state.material_authority_adjustment_tooltips['edge_relief'])
     _state.edge_relief_slider = _state.edge_relief_pair.slider
     _state.edge_relief_spin = _state.edge_relief_pair.spin
@@ -275,14 +275,14 @@ def _setup_options_transform_step_004(_state):
     _state.edge_relief_source_combo = _state.QComboBox()
     _state.edge_relief_source_combo.setObjectName('MeshAlignmentEdgeReliefSourceCombo')
     _state._populate_combo_options_helper(_state.edge_relief_source_combo, _state.EDGE_RELIEF_SOURCE_OPTIONS)
-    _state.saved_edge_source = _state._material_authority_edge_relief_source_helper(_state.self.settings.value('settings/complete_swap_edge_relief_source', 'hybrid'))
+    _state.saved_edge_source = _state._material_authority_edge_relief_source_helper(_state.self.shell.settings.value('settings/complete_swap_edge_relief_source', 'hybrid'))
     _state.edge_source_index = _state.edge_relief_source_combo.findData(_state.saved_edge_source)
     if _state.edge_source_index < 0:
         _state.edge_source_index = 0
     _state.edge_relief_source_combo.setCurrentIndex(_state.edge_source_index)
     _state.edge_relief_source_combo.setToolTip(_state.material_authority_adjustment_tooltips['edge_relief_source'])
     for _state.stale_glow_settings_key in _state._material_authority_stale_glow_settings_keys_helper():
-        _state.self.settings.remove(_state.stale_glow_settings_key)
+        _state.self.shell.settings.remove(_state.stale_glow_settings_key)
     _state.saved_accent_glow = 0
     _state.accent_glow_pair = _state._make_int_slider_spin_row_helper(slider_object_name='MeshAlignmentAccentGlowSlider', spin_object_name='MeshAlignmentAccentGlowSpinBox', minimum=0, maximum=100, value=_state.saved_accent_glow, tooltip=_state.material_authority_adjustment_tooltips['accent_glow'])
     _state.accent_glow_slider = _state.accent_glow_pair.slider
@@ -392,12 +392,12 @@ def _setup_options_transform_step_005(_state):
         _state.manual_profile_defaults = _state.modify_original_profile_defaults or _state.manual_profile_defaults
     _state.manual_profile_default_values = _state._manual_material_profile_default_values_helper(_state.manual_profile_defaults)
     _state.stored_manual_profile_values = {} if _state.modify_original_clone_mode else _state._stored_manual_material_profile_values_helper(_state.stored_complete_swap_material_profile, _state.stored_complete_swap_material_profile_obj, _state.manual_profile_default_values)
-    _state._load_manual_profile_values = lambda: _state._load_manual_material_profile_values_helper(defaults=_state.manual_profile_default_values, stored_values=_state.stored_manual_profile_values, raw_settings=_state.self.settings.value(_state.manual_profile_settings_key, ''))
+    _state._load_manual_profile_values = lambda: _state._load_manual_material_profile_values_helper(defaults=_state.manual_profile_default_values, stored_values=_state.stored_manual_profile_values, raw_settings=_state.self.shell.settings.value(_state.manual_profile_settings_key, ''))
     _state.manual_profile_saved_values = _state._load_manual_profile_values()
     if _state.modify_original_clone_mode:
         _state.manual_profile_saved_values = _state._modify_original_manual_texture_tuning_values_helper(_state.manual_profile_saved_values, defaults=_state.manual_profile_default_values)
     _state._coerce_manual_profile_values = lambda raw_values: _state._coerce_manual_material_profile_values_helper(raw_values, _state.manual_profile_default_values)
-    _state._load_manual_profile_presets = lambda: _state._load_manual_material_profile_presets_helper(_state.self.settings.value(_state.manual_profile_presets_key, ''), defaults=_state.manual_profile_default_values)
+    _state._load_manual_profile_presets = lambda: _state._load_manual_material_profile_presets_helper(_state.self.shell.settings.value(_state.manual_profile_presets_key, ''), defaults=_state.manual_profile_default_values)
     _state.alignment_manual_profile_preset_callbacks = _state.create_alignment_manual_profile_preset_callbacks({**_state.context, **_state._factory_globals, **vars(_state)})
     _state._save_manual_profile_presets = _state.alignment_manual_profile_preset_callbacks._save_manual_profile_presets
     _state.manual_profile_presets = _state._load_manual_profile_presets()
@@ -587,7 +587,7 @@ def _setup_options_transform_step_006(_state):
     _state.modify_original_texture_tuning_checkbox = _state.QCheckBox('Advanced Texture Tuning')
     _state.modify_original_texture_tuning_checkbox.setObjectName('MeshAlignmentModifyOriginalAdvancedTextureTuningCheckbox')
     _state.modify_original_texture_tuning_checkbox.setToolTip('Enable tuning-only texture/material values for Modify Original output. Import Mesh Material Authority settings are not used.')
-    _state.modify_original_tuning_raw = _state.self.settings.value(_state.modify_original_texture_tuning_enabled_key, 'false')
+    _state.modify_original_tuning_raw = _state.self.shell.settings.value(_state.modify_original_texture_tuning_enabled_key, 'false')
 
 def _setup_options_transform_step_007(_state):
     # The tuning controls are always shown in Modify Original; nobody should
@@ -717,7 +717,7 @@ def _setup_options_transform_step_009(_state):
     _state.save_generated_icon_to_library_checkbox.setToolTip(_state.custom_icon_control_text['save_generated_to_library_tooltip'])
     _state.custom_icon_target_graph, _state._custom_icon_refs = _state.self._archive_asset_family_graph_for_entry(_state.entry)
     _state.custom_icon_target_entries = _state.self._attachment_package_item_icon_entries(_state.entry, _state.custom_icon_target_graph)
-    _state.custom_icon_setup_state = _state._custom_item_icon_setup_state_helper(has_target_entries=bool(_state.custom_icon_target_entries), has_item_icons_tab=hasattr(_state.self, 'item_icons_tab'))
+    _state.custom_icon_setup_state = _state._custom_item_icon_setup_state_helper(has_target_entries=bool(_state.custom_icon_target_entries), has_item_icons_tab=hasattr(_state.self.shell, 'item_icons_tab'))
     _state._custom_item_icon_apply_setup_state_helper(_state.custom_icon_setup_state, save_generated_to_library_widget=_state.save_generated_icon_to_library_checkbox, custom_icon_widget=_state.custom_icon_checkbox, target_combo_widget=_state.custom_icon_target_combo, status_widget=_state.custom_icon_status)
     for _state.icon_entry in _state.custom_icon_target_entries:
         _state.custom_icon_target_combo.addItem(_state.icon_entry.path, _state.icon_entry)

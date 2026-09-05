@@ -42,7 +42,7 @@ def _mesh_edit_commit_delete_result(_state, _callbacks, result: object) -> None:
         _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
         mesh_edit_delete_faces_text = _state._mesh_edit_delete_faces_text_helper()
-        _state.self.set_status_message(mesh_edit_delete_faces_text["no_selected_vertices"])
+        _state.self.shell.set_status_message(mesh_edit_delete_faces_text["no_selected_vertices"])
         return
     _callbacks._mesh_edit_disable_emptied_parts(result.emptied_submesh_indices)
     _callbacks._morph_slider_mark_topology_changed(_state._mesh_edit_topology_changed_status_helper("remove_faces"))
@@ -58,7 +58,7 @@ def _mesh_edit_commit_delete_result(_state, _callbacks, result: object) -> None:
     _callbacks._refresh_mesh_edit_controls()
     if not native_update_applied:
         _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(result.affected_submesh_indices)
-    _state.self.set_status_message(_state._mesh_edit_deleted_selection_status_helper(result.removed_face_count))
+    _state.self.shell.set_status_message(_state._mesh_edit_deleted_selection_status_helper(result.removed_face_count))
 
 def _mesh_edit_delete_selected_faces(_state, _callbacks, ) -> None:
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:
@@ -119,7 +119,7 @@ def _mesh_edit_commit_subdivide_result(_state, _callbacks, result: object, *, re
         _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
         mesh_edit_subdivide_text = _state._mesh_edit_subdivide_text_helper()
-        _state.self.set_status_message(mesh_edit_subdivide_text["no_selected_vertices"])
+        _state.self.shell.set_status_message(mesh_edit_subdivide_text["no_selected_vertices"])
         return
     status_key = "refine_smooth_selection" if refine_smooth else "subdivide_selection"
     _callbacks._morph_slider_mark_topology_changed(_state._mesh_edit_topology_changed_status_helper(status_key))
@@ -147,7 +147,7 @@ def _mesh_edit_commit_subdivide_result(_state, _callbacks, result: object, *, re
         if refine_smooth and callable(_state._mesh_edit_refined_selection_status_helper)
         else _state._mesh_edit_subdivided_selection_status_helper(result.added_face_count)
     )
-    _state.self.set_status_message(status)
+    _state.self.shell.set_status_message(status)
 
 def _mesh_edit_subdivide_selection(_state, _callbacks, *, refine_smooth: bool = False) -> None:
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:
@@ -225,7 +225,7 @@ def _mesh_edit_commit_split_result(_state, _callbacks, result: object) -> None:
         _callbacks._mesh_edit_pop_undo_snapshot()
         _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
-        _state.self.set_status_message(split_text["no_selected_faces"])
+        _state.self.shell.set_status_message(split_text["no_selected_faces"])
         return
     source_index = int(result.source_submesh_index)
     new_source_index = int(result.new_submesh_index)
@@ -259,7 +259,7 @@ def _mesh_edit_commit_split_result(_state, _callbacks, result: object) -> None:
     _callbacks._refresh_mesh_edit_controls()
     if not native_update_applied:
         _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild((source_index, new_source_index))
-    _state.self.set_status_message(_state._mesh_edit_split_selection_status_helper(result.moved_face_count))
+    _state.self.shell.set_status_message(_state._mesh_edit_split_selection_status_helper(result.moved_face_count))
 
 def _mesh_edit_split_selection_to_part(_state, _callbacks, ) -> None:
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:

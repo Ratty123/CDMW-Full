@@ -91,6 +91,7 @@ from cdmw.ui.texture_workflow.editor_session import (
     _TextureEditorSession,
     texture_editor_document_composite_revision,
 )
+from cdmw.ui.texture_workflow.job import TextureJob
 from cdmw.ui.texture_workflow.editor_shortcuts_ui import TextureEditorShortcutsUiMixin
 from cdmw.ui.texture_workflow.editor_selection_ui import TextureEditorSelectionUiMixin
 from cdmw.ui.texture_workflow.editor_session_ui import TextureEditorSessionUiMixin
@@ -164,6 +165,8 @@ class TextureEditorTab(
     resident_texture_patch_ready = Signal(object)
     browse_archive_requested = Signal(str)
     open_in_compare_requested = Signal(str, object)
+    workspace_changed = Signal()
+    workspace_mode_requested = Signal(str)
     _task_completed_on_ui = Signal(object)
     _task_error_on_ui = Signal(str)
     _task_finished_on_ui = Signal()
@@ -178,6 +181,7 @@ class TextureEditorTab(
         get_original_dds_root=None,
         get_archive_entries=None,
         get_current_config=None,
+        workspace_job: TextureJob | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -190,6 +194,7 @@ class TextureEditorTab(
         self._translate_ui_text: Callable[[str], str] = lambda text: str(text or "")
         self.workspace_root = texture_editor_default_workspace_root(base_dir)
         self.document: Optional[TextureEditorDocument] = None
+        self.workspace_preview = None
         self.layer_pixels: Dict[str, np.ndarray] = {}
         self.history_snapshots: List[Dict[str, object]] = []
         self.history_index = -1
@@ -213,7 +218,9 @@ class TextureEditorTab(
         self.layer_clipboard: Optional[Tuple[np.ndarray, str, int, int, str]] = None
         self.selection_clipboard: Optional[Tuple[np.ndarray, str, int, int]] = None
         self.channel_clipboard: Optional[Tuple[np.ndarray, str]] = None
-        self._sessions: List[_TextureEditorSession] = []
+        self.job = workspace_job if workspace_job is not None else TextureJob()
+        self.workspace_embedded = workspace_job is not None
+        self._sessions = self.job.sessions
         self._active_session_index = -1
         self._switching_session = False
         self.workspace = TextureEditorWorkspace()
@@ -253,25 +260,25 @@ class TextureEditorTab(
         self.setStyleSheet(
             """
             QGroupBox {
-                border-radius: 10px;
+                border-radius: 0px;
                 margin-top: 10px;
                 padding-top: 10px;
                 font-weight: 600;
             }
             QLineEdit, QComboBox, QTextBrowser, QListWidget {
-                border-radius: 6px;
+                border-radius: 0px;
             }
             QFrame#EditorSectionBody {
-                border-radius: 10px;
+                border-radius: 0px;
             }
             QFrame#EditorActionPane {
-                border-radius: 10px;
+                border-radius: 0px;
             }
             QWidget#EditorLeftSidebar, QWidget#EditorInspectorSidebar {
-                border-radius: 12px;
+                border-radius: 0px;
             }
             QWidget#EditorCanvasPane {
-                border-radius: 12px;
+                border-radius: 0px;
             }
             QScrollArea#EditorSidebarScroll {
                 border: none;
@@ -408,7 +415,8 @@ class TextureEditorTab(
         edit_actions.addWidget(self.redo_button, 1, 1)
         edit_actions.addWidget(self.shortcuts_button, 2, 0, 1, 2)
         left_actions_layout.addLayout(edit_actions)
-        native_export_layout = QGridLayout()
+        self.native_export_controls = QWidget(self)
+        native_export_layout = QGridLayout(self.native_export_controls)
         native_export_layout.setHorizontalSpacing(6)
         native_export_layout.setVerticalSpacing(6)
         native_export_label = QLabel("DDS")
@@ -420,14 +428,15 @@ class TextureEditorTab(
         native_export_layout.addWidget(self.export_dds_button, 4, 0, 1, 2)
         native_export_layout.addWidget(self.preview_compressed_button, 5, 0, 1, 2)
         native_export_layout.addWidget(self.native_dds_status_label, 6, 0, 1, 2)
-        left_actions_layout.addLayout(native_export_layout)
+        if not self.workspace_embedded:
+            left_actions_layout.addWidget(self.native_export_controls)
         left_actions_layout.addWidget(self.warning_label)
         left_actions_layout.addWidget(self.status_label)
         tool_layout.addWidget(left_actions_body)
         self.tool_buttons: Dict[str, QToolButton] = {}
         tool_group = QGroupBox("Tools")
         tool_group.setObjectName("EditorToolGroup")
-        tool_group_layout = QVBoxLayout(tool_group)
+        tool_group_layout = QGridLayout(tool_group)
         tool_group_layout.setContentsMargins(8, 12, 8, 8)
         tool_group_layout.setSpacing(4)
         for tool_key, label in (
@@ -459,19 +468,21 @@ class TextureEditorTab(
             button.setAutoRaise(False)
             button.setToolTip(label)
             self.tool_buttons[tool_key] = button
-            tool_group_layout.addWidget(button)
-        tool_group_layout.addStretch(1)
+            index = len(self.tool_buttons) - 1
+            tool_group_layout.addWidget(button, index // 2, index % 2)
+        tool_group_layout.setRowStretch((len(self.tool_buttons) + 1) // 2, 1)
         tool_layout.addWidget(tool_group)
         tool_layout.addStretch(1)
-        self.left_scroll = QScrollArea()
+        self.left_scroll = QScrollArea(self)
         self.left_scroll.setObjectName("EditorSidebarScroll")
         self.left_scroll.setWidgetResizable(True)
         self.left_scroll.setFrameShape(QFrame.NoFrame)
         self.left_scroll.setMinimumWidth(editor_tool_min)
         self.left_scroll.setMaximumWidth(editor_tool_max)
-        self.left_scroll.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.left_scroll.setSizePolicy(QSizePolicy.Expanding if self.workspace_embedded else QSizePolicy.Fixed, QSizePolicy.Expanding)
         self.left_scroll.setWidget(self.tool_panel)
-        self.main_splitter.addWidget(self.left_scroll)
+        if not self.workspace_embedded:
+            self.main_splitter.addWidget(self.left_scroll)
 
         self.canvas_panel = QWidget()
         self.canvas_panel.setObjectName("EditorCanvasPane")
@@ -479,11 +490,18 @@ class TextureEditorTab(
         canvas_layout = QVBoxLayout(self.canvas_panel)
         canvas_layout.setContentsMargins(12, 12, 12, 12)
         canvas_layout.setSpacing(10)
-        canvas_layout.addWidget(self.document_tab_bar)
+        if not self.workspace_embedded:
+            canvas_layout.addWidget(self.document_tab_bar)
         self.canvas_toolbar = QFrame()
         self.canvas_toolbar.setObjectName("EditorActionPane")
-        zoom_row = QHBoxLayout(self.canvas_toolbar)
-        zoom_row.setContentsMargins(8, 6, 8, 4)
+        toolbar_layout = QVBoxLayout(self.canvas_toolbar)
+        toolbar_layout.setContentsMargins(8, 6, 8, 4)
+        toolbar_layout.setSpacing(4)
+        zoom_row = QHBoxLayout()
+        toolbar_layout.addLayout(zoom_row)
+        grid_row = QHBoxLayout()
+        toolbar_layout.addLayout(grid_row)
+        zoom_row.setContentsMargins(0, 0, 0, 0)
         zoom_row.setSpacing(6)
         self.zoom_out_button = QPushButton("-")
         self.zoom_fit_button = QPushButton("Fit")
@@ -516,7 +534,7 @@ class TextureEditorTab(
         self.grid_size_spin.setSingleStep(4)
         self.grid_size_spin.setValue(64)
         self.grid_size_spin.setMinimumWidth(60)
-        self.grid_size_spin.setMaximumWidth(80)
+        self.grid_size_spin.setMinimumWidth(90)
         self.grid_color_button = QToolButton()
         self.grid_color_button.setFixedSize(24, 24)
         self.grid_color_button.setToolTip("Grid color")
@@ -527,7 +545,7 @@ class TextureEditorTab(
         self.grid_opacity_spin.setValue(42)
         self.grid_opacity_spin.setToolTip("Grid opacity")
         self.grid_opacity_spin.setMinimumWidth(64)
-        self.grid_opacity_spin.setMaximumWidth(72)
+        self.grid_opacity_spin.setMinimumWidth(90)
         self.zoom_out_button.setMinimumSize(32, 28)
         self.zoom_fit_button.setMinimumSize(42, 28)
         self.zoom_100_button.setMinimumSize(52, 28)
@@ -542,10 +560,11 @@ class TextureEditorTab(
         zoom_row.addWidget(self.view_mode_combo)
         zoom_row.addWidget(self.compare_split_slider)
         zoom_row.addSpacing(6)
-        zoom_row.addWidget(self.grid_checkbox)
-        zoom_row.addWidget(self.grid_size_spin)
-        zoom_row.addWidget(self.grid_color_button)
-        zoom_row.addWidget(self.grid_opacity_spin)
+        grid_row.addWidget(self.grid_checkbox)
+        grid_row.addWidget(self.grid_size_spin)
+        grid_row.addWidget(self.grid_color_button)
+        grid_row.addWidget(self.grid_opacity_spin)
+        grid_row.addStretch(1)
         zoom_row.addStretch(1)
         canvas_layout.addWidget(self.canvas_toolbar)
         self.canvas = TextureEditorCanvas()
@@ -659,7 +678,7 @@ class TextureEditorTab(
         self.tool_settings_layout = QFormLayout(tool_settings_body)
         self.tool_settings_layout.setContentsMargins(10, 10, 10, 10)
         self.tool_settings_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        self.tool_settings_layout.setRowWrapPolicy(QFormLayout.DontWrapRows)
+        self.tool_settings_layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
         self.tool_settings_layout.setHorizontalSpacing(12)
         self.tool_settings_layout.setVerticalSpacing(8)
         self.tool_settings_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -690,7 +709,7 @@ class TextureEditorTab(
             current_key="custom",
         ).entries:
             self.brush_preset_combo.addItem(entry.label, entry.key)
-        self.save_brush_preset_button = QPushButton("Save Preset")
+        self.save_brush_preset_button = QPushButton("Save")
         self.save_brush_preset_button.setObjectName("EditorPanelButton")
         self.brush_preset_row = QWidget()
         brush_preset_row_layout = QHBoxLayout(self.brush_preset_row)
@@ -1415,12 +1434,19 @@ class TextureEditorTab(
         self.right_scroll.setMaximumWidth(editor_inspector_max)
         self.right_scroll.setWidget(self.right_panel)
         self.main_splitter.addWidget(self.right_scroll)
-        self.main_splitter.setStretchFactor(0, 0)
-        self.main_splitter.setStretchFactor(1, 8)
-        self.main_splitter.setStretchFactor(2, 2)
-        self.main_splitter.setSizes(
-            build_responsive_splitter_sizes(2040, [12, 70, 18], [editor_tool_min, 520, editor_inspector_min])
-        )
+        self._finish_editor_setup()
+
+    def _finish_editor_setup(self) -> None:
+        if self.workspace_embedded:
+            self.main_splitter.setStretchFactor(0, 8)
+            self.main_splitter.setStretchFactor(1, 2)
+            self.document_tab_bar.hide()
+            self.native_export_controls.hide()
+        else:
+            self.main_splitter.setStretchFactor(0, 0)
+            self.main_splitter.setStretchFactor(1, 8)
+            self.main_splitter.setStretchFactor(2, 2)
+        self._set_texture_editor_splitter_sizes(self._texture_editor_default_splitter_sizes(has_doc=False))
         self._task_completed_on_ui.connect(self._handle_async_task_completed)
         self._task_error_on_ui.connect(self._handle_async_task_error)
         self._task_finished_on_ui.connect(self._handle_async_task_finished)

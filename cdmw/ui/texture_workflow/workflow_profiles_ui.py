@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -99,7 +101,18 @@ class TextureWorkflowProfilesUiMixin:
         filters_layout.addWidget(profiles_group)
         filters_layout.addWidget(rules_group)
         filters_layout.addWidget(matched_group)
-        body_layout.addWidget(filters_group)
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Workflow Profiles, Rules & Matches")
+        dialog.resize(1060, 800)
+        dialog_layout = QVBoxLayout(dialog)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(filters_group)
+        dialog_layout.addWidget(scroll)
+        self.workflow_profiles_dialog = dialog
+        edit_button = QPushButton("Edit")
+        edit_button.clicked.connect(dialog.open)
+        body_layout.addWidget(edit_button)
         finish_texture_workflow_panel_body(self, "filters")
 
 
@@ -134,10 +147,10 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_profiles_tree.header().resizeSection(3, 240)
         make_tree_columns_persistent(
             self.workflow_profiles_tree,
-            self.settings,
+            self.shell.settings,
             "main/workflow_profiles",
             minimum_width=56,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
         profiles_layout.addWidget(self.workflow_profiles_tree)
 
@@ -281,10 +294,10 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_rules_tree.header().resizeSection(8, 150)
         make_tree_columns_persistent(
             self.workflow_rules_tree,
-            self.settings,
+            self.shell.settings,
             "main/workflow_rules",
             minimum_width=48,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
         rules_layout.addWidget(self.workflow_rules_tree)
 
@@ -379,10 +392,10 @@ class TextureWorkflowProfilesUiMixin:
         rule_detail_layout.addWidget(planner_path_label_widget, 4, 2)
         rule_detail_layout.addWidget(self.workflow_rule_intermediate_combo, 4, 3)
         self.workflow_rule_planner_profile_help_button.clicked.connect(
-            lambda: self.show_documentation_dialog(topic_id="workflow_planner_profiles")
+            lambda: self.shell.show_documentation_dialog(topic_id="workflow_planner_profiles")
         )
         self.workflow_rule_planner_path_help_button.clicked.connect(
-            lambda: self.show_documentation_dialog(topic_id="workflow_planner_paths")
+            lambda: self.shell.show_documentation_dialog(topic_id="workflow_planner_paths")
         )
         rules_layout.addWidget(rule_detail_group)
         return rules_group
@@ -425,10 +438,10 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_matched_files_tree.header().resizeSection(6, 150)
         make_tree_columns_persistent(
             self.workflow_matched_files_tree,
-            self.settings,
+            self.shell.settings,
             "main/workflow_matched_files",
             minimum_width=56,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
         matched_layout.addWidget(self.workflow_matched_files_tree)
         return matched_group

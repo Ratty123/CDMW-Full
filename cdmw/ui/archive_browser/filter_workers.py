@@ -29,7 +29,7 @@ class ArchiveFilterWorkerMixin:
             if remote_bridge.structure_requests_ready:
                 remote_bridge.request_structure_children(self._current_archive_structure_filter_value())
             return
-        if self._shutting_down or not self.archive_entries:
+        if self.shell._shutting_down or not self.archive_entries:
             self.archive_structure_filter_state = "idle"
             return
         if self.archive_structure_filter_children:
@@ -38,7 +38,7 @@ class ArchiveFilterWorkerMixin:
         if self.archive_structure_filter_thread is not None:
             return
         self.archive_structure_filter_state = "warming"
-        self.append_archive_log("Archive Browser activation timing | cause=structure_filter | start=background", verbose=True)
+        self.shell.append_archive_log("Archive Browser activation timing | cause=structure_filter | start=background", verbose=True)
         worker = ArchiveStructureFilterWorker(self.archive_entries)
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -56,7 +56,7 @@ class ArchiveFilterWorkerMixin:
             thread.start()
 
     def _handle_archive_structure_filter_complete(self, result: object) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             _record_archive_filter_worker_lifecycle(
                 self,
                 "archive_structure_filter_result_ignored",
@@ -67,7 +67,7 @@ class ArchiveFilterWorkerMixin:
         children = payload.get("structure_children")
         self.archive_structure_filter_children = children if isinstance(children, dict) else {}
         self.archive_structure_filter_state = "ready" if self.archive_structure_filter_children else "idle"
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Archive Browser activation timing | cause=structure_filter | ready={len(self.archive_structure_filter_children):,}",
             verbose=True,
         )
@@ -75,7 +75,7 @@ class ArchiveFilterWorkerMixin:
 
     def _handle_archive_structure_filter_error(self, message: str) -> None:
         self.archive_structure_filter_state = "failed"
-        self.append_archive_log(f"Warning: archive folder filters could not be built: {message}")
+        self.shell.append_archive_log(f"Warning: archive folder filters could not be built: {message}")
 
     def _cleanup_archive_structure_filter_refs(
         self,
@@ -144,7 +144,7 @@ class ArchiveFilterWorkerMixin:
             remote_bridge.apply_current_query()
             self._restore_archive_controls_scroll_after_filter()
             return
-        if self.worker_thread is not None:
+        if self.shell.worker_thread is not None:
             if self.archive_filter_worker is not None:
                 self.archive_filter_apply_pending = True
                 _record_archive_filter_worker_lifecycle(
@@ -154,7 +154,7 @@ class ArchiveFilterWorkerMixin:
                 )
                 self.archive_filter_worker.stop()
                 self._set_archive_load_progress("Stopping previous archive filter...", phase="Stopping")
-                self.set_status_message("Stopping previous archive filter...")
+                self.shell.set_status_message("Stopping previous archive filter...")
             return
         if not self.archive_entries:
             self.archive_filtered_entries = []
@@ -174,8 +174,8 @@ class ArchiveFilterWorkerMixin:
             self._update_archive_filter_button_state()
             self.archive_enhanced_filter_refresh_pending = True
             self._set_archive_load_progress(wait_text, phase="Indexing")
-            self.set_status_message(wait_text)
-            self.append_archive_log(wait_text)
+            self.shell.set_status_message(wait_text)
+            self.shell.append_archive_log(wait_text)
             self._schedule_archive_pending_enhanced_filter_refresh(500)
             return
         current_filter_state = self._capture_archive_filter_state()
@@ -188,8 +188,8 @@ class ArchiveFilterWorkerMixin:
             self._update_archive_filter_button_state()
             self.archive_enhanced_filter_refresh_pending = True
             self._set_archive_load_progress(wait_text, phase="Indexing")
-            self.set_status_message(wait_text)
-            self.append_archive_log(wait_text)
+            self.shell.set_status_message(wait_text)
+            self.shell.append_archive_log(wait_text)
             self._schedule_archive_pending_enhanced_filter_refresh(500)
             return
         current_entry = self._current_archive_entry()
@@ -204,11 +204,11 @@ class ArchiveFilterWorkerMixin:
     ) -> None:
         filter_text = self.archive_filter_edit.text().strip()
         exclude_filter_text = self.archive_exclude_filter_edit.text().strip()
-        extension_filter = self._combo_value(self.archive_extension_filter_combo)
+        extension_filter = self.textures._combo_value(self.archive_extension_filter_combo)
         package_filter_text = self.archive_package_filter_edit.text().strip()
         structure_filter = self._current_archive_structure_filter_value()
         self.archive_structure_filter_pending_value = structure_filter
-        role_filter = self._combo_value(self.archive_role_filter_combo)
+        role_filter = self.textures._combo_value(self.archive_role_filter_combo)
         exclude_common_technical_suffixes = self.archive_exclude_common_technical_checkbox.isChecked()
         min_size_kb = self.archive_min_size_spin.value()
         previewable_only = self.archive_previewable_only_checkbox.isChecked()
@@ -220,9 +220,9 @@ class ArchiveFilterWorkerMixin:
         self._mark_archive_browser_render_stale()
         self._reset_archive_load_progress()
         self._set_archive_load_progress("Preparing archive filter...", phase="Filtering")
-        self.set_status_message("Applying archive filters...")
-        self.append_archive_log("Applying archive filters...")
-        performance_settings = self._current_archive_performance_settings()
+        self.shell.set_status_message("Applying archive filters...")
+        self.shell.append_archive_log("Applying archive filters...")
+        performance_settings = self.shell._current_archive_performance_settings()
 
         worker = ArchiveFilterWorker(
             self.archive_entries,
@@ -252,23 +252,23 @@ class ArchiveFilterWorkerMixin:
             sort_order=self.archive_tree_sort_order,
             native_archive_acceleration=performance_settings.native_archive_acceleration,
             resource_profile=performance_settings.resource_profile,
-            record_runtime_event=getattr(self, "_record_runtime_event", None),
+            record_runtime_event=getattr(self.shell, "_record_runtime_event", None),
         )
         thread = QThread(self)
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self._append_verbose_archive_log)
+        worker.log_message.connect(self.shell._append_verbose_archive_log)
         worker.progress_changed.connect(self._handle_archive_scan_progress)
         worker.completed.connect(self._handle_archive_filter_complete)
-        worker.error.connect(self._handle_worker_error)
+        worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(self._cleanup_archive_filter_worker_refs)
 
         self.archive_filter_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=False)
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=False)
         self._restore_archive_controls_scroll_after_filter()
         thread.start()
 
@@ -279,7 +279,7 @@ class ArchiveFilterWorkerMixin:
     ) -> None:
         if thread is None:
             sender = self.sender()
-            thread = sender if isinstance(sender, QThread) else self.worker_thread
+            thread = sender if isinstance(sender, QThread) else self.shell.worker_thread
         worker = self.archive_filter_worker if worker is None else worker
         if thread is not None:
             try:
@@ -294,8 +294,8 @@ class ArchiveFilterWorkerMixin:
                     return
             except RuntimeError:
                 pass
-        if self.worker_thread is thread and self.archive_filter_worker is worker:
-            self._cleanup_worker_refs(thread)
+        if self.shell.worker_thread is thread and self.archive_filter_worker is worker:
+            self.shell._cleanup_worker_refs(thread)
         if thread is not None:
             try:
                 thread.deleteLater()
@@ -319,7 +319,7 @@ class ArchiveFilterWorkerMixin:
             self._update_archive_filter_button_state()
             stale_text = "Archive filter inputs changed while results were still loading. Press Apply Filters to refresh."
             self._set_archive_load_progress(stale_text, phase="Stale", percent=0, allow_decrease=True)
-            self.set_status_message(stale_text)
+            self.shell.set_status_message(stale_text)
             return
         self.archive_filtered_entries = (
             browser_state.get("filtered_entries", [])
@@ -366,7 +366,7 @@ class ArchiveFilterWorkerMixin:
             ),
             fmt="Rendering...",
         )
-        self.set_status_message("Rendering archive browser view...")
+        self.shell.set_status_message("Rendering archive browser view...")
         self._restore_archive_controls_scroll_after_filter()
         QTimer.singleShot(
             0,
@@ -380,16 +380,16 @@ class ArchiveFilterWorkerMixin:
             completion_text = f"Applied archive filters. Showing {filtered_entries:,} entries."
             self._set_archive_list_status(completion_text)
             self._set_archive_warmup_overlay(False)
-            self.append_archive_log(completion_text)
+            self.shell.append_archive_log(completion_text)
             self._restore_archive_controls_scroll_after_filter()
             self.archive_controls_scroll_filter_anchor = None
-            self._finish_startup_benchmark_search_after_filter()
+            self.shell._finish_startup_benchmark_search_after_filter()
             self._maybe_release_startup_after_archive_ready()
             remote_bridge = getattr(self, "archive_remote_bridge", None)
             if remote_bridge is not None and remote_bridge.shadows_legacy:
                 remote_bridge.schedule_shadow_comparison("filter_complete")
 
-        defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False)) or self._startup_benchmark_enabled()
+        defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False)) or self.shell._startup_benchmark_enabled()
         self.archive_startup_autoload_defer_preview = False
         self._populate_archive_tree(
             preferred_path,

@@ -213,7 +213,7 @@ class ArchiveMeshSetupHelperMixin:
         parent_layout: QVBoxLayout,
         profile: ReplacementAssetProfile,
         ) -> None:
-        theme = get_theme(self.current_theme_key)
+        theme = get_theme(self.shell.current_theme_key)
         support_roles = {
             "Supported": "ready",
             "Experimental": "warn",

@@ -31,12 +31,12 @@ class ArchivePreviewNativeCoreLifecycleMixin:
 
     def _schedule_native_preview_core_idle_shutdown(self, delay_ms: Optional[int] = None) -> None:
         delay = self.archive_preview_core_idle_shutdown_ms if delay_ms is None else int(delay_ms)
-        if delay <= 0 or self._shutting_down:
+        if delay <= 0 or self.shell._shutting_down:
             return
         self.archive_preview_core_idle_shutdown_timer.start(delay)
 
     def _shutdown_idle_native_preview_core_service(self) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             return
         if self._native_preview_core_worker_active():
             self._schedule_native_preview_core_idle_shutdown(delay_ms=30000)
@@ -44,7 +44,7 @@ class ArchivePreviewNativeCoreLifecycleMixin:
         idle_ms = max(0.0, (time.monotonic() - float(self.archive_preview_core_last_activity_at or 0.0)) * 1000.0)
         shutdown_native_preview_core_service()
         self.archive_preview_core_idle_shutdown_count += 1
-        recorder = getattr(self, "_record_runtime_event", None)
+        recorder = getattr(self.shell, "_record_runtime_event", None)
         if callable(recorder):
             recorder(
                 "native_preview_core_idle_shutdown",

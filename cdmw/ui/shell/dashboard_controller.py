@@ -15,7 +15,7 @@ class DashboardControllerMixin:
     """Refresh archive-cache health surfaces."""
 
     def _initialize_archive_cache_status_chip(self) -> None:
-        self._dashboard_set_archive_progress(percent=int(getattr(self, "_archive_load_progress_percent", 0) or 0))
+        self._dashboard_set_archive_progress(percent=int(getattr(self.archive, "_archive_load_progress_percent", 0) or 0))
 
     def _set_widget_health_state(self, widget: Optional[QWidget], state: str) -> None:
         if widget is None:
@@ -41,7 +41,7 @@ class DashboardControllerMixin:
         percent: Optional[int] = None,
         active: bool = False,
     ) -> None:
-        label = getattr(self, "archive_cache_status_chip", None)
+        label = getattr(self.archive, "archive_cache_status_chip", None)
         if label is None:
             return
         normalized = str(state or "unknown").strip().lower()
@@ -76,16 +76,16 @@ class DashboardControllerMixin:
                 reason_text = "Cache Status: Unhealthy. Rebuild archive cache."
             else:
                 reason_text = "Cache Status: Unknown. Archive cache has not been checked."
-        self._archive_cache_health_state = normalized
-        self._archive_cache_health_reason = reason_text
-        self._archive_cache_health_checked_path = str(package_root or self.archive_package_root_edit.text().strip() or "")
+        self.archive._archive_cache_health_state = normalized
+        self.archive._archive_cache_health_reason = reason_text
+        self.archive._archive_cache_health_checked_path = str(package_root or self.archive.archive_package_root_edit.text().strip() or "")
         self._dashboard_set_archive_progress()
 
     def _check_archive_cache_health(self, package_root_text: str = "") -> Dict[str, object]:
-        root_text = str(package_root_text or self.archive_package_root_edit.text().strip() or "").strip()
+        root_text = str(package_root_text or self.archive.archive_package_root_edit.text().strip() or "").strip()
         if not root_text:
             self._set_archive_cache_health("unhealthy", "Cache Status: Unhealthy. No Crimson Desert path is set.", package_root="")
-            return {"status": "unhealthy", "reason": self._archive_cache_health_reason}
+            return {"status": "unhealthy", "reason": self.archive._archive_cache_health_reason}
         package_root = Path(root_text).expanduser()
         if not package_root.exists():
             self._set_archive_cache_health(
@@ -93,8 +93,8 @@ class DashboardControllerMixin:
                 f"Cache Status: Unhealthy. Crimson Desert path does not exist: {package_root}",
                 package_root=root_text,
             )
-            return {"status": "unhealthy", "reason": self._archive_cache_health_reason}
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
+            return {"status": "unhealthy", "reason": self.archive._archive_cache_health_reason}
+        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
         if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
             session = getattr(remote_bridge, "current_session", None)
             session_root = str(getattr(session, "package_root", "") or "").strip()
@@ -119,7 +119,7 @@ class DashboardControllerMixin:
             self._set_archive_cache_health("unknown", reason, package_root=root_text)
             return {"status": "unknown", "reason": reason}
         try:
-            report = archive_scan_shard_cache_health(package_root, self.archive_cache_root)
+            report = archive_scan_shard_cache_health(package_root, self.archive.archive_cache_root)
         except Exception as exc:
             report = {"status": "unhealthy", "reason": f"Could not inspect archive cache: {exc}"}
         status = str(report.get("status", "unknown") or "unknown").strip().lower()
@@ -150,9 +150,9 @@ class DashboardControllerMixin:
         if str(health_report.get("status", "") or "").strip().lower() != "stale":
             return
         root_key = str(package_root_text or "").strip()
-        if root_key and root_key == str(getattr(self, "_archive_cache_stale_warning_shown_for", "") or ""):
+        if root_key and root_key == str(getattr(self.archive, "_archive_cache_stale_warning_shown_for", "") or ""):
             return
-        self._archive_cache_stale_warning_shown_for = root_key
+        self.archive._archive_cache_stale_warning_shown_for = root_key
         reason = str(health_report.get("reason", "") or "Archive cache is stale.").strip()
         finish_startup_splash = getattr(self, "_finish_startup_splash_before_modal", None)
         if callable(finish_startup_splash):
@@ -169,15 +169,15 @@ class DashboardControllerMixin:
         )
 
     def _dashboard_set_archive_progress(self, phase: str = "", detail: str = "", percent: Optional[int] = None) -> None:
-        if not hasattr(self, "archive_cache_status_chip"):
+        if not hasattr(self.archive, "archive_cache_status_chip"):
             return
-        active = bool(getattr(self, "_archive_load_progress_active", False))
-        health_state = str(getattr(self, "_archive_cache_health_state", "unknown") or "unknown")
-        health_reason = str(getattr(self, "_archive_cache_health_reason", "") or "").strip()
+        active = bool(getattr(self.archive, "_archive_load_progress_active", False))
+        health_state = str(getattr(self.archive, "_archive_cache_health_state", "unknown") or "unknown")
+        health_reason = str(getattr(self.archive, "_archive_cache_health_reason", "") or "").strip()
         percent_value = int(
-            getattr(self, "_archive_load_progress_percent", 0) if percent is None else min(max(int(percent), 0), 100)
+            getattr(self.archive, "_archive_load_progress_percent", 0) if percent is None else min(max(int(percent), 0), 100)
         )
-        detail_text = str(detail or getattr(self, "_archive_load_progress_detail", "") or "").strip()
+        detail_text = str(detail or getattr(self.archive, "_archive_load_progress_detail", "") or "").strip()
         phase_text = str(phase or "").strip()
         if not active:
             if health_state == "healthy":
@@ -193,7 +193,7 @@ class DashboardControllerMixin:
                 detail_text = health_reason or "Cache Status: Unknown. Archive cache has not been checked."
         else:
             if not phase_text:
-                phase_text = self._archive_progress_phase_for_detail(detail_text)[0] if detail_text else "Working"
+                phase_text = self.archive._archive_progress_phase_for_detail(detail_text)[0] if detail_text else "Working"
             if not detail_text:
                 detail_text = "Archive cache build running..."
         cache_build_active = bool(active and health_state == "building")
@@ -205,18 +205,18 @@ class DashboardControllerMixin:
         )
 
     def _refresh_dashboard(self) -> None:
-        if not hasattr(self, "archive_package_root_edit"):
-            self._dashboard_set_archive_progress(percent=int(getattr(self, "_archive_load_progress_percent", 0) or 0))
+        if not hasattr(self.archive, "archive_package_root_edit"):
+            self._dashboard_set_archive_progress(percent=int(getattr(self.archive, "_archive_load_progress_percent", 0) or 0))
             return
-        current_archive_root = self.archive_package_root_edit.text().strip()
+        current_archive_root = self.archive.archive_package_root_edit.text().strip()
         if (
             current_archive_root
-            and current_archive_root != str(getattr(self, "_archive_cache_health_checked_path", "") or "")
-            and not bool(getattr(self, "_archive_load_progress_active", False))
+            and current_archive_root != str(getattr(self.archive, "_archive_cache_health_checked_path", "") or "")
+            and not bool(getattr(self.archive, "_archive_load_progress_active", False))
         ):
             self._check_archive_cache_health(current_archive_root)
             return
-        self._dashboard_set_archive_progress(percent=int(getattr(self, "_archive_load_progress_percent", 0) or 0))
+        self._dashboard_set_archive_progress(percent=int(getattr(self.archive, "_archive_load_progress_percent", 0) or 0))
 
 
 __all__ = ["DashboardControllerMixin"]

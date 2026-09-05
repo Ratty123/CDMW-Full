@@ -42,6 +42,9 @@ class _Label:
 
 class _Owner(ArchiveProgressMixin, DashboardControllerMixin):
     def __init__(self, health_state: str, health_reason: str) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_cache_status_chip = _Label()
         self._archive_cache_health_state = health_state
         self._archive_cache_health_reason = health_reason
@@ -117,6 +120,9 @@ class _RootEdit:
 
 class _HealthOwner:
     def __init__(self, root: str, session: object | None = None) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_package_root_edit = _RootEdit(root)
         self.archive_remote_bridge = SimpleNamespace(displays_v2=True, current_session=session)
         self._archive_cache_health_reason = ""

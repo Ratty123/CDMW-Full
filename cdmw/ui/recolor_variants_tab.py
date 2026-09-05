@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
     QFileDialog,
+    QFormLayout,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -110,7 +111,10 @@ class _RecolorPreviewLabel(QLabel):
         self.setPixmap(self._source_pixmap.scaled(target_size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
 
-class RecolorVariantsTab(QWidget):
+from cdmw.ui.texture_workflow.recolor_mode import SharedRecolorModeMixin
+
+
+class RecolorVariantsTab(SharedRecolorModeMixin, QWidget):
     status_message_requested = Signal(str, bool)
     open_recolor_target_in_editor_requested = Signal(str, object, object)
 
@@ -120,9 +124,11 @@ class RecolorVariantsTab(QWidget):
         settings: QSettings,
         base_dir: Path,
         parent: Optional[QWidget] = None,
+        workspace=None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("RecolorVariantsTab")
+        self.workspace = workspace
         self.settings = settings
         self.base_dir = Path(base_dir).expanduser().resolve()
         self.analysis: Optional[RecolorVariantAnalysis] = None
@@ -137,85 +143,88 @@ class RecolorVariantsTab(QWidget):
         self._operation_error_handler: Optional[Callable[[str], None]] = None
         self._open_in_editor_after_preview_target_id = ""
 
-        root_layout = QVBoxLayout(self)
-        root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(8)
+        if self.workspace is not None:
+            self._build_shared_recolor_ui()
+        else:
+            root_layout = QVBoxLayout(self)
+            root_layout.setContentsMargins(0, 0, 0, 0)
+            root_layout.setSpacing(8)
 
-        self.splitter = QSplitter(Qt.Horizontal)
-        self.splitter.setChildrenCollapsible(False)
-        root_layout.addWidget(self.splitter, stretch=1)
+            self.splitter = QSplitter(Qt.Horizontal)
+            self.splitter.setChildrenCollapsible(False)
+            root_layout.addWidget(self.splitter, stretch=1)
 
-        controls_widget = QWidget()
-        controls_layout = QVBoxLayout(controls_widget)
-        controls_layout.setContentsMargins(0, 0, 0, 0)
-        controls_layout.setSpacing(8)
-        controls_layout.setAlignment(Qt.AlignTop)
-        set_sidebar_width_policy(controls_widget, role="workflow")
-        controls_scroll = QScrollArea()
-        controls_scroll.setWidgetResizable(True)
-        controls_scroll.setFrameShape(QScrollArea.NoFrame)
-        controls_scroll.setWidget(controls_widget)
-        self.splitter.addWidget(controls_scroll)
+            controls_widget = QWidget()
+            controls_layout = QVBoxLayout(controls_widget)
+            controls_layout.setContentsMargins(0, 0, 0, 0)
+            controls_layout.setSpacing(8)
+            controls_layout.setAlignment(Qt.AlignTop)
+            set_sidebar_width_policy(controls_widget, role="workflow")
+            controls_scroll = QScrollArea()
+            controls_scroll.setWidgetResizable(True)
+            controls_scroll.setFrameShape(QScrollArea.NoFrame)
+            controls_scroll.setWidget(controls_widget)
+            self.splitter.addWidget(controls_scroll)
 
-        main_widget = QWidget()
-        main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(8)
-        self.splitter.addWidget(main_widget)
-        content_min, _content_pref, _content_max = responsive_sidebar_bounds(self, role="wide")
-        main_widget.setMinimumWidth(content_min)
+            main_widget = QWidget()
+            main_layout = QVBoxLayout(main_widget)
+            main_layout.setContentsMargins(0, 0, 0, 0)
+            main_layout.setSpacing(8)
+            self.splitter.addWidget(main_widget)
+            content_min, _content_pref, _content_max = responsive_sidebar_bounds(self, role="wide")
+            main_widget.setMinimumWidth(content_min)
 
-        self.results_widget = QWidget()
-        self.results_widget.setObjectName("RecolorVariantResultsPane")
-        results_layout = QVBoxLayout(self.results_widget)
-        results_layout.setContentsMargins(0, 0, 0, 0)
-        results_layout.setSpacing(8)
-        self.results_widget.setMinimumWidth(280)
-        self.splitter.addWidget(self.results_widget)
-        self.splitter.setStretchFactor(0, 0)
-        self.splitter.setStretchFactor(1, 2)
-        self.splitter.setStretchFactor(2, 0)
-        self.splitter.setSizes(build_responsive_splitter_sizes(1680, [22, 58, 20], [340, 720, 280]))
+            self.results_widget = QWidget()
+            self.results_widget.setObjectName("RecolorVariantResultsPane")
+            results_layout = QVBoxLayout(self.results_widget)
+            results_layout.setContentsMargins(0, 0, 0, 0)
+            results_layout.setSpacing(8)
+            self.results_widget.setMinimumWidth(280)
+            self.splitter.addWidget(self.results_widget)
+            self.splitter.setStretchFactor(0, 0)
+            self.splitter.setStretchFactor(1, 2)
+            self.splitter.setStretchFactor(2, 0)
+            self.splitter.setSizes(build_responsive_splitter_sizes(1680, [22, 58, 20], [340, 720, 280]))
 
-        self.summary_label = QLabel("Choose a loose or zip mod, then analyze it for safe recolor targets.")
-        self.summary_label.setObjectName("HintLabel")
-        self.summary_label.setWordWrap(True)
-        controls_layout.addWidget(self.summary_label)
+            self.summary_label = QLabel("Choose a loose or zip mod, then analyze it for safe recolor targets.")
+            self.summary_label.setObjectName("HintLabel")
+            self.summary_label.setWordWrap(True)
+            controls_layout.addWidget(self.summary_label)
 
-        self._build_source_section(controls_layout)
-        self._build_template_section(controls_layout)
-        self._build_output_section(controls_layout)
-        self._build_results_section(results_layout)
+            self._build_source_section(controls_layout)
+            self._build_template_section(controls_layout)
+            self._build_output_section(controls_layout)
+            self._build_results_section(results_layout)
 
-        self.preview_summary_label = QLabel("Preview a template to see the exact texture and material-color impact before building.")
-        self.preview_summary_label.setObjectName("RecolorVariantPreviewSummary")
-        self.preview_summary_label.setWordWrap(True)
-        main_layout.addWidget(self.preview_summary_label)
+            self.preview_summary_label = QLabel("Preview a template to see the exact texture and material-color impact before building.")
+            self.preview_summary_label.setObjectName("RecolorVariantPreviewSummary")
+            self.preview_summary_label.setWordWrap(True)
+            main_layout.addWidget(self.preview_summary_label)
 
-        self._build_selected_preview_section(main_layout)
+            self._build_selected_preview_section(main_layout)
 
-        self.targets_tree = QTreeWidget()
-        self.targets_tree.setObjectName("RecolorVariantTargetsTree")
-        self.targets_tree.setHeaderLabels(["Target", "Kind", "Slot / Parameter", "Semantic", "State", "DDS"])
-        self.targets_tree.setAlternatingRowColors(True)
-        self.targets_tree.setRootIsDecorated(False)
-        self.targets_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.targets_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.targets_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.targets_tree.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.targets_tree.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.targets_tree.header().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        make_tree_columns_persistent(self.targets_tree, self.settings, "recolor_variants/targets_tree")
-        self.targets_tree.itemSelectionChanged.connect(self._handle_target_selection_changed)
-        main_layout.addWidget(self.targets_tree, stretch=3)
+            self.targets_tree = QTreeWidget()
+            self.targets_tree.setObjectName("RecolorVariantTargetsTree")
+            self.targets_tree.setHeaderLabels(["Target", "Kind", "Slot / Parameter", "Semantic", "State", "DDS"])
+            self.targets_tree.setAlternatingRowColors(True)
+            self.targets_tree.setRootIsDecorated(False)
+            self.targets_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.targets_tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            self.targets_tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            self.targets_tree.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            self.targets_tree.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+            self.targets_tree.header().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+            make_tree_columns_persistent(self.targets_tree, self.settings, "recolor_variants/targets_tree")
+            self.targets_tree.itemSelectionChanged.connect(self._handle_target_selection_changed)
+            main_layout.addWidget(self.targets_tree, stretch=3)
 
-        self.empty_state = EmptyStatePanel(
-            "No analysis loaded",
-            "Analyze a Source Mod to show safe basecolor/overlay texture slots and locked technical maps.",
-            compact=True,
-        )
-        self.empty_state.setVisible(True)
-        main_layout.addWidget(self.empty_state)
+            self.empty_state = EmptyStatePanel(
+                "No analysis loaded",
+                "Analyze a Source Mod to show safe basecolor/overlay texture slots and locked technical maps.",
+                compact=True,
+            )
+            self.empty_state.setVisible(True)
+            main_layout.addWidget(self.empty_state)
 
         self._reload_template_combo()
         self._load_settings()
@@ -297,22 +306,20 @@ class RecolorVariantsTab(QWidget):
         section.setObjectName("RecolorVariantSourceSection")
         section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         section.header_widget.setVisible(False)
-        layout = QGridLayout()
-        layout.setHorizontalSpacing(6)
-        layout.setVerticalSpacing(6)
-        layout.setColumnStretch(1, 1)
+        layout = QVBoxLayout()
+        layout.setSpacing(6)
         self.source_path_edit = QLineEdit()
         self.source_path_edit.setPlaceholderText("Folder or .zip package")
         self.source_browse_button = QPushButton("Browse")
         self.analyze_button = QPushButton("Analyze Mod")
-        layout.addWidget(QLabel("Source Mod"), 0, 0)
+        layout.addWidget(QLabel("Source Mod"))
         source_row = QHBoxLayout()
         source_row.setContentsMargins(0, 0, 0, 0)
         source_row.setSpacing(6)
         source_row.addWidget(self.source_path_edit, stretch=1)
         source_row.addWidget(self.source_browse_button)
-        layout.addLayout(source_row, 0, 1)
-        layout.addWidget(self.analyze_button, 1, 1)
+        layout.addLayout(source_row)
+        layout.addWidget(self.analyze_button)
         section.body_layout.addLayout(layout)
         parent_layout.addWidget(section)
         self.source_browse_button.clicked.connect(self._browse_source)
@@ -350,11 +357,13 @@ class RecolorVariantsTab(QWidget):
         section = FlatSectionPanel("Global Template", body_margins=(8, 8, 8, 8), body_spacing=6)
         section.setObjectName("RecolorVariantTemplateSection")
         section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        layout = QGridLayout()
+        layout = QFormLayout()
         layout.setHorizontalSpacing(6)
         layout.setVerticalSpacing(6)
-        layout.setColumnStretch(1, 1)
+        layout.setRowWrapPolicy(QFormLayout.WrapLongRows)
         self.template_combo = QComboBox()
+        self.template_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.template_combo.setMinimumContentsLength(8)
         self.template_name_edit = QLineEdit()
         self.target_kind_combo = QComboBox()
         self.target_kind_combo.addItem("Texture slots", "texture_slot")
@@ -384,24 +393,23 @@ class RecolorVariantsTab(QWidget):
         self.strength_row = self._build_slider_row(self.strength_slider, self.strength_value_label, suffix="%")
         self.preserve_luma_checkbox = QCheckBox("Preserve shading / luminance")
         self.preserve_luma_checkbox.setChecked(True)
-        self.import_template_button = QPushButton("Import JSON")
-        self.export_template_button = QPushButton("Export JSON")
-        self.save_template_button = QPushButton("Save Templates")
-        self.preview_template_button = QPushButton("Review Matches")
+        self.import_template_button = QPushButton("Import")
+        self.export_template_button = QPushButton("Export")
+        self.save_template_button = QPushButton("Save")
+        self.preview_template_button = QPushButton("Review")
 
         basic_rows = (
             ("Template", self.template_combo),
             ("Name", self.template_name_edit),
             ("Target color", self.target_color_row),
         )
-        for row, (label, widget) in enumerate(basic_rows):
-            layout.addWidget(QLabel(label), row, 0)
-            layout.addWidget(widget, row, 1)
+        for label, widget in basic_rows:
+            layout.addRow(label, widget)
         advanced_section = CollapsibleSection("Advanced Template Filters", expanded=False)
-        advanced_layout = QGridLayout()
+        advanced_layout = QFormLayout()
         advanced_layout.setHorizontalSpacing(6)
         advanced_layout.setVerticalSpacing(6)
-        advanced_layout.setColumnStretch(1, 1)
+        advanced_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
         advanced_rows = (
             ("Target kind", self.target_kind_combo),
             ("Slot kind", self.slot_kind_combo),
@@ -412,20 +420,19 @@ class RecolorVariantsTab(QWidget):
             ("Tolerance", self.tolerance_row),
             ("Strength", self.strength_row),
         )
-        for row, (label, widget) in enumerate(advanced_rows):
-            advanced_layout.addWidget(QLabel(label), row, 0)
-            advanced_layout.addWidget(widget, row, 1)
-        advanced_layout.addWidget(self.preserve_luma_checkbox, len(advanced_rows), 1)
+        for label, widget in advanced_rows:
+            advanced_layout.addRow(label, widget)
+        advanced_layout.addRow(self.preserve_luma_checkbox)
         advanced_section.body_layout.addLayout(advanced_layout)
-        layout.addWidget(advanced_section, len(basic_rows), 0, 1, 2)
-        actions = QHBoxLayout()
+        layout.addRow(advanced_section)
+        actions = QGridLayout()
         actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(6)
-        actions.addWidget(self.import_template_button)
-        actions.addWidget(self.export_template_button)
-        actions.addWidget(self.save_template_button)
-        actions.addWidget(self.preview_template_button)
-        layout.addLayout(actions, len(basic_rows) + 1, 1)
+        actions.addWidget(self.import_template_button, 0, 0)
+        actions.addWidget(self.export_template_button, 0, 1)
+        actions.addWidget(self.save_template_button, 1, 0)
+        actions.addWidget(self.preview_template_button, 1, 1)
+        layout.addRow(actions)
         section.body_layout.addLayout(layout)
         parent_layout.addWidget(section)
 
@@ -769,6 +776,9 @@ class RecolorVariantsTab(QWidget):
             self.status_message_requested.emit("Analyzing recolor targets...", False)
 
     def _populate_targets_tree(self) -> None:
+        if self.workspace is not None:
+            self.workspace.set_recolor_analysis(self.analysis)
+            return
         self.targets_tree.clear()
         if self.analysis is None:
             self.empty_state.setVisible(True)
@@ -834,6 +844,11 @@ class RecolorVariantsTab(QWidget):
         self.status_message_requested.emit("Recolor template preview updated.", False)
 
     def _selected_target(self):
+        if self.workspace is not None:
+            asset = self.workspace.job.assets.get(self.workspace.job.active_asset_key)
+            if asset is not None and self.analysis is not None and asset.package_path == Path(self.analysis.package_path):
+                return asset.package_target
+            return None
         if self.analysis is None:
             return None
         item = self.targets_tree.currentItem()
@@ -846,6 +861,9 @@ class RecolorVariantsTab(QWidget):
         return matching_recolor_variant_rule(target, self._template_from_controls().rules)
 
     def _handle_target_selection_changed(self) -> None:
+        if self.workspace is not None:
+            self._sync_shared_recolor_target()
+            return
         if self._worker_kind == "preview":
             self._operation_request_id += 1
             worker = self.build_worker
@@ -875,6 +893,8 @@ class RecolorVariantsTab(QWidget):
         self._sync_action_state()
 
     def _clear_preview_images(self) -> None:
+        if self.workspace is not None:
+            return
         for label, text in (
             (self.preview_source_image_label, "Before"),
             (self.preview_result_image_label, "After"),
@@ -961,13 +981,19 @@ class RecolorVariantsTab(QWidget):
             return
         template = self._template_from_controls()
         target_id = target.target_id
+        job_operation, edited_snapshot = self._capture_shared_recolor_preview()
 
         def task(stop_event: threading.Event) -> object:
+            source_pixels = None
+            if edited_snapshot is not None:
+                from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
+                source_pixels = flatten_texture_editor_layers(*edited_snapshot)
             preview = preview_recolor_variant_target_image(
                 analysis,
                 template,
                 target_id,
                 stop_event=stop_event,
+                source_pixels=source_pixels,
             )
             source_image = QImage(str(preview.source_png))
             result_image = QImage(str(preview.preview_png))
@@ -996,9 +1022,15 @@ class RecolorVariantsTab(QWidget):
                 or self._template_from_controls() != template
             ):
                 return
+            if self.workspace is not None:
+                self.workspace._synchronize_texture_job()
+                if job_operation is None or not self.workspace.job.accept(job_operation):
+                    return
+                self.workspace.show_texture_result_preview(source_image, result_image)
+            else:
+                self._set_preview_image(self.preview_source_image_label, source_image, "Before unavailable")
+                self._set_preview_image(self.preview_result_image_label, result_image, "After unavailable")
             self.current_preview_image = preview
-            self._set_preview_image(self.preview_source_image_label, source_image, "Before unavailable")
-            self._set_preview_image(self.preview_result_image_label, result_image, "After unavailable")
             for warning in preview.warnings:
                 self._append_log(f"Warning: {warning}")
             self.status_message_requested.emit("Selected recolor preview updated.", False)
@@ -1102,16 +1134,32 @@ class RecolorVariantsTab(QWidget):
         template = self._template_from_controls()
         self.build_button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.outputs_tree.clear()
         self._refresh_preview_summary()
         self._append_log("Starting recolor variant build. Source Mod will not be modified in place.")
+        analysis = self.analysis
+        edited_inputs = ()
+        if self.workspace is not None:
+            try:
+                edited_inputs = self.workspace.capture_texture_job_inputs(package_only=True)
+                selected_ids = {asset.package_target.target_id for key, asset in self.workspace.job.assets.items()
+                                if key in self.workspace.job.selected and asset.package_target is not None
+                                and asset.package_path == Path(analysis.package_path)}
+                if not selected_ids:
+                    raise ValueError("Select at least one recolor target in the asset list.")
+                analysis = dataclasses.replace(analysis, targets=tuple(target for target in analysis.targets if target.target_id in selected_ids))
+                self.workspace.begin_texture_operation("recolor")
+            except ValueError as exc:
+                self.status_message_requested.emit(str(exc), True)
+                self._sync_action_state()
+                return
         self.worker_thread = QThread(self)
         self.build_worker = RecolorVariantBuildWorker(
-            self.analysis,
+            analysis,
             template,
             Path(output_root_text),
             profiles,
             overwrite_existing=self.overwrite_checkbox.isChecked(),
+            edited_inputs=edited_inputs,
         )
         self._operation_request_id += 1
         self._worker_kind = "build"
@@ -1137,8 +1185,11 @@ class RecolorVariantsTab(QWidget):
 
     @Slot(object)
     def _handle_build_complete(self, result: RecolorVariantBuildResult) -> None:
-        self.last_output_roots = result.output_roots
-        self._populate_outputs_tree(result)
+        if self.workspace is not None and not self.workspace.finish_texture_operation(result):
+            return
+        if result.succeeded:
+            self.last_output_roots = result.output_roots
+            self._populate_outputs_tree(result)
         for warning in result.warnings:
             self._append_log(f"Warning: {warning}")
         for error in result.errors:
@@ -1155,7 +1206,6 @@ class RecolorVariantsTab(QWidget):
 
     @Slot(str)
     def _handle_build_failed(self, message: str) -> None:
-        self.outputs_tree.clear()
         self.outputs_tree.addTopLevelItem(QTreeWidgetItem(["Build", "Failed", message]))
         self._append_log(f"Build failed: {message}")
         self.status_message_requested.emit(f"Recolor variant build failed: {message}", True)
@@ -1176,6 +1226,8 @@ class RecolorVariantsTab(QWidget):
 
     @Slot()
     def _handle_worker_finished(self) -> None:
+        if self.workspace is not None and self._worker_kind == "build":
+            self.workspace.finish_texture_operation()
         if self.worker_thread is not None:
             self.worker_thread.deleteLater()
         self.worker_thread = None
@@ -1216,6 +1268,8 @@ class RecolorVariantsTab(QWidget):
         self._sync_workspace_visibility()
 
     def _sync_workspace_visibility(self) -> None:
+        if self.workspace is not None:
+            return
         if not bool(self.property("compactPresentation")):
             self.preview_section.setVisible(True)
             self.results_widget.setVisible(True)

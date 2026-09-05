@@ -6,7 +6,7 @@ import time
 from typing import Optional, Tuple
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
@@ -19,32 +19,20 @@ class NavigationControllerMixin:
         self._activate_tool_widget(self.settings_tab)
         if hasattr(self.settings_tab, "show_settings_section"):
             self.settings_tab.show_settings_section("paths")
-        self.archive_locations_section.set_expanded(True)
-        self.setup_section.set_expanded(False)
-        self.paths_section.set_expanded(False)
-        self.archive_package_root_edit.setFocus()
+        self.archive.archive_locations_section.set_expanded(True)
+        self.textures.setup_section.set_expanded(False)
+        self.textures.paths_section.set_expanded(False)
+        self.archive.archive_package_root_edit.setFocus()
 
-    def _find_tool_tab_widget(self, widget: QWidget) -> Optional[QTabWidget]:
-        if self.main_tabs.indexOf(widget) >= 0:
-            return self.main_tabs
-        for tab_widget in getattr(self, "_tool_group_tabs", ()):
-            if tab_widget.indexOf(widget) >= 0:
-                return tab_widget
-        return None
+    def _find_tool_tab_widget(self, widget: QWidget) -> Optional[QStackedWidget]:
+        return self.tool_stack if self.tool_stack.indexOf(widget) >= 0 else None
 
     def _current_navigation_widget(self) -> Optional[QWidget]:
-        current = self.main_tabs.currentWidget()
-        if isinstance(current, QTabWidget) and current in getattr(self, "_tool_group_tabs", ()):
-            return current.currentWidget()
-        return current
+        return self.tool_stack.currentWidget()
 
-    def _select_tab_widget(self, tab_widget: QTabWidget, widget: QWidget) -> None:
-        index = tab_widget.indexOf(widget)
-        if index < 0:
-            return
-        tab_widget.setCurrentIndex(index)
-        if tab_widget is not self.main_tabs:
-            self.main_tabs.setCurrentWidget(tab_widget)
+    def _select_tab_widget(self, tab_widget: QStackedWidget, widget: QWidget) -> None:
+        if tab_widget.indexOf(widget) >= 0:
+            tab_widget.setCurrentWidget(widget)
 
     def _restore_saved_navigation(self) -> None:
         if not self._preference_bool("restore_last_active_tab", True):
@@ -54,7 +42,8 @@ class NavigationControllerMixin:
         if saved_key == "dashboard":
             self._activate_tool_key("archive_browser")
             return
-        if saved_key in self._tool_widgets_by_key:
+        from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
+        if saved_key in self._tool_widgets_by_key or saved_key in TEXTURE_TOOL_ALIASES:
             self._activate_tool_key(saved_key)
             return
         if self.settings.contains("ui/main_tab_index"):
@@ -76,32 +65,13 @@ class NavigationControllerMixin:
         self._activate_tool_key("archive_browser")
 
     def _register_detachable_tool(
-        self,
-        key: str,
-        widget: QWidget,
-        title: str,
-        *,
-        detachable: bool = True,
+        self, key: str, widget: QWidget, title: str, *, detachable: bool = True,
     ) -> None:
-        if key in self._tool_widgets_by_key:
-            return
+        self.tab_registry.register(key, widget, title)
         if detachable:
             self._detachable_tool_order.append(key)
-        self._tool_widgets_by_key[key] = widget
-        self._tool_titles_by_key[key] = title
-        tab_widget = self._find_tool_tab_widget(widget)
-        # These labels only ever go back into `insertTab`, so they are kept in the escaped
-        # form a tab bar draws — `tabText` already returns it that way for tabs that exist.
-        if tab_widget is not None:
-            self._tool_tab_widgets_by_key[key] = tab_widget
-            index = tab_widget.indexOf(widget)
-            self._tool_tab_labels_by_key[key] = (
-                tab_widget.tabText(index) if index >= 0 else as_label(title)
-            )
-            if index >= 0:
-                self._tool_tab_home_index_by_key[key] = index
-        else:
-            self._tool_tab_labels_by_key[key] = as_label(title)
+        index = self.tool_stack.addWidget(widget)
+        self._tool_tab_home_index_by_key[key] = index
 
     def _build_window_tool_menu_actions(self) -> None:
         for key in self._detachable_tool_order:
@@ -163,28 +133,7 @@ class NavigationControllerMixin:
         return self._tool_keys_by_placeholder.get(widget, "")
 
     def _preferred_tool_tab_index(self, key: str) -> int:
-        tab_widget = self._tool_tab_widgets_by_key.get(key, self.main_tabs)
-        try:
-            order_index = self._detachable_tool_order.index(key)
-        except ValueError:
-            return tab_widget.count()
-        # Where the tool sat when the shell built it. Zero is only right for a tab bar that
-        # holds nothing but tools; `main_tabs` also holds grouped and direct workspaces, so
-        # a detachable workspace there would otherwise reattach in front of Assets.
-        preferred_index = self._tool_tab_home_index_by_key.get(key, 0)
-        for previous_key in self._detachable_tool_order[:order_index]:
-            if self._tool_tab_widgets_by_key.get(previous_key, self.main_tabs) is not tab_widget:
-                continue
-            previous_widget = self._tool_widgets_by_key.get(previous_key)
-            previous_placeholder = self._tool_placeholders_by_key.get(previous_key)
-            previous_tab_index = -1
-            if previous_widget is not None:
-                previous_tab_index = tab_widget.indexOf(previous_widget)
-            if previous_tab_index < 0 and previous_placeholder is not None:
-                previous_tab_index = tab_widget.indexOf(previous_placeholder)
-            if previous_tab_index >= 0:
-                preferred_index = previous_tab_index + 1
-        return min(preferred_index, tab_widget.count())
+        return min(self._tool_tab_home_index_by_key.get(key, self.tool_stack.count()), self.tool_stack.count())
 
     def _detach_current_tool_tab(self) -> None:
         self._detach_tool_key(self._tool_key_for_widget(self._current_navigation_widget()))
@@ -194,22 +143,6 @@ class NavigationControllerMixin:
         if key:
             self._attach_detached_tool(key)
 
-    def _remembered_tab_label(self, key: str, tab_widget: QTabWidget, index: int) -> str:
-        """The caption to put back, read off the tab we are about to remove.
-
-        The cache was filled once at registration, in English, and replayed verbatim on
-        every detach and reattach -- so detaching Archive Browser under a German UI put
-        the English caption back and left it there. Re-inserting a tab raises no event
-        the localizer acts on, so nothing corrected it until the next language change.
-        Reading the live text keeps whatever language it is currently in.
-        """
-        live = str(tab_widget.tabText(index) or "").strip() if index >= 0 else ""
-        if live:
-            self._tool_tab_labels_by_key[key] = live
-            return live
-        return self._tool_tab_labels_by_key.get(
-            key, as_label(self._tool_titles_by_key.get(key, key))
-        )
 
     def _detach_tool_key(self, key: str) -> None:
         if (
@@ -227,14 +160,13 @@ class NavigationControllerMixin:
             title = compact_tool_label(key, title)
         if widget is None or not title:
             return
-        tab_widget = self._tool_tab_widgets_by_key.get(key, self.main_tabs)
+        tab_widget = self.tool_stack
         tab_index = tab_widget.indexOf(widget)
         if tab_index < 0:
             return
         placeholder = self._create_detached_tool_placeholder(key)
-        tab_label = self._remembered_tab_label(key, tab_widget, tab_index)
-        tab_widget.removeTab(tab_index)
-        tab_widget.insertTab(tab_index, placeholder, tab_label)
+        tab_widget.removeWidget(widget)
+        tab_widget.insertWidget(tab_index, placeholder)
         self._select_tab_widget(tab_widget, placeholder)
 
         window = DetachedToolWindow(self, key, title)
@@ -288,17 +220,13 @@ class NavigationControllerMixin:
             window.hide()
             window.deleteLater()
         placeholder = self._tool_placeholders_by_key.get(key)
-        tab_widget = self._tool_tab_widgets_by_key.get(key, self.main_tabs)
+        tab_widget = self.tool_stack
         tab_index = tab_widget.indexOf(placeholder) if placeholder is not None else -1
         if tab_index >= 0:
-            tab_label = self._remembered_tab_label(key, tab_widget, tab_index)
-            tab_widget.removeTab(tab_index)
+            tab_widget.removeWidget(placeholder)
         else:
             tab_index = self._preferred_tool_tab_index(key)
-            tab_label = self._tool_tab_labels_by_key.get(
-                key, as_label(self._tool_titles_by_key.get(key, key))
-            )
-        tab_widget.insertTab(tab_index, widget, tab_label)
+        tab_widget.insertWidget(tab_index, widget)
         widget.updateGeometry()
         if select_after:
             self._select_tab_widget(tab_widget, widget)
@@ -335,17 +263,26 @@ class NavigationControllerMixin:
         return True
 
     def _activate_tool_key(self, key: str) -> None:
+        from cdmw.ui.texture_workflow.job import TEXTURE_TOOL_ALIASES
+        if key in TEXTURE_TOOL_ALIASES:
+            self.textures.activate_texture_alias(key)
+            key = "textures"
         widget = self._tool_widgets_by_key.get(key)
         if widget is not None:
             self._activate_tool_widget(widget)
 
     def _activate_tool_widget(self, widget: QWidget) -> None:
+        for key in ("texture_editor", "recolor_variants", "replace_assistant"):
+            if widget is getattr(self, key + "_tab", None):
+                self.textures.activate_texture_alias(key)
+                widget = self.textures
+                break
         key = self._tool_key_for_widget(widget)
         if key and self._raise_detached_tool(key):
             self._handle_tool_activated(widget)
             self._update_window_menu_state()
             return
-        tab_widget = self._tool_tab_widgets_by_key.get(key) if key else self._find_tool_tab_widget(widget)
+        tab_widget = self._find_tool_tab_widget(widget)
         if tab_widget is not None:
             self._select_tab_widget(tab_widget, widget)
         if isinstance(widget, LazyToolTab):
@@ -361,6 +298,8 @@ class NavigationControllerMixin:
         return self._current_navigation_widget() is widget
 
     def _handle_tool_activated(self, widget: QWidget) -> None:
+        if self.classic_navigation is not None:
+            self.classic_navigation.set_active_tool(self._tool_key_for_widget(widget))
         if isinstance(widget, LazyToolTab) and widget.widget_if_created() is None:
             tool_key = self._tool_key_for_widget(widget)
             pending = getattr(self, "_pending_lazy_tool_activation_keys", None)
@@ -386,23 +325,24 @@ class NavigationControllerMixin:
 
             sync_compact_workspace_selection(self, tool_key)
             return
-        if widget is self.workflow_tab:
-            self._apply_workflow_content_tab_layout()
-            self._queue_current_compare_preview_if_visible()
+        if widget is self.textures.workflow_tab:
+            self.textures.set_texture_mode(self.textures.job.mode)
         elif widget is self.archive_browser_tab:
-            self._note_archive_ui_activity()
-            self.archive_browser_first_visible_started_at = time.perf_counter()
-            if self._archive_browser_render_is_ready():
-                self._schedule_archive_browser_first_visible_paint_marker()
+            self.archive._note_archive_ui_activity()
+            self.archive.archive_browser_first_visible_started_at = time.perf_counter()
+            if self.archive._archive_browser_render_is_ready():
+                self.archive._schedule_archive_browser_first_visible_paint_marker()
             QTimer.singleShot(
                 80,
-                lambda: self._refresh_archive_browser_if_pending("tab_activation")
+                self.tool_stack,
+                lambda: self.archive._refresh_archive_browser_if_pending("tab_activation")
                 if self._is_tool_visible_or_current(self.archive_browser_tab)
                 else None,
             )
         elif widget is self.research_tab:
             QTimer.singleShot(
                 80,
+                self.tool_stack,
                 lambda: self.research_tab.refresh_archive_picker_if_pending()
                 if self._is_tool_visible_or_current(self.research_tab)
                 else None,

@@ -90,7 +90,7 @@ def test_real_builder_tool_click_publishes_one_tool_state_without_scene_or_displ
         state.mesh_edit_enabled_checkbox.setChecked(True)
         state.mesh_edit_enabled_checkbox.blockSignals(False)
         action_state_updates: list[dict[str, object]] = []
-        state.self.mesh_editor_tab = SimpleNamespace(
+        state.self.shell.mesh_editor_tab = SimpleNamespace(
             update_editor_action_state=lambda **payload: action_state_updates.append(
                 dict(payload)
             )

@@ -95,6 +95,7 @@ def test_embedded_delete_action_uses_resident_service_instead_of_legacy_delete()
             AssertionError("legacy delete path")
         ),
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _mesh_edit_record_snapshot=lambda: None,
         _mesh_editor_apply_static_replacement_edit=lambda _mesh, action, **params: session.apply(action, **params),
@@ -130,6 +131,7 @@ def test_resident_delete_commit_remaps_source_state_through_prompt_bridge() -> N
         _refresh_source_tree_selection_state=lambda: None,
         _refresh_source_assignment_columns=lambda: None,
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _mesh_editor_action_result_changed=lambda _result: True,
         _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
@@ -488,6 +490,7 @@ def test_resident_part_commit_does_not_touch_hidden_legacy_preview() -> None:
         _refresh_source_tree_selection_state=lambda: None,
         _refresh_source_assignment_columns=lambda: None,
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _mesh_editor_action_result_changed=lambda _result: True,
         _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
@@ -553,6 +556,7 @@ def test_new_part_material_state_is_folded_into_the_topology_transaction() -> No
         _refresh_source_tree_selection_state=lambda: None,
         _refresh_source_assignment_columns=lambda: None,
     )
+    state.self.shell = state.self
     copied_material = {
         "source_submesh_indices": [1],
         "editor_role": "replacement_preview",
@@ -616,6 +620,9 @@ def test_embedded_list_selection_replaces_resident_viewport_selection_exactly() 
         )[-1],
         _standalone_dotnet_editor_process_running=lambda: True,
     )
+    owner.shell = owner
+    owner.archive = owner
+    owner.textures = owner
     try:
         assert MeshEditorStateMixin._set_embedded_part_selection(owner, (1, 0, 1))
         assert controller.session_view().selection.source_indices == (0, 1)
@@ -638,6 +645,7 @@ def test_mesh_edit_metadata_snapshot_restores_without_legacy_enable_fallback() -
         _mesh_edit_enabled_snapshot_items_helper=lambda snapshot: tuple(snapshot.items()),
         self=SimpleNamespace(set_status_message=lambda *args, **kwargs: blocked.append((args, kwargs))),
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(_record_mesh_edit_event=lambda *args, **kwargs: blocked.append((args, kwargs)))
     history = create_controls_history_callbacks(state, callbacks)
 

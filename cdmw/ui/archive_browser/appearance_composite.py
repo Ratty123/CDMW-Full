@@ -344,8 +344,8 @@ class ArchiveAppearanceCompositeMixin:
         if not isinstance(entry, ArchiveEntry):
             QMessageBox.warning(self, "No Archive File Selected", "Select an archive file first.")
             return
-        if self.worker_thread is not None:
-            self.set_status_message("Another background task is still running. Wait for it to finish before starting composite preview.", error=True)
+        if self.shell.worker_thread is not None:
+            self.shell.set_status_message("Another background task is still running. Wait for it to finish before starting composite preview.", error=True)
             return
         extension = str(entry.extension or "").lower()
         if extension not in {".app_xml", ".pac", ".pam", ".pamlod", ".prefab", ".pappt", ".prefabdata_xml"}:
@@ -377,7 +377,7 @@ class ArchiveAppearanceCompositeMixin:
                 override_model_entry=override_model_entry,
             )
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Finding appearance contexts for {entry.basename}...",
             task=_task,
             on_complete=_complete,
@@ -475,7 +475,7 @@ class ArchiveAppearanceCompositeMixin:
                     )
             return result, prepared_preview_model
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message="Building composite appearance preview...",
             task=_task,
             on_complete=self._handle_archive_appearance_composite_build_result,
@@ -564,4 +564,4 @@ class ArchiveAppearanceCompositeMixin:
         preview_result = self._attach_archive_preview_result_images(preview_result)
         self.current_archive_preview_result = preview_result
         self._show_archive_preview_result(preview_result, use_loose=False)
-        self.set_status_message(f"Composite appearance preview ready: {title_name}")
+        self.shell.set_status_message(f"Composite appearance preview ready: {title_name}")

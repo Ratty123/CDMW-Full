@@ -63,7 +63,8 @@ from cdmw.models import (
     TextureEditorSourceBinding,
 )
 from cdmw.services.mesh_service import MeshService
-from cdmw.services.mesh_dotnet_experiment import MeshDotNetExperimentPackage, mesh_dotnet_material_input_signature
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
 from cdmw.services.mesh_texture_sources import MeshTextureSourceResolution, resolve_mesh_texture_source
 from cdmw.ui.mesh_editor import (
     MeshEditorActionBar,
@@ -138,6 +139,8 @@ def _pab_payload(bones: tuple[tuple[str, int], ...]) -> bytes:
 
 class _DummyMeshEditorShell(MeshEditorShellBridgeMixin):
     def __init__(self, tab: MeshEditorTab) -> None:
+        self.shell = self
+        self.archive = self
         self.mesh_editor_tab = tab
         self.builder: object | None = None
         self.messages: list[tuple[str, bool]] = []
@@ -378,20 +381,16 @@ class _FakeProcess:
         self.deleted = True
 
 
-def _dotnet_test_package(package_dir: Path, **extra: object) -> MeshDotNetExperimentPackage:
+def _dotnet_test_package(package_dir: Path, **extra: object) -> RustPreviewPackage:
     """The package layout the helper is launched against, with its output dir made."""
     output_dir = package_dir / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    return MeshDotNetExperimentPackage(
+    return RustPreviewPackage(
         package_dir=package_dir,
-        mesh_path=package_dir / "mesh.obj",
-        obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-        cdmeta_path=package_dir / "mesh.cdmeta.json",
-        original_asset_hash_path=package_dir / "original_asset_hash.txt",
         status_path=output_dir / "dotnet_status.json",
         output_dir=output_dir,
         edit_operations_path=output_dir / "edit_operations.json",
-        launch_manifest_path=package_dir / "dotnet_launch.json",
+        manifest_path=package_dir / "dotnet_launch.json",
         **extra,
     )
 
@@ -840,13 +839,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.standalone_dotnet_target_embedded = True
         tab.standalone_dotnet_target_controller = builder.controller
 
-        self.assertTrue(tab._handle_dotnet_protocol_event({"event": "ready", "renderer": {"backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False}}))
+        self.assertTrue(tab._handle_dotnet_protocol_event({"event": "ready", "renderer": {"backend": "wgpu_d3d12_rust", "gpu_backed": True, "renderer_blocked": False}}))
 
         self.assertTrue(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
         self.assertEqual("ready", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
         diagnostics = builder._mesh_editor_embedded_runtime_diagnostics()
         self.assertTrue(diagnostics["active"])
-        self.assertEqual("d3d11_vortice_shader", diagnostics["renderer_backend"])
+        self.assertEqual("wgpu_d3d12_rust", diagnostics["renderer_backend"])
         self.assertIn("does not hide", diagnostics["presentation"]["pane_header_behavior"])
         app.processEvents()
         tab.deleteLater()
@@ -868,7 +867,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             {
                 "event": "ready",
                 "renderer": {
-                    "backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False,
+                    "backend": "wgpu_d3d12_rust", "gpu_backed": True, "renderer_blocked": False,
                     "native_dds_parity": False,
                     "dds_native_dxgi_upload": False,
                     "dds_upload_mode": "bitmap_rgba_upload",
@@ -884,46 +883,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_output_import_accepts_warning_and_keeps_resident_embedded_mesh(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetParityImport")
-        settings.clear()
-        tab = MeshEditorTab(settings=settings)
-        builder = _EmbeddedMeshBuilder()
-        tab.mount_embedded_builder(builder)
-        tab.standalone_dotnet_target_embedded = True
-        tab.standalone_dotnet_target_controller = builder.controller
-        with tempfile.TemporaryDirectory() as tmp:
-            package_dir = Path(tmp)
-            (output_dir := package_dir / "output").mkdir()
-            package = MeshDotNetExperimentPackage(
-                package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=output_dir / "dotnet_status.json",
-                output_dir=output_dir,
-                edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
-            )
-            ok = tab._start_standalone_dotnet_output_import(
-                package,
-                {
-                    "renderer": {
-                        "backend": "d3d11_vortice_shader", "gpu_backed": True, "renderer_blocked": False,
-                        "native_dds_parity": False,
-                        "dds_native_dxgi_upload": False,
-                    },
-                },
-            )
-
-        self.assertTrue(ok)
-        self.assertIsNone(tab.standalone_dotnet_import_thread)
-        self.assertEqual(["dotnet_output_ignored"], builder.finalized_dotnet_imports)
-        self.assertFalse(builder.replaced_meshes)
-        app.processEvents()
-        tab.deleteLater()
 
     def _retired_test_dotnet_missing_renderer_ready_stops_embedded_process(self) -> None:
         app = QApplication.instance() or QApplication([])
@@ -1267,31 +1226,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_embedded_dotnet_output_import_syncs_builder_mesh(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetImport"))
-        builder = _EmbeddedMeshBuilder()
-
-        tab.mount_embedded_builder(builder)
-        controller = builder.controller
-        edited = _build_two_part_synthetic_mesh()
-        view = controller.mesh_service.replace_working_mesh(controller.session_view().session_id, edited)
-        tab.standalone_dotnet_target_controller = controller
-        tab.standalone_dotnet_target_embedded = True
-        tab.standalone_dotnet_import_request_id = 3
-
-        tab._handle_standalone_dotnet_output_imported(
-            3,
-            view,
-            SimpleNamespace(ok=True, blockers=(), warnings=()),
-            1.0,
-        )
-
-        self.assertFalse(builder.replaced_meshes)
-        self.assertEqual(["dotnet_output_import"], builder.finalized_dotnet_imports)
-        self.assertIn("safe to rebuild", tab.embedded_workspace.status_label.text())
-        app.processEvents()
-        tab.deleteLater()
 
     def test_mesh_editor_syncs_global_theme_and_font(self) -> None:
         app = QApplication.instance() or QApplication([])
@@ -4311,16 +4245,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             package_dir = root / "package"
             output_dir = package_dir / "output"
             output_dir.mkdir(parents=True)
-            package = MeshDotNetExperimentPackage(
+            package = RustPreviewPackage(
                 package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
                 status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
+                manifest_path=package_dir / "dotnet_launch.json",
             )
             package.status_path.write_text(
                 json.dumps({"event": "saved", "edited_package": str(output_dir), "message": "saved"}),
@@ -4383,16 +4313,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 comparison_mode="replacement_only",
                 interaction_mode="mesh_edit",
             )
-            package = MeshDotNetExperimentPackage(
+            package = RustPreviewPackage(
                 package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
                 status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
+                manifest_path=package_dir / "dotnet_launch.json",
                 material_signature=mesh_dotnet_material_input_signature(working_mesh),
                 scene_frame=scene_frame,
             )
@@ -4453,51 +4379,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_unexpected_embedded_dotnet_exit_keeps_resident_edits(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetUnexpectedExit"))
-        builder = _EmbeddedMeshBuilder()
-        tab.mount_embedded_builder(builder)
-        builder.controller.select(vertices_by_submesh={0: (0,)})
-        builder.controller.apply_editor_action("transform_move", translate=(0.0, 0.0, 0.25))
-        resident_revision = builder.controller.session_view().revision
-        fallbacks: list[tuple[str, str]] = []
-        setattr(builder, "_mesh_editor_embedded_dotnet_failed", lambda reason, detail: fallbacks.append((reason, detail)))
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            package_dir = Path(temp_dir) / "package"
-            output_dir = package_dir / "output"
-            output_dir.mkdir(parents=True)
-            package = MeshDotNetExperimentPackage(
-                package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=output_dir / "dotnet_status.json",
-                output_dir=output_dir,
-                edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
-            )
-            process = _FakeProcess(tab)
-            tab.standalone_dotnet_target_embedded = True
-            tab.standalone_dotnet_target_controller = builder.controller
-            tab.standalone_dotnet_editor_process = process
-            tab._set_embedded_dotnet_state("ready", active=True)
-
-            tab._handle_standalone_dotnet_editor_finished(process, package)
-
-        self.assertIsNone(tab.standalone_dotnet_editor_process)
-        self.assertIs(builder.controller, tab.standalone_dotnet_target_controller)
-        self.assertEqual(resident_revision, builder.controller.session_view().revision)
-        self.assertGreater(resident_revision, 0)
-        self.assertEqual([], builder.finalized_dotnet_imports)
-        self.assertEqual("failed", tab.standalone_dotnet_embedded_state)
-        self.assertEqual("mesh_edit_dotnet_failed", fallbacks[0][0])
-        self.assertIn("exited unexpectedly", fallbacks[0][1])
-        self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
-        app.processEvents()
-        tab.deleteLater()
 
     @unittest.skip("The direct Vortice Mesh Editor prewarm/reuse path is retired.")
     def test_mesh_editor_tab_never_reuses_a_helper_still_holding_the_prewarm_scene(self) -> None:
@@ -4751,16 +4632,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
         original_signature = mesh_dotnet_material_input_signature(mesh)
         process = _FakeProcess(tab)
         process._state = process.Running
-        package = MeshDotNetExperimentPackage(
+        package = RustPreviewPackage(
             package_dir=Path("package"),
-            mesh_path=Path("package/mesh.obj"),
-            obj_sidecar_path=Path("package/mesh.obj.meta.json"),
-            cdmeta_path=Path("package/mesh.cdmeta.json"),
-            original_asset_hash_path=Path("package/original_asset_hash.txt"),
             status_path=Path("package/dotnet_status.json"),
             output_dir=Path("package/output"),
             edit_operations_path=Path("package/output/edit_operations.json"),
-            launch_manifest_path=Path("package/dotnet_launch.json"),
+            manifest_path=Path("package/dotnet_launch.json"),
             material_signature=original_signature,
         )
         tab.standalone_dotnet_target_embedded = True
@@ -4798,16 +4675,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             package_dir = root / "package"
             output_dir = package_dir / "output"
             output_dir.mkdir(parents=True)
-            package = MeshDotNetExperimentPackage(
+            package = RustPreviewPackage(
                 package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
                 status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
+                manifest_path=package_dir / "dotnet_launch.json",
             )
             tab.standalone_dotnet_target_embedded = True
             _FakeProcess.instances.clear()
@@ -4841,16 +4714,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             package_dir = root / "package"
             output_dir = package_dir / "output"
             output_dir.mkdir(parents=True)
-            package = MeshDotNetExperimentPackage(
+            package = RustPreviewPackage(
                 package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
                 status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
+                manifest_path=package_dir / "dotnet_launch.json",
             )
             tab.standalone_dotnet_target_embedded = True
             tab.standalone_dotnet_target_controller = builder.controller
@@ -4860,7 +4729,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
             process = _FakeProcess.instances[-1]
             self.assertTrue(any(b'"event":"session_state"' in write for write in process.stdin_writes))
-            process.emit_stdout('{"event":"ready","renderer":{"backend":"d3d11_vortice_shader","gpu_backed":true,"renderer_blocked":false}}\n')
+            process.emit_stdout('{"event":"ready","renderer":{"backend":"wgpu_d3d12_rust","gpu_backed":true,"renderer_blocked":false}}\n')
             self.assertTrue(any(b'"selection_depth_mode":"visible"' in write for write in process.stdin_writes))
 
             captured: list[MeshEditCommand] = []
@@ -4931,16 +4800,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             output_dir = package_dir / "output"
             output_dir.mkdir(parents=True)
             (output_dir / "mesh.obj").write_text("edited", encoding="utf-8")
-            package = MeshDotNetExperimentPackage(
+            package = RustPreviewPackage(
                 package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
                 status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
+                manifest_path=package_dir / "dotnet_launch.json",
             )
             package.status_path.write_text(
                 json.dumps(

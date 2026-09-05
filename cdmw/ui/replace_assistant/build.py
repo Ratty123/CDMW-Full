@@ -72,6 +72,15 @@ class ReplaceAssistantBuildMixin:
     def start_build(self) -> None:
         if self.is_busy():
             return
+        if self.workspace is not None and not getattr(self, "_shared_review_ready", False):
+            def prepared():
+                self._shared_review_ready = True
+                try:
+                    self.start_build()
+                finally:
+                    self._shared_review_ready = False
+            self.workspace.prepare_replacement_review(prepared)
+            return
         if not self.items:
             QMessageBox.information(self, APP_TITLE, "Add edited PNG or DDS files before building a mod package.")
             return
@@ -83,7 +92,13 @@ class ReplaceAssistantBuildMixin:
             )
             return
         options = self._current_build_options()
-        self.last_built_output_root = None
+        if self.workspace is not None:
+            self.workspace.synchronize_replacement_matches(self)
+            try:
+                self.workspace.begin_texture_operation("replacement")
+            except ValueError as exc:
+                self.status_message_requested.emit(str(exc), True)
+                return
         self.progress_bar.setRange(0, len(self.items))
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Working...")
@@ -145,6 +160,8 @@ class ReplaceAssistantBuildMixin:
             self.progress_bar.setFormat("Working...")
 
     def _handle_build_complete(self, payload: object) -> None:
+        if self.workspace is not None and not self.workspace.finish_texture_operation(payload):
+            return
         summary = payload if isinstance(payload, ReplaceAssistantBuildSummary) else None
         if summary is None:
             return
@@ -165,7 +182,6 @@ class ReplaceAssistantBuildMixin:
                     "Opening the review window after cleanup."
                 )
         else:
-            self.last_built_output_root = None
             self.status_label.setText("Replace package was not written because some items failed or were unresolved.")
             self.status_message_requested.emit(
                 "Replace package was not written because some items failed or were unresolved.",
@@ -176,6 +192,8 @@ class ReplaceAssistantBuildMixin:
             self.progress_bar.setFormat("Failed")
 
     def _handle_build_cancelled(self, message: str) -> None:
+        if self.workspace is not None:
+            self.workspace.finish_texture_operation()
         self.append_log(message)
         self.status_label.setText(message)
         self.status_message_requested.emit(message, True)
@@ -184,6 +202,8 @@ class ReplaceAssistantBuildMixin:
         self.progress_bar.setFormat("Stopped")
 
     def _handle_build_error(self, message: str) -> None:
+        if self.workspace is not None:
+            self.workspace.finish_texture_operation()
         self.append_log(f"ERROR: {message}")
         self.status_label.setText(message)
         self.status_message_requested.emit(message, True)
@@ -192,6 +212,8 @@ class ReplaceAssistantBuildMixin:
         self.progress_bar.setFormat("Error")
 
     def _cleanup_build_refs(self) -> None:
+        if self.workspace is not None:
+            self.workspace.finish_texture_operation()
         self.build_thread = None
         self.build_worker = None
         self._update_controls()

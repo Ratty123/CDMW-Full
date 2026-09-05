@@ -95,12 +95,12 @@ class ArchiveAssetFamilyDialogMixin:
         if isinstance(cache, OrderedDict) and cache_key in cache:
             graph, cached_references = cache[cache_key]
             cache.move_to_end(cache_key)
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 f"Asset family cache hit: {entry.path}",
                 verbose=True,
             )
             return graph, tuple(cached_references)
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Asset family cache miss; rebuilding: {entry.path}",
             verbose=True,
         )
@@ -251,16 +251,16 @@ class ArchiveAssetFamilyDialogMixin:
             return
         source_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
         if not isinstance(source_entry, ArchiveEntry):
-            self.set_status_message("Select an archive file first.", error=True)
+            self.shell.set_status_message("Select an archive file first.", error=True)
             return
         if self._archive_lookup_indexes_snapshot() is None:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Archive path lookup is warming; retry Asset Family when indexing finishes."
             )
             return
         graph, _references = self._archive_asset_family_graph_for_entry(source_entry)
         if not tuple(getattr(graph, "member_rows", ()) or ()):
-            self.set_status_message("No asset family evidence is available for this file yet.", error=True)
+            self.shell.set_status_message("No asset family evidence is available for this file yet.", error=True)
             return
 
         dialog = QDialog(self)
@@ -314,21 +314,21 @@ class ArchiveAssetFamilyDialogMixin:
         def preview_selected() -> None:
             selected_entry = selected_member_entry()
             if not isinstance(selected_entry, ArchiveEntry):
-                self.set_status_message("Select a resolved family file first.", error=True)
+                self.shell.set_status_message("Select a resolved family file first.", error=True)
                 return
             self._open_archive_reference_preview_entry(selected_entry)
 
         def scope_family() -> None:
             entries = self._archive_entries_from_asset_family_graph(graph, include_hints=False)
             if not entries:
-                self.set_status_message("No resolved family entries are available to scope.", error=True)
+                self.shell.set_status_message("No resolved family entries are available to scope.", error=True)
                 return
             self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {source_entry.basename}")
 
         def export_family() -> None:
             entries = self._archive_entries_from_asset_family_graph(graph, include_hints=False)
             if not entries:
-                self.set_status_message("No resolved family entries are available to export.", error=True)
+                self.shell.set_status_message("No resolved family entries are available to export.", error=True)
                 return
             self._export_archive_reference_entries_to_folder(
                 entries,

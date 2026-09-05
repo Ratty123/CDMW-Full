@@ -102,13 +102,14 @@ class TextureEditorSessionUiMixin:
             self._refresh_ui()
         finally:
             self._switching_session = False
+        self.workspace_changed.emit()
 
     def _create_session(self, document: TextureEditorDocument, layer_pixels: Dict[str, np.ndarray], *, label: str) -> None:
         self._store_active_session()
         session = create_texture_editor_session(document, layer_pixels, label=label)
         self._sessions.append(session)
         self.document_tab_bar.addTab(label)
-        self.document_tab_bar.show()
+        self.document_tab_bar.setVisible(not self.workspace_embedded)
         self.workspace = dataclasses.replace(
             self.workspace,
             open_document_ids=texture_editor_open_document_ids(self._sessions),
@@ -145,7 +146,7 @@ class TextureEditorSessionUiMixin:
             return
         self._active_session_index = close_state.adjusted_active_index
         self._load_session_index(close_state.next_index)
-        self.document_tab_bar.show()
+        self.document_tab_bar.setVisible(not self.workspace_embedded)
 
     def _build_binding_for_source(
         self,

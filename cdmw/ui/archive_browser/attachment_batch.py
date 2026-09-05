@@ -240,7 +240,7 @@ class ArchiveAttachmentBatchMixin:
         def _choose_source_for_selected() -> None:
             item = _current_target_item()
             if item is None:
-                self.set_status_message("Select a target row first.", error=True)
+                self.shell.set_status_message("Select a target row first.", error=True)
                 return
             target = item.data(0, Qt.ItemDataRole.UserRole)
             if not isinstance(target, ArchiveEntry):
@@ -465,12 +465,12 @@ class ArchiveAttachmentBatchMixin:
                         "Weapon Placement Batch Complete",
                         f"Wrote one combined placement swap package:\n{result.package_root}",
                     )
-                    self.set_status_message(f"Wrote Weapon Placement Batch package for {len(ready_states):,} target(s).")
+                    self.shell.set_status_message(f"Wrote Weapon Placement Batch package for {len(ready_states):,} target(s).")
                     dialog.accept()
                 else:
-                    self.set_status_message("Weapon Placement Batch export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Weapon Placement Batch export finished with an unexpected result payload.", error=True)
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Building Weapon Placement Batch package for {len(ready_states):,} target(s)...",
                 task=_task,
                 on_complete=_handle_complete,

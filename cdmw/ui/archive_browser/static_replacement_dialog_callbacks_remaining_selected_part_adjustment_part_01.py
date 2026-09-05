@@ -82,12 +82,12 @@ def _remaining_selected_part_adjustment_step_004(_state):
             if callable(replacer):
                 replacer(source_indices)
                 return
-            set_status_message = getattr(_state.self, 'set_status_message', None)
+            set_status_message = getattr(_state.self.shell, 'set_status_message', None)
             if callable(set_status_message):
                 set_status_message('Rust Preview source enable preview commands are unavailable; preview is stale. Retry Rust Preview to resync.', error=True)
             return
         if _state._selected_part_mesh_edit_active():
-            set_status_message = getattr(_state.self, 'set_status_message', None)
+            set_status_message = getattr(_state.self.shell, 'set_status_message', None)
             if callable(set_status_message):
                 set_status_message('Active Mesh Editor source enable preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.', error=True)
             return
@@ -106,12 +106,12 @@ def _remaining_selected_part_adjustment_step_005(_state):
             return False
         mesh_edit_active = _state._selected_part_mesh_edit_active()
         if mesh_edit_active and apply_state.geometry_changed:
-            set_status_message = getattr(_state.self, 'set_status_message', None)
+            set_status_message = getattr(_state.self.shell, 'set_status_message', None)
             if callable(set_status_message):
                 set_status_message('Active Mesh Editor source-part transform changes require native geometry execution; Python adjustment mutation fallback is disabled.', error=True)
             return False
         if mesh_edit_active and apply_state.enabled_changed and not resident_material_parameters_available(_state.dialog):
-            set_status_message = getattr(_state.self, 'set_status_message', None)
+            set_status_message = getattr(_state.self.shell, 'set_status_message', None)
             if callable(set_status_message):
                 set_status_message('Active Mesh Editor part visibility is unavailable until the resident material channel is ready.', error=True)
             return False

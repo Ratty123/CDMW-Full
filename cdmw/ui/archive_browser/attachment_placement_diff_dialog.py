@@ -109,7 +109,7 @@ def _attachment_dialog_dependencies(
     try:
         return archive_workflow_dependency_context(owner, target_entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Attachment comparison is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Attachment comparison is unavailable: {exc}", error=True)
         return None
 
 
@@ -1988,7 +1988,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     QMessageBox.warning(dialog, "Custom Item Icon", "Choose a custom icon source file or folder.")
                 return None
             source_root = Path(source_text).expanduser()
-            chosen, _candidates, message = self.app_context.services.require_item_icons().choose_source(
+            chosen, _candidates, message = self.shell.app_context.services.require_item_icons().choose_source(
                 source_root,
                 target_path=target_icon_entry.path,
                 related_stems=self._archive_item_icon_related_stems(target_entry, target_graph),
@@ -2027,7 +2027,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     f"Current: {target_icon_entry.path}. Source: choose file or folder. Final: fit + pad to existing icon template."
                 )
                 return
-            chosen, candidates, message = self.app_context.services.require_item_icons().choose_source(
+            chosen, candidates, message = self.shell.app_context.services.require_item_icons().choose_source(
                 Path(source_text).expanduser(),
                 target_path=target_icon_entry.path,
                 related_stems=self._archive_item_icon_related_stems(target_entry, target_graph),
@@ -2049,7 +2049,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             selected, _selected_filter = QFileDialog.getOpenFileName(
                 dialog,
                 "Choose Custom Item Icon",
-                str(self.settings_file_path.parent),
+                str(self.shell.settings_file_path.parent),
                 f"Icon images ({suffixes});;All files (*.*)",
             )
             if selected:
@@ -2059,13 +2059,13 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             selected = QFileDialog.getExistingDirectory(
                 dialog,
                 "Choose Custom Item Icon Folder",
-                str(self.settings_file_path.parent),
+                str(self.shell.settings_file_path.parent),
             )
             if selected:
                 custom_icon_source_edit.setText(selected)
 
         def _choose_custom_icon_library_source() -> None:
-            selected = self._choose_item_icon_library_source(dialog)
+            selected = self.textures._choose_item_icon_library_source(dialog)
             if selected is not None:
                 custom_icon_source_edit.setText(str(selected))
 
@@ -2112,7 +2112,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     socket_documents_by_key[self._attachment_package_entry_key(target_socket_entry)] = prepared.target_socket_document
             if not isinstance(prepared.donor_entry, ArchiveEntry) or not isinstance(prepared.donor_graph, AssetFamilyGraph):
                 _set_placement_source_loading(False)
-                self.set_status_message("Placement source preparation finished without a source graph.", error=True)
+                self.shell.set_status_message("Placement source preparation finished without a source graph.", error=True)
                 _refresh_visual_status()
                 _refresh_package_plan()
                 return
@@ -2492,19 +2492,19 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                         "Universal 2H Swords As True 1H Complete" if include_true_onehand_iteminfo_snapshot else "Universal 2H Swords As 1H Complete",
                         f"Wrote universal 2H swords as 1H loose package:\n{result.package_root}",
                     )
-                    self.set_status_message(
+                    self.shell.set_status_message(
                         "Wrote universal 2H swords as true 1H package."
                         if include_true_onehand_iteminfo_snapshot
                         else "Wrote universal 2H swords as 1H package."
                     )
                     dialog.accept()
                 else:
-                    self.set_status_message(
+                    self.shell.set_status_message(
                         "Universal 2H swords as 1H export finished with an unexpected result payload.",
                         error=True,
                     )
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=(
                     "Building universal 2H swords as true 1H package..."
                     if include_true_onehand_iteminfo
@@ -2770,12 +2770,12 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                         "Placement Package Complete",
                         f"Wrote placement loose package:\n{result.package_root}",
                     )
-                    self.set_status_message(f"Wrote placement package for {target_entry.basename}.")
+                    self.shell.set_status_message(f"Wrote placement package for {target_entry.basename}.")
                     dialog.accept()
                 else:
-                    self.set_status_message("Placement package export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Placement package export finished with an unexpected result payload.", error=True)
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Building placement package for {target_entry.basename}...",
                 task=_task,
                 on_complete=_handle_complete,

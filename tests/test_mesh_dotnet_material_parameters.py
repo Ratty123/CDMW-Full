@@ -468,15 +468,8 @@ def test_parameter_dispatch_stays_queued_and_under_ui_budget(
     assert sorted(timings)[94] < 50.0
 
 
-def test_both_preview_routes_state_the_same_surface_scalars() -> None:
-    """The Mesh Editor and the Archive Browser must ask for the same surface.
-
-    Neither route is obliged to have a roughness value in the asset, and when
-    neither states one the shader falls back to its own 0.45 constant. The
-    archive route always stated 0.5, so the same skin came out glossier in the
-    Mesh Editor than in the preview it is meant to match -- read as "wet". Both
-    now read the defaults from one place.
-    """
+def test_mesh_material_defaults_use_shared_surface_scalars() -> None:
+    """Unspecified authoring values use the shared material defaults."""
     from cdmw.rendering.crimson_shader_registry import (
         PREVIEW_DEFAULT_METALNESS,
         PREVIEW_DEFAULT_ROUGHNESS,
@@ -484,7 +477,6 @@ def test_both_preview_routes_state_the_same_surface_scalars() -> None:
     from cdmw.services.mesh_dotnet_material_channels import (
         _dotnet_initial_material_parameters,
     )
-    from cdmw.services.native_dotnet_preview_adapter import _material_parameters
 
     # A material that declares nothing: no overrides, no glTF factors, no maps.
     class _BareSource:
@@ -494,10 +486,8 @@ def test_both_preview_routes_state_the_same_surface_scalars() -> None:
         preview_source_asset_path = ""
 
     mesh_editor = _dotnet_initial_material_parameters(_BareSource(), {})
-    archive = _material_parameters({}, {})
-
-    assert mesh_editor["roughness"] == archive["roughness"] == PREVIEW_DEFAULT_ROUGHNESS
-    assert mesh_editor["metalness"] == archive["metalness"] == PREVIEW_DEFAULT_METALNESS
+    assert mesh_editor["roughness"] == PREVIEW_DEFAULT_ROUGHNESS
+    assert mesh_editor["metalness"] == PREVIEW_DEFAULT_METALNESS
 
 
 def test_a_declared_surface_value_still_wins_over_the_shared_default() -> None:

@@ -174,7 +174,7 @@ def _mesh_edit_commit_working_mesh(_state, _callbacks,
     else:
         _state._queue_static_preview_rebuild()
     if status_message:
-        _state.self.set_status_message(status_message)
+        _state.self.shell.set_status_message(status_message)
 
 
 _CALLBACKS = (

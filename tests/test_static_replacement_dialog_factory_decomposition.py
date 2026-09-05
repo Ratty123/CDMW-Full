@@ -409,6 +409,9 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
     owner = SimpleNamespace(
         _unregister_modeless_alignment_dialog=lambda *_args: calls.append("unregister")
     )
+    owner.shell = owner
+    owner.archive = owner
+    owner.textures = owner
     callbacks = remaining_callbacks.create_alignment_modeless_dialog_callbacks(
         {
             "QDialog": SimpleNamespace(Accepted=1),

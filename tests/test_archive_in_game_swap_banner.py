@@ -67,29 +67,29 @@ class ArchiveInGameSwapBannerTests(unittest.TestCase):
         self._temp_dir.cleanup()
 
     def test_banner_is_hidden_until_a_swap_target_is_armed(self) -> None:
-        self.assertFalse(self.window.archive_swap_banner.isVisibleTo(self.window.archive_files_group))
-        self.assertEqual("", self.window.archive_swap_banner_label.text())
+        self.assertFalse(self.window.archive.archive_swap_banner.isVisibleTo(self.window.archive.archive_files_group))
+        self.assertEqual("", self.window.archive.archive_swap_banner_label.text())
 
     def test_arming_a_target_shows_the_banner_with_the_target_path(self) -> None:
         target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
 
-        self.window._handle_archive_in_game_mesh_swap_entry(target)
+        self.window.archive._handle_archive_in_game_mesh_swap_entry(target)
 
-        self.assertIs(self.window.pending_in_game_mesh_swap_target, target)
-        self.assertTrue(self.window.archive_swap_banner.isVisibleTo(self.window.archive_files_group))
-        self.assertIn(target.path, self.window.archive_swap_banner_label.text())
+        self.assertIs(self.window.archive.pending_in_game_mesh_swap_target, target)
+        self.assertTrue(self.window.archive.archive_swap_banner.isVisibleTo(self.window.archive.archive_files_group))
+        self.assertIn(target.path, self.window.archive.archive_swap_banner_label.text())
 
     def test_banner_says_use_this_as_swap_source_once_the_target_is_prepared(self) -> None:
         target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
 
         with patch.object(
-            self.window,
+            self.window.archive,
             "_pin_in_game_mesh_swap_target_dependencies",
             return_value=True,
         ):
-            self.window._handle_archive_in_game_mesh_swap_entry(target)
+            self.window.archive._handle_archive_in_game_mesh_swap_entry(target)
 
-        self.assertIn("Use This as Swap Source", self.window.archive_swap_banner_label.text())
+        self.assertIn("Use This as Swap Source", self.window.archive.archive_swap_banner_label.text())
 
     def test_banner_says_preparing_while_the_target_has_no_snapshot(self) -> None:
         """Arming can beat the async dependency preparation on the v2 backend."""
@@ -97,22 +97,22 @@ class ArchiveInGameSwapBannerTests(unittest.TestCase):
         target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
 
         with patch.object(
-            self.window,
+            self.window.archive,
             "_pin_in_game_mesh_swap_target_dependencies",
             return_value=False,
         ):
-            self.window._handle_archive_in_game_mesh_swap_entry(target)
+            self.window.archive._handle_archive_in_game_mesh_swap_entry(target)
 
-        self.assertIn("Still preparing", self.window.archive_swap_banner_label.text())
+        self.assertIn("Still preparing", self.window.archive.archive_swap_banner_label.text())
 
     def test_banner_cancel_button_clears_the_armed_target(self) -> None:
         target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
-        self.window._handle_archive_in_game_mesh_swap_entry(target)
+        self.window.archive._handle_archive_in_game_mesh_swap_entry(target)
 
-        self.window.archive_swap_banner_cancel_button.click()
+        self.window.archive.archive_swap_banner_cancel_button.click()
 
-        self.assertIsNone(self.window.pending_in_game_mesh_swap_target)
-        self.assertFalse(self.window.archive_swap_banner.isVisibleTo(self.window.archive_files_group))
+        self.assertIsNone(self.window.archive.pending_in_game_mesh_swap_target)
+        self.assertFalse(self.window.archive.archive_swap_banner.isVisibleTo(self.window.archive.archive_files_group))
 
     def test_arming_from_the_action_button_stays_in_archive_browser(self) -> None:
         """The toolbar path used to jump to the Mesh Editor before arming."""
@@ -121,10 +121,10 @@ class ArchiveInGameSwapBannerTests(unittest.TestCase):
         archive_browser = self.window._tool_widgets_by_key["archive_browser"]
         self.window._activate_tool_widget(archive_browser)
 
-        with patch.object(self.window, "_current_archive_mesh_entry", return_value=target):
-            self.window._swap_current_archive_mesh_with_in_game()
+        with patch.object(self.window.archive, "_current_archive_mesh_entry", return_value=target):
+            self.window.archive._swap_current_archive_mesh_with_in_game()
 
-        self.assertIs(self.window.pending_in_game_mesh_swap_target, target)
+        self.assertIs(self.window.archive.pending_in_game_mesh_swap_target, target)
         self.assertIs(self.window._current_navigation_widget(), archive_browser)
 
 

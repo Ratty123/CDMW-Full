@@ -200,13 +200,13 @@ class ArchiveAttachmentDonorPickerDialogMixin:
         search_state: Dict[str, object] = {}
         def _write_ui_breadcrumb(payload: Mapping[str, object]) -> None:
             write_ui_breadcrumb(
-                self.crash_reports_dir,
+                self.shell.crash_reports_dir,
                 payload,
-                session_id=self._session_id,
+                session_id=self.shell._session_id,
                 pid=os.getpid(),
             )
 
-        _write_heartbeat = self._write_heartbeat
+        _write_heartbeat = self.shell._write_heartbeat
 
         def _placement_source_preview_entry(candidate: object) -> Optional[ArchiveEntry]:
             if not isinstance(candidate, ArchiveEntry):
@@ -375,7 +375,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     }
                 )
                 preview_settings = self._current_model_preview_render_settings()
-                preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
+                preview_theme = get_theme(str(getattr(self.shell, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
                 worker = ArchivePreviewWorker(
                     request_id,
                     preview_entry,

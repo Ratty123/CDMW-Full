@@ -326,7 +326,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         if geometry_snapshot_recorded:
             _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
-        _state.self.set_status_message(f"Mesh Editor action made no changes: {action_text}.")
+        _state.self.shell.set_status_message(f"Mesh Editor action made no changes: {action_text}.")
         return True
     if not _callbacks._mesh_editor_action_result_within_allowed_scope(result):
         if undo_snapshot_recorded:
@@ -334,7 +334,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         if geometry_snapshot_recorded:
             _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             f"Mesh Editor action blocked outside selected scope: {action_text}.",
             error=True,
         )
@@ -406,7 +406,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
     _callbacks._refresh_mesh_edit_controls()
     if not native_update_applied:
         _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(getattr(result, "affected_submesh_indices", ()))
-    _state.self.set_status_message(f"Mesh Editor action applied: {action_text}.")
+    _state.self.shell.set_status_message(f"Mesh Editor action applied: {action_text}.")
     return True
 
 def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
@@ -560,7 +560,7 @@ def _mesh_editor_embedded_run_part_action(
     except (TypeError, ValueError):
         selected_sources = ()
     if not selected_sources:
-        _state.self.set_status_message("Select one or more mesh parts first.", error=True)
+        _state.self.shell.set_status_message("Select one or more mesh parts first.", error=True)
         return False
     if normalized == "toggle_visibility":
         items = tuple(

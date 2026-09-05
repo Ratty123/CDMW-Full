@@ -36,10 +36,10 @@ def build_roots_panel(tab: object) -> QWidget:
     tab.roots_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     roots_layout.addWidget(tab.roots_list, stretch=1)
     root_buttons = QGridLayout()
-    tab.add_root_button = QPushButton("Add Folder...")
+    tab.add_root_button = QPushButton("Add")
     tab.remove_root_button = QPushButton("Remove")
     tab.rescan_button = QPushButton("Rescan")
-    tab.open_edited_folder_button = QPushButton("Edited Folder")
+    tab.open_edited_folder_button = QPushButton("Folder")
     root_buttons.addWidget(tab.add_root_button, 0, 0)
     root_buttons.addWidget(tab.remove_root_button, 0, 1)
     root_buttons.addWidget(tab.rescan_button, 1, 0)
@@ -127,9 +127,9 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.notes_edit = QPlainTextEdit()
     tab.notes_edit.setMaximumHeight(72)
     tab.notes_edit.setPlaceholderText("Notes")
-    tab.save_metadata_button = QPushButton("Save Metadata")
-    tab.open_editor_button = QPushButton("Open In Texture Editor")
-    tab.delete_source_button = QPushButton("Delete Source")
+    tab.save_metadata_button = QPushButton("Save")
+    tab.open_editor_button = QPushButton("Open")
+    tab.delete_source_button = QPushButton("Delete")
     tab.delete_source_button.setEnabled(False)
     metadata_grid.addWidget(tab.favorite_checkbox, 0, 0, 1, 2)
     metadata_grid.addWidget(QLabel("Tags"), 1, 0)
@@ -153,9 +153,9 @@ def build_preview_panel(tab: object) -> QWidget:
     target_row = QHBoxLayout()
     tab.target_combo = QComboBox()
     tab.target_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-    tab.refresh_targets_button = QPushButton("Refresh Targets")
-    tab.use_archive_selection_button = QPushButton("Use Archive Selection")
-    tab.open_target_archive_button = QPushButton("Open In Archive Browser")
+    tab.refresh_targets_button = QPushButton("Refresh")
+    tab.use_archive_selection_button = QPushButton("Use Selection")
+    tab.open_target_archive_button = QPushButton("Open")
     target_row.addWidget(tab.target_combo, stretch=1)
     target_row.addWidget(tab.refresh_targets_button)
     target_layout.addLayout(target_row)
@@ -194,9 +194,9 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.target_meta_label.setWordWrap(True)
     target_layout.addWidget(tab.target_meta_label)
     export_row = QHBoxLayout()
-    tab.preview_final_button = QPushButton("Preview Final")
-    tab.export_generated_button = QPushButton("Export Generated Icon...")
-    tab.add_to_loose_mod_button = QPushButton("Add To Existing Loose Mod...")
+    tab.preview_final_button = QPushButton("Preview")
+    tab.export_generated_button = QPushButton("Export")
+    tab.add_to_loose_mod_button = QPushButton("Add")
     export_row.addWidget(tab.preview_final_button)
     export_row.addWidget(tab.export_generated_button)
     export_row.addWidget(tab.add_to_loose_mod_button)
@@ -216,15 +216,6 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.preview_final_button.clicked.connect(lambda _checked=False: tab.update_final_preview(show_errors=True))
     tab.export_generated_button.clicked.connect(tab.export_generated_icon)
     tab.add_to_loose_mod_button.clicked.connect(tab.add_to_existing_loose_mod)
-    return panel
-
-
-def apply_compact_item_icons_presentation(tab: object) -> None:
-    """Fit both Item Icons previews and their existing controls without idle scrollbars."""
-
-    if bool(tab.property("itemIconsCompactPanelsApplied")):
-        return
-    tab.setProperty("itemIconsCompactPanelsApplied", True)
     tab._item_icons_preview_layout.setContentsMargins(0, 0, 0, 0)
     tab._item_icons_preview_layout.setSpacing(4)
     for group, group_layout in (
@@ -249,10 +240,12 @@ def apply_compact_item_icons_presentation(tab: object) -> None:
         preview.set_empty_minimum_size(QSize(96, 72))
         scroll.setWidgetResizable(True)
         scroll.setMinimumHeight(84)
+    return panel
+
+
 
 
 __all__ = [
-    "apply_compact_item_icons_presentation",
     "build_library_panel",
     "build_preview_panel",
     "build_roots_panel",

@@ -64,6 +64,9 @@ class _ExportService(QObject):
 
 class _RemoteExportHarness(ArchiveExtractionMixin):
     def __init__(self, output_root: Path) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         _app()
         self.output_root = output_root
         self.archive_catalogue_service = _ExportService()

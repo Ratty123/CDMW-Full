@@ -41,13 +41,13 @@ class ArchiveFilterStateMixin:
     """Archive browser filter-state capture, restore, and lookup decisions."""
 
     def _canonicalize_archive_extension_filter_control(self) -> None:
-        raw_value = self._combo_value(self.archive_extension_filter_combo)
+        raw_value = self.textures._combo_value(self.archive_extension_filter_combo)
         normalized_value = normalize_archive_extension_filter(raw_value) or "*"
         if normalized_value == str(raw_value or "").strip().lower():
             return
         signals_blocked = self.archive_extension_filter_combo.blockSignals(True)
         try:
-            self._set_combo_by_value(self.archive_extension_filter_combo, normalized_value)
+            self.textures._set_combo_by_value(self.archive_extension_filter_combo, normalized_value)
         finally:
             self.archive_extension_filter_combo.blockSignals(signals_blocked)
 
@@ -105,10 +105,10 @@ class ArchiveFilterStateMixin:
         return self._archive_filter_signature_from_values(
             filter_text=self.archive_filter_edit.text().strip(),
             exclude_filter_text=self.archive_exclude_filter_edit.text().strip(),
-            extension_filter=self._combo_value(self.archive_extension_filter_combo),
+            extension_filter=self.textures._combo_value(self.archive_extension_filter_combo),
             package_filter_text=self.archive_package_filter_edit.text().strip(),
             structure_filter=self._current_archive_structure_filter_value(),
-            role_filter=self._combo_value(self.archive_role_filter_combo),
+            role_filter=self.textures._combo_value(self.archive_role_filter_combo),
             exclude_common_technical_suffixes=self.archive_exclude_common_technical_checkbox.isChecked(),
             min_size_kb=self.archive_min_size_spin.value(),
             previewable_only=self.archive_previewable_only_checkbox.isChecked(),
@@ -134,10 +134,10 @@ class ArchiveFilterStateMixin:
         return {
             "filter_text": self.archive_filter_edit.text().strip(),
             "exclude_filter_text": self.archive_exclude_filter_edit.text().strip(),
-            "extension_filter": self._combo_value(self.archive_extension_filter_combo),
+            "extension_filter": self.textures._combo_value(self.archive_extension_filter_combo),
             "package_filter_text": self.archive_package_filter_edit.text().strip(),
             "structure_filter": self._current_archive_structure_filter_value(),
-            "role_filter": self._combo_value(self.archive_role_filter_combo),
+            "role_filter": self.textures._combo_value(self.archive_role_filter_combo),
             "exclude_common_technical_suffixes": bool(self.archive_exclude_common_technical_checkbox.isChecked()),
             "min_size_kb": int(self.archive_min_size_spin.value()),
             "previewable_only": bool(self.archive_previewable_only_checkbox.isChecked()),
@@ -183,15 +183,15 @@ class ArchiveFilterStateMixin:
             self.archive_filter_edit.setText(str(state.get("filter_text", "") or ""))
             self.archive_exclude_filter_edit.setText(str(state.get("exclude_filter_text", "") or ""))
             self._rebuild_archive_extension_filter_choices(str(state.get("extension_filter", "*") or "*"))
-            self._set_combo_by_value(self.archive_extension_filter_combo, str(state.get("extension_filter", "*") or "*"))
+            self.textures._set_combo_by_value(self.archive_extension_filter_combo, str(state.get("extension_filter", "*") or "*"))
             self.archive_package_filter_edit.setText(str(state.get("package_filter_text", "") or ""))
             self.archive_structure_filter_pending_value = str(state.get("structure_filter", "") or "")
             self._rebuild_archive_structure_filter_controls(self.archive_structure_filter_pending_value)
-            self._set_combo_by_value(self.archive_role_filter_combo, str(state.get("role_filter", "all") or "all"))
+            self.textures._set_combo_by_value(self.archive_role_filter_combo, str(state.get("role_filter", "all") or "all"))
             self.archive_exclude_common_technical_checkbox.setChecked(bool(state.get("exclude_common_technical_suffixes", False)))
             self.archive_min_size_spin.setValue(int(state.get("min_size_kb", 0) or 0))
             self.archive_previewable_only_checkbox.setChecked(bool(state.get("previewable_only", False)))
-            self._set_combo_by_value(self.archive_browser_view_mode_combo, str(state.get("view_mode", ARCHIVE_BROWSER_VIEW_MODE) or ARCHIVE_BROWSER_VIEW_MODE))
+            self.textures._set_combo_by_value(self.archive_browser_view_mode_combo, str(state.get("view_mode", ARCHIVE_BROWSER_VIEW_MODE) or ARCHIVE_BROWSER_VIEW_MODE))
             self.archive_tree_sort_column = normalize_archive_browser_sort_column(state.get("sort_column", -1))
             self.archive_tree_sort_order = normalize_archive_browser_sort_order(state.get("sort_order", "asc"))
             self._update_archive_tree_sort_indicator()
@@ -261,7 +261,7 @@ class ArchiveFilterStateMixin:
         if not extension_counts:
             extension_counts = Counter({".dds": 0})
         current_value = normalize_archive_extension_filter(
-            self._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER
+            self.textures._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER
         )
 
         dialog = QDialog(self)
@@ -364,9 +364,9 @@ class ArchiveFilterStateMixin:
 
         def _select_value(value: str) -> None:
             normalized = normalize_archive_extension_filter(value or "*")
-            self._set_combo_by_value(self.archive_extension_filter_combo, normalized)
+            self.textures._set_combo_by_value(self.archive_extension_filter_combo, normalized)
             self._mark_archive_filters_dirty()
-            self.schedule_settings_save()
+            self.shell.schedule_settings_save()
             dialog.accept()
 
         def _select_current() -> None:
@@ -390,28 +390,28 @@ class ArchiveFilterStateMixin:
         selected_raw = (
             selected_value
             if selected_value is not None
-            else (self._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER)
+            else (self.textures._combo_value(self.archive_extension_filter_combo) or ARCHIVE_EXTENSION_FILTER)
         )
         preferred_value = normalize_archive_extension_filter(selected_raw)
         extension_counts = self._archive_extension_counts()
 
         self.archive_extension_filter_combo.blockSignals(True)
         self.archive_extension_filter_combo.clear()
-        self._add_combo_choice(self.archive_extension_filter_combo, "All files", "*")
+        self.textures._add_combo_choice(self.archive_extension_filter_combo, "All files", "*")
 
         if extension_counts:
             for extension, count in sorted(extension_counts.items(), key=lambda item: (-item[1], item[0])):
-                self._add_combo_choice(
+                self.textures._add_combo_choice(
                     self.archive_extension_filter_combo,
                     f"{extension} ({count:,})",
                     extension,
                 )
         else:
-            self._add_combo_choice(self.archive_extension_filter_combo, "DDS only", ".dds")
+            self.textures._add_combo_choice(self.archive_extension_filter_combo, "DDS only", ".dds")
 
         if preferred_value and preferred_value not in {"*", "all", ".*"}:
             if self.archive_extension_filter_combo.findData(preferred_value) < 0:
-                self._add_combo_choice(
+                self.textures._add_combo_choice(
                     self.archive_extension_filter_combo,
                     f"{preferred_value} (saved)",
                     preferred_value,
@@ -420,7 +420,7 @@ class ArchiveFilterStateMixin:
         target_value = preferred_value or "*"
         if self.archive_extension_filter_combo.findData(target_value) < 0:
             target_value = "*"
-        self._set_combo_by_value(self.archive_extension_filter_combo, target_value)
+        self.textures._set_combo_by_value(self.archive_extension_filter_combo, target_value)
         self.archive_extension_filter_combo.blockSignals(False)
 
     def _archive_filter_state_needs_path_lookup(self, state: Mapping[str, object]) -> bool:
@@ -488,7 +488,7 @@ class ArchiveFilterStateMixin:
         return 0 < int(candidate_count or 0) <= 250_000
 
     def _archive_browser_view_mode(self) -> str:
-        mode = str(self._combo_value(self.archive_browser_view_mode_combo) or ARCHIVE_BROWSER_VIEW_MODE)
+        mode = str(self.textures._combo_value(self.archive_browser_view_mode_combo) or ARCHIVE_BROWSER_VIEW_MODE)
         return mode if mode in {"folders", "categories", "categories_folders", "flat"} else ARCHIVE_BROWSER_VIEW_MODE
 
     def _archive_tree_view_enabled(self) -> bool:

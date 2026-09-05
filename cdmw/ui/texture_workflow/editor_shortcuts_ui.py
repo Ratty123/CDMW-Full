@@ -22,6 +22,7 @@ class TextureEditorShortcutsUiMixin:
             return
         shortcut = QShortcut(QKeySequence(text), self)
         shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+        shortcut.setEnabled(not self.workspace_embedded or self.job.mode == "edit")
         shortcut.activated.connect(callback)
         self._shortcut_objects.append(shortcut)
 

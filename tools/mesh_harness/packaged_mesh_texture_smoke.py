@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.models import ArchiveEntry
-from cdmw.services.mesh_dotnet_experiment import resolve_mesh_dotnet_experiment_editor
+from cdmw.services.mesh_rust_contract import resolve_rust_mesh_editor
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import (
     configure_synthetic_archive_context,
 )
@@ -1738,7 +1738,7 @@ def _helper_identity(mesh_editor_tab: object) -> dict[str, object]:
     host = getattr(mesh_editor_tab, "standalone_native_host_frame", None)
     controller = getattr(host, "controller", None)
     configured = getattr(controller, "_configured_executable", None)
-    resolution = resolve_mesh_dotnet_experiment_editor(configured)
+    resolution = resolve_rust_mesh_editor(configured)
     helper_path = Path(resolution.resolved_path) if resolution.resolved_path else None
     protocol_ready = _latest_event(mesh_editor_tab, "protocol_ready")
     provenance = protocol_ready.get("provenance", {})

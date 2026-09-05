@@ -295,7 +295,7 @@ class ArchivePreviewD3D11PartsMixin:
         refresh = getattr(self, "_refresh_current_model_preview_assets", None)
         if not callable(refresh):
             return
-        status = getattr(self, "set_status_message", None)
+        status = getattr(self.shell, "set_status_message", None)
         if callable(status):
             enabled_count = len(self._archive_d3d11_enabled_prefab_component_paths())
             status(
@@ -326,7 +326,7 @@ class ArchivePreviewD3D11PartsMixin:
         self._set_archive_d3d11_hidden_parts_from_menu()
         refresh = getattr(self, "_refresh_current_model_preview_assets", None)
         if callable(refresh):
-            status = getattr(self, "set_status_message", None)
+            status = getattr(self.shell, "set_status_message", None)
             if callable(status):
                 status("Updating Character Context preview...")
             refresh(force=True)

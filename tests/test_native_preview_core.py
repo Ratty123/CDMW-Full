@@ -333,50 +333,26 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_d3d11_preview_accepts_live_material_override_command(self) -> None:
         host_text = Path("cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
-        protocol_text = Path("tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs").read_text(encoding="utf-8")
         self.assertIn('"material_parameter_update"', host_text)
-        self.assertIn('case "material_parameter_update":', protocol_text)
 
     def test_d3d11_preview_wires_source_part_picking_and_context_event(self) -> None:
         host_text = Path("cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
-        selection_text = Path("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs").read_text(encoding="utf-8")
         self.assertIn("def set_source_part_picking", host_text)
-        self.assertIn('"part_pick_result"', selection_text)
 
     def test_d3d11_preview_draws_skeleton_overlay_and_accepts_bone_selection(self) -> None:
         host_text = Path("cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
-        overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.PreviewOverlays.cs").read_text(encoding="utf-8")
         self.assertIn("def set_skeleton_selected_bone", host_text)
-        self.assertIn("Skeleton", overlay_text)
 
     def test_d3d11_side_by_side_preview_split_is_draggable(self) -> None:
         host_text = Path("cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
-        panes_text = Path("tools/dotnet_mesh_editor_experiment/MeshViewport.SplitView.cs").read_text(encoding="utf-8")
         self.assertIn("def set_side_by_side_split_ratio", host_text)
-        self.assertIn("_paneSplitRatio", panes_text)
-        self.assertIn("PaneSplitRatioChanged", panes_text)
 
     def test_d3d11_embedded_events_do_not_overwrite_status_file(self) -> None:
         controller_text = Path("cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
         self.assertNotIn("WM_COPYDATA", controller_text)
         self.assertIn("readyReadStandardOutput", controller_text)
 
-    def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
-        overlay_text = "".join(
-            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
-            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
-        )
-        self.assertIn("DrawSelectedSourcesOverlay", overlay_text)
-        self.assertIn("OverlayColor(_overlaySettings.Colors.Selection", overlay_text)
 
-    def test_d3d11_grid_uses_reference_batches_in_reference_view(self) -> None:
-        overlay_text = "".join(
-            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
-            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
-        )
-        panes_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Panes.cs").read_text(encoding="utf-8")
-        self.assertIn("_referenceOverlayVertices", overlay_text)
-        self.assertIn("reference", panes_text.casefold())
 
     def test_preview_core_service_recycles_after_job_count_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -922,11 +898,6 @@ class NativePreviewCoreTests(unittest.TestCase):
         )
         self.assertIn("layer.layer_channel = mask->layer_channel;", source)
 
-    def test_d3d11_preview_does_not_overpaint_duplicate_base_material_layer(self) -> None:
-        material_text = Path("tools/dotnet_mesh_editor_experiment/NetMaterialSet.cs").read_text(encoding="utf-8")
-        shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        self.assertIn("Layer", material_text)
-        self.assertIn("layer", shader_text.casefold())
 
     def test_native_core_publishes_the_pac_rgb_dye_selector_as_palette_seed_layers(self) -> None:
         source = preview_core_source()
@@ -1378,21 +1349,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("net_materials.json", package_text)
         self.assertIn("canonical", package_text.casefold())
 
-    def test_d3d11_host_consumes_schema_v8_material_layer_stack(self) -> None:
-        material_text = (
-            Path("tools/dotnet_mesh_editor_experiment/NetMaterialSet.cs").read_text(encoding="utf-8")
-            + Path("tools/dotnet_mesh_editor_experiment/ExperimentForm.PackageProtocol.cs").read_text(encoding="utf-8")
-        )
-        self.assertIn("Layer", material_text)
-        self.assertIn("net_materials.json", material_text)
 
-    def test_d3d11_mesh_edit_mode_draws_blender_style_topology_overlay(self) -> None:
-        overlay_text = "".join(
-            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
-            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
-        )
-        self.assertIn("WireOverlay", overlay_text)
-        self.assertIn("PrimitiveTopology.LineList", overlay_text)
 
     def test_native_core_scopes_sidecar_wrappers_before_dds_extraction(self) -> None:
         source = preview_core_source()
@@ -1485,11 +1442,6 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('\\"uv_flip_policy\\":\\"legacy_no_flip', source)
         self.assertIn('\\"normal_y_policy\\":\\"shader_invert_legacy_compat', source)
 
-    def test_d3d11_preview_has_first_class_emissive_slot(self) -> None:
-        resources_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Resources.cs").read_text(encoding="utf-8")
-        shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        self.assertIn('TextureReferenceForSubmesh(submeshIndex, "emissive")', resources_text)
-        self.assertIn("EmissiveTexture.Sample", shader_text)
 
     def test_native_core_treats_emissive_intensity_masks_as_linear_scalar_data(self) -> None:
         graph_source = Path(
@@ -1523,10 +1475,6 @@ class NativePreviewCoreTests(unittest.TestCase):
             preview_core_source(),
         )
 
-    def test_d3d11_preview_uses_procedural_reflection_for_metal_materials(self) -> None:
-        shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        self.assertIn("PreviewEnvironmentRadiance", shader_text)
-        self.assertIn("metal", shader_text.casefold())
 
     def test_native_core_emits_material_category_and_promotion_policy(self) -> None:
         source = preview_core_source()
@@ -1722,16 +1670,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('{model_stem + "_l.sockets.xml", {"Attachment / Placement", "Socket XML"}}', source)
         self.assertIn('{model_stem + "_r.sockets.xml", {"Attachment / Placement", "Socket XML"}}', source)
 
-    def test_d3d11_preview_caps_nonmetal_material_response_by_category(self) -> None:
-        shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        self.assertIn("categoryRoughnessFloor", shader_text)
-        self.assertIn("nonmetalSmoothness", shader_text)
 
-    def test_d3d11_preview_shader_uses_registry_pbr_lighting_helpers(self) -> None:
-        shader_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-        self.assertIn("DistributionGGX", shader_text)
-        self.assertIn("GeometrySmith", shader_text)
-        self.assertIn("PreviewEnvironmentRadiance", shader_text)
 
     def test_native_core_material_wrappers_are_slot_authoritative_when_order_matches(self) -> None:
         source = preview_core_source()

@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -95,11 +96,8 @@ class TextureWorkflowUpscaleBackendPanelMixin:
 
 
     def _build_upscale_backend_selector(self, upscale_layout: QVBoxLayout) -> None:
-        upscale_backend_grid = QGridLayout()
-        upscale_backend_grid.setHorizontalSpacing(10)
-        upscale_backend_grid.setVerticalSpacing(8)
-        upscale_backend_grid.setColumnMinimumWidth(0, 136)
-        upscale_backend_grid.setColumnStretch(1, 1)
+        upscale_backend_grid = QVBoxLayout()
+        upscale_backend_grid.setSpacing(8)
         self.upscale_backend_combo = QComboBox()
         self._add_combo_choice(self.upscale_backend_combo, "Disabled", UPSCALE_BACKEND_NONE)
         self._add_combo_choice(self.upscale_backend_combo, "chaiNNer", UPSCALE_BACKEND_CHAINNER)
@@ -108,9 +106,9 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         self.safe_upscale_wizard_button.setToolTip(
             "Open a read-only summary of the current sources, backend, texture policy, and direct upscale settings before running."
         )
-        upscale_backend_grid.addWidget(QLabel("Backend"), 0, 0)
-        upscale_backend_grid.addWidget(self.upscale_backend_combo, 0, 1)
-        upscale_backend_grid.addWidget(self.safe_upscale_wizard_button, 0, 2)
+        upscale_backend_grid.addWidget(QLabel("Backend"))
+        upscale_backend_grid.addWidget(self.upscale_backend_combo)
+        upscale_backend_grid.addWidget(self.safe_upscale_wizard_button)
         upscale_layout.addLayout(upscale_backend_grid)
 
         upscale_hint = QLabel(
@@ -147,23 +145,24 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         chainner_paths_layout = QGridLayout()
         chainner_paths_layout.setHorizontalSpacing(10)
         chainner_paths_layout.setVerticalSpacing(10)
-        chainner_paths_layout.setColumnMinimumWidth(0, 136)
-        chainner_paths_layout.setColumnStretch(1, 1)
+        chainner_paths_layout.setColumnStretch(0, 1)
         self.chainner_exe_path_edit = QLineEdit()
         self.chainner_chain_path_edit = QLineEdit()
-        self.chainner_exe_browse_button = self._add_path_row(
+        self.chainner_exe_browse_button = self.shell._add_path_row(
             chainner_paths_layout,
             0,
             "chaiNNer exe path",
             self.chainner_exe_path_edit,
-            self._browse_chainner_exe_path,
+            self.shell._browse_chainner_exe_path,
+            stacked=True,
         )
-        self.chainner_chain_browse_button = self._add_path_row(
+        self.chainner_chain_browse_button = self.shell._add_path_row(
             chainner_paths_layout,
             1,
             ".chn file path",
             self.chainner_chain_path_edit,
-            self._browse_chainner_chain_path,
+            self.shell._browse_chainner_chain_path,
+            stacked=True,
         )
         chainner_layout.addLayout(chainner_paths_layout)
 
@@ -215,6 +214,8 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         self.ncnn_tile_size_spin.setSingleStep(32)
         self.ncnn_extra_args_edit = QLineEdit()
         self.upscale_post_correction_combo = QComboBox()
+        self.upscale_post_correction_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.upscale_post_correction_combo.setMinimumContentsLength(8)
         self._add_combo_choice(self.upscale_post_correction_combo, "Off", UPSCALE_POST_CORRECTION_NONE)
         self._add_combo_choice(
             self.upscale_post_correction_combo,
@@ -247,16 +248,22 @@ class TextureWorkflowUpscaleBackendPanelMixin:
             UPSCALE_POST_CORRECTION_SOURCE_MATCH_EXPERIMENTAL,
         )
         self.upscale_texture_preset_combo = QComboBox()
+        self.upscale_texture_preset_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.upscale_texture_preset_combo.setMinimumContentsLength(8)
         self._add_combo_choice(self.upscale_texture_preset_combo, "Balanced mixed textures (recommended)", UPSCALE_TEXTURE_PRESET_BALANCED)
         self._add_combo_choice(self.upscale_texture_preset_combo, "Color + UI only (safer)", UPSCALE_TEXTURE_PRESET_COLOR_UI)
         self._add_combo_choice(self.upscale_texture_preset_combo, "Color + UI + emissive", UPSCALE_TEXTURE_PRESET_COLOR_UI_EMISSIVE)
         self._add_combo_choice(self.upscale_texture_preset_combo, "All textures (advanced)", UPSCALE_TEXTURE_PRESET_ALL)
-        self.enable_automatic_texture_rules_checkbox = QCheckBox("Use automatic texture safety rules")
+        self.enable_automatic_texture_rules_checkbox = QCheckBox("Automatic texture rules")
+        self.enable_automatic_texture_rules_checkbox.setToolTip("Use automatic texture safety rules")
         self.enable_unsafe_technical_override_checkbox = QCheckBox(
-            "Expert override: force technical maps through PNG/upscale path (unsafe)"
+            "Force technical maps (unsafe)"
         )
-        self.retry_smaller_tile_checkbox = QCheckBox("Retry with smaller tile on failure")
-        self.enable_mod_ready_loose_export_checkbox = QCheckBox("Create ready mod package after rebuild")
+        self.enable_unsafe_technical_override_checkbox.setToolTip("Expert override: force technical maps through PNG/upscale path (unsafe)")
+        self.retry_smaller_tile_checkbox = QCheckBox("Retry with smaller tiles")
+        self.retry_smaller_tile_checkbox.setToolTip("Retry with smaller tile on failure")
+        self.enable_mod_ready_loose_export_checkbox = QCheckBox("Create mod package")
+        self.enable_mod_ready_loose_export_checkbox.setToolTip("Create ready mod package after rebuild")
         self.mod_ready_export_root_edit = QLineEdit()
         self.mod_ready_export_browse_button = QPushButton("Browse")
         default_mod_package_options = mod_package_export_options_for_manager("dmm")
@@ -326,54 +333,47 @@ class TextureWorkflowUpscaleBackendPanelMixin:
 
     def _build_upscale_policy_layout(self, upscale_layout: QVBoxLayout) -> None:
         self.texture_policy_group = QGroupBox("Texture Policy")
-        policy_layout = QGridLayout(self.texture_policy_group)
+        policy_layout = QFormLayout(self.texture_policy_group)
         policy_layout.setHorizontalSpacing(10)
         policy_layout.setVerticalSpacing(8)
-        policy_layout.setColumnMinimumWidth(0, 136)
-        policy_layout.setColumnStretch(1, 1)
+        policy_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
 
-        policy_layout.addWidget(QLabel("Preset"), 0, 0)
-        policy_layout.addWidget(self.upscale_texture_preset_combo, 0, 1)
-        policy_layout.addWidget(self.enable_automatic_texture_rules_checkbox, 1, 0, 1, 2)
-        policy_layout.addWidget(self.enable_unsafe_technical_override_checkbox, 2, 0, 1, 2)
-        policy_layout.addWidget(self.enable_mod_ready_loose_export_checkbox, 3, 0, 1, 2)
-        policy_layout.addWidget(QLabel("Mod package parent root"), 4, 0)
+        policy_layout.addRow("Preset", self.upscale_texture_preset_combo)
+        policy_layout.addRow(self.enable_automatic_texture_rules_checkbox)
+        policy_layout.addRow(self.enable_unsafe_technical_override_checkbox)
+        policy_layout.addRow(self.enable_mod_ready_loose_export_checkbox)
         loose_export_row = QHBoxLayout()
         loose_export_row.setContentsMargins(0, 0, 0, 0)
         loose_export_row.setSpacing(8)
         loose_export_row.addWidget(self.mod_ready_export_root_edit, stretch=1)
         loose_export_row.addWidget(self.mod_ready_export_browse_button)
-        policy_layout.addLayout(loose_export_row, 4, 1)
+        policy_layout.addRow("Mod package parent root", loose_export_row)
         self.mod_ready_package_group = QGroupBox("Mod Package Metadata")
-        mod_package_layout = QGridLayout(self.mod_ready_package_group)
+        mod_package_layout = QFormLayout(self.mod_ready_package_group)
         mod_package_layout.setHorizontalSpacing(10)
         mod_package_layout.setVerticalSpacing(8)
-        mod_package_layout.setColumnMinimumWidth(0, 136)
-        mod_package_layout.setColumnStretch(1, 1)
-        mod_package_layout.addWidget(QLabel("Title"), 0, 0)
-        mod_package_layout.addWidget(self.mod_ready_package_title_edit, 0, 1)
-        mod_package_layout.addWidget(QLabel("Version"), 1, 0)
-        mod_package_layout.addWidget(self.mod_ready_package_version_edit, 1, 1)
-        mod_package_layout.addWidget(QLabel("Author"), 2, 0)
-        mod_package_layout.addWidget(self.mod_ready_package_author_edit, 2, 1)
-        mod_package_layout.addWidget(QLabel("Description"), 3, 0)
-        mod_package_layout.addWidget(self.mod_ready_package_description_edit, 3, 1)
-        mod_package_layout.addWidget(QLabel("Target Mod Managers"), 4, 0)
-        mod_package_layout.addWidget(self.mod_ready_profiles_widget, 4, 1, 1, 2)
-        mod_package_layout.addWidget(QLabel("Package output"), 5, 0)
-        mod_package_layout.addWidget(self.mod_ready_zip_checkbox, 5, 1, 1, 2)
+        mod_package_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
+        mod_package_layout.addRow("Title", self.mod_ready_package_title_edit)
+        mod_package_layout.addRow("Version", self.mod_ready_package_version_edit)
+        mod_package_layout.addRow("Author", self.mod_ready_package_author_edit)
+        mod_package_layout.addRow("Description", self.mod_ready_package_description_edit)
+        mod_package_layout.addRow("Target Mod Managers", self.mod_ready_profiles_widget)
+        mod_package_layout.addRow("Package output", self.mod_ready_zip_checkbox)
         self.mod_ready_conflict_mode_label = QLabel("Conflict mode")
         self.mod_ready_target_language_label = QLabel("Target language")
         self.mod_ready_conflict_mode_help = make_help_button("CDUMM compatibility metadata. Normal leaves manager conflict behavior unchanged; Override asks compatible managers to prefer this mod when conflicts are detected.")
         self.mod_ready_target_language_help = make_help_button("Optional CDUMM compatibility metadata for language-specific packages. Leave empty for general packages.")
-        mod_package_layout.addWidget(self.mod_ready_conflict_mode_label, 6, 0)
-        mod_package_layout.addWidget(self.mod_ready_conflict_mode_combo, 6, 1)
-        mod_package_layout.addWidget(self.mod_ready_conflict_mode_help, 6, 2)
-        mod_package_layout.addWidget(self.mod_ready_target_language_label, 7, 0)
-        mod_package_layout.addWidget(self.mod_ready_target_language_edit, 7, 1)
-        mod_package_layout.addWidget(self.mod_ready_target_language_help, 7, 2)
+        for label, control, help_button in (
+            (self.mod_ready_conflict_mode_label, self.mod_ready_conflict_mode_combo, self.mod_ready_conflict_mode_help),
+            (self.mod_ready_target_language_label, self.mod_ready_target_language_edit, self.mod_ready_target_language_help),
+        ):
+            heading = QHBoxLayout()
+            heading.addWidget(label, 1)
+            heading.addWidget(help_button)
+            mod_package_layout.addRow(heading)
+            mod_package_layout.addRow(control)
         self.mod_ready_package_group.setVisible(False)
-        policy_layout.addWidget(self.mod_ready_package_group, 5, 0, 1, 2)
+        policy_layout.addRow(self.mod_ready_package_group)
 
         self.texture_policy_hint_panel, self.texture_policy_hint_rows = self._create_guidance_panel(
             [
@@ -385,37 +385,32 @@ class TextureWorkflowUpscaleBackendPanelMixin:
                 ("warning", "Warning"),
             ]
         )
-        policy_layout.addWidget(self.texture_policy_hint_panel, 6, 0, 1, 2)
-        policy_layout.addWidget(make_help_button(
+        policy_layout.addRow(self.texture_policy_hint_panel)
+        policy_layout.addRow(make_help_button(
             "Texture Policy controls which texture types are allowed into the PNG/upscale path and which are copied unchanged. "
             "Preset summary, upscaled/copied categories, safety rules, expert override, and warnings are summarized here when relevant."
-        ), 0, 2, alignment=Qt.AlignRight)
+        ))
         upscale_layout.addWidget(self.texture_policy_group)
 
-        self.direct_backend_controls_group = QGroupBox("Direct Upscale Controls (NCNN only)")
-        direct_layout = QGridLayout(self.direct_backend_controls_group)
+        self.direct_backend_controls_group = QGroupBox("NCNN")
+        direct_layout = QFormLayout(self.direct_backend_controls_group)
         direct_layout.setHorizontalSpacing(10)
         direct_layout.setVerticalSpacing(8)
-        direct_layout.setColumnMinimumWidth(0, 136)
-        direct_layout.setColumnStretch(1, 1)
+        direct_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
 
         scale_label = QLabel("Scale")
-        direct_layout.addWidget(scale_label, 0, 0)
-        direct_layout.addWidget(self.ncnn_scale_spin, 0, 1)
-        direct_layout.addWidget(make_help_button("Final PNG scale for direct backends. Keep close to the selected model's intended native scale for predictable output."), 0, 2)
+        direct_layout.addRow(scale_label, self.ncnn_scale_spin)
+        self.ncnn_scale_spin.setToolTip("Final PNG scale for direct backends. Keep close to the selected model's intended native scale for predictable output.")
         tile_size_label = QLabel("Tile size")
-        direct_layout.addWidget(tile_size_label, 1, 0)
-        direct_layout.addWidget(self.ncnn_tile_size_spin, 1, 1)
-        direct_layout.addWidget(make_help_button("Tile size for direct backends. 0 means no manual tiling. Smaller values use less VRAM and can recover from failures, but run slower."), 1, 2)
+        direct_layout.addRow(tile_size_label, self.ncnn_tile_size_spin)
+        self.ncnn_tile_size_spin.setToolTip("Tile size for direct backends. 0 means no manual tiling. Smaller values use less VRAM and can recover from failures, but run slower.")
         ncnn_extra_args_label = QLabel("NCNN extra args")
-        direct_layout.addWidget(ncnn_extra_args_label, 2, 0)
-        direct_layout.addWidget(self.ncnn_extra_args_edit, 2, 1)
-        direct_layout.addWidget(make_help_button("Optional extra command-line arguments appended to the Real-ESRGAN NCNN call. Example: -dn 0.2. Use only flags supported by the selected NCNN build/model."), 2, 2)
+        direct_layout.addRow(ncnn_extra_args_label, self.ncnn_extra_args_edit)
+        self.ncnn_extra_args_edit.setToolTip("Optional extra command-line arguments appended to the Real-ESRGAN NCNN call. Example: -dn 0.2. Use only flags supported by the selected NCNN build/model.")
         post_correction_label = QLabel("Post correction")
-        direct_layout.addWidget(post_correction_label, 3, 0)
-        direct_layout.addWidget(self.upscale_post_correction_combo, 3, 1)
-        direct_layout.addWidget(make_help_button("Optional post-upscale correction applied after direct backend output and before DDS rebuild. Source Match modes decide per texture whether to correct visible RGB, scalar grayscale, or skip."), 3, 2)
-        direct_layout.addWidget(self.retry_smaller_tile_checkbox, 4, 0, 1, 2)
+        direct_layout.addRow(post_correction_label, self.upscale_post_correction_combo)
+        self.upscale_post_correction_combo.setToolTip("Optional post-upscale correction applied after direct backend output and before DDS rebuild. Source Match modes decide per texture whether to correct visible RGB, scalar grayscale, or skip.")
+        direct_layout.addRow(self.retry_smaller_tile_checkbox)
         upscale_layout.addWidget(self.direct_backend_controls_group)
 
 __all__ = ["TextureWorkflowUpscaleBackendPanelMixin"]

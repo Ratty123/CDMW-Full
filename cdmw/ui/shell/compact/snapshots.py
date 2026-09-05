@@ -19,10 +19,6 @@ _TOOL_CONTAINER_ATTRIBUTES = {
     "new_item_studio": "new_item_studio_tab",
     "mesh_editor": "mesh_editor_tab",
     "placement_studio": "placement_studio_tab",
-    "texture_workflow": "workflow_tab",
-    "replace_assistant": "replace_assistant_tab",
-    "recolor_variants": "recolor_variants_tab",
-    "texture_editor": "texture_editor_tab",
     "mod_package_retrofit": "mod_package_retrofit_tab",
     "format_explorer": "format_explorer_tab",
     "translation_studio": "translation_studio_tab",
@@ -63,8 +59,8 @@ def _existing_tool_widget(owner: object, tool_key: str) -> QWidget | None:
 
 def _sources_for(owner: object, tool_key: str) -> tuple[object, ...]:
     widget = _existing_tool_widget(owner, tool_key)
-    if tool_key in {"archive_browser", "texture_workflow"}:
-        return (owner,) if widget is None or widget is owner else (owner, widget)
+    if tool_key == "archive_browser":
+        return (owner.archive,)
     return (widget,) if widget is not None else ()
 
 
@@ -291,73 +287,12 @@ def _placement_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
     )
 
 
-def _texture_workflow_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
-    sources = _sources_for(owner, key)
-    processed = _numeric_value(_first_attribute(sources, "converted_value"))
-    failed = _numeric_value(_first_attribute(sources, "failed_value"))
-    skipped = _numeric_value(_first_attribute(sources, "skipped_value")) or 0
-    total = _numeric_value(_first_attribute(sources, "total_files_value", "_texture_workflow_total_files"))
-    pending = None
-    if total is not None and processed is not None:
-        pending = max(0, total - processed - skipped - (failed or 0))
-    phase = _display_text(_first_attribute(sources, "phase_value"))
-    if processed is None and failed is None and pending is None:
-        return _snapshot(key, phase if phase not in {"Idle", "Waiting"} else "")
-    return _snapshot(
-        key,
-        f"{processed:,} processed" if processed is not None else "",
-        f"{failed:,} failed" if failed else "",
-        f"{pending:,} pending" if pending is not None else "",
-    )
 
 
-def _replace_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
-    sources = _sources_for(owner, key)
-    queue = _first_attribute(sources, "queue_tree")
-    queued = _view_row_count(queue)
-    selected = _selected_row_count(queue)
-    review = _collection_count(sources, "pending_review_items")
-    return _snapshot(
-        key,
-        f"{queued:,} queued" if queued is not None else "",
-        f"{selected:,} selected" if selected else "",
-        f"{review:,} need review" if review else "",
-    )
 
 
-def _recolor_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
-    sources = _sources_for(owner, key)
-    targets = _first_attribute(sources, "targets_tree")
-    selected = _selected_row_count(targets)
-    outputs = _view_row_count(_first_attribute(sources, "outputs_tree"))
-    dimensions = None
-    preview_label = _first_attribute(sources, "preview_result_image_label")
-    pixmap_getter = _attribute(preview_label, "pixmap")
-    if callable(pixmap_getter):
-        try:
-            dimensions = _image_dimensions(pixmap_getter())
-        except RuntimeError:
-            dimensions = None
-    return _snapshot(
-        key,
-        f"{selected:,} selected" if selected else "",
-        f"{outputs:,} outputs" if outputs is not None else "",
-        f"{dimensions[0]} x {dimensions[1]}" if dimensions else "",
-    )
 
 
-def _texture_editor_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
-    sources = _sources_for(owner, key)
-    document = _first_attribute(sources, "document")
-    dimensions = _image_dimensions(document)
-    layers = _collection_count((document,), "layers") if document is not None else None
-    mode = _display_text(_first_attribute(sources, "view_mode_combo"))
-    return _snapshot(
-        key,
-        mode,
-        f"{dimensions[0]} x {dimensions[1]}" if dimensions else "",
-        f"{layers:,} layers" if layers is not None else "",
-    )
 
 
 def _table_snapshot(owner: object, key: str, noun: str) -> CompactStatusSnapshot:
@@ -425,6 +360,14 @@ def _text_search_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
     )
 
 
+def _textures_snapshot(owner: object, key: str) -> CompactStatusSnapshot:
+    workspace = getattr(owner, "textures", None)
+    job = getattr(workspace, "job", None)
+    if job is None:
+        return _snapshot(key)
+    return _snapshot(key, job.mode.title(), f"{len(job.assets)} assets", f"{len(job.selected)} selected")
+
+
 _SNAPSHOT_PROVIDERS: dict[str, Callable[[object, str], CompactStatusSnapshot]] = {
     "archive_browser": _archive_snapshot,
     "model_library": _model_library_snapshot,
@@ -432,10 +375,7 @@ _SNAPSHOT_PROVIDERS: dict[str, Callable[[object, str], CompactStatusSnapshot]] =
     "new_item_studio": _new_item_snapshot,
     "mesh_editor": _mesh_editor_snapshot,
     "placement_studio": _placement_snapshot,
-    "texture_workflow": _texture_workflow_snapshot,
-    "replace_assistant": _replace_snapshot,
-    "recolor_variants": _recolor_snapshot,
-    "texture_editor": _texture_editor_snapshot,
+    "textures": _textures_snapshot,
     "mod_package_retrofit": lambda owner, key: _table_snapshot(owner, key, "packages"),
     "format_explorer": lambda owner, key: _table_snapshot(owner, key, "formats"),
     "translation_studio": _translation_snapshot,

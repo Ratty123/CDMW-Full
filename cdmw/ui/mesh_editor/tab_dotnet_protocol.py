@@ -611,12 +611,6 @@ class MeshEditorDotNetProtocolMixin(
     ) -> bool | None:
         if event == "ready":
             self._observe_dotnet_capabilities(payload)
-            if (
-                "helper_build_provenance_v1" in self.standalone_dotnet_capabilities
-                and not self.standalone_dotnet_provenance_verified
-                and not self._verify_dotnet_helper_provenance(payload)
-            ):
-                return False
             self.standalone_dotnet_update_queue.observe_capabilities(payload)
             self.standalone_dotnet_material_signature = str(
                 payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
@@ -675,8 +669,6 @@ class MeshEditorDotNetProtocolMixin(
             return True
         if event == "protocol_ready":
             self._observe_dotnet_capabilities(payload)
-            if "helper_build_provenance_v1" in self.standalone_dotnet_capabilities and not self._verify_dotnet_helper_provenance(payload):
-                return False
             self.standalone_dotnet_update_queue.observe_capabilities(payload)
             return True
         if event == "activated":

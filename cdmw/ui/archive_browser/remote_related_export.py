@@ -27,17 +27,17 @@ class ArchiveRemoteRelatedExportMixin:
         description: str,
     ) -> None:
         if len(normalized_paths) > MAX_REMOTE_EXPORT_ENTRY_IDS:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"Related-set extraction accepts at most {MAX_REMOTE_EXPORT_ENTRY_IDS:,} paths.",
                 error=True,
             )
             return
         self._ensure_remote_archive_export_wiring()
         if self._archive_remote_export_request_id is not None:
-            self.set_status_message("Another archive export is already running.", error=True)
+            self.shell.set_status_message("Another archive export is already running.", error=True)
             return
         if self._archive_remote_related_lookup_request_id is not None:
-            self.set_status_message("Another related-set lookup is already running.", error=True)
+            self.shell.set_status_message("Another related-set lookup is already running.", error=True)
             return
         session = self.archive_remote_bridge.current_session
         self._archive_remote_export_generation += 1
@@ -62,10 +62,10 @@ class ArchiveRemoteRelatedExportMixin:
             )
         except Exception as exc:
             self._archive_remote_related_lookup_context = {}
-            self.set_status_message(f"Related archive paths could not be resolved: {exc}", error=True)
+            self.shell.set_status_message(f"Related archive paths could not be resolved: {exc}", error=True)
             return
-        self.set_busy(True, build_mode=True)
-        self.set_status_message("Resolving related archive paths with the standalone worker...")
+        self.shell.set_busy(True, build_mode=True)
+        self.shell.set_status_message("Resolving related archive paths with the standalone worker...")
         self._set_archive_load_progress(
             "Resolving related archive paths...",
             phase="Resolving",
@@ -112,7 +112,7 @@ class ArchiveRemoteRelatedExportMixin:
         context = dict(getattr(self, "_archive_remote_related_lookup_context", {}) or {})
         self._archive_remote_related_lookup_request_id = None
         self._archive_remote_related_lookup_context = {}
-        self.set_busy(False, build_mode=False)
+        self.shell.set_busy(False, build_mode=False)
         return context
 
     def _handle_remote_related_lookup_result(
@@ -127,10 +127,10 @@ class ArchiveRemoteRelatedExportMixin:
             self._record_remote_related_lookup(payload)
         context = self._finish_remote_related_lookup()
         if operation != "resolve_entries" or not isinstance(payload, ArchiveLookupResult):
-            self.set_status_message("Archive worker returned an invalid related-set lookup.", error=True)
+            self.shell.set_status_message("Archive worker returned an invalid related-set lookup.", error=True)
             return
         if bool(context.get("truncated", False)):
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Related-set extraction matched too many duplicate archive entries; narrow the requested paths.",
                 error=True,
             )
@@ -142,7 +142,7 @@ class ArchiveRemoteRelatedExportMixin:
             or not isinstance(session_ids, set)
             or session_ids != {current_session.session_id}
         ):
-            self.set_status_message(
+            self.shell.set_status_message(
                 "The archive session changed while related paths were resolving; retry the extraction.",
                 error=True,
             )
@@ -156,14 +156,14 @@ class ArchiveRemoteRelatedExportMixin:
         )
         selection = _remote_related_export_selection(requested_paths, entries)
         if selection is None:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "No matching archive entries were found for the related-set extraction.",
                 error=True,
             )
             return
         missing = max(0, len(requested_paths) - selection.requested_count)
         if missing:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 f"Related-set lookup skipped {missing:,} path(s) that were not present in the current archive session."
             )
         self._run_remote_archive_export(
@@ -177,14 +177,14 @@ class ArchiveRemoteRelatedExportMixin:
             return
         self._finish_remote_related_lookup()
         message = str(getattr(error, "message", "") or error or "Related archive lookup failed.")
-        self.set_status_message(message, error=True)
+        self.shell.set_status_message(message, error=True)
         self._set_archive_load_progress("Related archive lookup failed.", phase="Ready", percent=100)
 
     def _handle_remote_related_lookup_cancelled(self, request_id: str) -> None:
         if request_id != getattr(self, "_archive_remote_related_lookup_request_id", None):
             return
         self._finish_remote_related_lookup()
-        self.set_status_message("Related archive lookup cancelled.")
+        self.shell.set_status_message("Related archive lookup cancelled.")
         self._set_archive_load_progress("Related archive lookup cancelled.", phase="Ready", percent=100)
 
 

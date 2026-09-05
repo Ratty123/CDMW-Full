@@ -232,6 +232,7 @@ def test_topology_commit_adopts_the_authoritative_remapped_selection() -> None:
         _refresh_source_tree_selection_state=lambda: None,
         _refresh_source_assignment_columns=lambda: None,
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _mesh_editor_action_result_changed=lambda _result: True,
         _mesh_editor_action_result_within_allowed_scope=lambda _result: True,

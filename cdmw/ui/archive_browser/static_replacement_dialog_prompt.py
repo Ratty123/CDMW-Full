@@ -66,10 +66,11 @@ def prompt_archive_static_replacement_options(
     on_cancel: Optional[Callable[[], None]] = None,
     _prepared_prompt_preflight: StaticReplacementPromptPreflightResult | None = None,
 ) -> None:
+    self = self.archive
     dialog_title = dialog_title or _alignment_builder_window_title_helper()
     alignment_dialog_key = self._modeless_alignment_dialog_key(entry, obj_path, dialog_title)
     if self._activate_modeless_alignment_dialog(alignment_dialog_key):
-        self.set_status_message(_alignment_builder_already_open_status_helper())
+        self.shell.set_status_message(_alignment_builder_already_open_status_helper())
         return
     if _prepared_prompt_preflight is None:
         dispatch_static_replacement_prompt_preflight(
@@ -109,7 +110,7 @@ def prompt_archive_static_replacement_options(
     prompt_preflight = _prepared_prompt_preflight
     scene_import_result = prompt_preflight.scene_import_result
     original_mesh = prompt_preflight.original_mesh
-    _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
+    _record_runtime_event = getattr(self.shell, "_record_runtime_event", lambda *_args, **_kwargs: {})
     builtin_context = {
         "any": any,
         "bool": bool,
@@ -130,14 +131,13 @@ def prompt_archive_static_replacement_options(
     prompt_shell_context = {**globals(), **builtin_context, **locals()}
     dialog = None
     construction_failed = object()
-
     def _abort_alignment_builder_construction(
         message: object,
         *,
         stage: str,
         traceback_text: str = "",
     ) -> None:
-        partial_dialog = dialog or self._modeless_alignment_dialogs.get(alignment_dialog_key)
+        partial_dialog = dialog or self.shell._modeless_alignment_dialogs.get(alignment_dialog_key)
         disposer = getattr(self, "_dispose_partial_alignment_builder", None)
         if callable(disposer):
             disposer(
@@ -155,18 +155,18 @@ def prompt_archive_static_replacement_options(
             traceback=str(traceback_text or ""),
             modify_original_clone=bool(getattr(prompt_preflight, "modify_original_clone_mode", False)),
         )
-        if not bool(getattr(self, "_shutting_down", False)):
-            self.set_status_message(f"Mesh Replacement Builder setup failed: {error_text}", error=True)
-            if embedded_host is not None and hasattr(self, "mesh_editor_tab"):
+        if not bool(getattr(self.shell, "_shutting_down", False)):
+            self.shell.set_status_message(f"Mesh Replacement Builder setup failed: {error_text}", error=True)
+            if embedded_host is not None and hasattr(self.shell, "mesh_editor_tab"):
                 QTimer.singleShot(
                     0,
-                    lambda: self.mesh_editor_tab.show_empty_state(
+                    lambda: self.shell.mesh_editor_tab.show_empty_state(
                         "Mesh Replacement Builder setup failed. See workspace logs."
                     ),
                 )
 
     def _builder_construction_step(stage: str, callback: Callable[[], object]) -> object:
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             _abort_alignment_builder_construction("cancelled during application shutdown", stage=stage)
             return construction_failed
         try:

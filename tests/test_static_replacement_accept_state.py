@@ -56,6 +56,9 @@ class _ImmediateTimer:
 
 class _StatusSink:
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.messages: list[tuple[str, bool]] = []
 
     def set_status_message(self, message: str, error: bool = False) -> None:

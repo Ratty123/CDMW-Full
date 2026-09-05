@@ -188,7 +188,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("mesh = service.load_mesh_file(self.path, run_roundtrip=True)", aux_worker_source)
         self.assertIn("thread.start(QThread.LowPriority)", tab_source)
         self.assertIn('"mesh_editor_tab"', close_source)
-        self.assertIn("DotNetPreviewProfile.AUTHORING", shell_source)
+        self.assertIn("self.native_host_frame = RustMeshEditorHostFrame(", shell_source)
         self.assertFalse((ROOT / "cdmw/ui/native_d3d11_preview_host.py").exists())
         self.assertFalse((ROOT / "cdmw/ui/mesh_editor/native_preview_runtime.py").exists())
 
@@ -198,7 +198,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         update_start = tab_source.index("def _apply_standalone_native_update(")
         update_body = tab_source[update_start: tab_source.index("def _refresh_standalone_preview", update_start)]
         self.assertIn("if _native_update_has_payload(update) or self._standalone_native_preview_update_active():", update_body)
-        self.assertIn(".NET/Vortice preview update failed; preview is stale.", update_body)
+        self.assertIn('Rust preview update failed; preview is stale.', update_body)
         self.assertIn("self.status_message_requested.emit(message, True)", update_body)
         self.assertLess(
             update_body.index("host = self.standalone_native_host"),
@@ -287,312 +287,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
                     actual.append((relative, stripped))
         self.assertEqual(expected_boundary_or_fallback_sites, actual)
 
-    def test_initial_preview_identity_blob_is_native_owned(self) -> None:
-        writer_source = _read("cdmw/rendering/native_preview_package_writer.py")
-        bridge_source = _read("cdmw/modding/mesh_native_core.py")
-        native_source = _read("native/cdmw_mesh_core/src/main.cpp")
 
-        self.assertIn("from cdmw.modding.mesh_native_core import write_native_preview_identity_blob", writer_source)
-        self.assertIn("def _write_editor_identity_blob_native(", writer_source)
-        self.assertIn("_write_editor_identity_blob_native(aggregate_identity_path, batch, vertex_count)", writer_source)
-        self.assertIn('with aggregate_identity_path.open("ab") as identity_stream:', writer_source)
-        aggregate_identity_start = writer_source.index("source_indices_are_descriptor_backed = (")
-        aggregate_identity_body = writer_source[
-            aggregate_identity_start: writer_source.index("aggregate_identity_size += identity_size", aggregate_identity_start)
-        ]
-        self.assertIn("if source_indices_are_descriptor_backed:", aggregate_identity_body)
-        self.assertIn('raise RuntimeError("native preview identity generation failed for descriptor-backed source ids")', aggregate_identity_body)
-        self.assertLess(
-            aggregate_identity_body.index("if source_indices_are_descriptor_backed:"),
-            aggregate_identity_body.index("editor_identity, identity_blob = _editor_identity_blob(batch, vertex_count)"),
-        )
-        identity_blob_start = writer_source.index("def _editor_identity_blob(")
-        identity_blob_body = writer_source[identity_blob_start: writer_source.index("def _editor_identity_metadata(", identity_blob_start)]
-        identity_metadata_start = writer_source.index("def _editor_identity_metadata(")
-        identity_metadata_body = writer_source[identity_metadata_start: writer_source.index("def _batch_source_range(", identity_metadata_start)]
-        self.assertLess(identity_blob_body.index("source_vertex_range = _batch_source_range("), identity_blob_body.index("raw_source_vertices = ("))
-        self.assertLess(identity_blob_body.index("source_face_range = _batch_source_range("), identity_blob_body.index("raw_source_faces = ("))
-        self.assertIn("if source_vertex_range is not None", identity_blob_body)
-        self.assertIn("if source_face_range is not None", identity_blob_body)
-        self.assertLess(identity_metadata_body.index("source_vertex_range = _batch_source_range("), identity_metadata_body.index("raw_source_vertices = ("))
-        self.assertLess(identity_metadata_body.index("source_face_range = _batch_source_range("), identity_metadata_body.index("raw_source_faces = ("))
-        self.assertIn("if source_vertex_range is not None", identity_metadata_body)
-        self.assertIn("if source_face_range is not None", identity_metadata_body)
-        self.assertIn("def _source_index_at(", writer_source)
-        self.assertIn("def _source_index_max(", writer_source)
-        self.assertNotIn('else tuple(int(index) for index in (getattr(batch, "source_vertex_indices"', writer_source)
-        self.assertNotIn('else tuple(int(index) for index in (getattr(batch, "source_face_indices"', writer_source)
-        self.assertIn('"preview-identity-json"', bridge_source)
-        self.assertIn("def write_native_preview_identity_blob(", bridge_source)
-        self.assertIn("source_vertex_indices_binary: Mapping[str, object] | None = None", bridge_source)
-        self.assertIn("source_vertex_start: int | None = None", bridge_source)
-        self.assertIn('"source_vertex_indices_binary"] = source_vertex_descriptor', bridge_source)
-        self.assertIn('tempfile.mkdtemp(prefix="cdmw_mesh_core_preview_identity_")', bridge_source)
-        self.assertIn('payload["source_vertex_indices_binary"] = _write_int_binary_payload(', bridge_source)
-        self.assertIn('payload["source_face_indices_binary"] = _write_int_binary_payload(', bridge_source)
-        self.assertNotIn('payload["source_vertex_indices"] = [int(index) for index in tuple(source_vertex_indices or ())]', bridge_source)
-        self.assertNotIn('payload["source_face_indices"] = [int(index) for index in tuple(source_face_indices or ())]', bridge_source)
-        self.assertIn('"source_vertex_start"] = int(source_vertex_start)', bridge_source)
-        self.assertIn("std::string run_preview_identity(const JsonValue& root)", native_source)
-        self.assertIn('int_or(root.get("source_vertex_start"), -1)', native_source)
-        self.assertIn('int_or(root.get("source_face_start"), -1)', native_source)
-        self.assertIn('int_vector_from_binary_or_json(root, "source_vertex_indices_binary", "source_vertex_indices")', native_source)
-        self.assertIn('int_vector_from_binary_or_json(root, "source_face_indices_binary", "source_face_indices")', native_source)
-        self.assertIn("source_vertex_start + vertex_offset", native_source)
-        self.assertIn("source_face_start + face_offset", native_source)
-        self.assertIn("append_i32_le(identity, source_submesh_index)", native_source)
-        self.assertIn('if (command == "preview-identity-json") return preview_identity_json_command(job_path, report_path);', native_source)
-
-    def test_initial_preview_geometry_blob_is_native_owned(self) -> None:
-        prepare_source = _read("cdmw/rendering/model_preview_prepare.py")
-        mesh_editor_payload_source = _read("cdmw/ui/mesh_editor/native_preview_payloads.py")
-        static_mapping_source = _read("cdmw/ui/archive_browser/static_replacement_preview_mapping.py")
-        package_source = _read("cdmw/rendering/native_preview_package_writer.py")
-        payload_source = _read("cdmw/rendering/native_preview_payloads.py")
-        bridge_source = _read("cdmw/modding/mesh_native_core.py")
-        native_source = _read("native/cdmw_mesh_core/src/main.cpp")
-
-        self.assertIn("def _build_vertex_blob_native(", prepare_source)
-        self.assertIn("from cdmw.modding.mesh_native_core import write_native_preview_geometry_blob", prepare_source)
-        self.assertIn("native_result = _build_vertex_blob_native(model, flip_texture_v=flip_texture_v)", prepare_source)
-        self.assertLess(
-            prepare_source.index("native_result = _build_vertex_blob_native(model, flip_texture_v=flip_texture_v)"),
-            prepare_source.index("return _build_vertex_blob_impl(model, flip_texture_v=flip_texture_v, use_numpy=True)"),
-        )
-        self.assertIn('"preview-geometry-json"', bridge_source)
-        self.assertIn("def write_native_preview_geometry_blob(", bridge_source)
-        self.assertIn("std::string run_preview_geometry(const JsonValue& root)", native_source)
-        self.assertIn("append_preview_vertex(", native_source)
-        preview_geometry_bridge_start = bridge_source.index("def write_native_preview_geometry_blob(")
-        preview_geometry_bridge_body = bridge_source[
-            preview_geometry_bridge_start: bridge_source.index("def build_native_preview_model_in_original_frame(", preview_geometry_bridge_start)
-        ]
-        self.assertIn('"positions_binary"] = _write_vec3_binary_payload', preview_geometry_bridge_body)
-        self.assertIn('"normals_binary"] = _write_vec3_binary_payload', preview_geometry_bridge_body)
-        self.assertIn('"texture_coordinates_binary"] = _write_vec2_binary_payload', preview_geometry_bridge_body)
-        self.assertIn('"indices_binary"] = _write_int_binary_payload', preview_geometry_bridge_body)
-        self.assertIn("_put_source_vertex_indices_payload(item, prefix", preview_geometry_bridge_body)
-        self.assertIn("_put_source_face_indices_payload(item, prefix", preview_geometry_bridge_body)
-        self.assertNotIn('"source_vertex_indices_binary"] = _write_int_binary_payload', preview_geometry_bridge_body)
-        self.assertNotIn('"source_face_indices_binary"] = _write_int_binary_payload', preview_geometry_bridge_body)
-        self.assertNotIn("for mesh_index, mesh in enumerate(tuple(meshes or ()))", preview_geometry_bridge_body)
-        self.assertNotIn('tuple(item.pop("indices") or ())', preview_geometry_bridge_body)
-        self.assertNotIn('tuple(item.pop("faces") or ())', preview_geometry_bridge_body)
-        self.assertNotIn('tuple(item.pop("source_vertex_indices") or ())', preview_geometry_bridge_body)
-        self.assertNotIn('tuple(item.pop("source_face_indices") or ())', preview_geometry_bridge_body)
-        self.assertNotIn('"meshes": [dict(mesh) for mesh in tuple(meshes or ())]', preview_geometry_bridge_body)
-        preview_geometry_native_start = native_source.index("std::string run_preview_geometry(const JsonValue& root)")
-        preview_geometry_native_body = native_source[
-            preview_geometry_native_start: native_source.index("std::string run_preview_identity", preview_geometry_native_start)
-        ]
-        self.assertIn('item_has_direct_geometry(item, "positions_binary", "positions")', preview_geometry_native_body)
-        self.assertIn('vertices_from_binary_or_json(item, "positions_binary", "positions")', preview_geometry_native_body)
-        self.assertIn("mesh_vertices_from_item(item)", preview_geometry_native_body)
-        self.assertIn("preview_triangle_index_stream_from_binary_or_json(item, positions.size())", preview_geometry_native_body)
-        self.assertIn("faces = mesh_faces_from_item(item, positions.size())", preview_geometry_native_body)
-        self.assertIn("preview_triangle_index_stream_from_faces(faces)", preview_geometry_native_body)
-        self.assertIn("mesh_source_vertex_indices_from_item(item, positions.size())", preview_geometry_native_body)
-        self.assertIn("mesh_source_face_indices_from_item(", preview_geometry_native_body)
-        self.assertIn("mesh_normals_from_item(item)", preview_geometry_native_body)
-        self.assertIn('item_has_direct_geometry(item, "texture_coordinates_binary", "texture_coordinates")', preview_geometry_native_body)
-        self.assertIn('uvs_from_binary_or_json(item, "texture_coordinates_binary", "texture_coordinates")', preview_geometry_native_body)
-        self.assertIn("mesh_uvs_from_item(item)", preview_geometry_native_body)
-        self.assertNotIn('vertices_from_json(item.get("positions"))', preview_geometry_native_body)
-        self.assertNotIn('preview_triangle_index_stream_from_json(item.get("indices")', preview_geometry_native_body)
-        self.assertNotIn('vertices_from_json(item.get("normals"))', preview_geometry_native_body)
-        self.assertNotIn('uvs_from_json(item.get("texture_coordinates"))', preview_geometry_native_body)
-        self.assertIn("contiguous_int_range(batch.source_vertex_indices, source_vertex_start)", native_source)
-        self.assertIn('out << ",\\"source_vertex_start\\":" << source_vertex_start', native_source)
-        self.assertIn("contiguous_int_range(batch.source_face_indices, source_face_start)", native_source)
-        self.assertIn('out << ",\\"source_face_start\\":" << source_face_start', native_source)
-        self.assertIn("write_int_binary_descriptor(out, source_vertices_path", native_source)
-        self.assertIn("write_int_binary_descriptor(out, source_faces_path", native_source)
-        build_vertex_blob_native_body = prepare_source[
-            prepare_source.index("def _build_vertex_blob_native("): prepare_source.index("def _model_preview_binary_descriptor", prepare_source.index("def _build_vertex_blob_native("))
-        ]
-        self.assertIn("source_vertex_indices_binary=_model_preview_binary_descriptor(", build_vertex_blob_native_body)
-        self.assertIn("source_face_indices_binary=_model_preview_binary_descriptor(", build_vertex_blob_native_body)
-        self.assertIn('_source_range_from_mesh(mesh, "source_vertex_range_start", "source_vertex_range_count")', build_vertex_blob_native_body)
-        self.assertIn("def _put_preview_source_i32_payload(", prepare_source)
-        self.assertIn('mesh_payload["source_vertex_start"] = source_vertex_range[0]', build_vertex_blob_native_body)
-        self.assertIn('mesh_payload["source_face_start"] = source_face_range[0]', build_vertex_blob_native_body)
-        self.assertIn('_put_preview_source_i32_payload(\n                    mesh_payload,\n                    getattr(mesh, "source_vertex_indices", ()) or (),', build_vertex_blob_native_body)
-        self.assertIn('_put_preview_source_i32_payload(\n                    mesh_payload,\n                    getattr(mesh, "source_face_indices", ()) or (),', build_vertex_blob_native_body)
-        self.assertNotIn('mesh_payload["source_vertex_indices"] = list(', build_vertex_blob_native_body)
-        self.assertNotIn('mesh_payload["source_face_indices"] = list(', build_vertex_blob_native_body)
-        self.assertNotIn('_i32_list_from_binary_descriptor(raw_batch.get("source_vertex_indices_binary"))', build_vertex_blob_native_body)
-        mesh_editor_native_body = mesh_editor_payload_source[
-            mesh_editor_payload_source.index("def _mesh_to_native_preview_native("):
-            mesh_editor_payload_source.index("def _int_tuple(", mesh_editor_payload_source.index("def _mesh_to_native_preview_native("))
-        ]
-        mesh_to_preview_start = mesh_editor_payload_source.index("def mesh_to_native_preview(")
-        mesh_to_preview_body = mesh_editor_payload_source[
-            mesh_to_preview_start: mesh_editor_payload_source.index("def _mesh_to_native_preview_native(", mesh_to_preview_start)
-        ]
-        self.assertIn('if not _allow_python_preview_fallback(mesh, "preview_geometry", submesh_index=-1):', mesh_to_preview_body)
-        self.assertIn('raise RuntimeError("native Mesh Editor preview geometry unavailable; Python preview fallback is disabled")', mesh_to_preview_body)
-        self.assertLess(
-            mesh_to_preview_body.index('if not _allow_python_preview_fallback(mesh, "preview_geometry", submesh_index=-1):'),
-            mesh_to_preview_body.index('raise RuntimeError("native Mesh Editor preview geometry unavailable; Python preview fallback is disabled")'),
-        )
-        self.assertIn("source_vertex_indices_binary=source_vertices_binary or {}", mesh_editor_native_body)
-        self.assertIn("source_face_indices_binary=source_faces_binary or {}", mesh_editor_native_body)
-        self.assertNotIn("_i32_tuple_from_binary_descriptor(", mesh_editor_native_body)
-        self.assertLess(
-            mesh_editor_native_body.index("source_vertices_binary = _native_binary_descriptor("),
-            mesh_editor_native_body.index('source_vertices = _int_tuple(raw_batch.get("source_vertex_indices"))'),
-        )
-        self.assertLess(
-            mesh_editor_native_body.index("source_faces_binary = _native_binary_descriptor("),
-            mesh_editor_native_body.index('source_faces = _int_tuple(raw_batch.get("source_face_indices"))'),
-        )
-        self.assertIn('raw_batch.get("source_vertex_indices_binary")', mesh_editor_payload_source)
-        self.assertIn('"preview-model-json"', bridge_source)
-        self.assertIn("def build_native_preview_model_in_original_frame(", bridge_source)
-        self.assertIn("std::string run_preview_model(const JsonValue& root)", native_source)
-        preview_model_bridge_start = bridge_source.index("def build_native_preview_model_in_original_frame(")
-        preview_model_bridge_body = bridge_source[
-            preview_model_bridge_start: bridge_source.index("def apply_native_mesh_transform(", preview_model_bridge_start)
-        ]
-        self.assertIn("raw_source_indices = source_indices or ()", preview_model_bridge_body)
-        self.assertIn('for submesh_position, submesh in enumerate(getattr(parsed_mesh, "submeshes", ()) or ())', preview_model_bridge_body)
-        self.assertNotIn("raw_source_indices = tuple(source_indices or ())", preview_model_bridge_body)
-        self.assertNotIn('tuple(getattr(parsed_mesh, "submeshes", ()) or ())', preview_model_bridge_body)
-        self.assertIn("session_id = _ensure_native_mesh_session_submesh", preview_model_bridge_body)
-        self.assertIn('item["session_id"] = session_id', preview_model_bridge_body)
-        self.assertIn('item["vertices_binary"] = _write_vec3_binary_payload', preview_model_bridge_body)
-        self.assertIn('item["faces_binary"] = _write_face_binary_payload', preview_model_bridge_body)
-        self.assertIn('item["uvs_binary"] = _write_vec2_binary_payload', preview_model_bridge_body)
-        self.assertIn('item["normals_binary"] = _write_vec3_binary_payload', preview_model_bridge_body)
-        self.assertIn('"positions_output_path": _native_preview_delta_output_path', preview_model_bridge_body)
-        self.assertIn('"texture_coordinates_output_path": _native_preview_delta_output_path', preview_model_bridge_body)
-        self.assertIn('"indices_output_path": _native_preview_delta_output_path', preview_model_bridge_body)
-        self.assertIn('"source_vertex_indices_output_path": _native_preview_delta_output_path', preview_model_bridge_body)
-        self.assertIn('"source_face_indices_output_path": _native_preview_delta_output_path', preview_model_bridge_body)
-        self.assertIn("return _hydrate_native_preview_model_report(report)", preview_model_bridge_body)
-        self.assertIn("mesh.pop(\"positions\", None)", bridge_source)
-        self.assertIn("mesh.pop(\"indices\", None)", bridge_source)
-        self.assertNotIn("mesh[\"positions\"] = list(positions)", bridge_source)
-        self.assertNotIn("mesh[\"indices\"] = list(indices)", bridge_source)
-        self.assertLess(
-            preview_model_bridge_body.index("session_id = _ensure_native_mesh_session_submesh"),
-            preview_model_bridge_body.index("faces, _source_face_indices = _face_json_with_source_indices"),
-        )
-        self.assertNotIn('"vertices": vertices', preview_model_bridge_body)
-        self.assertNotIn('"faces": faces', preview_model_bridge_body)
-        self.assertNotIn('"uvs": uvs', preview_model_bridge_body)
-        preview_model_native_start = native_source.index("std::string run_preview_model(const JsonValue& root)")
-        preview_model_native_body = native_source[
-            preview_model_native_start: native_source.index("std::string run_preview_geometry(const JsonValue& root)", preview_model_native_start)
-        ]
-        preview_model_report_start = native_source.index("std::string preview_model_report_json(")
-        preview_model_report_body = native_source[
-            preview_model_report_start: native_source.index("std::string run_preview_model(const JsonValue& root)", preview_model_report_start)
-        ]
-        self.assertIn("mesh_vertices_from_item(item)", preview_model_native_body)
-        self.assertIn("mesh_faces_from_item(item, vertices.size())", preview_model_native_body)
-        self.assertIn("preview_triangle_index_stream_from_faces(faces)", preview_model_native_body)
-        self.assertIn("mesh_source_vertex_indices_from_item(item, vertices.size())", preview_model_native_body)
-        self.assertIn("mesh_source_face_indices_from_item(item, faces.size())", preview_model_native_body)
-        self.assertIn("contiguous_int_range(mesh.source_vertex_indices, source_vertex_start)", preview_model_report_body)
-        self.assertIn("contiguous_int_range(mesh.source_face_indices, source_face_start)", preview_model_report_body)
-        self.assertLess(
-            preview_model_report_body.index("contiguous_int_range(mesh.source_vertex_indices, source_vertex_start)"),
-            preview_model_report_body.index("write_int_binary_file(mesh.source_vertex_indices_path, mesh.source_vertex_indices)"),
-        )
-        self.assertLess(
-            preview_model_report_body.index("contiguous_int_range(mesh.source_face_indices, source_face_start)"),
-            preview_model_report_body.index("write_int_binary_file(mesh.source_face_indices_path, mesh.source_face_indices)"),
-        )
-        self.assertIn("positions_path = string_or(item.get(\"positions_output_path\")", preview_model_native_body)
-        preview_model_report_start = native_source.index("std::string preview_model_report_json(")
-        preview_model_report_body = native_source[preview_model_report_start: preview_model_native_start]
-        self.assertIn("write_vec3_binary_descriptor(out, mesh.positions_path", preview_model_report_body)
-        self.assertIn("write_int_binary_descriptor(out, mesh.indices_path", preview_model_report_body)
-        self.assertIn("write_int_binary_descriptor(out, mesh.source_vertex_indices_path", preview_model_report_body)
-        self.assertIn("report.uvs = mesh_uvs_from_item(item)", preview_model_native_body)
-        self.assertIn("report.normals = mesh_normals_from_item(item)", preview_model_native_body)
-        self.assertNotIn('vertices_from_binary_or_json(item, "vertices_binary", "vertices")', preview_model_native_body)
-        self.assertNotIn("faces_from_binary_or_json(item, vertices.size())", preview_model_native_body)
-        self.assertNotIn("vertices_from_json(item.get(\"vertices\"))", preview_model_native_body)
-        self.assertNotIn("preview_triangle_index_stream_from_faces_json(item.get(\"faces\")", preview_model_native_body)
-        self.assertIn("native_preview = _preview_model_in_original_frame_native(", static_mapping_source)
-        self.assertIn("def _preview_model_in_original_frame_python_reference(", static_mapping_source)
-        self.assertIn("source_vertex_range_start=source_vertex_range_start", static_mapping_source)
-        self.assertIn("source_vertex_range_start=0", static_mapping_source)
-        self.assertIn("source_vertex_range_count=len(vertices)", static_mapping_source)
-        self.assertIn("source_face_range_start=0", static_mapping_source)
-        self.assertIn("source_face_range_count=len(faces)", static_mapping_source)
-        self.assertNotIn("source_vertex_indices = list(range(len(vertices)))", static_mapping_source)
-        self.assertNotIn("source_face_indices = list(range(len(faces)))", static_mapping_source)
-        self.assertIn("def _native_preview_range(", static_mapping_source)
-        self.assertIn("identity_output_path", native_source)
-        self.assertIn("preview_triangle_index_stream_from_faces(faces)", native_source)
-        self.assertIn("report.source_vertex_indices.push_back(source_vertex_index)", native_source)
-        self.assertIn("report.source_face_indices.push_back(source_face_index)", native_source)
-        self.assertIn("append_i32_le(identity, source_submesh_index)", native_source)
-        self.assertIn('if (command == "preview-geometry-json") return preview_geometry_json_command(job_path, report_path);', native_source)
-        self.assertIn('"identity_output_path": str(identity_path) if identity_path is not None else ""', bridge_source)
-        self.assertIn("identity_output_path=identity_path", prepare_source)
-        self.assertIn("_model_preview_binary_descriptor(getattr(mesh, \"positions_binary\", None)", prepare_source)
-        self.assertIn('mesh_payload["positions_binary"] = positions_binary', prepare_source)
-        self.assertIn("positions_binary=positions_binary or {}", static_mapping_source)
-        self.assertIn("indices_binary=indices_binary or {}", static_mapping_source)
-        self.assertIn("preview_base_color=tuple(batch.base_color or ())", prepare_source)
-        self.assertIn("preview_bounds_min=tuple(batch.bounds_min or ())", prepare_source)
-        self.assertIn("tangents_usable=bool(batch.tangents_usable)", prepare_source)
-        self.assertIn("source_vertex_indices=emitted_source_vertices", prepare_source)
-        self.assertIn("source_vertex_range_start = 0", prepare_source)
-        self.assertIn("source_vertex_range_count = int(batch.vertex_count)", prepare_source)
-        self.assertIn("source_face_range_count = max(0, int(batch.vertex_count) // 3)", prepare_source)
-        self.assertNotIn("tuple(range(int(batch.vertex_count)))", prepare_source)
-        self.assertNotIn("tuple(range(max(0, int(batch.vertex_count) // 3)))", prepare_source)
-        self.assertIn("editor_identity_blob=bytes(batch.editor_identity_blob or b\"\")", prepare_source)
-        self.assertIn("precomputed_identity_blob = bytes(getattr(batch, \"editor_identity_blob\", b\"\") or b\"\")", package_source)
-        self.assertIn("def _write_identity_source_i32_sidecar(", package_source)
-        self.assertIn('source_vertex_indices=(),', package_source)
-        self.assertIn('source_face_indices=(),', package_source)
-        self.assertNotIn('tuple(int(index) for index in tuple(getattr(batch, "source_vertex_indices"', package_source)
-        self.assertNotIn('tuple(int(index) for index in tuple(getattr(batch, "source_face_indices"', package_source)
-        self.assertNotIn("tuple(int(index) for index in tuple(batch.source_vertex_indices", prepare_source)
-        self.assertNotIn("tuple(int(index) for index in tuple(batch.source_face_indices", prepare_source)
-        self.assertIn("_batch_tangents_usable(batch, usable_blob, vertex_count)", package_source)
-        self.assertIn("_batch_base_color(batch, usable_blob)", package_source)
-        self.assertNotIn("_tangents_usable(usable_blob, vertex_count)", package_source)
-        self.assertNotIn("_first_vertex_color(usable_blob)", package_source)
-        self.assertIn("def _batch_bounds(", payload_source)
-        self.assertIn("bounds_min, bounds_max = _batch_bounds(batch, vertex_blob, vertex_count)", payload_source)
-        prepare_start = prepare_source.index("def prepare_model_preview(")
-        prepare_body = prepare_source[prepare_start: prepare_source.index("def alignment_euler_xyz_matrix", prepare_start)]
-        self.assertNotIn("for face_ordinal, index_offset in enumerate(range(0, len(mesh_indices) - 2, 3))", prepare_body)
-        mesh_editor_entry = mesh_editor_payload_source[
-            mesh_editor_payload_source.index("def mesh_to_native_preview("):
-            mesh_editor_payload_source.index("def _mesh_to_native_preview_native(")
-        ]
-        self.assertIn("native_preview = _mesh_to_native_preview_native(mesh)", mesh_editor_entry)
-        self.assertNotIn("_vertex_blob(", mesh_editor_entry)
-        self.assertIn("write_native_preview_geometry_blob", mesh_editor_payload_source)
-        mesh_editor_native_start = mesh_editor_payload_source.index("def _mesh_to_native_preview_native(")
-        mesh_editor_native_body = mesh_editor_payload_source[
-            mesh_editor_native_start: mesh_editor_payload_source.index("def _int_tuple(", mesh_editor_native_start)
-        ]
-        self.assertIn("_ensure_native_mesh_session_submesh(", mesh_editor_native_body)
-        self.assertIn('"session_id": session_id', mesh_editor_native_body)
-        self.assertIn('vertex_count = _sequence_len(getattr(submesh, "vertices", ()))', mesh_editor_native_body)
-        self.assertIn('face_count = _sequence_len(getattr(submesh, "faces", ()))', mesh_editor_native_body)
-        self.assertIn('submeshes = getattr(mesh, "submeshes", ()) or ()', mesh_editor_native_body)
-        self.assertNotIn('submeshes = tuple(getattr(mesh, "submeshes", ()) or ())', mesh_editor_native_body)
-        self.assertNotIn('vertices = tuple(getattr(submesh, "vertices", ()) or ())', mesh_editor_native_body)
-        self.assertNotIn('faces = tuple(getattr(submesh, "faces", ()) or ())', mesh_editor_native_body)
-        self.assertNotIn('"positions": vertices', mesh_editor_native_body)
-        self.assertNotIn('"normals": normals', mesh_editor_native_body)
-        self.assertNotIn('"texture_coordinates": uvs', mesh_editor_native_body)
-        self.assertNotIn('"faces": faces', mesh_editor_native_body)
-        self.assertNotIn('"source_vertex_indices": list(range(len(vertices)))', mesh_editor_native_body)
-        self.assertNotIn('"source_face_indices": list(range(len(faces)))', mesh_editor_native_body)
-        self.assertNotIn("def _mesh_to_native_preview_python_reference(", mesh_editor_payload_source)
-        self.assertNotIn("def _empty_native_preview_data(", mesh_editor_payload_source)
-        self.assertNotIn("def _vertex_blob(", mesh_editor_payload_source)
 
     def test_native_mesh_fallback_telemetry_guards_long_harness(self) -> None:
         bridge_source = _read("cdmw/modding/mesh_native_core.py")
@@ -1095,7 +790,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         static_capture_body = _function_source(static_callbacks_source, "_morph_slider_capture_post_edit_deltas")
         self.assertIn("except Exception as exc:", static_capture_body)
         self.assertIn('_state.morph_slider_topology_blocked["blocked"] = True', static_capture_body)
-        self.assertIn("_state.self.set_status_message(str(exc))", static_capture_body)
+        self.assertIn("_state.self.shell.set_status_message(str(exc))", static_capture_body)
         self.assertIn("if _state._mesh_edit_tab_active():", static_apply_body)
         self.assertNotIn("if _state._mesh_edit_tab_active() and not _state._alignment_d3d11_preview_active():", static_apply_body)
         self.assertIn("Python mesh mutation fallback is disabled", static_apply_body)
@@ -1383,64 +1078,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('"source_submesh_indices": _indices(source_submesh_indices or ())', bridge_source)
 
     def test_native_visible_selection_depth_and_double_click_guards_exist(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
-        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
 
-        self.assertIn('ShowXRay ? "xray" : "visible"', source)
-        self.assertIn("IsWorldPointOccluded(", source)
-        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
-        self.assertIn('EditorEventRequested?.Invoke("select_request", PointerPayload', input_source)
         self.assertFalse((ROOT / "native/cdmw_d3d11_preview/CMakeLists.txt").exists())
 
-    def test_rectangle_and_lasso_selection_send_native_screen_region(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
-        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
 
-        self.assertIn("var region = ScreenDragPayload(_edgeDragStart, point);", source)
-        self.assertIn('payload["screen_region"] = region;', source)
-        # A lasso drag rides the same region payload: mode plus the swept
-        # polygon, with the rectangle endpoints kept for older cores.
-        self.assertIn('region["mode"] = "lasso";', source)
-        self.assertIn('region["points"]', source)
-        self.assertIn(
-            "if (_selectionLassoPoints.Count > 0 && _selectionLassoPoints[^1] != point)",
-            source,
-        )
-        self.assertIn("_selectionLassoPoints.Add(point);", source)
-        self.assertIn("var lassoPoints = _selectionLassoPoints.Count >= 3", source)
-        self.assertIn("if (lassoPoints is null && rectangle.Width < 4 && rectangle.Height < 4)", source)
-        self.assertNotIn("SimplifyLassoPoints", source)
-        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
-        self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
-        self.assertIn('["selection_depth_mode"] = ShowXRay ? "xray" : "visible"', source)
 
-    def test_select_vertices_is_selection_only_and_uses_modifier_combine(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
-        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
 
-        self.assertIn('string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase)', input_source)
-        self.assertIn("BeginSelectionDrag(input.Location, targetMode)", input_source)
-        self.assertIn('["operation"] = CurrentSelectionOperation()', source)
-        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
-
-    def test_native_authoring_tool_switch_retains_indexed_snapshot(self) -> None:
-        program = _read("tools/dotnet_mesh_editor_experiment/Program.cs")
-        active_tool = program.split("public string ActiveTool", 1)[1].split(
-            "public Func<Dictionary<string, object?>>? ToolOptionsProvider", 1
-        )[0]
-
-        self.assertIn("if (!ResidentNativeInteractionRequired)", active_tool)
-        self.assertIn("QueuePaintProjectionPrewarm();", active_tool)
-        self.assertNotIn("ScheduleResidentNativeSnapshotPreparation();", active_tool)
-
-    def test_native_brush_select_command_sends_native_screen_payload(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
-        selection_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
-
-        self.assertIn('["screen_brush"] = screenPayload', source)
-        self.assertIn('["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera)', source)
-        self.assertIn('payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels)', selection_source)
-        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', selection_source)
 
     def test_native_harness_stresses_brush_drag_without_global_input(self) -> None:
         source = "\n".join(
@@ -1635,7 +1278,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def retry_now(self) -> None:", controller_source)
         self.assertIn("def deactivate(self) -> None:", controller_source)
         self.assertIn("def shutdown(self) -> None:", controller_source)
-        self.assertIn("DotNetPreviewProfile.AUTHORING", _read("cdmw/ui/mesh_editor/workspace_shell_builder.py"))
+        self.assertIn("RustMeshEditorHostFrame(", _read("cdmw/ui/mesh_editor/workspace_shell_builder.py"))
 
     def test_mesh_edit_raw_package_and_live_restore_paths_exist(self) -> None:
         source = _mesh_edit_source()
@@ -1925,18 +1568,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_mesh_edit_strokes_reuse_session_topology_cache(self) -> None:
         host_source = _read("cdmw/ui/preview/dotnet_host.py")
-        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
         dispatcher_source = _read("cdmw/ui/mesh_editor/live_stroke_dispatcher.py")
 
         for event in ("stroke_begin", "stroke_update", "stroke_end", "stroke_cancel"):
             self.assertIn(event, host_source)
-        self.assertIn('EditorEventRequested?.Invoke("stroke_begin"', input_source)
-        self.assertIn('EditorEventRequested?.Invoke("stroke_update"', input_source)
         # end and cancel share one exit so a gesture can only close once.
-        self.assertIn(
-            'EditorEventRequested?.Invoke(cancelled ? "stroke_cancel" : "stroke_end"',
-            input_source,
-        )
         self.assertIn("_request_stream_id(previous) == _request_stream_id(newest)", dispatcher_source)
 
     def test_pose_preview_normals_use_native_kernel_before_python_fallback(self) -> None:
@@ -2044,10 +1680,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             sync_native_start: tab_source.index("def load_standalone_native_preview_package", sync_native_start)
         ]
         self.assertIn("mesh = self._standalone_preview_mesh_snapshot()", sync_native_body)
-        self.assertIn("build_mesh_dotnet_experiment_package(", sync_native_body)
+        self.assertIn('build_rust_preview_package(', sync_native_body)
         self.assertLess(
             sync_native_body.index("mesh = self._standalone_preview_mesh_snapshot()"),
-            sync_native_body.index("build_mesh_dotnet_experiment_package("),
+            sync_native_body.index("build_rust_preview_package("),
         )
 
     def test_alignment_mesh_editor_texture_settings_and_view_mode_are_wired(self) -> None:
@@ -2437,19 +2073,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_mesh_edit_drag_inverts_preview_delta_without_display_space_rewrite(self) -> None:
         source = _mesh_edit_source()
-        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
         host_source = _read("cdmw/ui/preview/dotnet_host.py")
 
-        self.assertIn('payload["screen_drag"] = ScreenDragPayload(origin, point)', input_source)
-        self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
         self.assertIn("def update_mesh_edit_vertices(", host_source)
         self.assertIn("def replace_mesh_edit_triangles(", host_source)
         self.assertNotIn("def _mesh_edit_apply_display_space_vertex_result(", source)
 
-    def test_native_mesh_edit_json_float_parser_accepts_exponent_numbers(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Geometry.cs")
-
-        self.assertIn("Convert.ToDouble(value", source)
 
     def test_modify_original_material_preview_is_not_skipped_during_mesh_edit(self) -> None:
         source = _mesh_edit_source()
@@ -2471,7 +2100,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if live_mesh_edit and _state._mesh_edit_tab_active():", refresh_body)
         self.assertIn("mesh_edit_static_preview_refresh_blocked", refresh_body)
         self.assertIn(
-            "Active Mesh Editor static preview refresh requires .NET/Vortice; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor static preview refresh requires Rust Preview; Python preview rebuild fallback is disabled.",
             refresh_body,
         )
         self.assertLess(
@@ -2546,7 +2175,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("consume(build_native_mesh_preview_vertex_update_groups(mesh, missing))", generated_live_body)
         flush_body = _function_source(source, "_flush_mesh_edit_live_vertex_updates")
         self.assertIn('"mesh_edit_live_vertex_update_empty"', flush_body)
-        self.assertIn(".NET/Vortice mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
+        self.assertIn("Rust Preview mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
         self.assertLess(
             flush_body.index("if not groups:"),
             flush_body.index('sender = getattr('),
@@ -2556,9 +2185,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body,
         )
         self.assertIn('"mesh_edit_live_preview_deferred"', update_body)
-        self.assertIn(".NET/Vortice mesh edit commands are unavailable; preview is stale.", update_body)
+        self.assertIn("Rust Preview mesh edit commands are unavailable; preview is stale.", update_body)
         self.assertIn("if _state._mesh_edit_tab_active():", update_body)
-        self.assertIn("Active Mesh Editor live preview requires .NET/Vortice", update_body)
+        self.assertIn("Active Mesh Editor live preview requires Rust Preview", update_body)
         self.assertIn('"mesh_edit_live_preview_rebuild_blocked"', update_body)
         self.assertIn("def _native_screen_payload(", source)
         self.assertIn("_LEGACY_SCREEN_CAMERA_FIELDS", source)
@@ -2858,7 +2487,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         commit_working_body = _function_source(source, "_mesh_edit_commit_working_mesh")
         refresh_preview_body = _function_source(source, "_mesh_edit_refresh_replacement_preview_model")
-        self.assertIn("Active Mesh Editor preview refresh requires .NET/Vortice", refresh_preview_body)
+        self.assertIn("Active Mesh Editor preview refresh requires Rust Preview", refresh_preview_body)
         self.assertLess(
             refresh_preview_body.index("and _state._mesh_edit_tab_active()"),
             refresh_preview_body.index("_state.parsed_mesh_to_preview_model("),
@@ -2873,7 +2502,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             commit_working_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", commit_working_body)
-        self.assertIn("Active Mesh Editor commit requires .NET/Vortice refresh", commit_working_body)
+        self.assertIn("Active Mesh Editor commit requires Rust Preview refresh", commit_working_body)
         active_no_d3d_commit_start = commit_working_body.index("elif _state._mesh_edit_tab_active():")
         active_no_d3d_commit_body = commit_working_body[
             active_no_d3d_commit_start:commit_working_body.index("else:", active_no_d3d_commit_start)
@@ -3602,7 +3231,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         stale_reload_body = _function_source(source, "_queue_latest_alignment_d3d11_rebuild_for_stale_reload")
 
         self.assertIn("Active Mesh Editor static preview {kind} is disabled", blocker_body)
-        self.assertIn("_state.self.set_status_message(message, error=True)", blocker_body)
+        self.assertIn("_state.self.shell.set_status_message(message, error=True)", blocker_body)
         self.assertIn("_state._mesh_edit_enabled_checked()", blocker_body)
         self.assertIn("_state._alignment_mesh_edit_tab_active()", blocker_body)
         self.assertIn("'mesh_edit_static_preview_refresh_blocked'", refresh_body)
@@ -4217,7 +3846,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("replace_all=replace_all", helper_body)
         self.assertIn("_source_part_current_preview_indices()", helper_body)
         self.assertIn("if _state._source_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source-part preview requires a .NET/Vortice refresh; software preview fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source-part preview requires a Rust Preview refresh; software preview fallback is disabled.", helper_body)
         self.assertIn("_set_source_parts_preview_rebuild_pending(reason)", helper_body)
         self.assertIn("_queue_static_preview_rebuild()", helper_body)
         self.assertLess(
@@ -4349,7 +3978,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer((int(source_index),))", helper_body)
         self.assertIn("if _state._copied_original_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor copied-source preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor copied-source preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(
             helper_body.index("replacer((int(source_index),))"),
@@ -4386,7 +4015,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer(source_indices)", helper_body)
         self.assertIn("if _state._selected_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source enable preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source enable preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._set_source_parts_preview_rebuild_pending(_state._source_part_include_exclude_pending_reason_helper())", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(

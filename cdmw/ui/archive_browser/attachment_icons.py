@@ -180,7 +180,7 @@ class ArchiveAttachmentIconMixin:
         if not isinstance(target_entry, ArchiveEntry):
             raise ValueError("A resolved existing target icon entry is required for custom item icons.")
         target_template_path, _note = ensure_archive_preview_source(target_entry)
-        result = self.app_context.services.require_item_icons().build_payload(
+        result = self.shell.app_context.services.require_item_icons().build_payload(
             icon_spec,
             target_template_path=target_template_path,
             on_log=on_log,

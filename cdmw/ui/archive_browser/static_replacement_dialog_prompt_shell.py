@@ -31,13 +31,13 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     prompt_preflight = context["prompt_preflight"]
     _record_runtime_event = context.get("_record_runtime_event")
     if not callable(_record_runtime_event):
-        _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
+        _record_runtime_event = getattr(self.shell, "_record_runtime_event", lambda *_args, **_kwargs: {})
 
     alignment_dialog_key_hash = hashlib.sha1(
         str(alignment_dialog_key).encode("utf-8", errors="replace")
     ).hexdigest()[:16]
     alignment_d3d11_view_state_reset_generation = int(
-        getattr(self, "mesh_editor_d3d11_view_state_reset_generation", 0) or 0
+        getattr(self.shell, "mesh_editor_d3d11_view_state_reset_generation", 0) or 0
     )
     embedded_alignment_builder = embedded_host is not None
     preview_build_entry = (
@@ -211,7 +211,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
 
     def _alignment_dialog_font_stylesheet() -> str:
         font_sizes = _alignment_dialog_font_sizes(context)
-        theme = get_theme(str(getattr(self, "current_theme_key", "") or ""))
+        theme = get_theme(str(getattr(self.shell, "current_theme_key", "") or ""))
         ui_font_size, data_font_size = int(font_sizes["ui"]), int(font_sizes["data"])
         hint_font_size = int(font_sizes["hint"])
         button_min_height = max(14, ui_font_size + 6)

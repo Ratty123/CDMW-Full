@@ -16,10 +16,10 @@ class ArchiveSidecarIndexMixin:
     """Texture sidecar index worker lifecycle and compact status."""
 
     def _start_archive_sidecar_index_worker(self) -> None:
-        if self._shutting_down:
+        if self.shell._shutting_down:
             self.archive_sidecar_pending_start = False
             return
-        if not self._current_archive_performance_settings().enable_sidecar_indexing:
+        if not self.shell._current_archive_performance_settings().enable_sidecar_indexing:
             self.archive_sidecar_pending_start = False
             self.archive_browser_warmup_pending = False
             self.archive_tree.setEnabled(True)
@@ -47,8 +47,8 @@ class ArchiveSidecarIndexMixin:
         else:
             progress_text = "Checking texture sidecar cache in background..."
         if not self.archive_browser_warmup_pending:
-            self.append_archive_log(progress_text)
-        self.set_status_message(progress_text)
+            self.shell.append_archive_log(progress_text)
+        self.shell.set_status_message(progress_text)
         self._set_archive_sidecar_status(progress_text)
 
         worker = ArchiveSidecarIndexWorker(
@@ -57,7 +57,7 @@ class ArchiveSidecarIndexMixin:
             self.archive_cache_root,
             self.archive_entries,
             sidecar_worker_count=(
-                self._current_archive_performance_settings().sidecar_worker_count
+                self.shell._current_archive_performance_settings().sidecar_worker_count
                 or self._archive_background_worker_limit()
             ),
         )
@@ -65,8 +65,8 @@ class ArchiveSidecarIndexMixin:
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
-        worker.log_message.connect(self.append_archive_log)
+        worker.log_message.connect(self.shell.append_log)
+        worker.log_message.connect(self.shell.append_archive_log)
         worker.progress_changed.connect(self._handle_archive_sidecar_progress)
         worker.completed.connect(self._handle_archive_sidecar_complete)
         worker.error.connect(self._handle_archive_sidecar_error)
@@ -78,7 +78,7 @@ class ArchiveSidecarIndexMixin:
         self.archive_sidecar_worker = worker
         self.archive_sidecar_thread = thread
         try:
-            if self.archive_browser_warmup_pending or self._current_archive_performance_settings().maximum_indexing_priority:
+            if self.archive_browser_warmup_pending or self.shell._current_archive_performance_settings().maximum_indexing_priority:
                 thread.start()
             else:
                 thread.start(QThread.LowPriority)
@@ -161,9 +161,9 @@ class ArchiveSidecarIndexMixin:
         self.archive_sidecar_status_bar.setValue(1 if success else 0)
 
     def _handle_archive_sidecar_progress(self, request_id: int, current: int, total: int, detail: str) -> None:
-        if self._shutting_down or request_id != self.archive_sidecar_request_id:
+        if self.shell._shutting_down or request_id != self.archive_sidecar_request_id:
             return
-        if self._utility_updates_archive_progress:
+        if self.shell._utility_updates_archive_progress:
             return
         self._set_archive_sidecar_status(detail, current, total)
         now = time.perf_counter()
@@ -177,7 +177,7 @@ class ArchiveSidecarIndexMixin:
         self._archive_sidecar_last_ui_detail = str(detail or "")
 
     def _handle_archive_sidecar_complete(self, request_id: int, result: object) -> None:
-        if self._shutting_down or request_id != self.archive_sidecar_request_id:
+        if self.shell._shutting_down or request_id != self.archive_sidecar_request_id:
             return
         payload = result if isinstance(result, dict) else {}
         self.archive_sidecar_entries_by_texture_path = (
@@ -201,27 +201,27 @@ class ArchiveSidecarIndexMixin:
             if source == "cache"
             else f"Texture sidecar bindings indexed{elapsed_suffix}."
         )
-        if self.worker_thread is None and not self._utility_updates_archive_progress:
+        if self.shell.worker_thread is None and not self.shell._utility_updates_archive_progress:
             self._set_archive_load_progress(completion_text, phase="Ready", percent=100)
             self._set_archive_warmup_overlay(False)
         self._finish_archive_sidecar_status(completion_text, success=True)
-        self.set_status_message(completion_text)
-        self.append_archive_log(completion_text)
+        self.shell.set_status_message(completion_text)
+        self.shell.append_archive_log(completion_text)
         if cache_path_text and source == "scan":
-            self.append_archive_log(f"Texture sidecar cache ready: {cache_path_text}")
+            self.shell.append_archive_log(f"Texture sidecar cache ready: {cache_path_text}")
         if timing_summary:
-            self.append_archive_log(timing_summary, verbose=True)
+            self.shell.append_archive_log(timing_summary, verbose=True)
         sidecar_count = int(_timing_value(timings, "sidecar_count"))
         sidecar_group_count = int(_timing_value(timings, "sidecar_group_count"))
         sidecar_worker_count = int(_timing_value(timings, "sidecar_worker_count"))
         if sidecar_count > 0:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Texture sidecar scan detail: "
                 f"sidecars={sidecar_count:,} | paz_groups={sidecar_group_count:,} | workers={sidecar_worker_count:,}",
                 verbose=True,
             )
         if source == "cache" and _timing_value(timings, "total_s") > 1.0:
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 f"WARNING: Texture sidecar cache hit is slower than expected: total={_timing_value(timings, 'total_s'):.2f}s.",
                 verbose=True,
             )
@@ -243,10 +243,10 @@ class ArchiveSidecarIndexMixin:
             self.archive_browser_warmup_completion_text = ""
             self._set_archive_load_progress(completion_text, phase="Ready", percent=100)
             self._set_archive_warmup_overlay(False)
-            self.set_status_message(completion_text)
-            self.append_archive_log(completion_text)
-            if self.worker_thread is None:
-                self.set_busy(False, build_mode=False)
+            self.shell.set_status_message(completion_text)
+            self.shell.append_archive_log(completion_text)
+            if self.shell.worker_thread is None:
+                self.shell.set_busy(False, build_mode=False)
             return
         current_entry = self._current_archive_entry()
         current_result_generation = int(
@@ -267,13 +267,13 @@ class ArchiveSidecarIndexMixin:
             QTimer.singleShot(0, lambda entry=current_entry: self._render_archive_preview(entry))
 
     def _handle_archive_sidecar_error(self, request_id: int, message: str) -> None:
-        if self._shutting_down or request_id != self.archive_sidecar_request_id:
+        if self.shell._shutting_down or request_id != self.archive_sidecar_request_id:
             return
         error_text = f"Texture sidecar indexing failed: {message}"
-        self.set_status_message(error_text, error=True)
-        self.append_log(f"ERROR: {error_text}")
-        self.append_archive_log(f"ERROR: {error_text}")
-        if self.worker_thread is None and not self._utility_updates_archive_progress:
+        self.shell.set_status_message(error_text, error=True)
+        self.shell.append_log(f"ERROR: {error_text}")
+        self.shell.append_archive_log(f"ERROR: {error_text}")
+        if self.shell.worker_thread is None and not self.shell._utility_updates_archive_progress:
             self._set_archive_load_progress(error_text, phase="Failed", percent=0, allow_decrease=True)
         self._finish_archive_sidecar_status(error_text, success=False)
         self._set_archive_warmup_overlay(False)
@@ -285,16 +285,16 @@ class ArchiveSidecarIndexMixin:
             )
             self._activate_archive_browser_on_scan_complete = False
             self._refresh_or_defer_research_archive_picker()
-            if self.worker_thread is None:
-                self.set_busy(False, build_mode=False)
+            if self.shell.worker_thread is None:
+                self.shell.set_busy(False, build_mode=False)
 
     def _cleanup_archive_sidecar_refs(self) -> None:
         self.archive_sidecar_thread = None
         self.archive_sidecar_worker = None
-        if self._shutting_down:
+        if self.shell._shutting_down:
             self.archive_sidecar_pending_start = False
             return
-        if self.archive_sidecar_pending_start and self._current_archive_performance_settings().enable_sidecar_indexing:
+        if self.archive_sidecar_pending_start and self.shell._current_archive_performance_settings().enable_sidecar_indexing:
             QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
         else:
             self.archive_sidecar_pending_start = False

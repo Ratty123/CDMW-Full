@@ -73,7 +73,7 @@ class ArchiveAttachmentPlanMixin:
     ) -> None:
         source_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
         if not isinstance(source_entry, ArchiveEntry):
-            self.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
+            self.shell.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
             return
         self._run_archive_attachment_placement_prepare(
             source_entry,
@@ -124,18 +124,18 @@ class ArchiveAttachmentPlanMixin:
         try:
             dependency_snapshot = _attachment_placement_dependency_snapshot(self, target_entry, donor_entry)
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"Attachment placement is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"Attachment placement is unavailable: {exc}", error=True)
             return False
         request_id = int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0) + 1
         self._attachment_placement_prepare_request_id = request_id
         active_attachment_worker = getattr(self, "_attachment_placement_prepare_worker", None)
         queue_latest = bool(
-            self._background_task_active()
+            self.shell._background_task_active()
             and active_attachment_worker is not None
-            and active_attachment_worker is getattr(self, "utility_worker", None)
+            and active_attachment_worker is getattr(self.shell, "utility_worker", None)
         )
-        if self._background_task_active() and not queue_latest:
-            self.set_status_message(
+        if self.shell._background_task_active() and not queue_latest:
+            self.shell.set_status_message(
                 "Another background task is still running. Wait for it to finish before preparing placement.",
                 error=True,
             )
@@ -147,7 +147,7 @@ class ArchiveAttachmentPlanMixin:
 
         target_entry, donor_entry, path_index_snapshot, basename_index_snapshot = dependency_snapshot
         item_catalog_snapshot = tuple(getattr(self, "archive_item_asset_catalog", ()) or ())
-        output_root_widget = getattr(self, "output_root_edit", None)
+        output_root_widget = getattr(self.textures, "output_root_edit", None)
         output_root_text = output_root_widget.text().strip() if output_root_widget is not None else ""
         raw_extract_widget = getattr(self, "archive_extract_root_edit", None)
         raw_extract_root_text = raw_extract_widget.text().strip() if raw_extract_widget is not None else ""
@@ -337,7 +337,7 @@ class ArchiveAttachmentPlanMixin:
 
         def _complete(result: object) -> None:
             if not isinstance(result, PlacementWorkspacePreparation):
-                self.set_status_message("Placement preparation finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Placement preparation finished with an unexpected result payload.", error=True)
                 return
             if result.request_id != int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0):
                 return
@@ -363,10 +363,10 @@ class ArchiveAttachmentPlanMixin:
         def _start() -> None:
             if (
                 request_id != int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0)
-                or bool(getattr(self, "_shutting_down", False))
+                or bool(getattr(self.shell, "_shutting_down", False))
             ):
                 return
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=status_message,
                 task=_task,
                 on_complete=_complete,
@@ -374,17 +374,17 @@ class ArchiveAttachmentPlanMixin:
                 show_archive_progress=True,
                 task_accepts_cancel=True,
             )
-            self._attachment_placement_prepare_worker = getattr(self, "utility_worker", None)
+            self._attachment_placement_prepare_worker = getattr(self.shell, "utility_worker", None)
 
         if queue_latest:
-            self._run_when_background_idle(_start, label="loading the latest placement selection")
+            self.shell._run_when_background_idle(_start, label="loading the latest placement selection")
         else:
             _start()
         return True
 
     def _cancel_archive_attachment_placement_prepare(self) -> None:
         worker = getattr(self, "_attachment_placement_prepare_worker", None)
-        if worker is None or worker is not getattr(self, "utility_worker", None):
+        if worker is None or worker is not getattr(self.shell, "utility_worker", None):
             return
         self._attachment_placement_prepare_request_id = int(
             getattr(self, "_attachment_placement_prepare_request_id", 0) or 0

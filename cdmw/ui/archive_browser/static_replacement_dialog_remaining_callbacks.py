@@ -146,7 +146,7 @@ def create_alignment_mapping_edit_callbacks(context: dict[str, object]) -> Simpl
             "Active Mesh Editor mapping edits require native material execution; "
             "Python routing mutation fallback is disabled."
         )
-        set_status_message = getattr(self, "set_status_message", None)
+        set_status_message = getattr(self.shell, "set_status_message", None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -445,7 +445,7 @@ def create_alignment_added_part_texture_override_callbacks(context: dict[str, ob
             "Active Mesh Editor added-part texture overrides require native material execution; "
             "Python texture override mutation fallback is disabled."
         )
-        set_status_message = getattr(self, "set_status_message", None)
+        set_status_message = getattr(self.shell, "set_status_message", None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -567,7 +567,7 @@ def create_alignment_complete_swap_profile_select_callbacks(context: dict[str, o
             complete_swap_material_profile_combo.setCurrentIndex(profile_index)
         migrate_automatic = requested == 'material_authority_detail_mask' and stored_name not in {'', requested}
         if persist or migrate_automatic:
-            self.settings.setValue('settings/complete_swap_material_profile', requested)
+            self.shell.settings.setValue('settings/complete_swap_material_profile', requested)
             try:
                 write_complete_swap_calibrated_material_profile(complete_swap_profile_store_path, requested)
             except Exception:
@@ -589,7 +589,7 @@ def create_alignment_manual_profile_preset_callbacks(context: dict[str, object])
 
     def _save_manual_profile_presets(presets: Sequence[Mapping[str, object]]) -> None:
         payload = _manual_material_profile_presets_payload_helper(presets, defaults=manual_profile_default_values)
-        self.settings.setValue(manual_profile_presets_key, json.dumps(payload, sort_keys=True, separators=(',', ':')))
+        self.shell.settings.setValue(manual_profile_presets_key, json.dumps(payload, sort_keys=True, separators=(',', ':')))
 
     return SimpleNamespace(_save_manual_profile_presets=_save_manual_profile_presets)
 
@@ -795,15 +795,15 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
         _safe_shutdown_alignment_d3d11_preview()
         _finish_alignment_startup_progress()
         self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)
-        finished_route = _alignment_dialog_finished_route_helper(result=int(result), accepted_code=int(QDialog.Accepted), accepted=_alignment_dialog_accepted_helper(dialog_accepted_state), has_cancel_handler=on_cancel is not None, embedded_builder=bool(embedded_alignment_builder), has_mesh_editor=hasattr(self, 'mesh_editor_tab'))
+        finished_route = _alignment_dialog_finished_route_helper(result=int(result), accepted_code=int(QDialog.Accepted), accepted=_alignment_dialog_accepted_helper(dialog_accepted_state), has_cancel_handler=on_cancel is not None, embedded_builder=bool(embedded_alignment_builder), has_mesh_editor=hasattr(self.shell, 'mesh_editor_tab'))
         if finished_route.should_call_cancel_handler and on_cancel is not None:
             try:
                 on_cancel()
             except Exception as exc:
-                self.set_status_message(_alignment_cancel_handler_failed_status_helper(exc), error=True)
+                self.shell.set_status_message(_alignment_cancel_handler_failed_status_helper(exc), error=True)
         dialog.deleteLater()
         if finished_route.should_show_embedded_empty_state:
-            QTimer.singleShot(0, lambda: self.mesh_editor_tab.show_empty_state(_alignment_builder_closed_empty_state_message_helper()))
+            QTimer.singleShot(0, lambda: self.shell.mesh_editor_tab.show_empty_state(_alignment_builder_closed_empty_state_message_helper()))
 
     return SimpleNamespace(_modeless_alignment_dialog_finished=_modeless_alignment_dialog_finished)
 

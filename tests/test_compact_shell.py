@@ -52,7 +52,6 @@ from cdmw.ui.shell.compact.config import (
     read_compact_shell_theme_key,
     read_shell_variant,
 )
-from cdmw.ui.shell.compact.presentations import apply_compact_presentation
 from cdmw.ui.shell.compact.registry import COMPACT_TOOL_SPECS
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
 from cdmw.ui.shell.compact.workspace import (
@@ -68,6 +67,7 @@ from cdmw.ui.shell.theme_controller import (
     apply_window_data_fonts,
 )
 from cdmw.ui.themes import UI_THEME_SCHEMES
+from cdmw.ui.texture_workflow.job import TextureJob
 
 
 def _app() -> QApplication:
@@ -81,9 +81,18 @@ def _button_text_fits(button) -> bool:
     return text_width + icon_width + 12 <= button.width()
 
 
+def _bind_feature_test_owner(owner):
+    owner.shell = owner
+    owner.archive = owner
+    owner.textures = owner
+    owner.job = TextureJob()
+    return owner
+
+
 class _CompactOwner(QMainWindow):
     def __init__(self, settings) -> None:
         super().__init__()
+        _bind_feature_test_owner(self)
         self.settings = settings
         self.requested_keys: list[str] = []
         menu_bar = self.menuBar()
@@ -124,8 +133,8 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
     settings.setValue(SHELL_VARIANT_SETTING, "future-shell")
     settings.setValue("appearance/theme", "graphite")
 
-    assert normalize_shell_variant(None) == LEGACY_SHELL_VARIANT
-    assert read_shell_variant(settings) == LEGACY_SHELL_VARIANT
+    assert normalize_shell_variant(None) == COMPACT_SHELL_VARIANT
+    assert read_shell_variant(settings) == COMPACT_SHELL_VARIANT
     assert read_compact_shell_theme_key(settings) == "graphite"
     assert active_shell_theme_key(settings) == "graphite"
 
@@ -140,9 +149,9 @@ def test_shell_setting_normalization_and_shared_theme(tmp_path: Path) -> None:
     assert active_shell_theme_key(settings, COMPACT_SHELL_VARIANT) == "crimson_desert"
 
 
-def test_compact_registry_has_the_stable_fifteen_tool_contract() -> None:
-    assert len(COMPACT_TOOL_SPECS) == 15
-    assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == 15
+def test_compact_registry_has_one_textures_workspace() -> None:
+    assert len(COMPACT_TOOL_SPECS) == 12
+    assert len({spec.key for spec in COMPACT_TOOL_SPECS}) == 12
     assert [(spec.category, spec.label) for spec in COMPACT_TOOL_SPECS] == [
         ("Assets", "Browse Archives"),
         ("Assets", "Model Library"),
@@ -150,10 +159,7 @@ def test_compact_registry_has_the_stable_fifteen_tool_contract() -> None:
         ("Assets", "Create New Item"),
         ("Authoring", "Mesh Editor"),
         ("Authoring", "Placement & Animations"),
-        ("Textures", "Upscale Textures"),
-        ("Textures", "Replace Textures"),
-        ("Textures", "Texture Recolor"),
-        ("Textures", "Texture Editor"),
+        ("Authoring", "Textures"),
         ("Utilities", "Repackage Mods"),
         ("Utilities", "Inspect File Formats"),
         ("Utilities", "Edit Translations"),
@@ -173,19 +179,14 @@ def test_compact_model_library_uses_a_scroll_safe_control_lane_and_adjacent_deta
     try:
         controls = tab.findChild(QScrollArea, "ModelLibraryControlsScroll")
         assert controls is not None
-        assert controls.minimumWidth() >= 430
-        assert tab.selection_group.parentWidget() is controls.widget()
+        assert controls.minimumWidth() == 256
+        assert tab.selection_group.parentWidget() is tab._model_library_preview_panel
 
-        assert apply_compact_presentation(
-            SimpleNamespace(is_compact_shell=True), "model_library", tab
-        )
         for width, height in ((1432, 881), (1120, 780), (880, 660)):
             tab.resize(width, height)
             tab.show()
             app.processEvents()
-            assert apply_compact_presentation(
-                SimpleNamespace(is_compact_shell=True), "model_library", tab
-            )
+
             app.processEvents()
             app.processEvents()
 
@@ -254,7 +255,7 @@ def test_activity_history_coalesces_and_caps_events() -> None:
 
 def test_tool_log_adapter_reuses_the_existing_document() -> None:
     _app()
-    owner = type("Owner", (), {})()
+    owner = _bind_feature_test_owner(type("Owner", (), {})())
     owner.archive_log_view = QPlainTextEdit()
     owner.archive_log_view.setPlainText("Existing archive log")
     owner.clear_archive_scan_log = owner.archive_log_view.clear
@@ -282,7 +283,7 @@ def test_tool_log_adapter_reuses_the_existing_document() -> None:
 
 def test_compact_status_snapshots_cover_all_tools_without_constructing_lazy_tabs() -> None:
     _app()
-    owner = QWidget()
+    owner = _bind_feature_test_owner(QWidget())
     owner._tool_widgets_by_key = {}
     constructed: list[str] = []
     containers: list[LazyToolTab] = []
@@ -308,7 +309,7 @@ def test_compact_status_snapshots_cover_all_tools_without_constructing_lazy_tabs
 
 def test_compact_status_snapshots_render_representative_existing_facts() -> None:
     _app()
-    owner = QWidget()
+    owner = _bind_feature_test_owner(QWidget())
     owner._tool_widgets_by_key = {}
 
     owner.archive_entries = list(range(10))
@@ -345,11 +346,7 @@ def test_compact_status_snapshots_render_representative_existing_facts() -> None
         "2 selected",
         "4/10 files",
     )
-    assert compact_status_snapshot_for(owner, "texture_workflow").facts == (
-        "6 processed",
-        "1 failed",
-        "2 pending",
-    )
+    assert compact_status_snapshot_for(owner, "textures").facts == ("Edit", "0 assets", "0 selected")
     assert compact_status_snapshot_for(owner, "new_item_studio").facts == (
         "Step 4/7",
         "Working",
@@ -408,7 +405,7 @@ def test_compact_workspace_refreshes_bottom_status_and_retains_explicit_snapshot
 
 
 def test_compact_activity_and_selection_helpers_are_classic_noops() -> None:
-    owner = SimpleNamespace(compact_workspace=None)
+    owner = _bind_feature_test_owner(SimpleNamespace(compact_workspace=None))
 
     append_compact_activity(owner, "Classic status", tool_key="archive_browser")
 
@@ -557,6 +554,7 @@ def test_compact_drawer_follows_appearance_log_font_across_tool_switches(tmp_pat
         compact_workspace=SimpleNamespace(drawer=drawer),
     )
 
+    _bind_feature_test_owner(window)
     try:
         apply_window_data_fonts(window)  # type: ignore[arg-type]
 
@@ -656,10 +654,11 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         assert window.is_compact_shell
         assert window.compact_workspace is not None
         assert window.menuBar().isHidden()
-        assert all(
-            tabs.tabBar().isHidden()
-            for tabs in (window.main_tabs, window.assets_tabs, window.texture_tabs, window.tools_tabs)
-        )
+        assert window.main_tabs is window.tool_stack
+        assert window.tool_stack.objectName() == "ToolContentStack"
+        assert not hasattr(window, "assets_tabs")
+        assert not hasattr(window, "texture_tabs")
+        assert not hasattr(window, "tools_tabs")
         assert set(window._tool_widgets_by_key) >= {spec.key for spec in COMPACT_TOOL_SPECS}
         assert "format_explorer" not in window._detachable_tool_order
         assert "translation_studio" not in window._detachable_tool_order
@@ -728,11 +727,11 @@ def test_real_main_window_compact_wrapper_preserves_tool_authority(tmp_path: Pat
         window._attach_detached_tool("archive_browser")
         app.processEvents()
         assert window._tool_widgets_by_key["archive_browser"] is archive_widget
-        assert window.assets_tabs.indexOf(archive_widget) >= 0
+        assert window.tool_stack.indexOf(archive_widget) >= 0
         assert window.compact_workspace.rail.tool_buttons["archive_browser"].isChecked()
         assert (
             window.compact_workspace.drawer._tool_adapter.document
-            is window.archive_log_view.document()
+            is window.archive.archive_log_view.document()
         )
     finally:
         window._finalize_close()

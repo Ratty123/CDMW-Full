@@ -116,44 +116,44 @@ class ResponsivenessControllerMixin:
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         workflow_nav_min, _workflow_nav_pref, workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
         workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
-        for widget in (getattr(self, "archive_controls_group", None), getattr(self, "archive_controls_scroll", None)):
+        for widget in (getattr(self.archive, "archive_controls_group", None), getattr(self.archive, "archive_controls_scroll", None)):
             if widget is not None:
                 widget.setMinimumWidth(controls_min)
                 widget.setMaximumWidth(controls_max)
-        if hasattr(self, "archive_files_group"):
-            self.archive_files_group.setMinimumWidth(files_min)
-            self.archive_files_group.setMaximumWidth(16777215)
-        if hasattr(self, "archive_preview_group"):
-            self.archive_preview_group.setMinimumWidth(preview_min)
-            self.archive_preview_group.setMaximumWidth(16777215)
-        if hasattr(self, "archive_texture_refs_group"):
+        if hasattr(self.archive, "archive_files_group"):
+            self.archive.archive_files_group.setMinimumWidth(files_min)
+            self.archive.archive_files_group.setMaximumWidth(16777215)
+        if hasattr(self.archive, "archive_preview_group"):
+            self.archive.archive_preview_group.setMinimumWidth(preview_min)
+            self.archive.archive_preview_group.setMaximumWidth(16777215)
+        if hasattr(self.archive, "archive_texture_refs_group"):
             if screen_width <= 1366:
                 refs_min = 240
             elif screen_width <= 1920:
                 refs_min = 280
             else:
                 refs_min = 320
-            self.archive_texture_refs_group.setMinimumWidth(refs_min)
-            self.archive_asset_family_preferred_width = max(refs_min, min(420, int(screen_width * 0.22)))
-        if hasattr(self, "left_panel"):
-            self.left_panel.setMinimumWidth(workflow_nav_min)
-        if hasattr(self, "left_scroll_area"):
-            self.left_scroll_area.setMinimumWidth(workflow_nav_min)
-            self.left_scroll_area.setMaximumWidth(workflow_nav_max)
-        if hasattr(self, "right_panel"):
-            self.right_panel.setMinimumWidth(workflow_content_min)
+            self.archive.archive_texture_refs_group.setMinimumWidth(refs_min)
+            self.archive.archive_asset_family_preferred_width = max(refs_min, min(420, int(screen_width * 0.22)))
+        if hasattr(self.textures, "left_panel"):
+            self.textures.left_panel.setMinimumWidth(workflow_nav_min)
+        if hasattr(self.textures, "left_scroll_area"):
+            self.textures.left_scroll_area.setMinimumWidth(workflow_nav_min)
+            self.textures.left_scroll_area.setMaximumWidth(workflow_nav_max)
+        if hasattr(self.textures, "right_panel"):
+            self.textures.right_panel.setMinimumWidth(workflow_content_min)
         self._apply_responsive_label_density()
 
     def _apply_responsive_label_density(self) -> None:
         layout_width, _layout_height = available_layout_size_for(self)
-        preview_width = int(getattr(getattr(self, "archive_preview_group", None), "width", lambda: 0)() or 0)
+        preview_width = int(getattr(getattr(self.archive, "archive_preview_group", None), "width", lambda: 0)() or 0)
         compact = layout_width <= 1600 or (0 < preview_width <= 620)
         pairs = (
             ("archive_model_preview_settings_button", "Preview Settings", "Preview Settings"),
             ("archive_asset_family_button", "Asset", "Asset Family"),
         )
         for object_name, compact_text, normal_text in pairs:
-            widget = getattr(self, object_name, None)
+            widget = getattr(self.archive, object_name, None)
             if isinstance(widget, QPushButton):
                 text = compact_text if compact else normal_text
                 if widget.text() != text:
@@ -274,28 +274,28 @@ class ResponsivenessControllerMixin:
 
     def _archive_files_preferred_width(self) -> int:
         minimum_width = 320
-        if not hasattr(self, "archive_tree"):
+        if not hasattr(self.archive, "archive_tree"):
             return 540
-        header = self.archive_tree.header()
+        header = self.archive.archive_tree.header()
         if header is None:
             return 540
         column_width = 0
-        for column in range(self.archive_tree.columnCount()):
-            if self.archive_tree.isColumnHidden(column):
+        for column in range(self.archive.archive_tree.columnCount()):
+            if self.archive.archive_tree.isColumnHidden(column):
                 continue
             column_width += max(0, header.sectionSize(column))
         margins_width = 0
-        if hasattr(self, "archive_files_group"):
-            margins = self.archive_files_group.body_layout.contentsMargins()
+        if hasattr(self.archive, "archive_files_group"):
+            margins = self.archive.archive_files_group.body_layout.contentsMargins()
             margins_width = margins.left() + margins.right()
-        scrollbar_width = self.archive_tree.verticalScrollBar().sizeHint().width()
-        frame_width = self.archive_tree.frameWidth() * 2
+        scrollbar_width = self.archive.archive_tree.verticalScrollBar().sizeHint().width()
+        frame_width = self.archive.archive_tree.frameWidth() * 2
         return max(minimum_width, column_width + margins_width + scrollbar_width + frame_width + 18)
 
     def _fit_archive_files_pane_to_columns(self) -> None:
-        if not hasattr(self, "archive_splitter"):
+        if not hasattr(self.archive, "archive_splitter"):
             return
-        sizes = self.archive_splitter.sizes()
+        sizes = self.archive.archive_splitter.sizes()
         if len(sizes) < 3:
             return
         preferred_width = self._archive_files_preferred_width()
@@ -304,23 +304,23 @@ class ResponsivenessControllerMixin:
         reclaimed_width = sizes[1] - preferred_width
         sizes[1] = preferred_width
         sizes[2] += reclaimed_width
-        self.archive_splitter.setSizes(sizes)
+        self.archive.archive_splitter.setSizes(sizes)
 
     def _schedule_archive_files_pane_fit_to_columns(self) -> None:
-        if not hasattr(self, "archive_tree"):
+        if not hasattr(self.archive, "archive_tree"):
             return
-        if self._archive_tree_visible_column_count() >= self.archive_tree.columnCount():
+        if self.archive._archive_tree_visible_column_count() >= self.archive.archive_tree.columnCount():
             return
         QTimer.singleShot(0, self._fit_archive_files_pane_to_columns)
 
     def _apply_archive_preview_content_responsive_sizes(self) -> None:
-        if not hasattr(self, "archive_preview_content_splitter"):
+        if not hasattr(self.archive, "archive_preview_content_splitter"):
             return
-        total_width = max(1, self.archive_preview_content_splitter.width())
+        total_width = max(1, self.archive.archive_preview_content_splitter.width())
         if total_width <= 1:
-            total_width = max(1, self.archive_preview_group.width() if hasattr(self, "archive_preview_group") else 1200)
+            total_width = max(1, self.archive.archive_preview_group.width() if hasattr(self.archive, "archive_preview_group") else 1200)
         screen_width, _screen_height = available_layout_size_for(self)
-        refs_min = self.archive_texture_refs_group.minimumWidth() if hasattr(self, "archive_texture_refs_group") else 280
+        refs_min = self.archive.archive_texture_refs_group.minimumWidth() if hasattr(self.archive, "archive_texture_refs_group") else 280
         if screen_width <= 1920:
             weights = [72, 28]
         elif screen_width <= 2560:
@@ -328,28 +328,14 @@ class ResponsivenessControllerMixin:
         else:
             weights = [60, 40]
         sizes = build_responsive_splitter_sizes(total_width, weights, [360, refs_min])
-        self.archive_preview_content_splitter.setSizes(sizes)
+        self.archive.archive_preview_content_splitter.setSizes(sizes)
 
     def _apply_default_splitter_sizes(self, total_width: int) -> None:
         self._apply_responsive_width_policies()
         workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
         workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
-        self.workflow_splitter.setSizes(
-            build_responsive_splitter_sizes(total_width, [42, 58], [workflow_nav_min, workflow_content_min])
-        )
-        available_right_height = max(420, self.height() - 260)
-        progress_min_height = getattr(self, "progress_group_min_height", 190)
-        self.workflow_right_splitter.setSizes(
-            build_responsive_splitter_sizes(
-                available_right_height,
-                [18, 82],
-                [progress_min_height, 320],
-            )
-        )
-        self.compare_splitter.setSizes(
-            build_responsive_splitter_sizes(total_width, [22, 78], [220, 520])
-        )
-        self.archive_splitter.setSizes(
+        self.textures.job_splitter.setSizes([300, max(520, total_width - 300)])
+        self.archive.archive_splitter.setSizes(
             self._normalize_archive_splitter_sizes(
                 build_responsive_splitter_sizes(
                     total_width,
@@ -378,34 +364,12 @@ class ResponsivenessControllerMixin:
             return
 
         for splitter, setting_key in (
-            (self.workflow_splitter, "ui/workflow_splitter_sizes"),
-            (self.workflow_right_splitter, "ui/workflow_right_splitter_sizes_v2"),
-            (self.compare_splitter, "ui/compare_splitter_sizes_v2"),
-            (self.archive_splitter, "ui/archive_splitter_sizes"),
+            (self.textures.job_splitter, "ui/workflow_splitter_sizes"),
+            (self.archive.archive_splitter, "ui/archive_splitter_sizes"),
         ):
             sizes = self._load_saved_splitter_sizes(setting_key)
             if sizes:
-                if splitter is self.workflow_right_splitter and len(sizes) >= 2:
-                    available_right_height = max(420, self.height() - 260)
-                    progress_min_height = getattr(self, "progress_group_min_height", 190)
-                    sizes = clamp_splitter_sizes(
-                        available_right_height,
-                        sizes,
-                        [progress_min_height, 320],
-                        fallback_weights=[18, 82],
-                    )
-                elif splitter is self.workflow_splitter:
-                    workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
-                    workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
-                    sizes = clamp_splitter_sizes(
-                        total_width,
-                        sizes,
-                        [workflow_nav_min, workflow_content_min],
-                        fallback_weights=[42, 58],
-                    )
-                elif splitter is self.compare_splitter:
-                    sizes = clamp_splitter_sizes(total_width, sizes, [220, 520], fallback_weights=[22, 78])
-                elif splitter is self.archive_splitter:
+                if splitter is self.archive.archive_splitter:
                     sizes = self._normalize_archive_splitter_sizes(sizes, total_width)
                 splitter.setSizes(sizes)
         self._schedule_archive_files_pane_fit_to_columns()
@@ -550,13 +514,13 @@ class ResponsivenessControllerMixin:
 
         if self._shutting_down:
             return
-        if getattr(self, "_archive_tree_content_autofit_done", False):
+        if getattr(self.archive, "_archive_tree_content_autofit_done", False):
             return
-        if self._archive_tree_columns_user_customized():
+        if self.archive._archive_tree_columns_user_customized():
             return
-        if self.archive_tree.topLevelItemCount() <= 0:
+        if self.archive.archive_tree.topLevelItemCount() <= 0:
             return
-        self._archive_tree_content_autofit_done = True
+        self.archive._archive_tree_content_autofit_done = True
         QTimer.singleShot(0, self._autofit_archive_tree_columns)
 
     def _fit_tree_columns(
@@ -589,7 +553,7 @@ class ResponsivenessControllerMixin:
     def _measure_archive_tree_content_widths(self, *, row_budget: int = 400) -> Dict[int, int]:
         """Widest rendered text per column, sampled from the rows the model has loaded."""
 
-        tree = self.archive_tree
+        tree = self.archive.archive_tree
         model_provider = getattr(tree, "archive_model", None)
         model = model_provider() if callable(model_provider) else tree.model()
         if model is None:
@@ -634,10 +598,10 @@ class ResponsivenessControllerMixin:
         return widths
 
     def _autofit_archive_tree_columns(self) -> None:
-        header = self.archive_tree.header()
+        header = self.archive.archive_tree.header()
         if header is None:
             return
-        if self._archive_tree_columns_user_customized():
+        if self.archive._archive_tree_columns_user_customized():
             return
         content_widths = self._measure_archive_tree_content_widths()
         font_metrics = header.fontMetrics()
@@ -660,11 +624,11 @@ class ResponsivenessControllerMixin:
             5: 180,
             6: 180,
         }
-        self.archive_tree.setUpdatesEnabled(False)
+        self.archive.archive_tree.setUpdatesEnabled(False)
         try:
-            with self._archive_tree_header_programmatic():
-                for column in range(self.archive_tree.columnCount()):
-                    if self.archive_tree.isColumnHidden(column):
+            with self.archive._archive_tree_header_programmatic():
+                for column in range(self.archive.archive_tree.columnCount()):
+                    if self.archive.archive_tree.isColumnHidden(column):
                         continue
                     measured_width = content_widths.get(column, 0)
                     content_width = measured_width + 28 if measured_width > 0 else 0
@@ -674,7 +638,7 @@ class ResponsivenessControllerMixin:
                         width = min(width, max_width)
                     header.resizeSection(column, width)
         finally:
-            self.archive_tree.setUpdatesEnabled(True)
+            self.archive.archive_tree.setUpdatesEnabled(True)
 
     def _apply_column_autofit(self) -> None:
         self._autofit_archive_tree_columns()

@@ -23,13 +23,12 @@ $TestsByArea = @{
         # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
         # failed release build. Source line numbers are informational; only
         # key/path/sink/manual/exclusion changes affect freshness.
-        "tests/test_window_feature_controller.py",
+        "tests/test_workspace_ownership.py",
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_runtime_owner.py",
         "tests/test_documentation_dialog.py",
         "tests/test_character_context.py",
         "tests/test_compact_shell.py",
-        "tests/test_compact_shell_presentations.py",
         "tests/test_compact_shell_visual_harness.py",
         "tests/test_shell_theme_controller.py",
         "tests/test_theme_surface_coherence.py",
@@ -78,7 +77,6 @@ $TestsByArea = @{
         "tests/test_localization_catalog_contracts.py",
         "tests/test_localization_translation_quality.py",
         "tests/test_compact_shell.py",
-        "tests/test_compact_shell_presentations.py",
         "tests/test_persistent_tree_headers.py"
     )
     archive = @(
@@ -149,7 +147,6 @@ $TestsByArea = @{
         "tests/test_texture_native_backend.py",
         "tests/test_texture_workflow_guardrails.py",
         "tests/test_texture_workflow_ui_source_guards.py",
-        "tests/test_recolor_variants_layout.py",
         "tests/test_texture_domain_profiles.py",
         "tests/test_texture_workflow_unavailable_editor.py",
         "tests/test_material_combiner_decode_retry.py",

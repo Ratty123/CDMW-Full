@@ -43,9 +43,9 @@ def build_archive_picker_group(self) -> QWidget:
 
     actions = QHBoxLayout()
     actions.setSpacing(8)
-    self.archive_picker_refresh_button = QPushButton("Refresh List")
-    self.archive_picker_use_reference_button = QPushButton("Use In References")
-    self.archive_picker_use_note_button = QPushButton("Use In Notes")
+    self.archive_picker_refresh_button = QPushButton("Refresh")
+    self.archive_picker_use_reference_button = QPushButton("References")
+    self.archive_picker_use_note_button = QPushButton("Notes")
     self.archive_picker_view_combo = QComboBox()
     self.archive_picker_view_combo.addItem("Flat files", "flat")
     self.archive_picker_view_combo.addItem("Folders", "folders")

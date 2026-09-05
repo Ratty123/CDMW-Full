@@ -332,10 +332,7 @@ def _helper_protocol_probe(executable: Path, timeout_seconds: float) -> dict[str
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication, QWidget
     from cdmw.core.common import finish_process_tree
-    from cdmw.services.mesh_dotnet_experiment import (
-        build_mesh_dotnet_experiment_package,
-        mesh_dotnet_experiment_command,
-    )
+    from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
 
     app = QApplication.instance() or QApplication([])
     parent = QWidget()
@@ -345,12 +342,10 @@ def _helper_protocol_probe(executable: Path, timeout_seconds: float) -> dict[str
     parent_hwnd = int(parent.winId())
 
     with tempfile.TemporaryDirectory(prefix="cdmw-helper-startup-benchmark-") as temp_dir:
-        package = build_mesh_dotnet_experiment_package(_helper_mesh(), output_root=Path(temp_dir))
-        program, arguments = mesh_dotnet_experiment_command(
-            executable,
-            package,
-            embedded_parent_hwnd=parent_hwnd,
-        )
+        package = build_rust_preview_package(_helper_mesh(), output_root=Path(temp_dir))
+        program = str(executable)
+        arguments = ["--cdmw-preview-session", str(package.manifest_path),
+                     "--embedded-parent-hwnd", str(parent_hwnd)]
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = 0
@@ -762,7 +757,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--helper-executable",
         type=Path,
-        default=REPO_ROOT / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / "cdmw-mesh-dotnet-editor.exe",
+        default=REPO_ROOT / "native" / "rust_mesh_editor" / "build" / "Release" / "cdmw_mesh_lab.exe",
     )
     parser.add_argument("--helper-timeout", type=float, default=30.0)
     parser.add_argument("--child-probe", choices=("public", "window", "helper"), help=argparse.SUPPRESS)

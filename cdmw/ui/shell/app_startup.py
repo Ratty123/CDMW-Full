@@ -83,7 +83,7 @@ def prepare_shell_main_window(
         window.setWindowIcon(app.windowIcon())
     apply_window_ui_fonts(window, app)
     apply_window_data_fonts(window)
-    window.attach_startup_splash(startup_splash, hold_main_window=True)
+    window.shell.attach_startup_splash(startup_splash, hold_main_window=True)
 
 
 def _verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) -> None:
@@ -104,7 +104,7 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
     if not gui_startup_smoke_requested():
         return False
     target = os.environ.get("CDMW_GUI_STARTUP_SMOKE_TARGET", "").strip().lower()
-    window._release_startup_splash()
+    window.shell._release_startup_splash()
     app.processEvents()
     evidence: dict[str, object] | None = None
     try:
@@ -126,7 +126,7 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
             detail=f"{type(exc).__name__}: {exc}",
             bundled_helpers=bundled_helper_resolution_snapshot(),
         )
-        window._finalize_close()
+        window.shell._finalize_close()
         return True
     write_gui_startup_smoke_result(
         ok=True,
@@ -135,7 +135,7 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
         bundled_helpers=bundled_helper_resolution_snapshot(),
         evidence=evidence,
     )
-    window._finalize_close()
+    window.shell._finalize_close()
     return True
 
 

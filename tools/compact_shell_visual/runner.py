@@ -30,7 +30,6 @@ from tools.compact_shell_visual.fixtures import (
     _seed_in_memory_rows,
 )
 from tools.compact_shell_visual.runtime import (
-    _apply_presentation,
     _assert_real_texture_editor,
     _process_events,
     _registered_widgets,
@@ -144,7 +143,6 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
                 # Availability is a harness precondition even for a subset pass.
                 texture_editor = _resolve_tool_widget(window, "texture_editor")
                 _assert_real_texture_editor(texture_editor)
-                _apply_presentation(window, "texture_editor", texture_editor)
 
                 fixture_evidence_by_key: dict[str, dict[str, object]] = {}
                 fixtures_by_key: dict[str, dict[str, int]] = {}
@@ -156,7 +154,6 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
                         widget,
                         fixture_root,
                     )
-                    _apply_presentation(window, key, widget)
                     fixtures_by_key[key] = _seed_in_memory_rows(widget)
                     widgets_by_key[key] = widget
                     _process_events()
@@ -167,7 +164,6 @@ def run_harness(arguments: argparse.Namespace) -> dict[str, object]:
                     widget = widgets_by_key[key]
                     getattr(window, "_activate_tool_key")(key)
                     _resize_frame(window, size)
-                    _apply_presentation(window, key, widget)
                     _process_events(5)
                     _settle_resident_host_resize(widget)
                     geometry = geometry_payload(window, key, widget)

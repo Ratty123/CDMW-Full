@@ -19,6 +19,9 @@ from cdmw.ui.archive_browser.hkx_xml_export_controller import start_hkx_editor_x
 
 class _Owner:
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._hkx_editor_xml_export_request_id = 0
         self._shutting_down = False
         self.dispatched: list[dict[str, object]] = []

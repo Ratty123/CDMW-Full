@@ -11,7 +11,7 @@ def _source_part_mutation_step_018(_state):
             return
         if not isinstance(imported_source_path, _state.Path) or imported_scene_result is None:
             source_part_append_mesh_file_dialog_text = _state._source_part_append_mesh_file_dialog_text_helper()
-            selected_path, _selected_filter = _state.QFileDialog.getOpenFileName(_state.dialog, source_part_append_mesh_file_dialog_text['title'], str(_state.self._suggest_workspace_base_dir()), source_part_append_mesh_file_dialog_text['mesh_filter'])
+            selected_path, _selected_filter = _state.QFileDialog.getOpenFileName(_state.dialog, source_part_append_mesh_file_dialog_text['title'], str(_state.self.shell._suggest_workspace_base_dir()), source_part_append_mesh_file_dialog_text['mesh_filter'])
             if not selected_path:
                 return
             source_path = _state.Path(selected_path).expanduser()
@@ -126,7 +126,7 @@ def _source_part_mutation_step_018(_state):
             try:
                 if _state._rollback_cancelled_appended_mesh_part_import(append_rollback_snapshot):
                     _state._pop_geometry_undo_snapshot()
-                    _state.self.set_status_message(_state._source_part_cancel_import_status_helper(source_path.name))
+                    _state.self.shell.set_status_message(_state._source_part_cancel_import_status_helper(source_path.name))
                 return
             finally:
                 _state._source_part_append_release_rollback_snapshots(append_rollback_snapshot)
@@ -137,7 +137,7 @@ def _source_part_mutation_step_018(_state):
             _state._refresh_source_material_plan()
         _state._source_part_refresh_geometry_preview(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note), append_result.source_indices)
         _state._source_part_append_release_rollback_snapshots(append_rollback_snapshot)
-        _state.self.set_status_message(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note))
+        _state.self.shell.set_status_message(_state._source_part_added_mesh_part_status_helper(source_path.name, placement_note))
     _state._append_mesh_part_to_geometry = _append_mesh_part_to_geometry
 
 def _source_part_mutation_step_019(_state):

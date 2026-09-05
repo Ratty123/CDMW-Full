@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+
 import json
 from typing import Mapping
 
@@ -76,7 +78,7 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
         self,
         process: _tab.QProcess | None,
         *,
-        package: _tab.MeshDotNetExperimentPackage | None = None,
+        package: RustPreviewPackage | None = None,
         qprocess_error: object = None,
     ) -> dict[str, object]:
         stdout_tail = self.standalone_dotnet_stdout_tail
@@ -454,47 +456,20 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
             "Mesh .NET edit mode finished; resident placement preview remains active."
         )
         return True
-    def _cancel_standalone_dotnet_import_worker(self) -> None:
-        worker = self.standalone_dotnet_import_worker
-        thread = self.standalone_dotnet_import_thread
-        if worker is None and thread is None:
-            return
-        cancelled_before_commit = True
-        if worker is not None:
-            try:
-                cancelled_before_commit = bool(worker.stop())
-            except RuntimeError:
-                pass
-        if not cancelled_before_commit:
-            self._set_dotnet_status(
-                "Mesh .NET output commit is already in progress; waiting for its result."
-            )
-            return
-        self.standalone_dotnet_import_request_id += 1
-        if thread is not None:
-            try:
-                thread.requestInterruption()
-                thread.quit()
-            except RuntimeError:
-                pass
-    def _dotnet_developer_renderer_fallback_allowed(self) -> bool:
-        return read_bool_setting(self.settings, "mesh_editor/developer_mode", False) and read_bool_setting(
-            self.settings,
-            "mesh_editor/developer_renderer_fallback",
-            False,
-        )
     def _dotnet_status_blockers(
-        self,
-        status_payload: Mapping[str, object],
-        *,
-        require_material_parity: bool = False,
+        self, status_payload: Mapping[str, object], *, require_material_parity: bool = False,
     ) -> tuple[str, ...]:
-        return _tab.mesh_dotnet_renderer_blockers(
-            status_payload,
-            embedded=bool(self.standalone_dotnet_target_embedded or self.standalone_dotnet_last_parent_hwnd > 0),
-            developer_override=self._dotnet_developer_renderer_fallback_allowed(),
-            require_material_parity=bool(require_material_parity and self.standalone_dotnet_target_embedded),
-        )
+        from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER, RUST_PREVIEW_BACKEND, RUST_MESH_EDIT_BACKEND
+        del require_material_parity
+        renderer = status_payload.get("renderer", "")
+        backend = renderer.get("backend", "") if isinstance(renderer, Mapping) else renderer
+        blockers = []
+        if backend != RUST_MESH_RENDERER:
+            blockers.append(f"Expected renderer {RUST_MESH_RENDERER}; received {backend or '<missing>'}")
+        edit_backend = status_payload.get("edit_backend")
+        if edit_backend is not None and edit_backend not in {RUST_PREVIEW_BACKEND, RUST_MESH_EDIT_BACKEND}:
+            blockers.append("Unexpected Rust editing backend")
+        return tuple(blockers)
     def _handle_dotnet_renderer_status(
         self,
         status_payload: Mapping[str, object],
@@ -508,7 +483,7 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
             require_material_parity=require_material_parity,
         )
         if blockers:
-            text = "Mesh .NET renderer blocked: " + "; ".join(blockers)
+            text = "Mesh renderer blocked: " + "; ".join(blockers)
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_renderer_blocked",
                 source_event=str(source_event or ""),
@@ -520,15 +495,4 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
             if self.standalone_dotnet_target_embedded:
                 self._notify_embedded_dotnet_launch_failed("mesh_dotnet_renderer_blocked", diagnostics=text)
             return False
-        if emit_warning:
-            warnings = _tab.mesh_dotnet_material_parity_warnings(status_payload)
-            if warnings:
-                text = "Mesh .NET material preview is not authoritative: " + "; ".join(warnings)
-                self._record_mesh_dotnet_event(
-                    "mesh_dotnet_material_parity_warning",
-                    source_event=str(source_event or ""),
-                    embedded=bool(self.standalone_dotnet_target_embedded),
-                    warnings=tuple(warnings),
-                )
-                self._set_dotnet_status(text, error=False)
         return True

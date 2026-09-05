@@ -50,28 +50,28 @@ from cdmw.ui.shell.theme_controller import build_monospace_font
 class ArchiveBinarySidecarActionsMixin:
     """Binary sidecar decode, safe edit, and corpus report actions."""
     def _default_archive_hkx_json_path(self, entry: ArchiveEntry) -> Path:
-        default_dir = self.settings_file_path.parent / "hkx_geometry_json"
+        default_dir = self.shell.settings_file_path.parent / "hkx_geometry_json"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "archive_hkx"
         return default_dir / f"{stem}.geometry.json"
 
     def _default_archive_hkx_xml_path(self, entry: ArchiveEntry) -> Path:
-        default_dir = self.settings_file_path.parent / "hkx_geometry_xml"
+        default_dir = self.shell.settings_file_path.parent / "hkx_geometry_xml"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "archive_hkx"
         return default_dir / f"{stem}.geometry.xml"
 
     def _default_archive_hkx_havok_xml_view_path(self, entry: ArchiveEntry) -> Path:
-        default_dir = self.settings_file_path.parent / "hkx_havok_xml_view"
+        default_dir = self.shell.settings_file_path.parent / "hkx_havok_xml_view"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "archive_hkx"
         return default_dir / f"{stem}.havok-view.xml"
 
     def _default_hkx_corpus_report_path(self, source_dir: Path) -> Path:
-        default_dir = self.settings_file_path.parent / "hkx_corpus_reports"
+        default_dir = self.shell.settings_file_path.parent / "hkx_corpus_reports"
         source_name = source_dir.name or "hkx_corpus"
         safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", source_name).strip("_") or "hkx_corpus"
         return default_dir / f"{safe_name}.hkx-corpus.json"
 
     def _default_hkx_corpus_report_path_for_sources(self, source_paths: Sequence[Path]) -> Path:
-        default_dir = self.settings_file_path.parent / "hkx_corpus_reports"
+        default_dir = self.shell.settings_file_path.parent / "hkx_corpus_reports"
         if len(source_paths) == 1:
             source = source_paths[0]
             source_name = source.name or "hkx_corpus"
@@ -83,13 +83,13 @@ class ArchiveBinarySidecarActionsMixin:
         return default_dir / f"{safe_name}.hkx-corpus.json"
 
     def _default_archive_binary_sidecar_json_path(self, entry: ArchiveEntry) -> Path:
-        default_dir = self.settings_file_path.parent / "binary_sidecar_decode"
+        default_dir = self.shell.settings_file_path.parent / "binary_sidecar_decode"
         stem = Path(PurePosixPath(entry.path.replace("\\", "/")).name).stem or "archive_sidecar"
         extension_label = str(entry.extension or "").strip(".").lower() or "sidecar"
         return default_dir / f"{stem}.{extension_label}.sidecar.json"
 
     def _default_binary_sidecar_corpus_report_path_for_sources(self, source_paths: Sequence[Path]) -> Path:
-        default_dir = self.settings_file_path.parent / "binary_sidecar_decode"
+        default_dir = self.shell.settings_file_path.parent / "binary_sidecar_decode"
         if len(source_paths) == 1:
             source = source_paths[0]
             source_name = source.name or "sidecar_corpus"
@@ -123,7 +123,7 @@ class ArchiveBinarySidecarActionsMixin:
     def _export_current_archive_binary_sidecar_json(self) -> None:
         entry = self._current_archive_binary_sidecar_entry()
         if entry is None:
-            self.set_status_message("Select a structured metadata/animation archive entry to export a sidecar decode JSON.", error=True)
+            self.shell.set_status_message("Select a structured metadata/animation archive entry to export a sidecar decode JSON.", error=True)
             return
         selected, _selected_filter = QFileDialog.getSaveFileName(
             self,
@@ -152,9 +152,9 @@ class ArchiveBinarySidecarActionsMixin:
                     "This is schema-recovery data. Direct import/editing is disabled until field layouts and no-edit rebuilds are proven."
                 ),
             )
-            self.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
+            self.shell.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting sidecar decode JSON for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -165,7 +165,7 @@ class ArchiveBinarySidecarActionsMixin:
         selected_entries = self._resolved_archive_reference_entries(self._selected_archive_texture_references())
         entry = selected_entries[0] if len(selected_entries) == 1 else None
         if not isinstance(entry, ArchiveEntry) or str(entry.extension or "").lower() not in {".hkx", ".hkt"}:
-            self.set_status_message("Select one resolved HKX/HKT reference first.", error=True)
+            self.shell.set_status_message("Select one resolved HKX/HKT reference first.", error=True)
             return
         self._edit_archive_hkx_entry(entry)
 
@@ -188,7 +188,7 @@ class ArchiveBinarySidecarActionsMixin:
         editor.setReadOnly(True)
         editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         editor.setPlainText(document_text)
-        editor.setFont(build_monospace_font(self.settings))
+        editor.setFont(build_monospace_font(self.shell.settings))
         layout.addWidget(editor, stretch=1)
 
         button_row = QHBoxLayout()
@@ -221,11 +221,11 @@ class ArchiveBinarySidecarActionsMixin:
                 atomic_write_text(output_path, document_text)
                 return output_path
 
-            self._run_utility_task_when_idle(
+            self.shell._run_utility_task_when_idle(
                 status_message=f"Exporting sidecar decode JSON for {entry.basename}...",
                 task=_task,
                 on_complete=lambda result: (
-                    self.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
+                    self.shell.set_status_message(f"Exported sidecar decode JSON for {entry.basename}.")
                     if request_id == int(getattr(self, "_sidecar_dialog_export_request_id", 0) or 0)
                     and isinstance(result, Path)
                     else None
@@ -240,7 +240,7 @@ class ArchiveBinarySidecarActionsMixin:
     def _inspect_current_archive_binary_sidecar(self) -> None:
         entry = self._current_archive_binary_sidecar_entry()
         if entry is None:
-            self.set_status_message("Select a structured metadata/animation archive entry to inspect.", error=True)
+            self.shell.set_status_message("Select a structured metadata/animation archive entry to inspect.", error=True)
             return
 
         def _task(log: Callable[[str], None]) -> str:
@@ -248,11 +248,11 @@ class ArchiveBinarySidecarActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, str):
-                self.set_status_message("Sidecar inspection finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Sidecar inspection finished with an unexpected result payload.", error=True)
                 return
             self._open_archive_binary_sidecar_inspector_dialog(entry, result)
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Inspecting sidecar structure for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -263,15 +263,15 @@ class ArchiveBinarySidecarActionsMixin:
         try:
             entry = archive_workflow_dependency_context(self, entry).selected_entry
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"Structured sidecar editor is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"Structured sidecar editor is unavailable: {exc}", error=True)
             return
         extension = str(entry.extension or "").lower()
         if extension not in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
-            self.set_status_message("This archive entry does not have a safe structured editor.", error=True)
+            self.shell.set_status_message("This archive entry does not have a safe structured editor.", error=True)
             return
         request_id = int(getattr(self, "_structured_sidecar_request_id", 0) or 0) + 1
         self._structured_sidecar_request_id = request_id
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Reading structured sidecar {entry.basename}...",
             task=lambda _log, stop_event: load_structured_sidecar_document(
                 entry,
@@ -285,7 +285,7 @@ class ArchiveBinarySidecarActionsMixin:
         if request_id != int(getattr(self, "_structured_sidecar_request_id", 0) or 0):
             return
         if not isinstance(result, StructuredSidecarDocument):
-            self.set_status_message("Structured sidecar worker returned invalid data.", error=True)
+            self.shell.set_status_message("Structured sidecar worker returned invalid data.", error=True)
             return
         entry = result.entry
         selected_index = -1
@@ -361,7 +361,7 @@ class ArchiveBinarySidecarActionsMixin:
                 return
             replacement_text = str(replacement)
 
-        default_path = self.settings_file_path.parent / "structured_edits" / PurePosixPath(entry.path.replace("\\", "/")).name
+        default_path = self.shell.settings_file_path.parent / "structured_edits" / PurePosixPath(entry.path.replace("\\", "/")).name
         selected_path, _selected_filter = QFileDialog.getSaveFileName(
             self,
             "Save Edited Structured Sidecar Copy",
@@ -379,7 +379,7 @@ class ArchiveBinarySidecarActionsMixin:
         )
         write_request_id = request_id + 1
         self._structured_sidecar_request_id = write_request_id
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Writing structured sidecar copy for {entry.basename}...",
             task=lambda _log, stop_event: write_structured_sidecar_edit(
                 write_request,
@@ -396,13 +396,13 @@ class ArchiveBinarySidecarActionsMixin:
         if request_id != int(getattr(self, "_structured_sidecar_request_id", 0) or 0):
             return
         if not isinstance(result, StructuredSidecarEditResult):
-            self.set_status_message("Structured sidecar writer returned invalid data.", error=True)
+            self.shell.set_status_message("Structured sidecar writer returned invalid data.", error=True)
             return
-        self.append_log(
+        self.shell.append_log(
             f"Saved safe structured sidecar edit to {result.output_path}. "
             + " ".join(result.proof_lines[:3])
         )
-        self.set_status_message(f"Saved structured sidecar edit: {result.output_path}")
+        self.shell.set_status_message(f"Saved structured sidecar edit: {result.output_path}")
 
     def _export_hkx_converter_corpus_report(self) -> None:
         source_mode, source_ok = QInputDialog.getItem(
@@ -420,7 +420,7 @@ class ArchiveBinarySidecarActionsMixin:
             selected_files, _selected_filter = QFileDialog.getOpenFileNames(
                 self,
                 "Select HKX Corpus Files",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
                 "HKX Files (*.hkx);;All Files (*)",
             )
             source_paths = tuple(Path(path) for path in selected_files if str(path).strip())
@@ -428,7 +428,7 @@ class ArchiveBinarySidecarActionsMixin:
             source_dir_text = QFileDialog.getExistingDirectory(
                 self,
                 "Select HKX Corpus Folder",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
             )
             source_paths = (Path(source_dir_text),) if source_dir_text else ()
         if not source_paths:
@@ -635,9 +635,9 @@ class ArchiveBinarySidecarActionsMixin:
                     f"{native_summary}{detail_summary}{proof_summary}"
                 ),
             )
-            self.set_status_message(f"Exported HKX corpus report to {exported_path}.")
+            self.shell.set_status_message(f"Exported HKX corpus report to {exported_path}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Scanning HKX corpus source {source_label}...",
             task=_task,
             on_complete=_handle_complete,
@@ -662,7 +662,7 @@ class ArchiveBinarySidecarActionsMixin:
             selected_files, _selected_filter = QFileDialog.getOpenFileNames(
                 self,
                 "Select Sidecar Corpus Files",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
                 "Binary Sidecars (*.meshinfo *.motionblending *.paa_metabin *.prefab *.pappt *.pamhc *.seqmt);;All Files (*)",
             )
             source_paths = tuple(Path(path) for path in selected_files if str(path).strip())
@@ -670,7 +670,7 @@ class ArchiveBinarySidecarActionsMixin:
             source_dir_text = QFileDialog.getExistingDirectory(
                 self,
                 "Select Sidecar Corpus Folder",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
             )
             source_paths = (Path(source_dir_text),) if source_dir_text else ()
         if not source_paths:
@@ -762,9 +762,9 @@ class ArchiveBinarySidecarActionsMixin:
                     f"{detail}"
                 ),
             )
-            self.set_status_message(f"Exported sidecar corpus report to {exported_path}.")
+            self.shell.set_status_message(f"Exported sidecar corpus report to {exported_path}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Scanning sidecar corpus source {source_label}...",
             task=_task,
             on_complete=_handle_complete,

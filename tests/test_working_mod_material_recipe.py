@@ -14,7 +14,8 @@ from cdmw.modding.static_mesh_replacer import (
 )
 from cdmw.modding.working_mod_recipe import analyze_working_mod_package
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
-from cdmw.rendering.native_preview_package import _input_texture_kind, _native_material_hints_for_batch
+from cdmw.rendering.native_preview_payloads import _input_texture_kind
+from cdmw.rendering.native_preview_material_contract import _native_material_hints_for_batch
 
 
 def _mesh() -> ParsedMesh:

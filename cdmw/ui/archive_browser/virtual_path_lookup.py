@@ -39,7 +39,7 @@ class ArchiveVirtualPathLookupMixin:
         ensure_indexes = getattr(self, "_ensure_archive_basic_index_worker_started", None)
         if callable(ensure_indexes):
             ensure_indexes()
-        set_status = getattr(self, "set_status_message", None)
+        set_status = getattr(self.shell, "set_status_message", None)
         if callable(set_status):
             set_status("Archive path lookup is warming; retry this action when indexing finishes.")
         return None

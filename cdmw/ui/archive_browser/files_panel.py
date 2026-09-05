@@ -29,7 +29,7 @@ class ArchiveFilesPanelMixin:
     """Build archive browser warmup and files panels."""
 
     def _build_archive_warmup_overlay(self, archive_tab_layout) -> None:
-        self.archive_warmup_overlay = QFrame(self.archive_browser_tab)
+        self.archive_warmup_overlay = QFrame(self.shell.archive_browser_tab)
         self.archive_warmup_overlay.setMinimumWidth(520)
         self.archive_warmup_overlay.setObjectName("ArchiveWarmupOverlay")
         archive_warmup_layout = QVBoxLayout(self.archive_warmup_overlay)
@@ -104,7 +104,7 @@ class ArchiveFilesPanelMixin:
             if selection.displays_v2:
                 self.archive_item_finder_warmup_controller = RemoteItemFinderWarmupController(
                     self.archive_catalogue_service,
-                    self.settings,
+                    self.shell.settings,
                     background_allowed=self._archive_browser_background_work_allowed,
                     parent=self,
                 )

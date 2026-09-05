@@ -256,19 +256,19 @@ def read_text_color_scheme(settings: QSettings, key: str, default: str) -> str:
     return value if value in allowed else default
 
 def apply_window_text_highlight_style(window: "MainWindow") -> None:
-    style = read_log_text_style(window.settings)
+    style = read_log_text_style(window.shell.settings)
     log_scheme = read_text_color_scheme(
-        window.settings,
+        window.shell.settings,
         "appearance/log_color_scheme",
         DEFAULT_UI_LOG_COLOR_SCHEME,
     )
     preview_scheme = read_text_color_scheme(
-        window.settings,
+        window.shell.settings,
         "appearance/preview_color_scheme",
         DEFAULT_UI_PREVIEW_COLOR_SCHEME,
     )
-    text_search_tab = created_tool_widget(getattr(window, "text_search_tab", None))
-    highlighters = [window.log_highlighter, window.archive_log_highlighter]
+    text_search_tab = created_tool_widget(getattr(window.shell, "text_search_tab", None))
+    highlighters = [window.textures.log_highlighter, window.archive.archive_log_highlighter]
     if text_search_tab is not None:
         highlighters.append(text_search_tab.log_highlighter)
     for highlighter in highlighters:
@@ -277,9 +277,9 @@ def apply_window_text_highlight_style(window: "MainWindow") -> None:
         if hasattr(highlighter, "set_color_scheme"):
             highlighter.set_color_scheme(log_scheme)
     editors = [
-        window.archive_preview_text_edit,
-        window.archive_preview_info_edit,
-        window.archive_preview_details_edit,
+        window.archive.archive_preview_text_edit,
+        window.archive.archive_preview_info_edit,
+        window.archive.archive_preview_details_edit,
     ]
     if text_search_tab is not None:
         editors.append(text_search_tab.preview_text_edit)
@@ -288,37 +288,37 @@ def apply_window_text_highlight_style(window: "MainWindow") -> None:
             editor.set_highlight_style(style)
         if hasattr(editor, "set_color_scheme"):
             editor.set_color_scheme(preview_scheme)
-    research_tab = created_tool_widget(getattr(window, "research_tab", None))
+    research_tab = created_tool_widget(getattr(window.shell, "research_tab", None))
     if research_tab is not None and hasattr(research_tab, "_apply_archive_picker_preview_text_style"):
         research_tab._apply_archive_picker_preview_text_style()
 
 def apply_window_data_fonts(window: "MainWindow") -> None:
-    log_font = build_monospace_font(window.settings)
-    window.log_view.setFont(log_font)
-    _mark_custom_font(window.log_view)
-    window.log_view.document().setDefaultFont(log_font)
-    window.archive_log_view.setFont(log_font)
-    _mark_custom_font(window.archive_log_view)
-    window.archive_log_view.document().setDefaultFont(log_font)
-    window.archive_preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
-    _mark_custom_font(window.archive_preview_text_edit)
-    window.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)
-    _mark_custom_font(window.archive_preview_info_edit)
-    window.archive_preview_details_edit.apply_font_preferences(log_font, preserve_size=False)
-    _mark_custom_font(window.archive_preview_details_edit)
-    compact_workspace = getattr(window, "compact_workspace", None)
+    log_font = build_monospace_font(window.shell.settings)
+    window.textures.log_view.setFont(log_font)
+    _mark_custom_font(window.textures.log_view)
+    window.textures.log_view.document().setDefaultFont(log_font)
+    window.archive.archive_log_view.setFont(log_font)
+    _mark_custom_font(window.archive.archive_log_view)
+    window.archive.archive_log_view.document().setDefaultFont(log_font)
+    window.archive.archive_preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive.archive_preview_text_edit)
+    window.archive.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive.archive_preview_info_edit)
+    window.archive.archive_preview_details_edit.apply_font_preferences(log_font, preserve_size=False)
+    _mark_custom_font(window.archive.archive_preview_details_edit)
+    compact_workspace = getattr(window.shell, "compact_workspace", None)
     compact_drawer = getattr(compact_workspace, "drawer", None)
     apply_compact_log_font = getattr(compact_drawer, "apply_log_font", None)
     if callable(apply_compact_log_font):
         apply_compact_log_font(log_font)
-    text_search_tab = created_tool_widget(getattr(window, "text_search_tab", None))
+    text_search_tab = created_tool_widget(getattr(window.shell, "text_search_tab", None))
     if text_search_tab is not None:
         text_search_tab.log_view.setFont(log_font)
         _mark_custom_font(text_search_tab.log_view)
         text_search_tab.log_view.document().setDefaultFont(log_font)
         text_search_tab.preview_text_edit.apply_font_preferences(log_font, preserve_size=False)
         _mark_custom_font(text_search_tab.preview_text_edit)
-    replace_assistant_tab = created_tool_widget(getattr(window, "replace_assistant_tab", None))
+    replace_assistant_tab = created_tool_widget(getattr(window.shell, "replace_assistant_tab", None))
     if replace_assistant_tab is not None:
         replace_assistant_tab.log_view.setFont(log_font)
         _mark_custom_font(replace_assistant_tab.log_view)
@@ -326,9 +326,9 @@ def apply_window_data_fonts(window: "MainWindow") -> None:
         replace_assistant_tab.preview_details_edit.setFont(log_font)
         _mark_custom_font(replace_assistant_tab.preview_details_edit)
         replace_assistant_tab.preview_details_edit.document().setDefaultFont(log_font)
-    bold_enabled = _read_bool_setting(window.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
-    window.log_highlighter.set_bold_enabled(bold_enabled)
-    window.archive_log_highlighter.set_bold_enabled(bold_enabled)
+    bold_enabled = _read_bool_setting(window.shell.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
+    window.textures.log_highlighter.set_bold_enabled(bold_enabled)
+    window.archive.archive_log_highlighter.set_bold_enabled(bold_enabled)
     if text_search_tab is not None:
         text_search_tab.log_highlighter.set_bold_enabled(bold_enabled)
     apply_window_text_highlight_style(window)
@@ -525,13 +525,13 @@ class ThemeControllerMixin:
                 self._queue_data_font_apply_steps(schedule_column_autofit=False)
             if data["requires_text_colors"]:
                 self._queue_text_highlight_apply_steps()
-            self._queue_appearance_apply_step("Updating log themes", lambda: self.log_highlighter.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating archive log theme", lambda: self.archive_log_highlighter.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating model preview theme", lambda: self.archive_model_preview.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating media preview theme", lambda: self.archive_media_preview.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating archive text preview", lambda: self.archive_preview_text_edit.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating archive info preview", lambda: self.archive_preview_info_edit.set_theme(self.current_theme_key))
-            self._queue_appearance_apply_step("Updating archive details preview", lambda: self.archive_preview_details_edit.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating log themes", lambda: self.textures.log_highlighter.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating archive log theme", lambda: self.archive.archive_log_highlighter.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating model preview theme", lambda: self.archive.archive_model_preview.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating media preview theme", lambda: self.archive.archive_media_preview.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating archive text preview", lambda: self.archive.archive_preview_text_edit.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating archive info preview", lambda: self.archive.archive_preview_info_edit.set_theme(self.current_theme_key))
+            self._queue_appearance_apply_step("Updating archive details preview", lambda: self.archive.archive_preview_details_edit.set_theme(self.current_theme_key))
             text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
             if text_search_tab is not None:
                 self._queue_appearance_apply_step(
@@ -629,7 +629,7 @@ class ThemeControllerMixin:
         self._sync_archive_controls_font(ui_font)
 
     def _sync_archive_controls_font(self, ui_font: QFont) -> None:
-        archive_controls_group = getattr(self, "archive_controls_group", None)
+        archive_controls_group = getattr(self.archive, "archive_controls_group", None)
         if archive_controls_group is None:
             return
         archive_controls_font = QFont(ui_font)
@@ -701,11 +701,11 @@ class ThemeControllerMixin:
     def _queue_data_font_apply_steps(self, *, schedule_column_autofit: bool) -> None:
         log_font = build_monospace_font(self.settings)
         targets = [
-            ("main log font", self.log_view),
-            ("archive log font", self.archive_log_view),
-            ("archive preview text font", self.archive_preview_text_edit),
-            ("archive preview info font", self.archive_preview_info_edit),
-            ("archive preview details font", self.archive_preview_details_edit),
+            ("main log font", self.textures.log_view),
+            ("archive log font", self.archive.archive_log_view),
+            ("archive preview text font", self.archive.archive_preview_text_edit),
+            ("archive preview info font", self.archive.archive_preview_info_edit),
+            ("archive preview details font", self.archive.archive_preview_details_edit),
         ]
         text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
         if text_search_tab is not None:
@@ -741,8 +741,8 @@ class ThemeControllerMixin:
             )
         bold_enabled = _read_bool_setting(self.settings, "appearance/log_font_bold", DEFAULT_UI_LOG_FONT_BOLD)
         highlighters = [
-            ("main log highlighter bold", self.log_highlighter),
-            ("archive log highlighter bold", self.archive_log_highlighter),
+            ("main log highlighter bold", self.textures.log_highlighter),
+            ("archive log highlighter bold", self.archive.archive_log_highlighter),
         ]
         if text_search_tab is not None:
             highlighters.append(("text search log highlighter bold", text_search_tab.log_highlighter))
@@ -781,8 +781,8 @@ class ThemeControllerMixin:
         )
         text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
         highlighters = [
-            ("main log colors", self.log_highlighter),
-            ("archive log colors", self.archive_log_highlighter),
+            ("main log colors", self.textures.log_highlighter),
+            ("archive log colors", self.archive.archive_log_highlighter),
         ]
         if text_search_tab is not None:
             highlighters.append(("text search log colors", text_search_tab.log_highlighter))
@@ -796,9 +796,9 @@ class ThemeControllerMixin:
                 ),
             )
         editors = [
-            ("archive text preview colors", self.archive_preview_text_edit),
-            ("archive info preview colors", self.archive_preview_info_edit),
-            ("archive details preview colors", self.archive_preview_details_edit),
+            ("archive text preview colors", self.archive.archive_preview_text_edit),
+            ("archive info preview colors", self.archive.archive_preview_info_edit),
+            ("archive details preview colors", self.archive.archive_preview_details_edit),
         ]
         if text_search_tab is not None:
             editors.append(("text search preview colors", text_search_tab.preview_text_edit))

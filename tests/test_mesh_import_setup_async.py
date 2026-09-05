@@ -72,6 +72,9 @@ def test_mesh_import_preview_honours_pre_cancel_before_io(tmp_path: Path) -> Non
 
 class _AsyncTaskOwner:
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] = {}
         self.archive_mesh_import_setup_request_id = 0
         self._shutting_down = False
@@ -283,6 +286,9 @@ def test_mesh_import_preflight_cancel_does_not_publish_or_warn() -> None:
 class _SwapOwner(_AsyncTaskOwner, ArchiveMeshLaunchFlowMixin):
     def __init__(self) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_in_game_mesh_swap_request_id = 0
         self.archive_in_game_mesh_swap_scope_request_id = 0
         self.archive_entries: list[ArchiveEntry] = []
@@ -530,6 +536,11 @@ def test_v2_mesh_swap_preflight_real_support_uses_only_request_dependencies(
     )
 
     class _Owner(ArchiveMeshSwapSupportMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         @property
         def archive_entries(self) -> object:
             raise AssertionError("v2 mesh-swap support touched the legacy global catalogue")
@@ -608,6 +619,11 @@ def test_mesh_swap_scope_preflight_reads_material_contract_off_dialog_path() -> 
     texture = _entry("character/texture/source_d.dds", 5)
 
     class Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_entries_by_extension: dict[str, tuple[ArchiveEntry, ...]] = {}
 
         @staticmethod
@@ -698,6 +714,9 @@ def test_mesh_swap_scope_preflight_reads_material_contract_off_dialog_path() -> 
 class _CapturedSwapOwner(_SwapOwner):
     def __init__(self) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.captured_tasks: list[dict[str, object]] = []
         self.prompt_count = 0
 

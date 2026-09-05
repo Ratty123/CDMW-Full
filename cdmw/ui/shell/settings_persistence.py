@@ -84,7 +84,7 @@ class SettingsPersistenceMixin:
     def _save_model_preview_settings_if_loaded(self) -> bool:
         if getattr(self, "_model_preview_settings_read_pending", False):
             return False
-        values = dataclasses.asdict(self._current_model_preview_render_settings())
+        values = dataclasses.asdict(self.archive._current_model_preview_render_settings())
         for attribute in _MODEL_PREVIEW_SETTINGS_NOT_PERSISTED:
             values.pop(attribute, None)
         for attribute, value in values.items():
@@ -93,7 +93,7 @@ class SettingsPersistenceMixin:
         return True
 
     def _current_archive_performance_settings(self) -> ArchivePerformanceSettings:
-        return clamp_archive_performance_settings(self._archive_performance_settings)
+        return clamp_archive_performance_settings(self.archive._archive_performance_settings)
 
     def _read_archive_performance_settings(self) -> ArchivePerformanceSettings:
         return read_archive_performance_settings(self.settings)
@@ -108,39 +108,39 @@ class SettingsPersistenceMixin:
             self.current_theme_key,
         )
         self.settings.setValue("appearance/language", self.ui_localizer.language_code)
-        self.settings.setValue("paths/original_dds_root", self.original_dds_edit.text())
-        self.settings.setValue("paths/png_root", self.png_root_edit.text())
-        self.settings.setValue("paths/texture_editor_png_root", self.texture_editor_png_root_edit.text())
-        self.settings.setValue("paths/dds_staging_root", self.dds_staging_root_edit.text())
-        self.settings.setValue("paths/output_root", self.output_root_edit.text())
-        if self.asset_authoring_section.is_body_built():
-            self.settings.setValue("asset_authoring/oiio_source_path", self.openimageio_source_path_edit.text())
-            self.settings.setValue("asset_authoring/oiio_output_path", self.openimageio_output_path_edit.text())
-            self.settings.setValue("asset_authoring/oiio_compare_path", self.openimageio_compare_path_edit.text())
-        self.settings.setValue("archive/package_root", self.archive_package_root_edit.text())
-        self.settings.setValue("archive/extract_root", self.archive_extract_root_edit.text())
-        self.settings.setValue("archive/filter_text", self.archive_filter_edit.text())
-        self.settings.setValue("archive/exclude_filter_text", self.archive_exclude_filter_edit.text())
-        self.settings.setValue("archive/extension_filter", self._combo_value(self.archive_extension_filter_combo))
-        self.settings.setValue("archive/package_filter_text", self.archive_package_filter_edit.text())
-        self.settings.setValue("archive/structure_filter", self._current_archive_structure_filter_value())
-        self.settings.setValue("archive/role_filter", self._combo_value(self.archive_role_filter_combo))
+        self.settings.setValue("paths/original_dds_root", self.textures.original_dds_edit.text())
+        self.settings.setValue("paths/png_root", self.textures.png_root_edit.text())
+        self.settings.setValue("paths/texture_editor_png_root", self.textures.texture_editor_png_root_edit.text())
+        self.settings.setValue("paths/dds_staging_root", self.textures.dds_staging_root_edit.text())
+        self.settings.setValue("paths/output_root", self.textures.output_root_edit.text())
+        if self.textures.asset_authoring_section.is_body_built():
+            self.settings.setValue("asset_authoring/oiio_source_path", self.textures.openimageio_source_path_edit.text())
+            self.settings.setValue("asset_authoring/oiio_output_path", self.textures.openimageio_output_path_edit.text())
+            self.settings.setValue("asset_authoring/oiio_compare_path", self.textures.openimageio_compare_path_edit.text())
+        self.settings.setValue("archive/package_root", self.archive.archive_package_root_edit.text())
+        self.settings.setValue("archive/extract_root", self.archive.archive_extract_root_edit.text())
+        self.settings.setValue("archive/filter_text", self.archive.archive_filter_edit.text())
+        self.settings.setValue("archive/exclude_filter_text", self.archive.archive_exclude_filter_edit.text())
+        self.settings.setValue("archive/extension_filter", self.textures._combo_value(self.archive.archive_extension_filter_combo))
+        self.settings.setValue("archive/package_filter_text", self.archive.archive_package_filter_edit.text())
+        self.settings.setValue("archive/structure_filter", self.archive._current_archive_structure_filter_value())
+        self.settings.setValue("archive/role_filter", self.textures._combo_value(self.archive.archive_role_filter_combo))
         self.settings.setValue(
             "archive/exclude_common_technical_suffixes",
-            self.archive_exclude_common_technical_checkbox.isChecked(),
+            self.archive.archive_exclude_common_technical_checkbox.isChecked(),
         )
-        self.settings.setValue("archive/min_size_kb", self.archive_min_size_spin.value())
-        self.settings.setValue("archive/previewable_only", self.archive_previewable_only_checkbox.isChecked())
-        self.settings.setValue("archive/browser_view_mode", self._archive_browser_view_mode())
-        self.settings.setValue("ui/archive_tree_v5_sort_column", int(self.archive_tree_sort_column))
-        self.settings.setValue("ui/archive_tree_v5_sort_order", self.archive_tree_sort_order)
-        self._save_archive_tree_header_settings()
+        self.settings.setValue("archive/min_size_kb", self.archive.archive_min_size_spin.value())
+        self.settings.setValue("archive/previewable_only", self.archive.archive_previewable_only_checkbox.isChecked())
+        self.settings.setValue("archive/browser_view_mode", self.archive._archive_browser_view_mode())
+        self.settings.setValue("ui/archive_tree_v5_sort_column", int(self.archive.archive_tree_sort_column))
+        self.settings.setValue("ui/archive_tree_v5_sort_order", self.archive.archive_tree_sort_order)
+        self.archive._save_archive_tree_header_settings()
         self._save_model_preview_settings_if_loaded()
         self.settings.setValue(
             "archive/model_preview_dark_background",
-            bool(getattr(self, "archive_model_preview_dark_background_enabled", True)),
+            bool(getattr(self.archive, "archive_model_preview_dark_background_enabled", True)),
         )
-        self.settings.setValue("preview/archive_renderer_backend", self._archive_model_renderer_backend())
+        self.settings.setValue("preview/archive_renderer_backend", self.archive._archive_model_renderer_backend())
         archive_performance_settings = self._current_archive_performance_settings()
         self.settings.setValue("performance/resource_profile", archive_performance_settings.resource_profile)
         self.settings.setValue("performance/archive_fetch_batch_size", archive_performance_settings.archive_fetch_batch_size)
@@ -151,62 +151,47 @@ class SettingsPersistenceMixin:
         self.settings.setValue("archive/native_preview_cache_mode", archive_performance_settings.native_preview_cache_mode)
         self.settings.setValue("archive/quick_then_full_preview", archive_performance_settings.quick_then_full_preview)
         self.settings.setValue("archive/maximum_indexing_priority", archive_performance_settings.maximum_indexing_priority)
-        if self.dds_output_section.is_body_built():
-            self.settings.setValue("dds_output/format_mode", self._combo_value(self.dds_format_mode_combo))
-            self.settings.setValue("dds_output/custom_format", self._combo_value(self.dds_custom_format_combo))
-            self.settings.setValue("dds_output/size_mode", self._combo_value(self.dds_size_mode_combo))
-            self.settings.setValue("dds_output/custom_width", self.dds_custom_width_spin.value())
-            self.settings.setValue("dds_output/custom_height", self.dds_custom_height_spin.value())
-            self.settings.setValue("dds_output/mip_mode", self._combo_value(self.dds_mip_mode_combo))
-            self.settings.setValue("dds_output/custom_mip_count", self.dds_custom_mip_spin.value())
-            self.settings.setValue("settings/enable_dds_staging", self.enable_dds_staging_checkbox.isChecked())
-        if self.settings_section.is_body_built():
-            self.settings.setValue("settings/dry_run", self.dry_run_checkbox.isChecked())
-            self.settings.setValue("settings/enable_incremental_resume", self.enable_incremental_resume_checkbox.isChecked())
-            self.settings.setValue("settings/csv_log_enabled", self.csv_log_enabled_checkbox.isChecked())
-            self.settings.setValue("settings/csv_log_path", self.csv_log_path_edit.text())
+        if self.textures.dds_output_section.is_body_built():
+            self.settings.setValue("dds_output/format_mode", self.textures._combo_value(self.textures.dds_format_mode_combo))
+            self.settings.setValue("dds_output/custom_format", self.textures._combo_value(self.textures.dds_custom_format_combo))
+            self.settings.setValue("dds_output/size_mode", self.textures._combo_value(self.textures.dds_size_mode_combo))
+            self.settings.setValue("dds_output/custom_width", self.textures.dds_custom_width_spin.value())
+            self.settings.setValue("dds_output/custom_height", self.textures.dds_custom_height_spin.value())
+            self.settings.setValue("dds_output/mip_mode", self.textures._combo_value(self.textures.dds_mip_mode_combo))
+            self.settings.setValue("dds_output/custom_mip_count", self.textures.dds_custom_mip_spin.value())
+            self.settings.setValue("settings/enable_dds_staging", self.textures.enable_dds_staging_checkbox.isChecked())
+        if self.textures.settings_section.is_body_built():
+            self.settings.setValue("settings/dry_run", self.textures.dry_run_checkbox.isChecked())
+            self.settings.setValue("settings/enable_incremental_resume", self.textures.enable_incremental_resume_checkbox.isChecked())
+            self.settings.setValue("settings/csv_log_enabled", self.textures.csv_log_enabled_checkbox.isChecked())
+            self.settings.setValue("settings/csv_log_path", self.textures.csv_log_path_edit.text())
             self.settings.setValue(
                 "settings/allow_unique_basename_fallback",
-                self.unique_basename_checkbox.isChecked(),
+                self.textures.unique_basename_checkbox.isChecked(),
             )
             self.settings.setValue(
                 "settings/overwrite_existing_dds",
-                self.overwrite_existing_checkbox.isChecked(),
+                self.textures.overwrite_existing_checkbox.isChecked(),
             )
-        if self.filters_section.is_body_built():
-            self.settings.setValue("settings/include_filters", self.filters_edit.toPlainText())
-        self.settings.setValue("settings/texture_rules_text", self.texture_rules_legacy_text)
+        if self.textures.filters_section.is_body_built():
+            self.settings.setValue("settings/include_filters", self.textures.filters_edit.toPlainText())
+        self.settings.setValue("settings/texture_rules_text", self.textures.texture_rules_legacy_text)
         self.settings.setValue(
             "settings/workflow_profiles_json",
-            json.dumps([dataclasses.asdict(profile) for profile in self.workflow_profiles_state], indent=2),
+            json.dumps([dataclasses.asdict(profile) for profile in self.textures.workflow_profiles_state], indent=2),
         )
         self.settings.setValue(
             "settings/workflow_rules_json",
-            json.dumps([dataclasses.asdict(rule) for rule in self.texture_rules_state], indent=2),
+            json.dumps([dataclasses.asdict(rule) for rule in self.textures.texture_rules_state], indent=2),
         )
-        if self.chainner_section.is_body_built():
-            save_upscale_panel_settings(self)
+        if self.textures.chainner_section.is_body_built():
+            save_upscale_panel_settings(self.textures)
         current_key = self._tool_key_for_widget(self._current_navigation_widget())
         self.settings.setValue("ui/active_tool_key", current_key or "archive_browser")
         self.settings.setValue("ui/main_tab_index", self.main_tabs.currentIndex())
-        self.settings.setValue("ui/compare_sync_pan", self.compare_sync_pan_checkbox.isChecked())
-        self.settings.setValue("ui/compare_preview_size_mode", self._combo_value(self.compare_preview_size_combo))
         if self._preference_bool("remember_splitter_sizes", True):
-            self.settings.setValue("ui/workflow_splitter_sizes", ",".join(str(value) for value in self.workflow_splitter.sizes()))
-            workflow_right_sizes = (
-                self.workflow_right_splitter_normal_sizes
-                if self.progress_group.isHidden() and self.workflow_right_splitter_normal_sizes
-                else self.workflow_right_splitter.sizes()
-            )
-            self.settings.setValue(
-                "ui/workflow_right_splitter_sizes_v2",
-                ",".join(str(value) for value in workflow_right_sizes),
-            )
-            self.settings.setValue(
-                "ui/compare_splitter_sizes_v2",
-                ",".join(str(value) for value in self.compare_splitter.sizes()),
-            )
-            self.settings.setValue("ui/archive_splitter_sizes", ",".join(str(value) for value in self.archive_splitter.sizes()))
+            self.settings.setValue("ui/workflow_splitter_sizes", ",".join(str(value) for value in self.textures.job_splitter.sizes()))
+            self.settings.setValue("ui/archive_splitter_sizes", ",".join(str(value) for value in self.archive.archive_splitter.sizes()))
             text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
             if text_search_tab is not None:
                 self.settings.setValue(
@@ -231,14 +216,14 @@ class SettingsPersistenceMixin:
                 ):
                     values = getattr(research_tab, getter_name)()
                     self.settings.setValue(key, ",".join(str(value) for value in values))
-        self.settings.setValue("sections/setup_expanded", self.setup_section.toggle_button.isChecked())
-        self.settings.setValue("sections/paths_expanded", self.paths_section.toggle_button.isChecked())
-        self.settings.setValue("sections/archive_locations_expanded", self.archive_locations_section.toggle_button.isChecked())
-        self.settings.setValue("sections/settings_expanded", self.settings_section.toggle_button.isChecked())
-        self.settings.setValue("sections/asset_authoring_expanded", self.asset_authoring_section.toggle_button.isChecked())
-        self.settings.setValue("sections/dds_output_expanded", self.dds_output_section.toggle_button.isChecked())
-        self.settings.setValue("sections/filters_expanded", self.filters_section.toggle_button.isChecked())
-        self.settings.setValue("sections/chainner_expanded", self.chainner_section.toggle_button.isChecked())
+        self.settings.setValue("sections/setup_expanded", self.textures.setup_section.toggle_button.isChecked())
+        self.settings.setValue("sections/paths_expanded", self.textures.paths_section.toggle_button.isChecked())
+        self.settings.setValue("sections/archive_locations_expanded", self.archive.archive_locations_section.toggle_button.isChecked())
+        self.settings.setValue("sections/settings_expanded", self.textures.settings_section.toggle_button.isChecked())
+        self.settings.setValue("sections/asset_authoring_expanded", self.textures.asset_authoring_section.toggle_button.isChecked())
+        self.settings.setValue("sections/dds_output_expanded", self.textures.dds_output_section.toggle_button.isChecked())
+        self.settings.setValue("sections/filters_expanded", self.textures.filters_section.toggle_button.isChecked())
+        self.settings.setValue("sections/chainner_expanded", self.textures.chainner_section.toggle_button.isChecked())
         self._save_detached_tool_geometries()
         self.settings.sync()
 
@@ -273,90 +258,85 @@ class SettingsPersistenceMixin:
         if self.current_theme_key not in UI_THEME_SCHEMES:
             self.current_theme_key = DEFAULT_UI_THEME
         self.app_state.current_theme_key = self.current_theme_key
-        self.original_dds_edit.setText(
+        self.textures.original_dds_edit.setText(
             self.settings.value("paths/original_dds_root", defaults.original_dds_root)
         )
-        self.png_root_edit.setText(self.settings.value("paths/png_root", defaults.png_root))
-        self.texture_editor_png_root_edit.setText(
+        self.textures.png_root_edit.setText(self.settings.value("paths/png_root", defaults.png_root))
+        self.textures.texture_editor_png_root_edit.setText(
             self.settings.value("paths/texture_editor_png_root", getattr(defaults, "texture_editor_png_root", ""))
         )
-        self.dds_staging_root_edit.setText(self.settings.value("paths/dds_staging_root", defaults.dds_staging_root))
-        self.output_root_edit.setText(self.settings.value("paths/output_root", defaults.output_root))
-        if self.asset_authoring_section.is_body_built():
-            load_asset_authoring_panel_settings(self, defaults)
-        self.archive_package_root_edit.setText(self.settings.value("archive/package_root", defaults.archive_package_root))
-        self.archive_extract_root_edit.setText(self.settings.value("archive/extract_root", defaults.archive_extract_root))
+        self.textures.dds_staging_root_edit.setText(self.settings.value("paths/dds_staging_root", defaults.dds_staging_root))
+        self.textures.output_root_edit.setText(self.settings.value("paths/output_root", defaults.output_root))
+        if self.textures.asset_authoring_section.is_body_built():
+            load_asset_authoring_panel_settings(self.textures, defaults)
+        self.archive.archive_package_root_edit.setText(self.settings.value("archive/package_root", defaults.archive_package_root))
+        self.archive.archive_extract_root_edit.setText(self.settings.value("archive/extract_root", defaults.archive_extract_root))
         archive_filter_text = defaults.archive_filter_text
         archive_exclude_filter_text = defaults.archive_exclude_filter_text
         archive_extension_filter = "*"
         archive_package_filter_text = defaults.archive_package_filter_text
         archive_structure_filter = defaults.archive_structure_filter
         archive_role_filter = defaults.archive_role_filter
-        self.archive_filter_edit.setText(archive_filter_text)
-        self.archive_exclude_filter_edit.setText(archive_exclude_filter_text)
-        self._rebuild_archive_extension_filter_choices(
+        self.archive.archive_filter_edit.setText(archive_filter_text)
+        self.archive.archive_exclude_filter_edit.setText(archive_exclude_filter_text)
+        self.archive._rebuild_archive_extension_filter_choices(
             archive_extension_filter
         )
-        self._set_combo_by_value(
-            self.archive_extension_filter_combo,
+        self.textures._set_combo_by_value(
+            self.archive.archive_extension_filter_combo,
             archive_extension_filter,
         )
-        self.archive_package_filter_edit.setText(archive_package_filter_text)
-        self.archive_structure_filter_pending_value = str(archive_structure_filter)
-        self._set_combo_by_value(
-            self.archive_role_filter_combo,
+        self.archive.archive_package_filter_edit.setText(archive_package_filter_text)
+        self.archive.archive_structure_filter_pending_value = str(archive_structure_filter)
+        self.textures._set_combo_by_value(
+            self.archive.archive_role_filter_combo,
             archive_role_filter,
         )
-        self.archive_exclude_common_technical_checkbox.setChecked(defaults.archive_exclude_common_technical_suffixes)
-        self.archive_min_size_spin.setValue(int(defaults.archive_min_size_kb))
-        self.archive_previewable_only_checkbox.setChecked(bool(defaults.archive_previewable_only))
-        self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)
-        self.archive_tree_sort_column = normalize_archive_browser_sort_column(
+        self.archive.archive_exclude_common_technical_checkbox.setChecked(defaults.archive_exclude_common_technical_suffixes)
+        self.archive.archive_min_size_spin.setValue(int(defaults.archive_min_size_kb))
+        self.archive.archive_previewable_only_checkbox.setChecked(bool(defaults.archive_previewable_only))
+        self.textures._set_combo_by_value(self.archive.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)
+        self.archive.archive_tree_sort_column = normalize_archive_browser_sort_column(
             self.settings.value("ui/archive_tree_v5_sort_column", -1)
         )
-        self.archive_tree_sort_order = normalize_archive_browser_sort_order(
+        self.archive.archive_tree_sort_order = normalize_archive_browser_sort_order(
             self.settings.value("ui/archive_tree_v5_sort_order", "asc")
         )
-        self._update_archive_tree_sort_indicator()
+        self.archive._update_archive_tree_sort_indicator()
         self._model_preview_settings_read_pending = True
-        self._archive_preview_startup_state_pending = True
-        self.archive_model_renderer_backend = self._read_archive_model_renderer_backend()
+        self.archive._archive_preview_startup_state_pending = True
+        self.archive.archive_model_renderer_backend = self.archive._read_archive_model_renderer_backend()
         dark_background = self._read_bool("archive/model_preview_dark_background", True)
-        self.archive_model_preview_dark_background_enabled = bool(dark_background)
-        self.archive_model_preview.set_dark_background_enabled(dark_background)
-        self._archive_performance_settings = self._read_archive_performance_settings()
-        self.archive_preview_cache_limit = self._archive_performance_settings.preview_cache_limit
-        if self.dds_output_section.is_body_built():
-            load_dds_output_panel_settings(self, defaults)
-        if self.settings_section.is_body_built():
-            load_workflow_settings_panel_settings(self, defaults)
-        load_workflow_profiles_state(self, defaults)
-        if self.filters_section.is_body_built():
-            load_workflow_profiles_panel_settings(self, defaults)
-        if self.chainner_section.is_body_built():
-            load_upscale_panel_settings(self, defaults)
+        self.archive.archive_model_preview_dark_background_enabled = bool(dark_background)
+        self.archive.archive_model_preview.set_dark_background_enabled(dark_background)
+        self.archive._archive_performance_settings = self._read_archive_performance_settings()
+        self.archive.archive_preview_cache_limit = self.archive._archive_performance_settings.preview_cache_limit
+        if self.textures.dds_output_section.is_body_built():
+            load_dds_output_panel_settings(self.textures, defaults)
+        if self.textures.settings_section.is_body_built():
+            load_workflow_settings_panel_settings(self.textures, defaults)
+        load_workflow_profiles_state(self.textures, defaults)
+        if self.textures.filters_section.is_body_built():
+            load_workflow_profiles_panel_settings(self.textures, defaults)
+        if self.textures.chainner_section.is_body_built():
+            load_upscale_panel_settings(self.textures, defaults)
         self._restore_saved_navigation()
-        self.compare_sync_pan_checkbox.setChecked(self._read_bool("ui/compare_sync_pan", False))
-        self._set_combo_by_value(
-            self.compare_preview_size_combo,
-            str(self.settings.value("ui/compare_preview_size_mode", "fit:1.25")),
-        )
-        self.setup_section.set_expanded(True)
-        self.paths_section.set_expanded(self._read_bool("sections/paths_expanded", False))
-        self.archive_locations_section.set_expanded(self._read_bool("sections/archive_locations_expanded", False))
-        self.settings_section.set_expanded(self._read_bool("sections/settings_expanded", False))
-        self.asset_authoring_section.set_expanded(self._read_bool("sections/asset_authoring_expanded", False))
-        self.dds_output_section.set_expanded(self._read_bool("sections/dds_output_expanded", False))
-        self.filters_section.set_expanded(self._read_bool("sections/filters_expanded", False))
-        self.chainner_section.set_expanded(self._read_bool("sections/chainner_expanded", False))
-        if self.chainner_section.is_body_built():
-            self._apply_mod_ready_export_state()
-        if self.filters_section.is_body_built():
-            if self.chainner_section.is_body_built():
-                self._refresh_workflow_profile_ncnn_model_combo()
-            self._refresh_workflow_profiles_tree()
-            self._refresh_workflow_rules_tree()
-            self._schedule_workflow_match_refresh()
+        self.textures.setup_section.set_expanded(True)
+        self.textures.paths_section.set_expanded(self._read_bool("sections/paths_expanded", False))
+        self.archive.archive_locations_section.set_expanded(self._read_bool("sections/archive_locations_expanded", False))
+        self.textures.settings_section.set_expanded(self._read_bool("sections/settings_expanded", False))
+        self.textures.asset_authoring_section.set_expanded(self._read_bool("sections/asset_authoring_expanded", False))
+        self.textures.dds_output_section.set_expanded(self._read_bool("sections/dds_output_expanded", False))
+        self.textures.filters_section.set_expanded(self._read_bool("sections/filters_expanded", False))
+        self.textures.chainner_section.set_expanded(self._read_bool("sections/chainner_expanded", False))
+        if self.textures.chainner_section.is_body_built():
+            self.textures._apply_mod_ready_export_state()
+        if self.textures.filters_section.is_body_built():
+            if self.textures.chainner_section.is_body_built():
+                self.textures._refresh_workflow_profile_ncnn_model_combo()
+            self.textures._refresh_workflow_profiles_tree()
+            self.textures._refresh_workflow_rules_tree()
+            self.textures._schedule_workflow_match_refresh()
 
     def _read_bool(self, key: str, default: bool) -> bool:
         value = self.settings.value(key, default)
@@ -379,12 +359,12 @@ class SettingsPersistenceMixin:
             return float(default)
 
     def _apply_csv_log_enabled_state(self) -> None:
-        if not self.settings_section.is_body_built():
+        if not self.textures.settings_section.is_body_built():
             return
-        enabled = self.csv_log_enabled_checkbox.isChecked()
-        self.csv_log_path_edit.setEnabled(enabled)
-        self.csv_log_browse_button.setEnabled(enabled)
-        if enabled and not self.csv_log_path_edit.text().strip():
-            self.csv_log_path_edit.setText(default_config().csv_log_path)
+        enabled = self.textures.csv_log_enabled_checkbox.isChecked()
+        self.textures.csv_log_path_edit.setEnabled(enabled)
+        self.textures.csv_log_browse_button.setEnabled(enabled)
+        if enabled and not self.textures.csv_log_path_edit.text().strip():
+            self.textures.csv_log_path_edit.setText(default_config().csv_log_path)
 
 __all__ = ["SettingsPersistenceMixin"]

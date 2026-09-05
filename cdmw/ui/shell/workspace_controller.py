@@ -24,94 +24,11 @@ from cdmw.services.texture_workflow_service import (
 class WorkspaceControllerMixin:
     """Workflow folder setup, cleanup prompts, and auxiliary model imports."""
 
-    def _directory_has_contents(self, path: Path) -> bool:
-        try:
-            if not path.exists() or not path.is_dir():
-                return False
-            next(path.iterdir())
-            return True
-        except StopIteration:
-            return False
-        except OSError:
-            return False
 
-    def _prompt_clear_directory_before_start(self, label: str, path: Path) -> Optional[bool]:
-        if not self._directory_has_contents(path):
-            return False
 
-        box = QMessageBox(self)
-        box.setWindowTitle(f"{label} Not Empty")
-        box.setIcon(QMessageBox.Warning)
-        box.setText(f"{label} already contains files or folders.")
-        box.setInformativeText(
-            f"{path}\n\n"
-            "Clear it before starting?\n"
-            "Choose Keep Existing to leave the current contents in place, or Cancel to stop."
-        )
-        clear_button = box.addButton("Clear Folder", QMessageBox.DestructiveRole)
-        keep_button = box.addButton("Keep Existing", QMessageBox.AcceptRole)
-        cancel_button = box.addButton(QMessageBox.Cancel)
-        box.setDefaultButton(keep_button)
-        box.exec()
-
-        clicked = box.clickedButton()
-        if clicked == cancel_button:
-            return None
-        return clicked == clear_button
-
-    def _prepare_workflow_output_roots_for_start(
-        self,
-        config: object,
-        *,
-        include_output_root: bool,
-    ) -> bool:
-        if config.dry_run:
-            return True
-
-        targets = self._workflow_start_cleanup_targets(
-            config,
-            include_output_root=include_output_root,
-        )
-
-        seen_paths: set[str] = set()
-        unique_targets: List[Tuple[str, str, Path]] = []
-        for key, label, path in targets:
-            try:
-                normalized_key = str(path.resolve())
-            except OSError:
-                normalized_key = str(path)
-            if normalized_key in seen_paths:
-                continue
-            seen_paths.add(normalized_key)
-            unique_targets.append((key, label, path))
-
-        cleared_target_keys: set[str] = set()
-        for key, label, path in unique_targets:
-            if not self._preference_bool("confirm_workflow_output_cleanup", True):
-                self.append_log(f"Keeping existing contents in {label}: {path} (cleanup confirmation disabled)")
-                continue
-            decision = self._prompt_clear_directory_before_start(label, path)
-            if decision is None:
-                self.set_status_message("Start cancelled.")
-                self.append_log(f"Start cancelled while reviewing {label.lower()} contents.")
-                return False
-            if not decision:
-                self.append_log(f"Keeping existing contents in {label}: {path}")
-                continue
-            path.mkdir(parents=True, exist_ok=True)
-            clear_directory_contents(path)
-            self.append_log(f"Cleared {label} before start: {path}")
-            cleared_target_keys.add(key)
-
-        if "input_dds" in cleared_target_keys:
-            self._apply_pending_archive_workflow_extract_if_needed(force=True)
-        if "texture_editor_png_root" in cleared_target_keys:
-            self._apply_pending_texture_editor_workflow_export_if_needed(force=True)
-
-        return True
 
     def clear_workflow_roots(self) -> None:
-        targets = self._manual_workflow_cleanup_targets()
+        targets = self.textures._manual_workflow_cleanup_targets()
         lines: List[str] = []
         configured_targets: List[Tuple[str, Path]] = []
         seen_paths: set[str] = set()
@@ -171,26 +88,26 @@ class WorkspaceControllerMixin:
         def on_complete(result: object) -> None:
             if not isinstance(result, dict):
                 return
-            self.original_dds_edit.setText(str(result["original_dds_root"]))
-            self.png_root_edit.setText(str(result["png_root"]))
-            if not self.texture_editor_png_root_edit.text().strip():
-                self.texture_editor_png_root_edit.setText(str(result["texture_editor_png_root"]))
-            if not self.dds_staging_root_edit.text().strip():
-                self.dds_staging_root_edit.setText(str(result["dds_staging_root"]))
-            self.output_root_edit.setText(str(result["output_root"]))
-            if not self.archive_extract_root_edit.text().strip():
-                self.archive_extract_root_edit.setText(str(result["archive_extract_root"]))
-            if not self.csv_log_path_edit.text().strip():
-                self.csv_log_path_edit.setText(str(result["csv_log_path"]))
-            if not self.chainner_exe_path_edit.text().strip():
-                self.chainner_exe_path_edit.setText(str(result["chainner_exe_path"]))
-            if not self.ncnn_exe_path_edit.text().strip():
-                self.ncnn_exe_path_edit.setText(str(result["ncnn_exe_path"]))
-            if not self.ncnn_model_dir_edit.text().strip():
-                self.ncnn_model_dir_edit.setText(str(result["ncnn_model_dir"]))
-            if not self.mod_ready_export_root_edit.text().strip():
-                self.mod_ready_export_root_edit.setText(str(result["mod_ready_export_root"]))
-            self._refresh_ncnn_model_picker()
+            self.textures.original_dds_edit.setText(str(result["original_dds_root"]))
+            self.textures.png_root_edit.setText(str(result["png_root"]))
+            if not self.textures.texture_editor_png_root_edit.text().strip():
+                self.textures.texture_editor_png_root_edit.setText(str(result["texture_editor_png_root"]))
+            if not self.textures.dds_staging_root_edit.text().strip():
+                self.textures.dds_staging_root_edit.setText(str(result["dds_staging_root"]))
+            self.textures.output_root_edit.setText(str(result["output_root"]))
+            if not self.archive.archive_extract_root_edit.text().strip():
+                self.archive.archive_extract_root_edit.setText(str(result["archive_extract_root"]))
+            if not self.textures.csv_log_path_edit.text().strip():
+                self.textures.csv_log_path_edit.setText(str(result["csv_log_path"]))
+            if not self.textures.chainner_exe_path_edit.text().strip():
+                self.textures.chainner_exe_path_edit.setText(str(result["chainner_exe_path"]))
+            if not self.textures.ncnn_exe_path_edit.text().strip():
+                self.textures.ncnn_exe_path_edit.setText(str(result["ncnn_exe_path"]))
+            if not self.textures.ncnn_model_dir_edit.text().strip():
+                self.textures.ncnn_model_dir_edit.setText(str(result["ncnn_model_dir"]))
+            if not self.textures.mod_ready_export_root_edit.text().strip():
+                self.textures.mod_ready_export_root_edit.setText(str(result["mod_ready_export_root"]))
+            self.textures._refresh_ncnn_model_picker()
             self.set_status_message(f"Workspace initialized at {base_dir}")
             self.append_log("Workspace initialization complete.")
 
@@ -201,7 +118,7 @@ class WorkspaceControllerMixin:
         )
 
     def create_missing_folders(self) -> None:
-        config = self.collect_config()
+        config = self.textures.collect_config()
 
         def task(on_log: Callable[[str], None]) -> List[str]:
             created = create_missing_directories_for_config(config)
@@ -226,10 +143,10 @@ class WorkspaceControllerMixin:
         )
 
     def open_chainner_download_page(self) -> None:
-        self._open_external_urls([CHAINNER_DOWNLOAD_PAGE_URL], label="chaiNNer")
+        self.textures._open_external_urls([CHAINNER_DOWNLOAD_PAGE_URL], label="chaiNNer")
 
     def open_realesrgan_ncnn_download_page(self) -> None:
-        self._open_external_urls([REALESRGAN_NCNN_RELEASES_PAGE_URL], label="Real-ESRGAN NCNN")
+        self.textures._open_external_urls([REALESRGAN_NCNN_RELEASES_PAGE_URL], label="Real-ESRGAN NCNN")
 
     def _confirm_model_import_expectations(self, model_kind: str) -> bool:
         box = QMessageBox(self)
@@ -290,7 +207,7 @@ class WorkspaceControllerMixin:
             return
         destination = self._choose_model_destination(
             "Select NCNN Model Folder",
-            self.ncnn_model_dir_edit.text().strip(),
+            self.textures.ncnn_model_dir_edit.text().strip(),
         )
         if destination is None:
             return
@@ -308,8 +225,8 @@ class WorkspaceControllerMixin:
 
         def on_complete(result: object) -> None:
             imported = result if isinstance(result, list) else []
-            self.ncnn_model_dir_edit.setText(str(destination))
-            self._refresh_ncnn_model_picker()
+            self.textures.ncnn_model_dir_edit.setText(str(destination))
+            self.textures._refresh_ncnn_model_picker()
             self.set_status_message(f"Imported {len(imported)} NCNN model file(s).")
 
         self._run_utility_task(
@@ -319,10 +236,10 @@ class WorkspaceControllerMixin:
         )
 
     def _suggest_archive_extract_root(self) -> Path:
-        text = self.archive_extract_root_edit.text().strip()
+        text = self.archive.archive_extract_root_edit.text().strip()
         if text:
             return Path(text).expanduser()
-        common = common_workspace_root_from_config(self.collect_config())
+        common = common_workspace_root_from_config(self.textures.collect_config())
         if common is not None:
             return suggested_workspace_paths(common).get("archive_extract_root", common / "archive_extract")
         return suggested_workspace_paths(Path.cwd())["archive_extract_root"]

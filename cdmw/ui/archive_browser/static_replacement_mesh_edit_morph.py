@@ -77,7 +77,7 @@ def _morph_slider_capture_post_edit_deltas(_state, _callbacks, ) -> None:
     except Exception as exc:
         _state.morph_slider_topology_blocked["blocked"] = True
         _state.morph_slider_topology_blocked["reason"] = str(exc)
-        _state.self.set_status_message(str(exc))
+        _state.self.shell.set_status_message(str(exc))
         _callbacks._morph_slider_refresh_controls()
 
 def _morph_slider_apply_to_working_mesh(_state, _callbacks,
@@ -128,7 +128,7 @@ def _morph_slider_apply_to_working_mesh(_state, _callbacks,
     else:
         _state._queue_static_preview_rebuild()
     if status_message:
-        _state.self.set_status_message(status_message)
+        _state.self.shell.set_status_message(status_message)
     return True
 
 def _morph_slider_sync_row_widgets(_state, _callbacks, ) -> None:
@@ -322,7 +322,7 @@ def _morph_slider_reload_profiles(_state, _callbacks, *, preserve_values: bool =
                     slider_id=slider_id,
                 )
             except Exception as exc:
-                _state.self.append_archive_log(f"Skipped incompatible Morph Slider {spec.label or spec.slider_id}: {exc}")
+                _state.self.shell.append_archive_log(f"Skipped incompatible Morph Slider {spec.label or spec.slider_id}: {exc}")
                 continue
             used_slider_ids.add(slider_id.lower())
             _state.morph_slider_deltas[delta.slider_id] = delta
@@ -382,7 +382,7 @@ def _morph_slider_clone_working_mesh_for_bake(_state, _callbacks, ) -> _state.Pa
         "morph_slider_native_bake_snapshot_failed",
         message=message,
     )
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
     return None
 
 def _morph_slider_bake(_state, _callbacks, ) -> None:
@@ -409,7 +409,7 @@ def _morph_slider_bake(_state, _callbacks, ) -> None:
     _callbacks._refresh_mesh_edit_controls()
     _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(_state._mesh_edit_preview_source_indices(), replace_all=True)
     _callbacks._morph_slider_end_change()
-    _state.self.set_status_message(bake_state.status_text)
+    _state.self.shell.set_status_message(bake_state.status_text)
 
 def _morph_slider_default_region_amount(_state, _callbacks, ) -> float:
     if _state._mesh_edit_state.replacement_mesh_base_for_mapping is None:
@@ -476,7 +476,7 @@ def _morph_slider_create_from_selection(_state, _callbacks, ) -> None:
         _state.QMessageBox.warning(_state.dialog, _state._morph_slider_create_action_text_helper(), str(exc))
         return
     _callbacks._morph_slider_reload_profiles(preserve_values=True)
-    _state.self.set_status_message(_state._morph_slider_created_status_text_helper(profile.name))
+    _state.self.shell.set_status_message(_state._morph_slider_created_status_text_helper(profile.name))
 
 
 _CALLBACKS = (

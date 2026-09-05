@@ -609,8 +609,8 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "context = AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus())",
             "window = MainWindow(app_context=context)",
             "assert window.ui_localizer.language_code == 'de'",
-            "assets_index = window.main_tabs.indexOf(window.assets_tabs)",
-            "assert window.main_tabs.tabText(assets_index) == window.ui_localizer.translate('Assets')",
+            "texture_button = window.compact_workspace.rail.tool_buttons['textures']",
+            "assert texture_button.text() == window.ui_localizer.translate('Textures')",
             # A closed tab is left at the old revision and translated when it is
             # opened, so the button is only required to be German once its page
             # has actually been shown. Asserting it before proves nothing a
@@ -641,21 +641,17 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "    f'Revealed page kept {export_button.text()!r}, expected {expected_export!r}.'",
             ")",
             # Presentation numbers re-render in the new locale's grouping too,
-            # and are subject to the same deferral: the progress counter lives on
-            # another tab, so it is only required to be French once that tab is
-            # back in front.
+            # and are subject to the same deferral: the progress counter lives
+            # in Review & Export and is translated when that surface opens.
             "window.reset_progress(1234)",
-            "assert window.total_files_value.text() == window.ui_localizer.format_number(1234)",
+            "assert window.textures.total_files_value.text() == window.ui_localizer.format_number(1234)",
             "window._handle_language_changed('fr')",
-            "for index in range(window.main_tabs.count()):",
-            "    window.main_tabs.setCurrentIndex(index)",
-            "    app.processEvents()",
-            "    if window.total_files_value.isVisible():",
-            "        break",
-            "assert window.total_files_value.isVisible(), 'No tab revealed the progress counter.'",
+            "window.textures.show_texture_review(operation='upscale')",
+            "app.processEvents()",
+            "assert window.textures.total_files_value.isVisible(), 'Review did not reveal the progress counter.'",
             "expected_total = window.ui_localizer.format_number(1234)",
-            "assert window.total_files_value.text() == expected_total, (",
-            "    f'Counter kept {window.total_files_value.text()!r}, expected {expected_total!r}.'",
+            "assert window.textures.total_files_value.text() == expected_total, (",
+            "    f'Counter kept {window.textures.total_files_value.text()!r}, expected {expected_total!r}.'",
             ")",
             "window._finalize_close()",
             "assert app.property('_cdmw_ui_localizer') is None",

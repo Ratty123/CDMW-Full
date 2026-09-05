@@ -275,7 +275,7 @@ def build_controls_panel(tab: object) -> QWidget:
     return scroll
 
 
-def _compact_model_library_controls(tab: object) -> None:
+def _build_model_library_controls(tab: object) -> None:
     tab._model_library_controls_layout.setSpacing(4)
     tab._model_library_controls_layout.addStretch(1)
     tab._model_library_controls_content.setMinimumWidth(0)
@@ -317,7 +317,7 @@ def _compact_model_library_controls(tab: object) -> None:
     tab.auto_preview_checkbox.setText("Auto-preview")
 
 
-def _compact_model_library_button_grids(tab: object) -> None:
+def _build_model_library_button_grids(tab: object) -> None:
     tab._model_library_local_path_row.removeWidget(tab.browse_local_button)
     local_buttons = (
         tab.browse_local_button, tab.add_local_root_button, tab.remove_local_root_button,
@@ -341,7 +341,7 @@ def _compact_model_library_button_grids(tab: object) -> None:
     tab._model_library_search_buttons.addWidget(tab.show_indexed_button, 1, 0)
 
 
-def _compact_model_library_sections(tab: object) -> None:
+def _build_model_library_sections(tab: object) -> None:
     tab.roots_tree.setMaximumHeight(84)
     tab.details_text.setMinimumHeight(96)
     for label in (tab.task_status_label, tab.catalogue_status_label):
@@ -375,19 +375,16 @@ def _compact_model_library_sections(tab: object) -> None:
     tab._model_library_preview_layout.setStretch(1, 0)
 
 
-def apply_compact_model_library_presentation(tab: object) -> None:
-    """Apply the Compact-only Model Library arrangement once."""
+def finish_model_library_layout(tab: object) -> None:
+    """Complete the native tool layout during construction in either shell."""
 
-    if bool(tab.property("modelLibraryCompactPanelsApplied")):
-        return
-    tab.setProperty("modelLibraryCompactPanelsApplied", True)
     root_layout = tab.layout()
     if root_layout is not None:
         root_layout.setContentsMargins(6, 6, 6, 6)
         root_layout.setSpacing(6)
-    _compact_model_library_controls(tab)
-    _compact_model_library_button_grids(tab)
-    _compact_model_library_sections(tab)
+    _build_model_library_controls(tab)
+    _build_model_library_button_grids(tab)
+    _build_model_library_sections(tab)
     tab.setStyleSheet(
         tab.styleSheet()
         + "\nQGroupBox[compactFlatSection=\"true\"] {"
@@ -398,31 +395,6 @@ def apply_compact_model_library_presentation(tab: object) -> None:
     )
 
 
-def retune_compact_model_library_geometry(tab: object) -> None:
-    """Restore the Compact lane bounds after the generic splitter adapter runs."""
-
-    if not bool(tab.property("modelLibraryCompactPanelsApplied")):
-        return
-    splitter = tab._model_library_splitter
-    span = splitter.width()
-    if span < 640:
-        return
-    controls_width = min(300, max(256, round(span * 0.18)))
-    if tab._model_library_controls_panel.minimumWidth() != 256:
-        tab._model_library_controls_panel.setMinimumWidth(256)
-    if tab._model_library_controls_panel.maximumWidth() != 300:
-        tab._model_library_controls_panel.setMaximumWidth(300)
-    target = [controls_width, max(1, span - controls_width - splitter.handleWidth())]
-    if any(abs(left - right) > 2 for left, right in zip(splitter.sizes(), target)):
-        splitter.setSizes(target)
-
-    content = tab._model_library_content_splitter
-    content_span = content.width()
-    if content_span >= 520:
-        first = round((content_span - content.handleWidth()) * 0.52)
-        target = [first, max(1, content_span - content.handleWidth() - first)]
-        if any(abs(left - right) > 2 for left, right in zip(content.sizes(), target)):
-            content.setSizes(target)
 
 
 def build_results_panel(tab: object) -> QWidget:
@@ -662,9 +634,9 @@ def build_preview_panel(tab: object) -> QWidget:
 
 
 __all__ = [
-    "apply_compact_model_library_presentation",
+    "finish_model_library_layout",
     "build_controls_panel",
     "build_preview_panel",
     "build_results_panel",
-    "retune_compact_model_library_geometry",
+    "retune_build_model_library_geometry",
 ]

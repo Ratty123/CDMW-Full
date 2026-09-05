@@ -532,7 +532,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         refresh_start = source.index("    def _apply_pending_archive_enhanced_filter_refresh")
         refresh_end = source.index("    def _archive_browser_render_is_ready", refresh_start)
         refresh_body = source[refresh_start:refresh_end]
-        self.assertIn("not self._is_tool_visible_or_current(self.archive_browser_tab)", refresh_body)
+        self.assertIn('not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab)', refresh_body)
         self.assertNotIn("self.archive_browser_preload_state != \"ready\"", refresh_body)
         self.assertNotIn("not self.archive_browser_first_visible_paint_done", refresh_body)
         self.assertIn("cause=item_search_filter_refresh | state=applied", refresh_body)
@@ -578,10 +578,10 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn('self.archive_preview_cache_last_miss_reason = "dotnet_package_expired"', cached_body)
         self.assertNotIn("def _get_durable_native_preview_package_result", source)
         self.assertIn("Cached preview package expired; rebuilding preview package...", flush_body)
-        self.assertIn("Rebuilding .NET/Vortice preview package", flush_body)
-        self.assertIn(".NET/Vortice package validation failed", invalid_body)
+        self.assertIn('Rebuilding Rust Preview preview package', flush_body)
+        self.assertIn('Rust Preview package validation failed', invalid_body)
         self.assertIn("self._set_archive_preview_base_detail_text", invalid_body)
-        self.assertIn("self.set_status_message(message, error=True)", invalid_body)
+        self.assertIn("self.shell.set_status_message(message, error=True)", invalid_body)
         self.assertIn("self.archive_d3d11_preview_host.load_package(", result_source)
 
     def test_archive_preview_refresh_replaces_dark_toolbar_and_bypasses_builder_pause(self) -> None:
@@ -602,7 +602,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn('self.archive_model_preview_refresh_button = QPushButton("Refresh")', source)
         self.assertIn("archive_model_preview_refresh_tooltip()", source)
         self.assertIn(
-            'self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)',
+            'self.archive.archive_model_preview_refresh_button.clicked.connect(self.archive._force_refresh_current_model_preview_assets)',
             source,
         )
         self.assertIn("def _mesh_replacement_builder_active(self) -> bool:", source)
@@ -647,7 +647,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("self._shutdown_archive_isolated_renderer_host()", strip_body)
         self.assertIn('"mesh_editor_archive_preview_payloads_stripped"', strip_body)
         self.assertIn("reclaimed_prepared_bytes", strip_body)
-        self.assertIn("self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)", source)
+        self.assertIn('self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)', source)
 
     def test_settings_expose_performance_page_and_new_fields(self) -> None:
         source = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
@@ -694,7 +694,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("archive_preview_cache_limit_mode_combo", source)
         self.assertIn("Balanced 64 (recommended)", source)
         self.assertIn("High 128", source)
-        self.assertIn(".NET/Vortice disk cache", source)
+        self.assertIn('Rust Preview disk cache', source)
         # The remembered-preview count only works through durable packages, so
         # the disk cache being Off has to disable it rather than lie about it.
         self.assertIn("preview_cache_available", source)

@@ -38,6 +38,9 @@ def _drain_until(predicate, timeout: float = 3.0) -> None:
 class _StartupPromptHarness(StartupPromptMixin, QWidget):
     def __init__(self, settings: QSettings) -> None:
         QWidget.__init__(self)
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.settings = settings
         self.current_theme_key = "graphite"
         self.show_first_run_guide_on_launch = True

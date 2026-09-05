@@ -96,7 +96,7 @@ class TextureWorkflowEditorBridgeMixin:
             self.texture_editor_png_root_edit.text().strip(),
             self.dds_staging_root_edit.text().strip(),
             self.output_root_edit.text().strip(),
-            self.archive_extract_root_edit.text().strip(),
+            self.archive.archive_extract_root_edit.text().strip(),
         ):
             if not text:
                 continue
@@ -125,25 +125,25 @@ class TextureWorkflowEditorBridgeMixin:
                 APP_TITLE,
                 f"{label} is not configured.\n\nInitialize a workspace or set the path manually before sending editor output to Texture Workflow.",
             )
-            self.set_status_message(f"{label} is not configured.", error=True)
+            self.shell.set_status_message(f"{label} is not configured.", error=True)
             return None
         suggested.mkdir(parents=True, exist_ok=True)
         edit.setText(str(suggested))
-        self.append_log(f"Auto-configured {label}: {suggested}")
-        self.set_status_message(f"Auto-configured {label}: {suggested}")
+        self.shell.append_log(f"Auto-configured {label}: {suggested}")
+        self.shell.set_status_message(f"Auto-configured {label}: {suggested}")
         return suggested
 
     def _open_source_in_texture_editor(self, source_path_text: str, binding: object) -> None:
         if not source_path_text:
-            self.set_status_message("No source file was provided for Texture Editor.", error=True)
+            self.shell.set_status_message("No source file was provided for Texture Editor.", error=True)
             return
         source_path = Path(source_path_text).expanduser()
         if not source_path.exists():
-            self.set_status_message(f"Texture Editor source not found: {source_path}", error=True)
+            self.shell.set_status_message(f"Texture Editor source not found: {source_path}", error=True)
             return
         texture_binding = binding if isinstance(binding, TextureEditorSourceBinding) else None
-        self._activate_tool_widget(self.texture_editor_tab)
-        self.texture_editor_tab.open_source_path(source_path, binding=texture_binding)
+        self.shell._activate_tool_widget(self.shell.texture_editor_tab)
+        self.open_texture_sources([source_path], binding=texture_binding)
 
     def _open_recolor_variant_target_in_texture_editor(
         self,
@@ -154,9 +154,9 @@ class TextureWorkflowEditorBridgeMixin:
         self._open_source_in_texture_editor(source_path_text, binding)
         if not isinstance(tool_settings, TextureEditorToolSettings):
             return
-        if not hasattr(self.texture_editor_tab, "set_recolor_tool_settings"):
+        if not hasattr(self.shell.texture_editor_tab, "set_recolor_tool_settings"):
             return
-        self.texture_editor_tab.set_recolor_tool_settings(
+        self.shell.texture_editor_tab.set_recolor_tool_settings(
             mode=tool_settings.recolor_mode,
             source_color=tool_settings.recolor_source_hex,
             target_color=tool_settings.recolor_target_hex,
@@ -166,70 +166,70 @@ class TextureWorkflowEditorBridgeMixin:
         )
 
     def _show_archive_browser_from_texture_editor(self, archive_relative_path: str = "") -> None:
-        self._activate_tool_widget(self.archive_browser_tab)
+        self.shell._activate_tool_widget(self.shell.archive_browser_tab)
         normalized_path = PurePosixPath(str(archive_relative_path or "").replace("\\", "/")).as_posix().strip()
-        if not self.archive_entries:
+        if not self.archive.archive_entries:
             QMessageBox.information(
                 self,
                 "Archive Browser",
                 "Archive packages are not loaded yet. Open Archive Browser and scan or load the archive cache first.",
             )
-            self.set_status_message("Archive Browser is open. Load or refresh archive packages to browse DDS files.")
+            self.shell.set_status_message("Archive Browser is open. Load or refresh archive packages to browse DDS files.")
             return
         if normalized_path:
             preferred_index = next(
-                (index for index, entry in enumerate(self.archive_filtered_entries) if entry.path == normalized_path),
+                (index for index, entry in enumerate(self.archive.archive_filtered_entries) if entry.path == normalized_path),
                 -1,
             )
             if preferred_index >= 0:
-                target_item = self._select_archive_tree_entry(preferred_index)
+                target_item = self.archive._select_archive_tree_entry(preferred_index)
                 if target_item is not None:
-                    self.archive_tree.setCurrentItem(target_item)
+                    self.archive.archive_tree.setCurrentItem(target_item)
                     target_item.setSelected(True)
-                    self.archive_tree.scrollToItem(target_item, QAbstractItemView.PositionAtCenter)
-                    self.set_status_message(f"Focused Archive Browser on {normalized_path}.")
+                    self.archive.archive_tree.scrollToItem(target_item, QAbstractItemView.PositionAtCenter)
+                    self.shell.set_status_message(f"Focused Archive Browser on {normalized_path}.")
                     return
-            matching_entry = next((entry for entry in self.archive_entries if entry.path == normalized_path), None)
+            matching_entry = next((entry for entry in self.archive.archive_entries if entry.path == normalized_path), None)
             if matching_entry is not None:
-                if self.worker_thread is not None:
-                    self.set_status_message(
+                if self.shell.worker_thread is not None:
+                    self.shell.set_status_message(
                         "Archive Browser is busy. Wait for the current task to finish, then try again.",
                         error=True,
                     )
                     return
-                self.archive_filter_edit.clear()
-                self.archive_exclude_filter_edit.clear()
-                self.archive_package_filter_edit.clear()
-                self.archive_active_asset_catalog_scope = ""
-                self.archive_clear_asset_scope_button.setVisible(False)
-                self.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
-                self.archive_structure_filter_pending_value = ARCHIVE_STRUCTURE_FILTER
-                self._rebuild_archive_structure_filter_controls(ARCHIVE_STRUCTURE_FILTER)
-                self._set_combo_by_value(self.archive_role_filter_combo, ARCHIVE_ROLE_FILTER)
-                self.archive_exclude_common_technical_checkbox.setChecked(False)
-                self.archive_min_size_spin.setValue(ARCHIVE_MIN_SIZE_KB)
-                self.archive_previewable_only_checkbox.setChecked(False)
-                self._rebuild_archive_extension_filter_choices(matching_entry.extension)
-                self._set_combo_by_value(self.archive_extension_filter_combo, matching_entry.extension)
-                self._save_settings()
-                self.archive_filters_dirty = False
-                self._update_archive_filter_button_state()
-                self._start_archive_filter_worker(normalized_path)
-                self.set_status_message(f"Revealing {normalized_path} in Archive Browser...")
+                self.archive.archive_filter_edit.clear()
+                self.archive.archive_exclude_filter_edit.clear()
+                self.archive.archive_package_filter_edit.clear()
+                self.archive.archive_active_asset_catalog_scope = ""
+                self.archive.archive_clear_asset_scope_button.setVisible(False)
+                self.archive.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
+                self.archive.archive_structure_filter_pending_value = ARCHIVE_STRUCTURE_FILTER
+                self.archive._rebuild_archive_structure_filter_controls(ARCHIVE_STRUCTURE_FILTER)
+                self._set_combo_by_value(self.archive.archive_role_filter_combo, ARCHIVE_ROLE_FILTER)
+                self.archive.archive_exclude_common_technical_checkbox.setChecked(False)
+                self.archive.archive_min_size_spin.setValue(ARCHIVE_MIN_SIZE_KB)
+                self.archive.archive_previewable_only_checkbox.setChecked(False)
+                self.archive._rebuild_archive_extension_filter_choices(matching_entry.extension)
+                self._set_combo_by_value(self.archive.archive_extension_filter_combo, matching_entry.extension)
+                self.shell._save_settings()
+                self.archive.archive_filters_dirty = False
+                self.archive._update_archive_filter_button_state()
+                self.archive._start_archive_filter_worker(normalized_path)
+                self.shell.set_status_message(f"Revealing {normalized_path} in Archive Browser...")
                 return
             else:
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Archive Browser is open. Could not find {normalized_path} in the loaded archive index.",
                     error=True,
                 )
         else:
-            self.set_status_message("Archive Browser is open. Select a DDS file and use 'Open in Texture Editor'.")
+            self.shell.set_status_message("Archive Browser is open. Select a DDS file and use 'Open in Texture Editor'.")
 
     def _open_archive_entry_in_texture_editor(self, entry: ArchiveEntry) -> None:
         try:
             source_path, _note = ensure_archive_preview_source(entry)
         except Exception as exc:
-            self.set_status_message(f"Could not open archive file in Texture Editor: {exc}", error=True)
+            self.shell.set_status_message(f"Could not open archive file in Texture Editor: {exc}", error=True)
             return
         package_root = entry.pamt_path.parent.name.strip() or "package"
         archive_relative_path = PurePosixPath(entry.path.replace("\\", "/")).as_posix()
@@ -245,43 +245,23 @@ class TextureWorkflowEditorBridgeMixin:
         self._open_source_in_texture_editor(str(source_path), binding)
 
     def _open_archive_current_in_texture_editor(self) -> None:
-        entry = self._current_archive_entry()
+        entry = self.archive._current_archive_entry()
         if entry is None:
-            self.set_status_message("Select an archive file first.", error=True)
+            self.shell.set_status_message("Select an archive file first.", error=True)
             return
         self._open_archive_entry_in_texture_editor(entry)
 
     def _resolve_archive_current_in_research(self) -> None:
-        entry = self._current_archive_entry()
+        entry = self.archive._current_archive_entry()
         if entry is None or entry.extension != ".dds":
-            self.set_status_message("Select a single archive DDS file first.", error=True)
+            self.shell.set_status_message("Select a single archive DDS file first.", error=True)
             return
-        self._activate_tool_widget(self.research_tab)
-        self.research_tab.focus_references_for_path(entry.path, auto_resolve=True)
+        self.shell._activate_tool_widget(self.shell.research_tab)
+        self.shell.research_tab.focus_references_for_path(entry.path, auto_resolve=True)
 
-    def _open_compare_in_texture_editor(self) -> None:
-        relative_path = self.current_compare_path_for_research().strip()
-        if not relative_path:
-            self.set_status_message("Select a DDS file in Compare first.", error=True)
-            return
-        original_root_text = self.original_dds_edit.text().strip()
-        output_root_text = self.output_root_edit.text().strip()
-        relative = Path(PurePosixPath(relative_path))
-        original_path = Path(original_root_text).expanduser() / relative if original_root_text else None
-        output_path = Path(output_root_text).expanduser() / relative if output_root_text else None
-        source_path = output_path if output_path is not None and output_path.exists() else original_path
-        if source_path is None or not source_path.exists():
-            self.set_status_message("Could not find a compare source file to open in Texture Editor.", error=True)
-            return
-        binding = self._build_texture_editor_binding_for_loose_path(
-            source_path,
-            launch_origin="compare",
-            original_dds_path=original_path if original_path is not None and original_path.exists() else None,
-        )
-        self._open_source_in_texture_editor(str(source_path), binding)
 
     def _browse_texture_editor_source(self) -> None:
-        initial_dir = self.png_root_edit.text().strip() or self.original_dds_edit.text().strip() or str(self.settings_file_path.parent)
+        initial_dir = self.png_root_edit.text().strip() or self.original_dds_edit.text().strip() or str(self.shell.settings_file_path.parent)
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Open image or DDS in Texture Editor",
@@ -295,7 +275,7 @@ class TextureWorkflowEditorBridgeMixin:
         self._open_source_in_texture_editor(str(source_path), binding)
 
     def _set_texture_editor_export_progress(self, detail: str) -> None:
-        self.reset_progress()
+        self.shell.reset_progress()
         self.phase_value.setText("Texture Editor Export")
         self.phase_progress_value.setText(detail)
         self.current_file_value.setText(detail)
@@ -303,16 +283,16 @@ class TextureWorkflowEditorBridgeMixin:
         self.progress_bar.setFormat("Working...")
 
     def _set_replace_assistant_pending_status(self, detail: str) -> None:
-        self.replace_assistant_tab.progress_bar.setRange(0, 0)
-        self.replace_assistant_tab.progress_bar.setValue(0)
-        self.replace_assistant_tab.progress_bar.setFormat("Working...")
-        self.replace_assistant_tab.status_label.setText(detail)
+        self.shell.replace_assistant_tab.progress_bar.setRange(0, 0)
+        self.shell.replace_assistant_tab.progress_bar.setValue(0)
+        self.shell.replace_assistant_tab.progress_bar.setFormat("Working...")
+        self.shell.replace_assistant_tab.status_label.setText(detail)
 
     def _set_replace_assistant_ready_status(self, detail: str) -> None:
-        self.replace_assistant_tab.progress_bar.setRange(0, 1)
-        self.replace_assistant_tab.progress_bar.setValue(1)
-        self.replace_assistant_tab.progress_bar.setFormat("Ready")
-        self.replace_assistant_tab.status_label.setText(detail)
+        self.shell.replace_assistant_tab.progress_bar.setRange(0, 1)
+        self.shell.replace_assistant_tab.progress_bar.setValue(1)
+        self.shell.replace_assistant_tab.progress_bar.setFormat("Ready")
+        self.shell.replace_assistant_tab.status_label.setText(detail)
 
     def _normalize_texture_workflow_relative_path(self, raw_text: str) -> str:
         normalized = str(raw_text or "").strip().replace("\\", "/").strip()
@@ -328,41 +308,17 @@ class TextureWorkflowEditorBridgeMixin:
         return pure_path.as_posix()
 
     def _find_archive_entry_for_workflow_relative_path(self, relative_path_text: str) -> Optional[ArchiveEntry]:
-        if not self.archive_entries:
-            return None
+        """Resolve exact game or package-prefixed paths only when unambiguous."""
         try:
-            normalized_relative = self._normalize_texture_workflow_relative_path(relative_path_text)
+            target = self._normalize_texture_workflow_relative_path(relative_path_text).casefold()
         except ValueError:
             return None
-        pure_path = PurePosixPath(normalized_relative)
-        parts = [part for part in pure_path.parts if part]
-        if not parts:
-            return None
-        package_root = parts[0] if len(parts) > 1 else ""
-        archive_relative = PurePosixPath(*parts[1:]).as_posix() if len(parts) > 1 else pure_path.as_posix()
-        normalized_archive_relative = archive_relative.replace("\\", "/").strip().casefold()
-        normalized_package_root = package_root.strip().casefold()
-        for entry in self.archive_entries:
+        matches = []
+        for entry in self.archive.archive_entries:
             if entry.extension != ".dds":
                 continue
-            if entry.path.replace("\\", "/").strip().casefold() != normalized_archive_relative:
-                continue
-            if normalized_package_root and entry.pamt_path.parent.name.strip().casefold() != normalized_package_root:
-                continue
-            return entry
-        return None
-
-    def _resolve_original_dds_from_archive_cache(self, relative_path_text: str) -> Optional[Path]:
-        entry = self._find_archive_entry_for_workflow_relative_path(relative_path_text)
-        if entry is None:
-            return None
-        try:
-            try:
-                source_path, _note = ensure_archive_preview_source(entry)
-            except Exception:
-                return None
-            if source_path.exists() and source_path.is_file():
-                return source_path.expanduser().resolve()
-            return None
-        except Exception:
-            return None
+            relative = entry.path.replace("\\", "/").strip("/").casefold()
+            packaged = entry.pamt_path.parent.name.casefold() + "/" + relative
+            if target in {relative, packaged}:
+                matches.append(entry)
+        return matches[0] if len(matches) == 1 else None

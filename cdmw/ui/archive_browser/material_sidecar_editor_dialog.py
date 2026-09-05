@@ -76,10 +76,10 @@ def _material_editor_dependencies(owner: object, entry: ArchiveEntry):
     try:
         dependencies = archive_workflow_dependency_context(owner, entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
         return None
-    sidecars_by_path = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_path
-    sidecars_by_basename = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_basename
+    sidecars_by_path = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_path
+    sidecars_by_basename = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_basename
     return dependencies, dependencies.selected_entry, sidecars_by_path, sidecars_by_basename
 
 
@@ -128,8 +128,8 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         tree = parameter_panel.tree
         _update_material_value_swatch = configure_pac_xml_parameter_tree(
             parameter_panel,
-            settings=self.settings,
-            save_callback=self.schedule_settings_save,
+            settings=self.shell.settings,
+            save_callback=self.shell.schedule_settings_save,
         )
         selected_value_edit = parameter_panel.inspector.raw_edit
         selected_value_edit.setPlaceholderText(material_sidecar_text.material_sidecar_selected_value_placeholder_text())
@@ -446,7 +446,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             live_preview_timer.stop()
             preview_generation["value"] += 1
             worker = preview_generation.pop("worker", None)
-            if worker is getattr(self, "utility_worker", None):
+            if worker is getattr(self.shell, "utility_worker", None):
                 worker.stop()
             material_preview_host.controller.shutdown()
             QTimer.singleShot(
@@ -542,7 +542,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             except Exception as exc:
                 preview_status_label.setText(material_sidecar_text.material_sidecar_preview_blocked_status(exc))
                 return
-            if self.worker_thread is not None:
+            if self.shell.worker_thread is not None:
                 if live:
                     preview_generation["queued_live"] = True
                     preview_status_label.setText(material_sidecar_text.material_sidecar_live_preview_queued_status())
@@ -674,14 +674,14 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                     preview_generation["queued_live"] = False
                     live_preview_timer.start()
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=material_sidecar_text.material_sidecar_preview_task_status(entry.basename),
                 task=_task,
                 on_complete=_handle_complete,
                 show_archive_progress=True,
                 task_accepts_cancel=True,
             )
-            preview_generation["worker"] = getattr(self, "utility_worker", None)
+            preview_generation["worker"] = getattr(self.shell, "utility_worker", None)
 
         def _schedule_live_preview_for_item(item: Optional[QTreeWidgetItem]) -> None:
             if item is None or preview_model_entry_state.get("entry") is None or not live_preview_checkbox.isChecked():
@@ -765,14 +765,14 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                     return
                 package_root = getattr(result, "package_root", None)
                 if not isinstance(package_root, Path):
-                    self.set_status_message(material_sidecar_text.material_sidecar_unexpected_export_payload_status(), error=True)
+                    self.shell.set_status_message(material_sidecar_text.material_sidecar_unexpected_export_payload_status(), error=True)
                     return
                 title, message = material_sidecar_text.material_sidecar_export_complete_dialog_text(package_root)
                 exported_edits_state["values"] = dict(export_request_edits.pop(request_id, {}))
                 QMessageBox.information(dialog, title, message)
-                self.set_status_message(material_sidecar_text.material_sidecar_export_complete_status(package_root))
+                self.shell.set_status_message(material_sidecar_text.material_sidecar_export_complete_status(package_root))
 
-            self._run_utility_task_when_idle(
+            self.shell._run_utility_task_when_idle(
                 status_message=material_sidecar_text.material_sidecar_export_task_status(entry.basename),
                 task=_task,
                 on_complete=_handle_complete,
@@ -784,9 +784,9 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             if request_id != int(getattr(self, "_material_sidecar_export_request_id", 0) or 0):
                 return
             if not isinstance(result, MaterialSidecarExportPreparation):
-                self.set_status_message("Material sidecar export preparation returned invalid data.", error=True)
+                self.shell.set_status_message("Material sidecar export preparation returned invalid data.", error=True)
                 return
-            self._run_when_background_idle(
+            self.shell._run_when_background_idle(
                 lambda: _continue_material_sidecar_export(request_id, result),
                 label="opening the material sidecar export options",
             )
@@ -809,7 +809,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             export_request_edits[request_id] = dict(edited_values)
             references = tuple(self.current_archive_model_texture_references)
             archive_entries_by_basename = dependencies.entries_by_basename
-            self._run_utility_task_when_idle(
+            self.shell._run_utility_task_when_idle(
                 status_message=f"Preparing material sidecar export for {entry.basename}...",
                 task=lambda _log, stop_event: prepare_material_sidecar_export(
                     entry,
@@ -828,8 +828,8 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             )
 
         def _handle_skeleton_overlay_toggled(enabled: bool) -> None:
-            if self.worker_thread is not None:
-                if preview_generation.get("worker") is getattr(self, "utility_worker", None):
+            if self.shell.worker_thread is not None:
+                if preview_generation.get("worker") is getattr(self.shell, "utility_worker", None):
                     preview_generation["queued_live"] = True
                     preview_status_label.setText(material_sidecar_text.material_sidecar_skeleton_overlay_queued_status())
                 else:

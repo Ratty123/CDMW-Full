@@ -133,18 +133,17 @@ class CloseControllerMixin:
 
     def _tracked_worker_threads(self) -> list[tuple[str, QThread | None, object | None]]:
         tracked: list[tuple[str, QThread | None, object | None]] = [
-            ("worker_thread", self.worker_thread, self.scan_worker or self.archive_scan_worker or self.archive_filter_worker or self.build_worker or self.dds_to_png_worker or self.utility_worker),
-            ("archive_sidecar_thread", self.archive_sidecar_thread, self.archive_sidecar_worker),
-            ("archive_basic_index_thread", self.archive_basic_index_thread, self.archive_basic_index_worker),
-            ("archive_derived_cache_thread", self.archive_derived_cache_thread, self.archive_derived_cache_worker),
-            ("archive_enhanced_index_thread", self.archive_enhanced_index_thread, self.archive_enhanced_index_worker),
-            ("archive_structure_filter_thread", self.archive_structure_filter_thread, self.archive_structure_filter_worker),
-            ("archive_item_icon_warmup_thread", self.archive_item_icon_warmup_thread, self.archive_item_icon_warmup_worker),
-            ("archive_item_icon_priority_thread", self.archive_item_icon_priority_thread, self.archive_item_icon_priority_worker),
-            ("compare_preview_thread", self.compare_preview_thread, self.compare_preview_worker),
-            ("archive_preview_thread", self.archive_preview_thread, self.archive_preview_worker),
+            ("worker_thread", self.worker_thread, self.textures.scan_worker or self.archive.archive_scan_worker or self.archive.archive_filter_worker or self.textures.build_worker or self.textures.dds_to_png_worker or self.utility_worker),
+            ("archive_sidecar_thread", self.archive.archive_sidecar_thread, self.archive.archive_sidecar_worker),
+            ("archive_basic_index_thread", self.archive.archive_basic_index_thread, self.archive.archive_basic_index_worker),
+            ("archive_derived_cache_thread", self.archive.archive_derived_cache_thread, self.archive.archive_derived_cache_worker),
+            ("archive_enhanced_index_thread", self.archive.archive_enhanced_index_thread, self.archive.archive_enhanced_index_worker),
+            ("archive_structure_filter_thread", self.archive.archive_structure_filter_thread, self.archive.archive_structure_filter_worker),
+            ("archive_item_icon_warmup_thread", self.archive.archive_item_icon_warmup_thread, self.archive.archive_item_icon_warmup_worker),
+            ("archive_item_icon_priority_thread", self.archive.archive_item_icon_priority_thread, self.archive.archive_item_icon_priority_worker),
+            ("archive_preview_thread", self.archive.archive_preview_thread, self.archive.archive_preview_worker),
         ]
-        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        item_finder_warmup = getattr(self.archive, "archive_item_finder_warmup_controller", None)
         iter_item_finder_workers = getattr(item_finder_warmup, "iter_shutdown_workers", None)
         if callable(iter_item_finder_workers):
             try:
@@ -154,7 +153,7 @@ class CloseControllerMixin:
                 )
             except RuntimeError:
                 pass
-        character_context = getattr(self, "character_context_service", None)
+        character_context = getattr(self.archive, "character_context_service", None)
         iter_character_context_workers = getattr(character_context, "iter_shutdown_workers", None)
         if callable(iter_character_context_workers):
             try:
@@ -219,7 +218,7 @@ class CloseControllerMixin:
                     candidates.append((str(process.objectName() or "owned_qprocess"), process))
             except RuntimeError:
                 pass
-        backend_process = getattr(getattr(self, "archive_backend_client", None), "_process", None)
+        backend_process = getattr(getattr(self.archive, "archive_backend_client", None), "_process", None)
         if isinstance(backend_process, QProcess):
             candidates.append(("archive_backend", backend_process))
 
@@ -252,21 +251,21 @@ class CloseControllerMixin:
         request_transient_shutdowns(self, on_error=_record_tab_shutdown_error)
 
     def _request_tracked_workers_to_stop(self) -> None:
-        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        item_finder_warmup = getattr(self.archive, "archive_item_finder_warmup_controller", None)
         request_item_finder_shutdown = getattr(item_finder_warmup, "request_shutdown", None)
         if callable(request_item_finder_shutdown):
             try:
                 request_item_finder_shutdown()
             except (AttributeError, RuntimeError):
                 pass
-        catalogue = getattr(self, "archive_catalogue_service", None)
+        catalogue = getattr(self.archive, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):
             try:
                 request_catalogue_shutdown()
             except (AttributeError, RuntimeError):
                 pass
-        character_context = getattr(self, "character_context_service", None)
+        character_context = getattr(self.archive, "character_context_service", None)
         request_character_context_shutdown = getattr(character_context, "request_shutdown", None)
         if callable(request_character_context_shutdown):
             try:
@@ -315,7 +314,7 @@ class CloseControllerMixin:
                 except RuntimeError:
                     getattr(self, "_modeless_alignment_dialogs", {}).pop(str(key or ""), None)
             if getattr(self, "_modeless_alignment_dialogs", {}).get(str(key or "")) is dialog:
-                disposer = getattr(self, "_dispose_partial_alignment_builder", None)
+                disposer = getattr(self.archive, "_dispose_partial_alignment_builder", None)
                 if callable(disposer):
                     disposer(
                         str(key or ""),
@@ -359,7 +358,7 @@ class CloseControllerMixin:
                 pass
 
     def _archive_backend_shutdown_complete(self) -> bool:
-        backend = getattr(self, "archive_backend_client", None)
+        backend = getattr(self.archive, "archive_backend_client", None)
         state = str(getattr(getattr(backend, "state", None), "value", "stopped"))
         return state in {"stopped", "failed"}
 
@@ -456,28 +455,24 @@ class CloseControllerMixin:
         self._settings_save_timer.stop()
         self._external_activation_timer.stop()
         self._chainner_analysis_timer.stop()
-        self._compare_preview_timer.stop()
-        self.archive_preview_debounce_timer.stop()
-        self.archive_preview_loading_timer.stop()
-        self.archive_selection_state_timer.stop()
-        self.archive_item_icon_preload_timer.stop()
+        self.archive.archive_preview_debounce_timer.stop()
+        self.archive.archive_preview_loading_timer.stop()
+        self.archive.archive_selection_state_timer.stop()
+        self.archive.archive_item_icon_preload_timer.stop()
         # Optional: the archive browser owns this, and the close path also runs
         # against windows composed without its feature providers.
-        cancel_preview_core_prewarm = getattr(self, "_cancel_archive_preview_core_prewarm", None)
+        cancel_preview_core_prewarm = getattr(self.archive, "_cancel_archive_preview_core_prewarm", None)
         if callable(cancel_preview_core_prewarm):
             cancel_preview_core_prewarm()
-        self.pending_compare_preview_selection = None
-        self.pending_compare_preview_request = None
-        self.pending_archive_preview_request = None
-        self.scheduled_archive_preview_request = None
-        self.compare_preview_request_id += 1
-        self.archive_preview_request_id += 1
-        self.archive_item_icon_preload_queue.clear()
-        self.archive_item_icon_priority_queue.clear()
-        self.archive_item_icon_visible_warmup_remaining = 0
-        self._shutdown_archive_isolated_renderer_host()
+        self.archive.pending_archive_preview_request = None
+        self.archive.scheduled_archive_preview_request = None
+        self.archive.archive_preview_request_id += 1
+        self.archive.archive_item_icon_preload_queue.clear()
+        self.archive.archive_item_icon_priority_queue.clear()
+        self.archive.archive_item_icon_visible_warmup_remaining = 0
+        self.archive._shutdown_archive_isolated_renderer_host()
         self._request_tracked_workers_to_stop()
-        archive_backend = getattr(self, "archive_backend_client", None)
+        archive_backend = getattr(self.archive, "archive_backend_client", None)
         shutdown_backend = getattr(archive_backend, "shutdown", None)
         if callable(shutdown_backend):
             try:
@@ -502,21 +497,21 @@ class CloseControllerMixin:
         self._close_finalized = True
         self._record_close_event("close_finalize", close_phase="finalize")
         self._request_tab_shutdowns()
-        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        item_finder_warmup = getattr(self.archive, "archive_item_finder_warmup_controller", None)
         request_item_finder_shutdown = getattr(item_finder_warmup, "request_shutdown", None)
         if callable(request_item_finder_shutdown):
             try:
                 request_item_finder_shutdown()
             except (AttributeError, RuntimeError):
                 pass
-        catalogue = getattr(self, "archive_catalogue_service", None)
+        catalogue = getattr(self.archive, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):
             try:
                 request_catalogue_shutdown()
             except (AttributeError, RuntimeError):
                 pass
-        character_context = getattr(self, "character_context_service", None)
+        character_context = getattr(self.archive, "character_context_service", None)
         request_character_context_shutdown = getattr(character_context, "request_shutdown", None)
         if callable(request_character_context_shutdown):
             try:
@@ -531,29 +526,25 @@ class CloseControllerMixin:
         self._release_startup_splash()
         self._save_detached_tool_geometries()
         self._attach_all_detached_tools(select_after=False)
-        self._shutdown_archive_isolated_renderer_host()
+        self.archive._shutdown_archive_isolated_renderer_host()
         clear_active_main_window = getattr(self, "_clear_active_main_window", None)
         if callable(clear_active_main_window):
             clear_active_main_window(self)
         self._settings_save_timer.stop()
         self._chainner_analysis_timer.stop()
-        self._compare_preview_timer.stop()
-        self.archive_preview_debounce_timer.stop()
-        self.archive_preview_loading_timer.stop()
-        self.archive_selection_state_timer.stop()
-        self.archive_item_icon_preload_timer.stop()
+        self.archive.archive_preview_debounce_timer.stop()
+        self.archive.archive_preview_loading_timer.stop()
+        self.archive.archive_selection_state_timer.stop()
+        self.archive.archive_item_icon_preload_timer.stop()
         # Optional: the archive browser owns this, and the close path also runs
         # against windows composed without its feature providers.
-        cancel_preview_core_prewarm = getattr(self, "_cancel_archive_preview_core_prewarm", None)
+        cancel_preview_core_prewarm = getattr(self.archive, "_cancel_archive_preview_core_prewarm", None)
         if callable(cancel_preview_core_prewarm):
             cancel_preview_core_prewarm()
-        self.archive_media_preview.shutdown()
-        self.pending_compare_preview_selection = None
-        self.pending_compare_preview_request = None
-        self.pending_archive_preview_request = None
-        self.scheduled_archive_preview_request = None
-        self.compare_preview_request_id += 1
-        self.archive_preview_request_id += 1
+        self.archive.archive_media_preview.shutdown()
+        self.archive.pending_archive_preview_request = None
+        self.archive.scheduled_archive_preview_request = None
+        self.archive.archive_preview_request_id += 1
         self.settings.setValue("window/geometry", self.saveGeometry())
         self.flush_settings_save()
         self.settings_tab.flush_settings_save()

@@ -11,7 +11,6 @@ from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QAbstractButton, QApplication, QSplitter, QWidget
 
-from cdmw.ui.shell.compact.presentations import compact_surface_contract
 from tools.compact_shell_visual.contracts import REFERENCE_FILENAMES
 
 
@@ -122,7 +121,6 @@ def geometry_payload(window: QWidget, key: str, widget: QWidget) -> dict[str, ob
         "resident_hosts": _resident_host_payload(widget),
     }
     payload.update(_visible_button_payload(widget))
-    payload.update(compact_surface_contract(widget))
     return payload
 
 

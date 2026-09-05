@@ -27,7 +27,6 @@ owner_names = {
     "cdmw.rendering.model_preview_prepare",
     "cdmw.rendering.native_preview_core",
     "cdmw.rendering.native_preview_package_cache",
-    "cdmw.rendering.native_preview_package_writer",
     "cdmw.rendering.static_model_thumbnail",
 }
 if sys.argv[1] == "owners-first":
@@ -60,7 +59,7 @@ def test_production_preview_packages_use_canonical_dotnet_cache_imports() -> Non
     direct_owner_paths = (
         "cdmw/workers/archive_preview_native.py",
         "cdmw/workers/archive_preview_workers.py",
-        "cdmw/services/mesh_dotnet_preview_package.py",
+        "cdmw/services/mesh_rust_preview_cache.py",
         "cdmw/services/material_sidecar_preview_service.py",
     )
     for relative_path in direct_owner_paths:

@@ -37,6 +37,9 @@ def test_startup_restore_does_not_rewrite_all_settings_before_first_paint(monkey
 
     class RestoreProbe(ShellStartupRestoreMixin):
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.settings = SimpleNamespace(value=lambda _key: None)
             self.archive_tree = _Tree()
             self.archive_preview_debounce_timer = _Timer()
@@ -84,10 +87,13 @@ def test_idle_startup_defers_preview_state_application() -> None:
             AssertionError("idle startup applied preview state")
         ),
     )
+    window.shell = window
+    window.archive = window
+    window.textures = window
 
     ShellStartupRestoreMixin._prepare_archive_preview_startup_state(window)  # type: ignore[arg-type]
 
-    assert window._archive_preview_startup_state_pending is True
+    assert window.archive._archive_preview_startup_state_pending is True
 
 
 def test_first_preview_state_use_reads_saved_settings_before_apply_and_clear() -> None:
@@ -102,6 +108,9 @@ def test_first_preview_state_use_reads_saved_settings_before_apply_and_clear() -
         _handle_model_preview_settings_changed=lambda value: events.append(("apply", value)),
         _clear_archive_preview=lambda message: events.append(("clear", message)),
     )
+    window.shell = window
+    window.archive = window
+    window.textures = window
 
     ShellStartupRestoreMixin._ensure_archive_preview_startup_state(window)  # type: ignore[arg-type]
 
@@ -111,8 +120,8 @@ def test_first_preview_state_use_reads_saved_settings_before_apply_and_clear() -
         ("clear", "Select an archive file to preview it here."),
     ]
     assert window._model_preview_settings_read_pending is False
-    assert window._archive_preview_startup_state_pending is False
-    assert window._archive_preview_startup_state_applying is False
+    assert window.archive._archive_preview_startup_state_pending is False
+    assert window.archive._archive_preview_startup_state_applying is False
 
 
 @pytest.mark.parametrize(
@@ -130,6 +139,9 @@ def test_preview_and_settings_entrypoints_force_pending_state_first(entrypoint: 
     window = SimpleNamespace(
         _ensure_archive_preview_startup_state=lambda: (_ for _ in ()).throw(_FirstUseReached),
     )
+    window.shell = window
+    window.archive = window
+    window.textures = window
     args = (window, None) if entrypoint is not ArchivePreviewSettingsMixin._open_model_preview_settings_dialog else (window,)
 
     with pytest.raises(_FirstUseReached):
@@ -145,6 +157,9 @@ def test_pending_preview_settings_are_not_overwritten_by_save() -> None:
             AssertionError("pending settings were read during save")
         ),
     )
+    window.shell = window
+    window.archive = window
+    window.textures = window
 
     saved = SettingsPersistenceMixin._save_model_preview_settings_if_loaded(window)  # type: ignore[arg-type]
 
@@ -168,6 +183,9 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
         settings=SimpleNamespace(setValue=writes.__setitem__),
         _current_model_preview_render_settings=lambda: preview_settings,
     )
+    window.shell = window
+    window.archive = window
+    window.textures = window
 
     saved = SettingsPersistenceMixin._save_model_preview_settings_if_loaded(window)  # type: ignore[arg-type]
 
@@ -228,6 +246,9 @@ def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
         _read_float=lambda key, default: float(values.get(key, default)),
         _read_int=lambda key, default: int(values.get(key, default)),
     )
+    reader.shell = reader
+    reader.archive = reader
+    reader.textures = reader
 
     restored = ArchivePreviewSettingsMixin._read_model_preview_render_settings(reader)  # type: ignore[arg-type]
 
@@ -274,6 +295,9 @@ def _read_preview_settings(values: dict[str, object]) -> ModelPreviewRenderSetti
         _read_float=lambda key, default: float(values.get(key, default)),
         _read_int=lambda key, default: int(values.get(key, default)),
     )
+    reader.shell = reader
+    reader.archive = reader
+    reader.textures = reader
     return ArchivePreviewSettingsMixin._read_model_preview_render_settings(reader)  # type: ignore[arg-type]
 
 
@@ -323,17 +347,17 @@ def test_main_window_keeps_saved_preview_values_and_placeholder_without_preview_
                 "app = QApplication.instance() or QApplication([])",
                 "window = MainWindow(app_context=AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus()))",
                 "window.show(); app.processEvents()",
-                "assert window.archive_preview_meta_label.text() == 'Select an archive file to preview it here.'",
-                "assert window._archive_preview_startup_state_pending is True",
-                "assert window.archive_preview_request_id == 0",
-                "assert 'cdmw.ui.archive_browser.preview_settings' not in sys.modules",
+                "assert window.archive.archive_preview_meta_label.text() == 'Select an archive file to preview it here.'",
+                "assert window.archive._archive_preview_startup_state_pending is True",
+                "assert window.archive.archive_preview_request_id == 0",
+                "assert not getattr(window.archive.archive_d3d11_preview_host.controller, 'is_running', False)",
                 "window.hide(); window._finalize_close()",
                 "settings.sync()",
                 "assert float(settings.value('preview/d3d11_tone_gamma')) == 1.23",
                 "import json",
                 "heartbeat = json.loads((window.crash_reports_dir / 'app_heartbeat.json').read_text(encoding='utf-8'))",
                 "assert heartbeat['clean_shutdown'] is True and heartbeat['phase'] == 'closed'",
-                "assert 'cdmw.ui.archive_browser.preview_settings' not in sys.modules",
+                "assert not getattr(window.archive.archive_d3d11_preview_host.controller, 'is_running', False)",
                 "sys.stdout.flush(); sys.stderr.flush(); os._exit(0)",
             )
         )

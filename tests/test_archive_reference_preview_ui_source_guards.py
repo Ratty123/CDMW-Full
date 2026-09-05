@@ -89,10 +89,10 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         source = app_window_source + "\n" + theme_source + "\n" + preview_source + "\n" + preview_layout_source
 
         self.assertIn("self.archive_preview_info_edit = ArchiveDetailsEditor", source)
-        self.assertIn("window.archive_preview_info_edit,", theme_source)
-        self.assertIn("window.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)", theme_source)
+        self.assertIn("window.archive.archive_preview_info_edit,", theme_source)
+        self.assertIn('window.archive.archive_preview_info_edit.apply_font_preferences(log_font, preserve_size=False)', theme_source)
         self.assertIn("self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)", source)
-        self.assertIn("self.archive_preview_info_edit.set_theme(self.current_theme_key)", source)
+        self.assertIn('self.archive.archive_preview_info_edit.set_theme(self.current_theme_key)', source)
         self.assertIn("current_widget is self.archive_preview_info_edit", source)
 
     def test_model_preview_panes_do_not_duplicate_resident_navigation_hint(self) -> None:

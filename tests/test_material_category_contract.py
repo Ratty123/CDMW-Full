@@ -14,16 +14,8 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
 
-from cdmw.rendering.material_category_contract import (
-    CLASSIFIED_MATERIAL_CATEGORIES,
-    MATERIAL_CATEGORIES,
-    MATERIAL_CATEGORY_CODES,
-    MATERIAL_CATEGORY_UNCLASSIFIED,
-    material_category_code,
-    material_category_for_code,
-)
+from cdmw.rendering.material_category_contract import MATERIAL_CATEGORIES, MATERIAL_CATEGORY_CODES, MATERIAL_CATEGORY_UNCLASSIFIED, material_category_code, material_category_for_code
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,61 +90,18 @@ def _python_producer_categories() -> set[str]:
     raise AssertionError(f"{PRODUCER_FUNCTION} is no longer in {PYTHON_PRODUCER.name}")
 
 
-def test_csharp_mapping_matches_the_contract_exactly() -> None:
-    csharp = _csharp_category_codes()
-    expected = {
-        name: code
-        for name, code in MATERIAL_CATEGORY_CODES.items()
-        if name != MATERIAL_CATEGORY_UNCLASSIFIED
-    }
-
-    assert csharp == expected, (
-        "NetMaterialSet.Resident.cs disagrees with the category contract; "
-        f"only in C#: {sorted(set(csharp) - set(expected))}, "
-        f"only in contract: {sorted(set(expected) - set(csharp))}"
-    )
 
 
 def test_rust_mapping_matches_the_contract_exactly() -> None:
     assert _rust_category_codes() == dict(MATERIAL_CATEGORY_CODES)
 
 
-def test_csharp_falls_back_to_the_unclassified_code() -> None:
-    # An unmapped string must land on the same code the contract reserves for
-    # "no source category", not on a real category.
-    assert _csharp_fallback_code() == MATERIAL_CATEGORY_CODES[
-        MATERIAL_CATEGORY_UNCLASSIFIED
-    ]
 
 
-def test_every_classified_category_is_decoded_by_the_shader() -> None:
-    ranges = _hlsl_category_ranges()
-    missing = [name for name in CLASSIFIED_MATERIAL_CATEGORIES if name not in ranges]
-
-    assert not missing, (
-        f"the shader has no decode branch for {missing}; those surfaces would "
-        "reach the GPU with a code the shader ignores"
-    )
 
 
-@pytest.mark.parametrize("category", CLASSIFIED_MATERIAL_CATEGORIES)
-def test_shader_range_brackets_the_contract_code(category: str) -> None:
-    low, high = _hlsl_category_ranges()[category]
-    code = MATERIAL_CATEGORY_CODES[category]
-
-    assert low < code < high, (
-        f"shader decodes {category} as ({low}, {high}) but the contract assigns "
-        f"code {code}, so the branch never matches"
-    )
 
 
-def test_shader_decodes_no_category_the_contract_does_not_define() -> None:
-    extra = sorted(set(_hlsl_category_ranges()) - set(MATERIAL_CATEGORIES))
-
-    assert not extra, (
-        f"the shader decodes {extra}, which nothing can emit; either the "
-        "contract is missing a category or the branch is dead"
-    )
 
 
 def test_python_producer_emits_only_contract_categories() -> None:

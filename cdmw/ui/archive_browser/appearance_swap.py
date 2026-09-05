@@ -57,8 +57,8 @@ class ArchiveAppearanceSwapMixin:
         self._open_archive_appearance_swap_for_entry(entry)
 
     def _open_archive_appearance_swap_for_entry(self, entry: ArchiveEntry) -> None:
-        if self.worker_thread is not None:
-            self.set_status_message("Another background task is still running. Wait for it to finish before starting appearance armor swap.", error=True)
+        if self.shell.worker_thread is not None:
+            self.shell.set_status_message("Another background task is still running. Wait for it to finish before starting appearance armor swap.", error=True)
             return
         if str(entry.extension or "").lower() not in {".app_xml", ".pac", ".pam", ".pamlod"}:
             QMessageBox.warning(
@@ -94,7 +94,7 @@ class ArchiveAppearanceSwapMixin:
                 ensure_index = getattr(self, "_ensure_archive_extension_index_ready", None)
                 if callable(ensure_index):
                     ensure_index()
-                self.set_status_message("Archive extension index is warming; retry appearance swap when indexing finishes.")
+                self.shell.set_status_message("Archive extension index is warming; retry appearance swap when indexing finishes.")
                 return
             controller = request_task_controller_for_guard(
                 self,
@@ -436,7 +436,7 @@ class ArchiveAppearanceSwapMixin:
                 on_log=log,
             )
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Writing appearance armor swap package for {swap_plan.donor_model_entry.basename}...",
             task=_task,
             on_complete=self._handle_archive_appearance_swap_package_result,
@@ -445,11 +445,11 @@ class ArchiveAppearanceSwapMixin:
 
     def _handle_archive_appearance_swap_package_result(self, payload: object) -> None:
         if not isinstance(payload, ArchiveLooseExportResult):
-            self.set_status_message("Appearance armor swap export finished with an unexpected result payload.", error=True)
+            self.shell.set_status_message("Appearance armor swap export finished with an unexpected result payload.", error=True)
             return
         QMessageBox.information(
             self,
             "Appearance Armor Swap Export Complete",
             f"Wrote appearance armor swap loose package into:\n{payload.package_root}",
         )
-        self.set_status_message(f"Wrote appearance armor swap loose package: {payload.package_root}")
+        self.shell.set_status_message(f"Wrote appearance armor swap loose package: {payload.package_root}")

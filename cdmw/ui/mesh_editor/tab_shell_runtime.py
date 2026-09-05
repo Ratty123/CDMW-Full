@@ -156,9 +156,6 @@ class MeshEditorTabShellRuntimeMixin:
         # screen, so it is skipped; see _publish_dotnet_presentation_state.
         self.standalone_dotnet_presentation_published_content: dict[str, object] | None = None
         self.standalone_dotnet_texture_region_request_id = 0
-        self.standalone_dotnet_import_thread: _tab.QThread | None = None
-        self.standalone_dotnet_import_worker: _tab.MeshDotNetExperimentOutputImportWorker | None = None
-        self.standalone_dotnet_import_request_id = 0
         self.standalone_editable_export_thread: _tab.QThread | None = None
         self.standalone_editable_export_worker: _tab.MeshEditablePackageExportWorker | None = None
         self.standalone_editable_export_request_id = 0

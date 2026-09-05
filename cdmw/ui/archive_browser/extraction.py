@@ -33,18 +33,18 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
 
     def extract_related_archive_set_from_paths(self, raw_paths: object, description: str) -> None:
         if not isinstance(raw_paths, list):
-            self.set_status_message("No related archive paths were supplied for extraction.", error=True)
+            self.shell.set_status_message("No related archive paths were supplied for extraction.", error=True)
             return
         normalized_paths = normalized_related_archive_paths(raw_paths)
         if not normalized_paths:
-            self.set_status_message("No related archive paths were supplied for extraction.", error=True)
+            self.shell.set_status_message("No related archive paths were supplied for extraction.", error=True)
             return
         bridge = getattr(self, "archive_remote_bridge", None)
         if bridge is not None and bridge.displays_v2:
             if not self._remote_archive_export_ready() or not bool(
                 getattr(self, "archive_remote_actions_safe", True)
             ):
-                self.set_status_message(
+                self.shell.set_status_message(
                     "Related-set extraction is unavailable until the v2 archive session is ready.",
                     error=True,
                 )
@@ -62,7 +62,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 continue
             entries.append(entry)
         if not entries:
-            self.set_status_message("No matching archive entries were found for the related-set extraction.", error=True)
+            self.shell.set_status_message("No matching archive entries were found for the related-set extraction.", error=True)
             return
         self._run_archive_extract(
             entries,
@@ -92,7 +92,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if summary_box.clickedButton() == summary_cancel_button:
             return None
 
-        if not self._preference_bool("confirm_archive_extract_cleanup", True):
+        if not self.shell._preference_bool("confirm_archive_extract_cleanup", True):
             return False, "overwrite"
 
         clear_root = False
@@ -153,7 +153,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if not entries or any(entry.extension != ".dds" for entry in entries):
             return archive_extract_root, True
 
-        original_root_text = self.original_dds_edit.text().strip()
+        original_root_text = self.textures.original_dds_edit.text().strip()
         if not original_root_text:
             return archive_extract_root, True
 
@@ -202,7 +202,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
     ) -> Optional[Tuple[Path, bool]]:
         if not all_dds:
             return output_root, True
-        original_root_text = self.original_dds_edit.text().strip()
+        original_root_text = self.textures.original_dds_edit.text().strip()
         if not original_root_text:
             return output_root, True
         try:
@@ -256,7 +256,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         summary_box.exec()
         if summary_box.clickedButton() == cancel_button:
             return None
-        if not self._preference_bool("confirm_archive_extract_cleanup", True):
+        if not self.shell._preference_bool("confirm_archive_extract_cleanup", True):
             return False, ArchiveExportCollisionPolicy.OVERWRITE
         if not output_root.exists() or not directory_has_contents(output_root):
             return False, ArchiveExportCollisionPolicy.OVERWRITE
@@ -333,17 +333,17 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         bridge = getattr(self, "archive_remote_bridge", None)
         session = getattr(bridge, "current_session", None)
         if session is None or not bool(getattr(self, "archive_remote_actions_safe", True)):
-            self.set_status_message("Archive export is unavailable until the v2 session is ready.", error=True)
+            self.shell.set_status_message("Archive export is unavailable until the v2 session is ready.", error=True)
             return
         self._ensure_remote_archive_export_wiring()
         if self._archive_remote_export_request_id is not None:
-            self.set_status_message("Another archive export is already running.", error=True)
+            self.shell.set_status_message("Another archive export is already running.", error=True)
             return
         requested_count = max(0, int(getattr(selection, "requested_count", 0) or 0))
         output_root = (
             output_root_override.expanduser().resolve()
             if output_root_override is not None
-            else self._suggest_archive_extract_root().resolve()
+            else self.shell._suggest_archive_extract_root().resolve()
         )
         update_archive_extract_root = output_root_override is None
         if allow_original_dds_root:
@@ -353,13 +353,13 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 prefer_original_dds_root=set_original_dds_root,
             )
             if target is None:
-                self.set_status_message("Archive extraction cancelled.")
+                self.shell.set_status_message("Archive extraction cancelled.")
                 return
             output_root, update_archive_extract_root = target
         if prompt_options:
             options = self._prompt_remote_archive_extract_options(requested_count, output_root)
             if options is None:
-                self.set_status_message("Archive extraction cancelled.")
+                self.shell.set_status_message("Archive extraction cancelled.")
                 return
             replace_destination, collision_policy = options
         else:
@@ -396,12 +396,12 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             )
         except Exception as exc:
             self._archive_remote_export_context = {}
-            self.set_status_message(f"Archive export could not start: {exc}", error=True)
+            self.shell.set_status_message(f"Archive export could not start: {exc}", error=True)
             return
-        self.set_busy(True, build_mode=True)
-        self.set_status_message(description)
+        self.shell.set_busy(True, build_mode=True)
+        self.shell.set_status_message(description)
         self._set_archive_load_progress(description, phase="Exporting", percent=0, allow_decrease=True)
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Standalone archive export started: selection={request.selection_kind.value}, destination={output_root}"
         )
 
@@ -428,7 +428,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         context = dict(getattr(self, "_archive_remote_export_context", {}) or {})
         self._archive_remote_export_request_id = None
         self._archive_remote_export_context = {}
-        self.set_busy(False, build_mode=False)
+        self.shell.set_busy(False, build_mode=False)
         return context
 
     def _handle_remote_archive_export_result(self, request_id: str, operation: str, payload: object) -> None:
@@ -436,15 +436,15 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             return
         context = self._finish_remote_archive_export()
         if not isinstance(payload, ArchiveExportResult):
-            self.set_status_message("Archive worker returned an invalid export result.", error=True)
+            self.shell.set_status_message("Archive worker returned an invalid export result.", error=True)
             return
         if payload.cancelled:
-            self.set_status_message("Archive export cancelled.")
+            self.shell.set_status_message("Archive export cancelled.")
             self._set_archive_load_progress("Archive export cancelled.", phase="Ready", percent=100)
             return
         output_root = Path(context.get("output_root", payload.manifest_path or ".")).expanduser()
         if bool(context.get("set_original_dds_root", False)) and payload.exported <= 0:
-            self.set_status_message("No DDS files matched the archive selection.", error=True)
+            self.shell.set_status_message("No DDS files matched the archive selection.", error=True)
             self._set_archive_load_progress("No DDS files matched.", phase="Ready", percent=100)
             return
         streamed_items = context.get("items", ())
@@ -452,51 +452,51 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if bool(context.get("update_archive_extract_root", False)):
             self.archive_extract_root_edit.setText(str(output_root))
         if bool(context.get("set_original_dds_root", False)):
-            self.original_dds_edit.setText(str(output_root))
+            self.textures.original_dds_edit.setText(str(output_root))
             self._pending_archive_workflow_extract = None
             workflow_paths = _remote_exported_relative_paths(items, output_root)
             if not workflow_paths:
                 workflow_paths = tuple(str(path) for path in context.get("workflow_paths", ()) if str(path))
             if 0 < len(workflow_paths) <= 256:
-                self.filters_edit.setPlainText("\n".join(workflow_paths))
-            self._activate_tool_widget(self.workflow_tab)
+                self.textures.filters_edit.setPlainText("\n".join(workflow_paths))
+            self.shell._activate_tool_widget(self.textures.workflow_tab)
         renamed = sum(item.status == "renamed" for item in items)
         renamed_summary = (
             f"{renamed:,} renamed in reported items (details truncated)"
             if payload.items_truncated
             else f"{renamed:,} renamed"
         )
-        self.set_status_message(f"Extracted {payload.exported:,} archive file(s) to {output_root}.")
+        self.shell.set_status_message(f"Extracted {payload.exported:,} archive file(s) to {output_root}.")
         self._dashboard_last_result_text = (
             "Archive extraction complete: "
             f"{payload.exported:,} extracted, {renamed_summary}, {payload.skipped:,} skipped, "
             f"{payload.failed:,} failed. Output: {output_root}"
         )
         if payload.manifest_path:
-            self.append_archive_log(f"Archive export manifest: {payload.manifest_path}")
-        self.append_log(
+            self.shell.append_archive_log(f"Archive export manifest: {payload.manifest_path}")
+        self.shell.append_log(
             f"Archive extraction summary: extracted={payload.exported}, renamed_reported={renamed}, "
             f"skipped={payload.skipped}, failed={payload.failed}."
         )
         if payload.items_truncated:
-            self.append_archive_log("Archive export item details were truncated by the worker reporting bound.")
+            self.shell.append_archive_log("Archive export item details were truncated by the worker reporting bound.")
         self._set_archive_load_progress("Archive export complete.", phase="Ready", percent=100)
-        self._refresh_dashboard()
+        self.shell._refresh_dashboard()
 
     def _handle_remote_archive_export_failure(self, request_id: str, error: object) -> None:
         if request_id != getattr(self, "_archive_remote_export_request_id", None):
             return
         self._finish_remote_archive_export()
         message = str(getattr(error, "message", "") or error or "Archive export failed.")
-        self.set_status_message(f"Archive export failed: {message}", error=True)
+        self.shell.set_status_message(f"Archive export failed: {message}", error=True)
         self._set_archive_load_progress(message, phase="Failed", percent=0, allow_decrease=True)
-        self.append_archive_log(f"Archive export failed: {message}")
+        self.shell.append_archive_log(f"Archive export failed: {message}")
 
     def _handle_remote_archive_export_cancelled(self, request_id: str) -> None:
         if request_id != getattr(self, "_archive_remote_export_request_id", None):
             return
         self._finish_remote_archive_export()
-        self.set_status_message("Archive export cancelled.")
+        self.shell.set_status_message("Archive export cancelled.")
         self._set_archive_load_progress("Archive export cancelled.", phase="Ready", percent=100)
 
     def _cancel_remote_archive_export(self) -> None:
@@ -516,10 +516,10 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         description: str,
     ) -> None:
         if not entries:
-            self.set_status_message("No archive entries selected for extraction.", error=True)
+            self.shell.set_status_message("No archive entries selected for extraction.", error=True)
             return
 
-        output_root = self._suggest_archive_extract_root().resolve()
+        output_root = self.shell._suggest_archive_extract_root().resolve()
         update_archive_extract_root = True
         if allow_original_dds_root:
             target_result = self._prompt_archive_extract_target(
@@ -528,12 +528,12 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 prefer_original_dds_root=set_original_dds_root,
             )
             if target_result is None:
-                self.set_status_message("Archive extraction cancelled.")
+                self.shell.set_status_message("Archive extraction cancelled.")
                 return
             output_root, update_archive_extract_root = target_result
         extract_options = self._prompt_archive_extract_options(entries, output_root)
         if extract_options is None:
-            self.set_status_message("Archive extraction cancelled.")
+            self.shell.set_status_message("Archive extraction cancelled.")
             return
         clear_root, collision_mode = extract_options
 
@@ -578,12 +578,11 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             if update_archive_extract_root:
                 self.archive_extract_root_edit.setText(output_root_value)
             if set_original_dds_root:
-                self.original_dds_edit.setText(output_root_value)
-                self._set_pending_archive_workflow_extract(
+                self.textures.original_dds_edit.setText(output_root_value)
+                self.textures._set_pending_archive_workflow_extract(
                     entries=entries,
                     output_root=Path(output_root_value).expanduser(),
                 )
-                self._pending_texture_editor_workflow_export = None
                 workflow_filters: List[str] = []
                 for entry in entries:
                     if not isinstance(entry, ArchiveEntry):
@@ -592,33 +591,33 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                     relative_path = PurePosixPath(package_root, *PurePosixPath(entry.path.replace("\\", "/")).parts).as_posix()
                     workflow_filters.append(relative_path)
                 if workflow_filters and len(workflow_filters) <= 256:
-                    self.filters_edit.setPlainText("\n".join(workflow_filters))
-                self._activate_tool_widget(self.workflow_tab)
+                    self.textures.filters_edit.setPlainText("\n".join(workflow_filters))
+                self.shell._activate_tool_widget(self.textures.workflow_tab)
                 if workflow_filters and len(workflow_filters) == 1:
-                    self.set_status_message(
+                    self.shell.set_status_message(
                         f"Extracted {extracted} archive DDS file(s) to {output_root_value}, set Original DDS root, and focused the workflow filter on {workflow_filters[0]}."
                     )
                 elif workflow_filters and len(workflow_filters) <= 256:
-                    self.set_status_message(
+                    self.shell.set_status_message(
                         f"Extracted {extracted} archive DDS file(s) to {output_root_value}, set Original DDS root, and focused the workflow filter on the extracted DDS set."
                     )
                 else:
-                    self.set_status_message(
+                    self.shell.set_status_message(
                         f"Extracted {extracted} archive DDS file(s) to {output_root_value} and set Original DDS root."
                     )
             else:
-                self.set_status_message(f"Extracted {extracted} archive file(s) to {output_root_value}.")
+                self.shell.set_status_message(f"Extracted {extracted} archive file(s) to {output_root_value}.")
             self._dashboard_last_result_text = (
                 "Archive extraction complete: "
                 f"{extracted:,} extracted, {decompressed:,} decompressed, {renamed:,} renamed, {failed:,} failed. "
                 f"Output: {output_root_value}"
             )
-            self.append_log(
+            self.shell.append_log(
                 f"Archive extraction summary: extracted={extracted}, decompressed={decompressed}, renamed={renamed}, failed={failed}."
             )
-            self._refresh_dashboard()
+            self.shell._refresh_dashboard()
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=description,
             task=task,
             on_complete=on_complete,
@@ -631,7 +630,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if self._remote_archive_export_ready():
             selection = self.archive_remote_bridge.selected_export_selection()
             if selection is None:
-                self.set_status_message(
+                self.shell.set_status_message(
                     self.archive_remote_bridge.export_selection_error
                     or "Select archive files or one archive folder before extracting.",
                     error=True,
@@ -653,7 +652,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if self._remote_archive_export_ready():
             selection = self.archive_remote_bridge.filtered_export_selection()
             if selection is None or selection.requested_count <= 0:
-                self.set_status_message("No filtered archive entries are available to extract.", error=True)
+                self.shell.set_status_message("No filtered archive entries are available to extract.", error=True)
                 return
             self._run_remote_archive_export(
                 selection,
@@ -671,13 +670,13 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         if self._remote_archive_export_ready():
             selection = self.archive_remote_bridge.selected_export_selection()
             if selection is None and self.archive_remote_bridge.export_selection_error:
-                self.set_status_message(self.archive_remote_bridge.export_selection_error, error=True)
+                self.shell.set_status_message(self.archive_remote_bridge.export_selection_error, error=True)
                 return
             used_selection = selection is not None
             if selection is None:
                 selection = self.archive_remote_bridge.filtered_export_selection()
             if selection is None:
-                self.set_status_message(
+                self.shell.set_status_message(
                     self.archive_remote_bridge.export_selection_error
                     or "No archive selection is available for DDS extraction.",
                     error=True,
@@ -688,7 +687,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 and selection.selection_kind is ArchiveExportSelectionKind.ENTRY_IDS
                 and selection.dds_count <= 0
             ):
-                self.set_status_message(
+                self.shell.set_status_message(
                     "The current archive selection does not include any DDS files. Select DDS files or clear the selection to use the filtered view.",
                     error=True,
                 )
@@ -715,7 +714,7 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
             return
         dds_entries, used_selection = self._archive_entries_for_workflow_extract()
         if used_selection and not dds_entries:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "The current archive selection does not include any DDS files. Select DDS files or clear the selection to use the filtered view.",
                 error=True,
             )

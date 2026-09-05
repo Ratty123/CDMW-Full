@@ -306,7 +306,7 @@ class ArchiveIconPipelineMixin:
     def _archive_icon_warmup_should_run(self) -> bool:
         if not getattr(self, "archive_item_asset_catalog", None):
             return False
-        if not self._is_tool_visible_or_current(self.archive_browser_tab):
+        if not self.shell._is_tool_visible_or_current(self.shell.archive_browser_tab):
             return False
         text_only_extensions = {
             ".txt",
@@ -325,7 +325,7 @@ class ArchiveIconPipelineMixin:
             ".yml",
         }
         try:
-            extension_filter = normalize_archive_extension_filter(self._combo_value(self.archive_extension_filter_combo))
+            extension_filter = normalize_archive_extension_filter(self.textures._combo_value(self.archive_extension_filter_combo))
         except Exception:
             extension_filter = ""
         if extension_filter in text_only_extensions:
@@ -505,7 +505,7 @@ class ArchiveIconPipelineMixin:
         self._start_archive_item_icon_priority_warmup()
 
     def _start_archive_item_icon_priority_warmup(self) -> None:
-        if self._shutting_down or not self.archive_item_icon_priority_queue:
+        if self.shell._shutting_down or not self.archive_item_icon_priority_queue:
             return
         if self._archive_item_icon_lookup_index_missing():
             self.archive_item_icon_preload_pending_after_ready = True
@@ -555,7 +555,7 @@ class ArchiveIconPipelineMixin:
             self.archive_item_icon_preload_pending_after_ready = True
             self.archive_item_icon_preload_timer.start(600)
             return
-        if self.worker_thread is not None:
+        if self.shell.worker_thread is not None:
             self.archive_item_icon_preload_timer.start(600)
             return
         if self.archive_item_icon_warmup_thread is not None:
@@ -655,7 +655,7 @@ class ArchiveIconPipelineMixin:
         self.archive_item_icon_warmup_worker = None
         self.archive_item_icon_warmup_user_visible = False
         if int(generation) == int(getattr(self, "archive_item_icon_warmup_generation", -1)):
-            if self.archive_item_icon_preload_queue and not self._shutting_down:
+            if self.archive_item_icon_preload_queue and not self.shell._shutting_down:
                 self.archive_item_icon_preload_timer.start(40)
 
     def _cleanup_archive_item_icon_priority_refs(
@@ -668,7 +668,7 @@ class ArchiveIconPipelineMixin:
         self.archive_item_icon_priority_thread = None
         self.archive_item_icon_priority_worker = None
         if int(generation) == int(getattr(self, "archive_item_icon_warmup_generation", -1)):
-            if self.archive_item_icon_priority_queue and not self._shutting_down:
+            if self.archive_item_icon_priority_queue and not self.shell._shutting_down:
                 QTimer.singleShot(0, self._start_archive_item_icon_priority_warmup)
 
     def _handle_archive_item_icon_inputs_changed(self, *_args: object) -> None:

@@ -51,7 +51,7 @@ class ArchivePreviewSettingsMixin:
             getattr(self, "_archive_preview_startup_state_pending", False)
             and not getattr(self, "_archive_preview_startup_state_applying", False)
         ):
-            self._ensure_archive_preview_startup_state()
+            self.shell._ensure_archive_preview_startup_state()
         return clamp_model_preview_render_settings(self._model_preview_render_settings)
 
     def _model_preview_settings_status(self) -> tuple[str, str]:
@@ -72,31 +72,31 @@ class ArchivePreviewSettingsMixin:
         legacy_lighting_version = 0
         try:
             legacy_lighting_version = int(
-                self.settings.value("preview/d3d11_lighting_defaults_version", 0) or 0
+                self.shell.settings.value("preview/d3d11_lighting_defaults_version", 0) or 0
             )
         except (TypeError, ValueError):
             legacy_lighting_version = 0
-        d3d11_ao_strength = self._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength)
-        d3d11_roughness_bias = self._read_float(
+        d3d11_ao_strength = self.shell._read_float("preview/d3d11_ao_strength", defaults.d3d11_ao_strength)
+        d3d11_roughness_bias = self.shell._read_float(
             "preview/d3d11_roughness_bias",
             defaults.d3d11_roughness_bias,
         )
-        d3d11_metalness_scale = self._read_float(
+        d3d11_metalness_scale = self.shell._read_float(
             "preview/d3d11_metalness_scale",
             defaults.d3d11_metalness_scale,
         )
-        d3d11_environment_strength = self._read_float(
+        d3d11_environment_strength = self.shell._read_float(
             "preview/d3d11_environment_strength",
             defaults.d3d11_environment_strength,
         )
-        ambient_strength = self._read_float("preview/ambient_strength", defaults.ambient_strength)
-        diffuse_wrap_bias = self._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias)
-        diffuse_light_scale = self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale)
-        specular_base = self._read_float("preview/specular_base", defaults.specular_base)
-        specular_max = self._read_float("preview/specular_max", defaults.specular_max)
-        d3d11_tone_exposure = self._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure)
-        d3d11_tone_contrast = self._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast)
-        d3d11_tone_gamma = self._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma)
+        ambient_strength = self.shell._read_float("preview/ambient_strength", defaults.ambient_strength)
+        diffuse_wrap_bias = self.shell._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias)
+        diffuse_light_scale = self.shell._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale)
+        specular_base = self.shell._read_float("preview/specular_base", defaults.specular_base)
+        specular_max = self.shell._read_float("preview/specular_max", defaults.specular_max)
+        d3d11_tone_exposure = self.shell._read_float("preview/d3d11_tone_exposure", defaults.d3d11_tone_exposure)
+        d3d11_tone_contrast = self.shell._read_float("preview/d3d11_tone_contrast", defaults.d3d11_tone_contrast)
+        d3d11_tone_gamma = self.shell._read_float("preview/d3d11_tone_gamma", defaults.d3d11_tone_gamma)
         if legacy_lighting_version < 7:
             def _near(current: float, expected: float) -> bool:
                 try:
@@ -189,217 +189,217 @@ class ArchivePreviewSettingsMixin:
                 d3d11_tone_exposure = defaults.d3d11_tone_exposure
                 d3d11_tone_contrast = defaults.d3d11_tone_contrast
                 d3d11_tone_gamma = defaults.d3d11_tone_gamma
-                self.settings.setValue("preview/d3d11_ao_strength", d3d11_ao_strength)
-                self.settings.setValue("preview/d3d11_roughness_bias", d3d11_roughness_bias)
-                self.settings.setValue("preview/d3d11_metalness_scale", d3d11_metalness_scale)
-                self.settings.setValue("preview/d3d11_environment_strength", d3d11_environment_strength)
-                self.settings.setValue("preview/ambient_strength", ambient_strength)
-                self.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)
-                self.settings.setValue("preview/diffuse_light_scale", diffuse_light_scale)
-                self.settings.setValue("preview/specular_base", specular_base)
-                self.settings.setValue("preview/specular_max", specular_max)
-                self.settings.setValue("preview/d3d11_tone_exposure", d3d11_tone_exposure)
-                self.settings.setValue("preview/d3d11_tone_contrast", d3d11_tone_contrast)
-                self.settings.setValue("preview/d3d11_tone_gamma", d3d11_tone_gamma)
-            self.settings.setValue("preview/d3d11_lighting_defaults_version", 7)
+                self.shell.settings.setValue("preview/d3d11_ao_strength", d3d11_ao_strength)
+                self.shell.settings.setValue("preview/d3d11_roughness_bias", d3d11_roughness_bias)
+                self.shell.settings.setValue("preview/d3d11_metalness_scale", d3d11_metalness_scale)
+                self.shell.settings.setValue("preview/d3d11_environment_strength", d3d11_environment_strength)
+                self.shell.settings.setValue("preview/ambient_strength", ambient_strength)
+                self.shell.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)
+                self.shell.settings.setValue("preview/diffuse_light_scale", diffuse_light_scale)
+                self.shell.settings.setValue("preview/specular_base", specular_base)
+                self.shell.settings.setValue("preview/specular_max", specular_max)
+                self.shell.settings.setValue("preview/d3d11_tone_exposure", d3d11_tone_exposure)
+                self.shell.settings.setValue("preview/d3d11_tone_contrast", d3d11_tone_contrast)
+                self.shell.settings.setValue("preview/d3d11_tone_gamma", d3d11_tone_gamma)
+            self.shell.settings.setValue("preview/d3d11_lighting_defaults_version", 7)
         return clamp_model_preview_render_settings(
             ModelPreviewRenderSettings(
-                use_textures_by_default=self._read_bool("archive/model_use_textures", defaults.use_textures_by_default),
-                high_quality_by_default=self._read_bool("archive/model_high_quality", defaults.high_quality_by_default),
+                use_textures_by_default=self.shell._read_bool("archive/model_use_textures", defaults.use_textures_by_default),
+                high_quality_by_default=self.shell._read_bool("archive/model_high_quality", defaults.high_quality_by_default),
                 visible_texture_mode=str(
-                    self.settings.value("preview/visible_texture_mode", defaults.visible_texture_mode)
+                    self.shell.settings.value("preview/visible_texture_mode", defaults.visible_texture_mode)
                     or defaults.visible_texture_mode
                 ),
                 render_diagnostic_mode=str(
-                    self.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
+                    self.shell.settings.value("preview/render_diagnostic_mode", defaults.render_diagnostic_mode)
                     or defaults.render_diagnostic_mode
                 ),
                 d3d11_view_mode=str(
-                    self.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
+                    self.shell.settings.value("preview/d3d11_view_mode", defaults.d3d11_view_mode)
                     or defaults.d3d11_view_mode
                 ),
                 d3d11_normal_y_mode=str(
-                    self.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
+                    self.shell.settings.value("preview/d3d11_normal_y_mode", defaults.d3d11_normal_y_mode)
                     or defaults.d3d11_normal_y_mode
                 ),
                 d3d11_texture_address_mode=str(
-                    self.settings.value("preview/d3d11_texture_address_mode", defaults.d3d11_texture_address_mode)
+                    self.shell.settings.value("preview/d3d11_texture_address_mode", defaults.d3d11_texture_address_mode)
                     or defaults.d3d11_texture_address_mode
                 ),
                 alpha_handling_mode=str(
-                    self.settings.value("preview/alpha_handling_mode", defaults.alpha_handling_mode)
+                    self.shell.settings.value("preview/alpha_handling_mode", defaults.alpha_handling_mode)
                     or defaults.alpha_handling_mode
                 ),
                 texture_probe_source=str(
-                    self.settings.value("preview/texture_probe_source", defaults.texture_probe_source)
+                    self.shell.settings.value("preview/texture_probe_source", defaults.texture_probe_source)
                     or defaults.texture_probe_source
                 ),
                 sampler_probe_mode=str(
-                    self.settings.value("preview/sampler_probe_mode", defaults.sampler_probe_mode)
+                    self.shell.settings.value("preview/sampler_probe_mode", defaults.sampler_probe_mode)
                     or defaults.sampler_probe_mode
                 ),
                 diffuse_swizzle_mode=str(
-                    self.settings.value("preview/diffuse_swizzle_mode", defaults.diffuse_swizzle_mode)
+                    self.shell.settings.value("preview/diffuse_swizzle_mode", defaults.diffuse_swizzle_mode)
                     or defaults.diffuse_swizzle_mode
                 ),
-                disable_tint=self._read_bool("preview/disable_tint", defaults.disable_tint),
-                disable_brightness=self._read_bool("preview/disable_brightness", defaults.disable_brightness),
-                disable_uv_scale=self._read_bool("preview/disable_uv_scale", defaults.disable_uv_scale),
-                force_nearest_no_mipmaps=self._read_bool(
+                disable_tint=self.shell._read_bool("preview/disable_tint", defaults.disable_tint),
+                disable_brightness=self.shell._read_bool("preview/disable_brightness", defaults.disable_brightness),
+                disable_uv_scale=self.shell._read_bool("preview/disable_uv_scale", defaults.disable_uv_scale),
+                force_nearest_no_mipmaps=self.shell._read_bool(
                     "preview/force_nearest_no_mipmaps",
                     defaults.force_nearest_no_mipmaps,
                 ),
-                disable_normal_map=self._read_bool("preview/disable_normal_map", defaults.disable_normal_map),
-                disable_material_map=self._read_bool("preview/disable_material_map", defaults.disable_material_map),
-                disable_height_map=self._read_bool("preview/disable_height_map", defaults.disable_height_map),
-                flip_texture_v=self._read_bool("preview/flip_texture_v", defaults.flip_texture_v),
-                disable_all_support_maps=self._read_bool(
+                disable_normal_map=self.shell._read_bool("preview/disable_normal_map", defaults.disable_normal_map),
+                disable_material_map=self.shell._read_bool("preview/disable_material_map", defaults.disable_material_map),
+                disable_height_map=self.shell._read_bool("preview/disable_height_map", defaults.disable_height_map),
+                flip_texture_v=self.shell._read_bool("preview/flip_texture_v", defaults.flip_texture_v),
+                disable_all_support_maps=self.shell._read_bool(
                     "preview/disable_all_support_maps",
                     defaults.disable_all_support_maps,
                 ),
-                disable_lighting=self._read_bool("preview/disable_lighting", defaults.disable_lighting),
-                disable_depth_test=self._read_bool("preview/disable_depth_test", defaults.disable_depth_test),
-                show_texture_debug_strip=self._read_bool(
+                disable_lighting=self.shell._read_bool("preview/disable_lighting", defaults.disable_lighting),
+                disable_depth_test=self.shell._read_bool("preview/disable_depth_test", defaults.disable_depth_test),
+                show_texture_debug_strip=self.shell._read_bool(
                     "preview/show_texture_debug_strip",
                     defaults.show_texture_debug_strip,
                 ),
-                d3d11_cull_back_faces=self._read_bool(
+                d3d11_cull_back_faces=self.shell._read_bool(
                     "preview/d3d11_cull_back_faces",
                     defaults.d3d11_cull_back_faces,
                 ),
-                show_physics_overlay=self._read_bool(
+                show_physics_overlay=self.shell._read_bool(
                     "preview/show_physics_overlay",
                     defaults.show_physics_overlay,
                 ),
-                show_physics_simulation_preview=self._read_bool(
+                show_physics_simulation_preview=self.shell._read_bool(
                     "preview/show_physics_simulation_preview",
                     defaults.show_physics_simulation_preview,
                 ),
-                enable_tool_pbd_cloth_preview=self._read_bool(
+                enable_tool_pbd_cloth_preview=self.shell._read_bool(
                     "preview/enable_tool_pbd_cloth_preview",
                     defaults.enable_tool_pbd_cloth_preview,
                 ),
-                pause_tool_pbd_cloth_preview=self._read_bool(
+                pause_tool_pbd_cloth_preview=self.shell._read_bool(
                     "preview/pause_tool_pbd_cloth_preview",
                     defaults.pause_tool_pbd_cloth_preview,
                 ),
-                tool_pbd_cloth_wind_strength=self._read_float(
+                tool_pbd_cloth_wind_strength=self.shell._read_float(
                     "preview/tool_pbd_cloth_wind_strength",
                     defaults.tool_pbd_cloth_wind_strength,
                 ),
-                tool_pbd_cloth_wind_direction_degrees=self._read_float(
+                tool_pbd_cloth_wind_direction_degrees=self.shell._read_float(
                     "preview/tool_pbd_cloth_wind_direction_degrees",
                     defaults.tool_pbd_cloth_wind_direction_degrees,
                 ),
-                show_tool_pbd_cloth_pins=self._read_bool(
+                show_tool_pbd_cloth_pins=self.shell._read_bool(
                     "preview/show_tool_pbd_cloth_pins",
                     defaults.show_tool_pbd_cloth_pins,
                 ),
-                show_tool_pbd_cloth_colliders=self._read_bool(
+                show_tool_pbd_cloth_colliders=self.shell._read_bool(
                     "preview/show_tool_pbd_cloth_colliders",
                     defaults.show_tool_pbd_cloth_colliders,
                 ),
-                solo_batch_index=self._read_int("preview/solo_batch_index", defaults.solo_batch_index),
-                preview_texture_max_dimension=self._read_int(
+                solo_batch_index=self.shell._read_int("preview/solo_batch_index", defaults.solo_batch_index),
+                preview_texture_max_dimension=self.shell._read_int(
                     "preview/texture_max_dimension",
                     defaults.preview_texture_max_dimension,
                 ),
-                low_quality_texture_max_dimension=self._read_int(
+                low_quality_texture_max_dimension=self.shell._read_int(
                     "preview/low_quality_texture_max_dimension",
                     defaults.low_quality_texture_max_dimension,
                 ),
-                max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
-                d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
-                d3d11_background_color=str(self.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color) or defaults.d3d11_background_color),
-                d3d11_grid_color=str(self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color) or defaults.d3d11_grid_color),
-                d3d11_wire_color=str(self.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color) or defaults.d3d11_wire_color),
-                d3d11_vertex_color=str(self.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color) or defaults.d3d11_vertex_color),
-                d3d11_grid_spacing_scale=self._read_float(
+                max_anisotropy=self.shell._read_int("preview/max_anisotropy", defaults.max_anisotropy),
+                d3d11_mip_lod_bias=self.shell._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
+                d3d11_background_color=str(self.shell.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color) or defaults.d3d11_background_color),
+                d3d11_grid_color=str(self.shell.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color) or defaults.d3d11_grid_color),
+                d3d11_wire_color=str(self.shell.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color) or defaults.d3d11_wire_color),
+                d3d11_vertex_color=str(self.shell.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color) or defaults.d3d11_vertex_color),
+                d3d11_grid_spacing_scale=self.shell._read_float(
                     "preview/d3d11_grid_spacing_scale",
                     defaults.d3d11_grid_spacing_scale,
                 ),
-                d3d11_grid_line_count=self._read_int(
+                d3d11_grid_line_count=self.shell._read_int(
                     "preview/d3d11_grid_line_count",
                     defaults.d3d11_grid_line_count,
                 ),
                 ambient_strength=ambient_strength,
                 diffuse_wrap_bias=diffuse_wrap_bias,
                 diffuse_light_scale=diffuse_light_scale,
-                d3d11_light_azimuth_degrees=self._read_float(
+                d3d11_light_azimuth_degrees=self.shell._read_float(
                     "preview/d3d11_light_azimuth_degrees",
                     defaults.d3d11_light_azimuth_degrees,
                 ),
-                d3d11_light_elevation_degrees=self._read_float(
+                d3d11_light_elevation_degrees=self.shell._read_float(
                     "preview/d3d11_light_elevation_degrees",
                     defaults.d3d11_light_elevation_degrees,
                 ),
-                orbit_sensitivity=self._read_float("preview/orbit_sensitivity", defaults.orbit_sensitivity),
-                pan_sensitivity=self._read_float("preview/pan_sensitivity", defaults.pan_sensitivity),
-                invert_orbit_x=self._read_bool("preview/invert_orbit_x", defaults.invert_orbit_x),
-                invert_orbit_y=self._read_bool("preview/invert_orbit_y", defaults.invert_orbit_y),
-                invert_pan_x=self._read_bool("preview/invert_pan_x", defaults.invert_pan_x),
-                invert_pan_y=self._read_bool("preview/invert_pan_y", defaults.invert_pan_y),
+                orbit_sensitivity=self.shell._read_float("preview/orbit_sensitivity", defaults.orbit_sensitivity),
+                pan_sensitivity=self.shell._read_float("preview/pan_sensitivity", defaults.pan_sensitivity),
+                invert_orbit_x=self.shell._read_bool("preview/invert_orbit_x", defaults.invert_orbit_x),
+                invert_orbit_y=self.shell._read_bool("preview/invert_orbit_y", defaults.invert_orbit_y),
+                invert_pan_x=self.shell._read_bool("preview/invert_pan_x", defaults.invert_pan_x),
+                invert_pan_y=self.shell._read_bool("preview/invert_pan_y", defaults.invert_pan_y),
                 camera_orbit_modifier=normalize_camera_modifier(
-                    self.settings.value("preview/camera_orbit_modifier", defaults.camera_orbit_modifier),
+                    self.shell.settings.value("preview/camera_orbit_modifier", defaults.camera_orbit_modifier),
                     defaults.camera_orbit_modifier,
                 ),
                 camera_pan_modifier=normalize_camera_modifier(
-                    self.settings.value("preview/camera_pan_modifier", defaults.camera_pan_modifier),
+                    self.shell.settings.value("preview/camera_pan_modifier", defaults.camera_pan_modifier),
                     defaults.camera_pan_modifier,
                 ),
                 camera_middle_drag=normalize_camera_drag(
-                    self.settings.value("preview/camera_middle_drag", defaults.camera_middle_drag),
+                    self.shell.settings.value("preview/camera_middle_drag", defaults.camera_middle_drag),
                     defaults.camera_middle_drag,
                 ),
                 camera_right_drag=normalize_camera_drag(
-                    self.settings.value("preview/camera_right_drag", defaults.camera_right_drag),
+                    self.shell.settings.value("preview/camera_right_drag", defaults.camera_right_drag),
                     defaults.camera_right_drag,
                 ),
                 gizmo_x_axis_color=str(
-                    self.settings.value("preview/gizmo_x_axis_color", defaults.gizmo_x_axis_color)
+                    self.shell.settings.value("preview/gizmo_x_axis_color", defaults.gizmo_x_axis_color)
                     or defaults.gizmo_x_axis_color
                 ),
                 gizmo_y_axis_color=str(
-                    self.settings.value("preview/gizmo_y_axis_color", defaults.gizmo_y_axis_color)
+                    self.shell.settings.value("preview/gizmo_y_axis_color", defaults.gizmo_y_axis_color)
                     or defaults.gizmo_y_axis_color
                 ),
                 gizmo_z_axis_color=str(
-                    self.settings.value("preview/gizmo_z_axis_color", defaults.gizmo_z_axis_color)
+                    self.shell.settings.value("preview/gizmo_z_axis_color", defaults.gizmo_z_axis_color)
                     or defaults.gizmo_z_axis_color
                 ),
                 gizmo_highlight_color=str(
-                    self.settings.value("preview/gizmo_highlight_color", defaults.gizmo_highlight_color)
+                    self.shell.settings.value("preview/gizmo_highlight_color", defaults.gizmo_highlight_color)
                     or defaults.gizmo_highlight_color
                 ),
                 gizmo_label_color=str(
-                    self.settings.value("preview/gizmo_label_color", defaults.gizmo_label_color)
+                    self.shell.settings.value("preview/gizmo_label_color", defaults.gizmo_label_color)
                     or defaults.gizmo_label_color
                 ),
-                gizmo_line_thickness_pixels=self._read_float(
+                gizmo_line_thickness_pixels=self.shell._read_float(
                     "preview/gizmo_line_thickness_pixels",
                     defaults.gizmo_line_thickness_pixels,
                 ),
-                gizmo_size_scale=self._read_float("preview/gizmo_size_scale", defaults.gizmo_size_scale),
-                gizmo_label_size_pixels=self._read_float(
+                gizmo_size_scale=self.shell._read_float("preview/gizmo_size_scale", defaults.gizmo_size_scale),
+                gizmo_label_size_pixels=self.shell._read_float(
                     "preview/gizmo_label_size_pixels",
                     defaults.gizmo_label_size_pixels,
                 ),
-                gizmo_handle_size_pixels=self._read_float(
+                gizmo_handle_size_pixels=self.shell._read_float(
                     "preview/gizmo_handle_size_pixels",
                     defaults.gizmo_handle_size_pixels,
                 ),
-                normal_strength_cap=self._read_float("preview/normal_strength_cap", defaults.normal_strength_cap),
-                normal_strength_floor=self._read_float("preview/normal_strength_floor", defaults.normal_strength_floor),
-                height_effect_max=self._read_float("preview/height_effect_max", defaults.height_effect_max),
-                cavity_clamp_min=self._read_float("preview/cavity_clamp_min", defaults.cavity_clamp_min),
-                cavity_clamp_max=self._read_float("preview/cavity_clamp_max", defaults.cavity_clamp_max),
+                normal_strength_cap=self.shell._read_float("preview/normal_strength_cap", defaults.normal_strength_cap),
+                normal_strength_floor=self.shell._read_float("preview/normal_strength_floor", defaults.normal_strength_floor),
+                height_effect_max=self.shell._read_float("preview/height_effect_max", defaults.height_effect_max),
+                cavity_clamp_min=self.shell._read_float("preview/cavity_clamp_min", defaults.cavity_clamp_min),
+                cavity_clamp_max=self.shell._read_float("preview/cavity_clamp_max", defaults.cavity_clamp_max),
                 specular_base=specular_base,
-                specular_min=self._read_float("preview/specular_min", defaults.specular_min),
+                specular_min=self.shell._read_float("preview/specular_min", defaults.specular_min),
                 specular_max=specular_max,
-                shininess_base=self._read_float("preview/shininess_base", defaults.shininess_base),
-                shininess_min=self._read_float("preview/shininess_min", defaults.shininess_min),
-                shininess_max=self._read_float("preview/shininess_max", defaults.shininess_max),
-                height_shininess_boost=self._read_float(
+                shininess_base=self.shell._read_float("preview/shininess_base", defaults.shininess_base),
+                shininess_min=self.shell._read_float("preview/shininess_min", defaults.shininess_min),
+                shininess_max=self.shell._read_float("preview/shininess_max", defaults.shininess_max),
+                height_shininess_boost=self.shell._read_float(
                     "preview/height_shininess_boost",
                     defaults.height_shininess_boost,
                 ),
@@ -407,7 +407,7 @@ class ArchivePreviewSettingsMixin:
                 d3d11_roughness_bias=d3d11_roughness_bias,
                 d3d11_metalness_scale=d3d11_metalness_scale,
                 d3d11_environment_strength=d3d11_environment_strength,
-                d3d11_emissive_gain=self._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
+                d3d11_emissive_gain=self.shell._read_float("preview/d3d11_emissive_gain", defaults.d3d11_emissive_gain),
                 d3d11_tone_exposure=d3d11_tone_exposure,
                 d3d11_tone_contrast=d3d11_tone_contrast,
                 d3d11_tone_gamma=d3d11_tone_gamma,
@@ -419,7 +419,7 @@ class ArchivePreviewSettingsMixin:
 
     def _sync_model_preview_settings_controls(self) -> None:
         settings = self._current_model_preview_render_settings()
-        settings_tab = getattr(self, "settings_tab", None)
+        settings_tab = getattr(self.shell, "settings_tab", None)
         if settings_tab is not None and hasattr(settings_tab, "_apply_model_preview_controls"):
             try:
                 settings_tab._apply_model_preview_controls(settings)
@@ -428,7 +428,7 @@ class ArchivePreviewSettingsMixin:
         dialog = getattr(self, "model_preview_settings_dialog", None)
         if dialog is not None:
             dialog.set_settings(settings)
-            dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+            dialog.set_archive_performance_settings(self.shell._current_archive_performance_settings())
             if hasattr(dialog, "set_archive_renderer_backend"):
                 dialog.set_archive_renderer_backend(self._archive_model_renderer_backend())
         active_dialogs = getattr(self, "_modal_model_preview_settings_dialogs", None)
@@ -442,7 +442,7 @@ class ArchivePreviewSettingsMixin:
                             modal_handlers.pop(modal_dialog, None)
                         continue
                     modal_dialog.set_settings(settings)
-                    modal_dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+                    modal_dialog.set_archive_performance_settings(self.shell._current_archive_performance_settings())
                     if hasattr(modal_dialog, "set_archive_renderer_backend"):
                         modal_dialog.set_archive_renderer_backend(self._archive_model_renderer_backend())
                     if isinstance(modal_handlers, dict):
@@ -456,20 +456,20 @@ class ArchivePreviewSettingsMixin:
                         modal_handlers.pop(modal_dialog, None)
 
     def _sync_archive_performance_settings_controls(self) -> None:
-        settings_tab = getattr(self, "settings_tab", None)
+        settings_tab = getattr(self.shell, "settings_tab", None)
         if settings_tab is not None and hasattr(settings_tab, "sync_archive_performance_controls"):
-            settings_tab.sync_archive_performance_controls(self._current_archive_performance_settings())
+            settings_tab.sync_archive_performance_controls(self.shell._current_archive_performance_settings())
         dialog = getattr(self, "model_preview_settings_dialog", None)
         if dialog is not None:
-            dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+            dialog.set_archive_performance_settings(self.shell._current_archive_performance_settings())
 
     def _open_model_preview_settings_dialog(self) -> None:
-        self._ensure_archive_preview_startup_state()
+        self.shell._ensure_archive_preview_startup_state()
         dialog = getattr(self, "model_preview_settings_dialog", None)
         if dialog is None:
             dialog = ModelPreviewSettingsDialog(
                 settings=self._current_model_preview_render_settings(),
-                archive_performance_settings=self._current_archive_performance_settings(),
+                archive_performance_settings=self.shell._current_archive_performance_settings(),
                 archive_renderer_backend=self._archive_model_renderer_backend(),
                 preview_target=ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
                 parent=self,
@@ -482,7 +482,7 @@ class ArchivePreviewSettingsMixin:
             self.model_preview_settings_dialog = dialog
         else:
             dialog.set_settings(self._current_model_preview_render_settings())
-            dialog.set_archive_performance_settings(self._current_archive_performance_settings())
+            dialog.set_archive_performance_settings(self.shell._current_archive_performance_settings())
             if hasattr(dialog, "set_archive_renderer_backend"):
                 dialog.set_archive_renderer_backend(self._archive_model_renderer_backend())
         dialog.show()
@@ -500,10 +500,10 @@ class ArchivePreviewSettingsMixin:
         preview_settings: Optional[ModelPreviewRenderSettings] = None,
         preview_target: str = ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
     ) -> QDialog:
-        self._ensure_archive_preview_startup_state()
+        self.shell._ensure_archive_preview_startup_state()
         dialog = ModelPreviewSettingsDialog(
             settings=preview_settings or self._current_model_preview_render_settings(),
-            archive_performance_settings=self._current_archive_performance_settings(),
+            archive_performance_settings=self.shell._current_archive_performance_settings(),
             archive_renderer_backend=archive_renderer_backend or self._archive_model_renderer_backend(),
             preview_target=preview_target,
             parent=parent_dialog,
@@ -552,18 +552,18 @@ class ArchivePreviewSettingsMixin:
     def _handle_clear_archive_preview_cache_requested(self) -> None:
         cleared_count = len(self.archive_preview_cache)
         self._clear_archive_preview_cache(clear_native_packages=True)
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
             "plus durable Rust Preview preview packages and PAC XML profile index."
         )
-        self.set_status_message("Archive preview cache cleared.")
+        self.shell.set_status_message("Archive preview cache cleared.")
 
     def _handle_reset_tool_pbd_cloth_preview_requested(self) -> None:
         if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
             if self.archive_d3d11_preview_host.reset_tool_pbd_cloth_preview():
-                self.set_status_message("Reset tool-side PBD physics preview.")
+                self.shell.set_status_message("Reset tool-side PBD physics preview.")
             return
-        self.set_status_message("Tool-side PBD physics reset is available when the Rust Preview preview is running.")
+        self.shell.set_status_message("Tool-side PBD physics reset is available when the Rust Preview preview is running.")
 
     def _handle_archive_renderer_backend_changed(self, backend: str) -> None:
         normalized = ARCHIVE_MODEL_RENDERER_D3D11
@@ -592,10 +592,10 @@ class ArchivePreviewSettingsMixin:
         self._update_archive_model_action_controls(
             None if result is None else getattr(result, "preview_model", None)
         )
-        self.set_status_message(
+        self.shell.set_status_message(
             "Archive model renderer set to Rust Preview."
         )
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
 
     def _configure_model_preview_widget(
         self,
@@ -707,9 +707,9 @@ class ArchivePreviewSettingsMixin:
             self._schedule_current_model_preview_asset_refresh()
         elif d3d11_backend_active and change_flags.d3d11_render_tuning_changed:
             if self.archive_d3d11_preview_host.set_render_tuning(preview_settings):
-                self.set_status_message("Updated Rust Preview render tuning.")
+                self.shell.set_status_message("Updated Rust Preview render tuning.")
             else:
-                self.set_status_message("Reloading Rust Preview preview to apply render settings.")
+                self.shell.set_status_message("Reloading Rust Preview preview to apply render settings.")
                 self._refresh_current_model_preview_assets()
         elif change_flags.support_slot_settings_changed:
             self._schedule_current_model_preview_asset_refresh()
@@ -719,18 +719,18 @@ class ArchivePreviewSettingsMixin:
         self._update_archive_model_action_controls(preview_model)
         self._refresh_archive_preview_settings_status()
         self._sync_model_preview_settings_controls()
-        if self._settings_ready:
-            self.schedule_settings_save()
+        if self.shell._settings_ready:
+            self.shell.schedule_settings_save()
 
     def _handle_archive_performance_settings_changed(self, settings: Optional[object] = None) -> None:
         performance_settings = (
             settings
             if isinstance(settings, ArchivePerformanceSettings)
-            else self._current_archive_performance_settings()
+            else self.shell._current_archive_performance_settings()
         )
         performance_settings = clamp_archive_performance_settings(performance_settings)
         previous_cache_limit = int(self.archive_preview_cache_limit)
-        previous_settings = self._current_archive_performance_settings()
+        previous_settings = self.shell._current_archive_performance_settings()
         previous_sidecar_indexing_enabled = previous_settings.enable_sidecar_indexing
         sidecar_indexing_work_active = bool(
             self.archive_sidecar_worker is not None
@@ -744,7 +744,7 @@ class ArchivePreviewSettingsMixin:
         self._sync_archive_performance_settings_controls()
         self._trim_archive_preview_cache()
         if previous_cache_limit != self.archive_preview_cache_limit:
-            self.append_archive_log(f"Archive preview cache size set to {self.archive_preview_cache_limit}.")
+            self.shell.append_archive_log(f"Archive preview cache size set to {self.archive_preview_cache_limit}.")
         if previous_native_cache_mode != performance_settings.native_preview_cache_mode:
             self._stop_archive_native_preview_prefetch()
             max_bytes, target_bytes = dotnet_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
@@ -758,7 +758,7 @@ class ArchivePreviewSettingsMixin:
                 # "Off" promises the least disk use, so stop reserving what a
                 # previous mode already wrote.  Packages in use stay pinned.
                 clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 f"Rust Preview preview package cache mode set to {performance_settings.native_preview_cache_mode}."
             )
         if (
@@ -774,7 +774,7 @@ class ArchivePreviewSettingsMixin:
                     self.archive_sidecar_worker.stop()
                 except Exception:
                     pass
-                self.append_archive_log("Texture sidecar indexing disabled; stopping the current sidecar index run.")
+                self.shell.append_archive_log("Texture sidecar indexing disabled; stopping the current sidecar index run.")
             self._finish_archive_sidecar_status("Texture sidecar indexing stopped.", success=False)
             self._set_archive_warmup_overlay(False)
             if self.archive_entries:
@@ -785,10 +785,10 @@ class ArchivePreviewSettingsMixin:
                 self._refresh_or_defer_research_archive_picker()
                 ready_text = "Archive list available. Global texture sidecar indexing is disabled."
                 self._set_archive_load_progress(ready_text, phase="Ready", percent=100)
-                self.set_status_message(ready_text)
-                self.append_archive_log(ready_text)
-                if self.worker_thread is None:
-                    self.set_busy(False, build_mode=False)
+                self.shell.set_status_message(ready_text)
+                self.shell.append_archive_log(ready_text)
+                if self.shell.worker_thread is None:
+                    self.shell.set_busy(False, build_mode=False)
         elif (
             not previous_sidecar_indexing_enabled
             and performance_settings.enable_sidecar_indexing
@@ -796,12 +796,12 @@ class ArchivePreviewSettingsMixin:
             and self.archive_sidecar_thread is None
         ):
             self.archive_sidecar_pending_start = True
-            self.append_archive_log("Texture sidecar indexing enabled; it will run in the background.")
+            self.shell.append_archive_log("Texture sidecar indexing enabled; it will run in the background.")
             QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
         if (
             previous_settings.resource_profile != performance_settings.resource_profile
             or previous_settings.archive_fetch_batch_size != performance_settings.archive_fetch_batch_size
         ) and self.archive_filtered_entries:
             self._refresh_or_defer_archive_browser_view(activate_tab=False)
-        if self._settings_ready:
-            self.schedule_settings_save()
+        if self.shell._settings_ready:
+            self.shell.schedule_settings_save()

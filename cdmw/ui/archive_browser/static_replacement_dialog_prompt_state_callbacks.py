@@ -202,7 +202,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     mesh_edit_selected_vertices_by_submesh: Dict[int, set[int]] = {}
     mesh_edit_selected_faces_by_submesh: Dict[int, set[int]] = {}
     mesh_edit_selected_source_indices: set[int] = set()
-    morph_slider_profile_root = self.settings_file_path.parent / "mesh_slider_profiles"
+    morph_slider_profile_root = self.shell.settings_file_path.parent / "mesh_slider_profiles"
     morph_slider_profiles: List[MeshMorphSliderProfile] = []
     morph_slider_deltas: Dict[str, MeshMorphSliderDelta] = {}
     morph_slider_values: Dict[str, float] = {}

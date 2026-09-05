@@ -15,7 +15,7 @@ from cdmw.ui.shell.close_controller import (
     request_tab_shutdowns,
 )
 from cdmw.ui.shell.app_context import AppContext
-from cdmw.ui.shell.tab_registry import TabRegistry, TabSpec
+from cdmw.ui.shell.tab_registry import TabRegistry
 
 
 class ShellContextTests(unittest.TestCase):
@@ -43,27 +43,17 @@ class ShellContextTests(unittest.TestCase):
         self.assertIs(context.services.settings, context.settings)
         self.assertIsInstance(context.event_bus, AppEventBus)
 
-    def test_tab_registry_populates_registered_tabs(self) -> None:
+    def test_registry_owns_the_widget_and_native_title_once(self) -> None:
         app = QApplication.instance() or QApplication([])
-        context = AppContext.create_default()
-
-        class TestRegistry(TabRegistry):
-            def specs(self) -> tuple[TabSpec, ...]:
-                return (
-                    TabSpec(
-                        key="sample",
-                        title="Sample",
-                        factory=lambda _context: QLabel("Sample tab"),
-                    ),
-                )
-
-        tabs = QTabWidget()
-        TestRegistry(context).populate(tabs)
-
-        self.assertIsNotNone(app)
-        self.assertEqual(tabs.count(), 1)
-        self.assertEqual(tabs.widget(0).objectName(), "sample")
-        self.assertIsInstance(tabs.widget(0), QWidget)
+        registry = TabRegistry()
+        widget = QLabel("Sample")
+        registry.register("archive_browser", widget, "Archive Browser")
+        self.assertIs(registry.widgets["archive_browser"], widget)
+        self.assertEqual(registry.titles["archive_browser"], "Browse Archives")
+        with self.assertRaises(ValueError):
+            registry.register("archive_browser", QWidget(), "Second copy")
+        widget.deleteLater()
+        app.processEvents()
 
     def test_close_controller_discovers_and_requests_tab_shutdown(self) -> None:
         class WorkerTab:

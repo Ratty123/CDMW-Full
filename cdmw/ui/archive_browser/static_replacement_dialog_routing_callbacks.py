@@ -171,7 +171,7 @@ def create_alignment_original_clipboard_callbacks(context: dict[str, object]) ->
         alignment_part_clipboard.clear()
         alignment_part_clipboard.update(payload)
         rows = tuple(payload.get("texture_rows", ()) or ())
-        self.set_status_message(_copied_original_clipboard_status_message_helper(original_index, len(rows)))
+        self.shell.set_status_message(_copied_original_clipboard_status_message_helper(original_index, len(rows)))
 
     def _paste_alignment_part_clipboard_as_replacement_source() -> None:
         if not _alignment_part_clipboard_can_paste():
@@ -188,7 +188,7 @@ def create_alignment_original_clipboard_callbacks(context: dict[str, object]) ->
             undo_label=original_part_clipboard_action_text["paste_undo_label"],
         )
         if new_source_index >= 0:
-            self.set_status_message(_pasted_original_source_status_message_helper(new_source_index))
+            self.shell.set_status_message(_pasted_original_source_status_message_helper(new_source_index))
 
     def _show_original_parts_context_menu(pos: QPoint) -> None:
         item = original_tree.itemAt(pos)

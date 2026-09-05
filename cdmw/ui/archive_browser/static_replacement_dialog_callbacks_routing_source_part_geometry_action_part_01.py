@@ -56,7 +56,7 @@ def _routing_source_part_geometry_action_step_002(_state):
         if not (callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active()):
             return False
         message = f'Active Mesh Editor source-part {action} requires native geometry execution; Python geometry mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True

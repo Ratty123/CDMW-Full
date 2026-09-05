@@ -875,92 +875,11 @@ class MeshDotNetSceneFrameWorker(QObject):
             self.finished.emit()
 
 
-class MeshDotNetExperimentOutputImportWorker(QObject):
-    completed = Signal(int, object, object, float)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        request_id: int,
-        service: MeshService,
-        session_id: str,
-        package: MeshDotNetExperimentPackage,
-        status_payload: Mapping[str, object] | None = None,
-    ) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.service = service
-        self.session_id = str(session_id or "")
-        self.package = package
-        self.status_payload = dict(status_payload or {})
-        self.stop_event = threading.Event()
-        self._commit_gate = threading.Lock()
-        self._commit_started = False
-
-    def stop(self) -> bool:
-        """Cancel preparation, or report that the noninterruptible commit began."""
-
-        with self._commit_gate:
-            if self._commit_started:
-                return False
-            self.stop_event.set()
-            return True
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            from importlib import import_module
-
-            legacy = import_module("cdmw.services.mesh_dotnet_experiment")
-            if self.stop_event.is_set():
-                return
-            started = time.perf_counter()
-            mesh = legacy.import_mesh_dotnet_experiment_output(
-                self.package,
-                self.status_payload,
-            )
-            if mesh is None:
-                raise RuntimeError("Mesh .NET editor did not produce an edited OBJ package.")
-            if self.stop_event.is_set():
-                return
-            prepared = self.service.prepare_working_mesh_replacement(self.session_id, mesh)
-            validation = prepared.validation_report
-            if validation.blockers:
-                raise ValueError(
-                    "Mesh .NET output failed pre-commit export validation: "
-                    + str(validation.blockers[0].message)
-                )
-            with self._commit_gate:
-                if self.stop_event.is_set():
-                    return
-                self._commit_started = True
-            view = self.service.commit_prepared_working_mesh_replacement(prepared)
-            elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-            # Once commit starts its terminal result is always published. A late
-            # cancellation cannot turn a successful mutation into a silent one.
-            self.completed.emit(self.request_id, view, validation, elapsed_ms)
-        except Exception as exc:
-            if self._commit_started or not self.stop_event.is_set():
-                message = f"{type(exc).__name__}: {exc}"
-                try:
-                    evaluation_path = legacy.write_mesh_dotnet_experiment_evaluation(
-                        self.package,
-                        self.status_payload,
-                        validation_report=SimpleNamespace(ok=False, blockers=(message,), warnings=()),
-                    )
-                    message = f"{message} Evaluation: {evaluation_path}"
-                except Exception:
-                    pass
-                self.error.emit(self.request_id, message)
-        finally:
-            self.finished.emit()
 
 
 __all__ = [
     "MeshArchiveMaterialContextResult",
     "MeshArchiveMaterialContextWorker",
-    "MeshDotNetExperimentOutputImportWorker",
     "MeshDotNetExperimentPackageWorker",
     "MeshExportValidationWorker",
     "MeshFileSessionLoadWorker",

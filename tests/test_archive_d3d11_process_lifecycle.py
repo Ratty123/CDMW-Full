@@ -90,6 +90,9 @@ class _FakeCheckbox:
 
 class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_d3d11_preview_host = _FakeHost()
         self.archive_isolated_renderer_active_package: Path | None = Path("preview-package")
         self.archive_isolated_renderer_package_source = "dotnet-canonical"

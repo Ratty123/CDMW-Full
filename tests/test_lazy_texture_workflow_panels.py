@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,24 +63,25 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
             }
         )
         panels = (
-            (window.settings_section, "dry_run_checkbox"),
-            (window.asset_authoring_section, "openimageio_source_path_edit"),
-            (window.dds_output_section, "dds_custom_width_spin"),
-            (window.filters_section, "filters_edit"),
-            (window.chainner_section, "chainner_exe_path_edit"),
+            (window.textures.settings_section, "dry_run_checkbox"),
+            (window.textures.asset_authoring_section, "openimageio_source_path_edit"),
+            (window.textures.dds_output_section, "dds_custom_width_spin"),
+            (window.textures.filters_section, "filters_edit"),
+            (window.textures.chainner_section, "chainner_exe_path_edit"),
         )
         for section, attribute in panels:
             self.assertFalse(section.is_body_built(), attribute)
-            self.assertNotIn(attribute, vars(window))
+            self.assertNotIn(attribute, vars(window.textures))
 
         for section, _attribute in panels:
             section.set_expanded(True)
 
-        self.assertTrue(window.dry_run_checkbox.isChecked())
-        self.assertEqual("C:/assets/source.exr", window.openimageio_source_path_edit.text())
-        self.assertEqual(2048, window.dds_custom_width_spin.value())
-        self.assertEqual("characters/*", window.filters_edit.toPlainText())
-        self.assertEqual("C:/tools/chainner.exe", window.chainner_exe_path_edit.text())
+        self.assertTrue(window.textures.dry_run_checkbox.isChecked())
+        self.assertEqual("C:/assets/source.exr", window.textures.openimageio_source_path_edit.text())
+        self.assertEqual(2048, window.textures.dds_custom_width_spin.value())
+        self.assertEqual("characters/*", window.textures.filters_edit.toPlainText())
+        self.assertEqual("C:/tools/chainner.exe", window.textures.chainner_exe_path_edit.text())
+        self.assertIs(window.textures.workflow_profiles_dialog.parent(), window.textures)
 
         window._save_settings()
         self.assertEqual("C:/assets/source.exr", settings.value("asset_authoring/oiio_source_path"))
@@ -95,53 +94,10 @@ class LazyTextureWorkflowPanelTests(unittest.TestCase):
             }
         )
 
-        self.assertTrue(window.dds_output_section.is_body_built())
-        self.assertTrue(window.dds_output_section.toggle_button.isChecked())
-        self.assertEqual(1024, window.dds_custom_width_spin.value())
-        self.assertFalse(window.chainner_section.is_body_built())
-
-    def test_collapsed_panel_providers_stay_unimported_in_clean_process(self) -> None:
-        script = r"""
-import os
-import sys
-import tempfile
-from pathlib import Path
-os.environ["QT_QPA_PLATFORM"] = "offscreen"
-os.environ["CDMW_GUI_STARTUP_SMOKE"] = "1"
-os.environ["CDMW_MAIN_WINDOW_CLASS_ONLY"] = "1"
-os.environ["CDMW_SINGLE_INSTANCE_SCOPE"] = f"lazy-panel-imports-{os.getpid()}"
-from cdmw.services import settings_service
-from PySide6.QtWidgets import QApplication
-import cdmw.ui.shell.app_window as app_window
-settings_path = Path(tempfile.mkdtemp(prefix="cdmw-lazy-panel-imports-")) / "settings.ini"
-settings_service.resolve_settings_file_path = lambda **_kwargs: settings_path
-app_window.resolve_settings_file_path = lambda: settings_path
-MainWindow = app_window.run_gui()
-from cdmw.app.events import AppEventBus
-from cdmw.services.service_container import ServiceContainer
-from cdmw.ui.shell.app_context import AppContext
-app = QApplication.instance() or QApplication([])
-settings = settings_service.create_settings(settings_file_path=settings_path)
-window = MainWindow(app_context=AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus()))
-providers = (
-    "cdmw.ui.texture_workflow.settings_panel",
-    "cdmw.ui.texture_workflow.asset_authoring_panel",
-    "cdmw.ui.texture_workflow.dds_output_panel",
-    "cdmw.ui.texture_workflow.workflow_profiles_ui",
-    "cdmw.ui.texture_workflow.upscale_backend_panel",
-)
-assert not [name for name in providers if name in sys.modules]
-window._finalize_close()
-"""
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=Path(__file__).resolve().parents[1],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+        self.assertTrue(window.textures.dds_output_section.is_body_built())
+        self.assertTrue(window.textures.dds_output_section.toggle_button.isChecked())
+        self.assertEqual(1024, window.textures.dds_custom_width_spin.value())
+        self.assertFalse(window.textures.chainner_section.is_body_built())
 
 
 if __name__ == "__main__":

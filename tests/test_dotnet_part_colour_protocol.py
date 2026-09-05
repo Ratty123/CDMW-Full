@@ -188,30 +188,3 @@ def test_a_raising_builder_is_contained_and_reported():
 
 
 # -- the .NET side of the contract ----------------------------------------
-
-
-def test_the_dotnet_editor_archives_the_colour_page_but_retains_its_protocol_code():
-    """The obsolete controls stay unconstructed while their parser remains stable."""
-    contracts = (DOTNET_ROOT / "EditMeshLayoutContracts.cs").read_text(encoding="utf-8")
-    tool_list = (DOTNET_ROOT / "EditMeshToolListContract.cs").read_text(encoding="utf-8")
-    tool_panels = (DOTNET_ROOT / "ExperimentForm.ToolPanels.cs").read_text(encoding="utf-8")
-    protocol = (DOTNET_ROOT / "ExperimentForm.ColourProtocol.cs").read_text(encoding="utf-8")
-    smoke = (DOTNET_ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
-
-    assert "Colour," not in contracts
-    assert "ToolRailPage.Colour" not in contracts
-    assert "new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour)" not in tool_list
-    assert "BuildColourSection(rightStack)" not in tool_panels
-    assert 'WriteProtocolEvent("part_material_edit_request"' in protocol
-    assert '"Colour",' not in smoke
-
-
-def test_the_dotnet_editor_paces_slider_edits_instead_of_flooding_the_pipe():
-    section = (DOTNET_ROOT / "ExperimentForm.ColourSection.cs").read_text(encoding="utf-8")
-    protocol = (DOTNET_ROOT / "ExperimentForm.ColourProtocol.cs").read_text(encoding="utf-8")
-
-    # One pending request, published on a timer, with the landed value flushed
-    # on release. Without this a drag emits one host round trip per pixel.
-    assert "PartColourAuthorityIntervalMs = 33" in section
-    assert "_partRecolourStrength.MouseUp += (_, _) => FlushPartColourEdit();" in section
-    assert "_pendingPartColourEdit = payload;" in protocol

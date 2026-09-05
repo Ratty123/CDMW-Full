@@ -25,7 +25,7 @@ class ArchivePatchActionsMixin:
             pending.append(patch_result)
             self._archive_patch_results_pending_index = pending[-16:]
             self.archive_preview_cache.clear()
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Archive patch completed; resident cache update is waiting for path indexing."
             )
             return
@@ -54,14 +54,14 @@ class ArchivePatchActionsMixin:
             self._clear_archive_asset_family_cache()
             self.archive_sidecar_entries_by_texture_path = {}
             self.archive_sidecar_entries_by_texture_basename = {}
-            if self.archive_entries and self._current_archive_performance_settings().enable_sidecar_indexing:
+            if self.archive_entries and self.shell._current_archive_performance_settings().enable_sidecar_indexing:
                 self.archive_sidecar_pending_start = True
                 QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
             else:
                 self.archive_sidecar_pending_start = False
 
     def _start_archive_audio_export(self, entry: ArchiveEntry) -> None:
-        default_dir = self.settings_file_path.parent / "audio_export"
+        default_dir = self.shell.settings_file_path.parent / "audio_export"
         default_target = default_dir / f"{Path(entry.basename).stem}.wav"
         output_path, _selected = QFileDialog.getSaveFileName(
             self,
@@ -78,12 +78,12 @@ class ArchivePatchActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, Path):
-                self.set_status_message("Audio export finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Audio export finished with an unexpected result payload.", error=True)
                 return
             QMessageBox.information(self, "Audio Export Complete", f"Exported WAV:\n{result}")
-            self.set_status_message(f"Exported {entry.basename} as WAV.")
+            self.shell.set_status_message(f"Exported {entry.basename} as WAV.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting {entry.basename} as WAV...",
             task=_task,
             on_complete=_handle_complete,
@@ -94,7 +94,7 @@ class ArchivePatchActionsMixin:
         source_path, _selected = QFileDialog.getOpenFileName(
             self,
             "Select Replacement Audio",
-            str(self.settings_file_path.parent),
+            str(self.shell.settings_file_path.parent),
             "Audio Files (*.wav *.ogg *.mp3)",
         )
         if not source_path:
@@ -120,7 +120,7 @@ class ArchivePatchActionsMixin:
         if confirmation != QMessageBox.Yes:
             return
 
-        mutation_service = self.app_context.services.require_archive_mutations()
+        mutation_service = self.shell.app_context.services.require_archive_mutations()
 
         def _task(
             log: Callable[[str], None],
@@ -137,7 +137,7 @@ class ArchivePatchActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchivePatchResult):
-                self.set_status_message("Audio patch finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Audio patch finished with an unexpected result payload.", error=True)
                 return
             self._apply_archive_patch_result(result)
             current_entry = self._current_archive_entry()
@@ -148,9 +148,9 @@ class ArchivePatchActionsMixin:
                 "Audio Patch Complete",
                 f"Patched {entry.path}\n\nBackup: {result.backup_dir}",
             )
-            self.set_status_message(f"Patched audio entry {entry.basename}.")
+            self.shell.set_status_message(f"Patched audio entry {entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Patching audio for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -159,10 +159,10 @@ class ArchivePatchActionsMixin:
         )
 
     def _restore_archive_patch_backup_from_ui(self) -> None:
-        mutation_service = self.app_context.services.require_archive_mutations()
+        mutation_service = self.shell.app_context.services.require_archive_mutations()
         backups = mutation_service.list_backups()
         if not backups:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"No archive patch backups were found under {mutation_service.backup_root}.",
                 error=True,
             )
@@ -213,7 +213,7 @@ class ArchivePatchActionsMixin:
 
         def _handle_complete(result: object) -> None:
             restored_dir = result if isinstance(result, Path) else backup_dir
-            self.set_status_message(f"Restored archive backup from {restored_dir}.")
+            self.shell.set_status_message(f"Restored archive backup from {restored_dir}.")
             QMessageBox.information(
                 self,
                 "Backup Restored",
@@ -221,7 +221,7 @@ class ArchivePatchActionsMixin:
             )
             QTimer.singleShot(150, lambda: self.scan_archives(force_refresh=True))
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Restoring archive backup from {backup_dir.name}...",
             task=_task,
             on_complete=_handle_complete,

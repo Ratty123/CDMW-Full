@@ -71,7 +71,7 @@ def _remaining_source_role_flush_step_004(_state):
         ):
             return False
         message = 'Active Mesh Editor source glow overrides require native material execution; Python adjustment mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True

@@ -167,10 +167,12 @@ class ReplaceAssistantTab(
         get_archive_entries: Callable[[], Sequence[ArchiveEntry]],
         get_original_root: Callable[[], str],
         get_current_config: Callable[[], object],
+        workspace=None,
         archive_catalogue_service: ArchiveCatalogueService | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
+        self.workspace = workspace
         self.settings = settings
         self.base_dir = base_dir
         self.get_archive_entries = get_archive_entries
@@ -223,9 +225,9 @@ class ReplaceAssistantTab(
         self.add_files_button = QPushButton("Add Files")
         self.add_folder_button = QPushButton("Add Folder")
         self.auto_match_button = QPushButton("Auto-Match")
-        self.open_in_editor_button = QPushButton("Open In Texture Editor")
-        self.choose_local_original_button = QPushButton("Choose Local Original")
-        self.choose_archive_original_button = QPushButton("Choose Archive Original")
+        self.open_in_editor_button = QPushButton("Open")
+        self.choose_local_original_button = QPushButton("Local")
+        self.choose_archive_original_button = QPushButton("Original")
         self.remove_selected_button = QPushButton("Remove Selected")
         self.clear_all_button = QPushButton("Clear All")
         button_row.addWidget(self.add_files_button)
@@ -239,6 +241,9 @@ class ReplaceAssistantTab(
         button_row.addStretch(1)
         root_layout.addLayout(button_row)
         root_layout.addWidget(self.summary_label)
+        if self.workspace is not None:
+            for button in (self.add_files_button, self.add_folder_button, self.remove_selected_button, self.clear_all_button):
+                button.hide()
 
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
@@ -297,54 +302,7 @@ class ReplaceAssistantTab(
         queue_layout.addWidget(queue_group)
         self.main_splitter.addWidget(self.queue_panel)
 
-        self.preview_panel = QWidget()
-        preview_layout = QVBoxLayout(self.preview_panel)
-        preview_layout.setContentsMargins(0, 0, 0, 0)
-        preview_layout.setSpacing(8)
-        preview_group = FlatSectionPanel("Preview")
-        preview_group_layout = preview_group.body_layout
-        preview_title_row = QHBoxLayout()
-        preview_title_row.setSpacing(8)
-        self.preview_title_label = QLabel("Select an imported file")
-        self.preview_title_label.setWordWrap(True)
-        self.preview_zoom_out_button = QPushButton("-")
-        self.preview_zoom_fit_button = QPushButton("Fit")
-        self.preview_zoom_100_button = QPushButton("100%")
-        self.preview_zoom_in_button = QPushButton("+")
-        self.preview_zoom_value = QLabel("-")
-        self.preview_zoom_value.setObjectName("HintLabel")
-        preview_title_row.addWidget(self.preview_title_label, stretch=1)
-        preview_title_row.addWidget(self.preview_zoom_out_button)
-        preview_title_row.addWidget(self.preview_zoom_fit_button)
-        preview_title_row.addWidget(self.preview_zoom_100_button)
-        preview_title_row.addWidget(self.preview_zoom_in_button)
-        preview_title_row.addWidget(self.preview_zoom_value)
-        preview_group_layout.addLayout(preview_title_row)
-        self.preview_meta_label = QLabel("Select a file to preview it here.")
-        self.preview_meta_label.setWordWrap(True)
-        self.preview_meta_label.setObjectName("HintLabel")
-        preview_group_layout.addWidget(self.preview_meta_label)
-        self.preview_warning_label = QLabel("")
-        self.preview_warning_label.setWordWrap(True)
-        self.preview_warning_label.setObjectName("WarningText")
-        self.preview_warning_label.setVisible(False)
-        preview_group_layout.addWidget(self.preview_warning_label)
-        self.preview_label = PreviewLabel("Select a file to preview it here.")
-        self.preview_label.setMinimumHeight(320)
-        self.preview_label.setMinimumWidth(320)
-        self.preview_scroll = PreviewScrollArea()
-        self.preview_scroll.setWidgetResizable(False)
-        self.preview_scroll.setAlignment(Qt.AlignCenter)
-        self.preview_scroll.setWidget(self.preview_label)
-        self.preview_label.attach_scroll_area(self.preview_scroll)
-        self.preview_label.set_wheel_zoom_handler(self._adjust_preview_zoom)
-        preview_group_layout.addWidget(self.preview_scroll, stretch=1)
-        self.preview_details_edit = QPlainTextEdit()
-        self.preview_details_edit.setReadOnly(True)
-        self.preview_details_edit.setPlaceholderText("Selected item details appear here.")
-        preview_group_layout.addWidget(self.preview_details_edit)
-        preview_layout.addWidget(preview_group, stretch=1)
-        self.main_splitter.addWidget(self.preview_panel)
+        self._build_review_preview(queue_layout)
 
         self.settings_panel = QWidget()
         set_sidebar_width_policy(self.settings_panel, role="wide")
@@ -367,11 +325,10 @@ class ReplaceAssistantTab(
         self.size_mode_combo.addItem("Match original size", "match_original")
         self.package_output_root_edit = QLineEdit(str((workspace_paths(self.base_dir)["workspace_root"] / "outputs" / "texture_replacer").resolve()))
         self.package_output_browse_button = QPushButton("Browse")
-        self.overwrite_package_checkbox = QCheckBox("Clear existing output package before build")
+        self.overwrite_package_checkbox = QCheckBox("Replace existing output package")
         self.overwrite_package_checkbox.setChecked(True)
         overwrite_help_text = (
-            "Deletes files in the generated package folder before writing the new output. "
-            "This is local output cleanup, not a mod-manager conflict setting."
+            "Existing output is replaced only after a successful build."
         )
         self.overwrite_package_checkbox.setToolTip(
             _wrapped_help_tooltip(overwrite_help_text)
@@ -381,7 +338,7 @@ class ReplaceAssistantTab(
         self.create_no_encrypt_checkbox.setChecked(default_package_options.create_no_encrypt_file)
         self.build_package_button = QPushButton("Build Package")
         self.open_output_folder_button = QPushButton("Open Output Folder")
-        self.mirror_workflow_button = QPushButton("Mirror Texture Workflow")
+        self.mirror_workflow_button = QPushButton("Mirror")
 
         build_layout.addWidget(QLabel("Build mode"), 0, 0)
         build_layout.addWidget(self.build_mode_combo, 0, 1)
@@ -607,18 +564,25 @@ class ReplaceAssistantTab(
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         self.queue_panel.setMinimumWidth(queue_min)
         self.queue_panel.setMaximumWidth(queue_max)
-        self.preview_panel.setMinimumWidth(preview_min)
-        self.main_splitter.setStretchFactor(0, 0)
-        self.main_splitter.setStretchFactor(1, 1)
-        self.main_splitter.setStretchFactor(2, 0)
-        self.main_splitter.setSizes(
-            build_bounded_splitter_sizes(
-                1800,
-                [22, 58, 20],
-                [queue_min, preview_min, settings_min],
-                [queue_max, None, settings_max],
+        self.preview_panel.setMinimumWidth(preview_min if self.workspace is None else 0)
+        if self.workspace is None:
+            self.main_splitter.setStretchFactor(0, 0)
+            self.main_splitter.setStretchFactor(1, 1)
+            self.main_splitter.setStretchFactor(2, 0)
+            self.main_splitter.setSizes(
+                build_bounded_splitter_sizes(
+                    1800,
+                    [22, 58, 20],
+                    [queue_min, preview_min, settings_min],
+                    [queue_max, None, settings_max],
+                )
             )
-        )
+        else:
+            self.queue_panel.setMaximumWidth(16777215)
+            self.settings_panel.setMaximumWidth(16777215)
+            self.main_splitter.setStretchFactor(0, 1)
+            self.main_splitter.setStretchFactor(1, 1)
+            self.main_splitter.setSizes([550, 450])
 
         self.add_files_button.clicked.connect(self.import_files)
         self.add_folder_button.clicked.connect(self.import_folder)
@@ -634,10 +598,14 @@ class ReplaceAssistantTab(
         self.mirror_workflow_button.clicked.connect(self.mirror_texture_workflow_settings)
         self.queue_tree.currentItemChanged.connect(self._handle_selection_changed)
         self.queue_tree.itemSelectionChanged.connect(self._update_controls)
-        self.preview_zoom_out_button.clicked.connect(lambda: self._adjust_preview_zoom(-1))
-        self.preview_zoom_fit_button.clicked.connect(lambda: self._set_preview_fit(True))
-        self.preview_zoom_100_button.clicked.connect(lambda: self._set_preview_zoom_factor(1.0))
-        self.preview_zoom_in_button.clicked.connect(lambda: self._adjust_preview_zoom(1))
+        if self.workspace is None:
+            self.preview_zoom_out_button.clicked.connect(lambda: self._adjust_preview_zoom(-1))
+        if self.workspace is None:
+            self.preview_zoom_fit_button.clicked.connect(lambda: self._set_preview_fit(True))
+        if self.workspace is None:
+            self.preview_zoom_100_button.clicked.connect(lambda: self._set_preview_zoom_factor(1.0))
+        if self.workspace is None:
+            self.preview_zoom_in_button.clicked.connect(lambda: self._adjust_preview_zoom(1))
         self.ncnn_exe_browse_button.clicked.connect(self._browse_ncnn_exe)
         self.ncnn_model_dir_browse_button.clicked.connect(self._browse_ncnn_model_dir)
         self.ncnn_refresh_models_button.clicked.connect(self.refresh_ncnn_models)
@@ -691,6 +659,72 @@ class ReplaceAssistantTab(
         self._update_controls()
         QTimer.singleShot(0, self._apply_responsive_splitter_defaults)
 
+    def _build_review_preview(self, queue_layout) -> None:
+        if self.workspace is None:
+            self.preview_panel = QWidget()
+            preview_layout = QVBoxLayout(self.preview_panel)
+            preview_layout.setContentsMargins(0, 0, 0, 0)
+            preview_layout.setSpacing(8)
+            preview_group = FlatSectionPanel("Preview")
+            preview_group_layout = preview_group.body_layout
+            preview_title_row = QHBoxLayout()
+            preview_title_row.setSpacing(8)
+            self.preview_title_label = QLabel("Select an imported file")
+            self.preview_title_label.setWordWrap(True)
+            self.preview_zoom_out_button = QPushButton("-")
+            self.preview_zoom_fit_button = QPushButton("Fit")
+            self.preview_zoom_100_button = QPushButton("100%")
+            self.preview_zoom_in_button = QPushButton("+")
+            self.preview_zoom_value = QLabel("-")
+            self.preview_zoom_value.setObjectName("HintLabel")
+            preview_title_row.addWidget(self.preview_title_label, stretch=1)
+            preview_title_row.addWidget(self.preview_zoom_out_button)
+            preview_title_row.addWidget(self.preview_zoom_fit_button)
+            preview_title_row.addWidget(self.preview_zoom_100_button)
+            preview_title_row.addWidget(self.preview_zoom_in_button)
+            preview_title_row.addWidget(self.preview_zoom_value)
+            preview_group_layout.addLayout(preview_title_row)
+            self.preview_meta_label = QLabel("Select a file to preview it here.")
+            self.preview_meta_label.setWordWrap(True)
+            self.preview_meta_label.setObjectName("HintLabel")
+            preview_group_layout.addWidget(self.preview_meta_label)
+            self.preview_warning_label = QLabel("")
+            self.preview_warning_label.setWordWrap(True)
+            self.preview_warning_label.setObjectName("WarningText")
+            self.preview_warning_label.setVisible(False)
+            preview_group_layout.addWidget(self.preview_warning_label)
+            self.preview_label = PreviewLabel("Select a file to preview it here.")
+            self.preview_label.setMinimumHeight(320)
+            self.preview_label.setMinimumWidth(320)
+            self.preview_scroll = PreviewScrollArea()
+            self.preview_scroll.setWidgetResizable(False)
+            self.preview_scroll.setAlignment(Qt.AlignCenter)
+            self.preview_scroll.setWidget(self.preview_label)
+            self.preview_label.attach_scroll_area(self.preview_scroll)
+            self.preview_label.set_wheel_zoom_handler(self._adjust_preview_zoom)
+            preview_group_layout.addWidget(self.preview_scroll, stretch=1)
+            self.preview_details_edit = QPlainTextEdit()
+            self.preview_details_edit.setReadOnly(True)
+            self.preview_details_edit.setPlaceholderText("Selected item details appear here.")
+            preview_group_layout.addWidget(self.preview_details_edit)
+            preview_layout.addWidget(preview_group, stretch=1)
+            self.main_splitter.addWidget(self.preview_panel)
+
+        else:
+            # Matching details belong to review; the job owns the image canvas.
+            self.preview_panel = QWidget()
+            details_layout = QVBoxLayout(self.preview_panel)
+            self.preview_title_label = QLabel("Select a replacement match")
+            self.preview_meta_label = QLabel()
+            self.preview_warning_label = QLabel()
+            self.preview_warning_label.setWordWrap(True)
+            self.preview_details_edit = QPlainTextEdit()
+            self.preview_details_edit.setReadOnly(True)
+            self.preview_details_edit.setMaximumHeight(100)
+            for field in (self.preview_title_label, self.preview_meta_label, self.preview_warning_label, self.preview_details_edit):
+                details_layout.addWidget(field)
+            self.queue_panel.layout().addWidget(self.preview_panel)
+
     def _apply_responsive_splitter_defaults(self) -> None:
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
@@ -706,6 +740,9 @@ class ReplaceAssistantTab(
         )
 
     def set_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
+        if self.workspace is not None:
+            self.main_splitter.setSizes([550, 450])
+            return
         if not sizes:
             return
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
@@ -725,6 +762,9 @@ class ReplaceAssistantTab(
         return self.main_splitter.sizes()
 
     def apply_responsive_splitter_sizes(self, total_width: Optional[int] = None) -> None:
+        if self.workspace is not None:
+            self.main_splitter.setSizes([550, 450])
+            return
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
         settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")

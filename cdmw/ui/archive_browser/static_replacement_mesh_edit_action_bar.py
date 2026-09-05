@@ -45,7 +45,7 @@ def _mesh_editor_apply_action_bar_service_action(_state, _callbacks,
     selected_sources = _callbacks._mesh_editor_action_source_indices()
     selected_edges = _callbacks._mesh_editor_edge_selection(selected_vertices, selected_faces) if edge_action else {}
     if require_selection and not selected_vertices and not selected_faces and not selected_edges and not selected_sources:
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             f"Select adjacent vertices, faces, or edges before using {action_text}." if edge_action
             else f"Select vertices, wires, or faces before using {action_text}.",
             error=True,
@@ -102,7 +102,7 @@ def _mesh_editor_prompt_action_value(_state, _callbacks,
         decimals: int,
     ) -> float | None:
     if _state.QInputDialog is None:
-        _state.self.set_status_message(f"Mesh Editor action needs an input dialog: {action_text}.", error=True)
+        _state.self.shell.set_status_message(f"Mesh Editor action needs an input dialog: {action_text}.", error=True)
         return None
     value, accepted = _state.QInputDialog.getDouble(
         _state.dialog,
@@ -154,11 +154,11 @@ def _mesh_editor_default_material_choice_index(_state, _callbacks, choices: tupl
 
 def _mesh_editor_prompt_material_part(_state, _callbacks, action_text: str, label_text: str) -> dict[str, object] | None:
     if _state.QInputDialog is None or not callable(getattr(_state.QInputDialog, "getItem", None)):
-        _state.self.set_status_message(f"Mesh Editor action needs a material picker: {action_text}.", error=True)
+        _state.self.shell.set_status_message(f"Mesh Editor action needs a material picker: {action_text}.", error=True)
         return None
     choices = _callbacks._mesh_editor_material_part_choices()
     if not choices:
-        _state.self.set_status_message(f"No material parts are available for {action_text}.", error=True)
+        _state.self.shell.set_status_message(f"No material parts are available for {action_text}.", error=True)
         return None
     labels = [str(choice["label"]) for choice in choices]
     selected_label, accepted = _state.QInputDialog.getItem(
@@ -244,7 +244,7 @@ def _mesh_editor_action_bar_action_requested(_state, _callbacks, action: object)
     selection_mode = str(getattr(action, "selection_mode", "") or "").strip()
     params = dict(tuple(getattr(action, "params", ()) or ()))
     if _callbacks._mesh_edit_worker_active():
-        _state.self.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
+        _state.self.shell.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
         return True
     if command == "set_mode":
         if mode == "object":
@@ -304,7 +304,7 @@ def _mesh_editor_action_bar_action_requested(_state, _callbacks, action: object)
             topology_action=command not in _SERVICE_NON_TOPOLOGY_ACTIONS,
         )
     if command in {"triangulate_display", "quadrangulate_display"}:
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             f"{text} is legacy display-shape cleanup and is not available in active Mesh Edit.",
             error=True,
         )

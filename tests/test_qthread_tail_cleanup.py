@@ -67,6 +67,11 @@ def test_ui_worker_cleanup_retains_refs_until_native_thread_joins(monkeypatch, l
 
     if lane == "structure":
         class _Owner(ArchiveFilterWorkerMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             pass
 
         owner = _Owner()
@@ -77,6 +82,11 @@ def test_ui_worker_cleanup_retains_refs_until_native_thread_joins(monkeypatch, l
         refs = lambda: (owner.archive_structure_filter_thread, owner.archive_structure_filter_worker)
     elif lane == "filter":
         class _Owner(ArchiveFilterWorkerMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             def _cleanup_worker_refs(self, owner_thread: object) -> None:
                 assert owner_thread is self.worker_thread
                 self.worker_thread = None
@@ -90,6 +100,11 @@ def test_ui_worker_cleanup_retains_refs_until_native_thread_joins(monkeypatch, l
         refs = lambda: (owner.worker_thread, owner.archive_filter_worker)
     elif lane == "preview":
         class _Owner(ArchivePreviewWorkerMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             pass
 
         owner = _Owner()
@@ -103,6 +118,11 @@ def test_ui_worker_cleanup_retains_refs_until_native_thread_joins(monkeypatch, l
         refs = lambda: (owner.archive_preview_thread, owner.archive_preview_worker)
     else:
         class _Owner(StartupPathTaskControllerMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             def isVisible(self) -> bool:
                 return False
 

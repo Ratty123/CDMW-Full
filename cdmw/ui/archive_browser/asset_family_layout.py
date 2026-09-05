@@ -116,10 +116,10 @@ class ArchiveAssetFamilyLayoutMixin:
         texture_refs_header.setSectionResizeMode(7, QHeaderView.Fixed)
         make_tree_columns_persistent(
             self.archive_texture_refs_tree,
-            self.settings,
+            self.shell.settings,
             "main/archive_texture_refs",
             minimum_width=56,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
         self._install_tree_horizontal_wheel_guard(self.archive_texture_refs_tree)
         for tree in (
@@ -151,7 +151,7 @@ class ArchiveAssetFamilyLayoutMixin:
         tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         guard = TreeHorizontalWheelGuard(tree)
         tree.viewport().installEventFilter(guard)
-        self._tree_horizontal_wheel_guards.append(guard)
+        self.shell._tree_horizontal_wheel_guards.append(guard)
 
     def _layout_archive_texture_reference_columns(self, *_args) -> None:
         if not hasattr(self, "archive_texture_refs_tree"):

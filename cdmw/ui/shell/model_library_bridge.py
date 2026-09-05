@@ -199,7 +199,7 @@ class ModelLibraryShellBridgeMixin:
             supported = ", ".join(sorted(IMPORTABLE_MODEL_EXTENSIONS))
             self.set_status_message(f"Model library file is not supported by mesh import: {scene_path.suffix}. Supported: {supported}", error=True)
             return
-        current_entry = self._current_archive_mesh_entry()
+        current_entry = self.archive._current_archive_mesh_entry()
         if current_entry is None:
             self._activate_tool_widget(self.archive_browser_tab)
             message = (
@@ -239,7 +239,7 @@ class ModelLibraryShellBridgeMixin:
         source_label = " | ".join(source_parts)
         request_id = int(getattr(self, "_model_library_import_request_id", 0) or 0) + 1
         self._model_library_import_request_id = request_id
-        entry_key = self._archive_entry_identity_key(current_entry)
+        entry_key = self.archive._archive_entry_identity_key(current_entry)
 
         def task(_log: Callable[[str], None], stop_event: object) -> object:
             try:
@@ -280,7 +280,7 @@ class ModelLibraryShellBridgeMixin:
                 return
             if bool(getattr(self, "_shutting_down", False)) or not isinstance(value, SceneImportResult):
                 return
-            if self._archive_entry_identity_key(self._current_archive_mesh_entry()) != entry_key:
+            if self.archive._archive_entry_identity_key(self.archive._current_archive_mesh_entry()) != entry_key:
                 self.set_status_message("Model library import result ignored because the selected archive mesh changed.", error=True)
                 return
 
@@ -289,9 +289,9 @@ class ModelLibraryShellBridgeMixin:
                     return
                 setup.source_label = source_label
                 self.set_status_message(f"Opening mesh replacement workflow for model library item: {model_name}.")
-                self._start_archive_mesh_patch(current_entry, preset_setup=setup)
+                self.archive._start_archive_mesh_patch(current_entry, preset_setup=setup)
 
-            self._prepare_archive_mesh_import_setup_async(
+            self.archive._prepare_archive_mesh_import_setup_async(
                 current_entry,
                 scene_path,
                 title="Model Library Mesh Import Setup",
@@ -326,38 +326,38 @@ class ModelLibraryShellBridgeMixin:
         source_name = str(metadata.get("source", "") or metadata.get("kind", "") or "Model Library").strip()
         license_label = str(metadata.get("license_label", "") or metadata.get("licenseLabel", "") or "").strip()
         viewer_url = str(metadata.get("viewer_url", "") or metadata.get("viewerUrl", "") or "").strip()
-        render_settings = self._current_model_preview_render_settings()
-        request_id = self.archive_preview_request_id + 1
-        self.archive_preview_request_id = request_id
-        self.archive_preview_requested_loose = False
+        render_settings = self.archive._current_model_preview_render_settings()
+        request_id = self.archive.archive_preview_request_id + 1
+        self.archive.archive_preview_request_id = request_id
+        self.archive.archive_preview_requested_loose = False
         # This paints the shared preview surface without going through the
         # archive loading state, so it has to give up that surface's identity
         # too. Left standing, a later request for the archive entry that was
         # previewed before this model would recognise its own name, keep the
         # model on screen and load behind it.
-        self.archive_preview_surface_identity_shown = ""
-        self.archive_preview_title_label.setText(model_name)
-        self.archive_preview_meta_label.setText("Preparing model library preview...")
-        self.archive_preview_role_badge.setText("Model Library")
-        self.archive_preview_role_badge.setVisible(True)
-        self._set_archive_preview_health_message(
+        self.archive.archive_preview_surface_identity_shown = ""
+        self.archive.archive_preview_title_label.setText(model_name)
+        self.archive.archive_preview_meta_label.setText("Preparing model library preview...")
+        self.archive.archive_preview_role_badge.setText("Model Library")
+        self.archive.archive_preview_role_badge.setVisible(True)
+        self.archive._set_archive_preview_health_message(
             "Resolving local model geometry and texture paths...",
             visible=True,
         )
-        self._populate_archive_texture_reference_list(())
-        self.archive_preview_warning_badge.clear()
-        self.archive_preview_warning_badge.setVisible(False)
-        self.archive_preview_warning_label.clear()
-        self.archive_preview_warning_label.setVisible(False)
-        self._set_archive_preview_base_detail_text(
+        self.archive._populate_archive_texture_reference_list(())
+        self.archive.archive_preview_warning_badge.clear()
+        self.archive.archive_preview_warning_badge.setVisible(False)
+        self.archive.archive_preview_warning_label.clear()
+        self.archive.archive_preview_warning_label.setVisible(False)
+        self.archive._set_archive_preview_base_detail_text(
             f"Preparing model library preview for {scene_path}...",
             include_current_model_debug=False,
         )
-        self.archive_preview_info_edit.setPlainText(f"Preparing model library preview for {scene_path}...")
-        self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
-        self.archive_preview_tabs.setCurrentIndex(0)
-        if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
-            self._clear_archive_isolated_renderer_surface_for_request()
+        self.archive.archive_preview_info_edit.setPlainText(f"Preparing model library preview for {scene_path}...")
+        self.archive.archive_preview_stack.setCurrentWidget(self.archive.archive_preview_info_edit)
+        self.archive.archive_preview_tabs.setCurrentIndex(0)
+        if self.archive._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+            self.archive._clear_archive_isolated_renderer_surface_for_request()
 
         def task(_log: Callable[[str], None], stop_event: object) -> object:
             raise_if_cancelled(stop_event, "Model Library preview cancelled.")
@@ -429,17 +429,17 @@ class ModelLibraryShellBridgeMixin:
             )
 
         def on_complete(result: object) -> None:
-            if request_id != self.archive_preview_request_id or bool(getattr(self, "_shutting_down", False)):
+            if request_id != self.archive.archive_preview_request_id or bool(getattr(self, "_shutting_down", False)):
                 return
             if not isinstance(result, ArchivePreviewResult):
                 self.set_status_message("Model library preview finished with an unexpected response.", error=True)
                 return
-            self.archive_preview_requested_loose = False
+            self.archive.archive_preview_requested_loose = False
             self._activate_tool_widget(self.archive_browser_tab)
-            self._apply_archive_preview_result(result, request_id=request_id, source="model_library_preview")
-            self.archive_preview_role_badge.setText("Model Library")
-            self.archive_preview_role_badge.setVisible(True)
-            self._set_archive_preview_health_message(
+            self.archive._apply_archive_preview_result(result, request_id=request_id, source="model_library_preview")
+            self.archive.archive_preview_role_badge.setText("Model Library")
+            self.archive.archive_preview_role_badge.setVisible(True)
+            self.archive._set_archive_preview_health_message(
                 "External model preview using resolved local texture paths.",
                 visible=True,
             )

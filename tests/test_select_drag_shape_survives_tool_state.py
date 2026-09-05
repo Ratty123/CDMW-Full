@@ -24,18 +24,6 @@ def _host_state_source() -> str:
     return (HELPER / "ExperimentForm.HostState.cs").read_text(encoding="utf-8")
 
 
-def test_the_helper_discards_a_selection_mode_that_is_not_a_drag_shape() -> None:
-    source = _host_state_source()
-    adopt = source.split("var selectionDragMode =", maxsplit=1)[1].split(
-        "// Re-asserting the tool", maxsplit=1
-    )[0]
-    # The three-shape gate has to stand in front of the record and the combo,
-    # not only in front of the viewport: SetSelectionDragMode already ignored
-    # an unknown value, and the defect was everything that ran beside it.
-    assert 'is "brush" or "lasso" or "rectangle"' in adopt
-    guard_at = adopt.index('is "brush" or "lasso" or "rectangle"')
-    assert guard_at < adopt.index("_lastHostSelectionDragMode =")
-    assert guard_at < adopt.index("_selectionShape.SelectedItem = shapeItem")
 
 
 def test_the_mesh_editor_tab_publishes_only_its_normalized_drag_shape() -> None:

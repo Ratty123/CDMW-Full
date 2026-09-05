@@ -913,7 +913,6 @@ def _app_feedback_stylesheet(theme: Dict[str, str]) -> str:
 
 
 def _app_navigation_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -> str:
-    from cdmw.ui.shell.compact.styles import _compact_workspace_stylesheet
 
     return f"""
     QTabWidget::pane {{
@@ -995,7 +994,6 @@ def _app_navigation_stylesheet(theme: Dict[str, str], metrics: Dict[str, int]) -
         width: 0px;
         height: 0px;
     }}
-    {_compact_workspace_stylesheet(theme)}
     QToolTip {{
         background: {theme["surface_alt"]};
         color: {theme["text_strong"]};
@@ -1010,6 +1008,7 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
     density_key: str = DEFAULT_UI_DENSITY,
     layout_scale: float = 1.0,
 ) -> str:
+    from cdmw.ui.native_tool_style import native_tool_stylesheet
     theme = get_theme(theme_key)
     metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)
     light_theme = QColor(theme["window"]).lightnessF() >= 0.55
@@ -1027,4 +1026,5 @@ def build_app_stylesheet(theme_key: str, *, base_font_size: int = DEFAULT_UI_FON
         _app_status_stylesheet(theme, metrics),
         _app_feedback_stylesheet(theme),
         _app_navigation_stylesheet(theme, metrics),
+        native_tool_stylesheet(theme),
     ))

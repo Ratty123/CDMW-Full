@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import ExitStack
+import shutil
+import tempfile
+import threading
 from typing import Callable
 
-from cdmw.core.archive_extraction import clear_directory_contents
+from cdmw.core.atomic_file import atomic_publish_paths
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.mod_package import write_mod_package_manifest
 from cdmw.core.upscale_profiles import copy_mod_ready_loose_tree
 from cdmw.domain.packages.export_policy import (
@@ -25,39 +30,49 @@ def publish_replace_assistant_packages(
     create_no_encrypt_file: bool,
     overwrite: bool,
     file_count: int,
+    stop_event: threading.Event | None = None,
     on_log: Callable[[str], None] | None = None,
 ) -> tuple[tuple[Path, Path], ...]:
     base_options = export_options or ModPackageExportOptions(create_no_encrypt_file=create_no_encrypt_file)
     published: list[tuple[Path, Path]] = []
-    for profile, profile_options in mod_package_expanded_export_options(base_options, kind="dds_loose_mod"):
-        active_options = effective_mod_package_export_options_for_kind("dds_loose_mod", profile_options)
-        profile_suffix = active_options.output_profile_suffix or profile
-        package_root = resolve_mod_package_profile_root(
-            output_parent,
-            package_info,
-            profile_suffix,
-            multi_profile=bool(active_options.output_profile_suffix),
-        )
-        if overwrite and package_root.exists():
-            clear_directory_contents(package_root)
-        package_root.mkdir(parents=True, exist_ok=True)
-        copy_mod_ready_loose_tree(stage_root, package_root, overwrite=overwrite, dry_run=False, on_log=None)
-        write_mod_package_manifest(
-            package_root,
-            package_info,
-            kind="dds_loose_mod",
-            extra_fields={"file_count": file_count},
-            create_no_encrypt_file=create_no_encrypt_file,
-            export_options=active_options,
-        )
-        structure = active_options.structure.strip().lower()
-        if structure in MOD_PACKAGE_FILES_WRAPPER_STRUCTURES:
-            payload_root = package_root / safe_mod_package_files_dir(active_options.files_dir)
-        elif structure == "field_json_v31":
-            payload_root = package_root / "assets"
-        else:
-            payload_root = package_root
-        published.append((package_root, payload_root))
-        if on_log is not None:
+    publication: list[tuple[Path, Path]] = []
+    with ExitStack() as staging:
+        for profile, profile_options in mod_package_expanded_export_options(base_options, kind="dds_loose_mod"):
+            raise_if_cancelled(stop_event, "Texture Replacer build cancelled by user.")
+            active_options = effective_mod_package_export_options_for_kind("dds_loose_mod", profile_options)
+            profile_suffix = active_options.output_profile_suffix or profile
+            package_root = resolve_mod_package_profile_root(
+                output_parent, package_info, profile_suffix,
+                multi_profile=bool(active_options.output_profile_suffix),
+            )
+            package_root.parent.mkdir(parents=True, exist_ok=True)
+            prepared_parent = Path(staging.enter_context(tempfile.TemporaryDirectory(
+                prefix=".cdmw-replacement-", dir=package_root.parent,
+            )))
+            prepared_root = prepared_parent / package_root.name
+            if not overwrite and package_root.exists():
+                shutil.copytree(package_root, prepared_root)
+            prepared_root.mkdir(parents=True, exist_ok=True)
+            copy_mod_ready_loose_tree(stage_root, prepared_root, overwrite=overwrite, dry_run=False, on_log=None)
+            write_mod_package_manifest(
+                prepared_root, package_info, kind="dds_loose_mod",
+                extra_fields={"file_count": file_count},
+                create_no_encrypt_file=create_no_encrypt_file,
+                export_options=active_options,
+            )
+            publication.extend((path, package_root.parent / path.name) for path in prepared_parent.iterdir())
+            structure = active_options.structure.strip().lower()
+            if structure in MOD_PACKAGE_FILES_WRAPPER_STRUCTURES:
+                payload_root = package_root / safe_mod_package_files_dir(active_options.files_dir)
+            elif structure == "field_json_v31":
+                payload_root = package_root / "assets"
+            else:
+                payload_root = package_root
+            published.append((package_root, payload_root))
+        atomic_publish_paths(publication, check_cancelled=lambda: raise_if_cancelled(
+            stop_event, "Texture Replacer build cancelled by user.",
+        ))
+    if on_log is not None:
+        for package_root, _ in published:
             on_log(f"Replace package written to: {package_root}")
     return tuple(published)

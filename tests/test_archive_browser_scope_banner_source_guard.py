@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from tests.test_archive_browser_asset_understanding_ui_source_guards import (
     ARCHIVE_ASSET_FAMILY_LAYOUT,
@@ -17,6 +18,7 @@ class ArchiveBrowserScopeBannerSourceGuardTests(unittest.TestCase):
             for path in (
                 MAIN_WINDOW,
                 SHELL_WINDOW_RUNTIME_STATE,
+                Path("cdmw/ui/archive_browser/runtime_state.py"),
                 ARCHIVE_ASSET_FAMILY_LAYOUT,
                 ARCHIVE_ASSET_FAMILY_PANEL,
             )

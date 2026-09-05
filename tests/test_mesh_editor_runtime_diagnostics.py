@@ -16,6 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
+from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 from cdmw.ui.mesh_editor import MeshEditorTab
 from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder
 
@@ -33,7 +34,7 @@ def _ready_tab(name: str):
         {
             "event": "ready",
             "renderer": {
-                "backend": "d3d11_vortice_shader",
+                "backend": RUST_MESH_RENDERER,
                 "gpu_backed": True,
                 "renderer_blocked": False,
             },

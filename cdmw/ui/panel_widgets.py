@@ -62,7 +62,7 @@ class EmptyStatePanel(QWidget):
         self.title_label.setWordWrap(True)
         layout.addWidget(self.title_label)
 
-        self.detail_label = QLabel(detail)
+        self.detail_label = QLabel(detail, self)
         self.detail_label.setObjectName("EmptyStateDetail")
         self.detail_label.setAlignment(Qt.AlignCenter)
         self.detail_label.setWordWrap(True)

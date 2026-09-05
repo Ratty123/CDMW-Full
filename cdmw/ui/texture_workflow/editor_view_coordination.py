@@ -58,6 +58,9 @@ class TextureEditorViewCoordinationMixin:
             self.left_ruler.set_state(**empty_ruler.as_kwargs())
             self.navigator_widget.set_state(None, image_width=0, image_height=0, viewport_rect=None)
             return
+        image = self.canvas._image
+        image_width = image.width() if image is not None else self.document.width
+        image_height = image.height() if image is not None else self.document.height
         scale = max(0.0001, self.canvas.current_display_scale())
         scroll_x = int(self.canvas_scroll.horizontalScrollBar().value())
         scroll_y = int(self.canvas_scroll.verticalScrollBar().value())
@@ -65,8 +68,8 @@ class TextureEditorViewCoordinationMixin:
         viewport_offset_x = int(canvas_origin.x())
         viewport_offset_y = int(canvas_origin.y())
         top_ruler, left_ruler = texture_editor_ruler_states(
-            document_width=self.document.width,
-            document_height=self.document.height,
+            document_width=image_width,
+            document_height=image_height,
             display_scale=scale,
             scroll_x=scroll_x,
             scroll_y=scroll_y,
@@ -81,8 +84,8 @@ class TextureEditorViewCoordinationMixin:
         display_image = getattr(self.canvas, "_display_image", None) or getattr(self.canvas, "_image", None)
         viewport = self.canvas_scroll.viewport().size()
         viewport_rect = texture_editor_navigator_viewport_rect(
-            document_width=self.document.width,
-            document_height=self.document.height,
+            document_width=image_width,
+            document_height=image_height,
             viewport_width=viewport.width(),
             viewport_height=viewport.height(),
             display_scale=scale,
@@ -91,8 +94,8 @@ class TextureEditorViewCoordinationMixin:
         )
         self.navigator_widget.set_state(
             display_image,
-            image_width=int(self.document.width),
-            image_height=int(self.document.height),
+            image_width=int(image_width),
+            image_height=int(image_height),
             viewport_rect=viewport_rect,
         )
 

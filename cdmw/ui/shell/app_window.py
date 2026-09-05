@@ -45,39 +45,13 @@ from cdmw.ui.shell.main_window_proxy import (
     set_loaded_main_window_class,
 )
 from cdmw.ui.shell.theme_controller import ThemeChangeBusyOverlay
-from cdmw.ui.shell.window_feature_controller import WindowFeatureController, install_window_feature_controller
-from cdmw.ui.shell.window_feature_providers import (
-    ARCHIVE_FEATURE_PROVIDERS,
-    MESH_FEATURE_PROVIDERS,
-    SHELL_FEATURE_PROVIDERS,
-    TEXTURE_FEATURE_PROVIDERS,
-)
+from cdmw.ui.shell.workbench import WorkbenchWindow
+from cdmw.ui.archive_browser.workspace import ArchiveBrowserWorkspace
+from cdmw.ui.texture_workflow.workspace import TexturesWorkspace
 from cdmw.ui.app_icon import load_app_icon
 
 
 from cdmw.constants import APP_TITLE, APP_VERSION
-
-
-def _dispatch_shell_virtual(window: object, name: str, event: object) -> None:
-    controller = window.__dict__.get("_shell_feature_controller")
-    if controller is None:
-        from PySide6.QtWidgets import QMainWindow
-
-        getattr(QMainWindow, name)(window, event)
-        return
-    controller.resolve(name)(event)
-
-
-def _shell_close_event(window: object, event: object) -> None:
-    _dispatch_shell_virtual(window, "closeEvent", event)
-
-
-def _shell_resize_event(window: object, event: object) -> None:
-    _dispatch_shell_virtual(window, "resizeEvent", event)
-
-
-def _shell_change_event(window: object, event: object) -> None:
-    _dispatch_shell_virtual(window, "changeEvent", event)
 
 
 def _shutdown_qt(window: object, app: object) -> bool:
@@ -232,20 +206,20 @@ def run_gui() -> int:
         if process_memory:
             context["process_memory"] = process_memory
         try:
-            current_tab_index = window.main_tabs.currentIndex()
+            current_tab_index = window.shell.main_tabs.currentIndex()
             if current_tab_index >= 0:
-                context["current_tab"] = window.main_tabs.tabText(current_tab_index)
+                context["current_tab"] = window.shell._tool_titles_by_key.get(window.shell._tool_key_for_widget(window.shell.tool_stack.widget(current_tab_index)), "")
         except Exception:
             pass
         try:
-            entry = window._current_archive_entry()
+            entry = window.archive._current_archive_entry()
             if entry is not None:
                 context["selected_archive_path"] = entry.path
                 context["selected_archive_package"] = str(entry.pamt_path)
         except Exception:
             pass
         try:
-            context["archive_package_root"] = window.archive_package_root_edit.text().strip()
+            context["archive_package_root"] = window.archive.archive_package_root_edit.text().strip()
         except Exception:
             pass
         try:
@@ -266,12 +240,12 @@ def run_gui() -> int:
         except Exception:
             pass
         try:
-            context["archive_renderer_backend"] = window._archive_model_renderer_backend()
-            context["archive_preview_request_id"] = int(getattr(window, "archive_preview_request_id", 0) or 0)
-            context["pending_archive_preview_request"] = str(getattr(window, "pending_archive_preview_request", None))
-            context["scheduled_archive_preview_request"] = str(getattr(window, "scheduled_archive_preview_request", None))
-            context["active_dotnet_package"] = str(getattr(window, "archive_isolated_renderer_active_package", "") or "")
-            controller = getattr(getattr(window, "archive_d3d11_preview_host", None), "controller", None)
+            context["archive_renderer_backend"] = window.archive._archive_model_renderer_backend()
+            context["archive_preview_request_id"] = int(getattr(window.archive, "archive_preview_request_id", 0) or 0)
+            context["pending_archive_preview_request"] = str(getattr(window.archive, "pending_archive_preview_request", None))
+            context["scheduled_archive_preview_request"] = str(getattr(window.archive, "scheduled_archive_preview_request", None))
+            context["active_dotnet_package"] = str(getattr(window.archive, "archive_isolated_renderer_active_package", "") or "")
+            controller = getattr(getattr(window.archive, "archive_d3d11_preview_host", None), "controller", None)
             process = getattr(controller, "process", None)
             if process is not None:
                 try:
@@ -288,8 +262,8 @@ def run_gui() -> int:
             if controller is not None:
                 context["dotnet_preview_process_generation"] = int(controller.process_generation)
                 context["dotnet_preview_package_generation"] = int(controller.package_generation)
-            preview_worker = getattr(window, "archive_preview_worker", None)
-            preview_thread = getattr(window, "archive_preview_thread", None)
+            preview_worker = getattr(window.archive, "archive_preview_worker", None)
+            preview_thread = getattr(window.archive, "archive_preview_thread", None)
             context["archive_preview_worker_active"] = preview_worker is not None
             if preview_thread is not None:
                 try:
@@ -300,12 +274,12 @@ def run_gui() -> int:
             pass
         _add_persisted_crash_breadcrumbs(context)
         try:
-            log_lines = window.log_view.toPlainText().splitlines()
+            log_lines = window.textures.log_view.toPlainText().splitlines()
             context["recent_log_tail"] = log_lines[-40:]
         except Exception:
             pass
         try:
-            archive_log_lines = window.archive_log_view.toPlainText().splitlines()
+            archive_log_lines = window.archive.archive_log_view.toPlainText().splitlines()
             context["recent_archive_log_tail"] = archive_log_lines[-40:]
         except Exception:
             pass
@@ -432,15 +406,13 @@ def run_gui() -> int:
     _write_heartbeat("starting")
     _start_hang_watchdog()
 
-    class MainWindow(QMainWindow):
+    class MainWindow(WorkbenchWindow):
         def __init__(self, startup_splash: Optional[object] = None, app_context: Optional[AppContext] = None) -> None:
             from cdmw.ui.shell.startup_splash import make_startup_splash_pump
 
             super().__init__()
-            self._shell_feature_controller = WindowFeatureController(self, SHELL_FEATURE_PROVIDERS)
-            self._archive_feature_controller = WindowFeatureController(self, ARCHIVE_FEATURE_PROVIDERS)
-            self._texture_feature_controller = WindowFeatureController(self, TEXTURE_FEATURE_PROVIDERS)
-            self._mesh_feature_controller = WindowFeatureController(self, MESH_FEATURE_PROVIDERS)
+            self.archive = ArchiveBrowserWorkspace(self)
+            self.textures = TexturesWorkspace(self)
             self._activation_controller = ActivationController(self)
 
             pump_startup_splash = make_startup_splash_pump(startup_splash)
@@ -462,7 +434,8 @@ def run_gui() -> int:
                 write_heartbeat=_write_heartbeat,
             )
             self._initialize_window_runtime_state()
-            self._initialize_archive_runtime_state()
+            self.archive._initialize_archive_runtime_state()
+            self._initialize_tool_window_state()
             pump_startup_splash("Preparing workspace...")
 
             app_icon, _icon_path = load_app_icon(self.current_theme_key)
@@ -473,8 +446,8 @@ def run_gui() -> int:
             self._build_shell_menus()
             central = self._build_shell_root_tabs()
 
-            self._build_texture_workflow_shell_tab(pump_startup_splash)
-            self._build_archive_browser_shell_tab(pump_startup_splash)
+            self.textures._build_texture_workflow_shell_tab(pump_startup_splash)
+            self.archive._build_archive_browser_shell_tab(pump_startup_splash)
             self._build_shell_tool_tabs(pump_startup_splash)
             self._register_shell_tool_tabs()
             self.setCentralWidget(central)
@@ -484,10 +457,6 @@ def run_gui() -> int:
                 pump_startup_splash,
                 previous_session_unclean=bool(_previous_session_unclean),
             )
-
-        closeEvent = _shell_close_event
-        resizeEvent = _shell_resize_event
-        changeEvent = _shell_change_event
 
         def _initialize_existing_instance_activation_polling(self) -> None:
             self._activation_controller.initialize_polling()
@@ -503,28 +472,6 @@ def run_gui() -> int:
 
         def _poll_existing_instance_activation_request(self) -> None:
             self._activation_controller.poll_existing_instance_activation_request()
-
-    install_window_feature_controller(
-        MainWindow,
-        controller_attribute="_shell_feature_controller",
-        providers=SHELL_FEATURE_PROVIDERS,
-        bridged_members=("changeEvent", "closeEvent", "resizeEvent"),
-    )
-    install_window_feature_controller(
-        MainWindow,
-        controller_attribute="_archive_feature_controller",
-        providers=ARCHIVE_FEATURE_PROVIDERS,
-    )
-    install_window_feature_controller(
-        MainWindow,
-        controller_attribute="_texture_feature_controller",
-        providers=TEXTURE_FEATURE_PROVIDERS,
-    )
-    install_window_feature_controller(
-        MainWindow,
-        controller_attribute="_mesh_feature_controller",
-        providers=MESH_FEATURE_PROVIDERS,
-    )
 
     set_loaded_main_window_class(MainWindow)
     globals()["MainWindow"] = MainWindow

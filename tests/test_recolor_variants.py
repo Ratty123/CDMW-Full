@@ -439,7 +439,7 @@ class RecolorVariantTests(unittest.TestCase):
             '"Texture Recolor",\n            "recolor_variants",',
             main_source,
         )
-        self.assertIn('self._register_detachable_tool("recolor_variants"', main_source)
+        self.assertIn('self._register_detachable_tool("textures"', main_source)
         self.assertIn("open_recolor_target_in_editor_requested.connect", main_source)
         self.assertIn("def _open_recolor_variant_target_in_texture_editor", main_source)
         self.assertIn('self.targets_tree.setObjectName("RecolorVariantTargetsTree")', tab_source)
@@ -462,14 +462,14 @@ class RecolorVariantTests(unittest.TestCase):
         self.assertIn('CollapsibleSection("Manager outputs", expanded=False)', tab_source)
         self.assertIn('section.header_widget.setVisible(False)', tab_source)
         self.assertIn('QLabel("Source Mod")', tab_source)
-        self.assertIn('QPushButton("Save Templates")', tab_source)
-        self.assertIn('QPushButton("Review Matches")', tab_source)
+        self.assertIn('QPushButton("Save")', tab_source)
+        self.assertIn('QPushButton("Review")', tab_source)
         self.assertNotIn('controls_layout.addStretch(1)', tab_source)
         self.assertIn("preview_recolor_variant_target_image", tab_source)
         self.assertIn("open_recolor_target_in_editor_requested", tab_source)
         self.assertIn("Source Mod will not be modified in place", tab_source)
-        self.assertIn('QPushButton("Import JSON")', tab_source)
-        self.assertIn('QPushButton("Export JSON")', tab_source)
+        self.assertIn('QPushButton("Import")', tab_source)
+        self.assertIn('QPushButton("Export")', tab_source)
         self.assertIn('self.overwrite_checkbox.setObjectName("RecolorVariantNoInPlaceOverwrite")', tab_source)
         self.assertIn("def set_recolor_tool_settings", editor_source)
 

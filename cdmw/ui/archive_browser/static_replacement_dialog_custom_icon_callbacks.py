@@ -100,7 +100,7 @@ def create_alignment_custom_icon_callbacks(context: dict[str, object]) -> Simple
         selected, _selected_filter = QFileDialog.getOpenFileName(
             dialog,
             custom_icon_control_text["choose_file_title"],
-            str(obj_path.parent if obj_path.parent.is_dir() else self.settings_file_path.parent),
+            str(obj_path.parent if obj_path.parent.is_dir() else self.shell.settings_file_path.parent),
             _custom_item_icon_file_dialog_filter_helper(),
         )
         if selected:
@@ -110,7 +110,7 @@ def create_alignment_custom_icon_callbacks(context: dict[str, object]) -> Simple
         selected = QFileDialog.getExistingDirectory(
             dialog,
             custom_icon_control_text["choose_folder_title"],
-            str(obj_path.parent if obj_path.parent.is_dir() else self.settings_file_path.parent),
+            str(obj_path.parent if obj_path.parent.is_dir() else self.shell.settings_file_path.parent),
         )
         if selected:
             custom_icon_source_edit.setText(selected)

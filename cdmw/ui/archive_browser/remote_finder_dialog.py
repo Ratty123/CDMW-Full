@@ -52,8 +52,8 @@ class RemoteArchiveFinderDialog(QDialog):
     def __init__(self, window: object) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
-        self._service = window.archive_catalogue_service
-        self._bridge = window.archive_remote_bridge
+        self._service = window.archive.archive_catalogue_service
+        self._bridge = window.archive.archive_remote_bridge
         session = self._bridge.current_session
         if session is None:
             raise RuntimeError("A Full archive session must be ready before opening a Finder.")
@@ -73,8 +73,8 @@ class RemoteArchiveFinderDialog(QDialog):
         self._icon_generation = 0
         self._closing = False
         self._facets_ready = False
-        self._settings = getattr(window, "settings", None)
-        self._warmup = getattr(window, "archive_item_finder_warmup_controller", None)
+        self._settings = getattr(window.shell, "settings", None)
+        self._warmup = getattr(window.archive, "archive_item_finder_warmup_controller", None)
         self._preferred_category = self._read_setting("ui/item_finder_category")
         self._preferred_group = self._read_setting("ui/item_finder_group")
         self._preferred_category, self._preferred_group = migrate_legacy_item_catalogue_filter(

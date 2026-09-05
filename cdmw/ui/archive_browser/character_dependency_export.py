@@ -64,7 +64,7 @@ class ArchiveCharacterDependencyExportMixin:
                 ),
             )
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=status_message,
             task=task,
             on_complete=on_complete,
@@ -120,7 +120,7 @@ class ArchiveCharacterDependencyExportMixin:
                 f"No dependency entries were resolved for {entry.path}.",
             )
             return
-        self.append_log(
+        self.shell.append_log(
             f"Character dependency package for {entry.path}: "
             f"{len(entries):,} file(s), appearance={plan.selected_appearance_path or '-'}."
         )
@@ -132,10 +132,10 @@ class ArchiveCharacterDependencyExportMixin:
         plan: CharacterDependencyPlan,
     ) -> None:
         entries = tuple(plan.entries)
-        output_root = self._suggest_archive_extract_root().resolve()
+        output_root = self.shell._suggest_archive_extract_root().resolve()
         extract_options = self._prompt_archive_extract_options(entries, output_root)
         if extract_options is None:
-            self.set_status_message("Character dependency package export cancelled.")
+            self.shell.set_status_message("Character dependency package export cancelled.")
             return
         clear_root, collision_mode = extract_options
         if collision_mode == "rename":
@@ -228,17 +228,17 @@ class ArchiveCharacterDependencyExportMixin:
             output_root_value = str(result.get("output_root", output_root))
             self.archive_extract_root_edit.setText(output_root_value)
             if fbx_paths and manifest_path:
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Exported {extracted:,} character dependency file(s) and a self-contained Blender FBX to {output_root_value}."
                 )
             elif failed:
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Character dependency export finished with {failed:,} failed file(s).",
                     error=True,
                 )
             else:
                 detail = manifest_error or fbx_error or "required output was not published"
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Exported {extracted:,} character dependency file(s), but the reusable bundle is incomplete: {detail}",
                     error=True,
                 )
@@ -248,12 +248,12 @@ class ArchiveCharacterDependencyExportMixin:
                 f"Blender FBX={'ready' if fbx_paths else 'not created'}. Output: {output_root_value}"
             )
             if fbx_error:
-                self.append_log(f"Character dependency Blender FBX: {fbx_error}")
+                self.shell.append_log(f"Character dependency Blender FBX: {fbx_error}")
             if manifest_error:
-                self.append_log(f"Character dependency manifest: {manifest_error}")
-            self._refresh_dashboard()
+                self.shell.append_log(f"Character dependency manifest: {manifest_error}")
+            self.shell._refresh_dashboard()
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting character dependency package for {entry.basename}...",
             task=task,
             on_complete=on_complete,

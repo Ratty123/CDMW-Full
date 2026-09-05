@@ -55,6 +55,9 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
             {},
         )
         host = host_type()
+        host.shell = host
+        host.archive = host
+        host.textures = host
         host.archive_filters_dirty = False
         host.archive_filter_apply_button = QPushButton()
         host.archive_path_search_button = QPushButton()
@@ -97,6 +100,9 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         host_type = type("ArchiveFilterHost", (ArchiveFilterStateMixin, TextureWorkflowProfilesPanelMixin), {})
         host = host_type()
+        host.shell = host
+        host.archive = host
+        host.textures = host
         host.archive_extension_filter_combo = QComboBox()
         host.archive_extension_filter_combo.setEditable(True)
         host._add_combo_choice(host.archive_extension_filter_combo, "All files", "*")
@@ -124,6 +130,9 @@ class ArchiveBrowserFilterTests(unittest.TestCase):
             {},
         )
         host = host_type()
+        host.shell = host
+        host.archive = host
+        host.textures = host
         host.archive_entries_by_extension = {}
         host.archive_extension_counts = Counter({".pac": 12, ".dds": 4, ".prefab": 2})
         host.archive_entries = []

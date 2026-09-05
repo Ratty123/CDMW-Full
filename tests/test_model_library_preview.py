@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.core.dds_native import inspect_dds_native_path
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
-from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
+from cdmw.services.mesh_rust_preview_package import validate_rust_preview_package
 from cdmw.services.model_library_preview import (
     _model_library_preview_package_cache_identity,
     prepare_model_library_inline_preview,
@@ -109,7 +109,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             initial_view = manifest["state"]["preview_scene"]["framing"]["initial_view"]
             self.assertEqual(initial_view["view_direction"], [0.0, 0.0, 1.0])
             self.assertEqual(manifest["state"]["preview_scene"]["grid"]["normal_axis"], "z")
-            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
+            self.assertEqual(validate_rust_preview_package(package_dir), ())
 
     def test_cached_model_packages_keep_distinct_semantic_camera_axes(self) -> None:
         from cdmw.core.archive_modding import import_scene_mesh_with_report, parsed_mesh_to_preview_model
@@ -319,7 +319,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertTrue((package_dir / "manifest.json").is_file())
             self.assertTrue((package_dir / "document.json").is_file())
             self.assertTrue((package_dir / "channels.json").is_file())
-            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
+            self.assertEqual(validate_rust_preview_package(package_dir), ())
 
     def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -339,7 +339,7 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             package_dir = Path(str(result["dotnet_preview_package_path"]))
             self.assertEqual(result["vertices"], 3)
             self.assertEqual(result["faces"], 1)
-            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
+            self.assertEqual(validate_rust_preview_package(package_dir), ())
 
     def test_subprocess_backend_passes_cancel_event_and_timeout_progress(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -271,7 +271,7 @@ def _parts_outliner_mapping_step_007(_state):
         if _state._resident_parts_session_active():
             return False
         message = 'Active Mesh Editor source-part include/exclude changes require native geometry execution; Python adjustment mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -285,7 +285,7 @@ def _parts_outliner_mapping_step_008(_state):
         if _state._resident_parts_session_active():
             return False
         message = f'Active Mesh Editor source routing {action} requires native material execution; Python routing mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True

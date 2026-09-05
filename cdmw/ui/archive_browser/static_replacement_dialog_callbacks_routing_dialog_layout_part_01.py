@@ -78,7 +78,7 @@ def _routing_dialog_layout_step_003(_state):
 def _routing_dialog_layout_step_004(_state):
 
     def _saved_splitter_sizes(kind: str, mode: str, count: int) -> tuple[int, ...] | None:
-        settings = getattr(_state.self, 'settings', None)
+        settings = getattr(_state.self.shell, 'settings', None)
         if settings is None:
             return None
         try:
@@ -98,7 +98,7 @@ def _routing_dialog_layout_step_004(_state):
 def _routing_dialog_layout_step_005(_state):
 
     def _save_splitter_sizes(kind: str, mode: str, sizes: object) -> None:
-        settings = getattr(_state.self, 'settings', None)
+        settings = getattr(_state.self.shell, 'settings', None)
         if settings is None or not mode:
             return
         try:

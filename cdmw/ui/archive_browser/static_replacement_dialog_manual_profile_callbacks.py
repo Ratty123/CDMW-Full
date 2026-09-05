@@ -277,7 +277,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             changed_keys = _changed_profile_keys(previous_values, saved)
             manual_profile_saved_values.clear()
             manual_profile_saved_values.update(saved)
-            self.settings.setValue(manual_profile_settings_key, json.dumps(saved, sort_keys=True, separators=(",", ":")))
+            self.shell.settings.setValue(manual_profile_settings_key, json.dumps(saved, sort_keys=True, separators=(",", ":")))
             _save_complete_swap_material_profile()
             _refresh_manual_profile_control_effects(saved)
             if refresh_preview:
@@ -305,7 +305,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
         _cancel_pending_manual_profile_commit()
         values = _current_manual_material_profile_values()
         changed_keys = _changed_profile_keys(manual_profile_saved_values, values)
-        self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
+        self.shell.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
         manual_profile_saved_values.clear()
         manual_profile_saved_values.update(values)
         _save_complete_swap_material_profile()
@@ -433,15 +433,15 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
 
     def _save_complete_swap_material_profile() -> None:
         if modify_original_clone_mode:
-            self.settings.setValue(
+            self.shell.settings.setValue(
                 manual_profile_settings_key,
                 json.dumps(_current_manual_material_profile_values(), sort_keys=True, separators=(",", ":")),
             )
             return
         profile_name = str(complete_swap_material_profile_combo.currentData() or "material_authority_detail_mask")
-        self.settings.setValue("settings/complete_swap_material_profile", profile_name)
+        self.shell.settings.setValue("settings/complete_swap_material_profile", profile_name)
         if profile_name == "material_authority_manual":
-            self.settings.setValue(
+            self.shell.settings.setValue(
                 manual_profile_settings_key,
                 json.dumps(_current_manual_material_profile_values(), sort_keys=True, separators=(",", ":")),
             )

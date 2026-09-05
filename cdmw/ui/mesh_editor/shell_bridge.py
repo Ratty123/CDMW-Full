@@ -28,11 +28,11 @@ from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 class MeshEditorShellBridgeMixin:
     """Route shell/archive actions into Mesh Editor sessions."""
     def _export_current_archive_mesh(self, export_format: str) -> None:
-        current_entry = self._current_archive_mesh_entry()
+        current_entry = self.archive._current_archive_mesh_entry()
         if current_entry is None:
             self.set_status_message("Select a supported archive mesh to export.", error=True)
             return
-        self._start_archive_mesh_export(current_entry, export_format)
+        self.archive._start_archive_mesh_export(current_entry, export_format)
 
     def _open_mesh_editor_for_entry(
         self,
@@ -49,7 +49,7 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(entry, ArchiveEntry) or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return None
-        self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+        self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
         request_supplemental_files = tuple(path for path in tuple(supplemental_files or ()) if isinstance(path, Path))
         request = MeshEditorSessionRequest(
             target_entry=entry,
@@ -346,11 +346,11 @@ class MeshEditorShellBridgeMixin:
         entry: ArchiveEntry,
     ) -> Path | None:
         package_path = getattr(
-            self,
+            self.archive,
             "archive_isolated_renderer_active_package",
             None,
         )
-        has_textures = getattr(self, "_archive_active_package_has_textures", None)
+        has_textures = getattr(self.archive, "_archive_active_package_has_textures", None)
         if package_path is None or not callable(has_textures):
             return None
         try:
@@ -383,22 +383,22 @@ class MeshEditorShellBridgeMixin:
             if (
                 pending.get("identity") == identity
                 and int(pending.get("request_id", 0) or 0)
-                == int(getattr(self, "_archive_texture_request_id", 0) or 0)
-                and bool(getattr(self, "_archive_texture_request_loading", False))
+                == int(getattr(self.archive, "_archive_texture_request_id", 0) or 0)
+                and bool(getattr(self.archive, "_archive_texture_request_loading", False))
             ):
                 return True
             self._mesh_editor_pending_rust_texture_launch = None
 
-        current_entry = getattr(self, "_current_archive_entry", lambda: None)()
+        current_entry = getattr(self.archive, "_current_archive_entry", lambda: None)()
         if not isinstance(current_entry, ArchiveEntry) or current_entry.identity != identity:
             return False
-        request_textures = getattr(self, "_request_archive_preview_textures", None)
+        request_textures = getattr(self.archive, "_request_archive_preview_textures", None)
         if not callable(request_textures):
             return False
         request_textures(automatic=True)
-        request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        request_id = int(getattr(self.archive, "_archive_texture_request_id", 0) or 0)
         if not request_id or not bool(
-            getattr(self, "_archive_texture_request_loading", False)
+            getattr(self.archive, "_archive_texture_request_loading", False)
         ):
             return False
         generation = int(
@@ -439,7 +439,7 @@ class MeshEditorShellBridgeMixin:
             return
         entry = pending.get("entry")
         identity = pending.get("identity")
-        current_entry = getattr(self, "_current_archive_entry", lambda: None)()
+        current_entry = getattr(self.archive, "_current_archive_entry", lambda: None)()
         if (
             not isinstance(entry, ArchiveEntry)
             or not isinstance(current_entry, ArchiveEntry)
@@ -634,9 +634,9 @@ class MeshEditorShellBridgeMixin:
             return
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
-        current_preview = getattr(self, "current_archive_preview_result", None)
+        current_preview = getattr(self.archive, "current_archive_preview_result", None)
         material_preview_model = getattr(current_preview, "preview_model", None)
-        current_entry_getter = getattr(self, "_current_archive_entry", None)
+        current_entry_getter = getattr(self.archive, "_current_archive_entry", None)
         current_preview_entry = (
             current_entry_getter() if callable(current_entry_getter) else entry
         )
@@ -673,8 +673,8 @@ class MeshEditorShellBridgeMixin:
             if material_package_path
             else None
         )
-        material_companion_entry = self._find_archive_preview_companion_entry(entry)
-        self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+        material_companion_entry = self.archive._find_archive_preview_companion_entry(entry)
+        self.archive._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
         self.mesh_editor_tab.open_archive_session(
             entry,
             material_preview_model=material_preview_model,
@@ -688,7 +688,7 @@ class MeshEditorShellBridgeMixin:
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")
 
     def _open_current_archive_mesh_editor(self) -> None:
-        current_entry = self._current_archive_mesh_entry()
+        current_entry = self.archive._current_archive_mesh_entry()
         if current_entry is None:
             self.set_status_message("Select a supported archive mesh before opening Mesh Editor.", error=True)
             return
@@ -712,21 +712,21 @@ class MeshEditorShellBridgeMixin:
                 source="archive_browser",
                 mode="modify_original",
             )
-        QTimer.singleShot(0, lambda current_entry=entry: self._start_archive_modify_original_workspace(current_entry))
+        QTimer.singleShot(0, lambda current_entry=entry: self.archive._start_archive_modify_original_workspace(current_entry))
 
     def _mesh_editor_import_replacement_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
             return
         self._open_mesh_editor_for_entry(entry, mode="external_import", activate=True)
-        self._start_archive_mesh_patch(entry)
+        self.archive._start_archive_mesh_patch(entry)
 
     def _mesh_editor_import_preview_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
             return
         self._open_mesh_editor_for_entry(entry, mode="external_import", activate=True)
-        self._start_archive_mesh_import_preview(entry)
+        self.archive._start_archive_mesh_import_preview(entry)
 
     def _mesh_editor_rebuilt_asset_setup(self, output_path: object, *, action: str) -> Optional[MeshImportSetupSelection]:
         rebuilt_path = Path(output_path)
@@ -748,7 +748,7 @@ class MeshEditorShellBridgeMixin:
         setup = self._mesh_editor_rebuilt_asset_setup(output_path, action="Preview")
         if setup is None:
             return
-        self._start_archive_mesh_import_preview(entry, preset_setup=setup)
+        self.archive._start_archive_mesh_import_preview(entry, preset_setup=setup)
 
     def _mesh_editor_package_rebuilt_asset_requested(self, entry: object, output_path: object) -> None:
         if not isinstance(entry, ArchiveEntry):
@@ -757,7 +757,7 @@ class MeshEditorShellBridgeMixin:
         setup = self._mesh_editor_rebuilt_asset_setup(output_path, action="Package")
         if setup is None:
             return
-        self._start_archive_mesh_patch(entry, preset_setup=setup)
+        self.archive._start_archive_mesh_patch(entry, preset_setup=setup)
 
     def _mesh_editor_in_game_swap_requested(self, entry: object) -> None:
         """Compatibility entry point for the retired target-arming swap surface."""
@@ -777,7 +777,7 @@ class MeshEditorShellBridgeMixin:
     def _mesh_editor_show_archive_target_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):
             return
-        self._show_archive_browser_from_texture_editor(entry.path)
+        self.textures._show_archive_browser_from_texture_editor(entry.path)
 
     def _mesh_editor_route_active_builder_action(self, action: object) -> Optional[bool]:
         active_builder = self._mesh_editor_active_builder()
@@ -812,7 +812,7 @@ class MeshEditorShellBridgeMixin:
             self.set_status_message(f"Mesh Editor tool selected: {text}.")
 
     def _modify_current_archive_original_mesh(self) -> None:
-        current_entry = self._current_archive_mesh_entry()
+        current_entry = self.archive._current_archive_mesh_entry()
         if current_entry is None:
             self.set_status_message("Select a supported archive mesh to modify.", error=True)
             return
@@ -823,7 +823,7 @@ class MeshEditorShellBridgeMixin:
         )
         QTimer.singleShot(
             0,
-            lambda current_entry=current_entry: self._start_archive_modify_original_workspace(current_entry),
+            lambda current_entry=current_entry: self.archive._start_archive_modify_original_workspace(current_entry),
         )
 
 __all__ = ["MeshEditorShellBridgeMixin"]

@@ -44,8 +44,8 @@ class UtilityControllerMixin:
         self.append_log(status_message)
         self._utility_updates_archive_progress = bool(show_archive_progress)
         if self._utility_updates_archive_progress:
-            self._reset_archive_load_progress()
-            self._set_archive_load_progress(status_message)
+            self.archive._reset_archive_load_progress()
+            self.archive._set_archive_load_progress(status_message)
             self.append_archive_log(status_message)
 
         worker = UtilityWorker(
@@ -151,7 +151,7 @@ class UtilityControllerMixin:
             return
         if message.startswith("[") and ("] EXTRACT " in message or "] FAIL " in message):
             return
-        self._set_archive_load_progress(message)
+        self.archive._set_archive_load_progress(message)
         self.append_archive_log(message)
         self.set_status_message(message)
 
@@ -159,7 +159,7 @@ class UtilityControllerMixin:
         if not self._utility_updates_archive_progress:
             return
         detail_text = str(detail or "").strip() or "Working..."
-        self._set_archive_load_progress(detail_text, current, total)
+        self.archive._set_archive_load_progress(detail_text, current, total)
         self.set_status_message(detail_text)
 
     def _handle_utility_completed(self, result: object) -> None:
@@ -167,9 +167,9 @@ class UtilityControllerMixin:
             self._utility_completion_handler(result)
 
     def _handle_worker_error(self, message: str) -> None:
-        if hasattr(self, "_archive_scan_progress_timer"):
-            self._archive_scan_progress_timer.stop()
-            self._archive_scan_progress_pending = None
+        if hasattr(self.archive, "_archive_scan_progress_timer"):
+            self.archive._archive_scan_progress_timer.stop()
+            self.archive._archive_scan_progress_pending = None
         if self._utility_error_handler is not None:
             try:
                 self._utility_error_handler(str(message))
@@ -178,9 +178,9 @@ class UtilityControllerMixin:
         if is_expected_cancellation_message(message):
             self.set_status_message(message, error=True)
             self.append_log(message)
-            if self.archive_scan_worker is not None or self.archive_filter_worker is not None or self._utility_updates_archive_progress:
+            if self.archive.archive_scan_worker is not None or self.archive.archive_filter_worker is not None or self._utility_updates_archive_progress:
                 self.append_archive_log(message)
-                self._set_archive_load_progress(message, phase="Stopping", percent=0, allow_decrease=True)
+                self.archive._set_archive_load_progress(message, phase="Stopping", percent=0, allow_decrease=True)
                 self._write_heartbeat("running")
                 self._release_startup_splash()
             return
@@ -192,14 +192,14 @@ class UtilityControllerMixin:
         )
         self.set_status_message(message, error=True)
         self.append_log(f"ERROR: {message}")
-        if self.archive_scan_worker is not None or self.archive_filter_worker is not None or self._utility_updates_archive_progress:
+        if self.archive.archive_scan_worker is not None or self.archive.archive_filter_worker is not None or self._utility_updates_archive_progress:
             self.append_archive_log(f"ERROR: {message}")
-            if self.archive_scan_worker is not None:
+            if self.archive.archive_scan_worker is not None:
                 self._set_archive_cache_health(
                     "unhealthy",
                     f"Cache Status: Unhealthy. Archive cache build failed: {message}",
                 )
-            self._set_archive_load_progress(
+            self.archive._set_archive_load_progress(
                 f"Archive browser task failed: {message}",
                 phase="Failed",
                 percent=0,
@@ -211,45 +211,47 @@ class UtilityControllerMixin:
     def _cleanup_worker_refs(self, owner_thread: object | None = None) -> None:
         if owner_thread is not None and self.worker_thread is not owner_thread:
             return
-        rerun_archive_filter = bool(self.archive_filter_apply_pending and not self._shutting_down and self.archive_entries)
-        archive_finalize_pending = bool(self.archive_scan_finalize_pending)
+        rerun_archive_filter = bool(self.archive.archive_filter_apply_pending and not self._shutting_down and self.archive.archive_entries)
+        archive_finalize_pending = bool(self.archive.archive_scan_finalize_pending)
         utility_updates_archive_progress = bool(self._utility_updates_archive_progress)
         refresh_archive_browser = bool(
-            self.archive_browser_refresh_pending
+            self.archive.archive_browser_refresh_pending
             and not rerun_archive_filter
             and not self._shutting_down
-            and self.archive_entries
+            and self.archive.archive_entries
             and self._is_tool_visible_or_current(self.archive_browser_tab)
         )
         self.worker_thread = None
-        self.scan_worker = None
-        self.archive_scan_worker = None
-        self.archive_filter_worker = None
-        self.build_worker = None
-        self.dds_to_png_worker = None
+        self.textures.scan_worker = None
+        self.archive.archive_scan_worker = None
+        self.archive.archive_filter_worker = None
+        if self.textures.build_worker is not None or self.textures.dds_to_png_worker is not None:
+            self.textures.finish_texture_operation()
+        self.textures.build_worker = None
+        self.textures.dds_to_png_worker = None
         self.utility_worker = None
         self._utility_completion_handler = None
         self._utility_error_handler = None
         self._utility_updates_archive_progress = False
-        self.archive_filter_apply_pending = False
+        self.archive.archive_filter_apply_pending = False
         if not archive_finalize_pending:
             self.set_busy(False, build_mode=False)
         if (
-            self.archive_sidecar_pending_start
-            and self.archive_sidecar_thread is None
-            and self.archive_entries
+            self.archive.archive_sidecar_pending_start
+            and self.archive.archive_sidecar_thread is None
+            and self.archive.archive_entries
             and self._current_archive_performance_settings().enable_sidecar_indexing
         ):
-            QTimer.singleShot(0, self._start_archive_sidecar_index_worker)
-        if utility_updates_archive_progress and self.archive_scan_worker is None and self.archive_filter_worker is None:
-            detail = str(getattr(self, "_archive_load_progress_detail", "") or "Archive task complete.")
-            self._set_archive_load_progress(detail, phase="Ready", percent=100)
+            QTimer.singleShot(0, self.archive._start_archive_sidecar_index_worker)
+        if utility_updates_archive_progress and self.archive.archive_scan_worker is None and self.archive.archive_filter_worker is None:
+            detail = str(getattr(self.archive, "_archive_load_progress_detail", "") or "Archive task complete.")
+            self.archive._set_archive_load_progress(detail, phase="Ready", percent=100)
         if rerun_archive_filter:
-            QTimer.singleShot(0, self._apply_archive_filter)
+            QTimer.singleShot(0, self.archive._apply_archive_filter)
         elif refresh_archive_browser:
-            QTimer.singleShot(0, self._refresh_archive_browser_view)
+            QTimer.singleShot(0, self.archive._refresh_archive_browser_view)
         else:
-            QTimer.singleShot(0, self._maybe_release_startup_after_archive_ready)
+            QTimer.singleShot(0, self.archive._maybe_release_startup_after_archive_ready)
 
 
 __all__ = ["UtilityControllerMixin"]

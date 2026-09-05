@@ -79,7 +79,7 @@ class ArchivePreviewCacheMixin:
         self.archive_preview_cache_last_miss_detail = ""
         if clear_native_packages:
             clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
-            clear_pac_xml_profile_index_cache(self.settings_file_path.parent)
+            clear_pac_xml_profile_index_cache(self.shell.settings_file_path.parent)
 
     @staticmethod
     def _archive_preview_support_texture_slots(settings: object) -> Tuple[str, ...]:
@@ -214,7 +214,7 @@ class ArchivePreviewCacheMixin:
 
     def _native_preview_package_cache_mode(self) -> str:
         return str(
-            getattr(self._current_archive_performance_settings(), "native_preview_cache_mode", "balanced")
+            getattr(self.shell._current_archive_performance_settings(), "native_preview_cache_mode", "balanced")
             or "balanced"
         ).strip().lower()
 
@@ -225,9 +225,9 @@ class ArchivePreviewCacheMixin:
         roots: List[Path] = []
         seen: set[str] = set()
         for raw in (
-            self.original_dds_edit.text().strip(),
+            self.textures.original_dds_edit.text().strip(),
             self.archive_extract_root_edit.text().strip(),
-            self.output_root_edit.text().strip(),
+            self.textures.output_root_edit.text().strip(),
         ):
             if not raw:
                 continue
@@ -582,7 +582,7 @@ class ArchivePreviewCacheMixin:
                 self.archive_preview_cache_last_miss_reason = "dotnet_package_expired"
                 self.archive_preview_cache_last_miss_detail = detail
                 selected_entry = self._current_archive_entry()
-                self._record_runtime_event(
+                self.shell._record_runtime_event(
                     "archive_preview_cache_dotnet_package_expired",
                     request_id=self.archive_preview_request_id,
                     selected_path=getattr(selected_entry, "path", ""),
@@ -643,12 +643,12 @@ class ArchivePreviewCacheMixin:
             try:
                 self._shutdown_archive_isolated_renderer_host()
             except Exception as exc:
-                self._record_runtime_event(
+                self.shell._record_runtime_event(
                     "mesh_editor_archive_preview_pause_failed",
                     path=str(getattr(entry, "path", "") or ""),
                     message=str(exc),
                 )
-        self._record_runtime_event(
+        self.shell._record_runtime_event(
             "mesh_editor_archive_preview_payloads_stripped",
             path=str(getattr(entry, "path", "") or ""),
             same_current_entry=same_current_entry,

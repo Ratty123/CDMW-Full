@@ -245,8 +245,6 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("render_mode_uses_derived_relief", prep_source)
         package_source = "\n".join(
             (
-                Path("cdmw/rendering/native_preview_package.py").read_text(encoding="utf-8"),
-                Path("cdmw/rendering/native_preview_package_writer.py").read_text(encoding="utf-8"),
                 Path("cdmw/rendering/native_preview_material_contract.py").read_text(encoding="utf-8"),
             )
         )
@@ -255,13 +253,8 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn("preview_divergence_reasons", package_source)
 
     def test_vortice_view_modes_are_an_explicit_renderer_allow_list(self) -> None:
-        source = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
         settings_ui = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
 
-        for mode in ("lit", "game_outdoor", "base_direct", "normal", "uv_checker", "base_alpha", "part_id", "material_response", "layer_mask"):
-            self.assertIn(f'"{mode}"', source)
-        for retired_mode in ("matcap", "wireframe", "vertex_normals", "normal_raw"):
-            self.assertNotIn(f'"{retired_mode}"', source)
         self.assertNotIn('general_form.addRow("Visible texture mode"', settings_ui)
         self.assertNotIn('general_form.addRow("Diagnostic render mode"', settings_ui)
         global_settings_ui = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
@@ -278,9 +271,6 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(5, _RENDER_DIAGNOSTIC_MODE_CODES["normal"])
         self.assertEqual(11, _RENDER_DIAGNOSTIC_MODE_CODES["normal_raw"])
 
-        vortice_source = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
-        self.assertIn('"normal" => 2', vortice_source)
-        self.assertNotIn('"normal_raw"', vortice_source)
 
     def test_derived_relief_texture_generation_is_relief_mode_only(self) -> None:
         self.assertFalse(
@@ -576,15 +566,12 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:
         prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
-        vortice_modes = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
         settings_ui = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
 
         self.assertIn("def enhanced_relief_status", prep_source)
         self.assertIn('"height_calibrated"', prep_source)
         self.assertIn('"cd_runtime_approx"', prep_source)
         self.assertIn("height_effect_max", prep_source)
-        self.assertNotIn('"height_calibrated"', vortice_modes)
-        self.assertNotIn('"cd_runtime_approx"', vortice_modes)
         self.assertNotIn('general_form.addRow("Diagnostic render mode"', settings_ui)
 
     def test_black_output_triage_distinguishes_missing_base_from_support_only(self) -> None:
@@ -923,20 +910,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
     def test_hkx_physics_overlay_supports_hover_and_ctrl_click_selection(self) -> None:
         root = Path(__file__).resolve().parents[1]
         host_source = (root / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
-        protocol_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.OverlayProtocol.cs").read_text(encoding="utf-8")
-        renderer_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.PreviewOverlays.cs").read_text(encoding="utf-8")
-        package_source = (root / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
 
         self.assertIn('"overlay_state_update"', host_source)
         self.assertIn("set_skeleton_selected_bone", host_source)
         self.assertIn("reset_tool_pbd_cloth_preview", host_source)
-        self.assertIn('"overlay_state_update_ack"', protocol_source)
-        self.assertIn('"skeleton_overlay_v1"', protocol_source)
-        self.assertIn('"pbd_cloth_overlay_v1"', protocol_source)
-        self.assertIn("DrawSkeletonPreviewOverlay", renderer_source)
-        self.assertIn("DrawClothPreviewOverlay", renderer_source)
-        self.assertIn("ClothColliders", renderer_source)
-        self.assertIn("dotnet_preview_overlays_from_preview_core_package", package_source)
 
     def test_hkx_skeleton_context_is_static_for_approx_motion_preview(self) -> None:
         widget = NativePreviewPanel.__new__(NativePreviewPanel)
@@ -948,12 +925,10 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
     def test_referenced_hkx_previews_disable_legacy_guide_motion(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (root / "cdmw" / "ui" / "archive_browser" / "reference_preview.py").read_text(encoding="utf-8")
-        package_source = (root / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
 
-        self.assertIn("DotNetPreviewHostFrame", source)
+        self.assertIn("RustPreviewHostFrame", source)
         self.assertIn("build_or_lookup_dotnet_preview_package(", source)
         self.assertIn("dotnet_reference_package_path", source)
-        self.assertIn("dotnet_preview_overlays_from_preview_core_package", package_source)
         self.assertNotIn("NativeD3D11PreviewHostFrame", source)
 
     def test_framebuffer_visibility_probe_is_throttled(self) -> None:

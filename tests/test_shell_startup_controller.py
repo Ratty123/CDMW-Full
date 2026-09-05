@@ -43,6 +43,9 @@ class _StartupAutoloadWindow:
         prompt_accepted: bool = False,
         prompt_async: bool = False,
     ) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.expected = expected
         self._startup_archive_path_prompt_accepted = prompt_accepted
         self.prompt_async = prompt_async
@@ -72,6 +75,9 @@ class _StartupAutoloadWindow:
 
 class _RemoteStartupDispatchWindow(StartupPromptMixin):
     def __init__(self, package_root: Path) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._startup_archive_path_prompt_open = False
         self._startup_archive_path_prompt_accepted = True
         self._startup_archive_autoload_dispatched = False
@@ -170,6 +176,9 @@ class _ModalStartupWindow(StartupPromptMixin):
 
 class _DashboardWarningWindow(DashboardControllerMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.calls: list[str] = []
 
     def _finish_startup_splash_before_modal(self) -> None:
@@ -178,6 +187,9 @@ class _DashboardWarningWindow(DashboardControllerMixin):
 
 class _ReleaseStartupWindow(StartupPromptMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._startup_splash_window = _FinishableStartupSplash()
         self._startup_splash_holds_main_window = False
         self._startup_splash_released = False
@@ -196,6 +208,9 @@ class _ReleaseStartupWindow(StartupPromptMixin):
 
 class _FirstPaintStartupWindow(StartupPromptMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._startup_splash_window = _FinishableStartupSplash()
         self._startup_splash_holds_main_window = True
         self._startup_splash_released = True
@@ -302,6 +317,9 @@ class ShellStartupControllerTests(unittest.TestCase):
             _record_startup_prompt_event=Mock(),
             _startup_splash_window=Mock(),
         )
+        window.shell = window
+        window.archive = window
+        window.textures = window
         StartupPromptMixin._show_main_window_after_startup_splash(window)
 
         window.show.assert_called_once_with()
@@ -502,6 +520,9 @@ class ShellStartupControllerTests(unittest.TestCase):
             settings=settings,
             show_documentation_dialog=show_documentation,
         )
+        window.shell = window
+        window.archive = window
+        window.textures = window
 
         StartupPromptMixin._show_first_run_guide_if_needed(window)
 

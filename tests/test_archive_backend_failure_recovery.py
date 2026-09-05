@@ -108,6 +108,9 @@ class _Service:
 
 class _Window(ArchiveScanLifecycleMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_remote_bridge = _Bridge()
         self.archive_backend_selection = ArchiveBackendSelection(ArchiveBackendMode.V2, "", True)
         self.archive_backend_mode = ArchiveBackendMode.V2

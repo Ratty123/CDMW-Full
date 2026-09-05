@@ -331,16 +331,16 @@ def _texture_material_step_032(_state):
             truncated = _state.bool(_state.getattr(result, 'truncated', False))
             errors = _state.tuple(_state.getattr(result, 'errors', ()) or ())
             if truncated:
-                _state.self.set_status_message(f'Texture folder scan added up to {_state.len(files):,} file(s) and stopped at the safety limit.', error=True)
+                _state.self.shell.set_status_message(f'Texture folder scan added up to {_state.len(files):,} file(s) and stopped at the safety limit.', error=True)
             elif errors:
-                _state.self.set_status_message(f'Texture folder scan completed with {_state.len(errors):,} unreadable path(s).', error=True)
+                _state.self.shell.set_status_message(f'Texture folder scan completed with {_state.len(errors):,} unreadable path(s).', error=True)
         _state._texture_folder_scan_completed = _texture_folder_scan_completed
 
 def _texture_material_step_033(_state):
     if _state._factory_advanced_material_branch:
 
         def _texture_folder_scan_failed(message: str) -> None:
-            _state.self.set_status_message(f'Texture folder scan failed: {message}', error=True)
+            _state.self.shell.set_status_message(f'Texture folder scan failed: {message}', error=True)
         _state._texture_folder_scan_failed = _texture_folder_scan_failed
 
 def _texture_material_step_034(_state):

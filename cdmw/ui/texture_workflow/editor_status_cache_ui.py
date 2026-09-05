@@ -61,7 +61,7 @@ class TextureEditorStatusCacheUiMixin:
             self._thumbnail_cache.pop(key, None)
 
     def _busy(self) -> bool:
-        return self._task_thread is not None
+        return self._task_thread is not None or self.job.busy
 
 
 __all__ = ["TextureEditorStatusCacheUiMixin"]

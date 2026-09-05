@@ -627,10 +627,10 @@ class ArchiveMeshImportExportMixin:
         try:
             dependencies = archive_workflow_dependency_context(self, entry)
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"Mesh export is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"Mesh export is unavailable: {exc}", error=True)
             return
         entry = dependencies.selected_entry
-        default_dir = self.settings_file_path.parent / "mesh_export"
+        default_dir = self.shell.settings_file_path.parent / "mesh_export"
         output_dir = QFileDialog.getExistingDirectory(
             self,
             f"Export {export_format.upper()}",
@@ -670,7 +670,7 @@ class ArchiveMeshImportExportMixin:
 
             def _handle_complete(result: object) -> None:
                 if not isinstance(result, MeshExportResult):
-                    self.set_status_message("Mesh export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Mesh export finished with an unexpected result payload.", error=True)
                     return
                 if result.requires_confirmation:
                     confirmation = QMessageBox.question(
@@ -685,7 +685,7 @@ class ArchiveMeshImportExportMixin:
                     if confirmation == QMessageBox.Yes:
                         QTimer.singleShot(0, lambda: _launch_export(allow_missing_skeleton=True))
                     else:
-                        self.set_status_message(f"Cancelled {export_format.upper()} export for {entry.basename}.")
+                        self.shell.set_status_message(f"Cancelled {export_format.upper()} export for {entry.basename}.")
                     return
 
                 displayed_paths = [str(path) for path in result.output_paths[:15]]
@@ -698,9 +698,9 @@ class ArchiveMeshImportExportMixin:
                     "Mesh Export Complete",
                     f"{summary_text}\n\nExported files:\n{exported_files}",
                 )
-                self.set_status_message(f"Exported {entry.basename} as {export_format.upper()}.")
+                self.shell.set_status_message(f"Exported {entry.basename} as {export_format.upper()}.")
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Exporting {entry.basename} as {export_format.upper()}...",
                 task=_task,
                 on_complete=_handle_complete,
@@ -713,7 +713,7 @@ class ArchiveMeshImportExportMixin:
         result = self.current_archive_preview_result
         preview_model = result.preview_model if result is not None else None
         if preview_model is None or self.archive_preview_showing_loose:
-            self.set_status_message("No model preview is available to export.", error=True)
+            self.shell.set_status_message("No model preview is available to export.", error=True)
             return
 
         current_entry = self._current_archive_mesh_entry()
@@ -727,7 +727,7 @@ class ArchiveMeshImportExportMixin:
         else:
             default_stem = Path(current_entry.basename).stem if current_entry is not None else "archive_model"
 
-        default_dir = self.settings_file_path.parent / "model_export"
+        default_dir = self.shell.settings_file_path.parent / "model_export"
         default_target = default_dir / f"{default_stem}.obj"
         selected, _ = QFileDialog.getSaveFileName(
             self,
@@ -742,9 +742,9 @@ class ArchiveMeshImportExportMixin:
             exported_path = export_model_preview_to_obj(preview_model, Path(selected))
         except Exception as exc:
             QMessageBox.warning(self, "Model Export", str(exc))
-            self.set_status_message(f"Model export failed: {exc}", error=True)
+            self.shell.set_status_message(f"Model export failed: {exc}", error=True)
             return
 
-        self.set_status_message(f"Exported model preview to {exported_path}")
+        self.shell.set_status_message(f"Exported model preview to {exported_path}")
 
 __all__ = ["ArchiveMeshImportExportMixin"]

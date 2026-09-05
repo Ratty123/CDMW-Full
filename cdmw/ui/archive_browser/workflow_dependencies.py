@@ -49,7 +49,7 @@ def archive_workflow_dependency_context(
 
     if not isinstance(entry, ArchiveEntry):
         raise ArchiveWorkflowDependenciesUnavailable("The archive workflow has no valid selected entry.")
-    remote_bridge = getattr(owner, "archive_remote_bridge", None)
+    remote_bridge = getattr(owner.archive, "archive_remote_bridge", None)
     if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
         resolver = getattr(remote_bridge, "prepared_dependencies_for", None)
         snapshot = resolver(entry) if callable(resolver) else None
@@ -83,9 +83,9 @@ def archive_workflow_dependency_context(
 
     return ArchiveWorkflowDependencyContext(
         selected_entry=entry,
-        entries=tuple(getattr(owner, "archive_entries", ()) or ()),
-        entries_by_normalized_path=getattr(owner, "archive_entries_by_normalized_path", {}) or {},
-        entries_by_basename=getattr(owner, "archive_entries_by_basename", {}) or {},
+        entries=tuple(getattr(owner.archive, "archive_entries", ()) or ()),
+        entries_by_normalized_path=getattr(owner.archive, "archive_entries_by_normalized_path", {}) or {},
+        entries_by_basename=getattr(owner.archive, "archive_entries_by_basename", {}) or {},
         remote=False,
     )
 

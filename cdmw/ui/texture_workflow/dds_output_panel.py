@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
-    QGridLayout,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
@@ -50,8 +50,8 @@ class TextureWorkflowDdsOutputPanelMixin:
         dds_output_layout.setContentsMargins(0, 0, 0, 0)
         dds_output_layout.setSpacing(8)
 
-        self.enable_dds_staging_checkbox = QCheckBox("Create source PNGs from DDS before processing")
-        self.enable_dds_staging_checkbox.setToolTip("")
+        self.enable_dds_staging_checkbox = QCheckBox("Convert DDS to PNG")
+        self.enable_dds_staging_checkbox.setToolTip("Create source PNGs from DDS before processing")
         self.dds_output_mode_hint = QLabel(
             "Uses DirectXTex/native DDS decoding to create source PNG files first. If no upscaling backend is selected, Start stops after PNG conversion."
         )
@@ -101,9 +101,9 @@ class TextureWorkflowDdsOutputPanelMixin:
         self._add_combo_choice(self.dds_mip_mode_combo, "Custom mip count", DDS_MIP_MODE_CUSTOM)
 
         for combo, minimum_contents_length in (
-            (self.dds_format_mode_combo, 28),
-            (self.dds_size_mode_combo, 32),
-            (self.dds_mip_mode_combo, 30),
+            (self.dds_format_mode_combo, 18),
+            (self.dds_size_mode_combo, 18),
+            (self.dds_mip_mode_combo, 18),
             (self.dds_custom_format_combo, 18),
         ):
             combo.setMinimumContentsLength(minimum_contents_length)
@@ -128,19 +128,18 @@ class TextureWorkflowDdsOutputPanelMixin:
         custom_size_row.addWidget(self.dds_custom_height_spin)
         custom_size_row.addStretch(1)
 
-        dds_output_summary_row = QHBoxLayout()
+        dds_output_summary_row = QVBoxLayout()
         dds_output_summary_row.setContentsMargins(0, 0, 0, 0)
         dds_output_summary_row.setSpacing(10)
 
         dds_output_options_panel = QFrame()
         dds_output_options_panel.setObjectName("DdsFlowPanel")
         dds_output_options_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        dds_output_options_layout = QGridLayout(dds_output_options_panel)
+        dds_output_options_layout = QFormLayout(dds_output_options_panel)
         dds_output_options_layout.setContentsMargins(10, 10, 10, 10)
         dds_output_options_layout.setHorizontalSpacing(10)
         dds_output_options_layout.setVerticalSpacing(8)
-        dds_output_options_layout.setColumnMinimumWidth(0, 84)
-        dds_output_options_layout.setColumnStretch(1, 1)
+        dds_output_options_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
 
         self.enable_dds_staging_checkbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         dds_output_header_widget = QWidget()
@@ -152,24 +151,18 @@ class TextureWorkflowDdsOutputPanelMixin:
             "DDS Output defines the global rebuild defaults for files without a workflow-profile override. "
             "Format controls compression/container format; Size controls output dimensions only; Mipmaps controls output mip count."
         ), 0, Qt.AlignRight)
-        dds_output_options_layout.addWidget(dds_output_header_widget, 0, 0, 1, 3)
+        dds_output_options_layout.addRow(dds_output_header_widget)
         format_label = QLabel("Format")
-        dds_output_options_layout.addWidget(format_label, 1, 0)
-        dds_output_options_layout.addWidget(self.dds_format_mode_combo, 1, 1, 1, 2)
-        dds_output_options_layout.addWidget(self.dds_custom_format_label, 2, 0)
-        dds_output_options_layout.addWidget(self.dds_custom_format_combo, 2, 1, 1, 2)
+        dds_output_options_layout.addRow(format_label, self.dds_format_mode_combo)
+        dds_output_options_layout.addRow(self.dds_custom_format_label, self.dds_custom_format_combo)
         size_label = QLabel("Size")
-        dds_output_options_layout.addWidget(size_label, 3, 0)
-        dds_output_options_layout.addWidget(self.dds_size_mode_combo, 3, 1, 1, 2)
-        dds_output_options_layout.addWidget(self.dds_custom_size_label, 4, 0)
-        dds_output_options_layout.addWidget(self.dds_custom_size_widget, 4, 1, 1, 2)
+        dds_output_options_layout.addRow(size_label, self.dds_size_mode_combo)
+        dds_output_options_layout.addRow(self.dds_custom_size_label, self.dds_custom_size_widget)
         mipmaps_label = QLabel("Mipmaps")
-        dds_output_options_layout.addWidget(mipmaps_label, 5, 0)
-        dds_output_options_layout.addWidget(self.dds_mip_mode_combo, 5, 1, 1, 2)
-        dds_output_options_layout.addWidget(self.dds_custom_mip_label, 6, 0)
-        dds_output_options_layout.addWidget(self.dds_custom_mip_spin, 6, 1)
-        dds_output_options_layout.addWidget(self.dds_output_size_hint, 7, 0, 1, 3)
-        dds_output_options_layout.addWidget(self.dds_output_mode_hint, 8, 0, 1, 3)
+        dds_output_options_layout.addRow(mipmaps_label, self.dds_mip_mode_combo)
+        dds_output_options_layout.addRow(self.dds_custom_mip_label, self.dds_custom_mip_spin)
+        dds_output_options_layout.addRow(self.dds_output_size_hint)
+        dds_output_options_layout.addRow(self.dds_output_mode_hint)
 
         dds_output_summary_row.addWidget(dds_output_options_panel, stretch=3)
         dds_output_summary_row.addWidget(self.dds_output_flow_panel, stretch=2)

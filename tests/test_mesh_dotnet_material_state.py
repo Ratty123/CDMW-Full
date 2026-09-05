@@ -10,7 +10,6 @@ from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import (
-    mesh_dotnet_experiment,
     mesh_dotnet_material_bindings,
     mesh_dotnet_material_channels,
     mesh_dotnet_material_package,
@@ -23,12 +22,9 @@ from cdmw.services.mesh_dotnet_material_state import (
     defer_dotnet_preview_material_synthesis,
     mesh_dotnet_texture_resource_id,
 )
-from cdmw.services.mesh_dotnet_experiment import (
-    build_mesh_dotnet_experiment_package,
-    mesh_dotnet_material_input_signature,
-    mesh_dotnet_material_state_payload,
-)
-from tests.test_mesh_dotnet_experiment import _mesh
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature, mesh_dotnet_material_state_payload
+from cdmw.services.mesh_dotnet_material_package import compile_mesh_dotnet_material_manifest
+from tests.mesh_material_test_support import _mesh
 
 
 def test_material_state_facade_reexports_exact_owner_objects() -> None:
@@ -111,8 +107,7 @@ def test_dotnet_material_state_payload_is_deterministic_and_does_not_build_packa
     def forbidden(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("material snapshot must not build or copy a package")
 
-    monkeypatch.setattr(mesh_dotnet_experiment, "export_obj", forbidden)
-    monkeypatch.setattr(mesh_dotnet_experiment, "_copy_dotnet_texture_channel_resources", forbidden)
+    monkeypatch.setattr(mesh_dotnet_material_package, "_copy_dotnet_texture_channel_resources", forbidden)
     payload = mesh_dotnet_material_state_payload(
         mesh,
         session_id="session-1",
@@ -198,15 +193,16 @@ def test_initial_manifest_and_resident_update_share_resource_fingerprint(tmp_pat
     mesh = _mesh()
     mesh.submeshes[0].preview_texture_path = str(texture)
 
-    package = build_mesh_dotnet_experiment_package(mesh, output_root=tmp_path / "packages")
-    manifest = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    manifest = compile_mesh_dotnet_material_manifest(
+        mesh, package_dir=tmp_path, material_signature=mesh_dotnet_material_input_signature(mesh),
+    )
     resident = mesh_dotnet_material_state_payload(mesh, session_id="s", edit_revision=1, generation=1)
 
     initial_resource = manifest["resources"][0]
     resident_resource = resident["resources"][0]
     assert initial_resource["resource_id"] == resident_resource["resource_id"]
     assert initial_resource["fingerprint"] == resident_resource["fingerprint"]
-    assert (package.package_dir / initial_resource["path"]).is_file()
+    assert (tmp_path / initial_resource["path"]).is_file()
     assert manifest["submeshes"][0]["resource_channels"]["base"] == initial_resource["resource_id"]
 
 
@@ -655,13 +651,10 @@ def test_initial_two_role_manifest_keeps_texture_paths_and_uv_orientation_separa
     reference.submeshes[0].preview_texture_path = str(original_texture)
     reference.submeshes[0].preview_texture_flip_vertical = False
 
-    package = build_mesh_dotnet_experiment_package(
-        editable,
-        output_root=tmp_path / "packages",
-        reference_mesh=reference,
-    )
-    manifest = json.loads(
-        (package.package_dir / "net_materials.json").read_text(encoding="utf-8")
+    editable.submeshes.extend(reference.submeshes)
+    manifest = compile_mesh_dotnet_material_manifest(
+        editable, package_dir=tmp_path, editable_submesh_count=1,
+        material_signature=mesh_dotnet_material_input_signature(editable),
     )
 
     assert [binding["texture_flip_vertical"] for binding in manifest["submeshes"]] == [

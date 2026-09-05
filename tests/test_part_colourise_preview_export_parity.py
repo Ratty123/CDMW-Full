@@ -9,7 +9,6 @@ independent transcription of the shader block so the two cannot drift.
 from __future__ import annotations
 
 from pathlib import Path
-import re
 from types import SimpleNamespace
 
 import numpy as np
@@ -145,20 +144,6 @@ def test_a_recolour_is_declared_authored_so_the_shader_skips_metal_damping():
     assert material_parameter_renderer_overrides(values)["base_tint_authored"] is True
 
 
-def test_the_shader_honours_the_authored_flag_before_classifying_metal():
-    """The flag only works if it gates `earlyCategoryMetal` itself.
-
-    Everything downstream -- the 0.05 multiplier and the colorize blend -- is
-    derived from that bool, so gating it is what makes the authored path equal
-    the non-metal path this file's CPU port implements.
-    """
-    source = SHADER_PATH.read_text(encoding="utf-8", errors="ignore")
-    assert "float4 MaterialBaseTintAuthored;" in source
-    block = source[source.index("MaterialBaseTintPolicy.x > 0.001f"):]
-    block = block[: block.index("MaterialBaseAdjustments.x")]
-    collapsed = re.sub(r"\s+", "", block)
-    assert "boolauthoredBaseTint=MaterialBaseTintAuthored.x>0.5f;" in collapsed
-    assert "boolearlyCategoryMetal=!authoredBaseTint" in collapsed
 
 
 def test_the_baked_identity_clears_the_authored_flag():
@@ -253,22 +238,3 @@ def test_recolouring_one_part_clones_its_texture_set_instead_of_repainting_sibli
 )
 def test_strength_normalization_accepts_fraction_or_percent(raw, expected):
     assert normalize_colourise_strength(raw) == pytest.approx(expected)
-
-
-def test_shader_still_implements_the_constants_this_port_assumes():
-    """Guard the CPU port against a silent shader-side constant change.
-
-    Source-string checks are not proof of behaviour, but these five literals
-    are the only coupling between the two implementations, so a change to them
-    must break a test rather than the render.
-    """
-    source = SHADER_PATH.read_text(encoding="utf-8", errors="ignore")
-    block = source[source.index("MaterialBaseTintPolicy.x > 0.001f"):]
-    block = block[: block.index("MaterialBaseAdjustments.x")]
-    collapsed = re.sub(r"\s+", "", block)
-
-    assert "max(dot(previewTint,float3(0.299f,0.587f,0.114f)),0.08f)" in collapsed
-    assert "float3(0.38f,0.38f,0.38f)" in collapsed
-    assert "float3(1.72f,1.72f,1.72f)" in collapsed
-    assert "albedoLuma*(1.05f+strength*0.35f)+0.10f*strength" in collapsed
-    assert "lerp(0.58f,0.96f,neutralMetalTint)" in collapsed

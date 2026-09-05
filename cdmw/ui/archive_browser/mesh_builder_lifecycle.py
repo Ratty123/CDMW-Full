@@ -26,13 +26,13 @@ class ArchiveMeshBuilderLifecycleMixin:
         return f"{entry_key}|{source_key}|{title_key}"
 
     def _mesh_replacement_builder_active(self) -> bool:
-        for key, dialog in list(self._modeless_alignment_dialogs.items()):
+        for key, dialog in list(self.shell._modeless_alignment_dialogs.items()):
             try:
                 if dialog is not None:
                     dialog.windowTitle()
                     return True
             except RuntimeError:
-                self._modeless_alignment_dialogs.pop(str(key or ""), None)
+                self.shell._modeless_alignment_dialogs.pop(str(key or ""), None)
         return False
 
     def _defer_archive_preview_refresh_for_builder(
@@ -47,10 +47,10 @@ class ArchiveMeshBuilderLifecycleMixin:
         self.archive_preview_debounce_timer.stop()
         message = alignment_builder_archive_preview_pause_message()
         self._set_archive_preview_health_message(message, visible=bool(entry), attention=True)
-        self.set_status_message(message)
+        self.shell.set_status_message(message)
 
     def _resume_archive_preview_after_builder(self) -> None:
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             self.archive_preview_refresh_deferred_by_builder = False
             return
         if self._mesh_replacement_builder_active():
@@ -61,20 +61,20 @@ class ArchiveMeshBuilderLifecycleMixin:
         self._refresh_current_model_preview_assets(force=True)
 
     def _activate_modeless_alignment_dialog(self, key: str) -> bool:
-        dialog = self._modeless_alignment_dialogs.get(str(key or ""))
+        dialog = self.shell._modeless_alignment_dialogs.get(str(key or ""))
         if dialog is None:
             return False
         try:
             if not dialog.isVisible():
-                self._modeless_alignment_dialogs.pop(str(key or ""), None)
+                self.shell._modeless_alignment_dialogs.pop(str(key or ""), None)
                 return False
-            if hasattr(self, "mesh_editor_tab"):
+            if hasattr(self.shell, "mesh_editor_tab"):
                 try:
-                    builder_host = self.mesh_editor_tab.builder_host()
+                    builder_host = self.shell.mesh_editor_tab.builder_host()
                 except RuntimeError:
                     builder_host = None
                 if isinstance(builder_host, QWidget) and dialog.parentWidget() is builder_host:
-                    self._activate_tool_widget(self.mesh_editor_tab)
+                    self.shell._activate_tool_widget(self.shell.mesh_editor_tab)
                     dialog.show()
                     dialog.raise_()
                     return True
@@ -83,11 +83,11 @@ class ArchiveMeshBuilderLifecycleMixin:
             dialog.activateWindow()
             return True
         except RuntimeError:
-            self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            self.shell._modeless_alignment_dialogs.pop(str(key or ""), None)
             return False
 
     def _register_modeless_alignment_dialog(self, key: str, dialog: QDialog) -> None:
-        self._modeless_alignment_dialogs[str(key or "")] = dialog
+        self.shell._modeless_alignment_dialogs[str(key or "")] = dialog
         self._defer_archive_preview_refresh_for_builder(
             self._current_archive_entry(),
             mark_deferred=False,
@@ -102,7 +102,7 @@ class ArchiveMeshBuilderLifecycleMixin:
     ) -> bool:
         """Idempotently tear down a builder that failed before modeless handoff."""
 
-        dialog = dialog or self._modeless_alignment_dialogs.get(str(key or ""))
+        dialog = dialog or self.shell._modeless_alignment_dialogs.get(str(key or ""))
         if dialog is None:
             return False
         try:
@@ -110,7 +110,7 @@ class ArchiveMeshBuilderLifecycleMixin:
                 return False
             setattr(dialog, "_cdmw_partial_builder_disposed", True)
         except RuntimeError:
-            self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            self.shell._modeless_alignment_dialogs.pop(str(key or ""), None)
             return False
 
         cleanup_context = context
@@ -165,8 +165,8 @@ class ArchiveMeshBuilderLifecycleMixin:
         return True
 
     def _unregister_modeless_alignment_dialog(self, key: str, dialog: QDialog) -> None:
-        current = self._modeless_alignment_dialogs.get(str(key or ""))
+        current = self.shell._modeless_alignment_dialogs.get(str(key or ""))
         if current is dialog:
-            self._modeless_alignment_dialogs.pop(str(key or ""), None)
+            self.shell._modeless_alignment_dialogs.pop(str(key or ""), None)
         if not self._mesh_replacement_builder_active():
             QTimer.singleShot(0, self._resume_archive_preview_after_builder)

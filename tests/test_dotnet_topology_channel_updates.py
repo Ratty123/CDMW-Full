@@ -17,76 +17,8 @@ def _source(name: str) -> str:
     return (DOTNET / name).read_text(encoding="utf-8")
 
 
-def test_vertex_update_applies_all_channels_and_retains_affected_gpu_ranges() -> None:
-    protocol = _source("ExperimentForm.Protocol.cs")
-    geometry = _source("D3D11MaterialViewport.Geometry.cs")
-    soak = _source("HeadlessGpuSparseSoak.cs")
-    parser = _source("ExperimentForm.GeometryProtocol.cs")
-
-    assert 'JsonOrBinaryDoubles(group, "normals", "normals_binary")' in parser
-    assert 'JsonOrBinaryDoubles(group, "uvs", "uvs_binary")' in parser
-    assert protocol.index("TryParsePreviewVertexGroups") < protocol.index("submesh.Normals[vertexIndex] =")
-    assert "submesh.Normals[vertexIndex] =" in protocol
-    assert "submesh.Uvs[vertexIndex] =" in protocol
-    assert geometry.count("AddDirtyFaces(dirtyFaces, batch.SourceVertexToRenderCorners") == 3
-    assert "UpdateSubresource(" in geometry
-    assert "new MeshVertexChannelChanges(dirtyIndex, dirtyIndex, dirtyIndex)" in soak
-    assert "EnsureVertexAlignedNormals(submesh)" in protocol
-    assert "EnsureVertexAlignedUvs(submesh)" in protocol
-    assert "face.Corners[cornerIndex] = corner with { NormalIndex = corner.VertexIndex };" in parser
-    assert "face.Corners[cornerIndex] = corner with { UvIndex = corner.VertexIndex };" in parser
 
 
-def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
-    protocol = _source("ExperimentForm.Protocol.cs")
-    parser = _source("ExperimentForm.GeometryProtocol.cs")
-    viewport = _source("MeshViewport.Topology.cs")
-    geometry = _source("D3D11MaterialViewport.Geometry.cs")
-    metrics = _source("D3D11MaterialViewport.Metrics.cs")
-
-    assert "TryApplyPreviewTriangleGroups" in protocol
-    assert 'JsonInt(root, "final_submesh_count", -1)' in parser
-    assert "var referenceSubmeshes = document.Submeshes.Skip(previousEditableCount).ToArray();" in parser
-    assert "document.Submeshes.AddRange(referenceSubmeshes);" in parser
-    assert "editableSubmeshes[item.SubmeshIndex] = item.Submesh" in parser
-    assert "previousEditableSubmeshCount" in protocol
-    assert "out var topologySources" in protocol
-    topology_refresh = viewport.split("public void RefreshTopologyGeometry(", 1)[1].split(
-        "public void RefreshVertexGeometry(", 1
-    )[0]
-    assert "RefreshTopologyGeometry(affectedSubmeshes, materialSources, replaceAll)" in topology_refresh
-    assert "_d3d11Viewport?.RefreshGeometry()" not in topology_refresh
-    assert "ApplyPendingTopologyUpdates" in geometry
-    assert "var replaced = requested.ToHashSet();" in geometry
-    assert "batch.SubmeshIndex >= _document.Submeshes.Count" in geometry
-    assert "_materialSourceBySubmesh.Remove(staleIndex);" in geometry
-    assert "editableSubmeshes.RemoveRange(finalCount" in parser
-    assert "Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count)" in viewport
-    assert "DisposeBatches();" not in geometry.split("private void ApplyPendingTopologyUpdates()", 1)[1].split(
-        "private int MaterialSourceFor", 1
-    )[0]
-    assert '"partial_topology_rebuilds"' in metrics
-    soak = _source("HeadlessGpuSparseSoak.cs")
-    assert "ResidentTopologyPacketProof()" in soak
-    assert 'gates["resident_topology_add_remove_packets"]' in soak
-    assert '"partial_tail_shrink_applied"' in soak
-    assert '"incomplete_replace_all_rejected"' in soak
-    assert '"missing_vertex_channels_initialized"' in soak
-    assert '"equal_count_channels_remapped"' in soak
-    assert '"malformed_vertex_channel_rejected"' in soak
-    assert '"material_parameter_lineage_remapped"' in soak
-    assert '"combined_scene_references_preserved_after_delete"' in soak
-    assert '"combined_scene_references_preserved_after_add"' in soak
-    assert protocol.index("_scene.RemapTopologyState(") < protocol.index("_viewport.RefreshTopologyGeometry(")
-    assert "RemapTopologyState(materialSources, _document.Submeshes.Count)" in protocol
-    scene = _source("NetSceneState.cs")
-    assert "public void RemapTopologyState(" in scene
-    assert "EditableSubmeshCount = nextEditableCount;" in scene
-    assert "ReferenceSubmeshCount = totalCount - nextEditableCount;" in scene
-    resident_materials = _source("NetMaterialSet.Resident.cs")
-    assert "public IReadOnlySet<int> RemapTopologyState(" in resident_materials
-    assert "binding with { SubmeshIndex = targetIndex }" in resident_materials
-    assert "ParameterStates = nextParameters;" in resident_materials
 
 
 def test_whole_part_delete_sends_affected_only_shrink() -> None:

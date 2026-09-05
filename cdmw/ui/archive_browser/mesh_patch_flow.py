@@ -93,7 +93,7 @@ def _mesh_patch_dependencies(
     try:
         dependencies = archive_workflow_dependency_context(owner, entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Mesh replacement is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Mesh replacement is unavailable: {exc}", error=True)
         return None, None
     return dependencies, dependencies.selected_entry
 
@@ -112,7 +112,7 @@ class ArchiveMeshPatchFlowMixin:
         scene_path, _selected = QFileDialog.getOpenFileName(
             self,
             FULL_IMPORT_MODEL_REPLACEMENT_SETUP_TITLE,
-            str(self.settings_file_path.parent),
+            str(self.shell.settings_file_path.parent),
             full_import_model_replacement_external_file_filter(),
         )
         if not scene_path:
@@ -146,7 +146,7 @@ class ArchiveMeshPatchFlowMixin:
         scene_path, _selected = QFileDialog.getOpenFileName(
             self,
             MATERIALS_AND_TEXTURES_SETUP_TITLE,
-            str(self.settings_file_path.parent),
+            str(self.shell.settings_file_path.parent),
             materials_and_textures_external_file_filter(),
         )
         if not scene_path:
@@ -189,7 +189,7 @@ class ArchiveMeshPatchFlowMixin:
             scene_path, _selected = QFileDialog.getOpenFileName(
                 self,
                 mesh_import_file_dialog_title(),
-                str(self.settings_file_path.parent),
+                str(self.shell.settings_file_path.parent),
                 self._archive_mesh_import_file_filter(),
             )
             if not scene_path:
@@ -215,7 +215,7 @@ class ArchiveMeshPatchFlowMixin:
             if "swap" in setup_title_key
             else "external_import"
         )
-        self._open_mesh_editor_for_entry(
+        self.shell._open_mesh_editor_for_entry(
             entry,
             mode=mesh_editor_mode,
             source_path=scene_path_obj,
@@ -229,7 +229,7 @@ class ArchiveMeshPatchFlowMixin:
         )
         build_entry = entry
         if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
-            self.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))
+            self.shell.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))
 
         def _start_build_with_static_options(
             static_replacement_options: Optional[StaticMeshReplacementOptions],
@@ -245,13 +245,13 @@ class ArchiveMeshPatchFlowMixin:
                 if build_status_callback is not None:
                     build_status_callback(message)
                 else:
-                    self.set_status_message(message)
+                    self.shell.set_status_message(message)
 
             def _finish_builder_status(message: str, success: bool) -> None:
                 if build_finished_callback is not None:
                     build_finished_callback(message, success)
                 else:
-                    self.set_status_message(message, error=not bool(success))
+                    self.shell.set_status_message(message, error=not bool(success))
 
             supplemental_files = setup.supplemental_files
             if static_replacement_options is not None:
@@ -355,7 +355,7 @@ class ArchiveMeshPatchFlowMixin:
 
             def _start_commit(preview_result: MeshImportPreviewResult) -> None:
                 material_report_render_settings = self._current_model_preview_render_settings()
-                mutation_service = self.app_context.services.require_archive_mutations() if destination == "patch" else None
+                mutation_service = self.shell.app_context.services.require_archive_mutations() if destination == "patch" else None
 
                 def _commit_task(
                     log: Callable[[str], None],
@@ -829,7 +829,7 @@ class ArchiveMeshPatchFlowMixin:
                         True,
                     )
 
-                self._run_utility_task_when_idle(
+                self.shell._run_utility_task_when_idle(
                     status_message=(
                         f"Patching {build_entry.basename} into game archive files..."
                         if destination == "patch"
@@ -891,7 +891,7 @@ class ArchiveMeshPatchFlowMixin:
                     _set_builder_status("Writing loose mod package...")
                 _start_commit(result)
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Rebuilding mesh preview for {build_entry.basename}...",
                 task=_preview_task,
                 on_complete=_handle_preview_complete,
@@ -925,7 +925,7 @@ class ArchiveMeshPatchFlowMixin:
                 runtime_export_target_entry=build_entry,
                 full_import_model_replacement=bool(setup.full_import_model_replacement),
                 materials_and_textures_only=bool(setup.materials_and_textures_only),
-                embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
+                embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None,
                 continue_build_callback=_start_build_with_static_options,
             )
             return

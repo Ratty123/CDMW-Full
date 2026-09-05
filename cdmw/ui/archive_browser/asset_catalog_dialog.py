@@ -54,7 +54,7 @@ class ArchiveAssetCatalogDialogMixin:
         dialog.setWindowTitle("Item Finder")
         dialog.resize(1240, 780)
         self.archive_item_icon_negative_cache.clear()
-        saved_geometry = self.settings.value("ui/item_finder_geometry")
+        saved_geometry = self.shell.settings.value("ui/item_finder_geometry")
         if saved_geometry:
             try:
                 dialog.restoreGeometry(saved_geometry)
@@ -192,7 +192,7 @@ class ArchiveAssetCatalogDialogMixin:
         content_splitter.setStretchFactor(0, 0)
         content_splitter.setStretchFactor(1, 1)
         content_splitter.setStretchFactor(2, 0)
-        saved_splitter_sizes = self._load_saved_splitter_sizes("ui/item_finder_splitter_sizes")
+        saved_splitter_sizes = self.shell._load_saved_splitter_sizes("ui/item_finder_splitter_sizes")
         content_splitter.setSizes(saved_splitter_sizes or [220, 680, 340])
 
         icon_preview_timer = QTimer(dialog)
@@ -213,10 +213,10 @@ class ArchiveAssetCatalogDialogMixin:
         icon_row_queue: List[QListWidgetItem] = []
         icon_visible_retry_budget = {"remaining": 8}
         catalog_population_state: Dict[str, object] = {}
-        restored_category = str(self.settings.value("ui/item_finder_category", "") or "")
-        restored_group = str(self.settings.value("ui/item_finder_group", "") or "")
-        restored_selected_key = str(self.settings.value("ui/item_finder_selected_key", "") or "")
-        restored_scroll_value = self._read_int("ui/item_finder_scroll_value", 0)
+        restored_category = str(self.shell.settings.value("ui/item_finder_category", "") or "")
+        restored_group = str(self.shell.settings.value("ui/item_finder_group", "") or "")
+        restored_selected_key = str(self.shell.settings.value("ui/item_finder_selected_key", "") or "")
+        restored_scroll_value = self.shell._read_int("ui/item_finder_scroll_value", 0)
         pending_restore = {
             "selection_key": restored_selected_key,
             "scroll_value": max(0, restored_scroll_value),
@@ -790,7 +790,7 @@ class ArchiveAssetCatalogDialogMixin:
                 return
 
             display_name = str(row.get("display_name", "") or row.get("internal_name", "") or "selected item")
-            self._activate_tool_widget(self.archive_browser_tab)
+            self.shell._activate_tool_widget(self.shell.archive_browser_tab)
             self._apply_archive_direct_scope(
                 icon_entries,
                 scope_label=f"{display_name} icon",
@@ -824,7 +824,7 @@ class ArchiveAssetCatalogDialogMixin:
         close_button.clicked.connect(dialog.reject)
         self.archive_item_icon_prepared_callbacks.append(_handle_catalog_icon_prepared)
         _populate_category_tree()
-        restored_search_text = str(self.settings.value("ui/item_finder_search_text", "") or "")
+        restored_search_text = str(self.shell.settings.value("ui/item_finder_search_text", "") or "")
         if restored_search_text:
             search_edit.setText(restored_search_text)
         category_tree.itemSelectionChanged.connect(lambda: catalog_filter_timer.start())
@@ -838,19 +838,19 @@ class ArchiveAssetCatalogDialogMixin:
                 pass
             selected_category, selected_group = _current_browser_filter()
             selected_row = _selected_catalog_row()
-            self.settings.setValue("ui/item_finder_geometry", dialog.saveGeometry())
-            self.settings.setValue(
+            self.shell.settings.setValue("ui/item_finder_geometry", dialog.saveGeometry())
+            self.shell.settings.setValue(
                 "ui/item_finder_splitter_sizes",
                 ",".join(str(value) for value in content_splitter.sizes()),
             )
-            self.settings.setValue("ui/item_finder_search_text", search_edit.text())
-            self.settings.setValue("ui/item_finder_category", selected_category)
-            self.settings.setValue("ui/item_finder_group", selected_group)
-            self.settings.setValue(
+            self.shell.settings.setValue("ui/item_finder_search_text", search_edit.text())
+            self.shell.settings.setValue("ui/item_finder_category", selected_category)
+            self.shell.settings.setValue("ui/item_finder_group", selected_group)
+            self.shell.settings.setValue(
                 "ui/item_finder_selected_key",
                 _catalog_row_identity_key(selected_row) if isinstance(selected_row, Mapping) else "",
             )
-            self.settings.setValue("ui/item_finder_scroll_value", item_grid.verticalScrollBar().value())
+            self.shell.settings.setValue("ui/item_finder_scroll_value", item_grid.verticalScrollBar().value())
             catalog_filter_timer.stop()
             catalog_population_timer.stop()
             icon_preview_timer.stop()

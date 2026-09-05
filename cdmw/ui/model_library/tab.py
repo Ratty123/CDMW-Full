@@ -22,11 +22,10 @@ from cdmw.ui.model_library.commands import ModelLibraryCommandsMixin
 from cdmw.ui.model_library.controller import ModelLibraryResultsMixin
 from cdmw.ui.model_library.local_rows import ModelLibraryLocalRowsMixin
 from cdmw.ui.model_library.panels import (
-    apply_compact_model_library_presentation,
+    finish_model_library_layout,
     build_controls_panel,
     build_preview_panel,
     build_results_panel,
-    retune_compact_model_library_geometry,
 )
 from cdmw.ui.model_library.preview import ModelLibraryInlinePreviewMixin
 from cdmw.ui.model_library.selection import ModelLibrarySelectionMixin
@@ -181,17 +180,18 @@ class ModelLibraryTab(
         self._model_library_preview_panel = preview_panel
 
         controls_min, controls_pref, controls_max = responsive_sidebar_bounds(self, role="wide")
-        controls_panel.setMinimumWidth(max(controls_min, 430))
-        controls_panel.setMaximumWidth(max(controls_max, 520))
+        controls_panel.setMinimumWidth(256)
+        controls_panel.setMaximumWidth(300)
         results_panel.setMinimumWidth(300)
         preview_panel.setMinimumWidth(280)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([max(controls_pref, 460), 900])
+        splitter.setSizes([280, 900])
         content_splitter.setStretchFactor(0, 1)
         content_splitter.setStretchFactor(1, 1)
         content_splitter.setSizes([460, 440])
 
+        finish_model_library_layout(self)
         self._load_settings()
         self._refresh_roots_tree()
         self._update_catalogue_status()
@@ -200,44 +200,12 @@ class ModelLibraryTab(
         if not initial_results_loaded:
             self._set_status("Choose Mirror Catalogue or Local Library. Use Refresh to reload the active view.")
 
-    def event(self, event: QEvent) -> bool:
-        result = super().event(event)
-        if (
-            event.type() == QEvent.Type.DynamicPropertyChange
-            and bytes(event.propertyName()) == b"compactPresentation"
-            and bool(self.property("compactPresentation"))
-        ):
-            apply_compact_model_library_presentation(self)
-            self._schedule_compact_panel_retune()
-        elif (
-            event.type() == QEvent.Type.LayoutRequest
-            and bool(self.property("compactPresentation"))
-            and not bool(getattr(self, "_model_library_compact_retuning", False))
-        ):
-            self._schedule_compact_panel_retune()
-        return result
 
-    def resizeEvent(self, event: object) -> None:
-        super().resizeEvent(event)  # type: ignore[arg-type]
-        if bool(self.property("compactPresentation")):
-            retune_compact_model_library_geometry(self)
 
-    def _schedule_compact_panel_retune(self) -> None:
-        if bool(getattr(self, "_model_library_compact_retune_pending", False)):
-            return
-        self._model_library_compact_retune_pending = True
-        QTimer.singleShot(0, self._finish_compact_panel_retune)
 
-    def _finish_compact_panel_retune(self) -> None:
-        self._model_library_compact_retuning = True
-        try:
-            retune_compact_model_library_geometry(self)
-        finally:
-            self._model_library_compact_retuning = False
-            self._model_library_compact_retune_pending = False
 
     def _model_library_button_label(self, standard: str, compact: str) -> str:
-        return compact if bool(self.property("compactPresentation")) else standard
+        return compact
 
     def _model_import_path_request(
         self,

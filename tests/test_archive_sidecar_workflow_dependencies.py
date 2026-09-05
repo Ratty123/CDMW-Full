@@ -58,6 +58,11 @@ def test_material_sidecar_resolution_uses_bounded_remote_maps(tmp_path: Path) ->
     snapshot = _snapshot(prepared_mesh, prepared_sidecar)
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -84,6 +89,11 @@ def test_binary_sidecar_decode_uses_prepared_source_and_bounded_maps(
     captured: dict[str, object] = {}
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -133,6 +143,11 @@ def test_hkx_companion_lookup_uses_bounded_remote_maps(tmp_path: Path) -> None:
     snapshot = _snapshot(prepared_hkx, prepared_xml)
 
     class _Owner(ArchiveHkxDocumentActionsMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @staticmethod

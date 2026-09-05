@@ -42,7 +42,6 @@ class MeshEditorReportsMixin:
             or self._standalone_rebuild_report_worker_active()
             or self._standalone_editable_package_task_active()
             or self._standalone_dotnet_package_worker_active()
-            or self._standalone_dotnet_import_worker_active()
         ):
             self.status_message_requested.emit("Wait for the current Mesh Editor task to finish, or cancel it first.", True)
             return

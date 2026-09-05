@@ -72,6 +72,8 @@ def _result(request_id: int) -> preflight.StaticReplacementPromptPreflightResult
 class _Owner:
     def __init__(self) -> None:
         self.archive_entries_by_normalized_path: dict[str, tuple[ArchiveEntry, ...]] = {}
+        self.archive = self
+        self.shell = self
         self.archive_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] = {}
         self.archive_entries_by_extension: dict[str, tuple[ArchiveEntry, ...]] = {}
         self._static_replacement_prompt_preflight_request_id = 0

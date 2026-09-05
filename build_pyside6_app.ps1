@@ -25,7 +25,6 @@ $pyInstallerWorkDir = Join-Path $stableBuildDir "pyinstaller-work-$buildFlavor"
 $specPath = Join-Path $scriptDir "CrimsonDesertModWorkbench.spec"
 $releaseConstraintsPath = Join-Path $scriptDir "constraints-release.txt"
 $releaseDependencyVerifier = Join-Path $scriptDir "scripts\verify_release_dependencies.py"
-$providerMetadataGenerator = Join-Path $scriptDir "scripts\generate_window_feature_provider_members.py"
 $localizationManifestGenerator = Join-Path $scriptDir "scripts\generate_ui_localization_manifest.py"
 $localizationCatalogValidator = Join-Path $scriptDir "scripts\validate_ui_localization_catalogs.py"
 $packagedStartupVerifier = Join-Path $scriptDir "scripts\verify_packaged_startup.ps1"
@@ -1066,18 +1065,6 @@ Write-BuildProgress -Percent 2 -Stage "Build plan ready"
 
 if ($DescribeOnly) {
     return
-}
-
-Write-BuildProgress -Percent 3 -Stage "Refreshing generated feature metadata"
-& $pythonExe $providerMetadataGenerator
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to regenerate MainWindow feature metadata before packaging."
-}
-
-Write-BuildProgress -Percent 3 -Stage "Verifying generated feature metadata"
-& $pythonExe $providerMetadataGenerator --check
-if ($LASTEXITCODE -ne 0) {
-    throw "Generated MainWindow feature metadata failed verification after regeneration."
 }
 
 Write-BuildProgress -Percent 3 -Stage "Verifying interface localization catalogs"

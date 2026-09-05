@@ -294,7 +294,6 @@ class MeshEditorTabShellMixin(
             ("standalone_dotnet_package", self.standalone_dotnet_package_thread, self.standalone_dotnet_package_worker),
             ("standalone_dotnet_material_update", self.standalone_dotnet_material_update_thread, self.standalone_dotnet_material_update_worker),
             ("standalone_dotnet_scene", self.standalone_dotnet_scene_thread, self.standalone_dotnet_scene_worker),
-            ("standalone_dotnet_import", self.standalone_dotnet_import_thread, self.standalone_dotnet_import_worker),
             ("standalone_editable_export", self.standalone_editable_export_thread, self.standalone_editable_export_worker),
             ("standalone_editable_import", self.standalone_editable_import_thread, self.standalone_editable_import_worker),
             ("standalone_rust_prepare", self.standalone_rust_prepare_thread, self.standalone_rust_prepare_worker),

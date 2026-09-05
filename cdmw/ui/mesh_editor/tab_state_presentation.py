@@ -56,7 +56,6 @@ class MeshEditorStatePresentationMixin:
             or self._mesh_direct_output_busy()
             or self._standalone_editable_package_task_active()
             or (include_package_build and self._standalone_dotnet_package_worker_active())
-            or self._standalone_dotnet_import_worker_active()
             or (
                 self._standalone_dotnet_editor_process_running()
                 and self.standalone_dotnet_target_embedded

@@ -405,7 +405,7 @@ def _remember_side_by_side_split_ratio(_state, ratio):
         remembered = _state.alignment_d3d11_preview_host.remember_side_by_side_split_ratio(
             float(ratio)
         )
-        _state.self.settings.setValue(
+        _state.self.shell.settings.setValue(
             'ui/mesh_alignment/d3d11_side_by_side_split_ratio',
             remembered,
         )

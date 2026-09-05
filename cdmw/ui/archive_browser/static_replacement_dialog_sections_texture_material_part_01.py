@@ -695,7 +695,7 @@ def _texture_material_step_010(_state):
     if _state._factory_advanced_material_branch:
 
         def _advanced_dds_rows_failed(message: str) -> None:
-            _state.self.set_status_message(f'Advanced DDS row loading failed: {message}', error=True)
+            _state.self.shell.set_status_message(f'Advanced DDS row loading failed: {message}', error=True)
         _state._advanced_dds_rows_failed = _advanced_dds_rows_failed
 
 def _texture_material_step_011(_state):

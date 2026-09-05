@@ -37,6 +37,9 @@ class _RefusalOwner(UtilityControllerMixin, LogControllerMixin):
     """Smallest host that reaches the real refusal branch."""
 
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.worker_thread = None
         self.archive_basic_index_thread = None
         self.text_search_tab = None

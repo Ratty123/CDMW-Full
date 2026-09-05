@@ -113,6 +113,9 @@ class _TimerProbe:
 class _ShutdownCoordinatorWindow(CloseControllerMixin, QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_backend_client = _ArchiveBackendProbe()
         self._close_after_workers_requested = False
         self._close_force_accept = False

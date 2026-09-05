@@ -139,6 +139,8 @@ class ReplaceAssistantQueueMixin:
             if resolved in existing_paths:
                 continue
             self.items.append(item)
+            if self.workspace is not None:
+                self.workspace.job.add_source(item.source_path, self._build_texture_editor_binding(item))
             existing_paths.add(resolved)
             added_count += 1
         self._refresh_queue_tree()
@@ -375,6 +377,7 @@ class ReplaceAssistantQueueMixin:
         binding_identity = binding.source_identity_path or binding.source_path
         binding_source = Path(binding_identity).expanduser().resolve() if binding_identity else None
         updated_existing = False
+        matched = matched_original
         if binding_source is not None:
             for index, item in enumerate(self.items):
                 if item.source_path.expanduser().resolve() != binding_source:
@@ -587,6 +590,8 @@ class ReplaceAssistantQueueMixin:
         ]
         if prompt_ambiguous and ambiguous_indices:
             self._prompt_resolve_ambiguous_items(ambiguous_indices)
+        if self.workspace is not None:
+            self.workspace.synchronize_replacement_matches(self)
         self.preview_refresh_suspended = False
         if refresh_preview:
             current_item = self._current_item()
@@ -621,6 +626,8 @@ class ReplaceAssistantQueueMixin:
         except Exception as exc:
             QMessageBox.warning(self, APP_TITLE, str(exc))
             return
+        if self.workspace is not None:
+            self.workspace.synchronize_replacement_matches(self)
         self._refresh_queue_tree()
         self._handle_selection_changed(self.queue_tree.currentItem(), None)
 
@@ -637,6 +644,8 @@ class ReplaceAssistantQueueMixin:
             if entry is None:
                 return
             match_replace_assistant_item_to_archive_entry(item, entry)
+        if self.workspace is not None:
+            self.workspace.synchronize_replacement_matches(self)
         self._refresh_queue_tree()
         self._handle_selection_changed(self.queue_tree.currentItem(), None)
 
@@ -656,7 +665,8 @@ class ReplaceAssistantQueueMixin:
         self.last_built_output_root = None
         self.queue_tree.clear()
         self.queue_stack.setCurrentWidget(self.queue_empty_state)
-        self.preview_label.clear_preview("Select a file to preview it here.")
+        if self.workspace is None:
+            self.preview_label.clear_preview("Select a file to preview it here.")
         self.preview_title_label.setText("Select an imported file")
         self.preview_meta_label.setText("Select a file to preview it here.")
         self.preview_warning_label.setVisible(False)

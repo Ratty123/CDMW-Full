@@ -70,23 +70,6 @@ def test_scenario_runner_routes_the_full_headless_diagnostic(
     assert (tmp_path / "evidence_report.json").is_file()
 
 
-def test_dotnet_hidden_suite_names_every_selection_shape_target_and_tool() -> None:
-    source = (
-        Path("tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshToolDiagnostics.cs")
-        .read_text(encoding="utf-8")
-    )
-
-    assert 'new[] { "vertex", "edge", "face" }' in source
-    assert 'new[] { "brush", "lasso", "rectangle" }' in source
-    assert 'new[] { "move", "grab", "smooth", "inflate", "pinch" }' in source
-    assert '"Add", "Replace", "Subtract", "Toggle"' in source
-    assert "RunEditMeshControlSurfaceDiagnostics" in source
-    assert '"xray_disabled_consistently"' in source
-    assert "HasTexturedMaterialResources" in source
-    assert "EditMeshToolListContract.RowOrder" in source
-    assert '"pointer_p95_at_most_20_ms"' in source
-    assert '"no_pointer_sample_over_100_ms"' in source
-    assert '"terminal_reconciliation_at_most_250_ms"' in source
 
 
 def test_native_select_all_has_real_targets_when_incoming_selection_is_empty() -> None:

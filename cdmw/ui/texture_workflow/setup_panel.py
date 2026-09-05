@@ -51,7 +51,7 @@ class TextureWorkflowSetupPanelMixin:
     def _current_upscale_backend(self) -> str:
         if self.chainner_section.is_body_built():
             return self._combo_value(self.upscale_backend_combo)
-        saved = str(self.settings.value("upscale/backend", DEFAULT_UPSCALE_BACKEND) or DEFAULT_UPSCALE_BACKEND)
+        saved = str(self.shell.settings.value("upscale/backend", DEFAULT_UPSCALE_BACKEND) or DEFAULT_UPSCALE_BACKEND)
         return saved if saved in {UPSCALE_BACKEND_NONE, UPSCALE_BACKEND_CHAINNER, UPSCALE_BACKEND_REALESRGAN_NCNN} else DEFAULT_UPSCALE_BACKEND
 
     def _sync_upscale_backend_stack_height(self) -> None:
@@ -122,33 +122,33 @@ class TextureWorkflowSetupPanelMixin:
         ncnn_paths_layout = QGridLayout()
         ncnn_paths_layout.setHorizontalSpacing(10)
         ncnn_paths_layout.setVerticalSpacing(10)
-        ncnn_paths_layout.setColumnMinimumWidth(0, 136)
-        ncnn_paths_layout.setColumnStretch(1, 1)
+        ncnn_paths_layout.setColumnStretch(0, 1)
         self.ncnn_exe_path_edit = QLineEdit()
         self.ncnn_model_dir_edit = QLineEdit()
-        self.ncnn_exe_browse_button = self._add_path_row(
+        self.ncnn_exe_browse_button = self.shell._add_path_row(
             ncnn_paths_layout,
             0,
             "NCNN exe path",
             self.ncnn_exe_path_edit,
-            self._browse_ncnn_exe_path,
+            self.shell._browse_ncnn_exe_path,
+            stacked=True,
         )
-        self.ncnn_model_dir_browse_button = self._add_path_row(
+        self.ncnn_model_dir_browse_button = self.shell._add_path_row(
             ncnn_paths_layout,
             1,
             "Model folder",
             self.ncnn_model_dir_edit,
-            self._browse_ncnn_model_dir,
+            self.shell._browse_ncnn_model_dir,
+            stacked=True,
         )
         ncnn_layout.addLayout(ncnn_paths_layout)
 
-        ncnn_options_layout = QGridLayout()
-        ncnn_options_layout.setHorizontalSpacing(10)
-        ncnn_options_layout.setVerticalSpacing(8)
-        ncnn_options_layout.setColumnMinimumWidth(0, 136)
-        ncnn_options_layout.setColumnStretch(1, 1)
+        ncnn_options_layout = QVBoxLayout()
+        ncnn_options_layout.setSpacing(8)
 
         self.ncnn_model_combo = QComboBox()
+        self.ncnn_model_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.ncnn_model_combo.setMinimumContentsLength(8)
         self.ncnn_model_refresh_button = QPushButton("Refresh Models")
         self.ncnn_model_catalog_button = QPushButton("Catalog")
         self.ncnn_model_catalog_button.setToolTip(
@@ -157,12 +157,12 @@ class TextureWorkflowSetupPanelMixin:
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
         model_row.setSpacing(8)
-        model_row.addWidget(self.ncnn_model_combo, stretch=1)
         model_row.addWidget(self.ncnn_model_refresh_button)
         model_row.addWidget(self.ncnn_model_catalog_button)
 
-        ncnn_options_layout.addWidget(QLabel("Model"), 0, 0)
-        ncnn_options_layout.addLayout(model_row, 0, 1)
+        ncnn_options_layout.addWidget(QLabel("Model"))
+        ncnn_options_layout.addWidget(self.ncnn_model_combo)
+        ncnn_options_layout.addLayout(model_row)
         ncnn_layout.addLayout(ncnn_options_layout)
         return ncnn_page
 
@@ -177,7 +177,7 @@ class TextureWorkflowSetupPanelMixin:
             row_frame = QFrame()
             row_frame.setObjectName("GuidanceRow")
             row_frame.setProperty("guidanceRole", role)
-            row_layout = QHBoxLayout(row_frame)
+            row_layout = QVBoxLayout(row_frame)
             row_layout.setContentsMargins(6, 4, 6, 4)
             row_layout.setSpacing(8)
 
@@ -196,8 +196,10 @@ class TextureWorkflowSetupPanelMixin:
             value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
             value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-            row_layout.addWidget(chip, 0, Qt.AlignTop)
-            row_layout.addWidget(title_label, 0, Qt.AlignTop)
+            heading = QHBoxLayout()
+            heading.addWidget(chip)
+            heading.addWidget(title_label, 1)
+            row_layout.addLayout(heading)
             row_layout.addWidget(value_label, 1)
             layout.addWidget(row_frame)
             row_widgets[role] = (row_frame, title_label, value_label)
@@ -239,11 +241,14 @@ class TextureWorkflowSetupPanelMixin:
         title_label = QLabel(title)
         title_label.setObjectName("DdsFlowTitle")
 
-        value_label = QLabel()
+        value_label = QLabel() if role == "note" else QLineEdit()
         value_label.setObjectName("DdsFlowValue")
-        value_label.setWordWrap(False)
-        value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        value_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        value_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
+        if isinstance(value_label, QLineEdit):
+            value_label.setReadOnly(True)
+        else:
+            value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            value_label.setWordWrap(True)
 
         title_row.addWidget(chip, 0, Qt.AlignVCenter)
         title_row.addWidget(title_label, 1)
@@ -257,6 +262,7 @@ class TextureWorkflowSetupPanelMixin:
             row_frame, title_label, value_label = self.dds_output_flow_rows[role]
             title_label.setText(title)
             value_label.setText(value)
+            value_label.setToolTip(value)
             row_frame.setVisible(True)
             used_roles.add(role)
         for role, (row_frame, _title_label, _value_label) in self.dds_output_flow_rows.items():
@@ -373,7 +379,7 @@ class TextureWorkflowSetupPanelMixin:
     def _update_ncnn_preset_hint(self) -> None:
         if not self.chainner_section.is_body_built():
             return
-        tr = self.ui_localizer.translate
+        tr = self.shell.ui_localizer.translate
         preset_definition = get_texture_preset_definition(self._combo_value(self.upscale_texture_preset_combo))
         upscale_list = ", ".join(preset_definition.upscale_types)
         copy_list = ", ".join(preset_definition.copy_types) if preset_definition.copy_types else tr("nothing")
@@ -413,7 +419,7 @@ class TextureWorkflowSetupPanelMixin:
             self.direct_backend_controls_group.setToolTip("")
 
     def open_run_summary(self) -> None:
-        dialog = SafeUpscaleWizard(theme_key=self.current_theme_key, parent=self)
+        dialog = SafeUpscaleWizard(theme_key=self.shell.current_theme_key, parent=self)
         config = self.collect_config()
         dialog.populate_from_config(
             {
@@ -449,25 +455,25 @@ class TextureWorkflowSetupPanelMixin:
             unique_urls.append(url)
 
         if not unique_urls:
-            self.set_status_message(f"No external URL is available for {label}.", error=True)
+            self.shell.set_status_message(f"No external URL is available for {label}.", error=True)
             return
 
         opened = 0
         for url in unique_urls:
             if QDesktopServices.openUrl(QUrl(url)):
                 opened += 1
-                self.append_log(f"{label}: {url}")
+                self.shell.append_log(f"{label}: {url}")
             else:
-                self.append_log(f"Could not open external URL for {label}: {url}")
+                self.shell.append_log(f"Could not open external URL for {label}: {url}")
 
         if opened == len(unique_urls):
             noun = "URL" if opened == 1 else "URLs"
-            self.set_status_message(f"Opened {opened} external {noun} for {label}.")
+            self.shell.set_status_message(f"Opened {opened} external {noun} for {label}.")
             return
         if opened > 0:
-            self.set_status_message(f"Opened some external URLs for {label}. Check the log for details.", error=True)
+            self.shell.set_status_message(f"Opened some external URLs for {label}. Check the log for details.", error=True)
             return
-        self.set_status_message(f"Could not open any external URLs for {label}.", error=True)
+        self.shell.set_status_message(f"Could not open any external URLs for {label}.", error=True)
 
     def _format_ncnn_catalog_details(self, entry) -> str:
         file_list = "\n".join(f"- {name}" for name in sorted(entry.model_files))
@@ -554,7 +560,7 @@ class TextureWorkflowSetupPanelMixin:
         details_view = QPlainTextEdit()
         details_view.setReadOnly(True)
         details_view.setMinimumWidth(340)
-        details_font = build_monospace_font(self.settings)
+        details_font = build_monospace_font(self.shell.settings)
         details_view.setFont(details_font)
         details_view.document().setDefaultFont(details_font)
         content_row.addWidget(catalog_tree, stretch=1)

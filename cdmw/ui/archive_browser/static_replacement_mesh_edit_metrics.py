@@ -115,7 +115,7 @@ def _record_mesh_edit_live_stroke_timing(_state, _callbacks,
 
 def _mesh_edit_mark_native_preview_stale(_state, _callbacks, message: str, **payload: object) -> None:
     _callbacks._record_mesh_edit_event("mesh_edit_native_preview_stale", message=message, **payload)
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
 
 def _mesh_editor_queue_native_preview_rebuild_from_working_mesh(_state, _callbacks,
         reason: str,
@@ -155,7 +155,7 @@ def _mesh_edit_capture_live_stroke_base_snapshot(_state, _callbacks, mesh: _stat
         "mesh_edit_native_live_stroke_snapshot_failed",
         message="Native live stroke snapshot failed; Python full-mesh live stroke clone fallback is disabled.",
     )
-    _state.self.set_status_message(
+    _state.self.shell.set_status_message(
         "Native live stroke snapshot failed; Python full-mesh live stroke clone fallback is disabled.",
         error=True,
     )
@@ -197,7 +197,7 @@ def _mesh_edit_python_normal_fallback_allowed(_state, _callbacks, mesh: _state.P
         source_indices=tuple(sorted(normalized)),
         message=message,
     )
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
     return False
 
 def _mesh_edit_sparse_restore_source_indices(_state, _callbacks, before_by_submesh: object) -> tuple[int, ...]:
@@ -221,7 +221,7 @@ def _mesh_edit_python_sparse_restore_fallback_allowed(_state, _callbacks, mesh: 
         source_indices=source_indices,
         message=message,
     )
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
     return False
 
 def _mesh_edit_python_sparse_current_fallback_allowed(_state, _callbacks, mesh: _state.ParsedMesh, before_by_submesh: object) -> bool:
@@ -232,7 +232,7 @@ def _mesh_edit_python_sparse_current_fallback_allowed(_state, _callbacks, mesh: 
         source_indices=source_indices,
         message=message,
     )
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
     return False
 
 def _mesh_edit_source_to_preview_point(_state, _callbacks, point: _state.Sequence[object]) -> tuple[float, float, float]:

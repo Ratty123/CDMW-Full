@@ -65,50 +65,8 @@ def test_builder_sends_the_selected_dotnet_mode_without_legacy_diagnostic_overri
         assert "render_diagnostic_mode" not in quality
 
 
-def test_dotnet_renderer_contract_matches_the_python_view_menu() -> None:
-    contract_source = (DOTNET_ROOT / "DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
-    supported_block = contract_source.split("public static IReadOnlyList<string> Supported", maxsplit=1)[1]
-    supported_block = supported_block.split("];", maxsplit=1)[0]
-    assert tuple(re.findall(r'"([a-z_]+)"', supported_block)) == DOTNET_PREVIEW_VIEW_MODES
-
-    debug_block = contract_source.split("public static int MaterialDebugMode", maxsplit=1)[1]
-    debug_block = debug_block.split("};", maxsplit=1)[0]
-    parsed_nonzero = {
-        key: int(value)
-        for key, value in re.findall(r'"([a-z_]+)"\s*=>\s*(\d+)', debug_block)
-    }
-    assert parsed_nonzero == {
-        key: value for key, value in EXPECTED_DEBUG_MODES.items() if value != 0
-    }
-
-    parser_source = (DOTNET_ROOT / "MeshViewport.PresentationSettings.cs").read_text(encoding="utf-8")
-    assert 'quality.TryGetProperty("dotnet_view_mode", out _)' in parser_source
-    assert "var defaults = _residentPresentationSettings;" in parser_source
-    assert "DotNetPreviewViewModes.Normalize(requestedViewMode)" in parser_source
-    assert "MaterialDebugMode = DotNetPreviewViewModes.MaterialDebugMode(viewMode);" in parser_source
-
-    proof_source = (DOTNET_ROOT / "HeadlessGpuSparseSoak.ViewModes.cs").read_text(encoding="utf-8")
-    soak_source = (DOTNET_ROOT / "HeadlessGpuSparseSoak.cs").read_text(encoding="utf-8")
-    assert "foreach (var mode in DotNetPreviewViewModes.Supported)" in proof_source
-    assert "viewport.TryRunHeadlessFrame" in proof_source
-    assert "viewport.TryCaptureReplacementPng" in proof_source
-    assert "outputHashes.Add(sha256)" in proof_source
-    assert '["all_non_lit_outputs_change_from_lit"]' in proof_source
-    assert 'gates["resident_dotnet_view_modes_rendered"]' in soak_source
-    assert 'report["dotnet_view_mode_proof"]' in soak_source
 
 
-def test_each_exposed_material_debug_mode_has_a_vortice_shader_output() -> None:
-    shader_source = (DOTNET_ROOT / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-    for debug_mode in sorted({value for value in EXPECTED_DEBUG_MODES.values() if value > 0}):
-        lower = debug_mode - 0.5
-        upper = debug_mode + 0.5
-        assert f"MaterialDebugMode > {lower:.1f}f && MaterialDebugMode < {upper:.1f}f" in shader_source
-
-    settings_source = (DOTNET_ROOT / "D3D11MaterialViewport.PresentationSettings.cs").read_text(
-        encoding="utf-8"
-    )
-    assert "settings.GameOutdoorApprox" in settings_source
 
 
 def test_builder_copy_names_the_control_as_a_preview_mode() -> None:

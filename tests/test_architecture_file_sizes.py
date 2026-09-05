@@ -19,7 +19,6 @@ comments rather than to think about structure.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,20 +147,3 @@ def test_limits_table_stays_meaningful() -> None:
     """Stop the table retaining entries for files that no longer exist."""
     missing = sorted(path for path in LIMITS if not (ROOT / path).is_file())
     assert not missing, f"LIMITS names files that no longer exist: {missing}"
-
-
-def test_main_window_owns_feature_controllers_instead_of_feature_mixins() -> None:
-    tree = ast.parse((ROOT / "cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"))
-    main_window = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ClassDef) and node.name == "MainWindow"
-    )
-
-    assert [ast.unparse(base) for base in main_window.bases] == ["QMainWindow"]
-
-    source = (ROOT / "cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
-    assert "WindowFeatureController(self, SHELL_FEATURE_PROVIDERS)" in source
-    assert "WindowFeatureController(self, ARCHIVE_FEATURE_PROVIDERS)" in source
-    assert "WindowFeatureController(self, TEXTURE_FEATURE_PROVIDERS)" in source
-    assert "WindowFeatureController(self, MESH_FEATURE_PROVIDERS)" in source

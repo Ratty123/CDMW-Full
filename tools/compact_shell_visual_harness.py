@@ -69,7 +69,6 @@ from tools.compact_shell_visual.runner import (
     run_harness,
 )
 from tools.compact_shell_visual.runtime import (
-    _apply_presentation,
     _assert_real_texture_editor,
     _process_events,
     _registered_widgets,
@@ -97,7 +96,6 @@ __all__ = [
     "_RECT",
     "_RGBQUAD",
     "_SIZE_PATTERN",
-    "_apply_presentation",
     "_assert_real_texture_editor",
     "_capture_print_window",
     "_configure_fixture_settings",

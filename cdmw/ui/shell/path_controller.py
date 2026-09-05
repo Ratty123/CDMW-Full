@@ -21,16 +21,23 @@ class PathControllerMixin:
         label_text: str,
         line_edit: QLineEdit,
         browse_handler: Callable[[], None],
+        *,
+        stacked: bool = False,
     ) -> QPushButton:
         label = QLabel(label_text)
-        label.setMinimumWidth(124)
+        label.setMinimumWidth(0 if stacked else 124)
         label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         browse_button = QPushButton("Browse")
         browse_button.setMinimumWidth(88)
         browse_button.clicked.connect(browse_handler)
-        layout.addWidget(label, row, 0)
-        layout.addWidget(line_edit, row, 1)
-        layout.addWidget(browse_button, row, 2)
+        if stacked:
+            layout.addWidget(label, row * 2, 0, 1, 2)
+            layout.addWidget(line_edit, row * 2 + 1, 0)
+            layout.addWidget(browse_button, row * 2 + 1, 1)
+        else:
+            layout.addWidget(label, row, 0)
+            layout.addWidget(line_edit, row, 1)
+            layout.addWidget(browse_button, row, 2)
         return browse_button
 
     def _browse_directory(self, line_edit: QLineEdit, title: str) -> None:
@@ -62,23 +69,23 @@ class PathControllerMixin:
         return str(Path.cwd())
 
     def _browse_original_dds_root(self) -> None:
-        self._browse_directory(self.original_dds_edit, "Select Original DDS Root")
+        self._browse_directory(self.textures.original_dds_edit, "Select Original DDS Root")
 
     def _browse_png_root(self) -> None:
-        self._browse_directory(self.png_root_edit, "Select PNG Root")
+        self._browse_directory(self.textures.png_root_edit, "Select PNG Root")
 
     def _browse_texture_editor_png_root(self) -> None:
-        self._browse_directory(self.texture_editor_png_root_edit, "Select Texture Editor PNG Root")
+        self._browse_directory(self.textures.texture_editor_png_root_edit, "Select Texture Editor PNG Root")
 
     def _browse_dds_staging_root(self) -> None:
-        self._browse_directory(self.dds_staging_root_edit, "Select DDS Staging PNG Root")
+        self._browse_directory(self.textures.dds_staging_root_edit, "Select DDS Staging PNG Root")
 
     def _browse_output_root(self) -> None:
-        self._browse_directory(self.output_root_edit, "Select Output Root")
+        self._browse_directory(self.textures.output_root_edit, "Select Output Root")
 
     def _browse_csv_log_path(self) -> None:
         self._browse_file(
-            self.csv_log_path_edit,
+            self.textures.csv_log_path_edit,
             "Select CSV Log Path",
             "CSV files (*.csv);;All files (*.*)",
             save_mode=True,
@@ -86,36 +93,36 @@ class PathControllerMixin:
 
     def _browse_chainner_exe_path(self) -> None:
         self._browse_file(
-            self.chainner_exe_path_edit,
+            self.textures.chainner_exe_path_edit,
             "Select chaiNNer executable",
             "Executable (*.exe);;All files (*.*)",
         )
 
     def _browse_chainner_chain_path(self) -> None:
         self._browse_file(
-            self.chainner_chain_path_edit,
+            self.textures.chainner_chain_path_edit,
             "Select chaiNNer chain",
             "chaiNNer chain (*.chn);;All files (*.*)",
         )
 
     def _browse_ncnn_exe_path(self) -> None:
         self._browse_file(
-            self.ncnn_exe_path_edit,
+            self.textures.ncnn_exe_path_edit,
             "Select Real-ESRGAN NCNN executable",
             "Executable (*.exe);;All files (*.*)",
         )
 
     def _browse_ncnn_model_dir(self) -> None:
-        self._browse_directory(self.ncnn_model_dir_edit, "Select Real-ESRGAN NCNN model folder")
+        self._browse_directory(self.textures.ncnn_model_dir_edit, "Select Real-ESRGAN NCNN model folder")
 
     def _browse_mod_ready_export_root(self) -> None:
-        self._browse_directory(self.mod_ready_export_root_edit, "Select Ready Mod Package Parent Root")
+        self._browse_directory(self.textures.mod_ready_export_root_edit, "Select Ready Mod Package Parent Root")
 
     def _browse_archive_package_root(self) -> None:
-        self._browse_directory(self.archive_package_root_edit, "Select Archive Package Root")
+        self._browse_directory(self.archive.archive_package_root_edit, "Select Archive Package Root")
 
     def _browse_archive_extract_root(self) -> None:
-        self._browse_directory(self.archive_extract_root_edit, "Select Archive Extract Root")
+        self._browse_directory(self.archive.archive_extract_root_edit, "Select Archive Extract Root")
 
     def autodetect_archive_package_root(
         self,
@@ -154,7 +161,7 @@ class PathControllerMixin:
                     self.set_status_message("Archive package root auto-detect cancelled.")
                     return
 
-            self.archive_package_root_edit.setText(selected_path)
+            self.archive.archive_package_root_edit.setText(selected_path)
             self.flush_settings_save()
             self._activate_tool_widget(self.archive_browser_tab)
             self.set_status_message(f"Auto-detected archive package root: {selected_path}")
@@ -169,7 +176,7 @@ class PathControllerMixin:
         )
 
     def _suggest_workspace_base_dir(self) -> str:
-        common = common_workspace_root_from_config(self.collect_config())
+        common = common_workspace_root_from_config(self.textures.collect_config())
         if common is not None:
             return str(common)
         return str(Path.cwd())

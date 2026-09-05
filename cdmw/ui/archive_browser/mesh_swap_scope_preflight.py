@@ -112,12 +112,12 @@ def prepare_archive_mesh_swap_scope(
     raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
     target_entry = request.target_entry
     source_entry = request.source_entry
-    allow_character_scope = bool(owner._archive_entries_allow_character_swap_scope(target_entry, source_entry))
+    allow_character_scope = bool(owner.archive._archive_entries_allow_character_swap_scope(target_entry, source_entry))
     item_family_scope = bool(
         not allow_character_scope
         and (
-            owner._archive_entry_is_equipment_model_for_swap(target_entry)
-            or owner._archive_entry_is_equipment_model_for_swap(source_entry)
+            owner.archive._archive_entry_is_equipment_model_for_swap(target_entry)
+            or owner.archive._archive_entry_is_equipment_model_for_swap(source_entry)
         )
     )
     target_weapon_folder = _weapon_folder_segment(target_entry)
@@ -143,7 +143,7 @@ def prepare_archive_mesh_swap_scope(
     unresolved_relationship_edges: list[ArchiveRelationEdge] = []
 
     def add_related_entry(entry: ArchiveEntry) -> None:
-        key = owner._archive_entry_identity_key(entry)
+        key = owner.archive._archive_entry_identity_key(entry)
         if key and key not in source_related_entries_by_key:
             source_related_entries_by_key[key] = entry
 
@@ -154,7 +154,7 @@ def prepare_archive_mesh_swap_scope(
         entry = edge.related_entry
         if not isinstance(entry, ArchiveEntry):
             return
-        key = owner._archive_entry_identity_key(entry)
+        key = owner.archive._archive_entry_identity_key(entry)
         if not key:
             return
         add_related_entry(entry)
@@ -178,35 +178,35 @@ def prepare_archive_mesh_swap_scope(
         if current is None or rank > current_rank:
             relationship_edges_by_key[key] = edge
 
-    for related_entry in owner._archive_model_related_entries_for_swap(source_entry, dependencies=request.dependencies):
+    for related_entry in owner.archive._archive_model_related_entries_for_swap(source_entry, dependencies=request.dependencies):
         raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
         add_related_entry(related_entry)
     if allow_character_scope:
         for edge in tuple(getattr(character_relationship_plan, "edges", ()) or ()):
             add_relationship_edge(edge)
-        for related_entry in owner._archive_character_app_graph_entries_for_swap(
+        for related_entry in owner.archive._archive_character_app_graph_entries_for_swap(
             source_entry, dependencies=request.dependencies, stop_event=stop_event
         ):
             raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
             add_related_entry(related_entry)
-        for texture_entry in owner._archive_character_app_graph_texture_entries_for_swap(
+        for texture_entry in owner.archive._archive_character_app_graph_texture_entries_for_swap(
             source_entry, dependencies=request.dependencies, stop_event=stop_event
         ):
             raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
             add_related_entry(texture_entry)
-    for texture_entry in owner._archive_model_source_texture_entries_for_swap(
+    for texture_entry in owner.archive._archive_model_source_texture_entries_for_swap(
         source_entry, dependencies=request.dependencies, stop_event=stop_event
     ):
         add_related_entry(texture_entry)
 
     source_related_entries = list(source_related_entries_by_key.values())
-    source_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(source_entry, dependencies=request.dependencies))
-    target_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(target_entry, dependencies=request.dependencies))
+    source_sidecar_entries = tuple(owner.archive._archive_model_sidecar_entries_for_swap(source_entry, dependencies=request.dependencies))
+    target_sidecar_entries = tuple(owner.archive._archive_model_sidecar_entries_for_swap(target_entry, dependencies=request.dependencies))
     source_sidecar_paths = {entry.path for entry in source_sidecar_entries}
     source_appearance_paths = (
         {
             entry.path
-            for entry in owner._archive_character_appearance_entries_for_swap(
+            for entry in owner.archive._archive_character_appearance_entries_for_swap(
                 source_entry, dependencies=request.dependencies, stop_event=stop_event
             )
         }
@@ -214,9 +214,9 @@ def prepare_archive_mesh_swap_scope(
         else set()
     )
     for related_entry in source_related_entries:
-        if owner._archive_entry_is_material_sidecar(related_entry):
+        if owner.archive._archive_entry_is_material_sidecar(related_entry):
             source_sidecar_paths.add(related_entry.path)
-        if owner._archive_entry_is_appearance_descriptor(related_entry):
+        if owner.archive._archive_entry_is_appearance_descriptor(related_entry):
             source_appearance_paths.add(related_entry.path)
 
     if item_family_scope:
@@ -227,14 +227,14 @@ def prepare_archive_mesh_swap_scope(
             basename = PurePosixPath(normalized_path).name.lower()
             if entry.extension == ".dds":
                 return True
-            if owner._archive_entry_is_material_sidecar(entry) and entry.path in source_sidecar_paths:
+            if owner.archive._archive_entry_is_material_sidecar(entry) and entry.path in source_sidecar_paths:
                 return True
             return bool(source_stem and source_stem in basename)
 
         source_related_entries = [entry for entry in source_related_entries if is_item_family_related(entry)]
     source_related_entries.sort(
         key=lambda entry: (
-            owner._archive_entry_swap_companion_group(entry),
+            owner.archive._archive_entry_swap_companion_group(entry),
             entry.path.replace("\\", "/").casefold(),
         )
     )

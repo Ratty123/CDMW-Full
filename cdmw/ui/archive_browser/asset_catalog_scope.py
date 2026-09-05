@@ -303,11 +303,11 @@ class ArchiveAssetCatalogScopeMixin:
         finally:
             self.archive_filter_edit.blockSignals(False)
         self.archive_exclude_filter_edit.clear()
-        self._set_combo_by_value(self.archive_extension_filter_combo, "*")
+        self.textures._set_combo_by_value(self.archive_extension_filter_combo, "*")
         self.archive_package_filter_edit.clear()
         self.archive_structure_filter_pending_value = ARCHIVE_STRUCTURE_FILTER
         self._rebuild_archive_structure_filter_controls(ARCHIVE_STRUCTURE_FILTER)
-        self._set_combo_by_value(self.archive_role_filter_combo, "all")
+        self.textures._set_combo_by_value(self.archive_role_filter_combo, "all")
         self.archive_min_size_spin.setValue(0)
         self.archive_previewable_only_checkbox.setChecked(False)
         self.archive_package_filter_hint_label.setText(hint_text)
@@ -318,7 +318,7 @@ class ArchiveAssetCatalogScopeMixin:
         self.archive_filters_dirty = False
         self._update_archive_filter_button_state()
         self._set_archive_load_progress(progress_text, phase="Ready", percent=100)
-        self.append_archive_log(log_text)
+        self.shell.append_archive_log(log_text)
         selected_path = str(preferred_path or "").strip()
         if not selected_path and self.archive_filtered_entries:
             selected_path = self.archive_filtered_entries[0].path

@@ -139,7 +139,7 @@ class ArchivePreviewResultMixin:
             valid_package, missing_paths = validate_dotnet_preview_package(package_dir)
             if not valid_package:
                 message = "Rust Preview package validation failed: " + "; ".join(missing_paths[:6])
-                self._record_runtime_event(
+                self.shell._record_runtime_event(
                     "dotnet_preview_package_invalid",
                     request_id=request_id,
                     package_dir=str(package_dir),
@@ -149,7 +149,7 @@ class ArchivePreviewResultMixin:
                     f"{detail_text.rstrip()}\n\n{message}".strip(),
                     include_current_model_debug=False,
                 )
-                self.set_status_message(message, error=True)
+                self.shell.set_status_message(message, error=True)
                 self.archive_d3d11_preview_status_label.setText("Rust Preview package validation failed.")
                 if texture_request:
                     finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
@@ -182,7 +182,7 @@ class ArchivePreviewResultMixin:
                 initial_view_state=initial_view_state,
             ):
                 message = "Rust Preview rejected the prepared package."
-                self.set_status_message(message, error=True)
+                self.shell.set_status_message(message, error=True)
                 if texture_request:
                     finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
                     if callable(finish_texture_request):
@@ -228,7 +228,7 @@ class ArchivePreviewResultMixin:
                     sync_texture_action()
             self.archive_d3d11_preview_status_label.setText("Rust Preview")
             if not texture_request:
-                self.set_status_message("Opening resident Rust Preview.")
+                self.shell.set_status_message("Opening resident Rust Preview.")
             self._set_archive_isolated_renderer_debug(
                 "Rust Preview: resident canonical package requested."
             )
@@ -247,7 +247,7 @@ class ArchivePreviewResultMixin:
                 f"{detail_text.rstrip()}\n\n{message}".strip(),
                 include_current_model_debug=False,
             )
-            self.set_status_message(message, error=True)
+            self.shell.set_status_message(message, error=True)
             self._deactivate_archive_model_renderers_for_non_model_preview()
             return 0.0
 
@@ -374,11 +374,11 @@ class ArchivePreviewResultMixin:
             entry_name = finalized_result.title or getattr(self._current_archive_entry(), "basename", "") or "selected entry"
             self._log_archive_preview_timing_if_needed(entry_name, source, timings, timing_summary)
         except Exception as exc:
-            self._write_crash_report(
+            self.shell._write_crash_report(
                 "archive_preview_result_error",
                 "Archive preview result error",
                 str(exc),
-                context=self._collect_crash_context(),
+                context=self.shell._collect_crash_context(),
             )
             if texture_request:
                 self.current_archive_preview_result = previous_result
@@ -393,7 +393,7 @@ class ArchivePreviewResultMixin:
                 self._refresh_archive_preview_details_text()
                 return
             self._clear_archive_preview(f"Preview failed: {exc}")
-            self.set_status_message(f"Archive preview failed: {exc}", error=True)
+            self.shell.set_status_message(f"Archive preview failed: {exc}", error=True)
 
     def _set_archive_preview_image_controls_enabled(self, enabled: bool) -> None:
         self.archive_preview_zoom_out_button.setEnabled(enabled)
@@ -415,7 +415,7 @@ class ArchivePreviewResultMixin:
             if bool(getattr(self, "archive_context_menu_selection_suppressed", False)):
                 self._schedule_archive_selection_state_update()
                 return
-            if self._startup_benchmark_enabled():
+            if self.shell._startup_benchmark_enabled():
                 self._clear_archive_preview("Select an archive file to preview it here.")
                 self._schedule_archive_selection_state_update()
                 return
@@ -433,14 +433,14 @@ class ArchivePreviewResultMixin:
                     self._show_archive_folder_preview(current)
             self._schedule_archive_selection_state_update()
         except Exception as exc:
-            self._write_crash_report(
+            self.shell._write_crash_report(
                 "archive_selection_error",
                 "Archive Browser selection error",
                 str(exc),
-                context=self._collect_crash_context(),
+                context=self.shell._collect_crash_context(),
             )
             self._clear_archive_preview(f"Preview failed: {exc}")
-            self.set_status_message(f"Archive preview failed: {exc}", error=True)
+            self.shell.set_status_message(f"Archive preview failed: {exc}", error=True)
 
     def _schedule_archive_selection_state_update(self) -> None:
         self.archive_selection_state_timer.start()
@@ -454,15 +454,15 @@ class ArchivePreviewResultMixin:
         has_filtered_entries = bool(self.archive_filtered_entries)
         has_filtered_dds = self.archive_filtered_dds_count > 0
         workflow_extract_enabled = selected_has_dds if selected_count > 0 else has_filtered_dds
-        self.archive_extract_selected_button.setEnabled(self.worker_thread is None and selected_count > 0)
-        self.archive_extract_filtered_button.setEnabled(self.worker_thread is None and has_filtered_entries)
+        self.archive_extract_selected_button.setEnabled(self.shell.worker_thread is None and selected_count > 0)
+        self.archive_extract_filtered_button.setEnabled(self.shell.worker_thread is None and has_filtered_entries)
         current_entry = self._current_archive_entry()
         self.archive_resolve_in_research_button.setEnabled(
-            self.worker_thread is None
+            self.shell.worker_thread is None
             and current_entry is not None
             and current_entry.extension == ".dds"
         )
-        mesh_editor_tab = created_tool_widget(getattr(self, "mesh_editor_tab", None))
+        mesh_editor_tab = created_tool_widget(getattr(self.shell, "mesh_editor_tab", None))
         if mesh_editor_tab is not None:
             mesh_selection = (
                 current_entry

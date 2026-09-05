@@ -26,23 +26,23 @@ class TextureWorkflowPathsPanelMixin:
         self.dds_staging_root_edit = QLineEdit()
         self.output_root_edit = QLineEdit()
 
-        self._add_path_row(paths_layout, 0, "Original DDS root", self.original_dds_edit, self._browse_original_dds_root)
-        self._add_path_row(paths_layout, 1, "PNG root", self.png_root_edit, self._browse_png_root)
-        self._add_path_row(
+        self.shell._add_path_row(paths_layout, 0, "Original DDS root", self.original_dds_edit, self.shell._browse_original_dds_root)
+        self.shell._add_path_row(paths_layout, 1, "PNG root", self.png_root_edit, self.shell._browse_png_root)
+        self.shell._add_path_row(
             paths_layout,
             2,
             "Texture Editor PNG root",
             self.texture_editor_png_root_edit,
-            self._browse_texture_editor_png_root,
+            self.shell._browse_texture_editor_png_root,
         )
-        self.dds_staging_browse_button = self._add_path_row(
+        self.dds_staging_browse_button = self.shell._add_path_row(
             paths_layout,
             3,
             "Staging PNG root",
             self.dds_staging_root_edit,
-            self._browse_dds_staging_root,
+            self.shell._browse_dds_staging_root,
         )
-        self._add_path_row(paths_layout, 4, "Output root", self.output_root_edit, self._browse_output_root)
+        self.shell._add_path_row(paths_layout, 4, "Output root", self.output_root_edit, self.shell._browse_output_root)
         self.paths_section.body_layout.addWidget(paths_group)
 
 

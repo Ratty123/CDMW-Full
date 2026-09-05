@@ -36,7 +36,7 @@ class RetiredNativeRendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("native\\cdmw_d3d11_preview\\build\\$Configuration", app_build)
         self.assertIn("Retired cdmw-d3d11-preview.exe payload must not be present", spec)
         self.assertIn('ROOT.rglob("cdmw-d3d11-preview.exe")', spec)
-        self.assertIn("tools\\dotnet_mesh_editor_experiment", native_build)
+        self.assertNotIn("tools\\dotnet_mesh_editor_experiment", native_build)
 
     def test_only_shared_dotnet_host_owns_visible_preview_processes(self) -> None:
         shared = _read("cdmw/ui/preview/dotnet_session.py")
@@ -44,25 +44,22 @@ class RetiredNativeRendererSourceGuardTests(unittest.TestCase):
         model_library = _read("cdmw/ui/model_library/preview.py")
         mesh_workspace = _read("cdmw/ui/mesh_editor/workspace_shell_builder.py")
 
-        self.assertIn("class DotNetPreviewSessionController(", shared)
+        self.assertIn("class RustPreviewSessionController(", shared)
         self.assertIn("DotNetPreviewSessionLocalizationMixin,", shared)
         self.assertIn("DotNetPreviewSessionReadyWatchdogMixin,", shared)
         self.assertIn("QObject,", shared)
         self.assertIn("DotNetPreviewProfile.PREVIEW", archive)
         self.assertIn("DotNetPreviewProfile.PREVIEW", model_library)
-        self.assertIn("DotNetPreviewProfile.AUTHORING", mesh_workspace)
-        self.assertIn("profile=self.profile.value", shared)
+        self.assertIn("RustMeshEditorHostFrame(", mesh_workspace)
         self.assertNotIn("WM_COPYDATA", shared)
 
     def test_renderer_identity_is_vortice_for_production_visual_proof(self) -> None:
         registry = _read("tools/mesh_harness/scenario_registry.py")
-        capture = _read("tools/mesh_harness/visual_audit_capture.py")
         model_service = _read("cdmw/services/model_library_preview.py")
 
         self.assertIn('expected_renderer_backend="d3d11_vortice_shader"', registry)
         self.assertNotIn("legacy-cpp-d3d11", registry)
-        self.assertIn('"backend": "d3d11_vortice_shader"', capture)
-        self.assertIn('if backend != "d3d11_vortice_shader":', model_service)
+        self.assertIn("RUST_MESH_RENDERER", model_service)
 
 
 if __name__ == "__main__":

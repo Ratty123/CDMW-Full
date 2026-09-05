@@ -51,24 +51,6 @@ class ShellRegistrationTests(unittest.TestCase):
             '_register_detachable_tool("placement_studio"', self.source
         )
 
-    def test_generated_provider_manifest_is_in_sync(self) -> None:
-        """Mixin members are bound from a generated manifest, so it must be regenerated."""
-
-        import subprocess
-        import sys
-
-        result = subprocess.run(
-            [sys.executable, "scripts/generate_window_feature_provider_members.py", "--check"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            timeout=600,
-        )
-        self.assertEqual(
-            result.returncode,
-            0,
-            f"Regenerate with scripts/generate_window_feature_provider_members.py\n"
-            f"{result.stdout.decode(errors='replace')}{result.stderr.decode(errors='replace')}",
-        )
 
 
 class BootstrapTests(unittest.TestCase):

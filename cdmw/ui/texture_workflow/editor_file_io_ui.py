@@ -245,9 +245,17 @@ class TextureEditorFileIoUiMixin:
             return
         existing_index = texture_editor_existing_source_session_index(self._sessions, resolved_source)
         if existing_index >= 0:
+            self._store_active_session()
             session = self._sessions[existing_index]
             document = session.document
             if document is not None:
+                # A mode/handoff may add missing context, but cannot replace the
+                # original DDS or an already matched game target.
+                texture_binding = dataclasses.replace(texture_binding, **{
+                    field.name: getattr(document.source_binding, field.name)
+                    for field in dataclasses.fields(document.source_binding)
+                    if getattr(document.source_binding, field.name)
+                })
                 session.document = dataclasses.replace(
                     document,
                     source_binding=texture_binding,
@@ -277,6 +285,7 @@ class TextureEditorFileIoUiMixin:
         resolved_project = project_path.expanduser().resolve()
         existing_index = texture_editor_existing_project_session_index(self._sessions, resolved_project)
         if existing_index >= 0:
+            self._store_active_session()
             self._load_session_index(existing_index)
             self._set_status(texture_editor_existing_project_status_text(resolved_project), False)
             return
@@ -487,9 +496,15 @@ class TextureEditorFileIoUiMixin:
         self._export_workspace_png(texture_editor_handoff_export_suffix(target), on_ready=_handle_ready)
 
     def send_to_replace_assistant(self) -> None:
+        if self.workspace_embedded:
+            self.workspace_mode_requested.emit("review")
+            return
         self._send_to_handoff_target("replace_assistant")
 
     def send_to_texture_workflow(self) -> None:
+        if self.workspace_embedded:
+            self.workspace_mode_requested.emit("upscale")
+            return
         self._send_to_handoff_target("texture_workflow")
 
     def send_to_item_icons(self) -> None:

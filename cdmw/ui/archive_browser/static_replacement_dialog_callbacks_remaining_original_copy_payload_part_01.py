@@ -122,10 +122,10 @@ def _remaining_original_copy_payload_step_004(_state):
             if callable(replacer):
                 replacer((int(source_index),))
                 return
-            _state.self.set_status_message('Rust Preview copied-source preview commands are unavailable; preview is stale. Retry Rust Preview to resync.', error=True)
+            _state.self.shell.set_status_message('Rust Preview copied-source preview commands are unavailable; preview is stale. Retry Rust Preview to resync.', error=True)
             return
         if _state._copied_original_mesh_edit_active():
-            _state.self.set_status_message('Active Mesh Editor copied-source preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.', error=True)
+            _state.self.shell.set_status_message('Active Mesh Editor copied-source preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.', error=True)
             return
         _state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)
         _state._queue_static_preview_rebuild()
@@ -174,7 +174,7 @@ def _remaining_original_copy_payload_step_006(_state):
             _state.QMessageBox.information(_state.dialog, title, message)
             return -1
         if _state._copied_original_mesh_edit_active():
-            _state.self.set_status_message('Active Mesh Editor copied-original append requires native geometry execution; Python mesh mutation fallback is disabled.', error=True)
+            _state.self.shell.set_status_message('Active Mesh Editor copied-original append requires native geometry execution; Python mesh mutation fallback is disabled.', error=True)
             return -1
         _state._push_geometry_undo_snapshot(undo_label)
         copied_part = _state._copied_original_part_source_helper(copied_source, payload, original_index, _state._original_target_label(original_index), undo_label.startswith('Paste'))
@@ -231,7 +231,7 @@ def _remaining_original_copy_payload_step_006(_state):
         _state._load_selected_part_controls()
         _state._refresh_copied_original_source_preview(new_source_index)
         if int(new_source_index) in _state.copied_original_physics_sensitive_sources:
-            _state.self.set_status_message(_state._copied_original_physics_status_message_helper())
+            _state.self.shell.set_status_message(_state._copied_original_physics_status_message_helper())
         return new_source_index
     _state._append_original_part_payload_as_source = _append_original_part_payload_as_source
 

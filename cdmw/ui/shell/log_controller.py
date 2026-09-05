@@ -10,17 +10,19 @@ from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 class LogControllerMixin:
     """Shared shell log appenders, status message, and busy state toggles."""
     def clear_live_log(self) -> None:
-        self.log_view.clear()
+        self.textures.log_view.clear()
         self.set_status_message("Live log cleared.")
 
     def clear_archive_scan_log(self) -> None:
-        self.archive_log_view.clear()
+        self.archive.archive_log_view.clear()
         self.set_status_message("Archive scan log cleared.")
 
     def _background_task_active(self, *, block_on_archive_index: bool = True) -> bool:
         if self.worker_thread is not None:
             return True
-        if block_on_archive_index and self.archive_basic_index_thread is not None:
+        if getattr(self.textures, "_texture_export_kind", ""):
+            return True
+        if block_on_archive_index and self.archive.archive_basic_index_thread is not None:
             self.set_status_message("Archive lookup indexes are still warming. Wait for them to finish before refreshing archives.", error=True)
             return True
         text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
@@ -38,8 +40,8 @@ class LogControllerMixin:
         severity: str = "info",
     ) -> None:
         timestamp = time.strftime("%H:%M:%S")
-        self.log_view.appendPlainText(f"[{timestamp}] {message}")
-        scrollbar = self.log_view.verticalScrollBar()
+        self.textures.log_view.appendPlainText(f"[{timestamp}] {message}")
+        scrollbar = self.textures.log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
         from cdmw.ui.shell.compact.workspace import append_compact_activity
 
@@ -81,8 +83,8 @@ class LogControllerMixin:
         if (verbose or self._archive_log_message_is_verbose(message)) and not self._show_verbose_archive_logs():
             return
         timestamp = time.strftime("%H:%M:%S")
-        self.archive_log_view.appendPlainText(f"[{timestamp}] {message}")
-        scrollbar = self.archive_log_view.verticalScrollBar()
+        self.archive.archive_log_view.appendPlainText(f"[{timestamp}] {message}")
+        scrollbar = self.archive.archive_log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
         from cdmw.ui.shell.compact.workspace import append_compact_activity
 
@@ -107,10 +109,10 @@ class LogControllerMixin:
         severity: str | None = None,
         snapshot: object | None = None,
     ) -> None:
-        self.error_message_value.setText(message)
-        self.error_message_value.setProperty("error", error)
-        self.error_message_value.style().unpolish(self.error_message_value)
-        self.error_message_value.style().polish(self.error_message_value)
+        self.textures.error_message_value.setText(message)
+        self.textures.error_message_value.setProperty("error", error)
+        self.textures.error_message_value.style().unpolish(self.textures.error_message_value)
+        self.textures.error_message_value.style().polish(self.textures.error_message_value)
         self._refresh_dashboard()
         from cdmw.ui.shell.compact.workspace import append_compact_activity
 
@@ -142,71 +144,59 @@ class LogControllerMixin:
         self.mod_package_tool_action.setEnabled(not busy)
         self.open_documentation_action.setEnabled(not busy)
         self.open_about_action.setEnabled(not busy)
-        self.left_panel.setEnabled(not busy)
-        self.scan_button.setEnabled(not busy)
-        self.preview_policy_button.setEnabled(not busy)
-        self.clear_workflow_roots_button.setEnabled(not busy)
-        self.start_button.setEnabled(not busy)
-        self.stop_button.setEnabled(busy and build_mode)
-        self.refresh_compare_button.setEnabled(not busy)
-        self.compare_list.setEnabled(not busy)
-        self.compare_previous_button.setEnabled(not busy and self.compare_list.currentRow() > 0)
-        self.compare_next_button.setEnabled(
-            not busy and 0 <= self.compare_list.currentRow() < self.compare_list.count() - 1
-        )
-        self.compare_mip_details_button.setEnabled(
-            not busy and 0 <= self.compare_list.currentRow() < self.compare_list.count()
-        )
-        self.compare_open_in_editor_button.setEnabled(
-            not busy and 0 <= self.compare_list.currentRow() < self.compare_list.count()
-        )
-        self.compare_sync_pan_checkbox.setEnabled(not busy)
-        self.archive_package_root_edit.setEnabled(not busy)
-        self.archive_extract_root_edit.setEnabled(not busy)
-        self.archive_package_root_browse_button.setEnabled(not busy)
-        self.archive_package_root_detect_button.setEnabled(not busy)
-        self.archive_extract_root_browse_button.setEnabled(not busy)
-        self.archive_scan_button.setEnabled(not busy)
-        self.archive_refresh_scan_button.setEnabled(not busy)
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        self.textures.left_panel.setEnabled(not busy)
+        self.textures.scan_button.setEnabled(not busy)
+        self.textures.preview_policy_button.setEnabled(not busy)
+        self.textures.clear_workflow_roots_button.setEnabled(not busy)
+        self.textures.start_button.setEnabled(not busy)
+        self.textures.stop_button.setEnabled(busy and build_mode)
+        self.textures.set_texture_job_busy(busy)
+        self.archive.archive_package_root_edit.setEnabled(not busy)
+        self.archive.archive_extract_root_edit.setEnabled(not busy)
+        self.archive.archive_package_root_browse_button.setEnabled(not busy)
+        self.archive.archive_package_root_detect_button.setEnabled(not busy)
+        self.archive.archive_extract_root_browse_button.setEnabled(not busy)
+        self.archive.archive_scan_button.setEnabled(not busy)
+        self.archive.archive_refresh_scan_button.setEnabled(not busy)
+        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
         remote_session_ready = bool(
             remote_bridge is not None
             and remote_bridge.displays_v2
             and remote_bridge.current_session is not None
         )
-        self.archive_asset_catalog_button.setEnabled(
-            not busy and (remote_session_ready or bool(self.archive_item_asset_catalog))
+        self.archive.archive_asset_catalog_button.setEnabled(
+            not busy and (remote_session_ready or bool(self.archive.archive_item_asset_catalog))
         )
-        self.archive_clear_asset_scope_button.setEnabled(not busy and bool(self.archive_active_asset_catalog_scope))
-        self.archive_filter_edit.setEnabled(not busy)
-        self.archive_path_search_button.setEnabled(not busy)
-        self.archive_exclude_filter_edit.setEnabled(not busy)
-        self.archive_extension_filter_combo.setEnabled(not busy)
-        self.archive_extension_picker_button.setEnabled(not busy and bool(self._archive_extension_counts()))
-        self.archive_package_filter_edit.setEnabled(not busy)
-        self._set_archive_structure_filter_enabled(not busy)
+        self.archive.archive_clear_asset_scope_button.setEnabled(not busy and bool(self.archive.archive_active_asset_catalog_scope))
+        self.archive.archive_filter_edit.setEnabled(not busy)
+        self.archive.archive_path_search_button.setEnabled(not busy)
+        self.archive.archive_exclude_filter_edit.setEnabled(not busy)
+        self.archive.archive_extension_filter_combo.setEnabled(not busy)
+        self.archive.archive_extension_picker_button.setEnabled(not busy and bool(self.archive._archive_extension_counts()))
+        self.archive.archive_package_filter_edit.setEnabled(not busy)
+        self.archive._set_archive_structure_filter_enabled(not busy)
         self._refresh_dashboard()
-        self.archive_role_filter_combo.setEnabled(not busy)
-        self.archive_exclude_common_technical_checkbox.setEnabled(not busy)
-        self.archive_min_size_spin.setEnabled(not busy)
-        self.archive_previewable_only_checkbox.setEnabled(not busy)
-        self.archive_browser_view_mode_combo.setEnabled(not busy)
-        selected_entries = self._selected_archive_entries()
-        self.archive_extract_selected_button.setEnabled(not busy and len(selected_entries) > 0)
-        self.archive_extract_filtered_button.setEnabled(not busy and bool(self.archive_filtered_entries))
+        self.archive.archive_role_filter_combo.setEnabled(not busy)
+        self.archive.archive_exclude_common_technical_checkbox.setEnabled(not busy)
+        self.archive.archive_min_size_spin.setEnabled(not busy)
+        self.archive.archive_previewable_only_checkbox.setEnabled(not busy)
+        self.archive.archive_browser_view_mode_combo.setEnabled(not busy)
+        selected_entries = self.archive._selected_archive_entries()
+        self.archive.archive_extract_selected_button.setEnabled(not busy and len(selected_entries) > 0)
+        self.archive.archive_extract_filtered_button.setEnabled(not busy and bool(self.archive.archive_filtered_entries))
         selected_has_dds = any(entry.extension == ".dds" for entry in selected_entries)
-        self.archive_resolve_in_research_button.setEnabled(
+        self.archive.archive_resolve_in_research_button.setEnabled(
             not busy
-            and self._current_archive_entry() is not None
-            and self._current_archive_entry().extension == ".dds"
+            and self.archive._current_archive_entry() is not None
+            and self.archive._current_archive_entry().extension == ".dds"
         )
-        self.archive_tree.setEnabled(not busy)
-        for widget in self._archive_model_preview_widgets():
+        self.archive.archive_tree.setEnabled(not busy)
+        for widget in self.archive._archive_model_preview_widgets():
             if hasattr(widget, "setEnabled"):
                 widget.setEnabled(not busy)
-        self.archive_media_preview.setEnabled(not busy)
-        self.archive_preview_text_edit.setEnabled(not busy)
-        self.archive_preview_info_edit.setEnabled(not busy)
+        self.archive.archive_media_preview.setEnabled(not busy)
+        self.archive.archive_preview_text_edit.setEnabled(not busy)
+        self.archive.archive_preview_info_edit.setEnabled(not busy)
         self.text_search_tab.setEnabled(not busy)
         text_search_tab = created_tool_widget(self.text_search_tab)
         if text_search_tab is not None:
@@ -218,29 +208,29 @@ class LogControllerMixin:
             replace_assistant_tab.set_external_busy(busy)
         self.texture_editor_tab.setEnabled(not busy)
         self.settings_tab.setEnabled(not busy)
-        self.archive_preview_loose_toggle_button.setEnabled(
-            not busy and self.archive_preview_loose_toggle_button.isVisible()
+        self.archive.archive_preview_loose_toggle_button.setEnabled(
+            not busy and self.archive.archive_preview_loose_toggle_button.isVisible()
         )
-        zoomable_preview_enabled = not busy and self._active_archive_preview_zoom_widget() is not None
-        self.archive_preview_zoom_out_button.setEnabled(zoomable_preview_enabled)
-        self.archive_preview_zoom_fit_button.setEnabled(zoomable_preview_enabled)
-        self.archive_preview_zoom_100_button.setEnabled(zoomable_preview_enabled)
-        self.archive_preview_zoom_in_button.setEnabled(zoomable_preview_enabled)
-        self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
-        self._update_archive_filter_button_state()
+        zoomable_preview_enabled = not busy and self.archive._active_archive_preview_zoom_widget() is not None
+        self.archive.archive_preview_zoom_out_button.setEnabled(zoomable_preview_enabled)
+        self.archive.archive_preview_zoom_fit_button.setEnabled(zoomable_preview_enabled)
+        self.archive.archive_preview_zoom_100_button.setEnabled(zoomable_preview_enabled)
+        self.archive.archive_preview_zoom_in_button.setEnabled(zoomable_preview_enabled)
+        self.archive._update_archive_model_action_controls(self.archive._archive_model_preview_controls_target())
+        self.archive._update_archive_filter_button_state()
         compact_workspace = getattr(self, "compact_workspace", None)
         if compact_workspace is not None:
             compact_workspace.refresh_tool_enabled_states()
 
     def reset_progress(self, total: int = 0) -> None:
-        self.phase_value.setText("Idle")
-        self.phase_progress_value.setText("Waiting")
-        self._texture_workflow_total_files = int(total)
-        self.ui_localizer.set_number_text(self.total_files_value, total)
-        self.current_file_value.setText("Idle")
-        self.ui_localizer.set_number_text(self.converted_value, 0)
-        self.ui_localizer.set_number_text(self.skipped_value, 0)
-        self.ui_localizer.set_number_text(self.failed_value, 0)
-        self.progress_bar.setRange(0, max(total, 1))
-        self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("%v / %m")
+        self.textures.phase_value.setText("Idle")
+        self.textures.phase_progress_value.setText("Waiting")
+        self.textures._texture_workflow_total_files = int(total)
+        self.ui_localizer.set_number_text(self.textures.total_files_value, total)
+        self.textures.current_file_value.setText("Idle")
+        self.ui_localizer.set_number_text(self.textures.converted_value, 0)
+        self.ui_localizer.set_number_text(self.textures.skipped_value, 0)
+        self.ui_localizer.set_number_text(self.textures.failed_value, 0)
+        self.textures.progress_bar.setRange(0, max(total, 1))
+        self.textures.progress_bar.setValue(0)
+        self.textures.progress_bar.setFormat("%v / %m")

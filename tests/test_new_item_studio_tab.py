@@ -107,6 +107,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         from cdmw.ui.new_item.controller import NewItemStudioController
         from cdmw.ui.new_item.tab import NewItemStudioTab
 
+        if window is not None:
+            window.archive = window
+            window.shell = window
         controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
         return NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries, **kwargs)
 

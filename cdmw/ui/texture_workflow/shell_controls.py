@@ -41,77 +41,16 @@ class TextureWorkflowShellControlsMixin:
         button_row.addWidget(self.open_output_button)
         workflow_layout.addLayout(button_row)
 
-    def _default_workflow_right_splitter_sizes(self) -> List[int]:
-        available_right_height = max(420, self.height() - 260)
-        progress_min_height = getattr(self, "progress_group_min_height", 190)
-        progress_height = min(
-            max(progress_min_height, int(available_right_height * 0.18)),
-            max(progress_min_height, 210),
-        )
-        return [progress_height, max(320, available_right_height - progress_height)]
-
-    def _apply_workflow_content_tab_layout(self, *_args) -> None:
-        compare_active = (
-            self._is_tool_visible_or_current(self.workflow_tab)
-            and self.content_tabs.currentWidget() is self.compare_tab
-        )
-        if compare_active:
-            current_sizes = self.workflow_right_splitter.sizes()
-            if len(current_sizes) >= 2 and current_sizes[0] > 0:
-                self.workflow_right_splitter_normal_sizes = current_sizes
-            self.progress_group.setVisible(False)
-            self.workflow_right_splitter.setHandleWidth(0)
-            self.workflow_right_splitter.setSizes([0, max(1, self.workflow_right_splitter.height())])
-            return
-
-        self.progress_group.setVisible(True)
-        self.workflow_right_splitter.setHandleWidth(4)
-        restore_sizes = self.workflow_right_splitter_normal_sizes or self._default_workflow_right_splitter_sizes()
-        self.workflow_right_splitter.setSizes(restore_sizes)
-
-    def _compare_preview_can_autostart(self) -> bool:
-        if self._shutting_down:
-            return False
-        if self._startup_benchmark_enabled():
-            return False
-        if not bool(getattr(self, "_settings_ready", False)):
-            return False
-        if getattr(self, "_startup_splash_window", None) is not None:
-            return False
-        return (
-            self._is_tool_visible_or_current(self.workflow_tab)
-            and self.content_tabs.currentWidget() is self.compare_tab
-        )
-
-    def _queue_current_compare_preview_if_visible(self) -> None:
-        if not self._compare_preview_can_autostart():
-            return
-        current = self.compare_list.currentItem()
-        if current is None:
-            return
-        raw_path = current.data(Qt.UserRole)
-        if not raw_path:
-            return
-        self.pending_compare_preview_selection = Path(raw_path)
-        self._compare_preview_timer.start()
-
-    def _handle_workflow_content_tab_changed(self, index: int) -> None:
-        del index
-        self._apply_workflow_content_tab_layout()
-        self._queue_current_compare_preview_if_visible()
-        if not self._startup_benchmark_enabled():
-            self._save_settings()
-
     def _refresh_chainner_chain_info(self) -> None:
-        if self._shutting_down or not self.chainner_section.is_body_built():
+        if self.shell._shutting_down or not self.chainner_section.is_body_built():
             return
-        _analysis, text = self._resolve_chainner_analysis()
+        _analysis, text = self.shell._resolve_chainner_analysis()
         self.chainner_chain_info_view.setPlainText(text)
 
     def _schedule_chainner_chain_info_refresh(self, *_args) -> None:
-        if self._shutting_down or not self._settings_ready:
+        if self.shell._shutting_down or not self.shell._settings_ready:
             return
-        self._chainner_analysis_timer.start()
+        self.shell._chainner_analysis_timer.start()
 
     def _apply_mod_ready_export_state(self) -> None:
         if not self.chainner_section.is_body_built():
@@ -176,7 +115,7 @@ class TextureWorkflowShellControlsMixin:
             self.mod_ready_package_title_edit.setText(MOD_READY_PACKAGE_TITLE)
         if enabled and not self.mod_ready_package_version_edit.text().strip():
             self.mod_ready_package_version_edit.setText(MOD_READY_PACKAGE_VERSION)
-        self._save_settings()
+        self.shell._save_settings()
 
     def _apply_mod_ready_manager_profile_state(self) -> None:
         current_profile = str(self.mod_ready_manager_combo.currentData() or "dmm")
@@ -193,4 +132,4 @@ class TextureWorkflowShellControlsMixin:
         self.mod_ready_create_no_encrypt_checkbox.setChecked(profile_options.create_no_encrypt_file)
         self.mod_ready_zip_checkbox.setChecked(profile_options.create_zip)
         self._apply_mod_ready_export_state()
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()

@@ -138,7 +138,7 @@ class ArchiveMaterialSidecarActionsMixin:
     def _edit_current_archive_material_sidecar(self) -> None:
         entry = self._choose_material_sidecar_entry(self._material_sidecar_selection_candidates())
         if entry is None:
-            self.set_status_message("No material sidecar is available for the current archive selection.", error=True)
+            self.shell.set_status_message("No material sidecar is available for the current archive selection.", error=True)
             return
         self._open_material_sidecar_editor(entry)
 
@@ -146,7 +146,7 @@ class ArchiveMaterialSidecarActionsMixin:
         selected_entries = self._resolved_archive_reference_entries(self._selected_archive_texture_references())
         entry = selected_entries[0] if len(selected_entries) == 1 else None
         if not isinstance(entry, ArchiveEntry) or not is_material_sidecar_entry(entry):
-            self.set_status_message("Select one resolved material sidecar reference first.", error=True)
+            self.shell.set_status_message("Select one resolved material sidecar reference first.", error=True)
             return
         self._open_material_sidecar_editor(entry)
 
@@ -241,10 +241,10 @@ class ArchiveMaterialSidecarActionsMixin:
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         make_tree_columns_persistent(
             tree,
-            self.settings,
+            self.shell.settings,
             "dialog/material_sidecar_related_files",
             minimum_width=48,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
         layout.addWidget(tree, stretch=1)
 

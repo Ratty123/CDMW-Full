@@ -109,7 +109,7 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "-p:PublishSingleFile=false" in archive_backend_source
     assert "-p:PublishTrimmed=false" in archive_backend_source
     assert "scripts\\verify_release_dependencies.py" in source
-    assert "scripts\\generate_window_feature_provider_members.py" in source
+    assert "generate_window_feature_provider_members" not in source
     assert "scripts\\generate_ui_localization_manifest.py" in source
     assert "scripts\\validate_ui_localization_catalogs.py" in source
     assert "constraints-release.txt" in source
@@ -139,21 +139,14 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "cdmw-mesh-dotnet-editor" not in source
     assert "D3D11MaterialShaders.hlsl" not in source
     describe_only_return = 'if ($DescribeOnly) {\n    return\n}'
-    metadata_refresh = 'Stage "Refreshing generated feature metadata"'
-    metadata_check = 'Stage "Verifying generated feature metadata"'
     localization_check = 'Stage "Verifying interface localization catalogs"'
-    assert "& $pythonExe $providerMetadataGenerator\n" in source
-    assert "& $pythonExe $providerMetadataGenerator --check" in source
-    assert source.index(describe_only_return) < source.index(metadata_refresh)
-    assert source.index(metadata_refresh) < source.index(metadata_check)
-    assert source.index(metadata_check) < source.index(localization_check)
+    assert source.index(describe_only_return) < source.index(localization_check)
     assert source.index(localization_check) < source.index("Starting PyInstaller")
     assert "& $pythonExe $localizationManifestGenerator --check" in source
     assert "& $pythonExe $localizationCatalogValidator" in source
     texture_backend_stage = 'Stage "Verifying packaged native texture backend"'
     assert source.index(texture_backend_stage) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
-    assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
     assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
     assert 'rust_mesh_editor_stage = f"native/rust_mesh_editor/build/{NATIVE_CONFIGURATION}"' in spec_source
     assert 'f"{rust_mesh_editor_stage}/cdmw_mesh_lab.exe"' in spec_source
@@ -249,22 +242,15 @@ def test_onedir_publish_removes_runtime_artifacts_created_by_startup_smoke() -> 
 
 def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:
     from PyInstaller.utils.hooks import collect_submodules
-    from cdmw.ui.shell.window_feature_providers import (
-        ARCHIVE_FEATURE_PROVIDERS,
-        MESH_FEATURE_PROVIDERS,
-        SHELL_FEATURE_PROVIDERS,
-        TEXTURE_FEATURE_PROVIDERS,
-    )
+    from cdmw.ui.archive_browser.workspace import ArchiveBrowserWorkspace
+    from cdmw.ui.shell.workbench import WorkbenchWindow
+    from cdmw.ui.texture_workflow.workspace import TexturesWorkspace
 
-    providers = (
-        *SHELL_FEATURE_PROVIDERS,
-        *ARCHIVE_FEATURE_PROVIDERS,
-        *TEXTURE_FEATURE_PROVIDERS,
-        *MESH_FEATURE_PROVIDERS,
-    )
+    owners = (WorkbenchWindow, ArchiveBrowserWorkspace, TexturesWorkspace)
     collected = set(collect_submodules("cdmw"))
     assert "cdmw.core.ncnn_model_catalog" in collected
-    assert {provider.module_name for provider in providers} <= collected
+    assert {base.__module__ for owner in owners for base in owner.__mro__
+            if base.__module__.startswith("cdmw.")} <= collected
     source = SPEC.read_text(encoding="utf-8")
     assert "from PyInstaller.utils.hooks import collect_all, collect_submodules" in source
     assert 'hiddenimports += collect_submodules("cdmw", filter=_should_collect_cdmw_submodule)' in source

@@ -21,10 +21,8 @@ from PySide6.QtWidgets import QApplication
 from PIL import Image
 
 from cdmw.models import PreviewMaterialTextureInput
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExperimentPackage,
-    mesh_dotnet_material_input_signature,
-)
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
 from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import _dotnet_event_requires_correlation

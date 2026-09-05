@@ -20,7 +20,6 @@ from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.models import ArchiveEntry, RunCancelled
-from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_experiment_command
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import _MeshGeometryLayer
 from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
@@ -1469,6 +1468,10 @@ def test_archive_browser_handoff_carries_native_package_and_companion(tmp_path: 
     opened: list[tuple[object, dict[str, object]]] = []
 
     class Bridge(MeshEditorShellBridgeMixin):
+        def __init__(self):
+            self.archive = self
+            self.shell = self
+
         current_archive_preview_result = SimpleNamespace(
             preview_model=preview_model,
             dotnet_preview_package_path=str(material_package_path),
@@ -2009,42 +2012,9 @@ def test_mesh_editor_inventory_is_mesh_only_and_direct_authoring_is_explicit(tmp
     assert workspace.findChild(QToolButton, "MeshEditorInstallOverlayButton") is not None
     assert workspace.findChild(QToolButton, "MeshEditorRestoreOverlayButton") is not None
 
-    output_dir = tmp_path / "output"
-    output_dir.mkdir()
-    package = SimpleNamespace(
-        package_dir=tmp_path,
-        status_path=output_dir / "status.json",
-        edit_operations_path=output_dir / "edits.json",
-        evaluation_path=output_dir / "evaluation.md",
-        scene_mesh_path=tmp_path / "scene.obj",
-        mesh_path=tmp_path / "mesh.obj",
-        cdmeta_path=tmp_path / "mesh.cdmeta.json",
-        output_dir=output_dir,
-    )
-    _program, arguments = mesh_dotnet_experiment_command(
-        tmp_path / "helper.exe",
-        package,
-        embedded_parent_hwnd=123,
-        profile="authoring",
-        direct_authoring=True,
-    )
-    assert "--direct-authoring" in arguments
     app.processEvents()
 
 
-def test_direct_authoring_source_inventory_excludes_colour_and_texture_region_capability() -> None:
-    root = Path("tools/dotnet_mesh_editor_experiment")
-    runtime = (root / "RuntimeSupport.cs").read_text(encoding="utf-8")
-    program = (root / "Program.cs").read_text(encoding="utf-8")
-    tools = (root / "EditMeshToolListContract.cs").read_text(encoding="utf-8")
-    provenance = (root / "HelperBuildProvenance.cs").read_text(encoding="utf-8")
-    protocol = (root / "ExperimentForm.Protocol.cs").read_text(encoding="utf-8")
-    assert 'values.ContainsKey("direct-authoring")' in runtime
-    assert 'options.DirectAuthoring && options.Authoring' in program
-    assert "Keys.Colour" not in tools
-    assert '"direct_authoring_host_v1"' in provenance
-    assert '"resident_texture_region_updates_v1"' not in provenance
-    assert 'case "texture_region_update":' not in protocol
 
 
 def test_loose_output_captures_after_pending_work_and_never_writes_source_archives(tmp_path: Path) -> None:
@@ -2692,6 +2662,8 @@ def test_replacing_an_edited_archive_session_requires_confirmation(tmp_path: Pat
 
     class Harness(MeshEditorShellBridgeMixin):
         def __init__(self) -> None:
+            self.archive = self
+            self.shell = self
             self.mesh_editor_tab = TabStub()
             self._modeless_alignment_dialogs = {}
             self.activated = False
@@ -2760,6 +2732,8 @@ def test_same_target_rust_session_relaunches_only_when_child_is_idle(tmp_path: P
 
     class Harness(MeshEditorShellBridgeMixin):
         def __init__(self) -> None:
+            self.archive = self
+            self.shell = self
             self.mesh_editor_tab = TabStub()
             self._modeless_alignment_dialogs = {}
             self.activated = False

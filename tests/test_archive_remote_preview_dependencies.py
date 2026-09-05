@@ -302,6 +302,9 @@ class _PreviewBridge:
 
 class _PreviewHarness(ArchivePreviewWorkerMixin):
     def __init__(self, snapshot: ArchivePreviewDependencySet | None) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_remote_bridge = _PreviewBridge(snapshot)
         selected = _entry("character/sword.pac", 700)
         self.scheduled_archive_preview_request = (5, selected, False, False)
@@ -425,6 +428,9 @@ def test_v2_preview_flush_reissues_the_row_current_after_selection_settles() -> 
     class _RemappedSelectionHarness(_PreviewHarness):
         def __init__(self) -> None:
             super().__init__(None)
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.archive_remote_bridge = _RemappedSelectionBridge()
             self._shutting_down = False
             self.reissued: list[ArchiveEntry] = []
@@ -463,6 +469,9 @@ def test_v2_preview_selection_settle_retry_is_bounded() -> None:
     class _UnavailableSelectionHarness(_PreviewHarness):
         def __init__(self) -> None:
             super().__init__(None)
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.archive_remote_bridge = _UnavailableSelectionBridge(None)
             self._shutting_down = False
             self.scheduled_delays: list[int] = []
@@ -565,6 +574,9 @@ def test_pending_secondary_index_propagates_from_batches_into_the_snapshot() -> 
 class _SecondaryIndexRetryHarness(_PreviewHarness):
     def __init__(self, snapshot: ArchivePreviewDependencySet) -> None:
         super().__init__(snapshot)
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._shutting_down = False
         self.scheduled_delays: list[int] = []
         self.rendered: list[object] = []

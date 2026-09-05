@@ -8,23 +8,6 @@ from tests.mesh_editor_source_support import mesh_editor_tab_source
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_dotnet_receiver_advertises_revision_ack_and_resident_mutation_envelope() -> None:
-    dotnet = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Protocol.cs").read_text(
-        encoding="utf-8"
-    )
-
-    assert "CanApplyEditRevision" in dotnet
-    assert "MarkEditRevisionApplied" in dotnet
-    assert 'reason = "duplicate"' not in dotnet
-    assert "_appliedPacketKindsForRevision" not in dotnet
-    assert '["edit_revision"] = revision' in dotnet
-    assert '["revision"] = revision' in dotnet
-    assert "stale_or_out_of_order" in dotnet
-    assert "mesh_edit_revision_ack_v1" in dotnet
-    assert "resident_mutation_envelope_v2" in dotnet
-    assert "CopyMutationEnvelope(request, payload)" in dotnet
-    assert 'case "resident_state_resync":' in dotnet
-    assert 'WriteProtocolEvent("resident_state_resync_ack", payload)' in dotnet
 
 
 def test_python_authoring_sender_correlates_revisions_through_shared_controller() -> None:

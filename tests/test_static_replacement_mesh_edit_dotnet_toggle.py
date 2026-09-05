@@ -341,6 +341,7 @@ def test_dotnet_failure_keeps_preview_unavailable_without_legacy_fallback() -> N
             set_status_message=lambda message, error=False: statuses.append((str(message), bool(error)))
         ),
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _record_mesh_edit_event=lambda event, **payload: events.append((str(event), dict(payload))),
         _refresh_mesh_edit_controls=lambda: None,
@@ -368,6 +369,7 @@ def test_dotnet_edit_uses_full_width_then_failure_restores_setup_panel() -> None
         _refresh_mesh_edit_controls=lambda: None,
     )
     state.self = SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None)
+    state.self.shell = state.self
 
     _mesh_editor_embedded_dotnet_ready(state, callbacks)
     _mesh_editor_embedded_dotnet_failed(state, callbacks, "test", "failed")
@@ -391,6 +393,7 @@ def test_edit_mesh_launch_hides_builder_controls_for_dotnet_panel() -> None:
         controls_panel=SimpleNamespace(setVisible=lambda value: visibility.append(bool(value))),
         self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
     )
+    state.self.shell = state.self
     callbacks = SimpleNamespace(
         _refresh_mesh_edit_controls=lambda: None,
         _record_mesh_edit_event=lambda event, **_payload: events.append(str(event)),

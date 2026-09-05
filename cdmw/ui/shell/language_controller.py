@@ -63,7 +63,7 @@ class LanguageControllerMixin:
         )
         if callable(refresh_settings_navigation):
             refresh_settings_navigation()
-        self._update_ncnn_preset_hint()
+        self.textures._update_ncnn_preset_hint()
         self._schedule_column_autofit()
 
     def _handle_language_changed(self, language_code: str) -> None:

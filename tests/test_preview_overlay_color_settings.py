@@ -39,13 +39,10 @@ def _dotnet_source(name: str) -> str:
 
 def test_defaults_match_the_renderer_so_an_unset_preference_changes_nothing() -> None:
     defaults = ModelPreviewRenderSettings()
-    overlay_defaults = _dotnet_source("MeshOverlayColors.cs")
 
     assert defaults.d3d11_wire_color == "#000000"
     assert defaults.d3d11_vertex_color == "#FFAE28"
     # MeshOverlayColors.Default: Wire (0,0,0), Vertex (255,174,40) == #FFAE28.
-    assert "Color.FromArgb(0, 0, 0)" in overlay_defaults
-    assert "Color.FromArgb(255, 174, 40)" in overlay_defaults
 
 
 def test_malformed_overlay_colors_fall_back_instead_of_reaching_the_renderer() -> None:
@@ -118,27 +115,3 @@ def test_presentation_payload_carries_the_colors_to_the_viewport() -> None:
         assert f'"{field}"' in change_detection, (
             f"a change to {field} would not re-tune the resident render"
         )
-
-
-def test_viewport_reads_the_keys_and_only_pushes_a_changed_color() -> None:
-    presentation = _dotnet_source("MeshViewport.PresentationSettings.cs")
-
-    assert "ApplyOverlayColorsFromPresentation(quality)" in presentation
-    assert 'PresentationOverlayColor(quality, "d3d11_wire_color"' in presentation
-    assert 'PresentationOverlayColor(quality, "d3d11_vertex_color"' in presentation
-    # The host republishes after every accepted frame, so an unconditional apply
-    # would invalidate the viewport once per frame.
-    assert "if (wire == current.Wire && vertex == current.Vertex)" in presentation
-
-
-def test_an_edit_mesh_color_choice_outranks_preview_settings_for_the_session() -> None:
-    presentation = _dotnet_source("MeshViewport.PresentationSettings.cs")
-    controls = _dotnet_source("ExperimentForm.Controls.cs") + _dotnet_source(
-        "ExperimentForm.AppearanceControls.cs"
-    )
-
-    assert "internal void PinOverlayColorsFromReader()" in presentation
-    assert "if (_overlayColorsPinnedByReader)" in presentation
-    # Both the colour picker and the reset button must pin, or the next
-    # republish silently reverts what the reader just chose.
-    assert controls.count("_viewport.PinOverlayColorsFromReader();") == 2

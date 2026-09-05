@@ -87,20 +87,20 @@ def synthetic_builder_preflight(
 
 
 def configure_synthetic_archive_context(window: object, entry: ArchiveEntry) -> None:
-    remote_bridge = getattr(window, "archive_remote_bridge", None)
+    remote_bridge = getattr(window.archive, "archive_remote_bridge", None)
     deactivate = getattr(remote_bridge, "deactivate", None)
     if callable(deactivate):
         deactivate()
-    window.archive_remote_bridge = None
-    window.archive_backend_selection = ArchiveBackendSelection(
+    window.archive.archive_remote_bridge = None
+    window.archive.archive_backend_selection = ArchiveBackendSelection(
         ArchiveBackendMode.LEGACY,
         "mesh_builder_startup_smoke",
         True,
     )
-    window.archive_backend_mode = ArchiveBackendMode.LEGACY
-    window.archive_entries = [entry]
-    window.archive_entries_by_normalized_path = {entry.path.casefold(): (entry,)}
-    window.archive_entries_by_basename = {entry.basename.casefold(): (entry,)}
+    window.archive.archive_backend_mode = ArchiveBackendMode.LEGACY
+    window.archive.archive_entries = [entry]
+    window.archive.archive_entries_by_normalized_path = {entry.path.casefold(): (entry,)}
+    window.archive.archive_entries_by_basename = {entry.basename.casefold(): (entry,)}
 
 
 def _failure_detail(events: list[tuple[str, dict[str, object]]]) -> str:
@@ -160,17 +160,17 @@ def _exercise_builder_mode(
     mode_name: str,
     modify_original_clone_mode: bool,
 ) -> None:
-    existing_keys = set(window._modeless_alignment_dialogs)
+    existing_keys = set(window.shell._modeless_alignment_dialogs)
     mode_event_start = len(events)
     progress_probe = _EmbeddedStartupProgressProbe(window)
     app.installEventFilter(progress_probe)
     try:
-        compatibility_host = window.mesh_editor_tab.embedded_builder_host
-        window.mesh_editor_tab.workspace_stack.setCurrentWidget(compatibility_host)
-        window._activate_tool_widget(window.mesh_editor_tab)
+        compatibility_host = window.shell.mesh_editor_tab.embedded_builder_host
+        window.shell.mesh_editor_tab.workspace_stack.setCurrentWidget(compatibility_host)
+        window.shell._activate_tool_widget(window.shell.mesh_editor_tab)
         prompt_archive_static_replacement_options(
             window,
-            window.archive_entries[0],
+            window.archive.archive_entries[0],
             root / f"{mode_name}.obj",
             dialog_title=f"Synthetic {mode_name}",
             embedded_host=compatibility_host,
@@ -188,14 +188,14 @@ def _exercise_builder_mode(
             f"{progress_probe.shown_titles!r}."
         )
 
-    new_keys = set(window._modeless_alignment_dialogs) - existing_keys
+    new_keys = set(window.shell._modeless_alignment_dialogs) - existing_keys
     if len(new_keys) != 1:
         raise RuntimeError(
             f"Mesh Builder {mode_name} startup smoke did not open exactly one dialog: "
             f"{_failure_detail(events)}."
         )
     dialog_key = next(iter(new_keys))
-    dialog = window._modeless_alignment_dialogs[dialog_key]
+    dialog = window.shell._modeless_alignment_dialogs[dialog_key]
     construction_context = getattr(dialog, "_cdmw_builder_construction_context", {})
     try:
         if not bool(getattr(dialog, "_cdmw_builder_construction_complete", False)):
@@ -222,7 +222,7 @@ def _exercise_builder_mode(
             raise RuntimeError(
                 f"Mesh Builder {mode_name} startup smoke revealed an unmounted builder."
             )
-        if not window._is_tool_visible_or_current(window.mesh_editor_tab):
+        if not window.shell._is_tool_visible_or_current(window.shell.mesh_editor_tab):
             raise RuntimeError(
                 f"Mesh Builder {mode_name} startup smoke did not reveal the Mesh Editor after construction."
             )
@@ -270,7 +270,7 @@ def _exercise_builder_mode(
         active_timers = active_builder_timer_names(construction_context)
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
-    if dialog_key in window._modeless_alignment_dialogs:
+    if dialog_key in window.shell._modeless_alignment_dialogs:
         raise RuntimeError(f"Mesh Builder {mode_name} startup smoke did not cleanly close its dialog.")
     if active_timers:
         raise RuntimeError(
@@ -286,7 +286,7 @@ def verify_mesh_builder_startup_smoke_target(
     """Construct both Builder entry modes without assets, rendering, or archive I/O."""
 
     events: list[tuple[str, dict[str, object]]] = []
-    original_record_runtime_event = getattr(window, "_record_runtime_event", None)
+    original_record_runtime_event = getattr(window.shell, "_record_runtime_event", None)
 
     def capture_runtime_event(event: str, **fields: object) -> object:
         events.append((event, dict(fields)))
@@ -294,7 +294,7 @@ def verify_mesh_builder_startup_smoke_target(
             return original_record_runtime_event(event, **fields)
         return {}
 
-    window._record_runtime_event = capture_runtime_event
+    window.shell._record_runtime_event = capture_runtime_event
     completed_modes: list[str] = []
     try:
         with tempfile.TemporaryDirectory(prefix="cdmw-mesh-builder-startup-smoke-") as temp_dir:
@@ -316,7 +316,7 @@ def verify_mesh_builder_startup_smoke_target(
                 completed_modes.append(mode_name)
     finally:
         if callable(original_record_runtime_event):
-            window._record_runtime_event = original_record_runtime_event
+            window.shell._record_runtime_event = original_record_runtime_event
 
     if any(event == "mesh_alignment_construction_failed" for event, _fields in events):
         raise RuntimeError(

@@ -58,6 +58,11 @@ def test_remote_workflow_context_uses_only_bounded_prepared_dependencies() -> No
             return snapshot
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge()
 
         @property
@@ -85,7 +90,7 @@ def test_remote_workflow_context_selects_a_prepared_snapshot_member() -> None:
 
     texture = _entry("character/texture/hero_d.dds", 200)
     context = archive_workflow_dependency_context(
-        type("Owner", (), {"archive_remote_bridge": _Bridge()})(),
+        type("Owner", (), {"archive": property(lambda self: self), "archive_remote_bridge": _Bridge()})(),
         texture,
     )
 
@@ -101,7 +106,7 @@ def test_remote_workflow_context_fails_closed_without_prepared_dependencies() ->
         def prepared_dependencies_for(_entry: ArchiveEntry) -> None:
             return None
 
-    owner = type("Owner", (), {"archive_remote_bridge": _Bridge()})()
+    owner = type("Owner", (), {"archive": property(lambda self: self), "archive_remote_bridge": _Bridge()})()
 
     with pytest.raises(ArchiveWorkflowDependenciesUnavailable, match="still preparing"):
         archive_workflow_dependency_context(owner, _entry("character/model/hero.pac", 100))
@@ -116,6 +121,7 @@ def test_legacy_workflow_context_preserves_existing_catalogue_maps() -> None:
         "Owner",
         (),
         {
+            "archive": property(lambda self: self),
             "archive_entries": (selected, texture),
             "archive_entries_by_normalized_path": path_index,
             "archive_entries_by_basename": basename_index,

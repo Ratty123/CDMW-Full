@@ -28,7 +28,7 @@ def start_hkx_editor_xml_export(
 
     def is_current() -> bool:
         return (
-            not bool(getattr(owner, "_shutting_down", False))
+            not bool(getattr(owner.shell, "_shutting_down", False))
             and request_id == int(getattr(owner, "_hkx_editor_xml_export_request_id", 0) or 0)
         )
 
@@ -36,9 +36,9 @@ def start_hkx_editor_xml_export(
         if not is_current():
             return
         if not isinstance(result, HkxXmlExportResult) or result.request_id != request_id:
-            owner.set_status_message("Edited HKX XML export returned invalid data.", error=True)
+            owner.shell.set_status_message("Edited HKX XML export returned invalid data.", error=True)
             return
-        owner.set_status_message(f"Exported edited HKX XML to {result.output_path}.")
+        owner.shell.set_status_message(f"Exported edited HKX XML to {result.output_path}.")
 
     def error(message: str) -> None:
         if not is_current() or is_expected_cancellation_message(message):
@@ -48,9 +48,9 @@ def start_hkx_editor_xml_export(
             "Export Edited HKX XML",
             f"Could not export edited HKX XML:\n{message}",
         )
-        owner.set_status_message(f"Edited HKX XML export failed: {message}", error=True)
+        owner.shell.set_status_message(f"Edited HKX XML export failed: {message}", error=True)
 
-    owner._run_utility_task_when_idle(
+    owner.shell._run_utility_task_when_idle(
         status_message=f"Exporting edited HKX XML to {output_path.name}...",
         task=lambda _log, stop_event: export_hkx_xml(request, stop_event=stop_event),
         on_complete=complete,

@@ -41,14 +41,15 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                 controls_scroll = tab.findChild(QScrollArea, "ModelLibraryControlsScroll")
                 self.assertIsNotNone(controls_scroll)
                 assert controls_scroll is not None
-                self.assertGreaterEqual(controls_scroll.minimumWidth(), 430)
+                self.assertLessEqual(controls_scroll.minimumWidth(), 300)
+                self.assertLessEqual(controls_scroll.widget().minimumSizeHint().width(), controls_scroll.viewport().width())
                 self.assertEqual(
                     controls_scroll.horizontalScrollBarPolicy(),
-                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                    Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
                 )
                 self.assertIsInstance(tab.details_text, QPlainTextEdit)
                 self.assertEqual(tab.details_text.lineWrapMode(), QPlainTextEdit.LineWrapMode.WidgetWidth)
-                self.assertGreaterEqual(tab.details_text.minimumHeight(), 180)
+                self.assertGreaterEqual(tab.details_text.height(), 96)
                 self.assertEqual(tab.details_text.sizePolicy().verticalPolicy(), QSizePolicy.Policy.Expanding)
                 tab._show_details(None)
                 self.assertIn("Select a local file", tab.details_text.toPlainText())

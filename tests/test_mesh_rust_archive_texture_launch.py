@@ -204,6 +204,9 @@ class _LaunchHarness(MeshEditorShellBridgeMixin):
         *,
         backend: str = "rust",
     ) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.entry = entry
         self.backend = backend
         self.archive_isolated_renderer_active_package = geometry_package
@@ -490,6 +493,9 @@ def test_texture_lifecycle_queues_mesh_editor_notification_after_resident_public
         archive_d3d11_preview_host = None
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.notifications: list[tuple[int, bool, str, object]] = []
             self.current_archive_preview_result = None
 
@@ -700,6 +706,9 @@ def test_idle_rust_relaunch_refreshes_material_context_from_active_package(
 
     class Harness(MeshEditorShellBridgeMixin):
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.mesh_editor_tab = Tab()
             self.archive_isolated_renderer_active_package = textured
             self._modeless_alignment_dialogs = {}
@@ -752,6 +761,9 @@ def test_idle_rust_relaunch_rejects_same_path_materials_from_another_archive(
 
     class Harness(MeshEditorShellBridgeMixin):
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.mesh_editor_tab = Tab()
             self.archive_isolated_renderer_active_package = textured
 
@@ -805,6 +817,9 @@ def test_rust_relaunch_requested_during_dispose_is_queued_once(
 
     class Harness(MeshEditorShellBridgeMixin):
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.mesh_editor_tab = Tab()
             self._modeless_alignment_dialogs = {}
             self.statuses: list[str] = []

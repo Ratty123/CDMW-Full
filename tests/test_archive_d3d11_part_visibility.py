@@ -105,6 +105,9 @@ class _FakePreviewHost:
 
 class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin):
     def __init__(self, *, accept_commands: bool = True) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_d3d11_part_visibility_menu = _FakeMenu()
         self.archive_d3d11_part_visibility_button = _FakeButton()
         self.archive_d3d11_preview_host = _FakePreviewHost(accept_commands=accept_commands)

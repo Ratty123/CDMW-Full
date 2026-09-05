@@ -22,7 +22,7 @@ class ArchivePreviewRendererControlsMixin:
 
     def _read_archive_model_renderer_backend(self) -> str:
         return normalize_archive_model_renderer_backend(
-            self.settings.value("preview/archive_renderer_backend", ARCHIVE_MODEL_RENDERER_DEFAULT)
+            self.shell.settings.value("preview/archive_renderer_backend", ARCHIVE_MODEL_RENDERER_DEFAULT)
         )
 
     def _archive_model_preview_widgets(self) -> Tuple[object, ...]:
@@ -137,4 +137,4 @@ class ArchivePreviewRendererControlsMixin:
         self.archive_d3d11_preview_host.set_render_tuning(
             self._current_model_preview_render_settings()
         )
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()

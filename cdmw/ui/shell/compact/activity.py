@@ -150,21 +150,21 @@ def _document_from_widget(widget: object, attribute_names: tuple[str, ...]) -> Q
 
 def tool_log_adapter_for(owner: object, tool_key: str) -> ToolLogAdapter:
     key = str(tool_key or "")
-    if key == "texture_workflow":
+    if key == "textures":
         return ToolLogAdapter(
             key,
-            "Texture Workflow",
-            _document_from_widget(owner, ("log_view",)),
-            getattr(owner, "clear_live_log", None),
+            "Textures",
+            _document_from_widget(owner.textures, ("log_view",)),
+            getattr(owner.shell, "clear_live_log", None),
         )
     if key == "archive_browser":
         return ToolLogAdapter(
             key,
             "Archive Browser",
-            _document_from_widget(owner, ("archive_log_view",)),
-            getattr(owner, "clear_archive_scan_log", None),
+            _document_from_widget(owner.archive, ("archive_log_view",)),
+            getattr(owner.shell, "clear_archive_scan_log", None),
         )
-    containers = getattr(owner, "_tool_widgets_by_key", {})
+    containers = getattr(owner.shell, "_tool_widgets_by_key", {})
     container = containers.get(key) if isinstance(containers, dict) else None
     widget = created_tool_widget(container)
     if not isinstance(widget, QWidget):

@@ -44,9 +44,9 @@ from cdmw.workers.source_mix_workers import (
 
 
 def _source_mix_index_snapshot(owner) -> Optional[SourceMixIndexSnapshot]:
-    lookup_indexes = owner._archive_lookup_indexes_snapshot()
+    lookup_indexes = owner.archive._archive_lookup_indexes_snapshot()
     if lookup_indexes is None:
-        owner.set_status_message(
+        owner.shell.set_status_message(
             "Archive path lookup is warming; retry Import Loose Mod Folder when indexing finishes."
         )
         return None
@@ -68,7 +68,7 @@ class ArchiveSourceMixOverlayMixin:
             selected_dir = QFileDialog.getExistingDirectory(
                 self,
                 "Import Loose Mod Folder",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
             )
             if not selected_dir:
                 return
@@ -318,7 +318,7 @@ class ArchiveSourceMixOverlayMixin:
         def _select_exact_family() -> None:
             family_id = _selected_family_id()
             if not family_id:
-                self.set_status_message("Select a family row first.", error=True)
+                self.shell.set_status_message("Select a family row first.", error=True)
                 return
             _select_candidates(
                 lambda candidate: candidate.family_id == family_id and isinstance(candidate.target_archive_entry, ArchiveEntry),
@@ -398,16 +398,16 @@ class ArchiveSourceMixOverlayMixin:
 
             def _handle_complete(result: object) -> None:
                 if not isinstance(result, ArchiveLooseExportResult):
-                    self.set_status_message("Loose mod overlay export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Loose mod overlay export finished with an unexpected result payload.", error=True)
                     return
                 QMessageBox.information(
                     self,
                     "Loose Mod Overlay Export Complete",
                     f"Wrote selected overlay payload(s) into:\n{result.package_root}",
                 )
-                self.set_status_message(f"Wrote loose mod overlay package: {result.package_root}")
+                self.shell.set_status_message(f"Wrote loose mod overlay package: {result.package_root}")
 
-            self._run_utility_task_when_idle(
+            self.shell._run_utility_task_when_idle(
                 status_message=f"Writing loose mod overlay package from {Path(selected_dir).name}...",
                 task=_commit_task,
                 on_complete=_handle_complete,

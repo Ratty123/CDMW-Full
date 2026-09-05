@@ -366,7 +366,7 @@ def _d3d11_loading_step_015(_state):
 def _d3d11_loading_step_016(_state):
 
     def _handle_alignment_d3d11_view_state_payload(payload: object) -> None:
-        current_generation = int(getattr(_state.self, 'mesh_editor_d3d11_view_state_reset_generation', 0) or 0)
+        current_generation = int(getattr(_state.self.shell, 'mesh_editor_d3d11_view_state_reset_generation', 0) or 0)
         view_state_route = _state._alignment_d3d11_view_state_payload_route_helper(_state.alignment_d3d11_state, current_generation, payload_is_mapping=isinstance(payload, _state.Mapping))
         if view_state_route.should_ignore:
             return
@@ -383,7 +383,7 @@ def _d3d11_loading_step_017(_state):
 def _d3d11_loading_step_018(_state):
 
     def _alignment_d3d11_saved_view_state() -> Dict[str, object]:
-        current_generation = int(getattr(_state.self, 'mesh_editor_d3d11_view_state_reset_generation', 0) or 0)
+        current_generation = int(getattr(_state.self.shell, 'mesh_editor_d3d11_view_state_reset_generation', 0) or 0)
         saved_route = _state._alignment_d3d11_saved_view_state_route_helper(_state.alignment_d3d11_state, current_generation, has_saved_state=bool(_state.alignment_d3d11_view_state))
         if saved_route.should_clear_saved_state:
             _state.alignment_d3d11_view_state.clear()

@@ -76,7 +76,7 @@ class ModPackageRetrofitUi:
         self.profile_labels = dict(MOD_PACKAGE_MANAGER_PROFILE_LABELS)
         self.profile_labels["dmm"] = "Mod Manager"
         self.profile_labels["crimson_sharp"] = "Crimson Sharp / Crimson Browser"
-        config = owner.collect_config()  # type: ignore[attr-defined]
+        config = owner.textures.collect_config()  # type: ignore[attr-defined]
         self.default_profile = str(getattr(config, "mod_ready_manager_profile", "dmm") or "dmm").strip().lower()
         if self.default_profile not in RETROFIT_MANAGER_PROFILES:
             self.default_profile = "dmm"
@@ -108,9 +108,9 @@ class ModPackageRetrofitUi:
         intro.setObjectName("HintLabel")
         self.layout.addWidget(intro)
 
-        config = self.owner.collect_config()  # type: ignore[attr-defined]
+        config = self.owner.textures.collect_config()  # type: ignore[attr-defined]
         configured_root = str(getattr(config, "mod_ready_export_root", "") or "").strip()
-        settings_path = Path(self.owner.settings_file_path)  # type: ignore[attr-defined]
+        settings_path = Path(self.owner.shell.settings_file_path)  # type: ignore[attr-defined]
         source_default = Path(configured_root).expanduser() if configured_root else settings_path.parent
         self.source_edit = QLineEdit(str(source_default))
         self.source_edit.setObjectName("retrofit_source_edit")
@@ -272,7 +272,7 @@ class ModPackageRetrofitUi:
         self.content_splitter.setSizes([left_width, right_width])
 
     def _apply_widget_localization(self, widget: QWidget) -> None:
-        apply_localizer = getattr(getattr(self.owner, "ui_localizer", None), "apply", None)
+        apply_localizer = getattr(getattr(self.owner.shell, "ui_localizer", None), "apply", None)
         if callable(apply_localizer):
             apply_localizer(widget)
 

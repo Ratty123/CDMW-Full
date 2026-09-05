@@ -244,7 +244,7 @@ class ArchiveMeshDdsPreviewMixin:
         source_path, _selected = QFileDialog.getOpenFileName(
             self,
             "Select DDS File",
-            str(self.settings_file_path.parent),
+            str(self.shell.settings_file_path.parent),
             "DDS (*.dds)",
         )
         if not source_path:
@@ -278,18 +278,18 @@ class ArchiveMeshDdsPreviewMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchivePreviewResult):
-                self.set_status_message("DDS import preview finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("DDS import preview finished with an unexpected result payload.", error=True)
                 return
             self._show_archive_dds_import_preview_result(
                 result,
                 enable_high_quality=normalized_slot in {"normal", "material", "height"},
             )
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"Prepared {self._preview_slot_label(normalized_slot).lower()} DDS import preview for {entry.basename}.",
                 error=False,
             )
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Preparing DDS import preview for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,

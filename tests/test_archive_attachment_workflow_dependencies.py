@@ -63,6 +63,11 @@ def test_attachment_graph_entries_remap_members_and_evidence_to_prepared_candida
     snapshot = _snapshot(prepared_target, prepared_prefab)
 
     class _Owner(ArchiveAttachmentPackageMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         def _find_archive_entry_by_virtual_path(self, _path: str) -> ArchiveEntry:
@@ -88,7 +93,7 @@ def test_attachment_placement_snapshot_uses_one_bounded_prepared_candidate_set(t
     prepared_target = _entry("character/model/weapon.pac", 300, prepared_path=tmp_path / "weapon.pac")
     prepared_donor = _entry("character/model/donor.pac", 400, prepared_path=tmp_path / "donor.pac")
     snapshot = _snapshot(prepared_target, prepared_donor)
-    owner = type("Owner", (), {"archive_remote_bridge": _Bridge(snapshot)})()
+    owner = type("Owner", (), {"archive": property(lambda self: self), "archive_remote_bridge": _Bridge(snapshot)})()
 
     target, donor, entries_by_path, entries_by_basename = _attachment_placement_dependency_snapshot(
         owner,
@@ -109,6 +114,11 @@ def test_attachment_donor_picker_uses_only_bounded_prepared_candidates(tmp_path:
     snapshot = _snapshot(prepared_target, prepared_donor, prepared_icon)
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -156,6 +166,11 @@ def test_attachment_diff_dialog_resolves_paths_from_bounded_prepared_context(tmp
     snapshot = _snapshot(prepared_target, prepared_prefab)
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -180,6 +195,11 @@ def test_attachment_visual_helpers_remap_graph_and_body_models_from_bounded_cont
     snapshot = _snapshot(prepared_target, prepared_model, prepared_body)
 
     class _Owner(ArchiveAttachmentVisualCoreMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -208,6 +228,11 @@ def test_attachment_icons_and_socket_paths_use_bounded_prepared_indexes(tmp_path
     snapshot = _snapshot(prepared_target, prepared_prefab, prepared_socket, prepared_icon)
 
     class _Owner(ArchiveAttachmentIconMixin, ArchiveAttachmentPackageMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
         archive_item_asset_catalog = (
             {
@@ -254,6 +279,11 @@ def test_attachment_editor_context_helpers_do_not_touch_legacy_catalogues(tmp_pa
     snapshot = _snapshot(prepared_target, prepared_donor, prepared_socket)
 
     class _Owner(ArchiveAttachmentVisualContextMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property

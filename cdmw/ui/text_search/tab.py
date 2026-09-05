@@ -213,7 +213,7 @@ class TextSearchTab(
         self.search_button = QPushButton("Search")
         self.stop_button = QPushButton("Stop")
         self.stop_button.setEnabled(False)
-        self.export_selected_button = QPushButton("Export Selected")
+        self.export_selected_button = QPushButton("Export")
         self.export_all_button = QPushButton("Export Results")
         self.clear_log_button = QPushButton("Clear Log")
         for button in (

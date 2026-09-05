@@ -23,10 +23,12 @@ class TextureEditorCanvas(QWidget):
     hover_info_changed = Signal(object)
     wheel_zoom_requested = Signal(int, int, int)
     floating_transform_requested = Signal(object)
+    viewport_resized = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._image: Optional[QImage] = None
+        self._editable = True
         self._edited_rgba: Optional[np.ndarray] = None
         self._original_rgba: Optional[np.ndarray] = None
         self._edited_image: Optional[QImage] = None
@@ -100,6 +102,7 @@ class TextureEditorCanvas(QWidget):
         ):
             if event.type() == QEvent.Type.Resize:
                 self._update_display_geometry()
+                self.viewport_resized.emit()
             elif event.type() == QEvent.Type.Wheel and self._image is not None:
                 delta = int(event.angleDelta().y())
                 if delta == 0:
@@ -121,6 +124,14 @@ class TextureEditorCanvas(QWidget):
         width = max(1, int(round(self._image.width() * self._display_scale)))
         height = max(1, int(round(self._image.height() * self._display_scale)))
         return QRect(0, 0, width, height)
+
+    def set_editable(self, editable: bool) -> None:
+        self._editable = editable
+        self._dragging = False
+        self._drag_points = []
+        self._transform_drag_mode = ""
+        self._sample_target = ""
+        self.update()
 
     def set_image(self, image: Optional[QImage]) -> None:
         self._edited_rgba = None
@@ -904,7 +915,7 @@ class TextureEditorCanvas(QWidget):
             painter.setPen(QPen(QColor("#FF7A7A"), 2))
             painter.drawLine(x - 10, y, x + 10, y)
             painter.drawLine(x, y - 10, x, y + 10)
-        if self._floating_bounds is not None:
+        if self._editable and self._floating_bounds is not None:
             x, y, w, h = self._floating_bounds
             painter.setPen(QPen(QColor("#F2C14E"), 2, Qt.DashLine))
             painter.setBrush(Qt.NoBrush)
@@ -923,12 +934,12 @@ class TextureEditorCanvas(QWidget):
                 for rect in handle_rects.values():
                     painter.drawEllipse(rect)
         hover_point = self._drag_points[-1] if self._drag_points else self._hover_point
-        if hover_point is not None and self._tool in self._brush_tools():
+        if self._editable and hover_point is not None and self._tool in self._brush_tools():
             center_x = float(hover_point[0]) * scale
             center_y = float(hover_point[1]) * scale
             self._draw_brush_outline(painter, center_x, center_y)
             self._draw_brush_hud(painter, center_x, center_y)
-        if self._tool in {"clone", "heal"} and self._clone_source_point is not None and hover_point is not None:
+        if self._editable and self._tool in {"clone", "heal"} and self._clone_source_point is not None and hover_point is not None:
             source_x = float(self._clone_source_point[0]) * scale
             source_y = float(self._clone_source_point[1]) * scale
             if self._drag_points:
@@ -952,7 +963,7 @@ class TextureEditorCanvas(QWidget):
         point = self._widget_to_image_point(event.position())
         self._hover_point = point
         self._emit_hover_info(point)
-        if self._sample_target:
+        if self._editable and self._sample_target:
             if point is None:
                 return
             self.color_sampled.emit(f"{self._sample_target}|{self._sample_color(point)}")
@@ -961,6 +972,7 @@ class TextureEditorCanvas(QWidget):
         if event.button() in {Qt.MiddleButton, Qt.RightButton} and self._scroll_area is not None:
             if (
                 event.button() == Qt.RightButton
+                and self._editable
                 and self._tool in {"clone", "heal"}
                 and (event.modifiers() & Qt.ControlModifier)
             ):
@@ -969,7 +981,7 @@ class TextureEditorCanvas(QWidget):
             self._pan_start = (event.globalPosition().toPoint(), self._scroll_area.horizontalScrollBar().value(), self._scroll_area.verticalScrollBar().value())
             self.setCursor(Qt.ClosedHandCursor)
             return
-        if event.button() != Qt.LeftButton:
+        if event.button() != Qt.LeftButton or not self._editable:
             return
         if self._tool == "move" and self._floating_bounds is not None:
             transform_hit = self._floating_transform_hit(event.position())

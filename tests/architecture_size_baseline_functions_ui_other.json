@@ -25,7 +25,6 @@
     "cdmw/ui/startup_splash_host.py::run_startup_splash_host": 464,
     "cdmw/ui/text_search/tab.py::TextSearchTab.__init__": 332,
     "cdmw/ui/texture_editor_tab.py::TextureEditorTab.__init__": 1267,
-    "cdmw/ui/texture_workflow/compare_panel.py::TextureWorkflowComparePanelMixin._build_texture_workflow_content_tabs": 163,
     "cdmw/ui/texture_workflow/editor_canvas.py::TextureEditorCanvas.paintEvent": 222,
     "cdmw/ui/texture_workflow/editor_handoff.py::TextureWorkflowEditorHandoffMixin._handle_texture_editor_send_to_texture_workflow": 161,
     "cdmw/ui/texture_workflow/editor_images.py::_create_tool_icon": 151,

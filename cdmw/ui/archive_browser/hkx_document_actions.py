@@ -57,7 +57,7 @@ class ArchiveHkxDocumentActionsMixin:
         try:
             return archive_workflow_dependency_context(self, entry)
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"{operation_label} is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"{operation_label} is unavailable: {exc}", error=True)
             return None
 
     def _archive_hkx_companion_descriptor_entries(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
@@ -234,7 +234,7 @@ class ArchiveHkxDocumentActionsMixin:
 
     def _open_archive_hkx_placement_for_entry(self, entry: Optional[ArchiveEntry]) -> None:
         if not isinstance(entry, ArchiveEntry):
-            self.set_status_message("Select a model or HKX/HKT archive entry first.", error=True)
+            self.shell.set_status_message("Select a model or HKX/HKT archive entry first.", error=True)
             return
         dependencies = self._archive_hkx_workflow_dependencies(entry, operation_label="HKX editor")
         if dependencies is None:
@@ -248,7 +248,7 @@ class ArchiveHkxDocumentActionsMixin:
             if candidate.identity in prepared_by_identity
         )
         if not candidates:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"No related HKX/HKT placement file was resolved for {entry.basename}. Open Asset Family to inspect related files.",
                 error=True,
             )
@@ -256,7 +256,7 @@ class ArchiveHkxDocumentActionsMixin:
         selected = self._choose_archive_hkx_placement_candidate(entry, candidates)
         if not isinstance(selected, ArchiveEntry):
             return
-        if self.worker_thread is None:
+        if self.shell.worker_thread is None:
             self._edit_archive_hkx_entry(selected, initial_section="Placement")
         else:
             self._edit_archive_hkx_entry_when_idle(selected, initial_section="Placement")
@@ -325,9 +325,9 @@ class ArchiveHkxDocumentActionsMixin:
                     )
                 ),
             )
-            self.set_status_message(f"Exported HKX geometry {document_label} for {entry.basename}.")
+            self.shell.set_status_message(f"Exported HKX geometry {document_label} for {entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting HKX geometry {document_label} for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -338,7 +338,7 @@ class ArchiveHkxDocumentActionsMixin:
     def _export_current_archive_hkx_json(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export editable JSON.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export editable JSON.", error=True)
             return
 
         self._export_current_archive_hkx_document(
@@ -353,7 +353,7 @@ class ArchiveHkxDocumentActionsMixin:
     def _export_current_archive_hkx_xml(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export editable XML.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export editable XML.", error=True)
             return
 
         self._export_current_archive_hkx_document(
@@ -368,7 +368,7 @@ class ArchiveHkxDocumentActionsMixin:
     def _export_current_archive_hkx_havok_xml_view(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export a Havok XML view.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to export a Havok XML view.", error=True)
             return
 
         self._export_current_archive_hkx_document(
@@ -434,7 +434,7 @@ class ArchiveHkxDocumentActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, dict):
-                self.set_status_message(f"HKX {document_label} import finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message(f"HKX {document_label} import finished with an unexpected result payload.", error=True)
                 return
             geometry_patch = result.get("geometry_patch")
             loose_export = result.get("loose_export")
@@ -462,7 +462,7 @@ class ArchiveHkxDocumentActionsMixin:
                 if warning_text:
                     message += f"\n\nWarnings:\n{warning_text}"
                 QMessageBox.information(self, f"HKX {document_label} Import Complete", message)
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Wrote HKX {document_label} edits for {entry.basename} as a mod-ready loose package."
                 )
                 return
@@ -471,9 +471,9 @@ class ArchiveHkxDocumentActionsMixin:
             if warning_text:
                 message += f"\n\nWarnings:\n{warning_text}"
             QMessageBox.information(self, f"HKX {document_label} Import", message)
-            self.set_status_message(f"HKX {document_label} import found no supported numeric geometry changes.")
+            self.shell.set_status_message(f"HKX {document_label} import found no supported numeric geometry changes.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Importing HKX geometry {document_label} for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -491,7 +491,7 @@ class ArchiveHkxDocumentActionsMixin:
         ) -> None:
         request_id = int(getattr(self, "_hkx_document_import_request_id", 0) or 0) + 1
         self._hkx_document_import_request_id = request_id
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Reading HKX {document_label} import document...",
             task=lambda _log, stop_event: read_text_file_cancellable(
                 document_path,
@@ -521,9 +521,9 @@ class ArchiveHkxDocumentActionsMixin:
         if request_id != int(getattr(self, "_hkx_document_import_request_id", 0) or 0):
             return
         if not isinstance(document_text, str):
-            self.set_status_message(f"HKX {document_label} import reader returned invalid data.", error=True)
+            self.shell.set_status_message(f"HKX {document_label} import reader returned invalid data.", error=True)
             return
-        self._run_when_background_idle(
+        self.shell._run_when_background_idle(
             lambda: self._start_current_archive_hkx_document_import_content(
                 entry=entry,
                 document_text=document_text,
@@ -537,7 +537,7 @@ class ArchiveHkxDocumentActionsMixin:
     def _edit_current_archive_hkx(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to edit.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry to edit.", error=True)
             return
         self._edit_archive_hkx_entry(entry)
 
@@ -564,11 +564,11 @@ class ArchiveHkxDocumentActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, str):
-                self.set_status_message("HKX editor could not build an editable XML document.", error=True)
+                self.shell.set_status_message("HKX editor could not build an editable XML document.", error=True)
                 return
             self._open_archive_hkx_editor_dialog(entry, result, initial_section=initial_section)
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Opening HKX editor for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -583,16 +583,16 @@ class ArchiveHkxDocumentActionsMixin:
         attempt: int = 0,
         initial_section: str = "",
         ) -> None:
-        if self.worker_thread is None:
+        if self.shell.worker_thread is None:
             self._edit_archive_hkx_entry(entry, initial_section=initial_section)
             return
         if attempt == 0:
-            self.set_status_message(f"Opening HKX editor for {entry.basename} after the preview task finishes...")
-            self.append_log(f"Waiting for referenced-file preview cleanup before opening HKX editor for {entry.path}.")
+            self.shell.set_status_message(f"Opening HKX editor for {entry.basename} after the preview task finishes...")
+            self.shell.append_log(f"Waiting for referenced-file preview cleanup before opening HKX editor for {entry.path}.")
         if attempt >= 100:
             message = "Could not open the HKX editor because the previous preview task did not finish cleanly."
-            self.set_status_message(message, error=True)
-            self.append_log(f"ERROR: {message}")
+            self.shell.set_status_message(message, error=True)
+            self.shell.append_log(f"ERROR: {message}")
             return
         QTimer.singleShot(
             50,

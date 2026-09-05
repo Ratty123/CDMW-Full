@@ -269,7 +269,7 @@ def _mesh_edit_update_live_preview(_state, _callbacks,
         )
         return
     if _state._mesh_edit_tab_active():
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Active Mesh Editor live preview requires Rust Preview; Python preview rebuild fallback is disabled.",
             error=True,
         )

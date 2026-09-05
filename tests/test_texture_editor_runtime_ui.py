@@ -70,13 +70,7 @@ def test_texture_editor_sidebar_dds_controls_stack_on_compact_widths() -> None:
         try:
             assert tab.tool_panel.minimumWidth() >= 220
             assert tab.tool_panel.maximumWidth() >= 374
-            actions_layout = tab.export_dds_button.parentWidget().layout()
-            native_grid = None
-            for index in range(actions_layout.count()):
-                child_layout = actions_layout.itemAt(index).layout()
-                if child_layout is not None and child_layout.indexOf(tab.export_dds_button) >= 0:
-                    native_grid = child_layout
-                    break
+            native_grid = tab.native_export_controls.layout()
             assert native_grid is not None
             assert native_grid.getItemPosition(native_grid.indexOf(tab.native_dds_format_combo)) == (2, 0, 1, 2)
             assert native_grid.getItemPosition(native_grid.indexOf(tab.native_dds_mip_combo)) == (3, 0, 1, 2)
@@ -99,6 +93,6 @@ def test_texture_editor_splitter_sizes_are_persisted_and_not_reset_on_document_r
     assert "self.main_splitter.splitterMoved.connect(self._handle_main_splitter_moved)" in source
     assert "self._texture_editor_document_splitter_sizes()" in source
     assert "self._apply_responsive_splitter_defaults" not in source[
-        source.index("if has_doc and not right_sidebar_was_visible:") :
-        source.index("def _handle_main_splitter_moved", source.index("if has_doc and not right_sidebar_was_visible:"))
+        source.index("if show_inspector and not right_sidebar_was_visible:") :
+        source.index("def _handle_main_splitter_moved", source.index("if show_inspector and not right_sidebar_was_visible:"))
     ]

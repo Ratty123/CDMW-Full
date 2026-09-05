@@ -127,27 +127,27 @@ class ArchiveReferencePreviewMixin:
         preview_scroll.setAlignment(Qt.AlignCenter)
         preview_scroll.setWidget(preview_label)
         preview_label.attach_scroll_area(preview_scroll)
-        dialog_font = build_monospace_font(self.settings)
-        dialog_highlight_style = read_log_text_style(self.settings)
+        dialog_font = build_monospace_font(self.shell.settings)
+        dialog_highlight_style = read_log_text_style(self.shell.settings)
         preview_color_scheme = read_text_color_scheme(
-            self.settings,
+            self.shell.settings,
             "appearance/preview_color_scheme",
             DEFAULT_UI_PREVIEW_COLOR_SCHEME,
         )
         preview_text_edit = CodePreviewEditor(
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
             highlight_style=dialog_highlight_style,
             color_scheme=preview_color_scheme,
         )
         preview_text_edit.document().setMaximumBlockCount(5000)
         preview_summary_edit = ArchiveDetailsEditor(
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
             highlight_style=dialog_highlight_style,
             color_scheme=preview_color_scheme,
         )
         preview_summary_edit.document().setMaximumBlockCount(5000)
         preview_info_edit = ArchiveDetailsEditor(
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
             highlight_style=dialog_highlight_style,
             color_scheme=preview_color_scheme,
         )
@@ -161,7 +161,7 @@ class ArchiveReferencePreviewMixin:
         preview_info_edit.apply_font_preferences(dialog_font, preserve_size=False)
         preview_info_edit.set_highlight_style(dialog_highlight_style)
         preview_info_edit.set_color_scheme(preview_color_scheme)
-        preview_model = NativePreviewPanel("No model preview available.", theme_key=self.current_theme_key)
+        preview_model = NativePreviewPanel("No model preview available.", theme_key=self.shell.current_theme_key)
         self._configure_model_preview_widget(preview_model, apply_toggle_defaults=True)
         preview_d3d11_host = RustPreviewHostFrame(
             dialog,
@@ -169,7 +169,7 @@ class ArchiveReferencePreviewMixin:
             terminate_on_close=True,
         )
         preview_d3d11_host.setMinimumSize(320, 240)
-        preview_media = MediaPreviewWidget("No media preview available.", theme_key=self.current_theme_key)
+        preview_media = MediaPreviewWidget("No media preview available.", theme_key=self.shell.current_theme_key)
         preview_stack.addWidget(preview_scroll)
         # Retained off-stack as a data/settings compatibility adapter.  Model
         # pixels are rendered only by the resident Rust Preview host.
@@ -205,7 +205,7 @@ class ArchiveReferencePreviewMixin:
         preview_stack.currentChanged.connect(_update_reference_preview_text_tools_visibility)
 
         details_edit = ArchiveDetailsEditor(
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
             highlight_style=dialog_highlight_style,
             color_scheme=preview_color_scheme,
         )
@@ -400,7 +400,7 @@ class ArchiveReferencePreviewMixin:
             )
 
     def _update_archive_texture_reference_action_controls(self) -> None:
-        controls_enabled = self.worker_thread is None
+        controls_enabled = self.shell.worker_thread is None
         family_reason = (
             "wait for the current background task to finish"
             if not controls_enabled
@@ -532,7 +532,7 @@ class ArchiveReferencePreviewMixin:
         reference = selected_references[0] if len(selected_references) == 1 else self._current_archive_texture_reference()
         resolved_entry = getattr(reference, "resolved_entry", None) if reference is not None else None
         if not isinstance(resolved_entry, ArchiveEntry):
-            self.set_status_message("Select a resolved referenced file first.", error=True)
+            self.shell.set_status_message("Select a resolved referenced file first.", error=True)
             return
         semantic_sidecar_texts = tuple(
             str(text or "") for text in getattr(reference, "sidecar_texts", ()) if str(text or "").strip()
@@ -549,14 +549,14 @@ class ArchiveReferencePreviewMixin:
         current_result = self._current_archive_preview_result_for_reference_entry(resolved_entry)
         if current_result is not None:
             self._show_archive_reference_preview_dialog(resolved_entry, current_result)
-            self.set_status_message(f"Opened preview for {resolved_entry.basename}.")
+            self.shell.set_status_message(f"Opened preview for {resolved_entry.basename}.")
             return
         remote_dependencies = None
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_dependencies = remote_bridge.prepared_dependencies_for(resolved_entry)
             if remote_dependencies is None:
-                self.set_status_message(
+                self.shell.set_status_message(
                     "Referenced preview dependencies are no longer available; select the source asset again.",
                     error=True,
                 )
@@ -697,12 +697,12 @@ class ArchiveReferencePreviewMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchivePreviewResult):
-                self.set_status_message("Referenced-file preview finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Referenced-file preview finished with an unexpected result payload.", error=True)
                 return
             self._show_archive_reference_preview_dialog(resolved_entry, result)
-            self.set_status_message(f"Opened preview for {resolved_entry.basename}.")
+            self.shell.set_status_message(f"Opened preview for {resolved_entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Preparing preview for {resolved_entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -712,7 +712,7 @@ class ArchiveReferencePreviewMixin:
     def _export_selected_archive_texture_reference(self) -> None:
         selected_entries = self._resolved_archive_reference_entries(self._selected_archive_texture_references())
         if not selected_entries:
-            self.set_status_message("Select one or more resolved referenced files first.", error=True)
+            self.shell.set_status_message("Select one or more resolved referenced files first.", error=True)
             return
         self._export_archive_reference_entries_to_folder(
             selected_entries,
@@ -722,7 +722,7 @@ class ArchiveReferencePreviewMixin:
     def _export_all_archive_texture_references(self) -> None:
         resolved_entries = self._resolved_archive_reference_entries(self.current_archive_model_texture_references)
         if not resolved_entries:
-            self.set_status_message("No resolved referenced files are available to export.", error=True)
+            self.shell.set_status_message("No resolved referenced files are available to export.", error=True)
             return
         self._export_archive_reference_entries_to_folder(
             resolved_entries,

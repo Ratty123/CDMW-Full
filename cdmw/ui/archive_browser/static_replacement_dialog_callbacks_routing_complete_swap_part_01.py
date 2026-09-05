@@ -148,7 +148,7 @@ def _routing_complete_swap_step_005(_state):
         if not (callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active()):
             return False
         message = 'Active Mesh Editor complete-swap material routing requires native material execution; Python texture routing mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True

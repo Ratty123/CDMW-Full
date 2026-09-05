@@ -117,7 +117,7 @@ def _mesh_edit_cancel_topology_worker(_state, _callbacks, ) -> None:
     set_label = getattr(progress, "setLabelText", None)
     if callable(set_label):
         set_label("Cancelling mesh edit...")
-    _state.self.set_status_message("Cancelling mesh edit...")
+    _state.self.shell.set_status_message("Cancelling mesh edit...")
 
 def _mesh_edit_topology_worker_progress(_state, _callbacks, request_id: int, percent: int, message: str) -> None:
     if int(request_id) != int(_state.mesh_edit_topology_worker_state.get("request_id", 0) or 0):
@@ -162,7 +162,7 @@ def _mesh_edit_topology_worker_failed(_state, _callbacks, request_id: int, messa
     _callbacks._mesh_edit_pop_undo_snapshot()
     _state._pop_geometry_undo_snapshot()
     _callbacks._refresh_mesh_edit_controls()
-    _state.self.set_status_message(str(message or "Mesh edit failed."), error=True)
+    _state.self.shell.set_status_message(str(message or "Mesh edit failed."), error=True)
 
 def _mesh_edit_topology_worker_cancelled(_state, _callbacks, request_id: int, message: str) -> None:
     if int(request_id) != int(_state.mesh_edit_topology_worker_state.get("request_id", 0) or 0):
@@ -170,7 +170,7 @@ def _mesh_edit_topology_worker_cancelled(_state, _callbacks, request_id: int, me
     _callbacks._mesh_edit_pop_undo_snapshot()
     _state._pop_geometry_undo_snapshot()
     _callbacks._refresh_mesh_edit_controls()
-    _state.self.set_status_message(str(message or "Mesh edit cancelled."))
+    _state.self.shell.set_status_message(str(message or "Mesh edit cancelled."))
 
 def _mesh_edit_topology_worker_completed(_state, _callbacks,
         request_id: int,
@@ -185,7 +185,7 @@ def _mesh_edit_topology_worker_completed(_state, _callbacks,
         _callbacks._mesh_edit_pop_undo_snapshot()
         _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
-        _state.self.set_status_message("Mesh edit result was discarded because the mesh changed while it was running.", error=True)
+        _state.self.shell.set_status_message("Mesh edit result was discarded because the mesh changed while it was running.", error=True)
         return
     if callable(result_adapter):
         try:
@@ -210,7 +210,7 @@ def _mesh_edit_start_topology_worker(_state, _callbacks,
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:
         return False
     if _callbacks._mesh_edit_worker_active():
-        _state.self.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
+        _state.self.shell.set_status_message("Wait for the current mesh edit to finish, or cancel it first.", error=True)
         return True
     if not _callbacks._mesh_edit_should_run_topology_worker(
         selected_vertices,
@@ -290,7 +290,7 @@ def _mesh_edit_start_topology_worker(_state, _callbacks,
         }
     )
     _callbacks._refresh_mesh_edit_controls()
-    _state.self.set_status_message(f"Applying {action_text} in the background...")
+    _state.self.shell.set_status_message(f"Applying {action_text} in the background...")
     thread.start(_state.QThread.LowPriority)
     return True
 
@@ -309,7 +309,7 @@ def _sync_mesh_editor_tab_action_state(_state, _callbacks,
     mode = "edit" if editing_active else "object"
     selection_empty = (int(selected_count or 0) + int(selected_face_count or 0) + int(selected_edge_count or 0)) <= 0
     active_tool_key = _callbacks._mesh_editor_active_tool_action_key()
-    mesh_editor_tab = getattr(_state.self, "mesh_editor_tab", None)
+    mesh_editor_tab = getattr(_state.self.shell, "mesh_editor_tab", None)
     update_action_state = getattr(mesh_editor_tab, "update_editor_action_state", None)
     if callable(update_action_state):
         update_action_state(

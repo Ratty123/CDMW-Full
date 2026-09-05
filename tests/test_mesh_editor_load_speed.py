@@ -11,11 +11,7 @@ from cdmw.rendering.model_preview_prepare import (
     build_vertex_blob,
     build_vertex_blob_python_reference,
 )
-from cdmw.rendering.native_preview_package import (
-    ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES,
-    read_isolated_d3d11_preview_manifest,
-    write_isolated_d3d11_preview_package,
-)
+from cdmw.rendering.native_preview_payloads import ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES
 from tests.static_replacement_source_support import static_replacement_callback_factory_source
 
 
@@ -328,129 +324,7 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertEqual(100, batches[0].source_face_range_start)
         self.assertEqual(1, batches[0].source_face_range_count)
 
-    def test_package_writer_routes_descriptor_backed_identity_through_native(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="cdmw-preview-identity-descriptor-") as temp_dir:
-            root = Path(temp_dir)
-            source_vertices_path = root / "source_vertices.bin"
-            source_faces_path = root / "source_faces.bin"
-            source_vertices_path.write_bytes(struct.pack("<3i", 10, 11, 12))
-            source_faces_path.write_bytes(struct.pack("<i", 100))
-            batch = PreparedModelPreviewBatch(
-                material_name="descriptor-identity",
-                vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-                index_count=3,
-                source_submesh_index=4,
-                source_vertex_indices_binary={"path": str(source_vertices_path), "count": 3, "components": 1, "type": "i32"},
-                source_face_indices_binary={"path": str(source_faces_path), "count": 1, "components": 1, "type": "i32"},
-                editor_identity_blob=struct.pack("<iiiiiiiii", 4, 10, 100, 4, 11, 100, 4, 12, 100),
-            )
-            prepared = PreparedModelPreviewData(
-                source_path="descriptor-identity.pac",
-                mesh_count=1,
-                vertex_count=3,
-                face_count=1,
-                batches=(batch,),
-            )
-            calls: list[dict[str, object]] = []
 
-            def _fake_native_identity(output_path: Path, **kwargs: object) -> dict[str, object]:
-                calls.append(dict(kwargs))
-                with Path(output_path).open("ab") as stream:
-                    stream.write(struct.pack("<iiiiiiiii", 4, 10, 100, 4, 11, 100, 4, 12, 100))
-                return {
-                    "source_submesh_index": 4,
-                    "source_vertex_count": 13,
-                    "source_face_count": 101,
-                    "identity_stride_bytes": 12,
-                    "identity_size": 36,
-                    "role": "replacement_preview",
-                    "part_name": "descriptor-identity",
-                    "editable": True,
-                }
-
-            with patch(
-                "cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob",
-                side_effect=_fake_native_identity,
-            ):
-                package_dir = write_isolated_d3d11_preview_package(
-                    ModelPreviewData(path="descriptor-identity.pac"),
-                    prepared,
-                    output_root=root / "package",
-                    use_textures=False,
-                    high_quality_textures=False,
-                )
-
-            self.assertEqual(1, len(calls))
-            self.assertIn("source_vertex_indices_binary", calls[0])
-            self.assertEqual((), calls[0]["source_vertex_indices"])
-            self.assertEqual((), calls[0]["source_face_indices"])
-            self.assertEqual(str(source_vertices_path), calls[0]["source_vertex_indices_binary"]["path"])
-            self.assertEqual(str(source_faces_path), calls[0]["source_face_indices_binary"]["path"])
-            manifest = read_isolated_d3d11_preview_manifest(package_dir)
-            identity = manifest["batches"][0]["editor_identity"]
-            self.assertEqual(13, identity["source_vertex_count"])
-            self.assertEqual(101, identity["source_face_count"])
-
-    def test_package_writer_routes_range_backed_identity_through_native(self) -> None:
-        batch = PreparedModelPreviewBatch(
-            material_name="range-identity",
-            vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=3,
-            source_submesh_index=4,
-            source_vertex_range_start=10,
-            source_vertex_range_count=3,
-            source_face_range_start=100,
-            source_face_range_count=1,
-        )
-        prepared = PreparedModelPreviewData(
-            source_path="range-identity.pac",
-            mesh_count=1,
-            vertex_count=3,
-            face_count=1,
-            batches=(batch,),
-        )
-        calls: list[dict[str, object]] = []
-
-        def _fake_native_identity(output_path: Path, **kwargs: object) -> dict[str, object]:
-            calls.append(dict(kwargs))
-            with Path(output_path).open("ab") as stream:
-                stream.write(struct.pack("<iiiiiiiii", 4, 10, 100, 4, 11, 100, 4, 12, 100))
-            return {
-                "source_submesh_index": 4,
-                "source_vertex_count": 13,
-                "source_face_count": 101,
-                "identity_stride_bytes": 12,
-                "identity_size": 36,
-                "role": "",
-                "part_name": "",
-                "editable": True,
-            }
-
-        range_identity: dict[str, object] = {}
-        with tempfile.TemporaryDirectory(prefix="cdmw-preview-identity-range-") as temp_dir, patch(
-            "cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob",
-            side_effect=_fake_native_identity,
-        ):
-            package_dir = write_isolated_d3d11_preview_package(
-                ModelPreviewData(path="range-identity.pac"),
-                prepared,
-                output_root=Path(temp_dir) / "package",
-                use_textures=False,
-                high_quality_textures=False,
-            )
-            range_identity = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]["editor_identity"]
-
-        self.assertEqual(1, len(calls))
-        self.assertEqual((), calls[0]["source_vertex_indices"])
-        self.assertEqual((), calls[0]["source_face_indices"])
-        self.assertEqual(10, calls[0]["source_vertex_start"])
-        self.assertEqual(3, calls[0]["source_vertex_count"])
-        self.assertEqual(100, calls[0]["source_face_start"])
-        self.assertEqual(1, calls[0]["source_face_count"])
-        self.assertIsNone(calls[0]["source_vertex_indices_binary"])
-        self.assertIsNone(calls[0]["source_face_indices_binary"])
-        self.assertEqual(13, range_identity["source_vertex_count"])
-        self.assertEqual(101, range_identity["source_face_count"])
 
     def test_native_preview_geometry_bridge_uses_binary_sidecars(self) -> None:
         from cdmw.modding import mesh_native_core
@@ -508,184 +382,9 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
 
         self.assertEqual("ok", report["status"])
 
-    def test_package_uses_aggregate_geometry_and_identity_offsets(self) -> None:
-        batch_a = PreparedModelPreviewBatch(
-            material_name="a",
-            vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=3,
-            source_submesh_index=4,
-            source_vertex_indices=(10, 11, 12),
-            source_face_indices=(100,),
-        )
-        batch_b = PreparedModelPreviewBatch(
-            material_name="b",
-            vertex_blob=b"\1" * (6 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=6,
-            source_submesh_index=8,
-            source_vertex_indices=(20, 21, 22, 23, 24, 25),
-            source_face_indices=(200, 201),
-        )
-        prepared = PreparedModelPreviewData(
-            source_path="aggregate.pac",
-            mesh_count=2,
-            vertex_count=9,
-            face_count=3,
-            batches=(batch_a, batch_b),
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            package_dir = write_isolated_d3d11_preview_package(
-                ModelPreviewData(path="aggregate.pac"),
-                prepared,
-                output_root=Path(tmp) / "package",
-                use_textures=False,
-                high_quality_textures=False,
-            )
-            manifest = read_isolated_d3d11_preview_manifest(package_dir)
 
-            geometry_path = package_dir / "geometry" / "geometry.bin"
-            identity_path = package_dir / "geometry" / "identity.bin"
-            first, second = manifest["batches"]
-            self.assertTrue(geometry_path.is_file())
-            self.assertTrue(identity_path.is_file())
-            self.assertEqual("geometry/geometry.bin", first["vertex_file"])
-            self.assertEqual("geometry/geometry.bin", second["vertex_file"])
-            self.assertEqual(0, first["vertex_offset"])
-            self.assertEqual(3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES, second["vertex_offset"])
-            self.assertEqual("geometry/identity.bin", first["editor_identity"]["identity_file"])
-            self.assertEqual(0, first["editor_identity"]["identity_offset"])
-            self.assertEqual(3 * 12, second["editor_identity"]["identity_offset"])
-            self.assertEqual(12, first["editor_identity"]["identity_stride_bytes"])
-            self.assertEqual(12, second["editor_identity"]["identity_stride_bytes"])
-            identity_blob = identity_path.read_bytes()
-            self.assertEqual((4, 10, 100, 4, 11, 100, 4, 12, 100), struct.unpack_from("<iiiiiiiii", identity_blob, 0))
-            self.assertEqual((8, 20, 200, 8, 21, 200, 8, 22, 200), struct.unpack_from("<iiiiiiiii", identity_blob, 3 * 12))
 
-    def test_package_writer_uses_native_identity_writer_when_available(self) -> None:
-        batch = PreparedModelPreviewBatch(
-            material_name="native",
-            vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=3,
-            source_submesh_index=4,
-            source_vertex_indices=(10, 11, 12),
-            source_face_indices=(100,),
-            editor_role="replacement_preview",
-            editor_part_name="native_part",
-        )
-        prepared = PreparedModelPreviewData(
-            source_path="native.pac",
-            mesh_count=1,
-            vertex_count=3,
-            face_count=1,
-            batches=(batch,),
-        )
-        calls: list[dict[str, object]] = []
 
-        def _fake_native_identity(output_path: Path, **kwargs: object) -> dict[str, object]:
-            calls.append(dict(kwargs))
-            with Path(output_path).open("ab") as stream:
-                stream.write(struct.pack("<iiiiiiiii", 4, 10, 100, 4, 11, 100, 4, 12, 100))
-            return {
-                "source_submesh_index": 4,
-                "source_vertex_count": 13,
-                "source_face_count": 101,
-                "identity_stride_bytes": 12,
-                "identity_size": 36,
-                "role": "replacement_preview",
-                "part_name": "native_part",
-                "editable": True,
-            }
-
-        with tempfile.TemporaryDirectory() as tmp, patch(
-            "cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob",
-            side_effect=_fake_native_identity,
-        ):
-            package_dir = write_isolated_d3d11_preview_package(
-                ModelPreviewData(path="native.pac"),
-                prepared,
-                output_root=Path(tmp) / "package",
-                use_textures=False,
-                high_quality_textures=False,
-            )
-
-            manifest = read_isolated_d3d11_preview_manifest(package_dir)
-            identity = manifest["batches"][0]["editor_identity"]
-            self.assertEqual(1, len(calls))
-            self.assertEqual("geometry/identity.bin", identity["identity_file"])
-            self.assertEqual(0, identity["identity_offset"])
-            self.assertEqual(36, identity["identity_size"])
-            self.assertEqual(13, identity["source_vertex_count"])
-            self.assertEqual(
-                (4, 10, 100, 4, 11, 100, 4, 12, 100),
-                struct.unpack("<iiiiiiiii", (package_dir / "geometry" / "identity.bin").read_bytes()),
-            )
-
-    def test_package_writer_uses_precomputed_native_identity_blob_before_writer(self) -> None:
-        batch = PreparedModelPreviewBatch(
-            material_name="precomputed-native",
-            vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=3,
-            source_submesh_index=4,
-            source_vertex_indices=(10, 11, 12),
-            source_face_indices=(100,),
-            editor_identity_blob=struct.pack("<iiiiiiiii", 4, 10, 100, 4, 11, 100, 4, 12, 100),
-        )
-        prepared = PreparedModelPreviewData(
-            source_path="precomputed-native.pac",
-            mesh_count=1,
-            vertex_count=3,
-            face_count=1,
-            batches=(batch,),
-        )
-        with tempfile.TemporaryDirectory() as tmp, patch(
-            "cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob",
-            side_effect=AssertionError("precomputed native identity should be used"),
-        ):
-            package_dir = write_isolated_d3d11_preview_package(
-                ModelPreviewData(path="precomputed-native.pac"),
-                prepared,
-                output_root=Path(tmp) / "package",
-                use_textures=False,
-                high_quality_textures=False,
-            )
-
-            manifest = read_isolated_d3d11_preview_manifest(package_dir)
-            identity = manifest["batches"][0]["editor_identity"]
-            self.assertEqual(36, identity["identity_size"])
-            self.assertEqual(13, identity["source_vertex_count"])
-            self.assertEqual(101, identity["source_face_count"])
-            self.assertEqual(
-                (4, 10, 100, 4, 11, 100, 4, 12, 100),
-                struct.unpack("<iiiiiiiii", (package_dir / "geometry" / "identity.bin").read_bytes()),
-            )
-
-    def test_package_writer_uses_prepared_geometry_metadata_without_vertex_rescan(self) -> None:
-        batch = PreparedModelPreviewBatch(
-            material_name="metadata",
-            vertex_blob=b"\0" * (3 * ISOLATED_PREVIEW_VERTEX_STRIDE_BYTES),
-            index_count=3,
-            preview_base_color=(0.2, 0.3, 0.4),
-            tangents_usable=True,
-        )
-        prepared = PreparedModelPreviewData(
-            source_path="metadata.pac",
-            mesh_count=1,
-            vertex_count=3,
-            face_count=1,
-            batches=(batch,),
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            package_dir = write_isolated_d3d11_preview_package(
-                ModelPreviewData(path="metadata.pac"),
-                prepared,
-                output_root=Path(tmp) / "package",
-                use_textures=False,
-                high_quality_textures=False,
-            )
-            manifest = read_isolated_d3d11_preview_manifest(package_dir)
-
-        payload = manifest["batches"][0]
-        self.assertEqual([0.2, 0.3, 0.4], payload["base_color"])
-        self.assertTrue(payload["tangents_usable"])
 
     def test_main_window_cache_split_source_guards(self) -> None:
         source = _static_alignment_source()
@@ -709,8 +408,6 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
     def test_package_texture_caches_are_source_stat_and_slot_policy_based(self) -> None:
         source = "\n".join(
             (
-                _read("cdmw/rendering/native_preview_package.py"),
-                _read("cdmw/rendering/native_preview_package_writer.py"),
                 _read("cdmw/rendering/native_preview_texture_sources.py"),
             )
         )
@@ -719,18 +416,7 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertIn("def _texture_copy_slot_policy(", source)
         self.assertIn("slot_policy = _texture_copy_slot_policy(", source)
         self.assertIn("cache_key = _source_file_stat_key(source)", source)
-        self.assertIn("dds_manifest_cache", source)
-        self.assertIn('"texture_manifest": {', source)
 
-    def test_vortice_loader_streams_and_bounds_package_geometry(self) -> None:
-        source = _read("tools/dotnet_mesh_editor_experiment/NativePreviewPackageDocument.cs")
-
-        self.assertIn("FileOptions.SequentialScan", source)
-        self.assertIn("stream.ReadExactly(vertex);", source)
-        self.assertIn("var expectedBytes = checked((long)vertexCount * BytesPerVertex);", source)
-        self.assertIn("fileLength != expectedBytes", source)
-        self.assertIn("totalVertices > MaximumVertices", source)
-        self.assertIn("var uv = new Vec2(nativeU, 1.0f - nativeV);", source)
 
 
 if __name__ == "__main__":

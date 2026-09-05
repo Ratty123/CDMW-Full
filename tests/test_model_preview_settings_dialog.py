@@ -461,9 +461,9 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertIn("d3d11_environment_strength = defaults.d3d11_environment_strength", source)
         self.assertIn("d3d11_tone_gamma = defaults.d3d11_tone_gamma", source)
         self.assertIn("diffuse_wrap_bias = defaults.diffuse_wrap_bias", source)
-        self.assertIn('self.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)', source)
-        self.assertIn('self.settings.setValue("preview/specular_max", specular_max)', source)
-        self.assertIn('self.settings.setValue("preview/d3d11_lighting_defaults_version", 7)', source)
+        self.assertIn('self.shell.settings.setValue("preview/diffuse_wrap_bias", diffuse_wrap_bias)', source)
+        self.assertIn('self.shell.settings.setValue("preview/specular_max", specular_max)', source)
+        self.assertIn('self.shell.settings.setValue("preview/d3d11_lighting_defaults_version", 7)', source)
 
 
 if __name__ == "__main__":

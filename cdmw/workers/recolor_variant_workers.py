@@ -33,12 +33,14 @@ class RecolorVariantBuildWorker(QObject):
         profiles: Sequence[RecolorVariantOutputProfile],
         *,
         overwrite_existing: bool,
+        edited_inputs=(),
     ) -> None:
         super().__init__()
         self.analysis = analysis
         self.template = template
         self.output_root = output_root
         self.profiles = tuple(profiles)
+        self.edited_inputs = tuple(edited_inputs)
         self.overwrite_existing = bool(overwrite_existing)
         self.stop_event = threading.Event()
 
@@ -48,11 +50,15 @@ class RecolorVariantBuildWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
+            from cdmw.domain.textures.editor_composite import flatten_texture_editor_layers
+            source_pixels = {item.relative_path: flatten_texture_editor_layers(item.document, item.layer_pixels)
+                             for item in self.edited_inputs if item.document is not None}
             result = build_recolor_variant_outputs(
                 self.analysis,
                 self.template,
                 self.output_root,
                 self.profiles,
+                source_pixels=source_pixels,
                 overwrite_existing=self.overwrite_existing,
                 stop_event=self.stop_event,
                 on_log=lambda message: _emit(self.log_message, message),

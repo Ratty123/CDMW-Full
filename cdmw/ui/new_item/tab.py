@@ -56,7 +56,7 @@ _PAPPT_LAYOUT_ERROR_PREFIX = "unsupported part-prefab table layout"
 def _window_package_root(window: object) -> str:
     """The game folder the shell's Archive Browser points at, if the window has one."""
 
-    edit = getattr(window, "archive_package_root_edit", None)
+    edit = getattr(getattr(window, "archive", None), "archive_package_root_edit", None)
     text = getattr(edit, "text", None)
     if callable(text):
         try:
@@ -123,21 +123,21 @@ class NewItemStudioTab(QWidget):
         super().__init__(parent)
         self._applying_step_style = False
         self._window = window
-        self._get_entries = get_archive_entries or (lambda: getattr(window, "archive_entries", None) or ())
+        self._get_entries = get_archive_entries or (lambda: getattr(getattr(window, "archive", None), "archive_entries", None) or ())
         self._get_package_root = get_package_root or (lambda: _window_package_root(window))
         self._effect_dirty_prompt = effect_dirty_prompt or self._prompt_for_staged_effect
         self.controller = controller or NewItemStudioController(service=service, parent=self)
-        cache_root = getattr(window, "archive_cache_root", None)
+        cache_root = getattr(getattr(window, "archive", None), "archive_cache_root", None)
         if cache_root is not None and self.controller.effect_cache_path is None:
             self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
-        preview_settings_provider = getattr(window, "_current_model_preview_render_settings", None)
+        preview_settings_provider = getattr(getattr(window, "archive", None), "_current_model_preview_render_settings", None)
         self._preview_render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings(
             preview_settings_provider() if callable(preview_settings_provider) else None
         )
-        archive_settings_provider = getattr(window, "_current_archive_performance_settings", None)
+        archive_settings_provider = getattr(getattr(window, "shell", None), "_current_archive_performance_settings", None)
         self._preview_cache_mode = clamp_archive_performance_settings(
             archive_settings_provider() if callable(archive_settings_provider) else None
         ).native_preview_cache_mode
@@ -177,14 +177,14 @@ class NewItemStudioTab(QWidget):
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
         preview_settings_signal = getattr(
-            getattr(window, "settings_tab", None),
+            getattr(getattr(window, "shell", None), "settings_tab", None),
             "model_preview_settings_changed",
             None,
         )
         if preview_settings_signal is not None:
             preview_settings_signal.connect(self.set_preview_render_settings)
         archive_settings_signal = getattr(
-            getattr(window, "settings_tab", None),
+            getattr(getattr(window, "shell", None), "settings_tab", None),
             "archive_performance_settings_changed",
             None,
         )
@@ -729,8 +729,8 @@ class NewItemStudioTab(QWidget):
 
     def _activate_model_part_editor(self) -> bool:
         window = self._window
-        container = getattr(window, "mesh_editor_tab", None)
-        activate = getattr(window, "_activate_tool_widget", None)
+        container = getattr(getattr(window, "shell", None), "mesh_editor_tab", None)
+        activate = getattr(getattr(window, "shell", None), "_activate_tool_widget", None)
         if container is None or not callable(activate):
             self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
             return False
@@ -757,7 +757,7 @@ class NewItemStudioTab(QWidget):
             self._activate_model_part_editor()
             return
         window = self._window
-        container = getattr(window, "mesh_editor_tab", None)
+        container = getattr(getattr(window, "shell", None), "mesh_editor_tab", None)
         ensure = getattr(container, "ensure_widget", None)
         try:
             editor = ensure() if callable(ensure) else container

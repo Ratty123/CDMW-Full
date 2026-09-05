@@ -17,7 +17,7 @@ class ArchiveImportActionsMixin:
     def _import_current_archive_hkx_json(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry before importing HKX JSON.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry before importing HKX JSON.", error=True)
             return
 
         json_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -39,7 +39,7 @@ class ArchiveImportActionsMixin:
     def _import_current_archive_hkx_xml(self) -> None:
         entry = self._current_archive_hkx_entry()
         if entry is None:
-            self.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry before importing HKX XML.", error=True)
+            self.shell.set_status_message("Select a Crimson Desert .hkx/.hkt archive entry before importing HKX XML.", error=True)
             return
 
         xml_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -61,38 +61,38 @@ class ArchiveImportActionsMixin:
     def _preview_current_archive_mesh_import(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before importing an OBJ preview.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh before importing an OBJ preview.", error=True)
             return
-        self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
+        self.shell._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
         self._start_archive_mesh_import_preview(current_entry)
 
     def _preview_current_archive_mesh_dds_import(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before previewing an imported DDS.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh before previewing an imported DDS.", error=True)
             return
         self._start_archive_mesh_dds_import_preview(current_entry)
 
     def _patch_current_archive_mesh_from_obj(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before importing an OBJ.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh before importing an OBJ.", error=True)
             return
-        self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
+        self.shell._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
         self._start_archive_mesh_patch(current_entry)
 
     def _full_import_current_archive_model_replacement(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before replacing it with an external model.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh before replacing it with an external model.", error=True)
             return
-        self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
+        self.shell._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
         self._start_archive_full_import_model_replacement(current_entry)
 
     def _swap_current_archive_mesh_with_in_game(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before swapping with an in-game mesh.", error=True)
+            self.shell.set_status_message("Select a supported archive mesh before swapping with an in-game mesh.", error=True)
             return
         # Arming a swap target must not leave Archive Browser: the next step is
         # picking the source here. _start_archive_in_game_mesh_swap opens the

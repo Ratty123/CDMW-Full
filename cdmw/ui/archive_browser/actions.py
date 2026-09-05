@@ -360,9 +360,9 @@ class ArchiveBrowserActionMixin:
         entry_snapshot = copy.deepcopy(entry)
 
         def launch() -> None:
-            if bool(getattr(self, "_shutting_down", False)):
+            if bool(getattr(self.shell, "_shutting_down", False)):
                 return
-            self._launch_archive_mesh_editor_for_entry(entry_snapshot)
+            self.shell._launch_archive_mesh_editor_for_entry(entry_snapshot)
 
         QTimer.singleShot(0, launch)
 
@@ -402,7 +402,7 @@ class ArchiveBrowserActionMixin:
 
         def _copy_archive_filename(current_entry: ArchiveEntry) -> None:
             QApplication.clipboard().setText(current_entry.basename)
-            self.set_status_message(f"Copied filename to clipboard: {current_entry.basename}")
+            self.shell.set_status_message(f"Copied filename to clipboard: {current_entry.basename}")
 
         _add_menu_section("view", "View + Inspect")
         preview_action = menu.addAction(menu_icons["view"], "Preview")
@@ -527,7 +527,7 @@ class ArchiveBrowserActionMixin:
                 )
 
         elapsed_ms = max(0.0, (time.perf_counter() - context_started_at) * 1000.0)
-        self.append_archive_log(
+        self.shell.append_archive_log(
             f"Archive context menu timing | build={elapsed_ms:.0f}ms | path={entry.path}",
             verbose=True,
         )
@@ -552,7 +552,7 @@ class ArchiveBrowserActionMixin:
         if entry is None:
             return
         QApplication.clipboard().setText(entry.basename)
-        self.set_status_message(f"Copied filename to clipboard: {entry.basename}")
+        self.shell.set_status_message(f"Copied filename to clipboard: {entry.basename}")
 
     def _export_current_archive_file(self) -> None:
         entry = self._current_archive_action_entry("Export File")
@@ -568,7 +568,7 @@ class ArchiveBrowserActionMixin:
         if remote_bridge is not None and remote_bridge.displays_v2:
             selection = remote_bridge.current_entry_export_selection()
             if selection is None:
-                self.set_status_message("Select an archive file before using Extract File.", error=True)
+                self.shell.set_status_message("Select an archive file before using Extract File.", error=True)
                 return
             self._run_remote_archive_export(
                 selection,

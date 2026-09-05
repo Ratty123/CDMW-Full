@@ -9,6 +9,9 @@ from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
 
 class _StartupReadinessHarness(ArchiveRenderLifecycleMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_startup_hold_until_ready = True
         self.archive_startup_index_warmup_required = True
         self.archive_startup_saved_filter_apply_pending = False
@@ -81,10 +84,10 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
         first_paint = render_source[render_source.index("    def _handle_archive_browser_first_visible_paint") : render_source.index("\n\n__all__")]
 
         self.assertIn(
-            "self.archive_startup_index_warmup_required = not use_remote_backend",
+            'self.archive.archive_startup_index_warmup_required = not use_remote_backend',
             autoload,
         )
-        self.assertNotIn("self._release_startup_splash()", autoload[autoload.index("        self.scan_archives(") :])
+        self.assertNotIn("self._release_startup_splash()", autoload[autoload.index("        self.archive.scan_archives(") :])
         self.assertIn("startup_index_warmup = bool(", scan)
         self.assertIn("startup_index_warmup\n                or self.archive_startup_saved_filter_apply_pending", scan)
         self.assertIn("load_name_search_index_cache=startup_index_warmup", scan)
@@ -107,7 +110,7 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
         self.assertIn("self._startup_archive_browser_render_ready()", ready)
         for thread_name in ("archive_basic_index_thread", "archive_enhanced_index_thread", "archive_derived_cache_thread"):
             self.assertNotIn(thread_name, ready)
-        self.assertIn("self._release_startup_splash()\n        self._schedule_archive_post_ready_background_work()", release)
+        self.assertIn('self.shell._release_startup_splash()\n        self._schedule_archive_post_ready_background_work()', release)
 
     def test_background_icon_warmup_does_not_force_full_path_index(self) -> None:
         class Timer:
@@ -115,6 +118,11 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
                 pass
 
         class Harness(ArchiveIconPipelineMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             archive_item_asset_catalog = [{"icon_paths": ("icon.dds",)}]
             archive_item_icon_preload_pending_after_ready = False
             archive_item_icon_preload_timer = Timer()
@@ -149,6 +157,11 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
         """
 
         class Harness(ArchivePreviewWorkerMixin):
+            def __init__(self):
+                self.shell = self
+                self.archive = self
+                self.textures = self
+
             scheduled_archive_preview_request = (
                 3,
                 SimpleNamespace(extension=".pac", path="character/sword.pac"),

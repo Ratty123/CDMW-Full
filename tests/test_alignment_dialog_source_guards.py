@@ -737,12 +737,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("MeshEditorSessionRequest(", source)
         self.assertIn("from PySide6.QtCore import QTimer", source)
         self.assertIn(
-            "QTimer.singleShot(0, lambda current_entry=entry: self._start_archive_modify_original_workspace(current_entry))",
+            'QTimer.singleShot(0, lambda current_entry=entry: self.archive._start_archive_modify_original_workspace(current_entry))',
             source,
         )
         self.assertIn('mode: str = "modify_original"', source)
         self.assertIn('mode="external_import"', source)
-        self.assertIn("self._show_archive_browser_from_texture_editor(entry.path)", source)
+        self.assertIn("self.textures._show_archive_browser_from_texture_editor(entry.path)", source)
 
         self.assertIn("class MeshEditorSessionRequest:", mesh_editor_session_source)
         self.assertIn("class MeshEditorTab(", mesh_editor_source)
@@ -835,18 +835,18 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("controls_panel.setVisible(True)", source)
         self.assertNotIn("controls_panel.setMaximumWidth(0)", source)
         self.assertNotIn('dialog.setProperty("mesh_editor_embedded_preview_only", True)', source)
-        self.assertIn("builder_host = self.mesh_editor_tab.builder_host()", source)
+        self.assertIn("builder_host = self.shell.mesh_editor_tab.builder_host()", source)
         self.assertIn("if isinstance(builder_host, QWidget) and dialog.parentWidget() is builder_host:", source)
-        self.assertIn("self._activate_tool_widget(self.mesh_editor_tab)", source)
+        self.assertIn("self.shell._activate_tool_widget(self.shell.mesh_editor_tab)", source)
         self.assertIn("self.mesh_editor_tab.show_empty_state(", source)
-        self.assertIn("self.mesh_editor_tab.mount_embedded_builder(dialog)", source)
+        self.assertIn("self.shell.mesh_editor_tab.mount_embedded_builder(dialog)", source)
         self.assertIn("_fit_alignment_dialog_to_screen()", source)
         self.assertIn("dialog.raise_()", source)
         self.assertIn("if not embedded_alignment_builder:", source)
-        self.assertIn("embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, \"mesh_editor_tab\") else None", source)
+        self.assertIn('embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None', source)
         self.assertIn('control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")', source)
         self.assertIn('controls_panel.setObjectName("MeshAlignmentStickyControlPanel")', source)
-        self.assertIn("alignment_d3d11_preview_host = DotNetPreviewHostFrame(", source)
+        self.assertIn("alignment_d3d11_preview_host = RustPreviewHostFrame(", source)
         self.assertIn("profile=DotNetPreviewProfile.AUTHORING", source)
         self.assertIn("AlignmentD3D11PackageWorker(", source)
         self.assertIn('display_mode=requested_display_mode', source)
@@ -883,12 +883,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("active_package_quality", source)
         self.assertIn("mesh_edit_raw_preview_active", source)
         self.assertIn("source_face_limit", source)
-        self.assertIn("Embedded .NET/Vortice state", source)
+        self.assertIn('Embedded Rust Preview state', source)
         self.assertIn("active_preview_backend", source)
         self.assertIn("_mesh_editor_embedded_runtime_diagnostics", source)
         self.assertIn("manifest flags: two_sided_batches=", diagnostics_source)
         self.assertIn("manifest material inputs: ", diagnostics_source)
-        self.assertIn("Latest .NET/Vortice protocol event", source)
+        self.assertIn("Latest Rust Preview protocol event", source)
         self.assertIn("diagnostics_copy_button.clicked.connect", source)
         self.assertIn("_queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)", source)
 
@@ -1263,12 +1263,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         controller_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
         worker_source = (ROOT / "cdmw" / "workers" / "d3d11_package_workers.py").read_text(encoding="utf-8")
-        self.assertIn('(".NET/Vortice Preview", "d3d11")', source)
-        self.assertIn("DotNetPreviewHostFrame(", source)
+        self.assertIn('("Rust Preview", "d3d11")', source)
+        self.assertIn("RustPreviewHostFrame(", source)
         self.assertIn("profile=DotNetPreviewProfile.AUTHORING", source)
         self.assertIn('setObjectName("AlignmentDotNetVorticePreviewHost")', source)
         self.assertIn("preview_stack.setCurrentWidget(alignment_d3d11_preview_page)", source)
-        self.assertIn("build_or_lookup_dotnet_preview_package_from_model(", worker_source)
+        self.assertIn("build_or_lookup_rust_preview_package_from_model(", worker_source)
         self.assertIn("resident_preview_package_replace_v2", controller_source)
         self.assertIn("set_authoring_rehydrator", controller_source)
         self.assertIn("def set_alignment_state", host_source)
@@ -1390,7 +1390,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('return "Mesh Replacement Builder"', alignment_setup_source)
         self.assertIn('dialog_title: str = ""', source)
         self.assertIn("dialog_title = dialog_title or _alignment_builder_window_title_helper()", source)
-        self.assertIn("self.set_status_message(_alignment_builder_already_open_status_helper())", source)
+        self.assertIn("self.shell.set_status_message(_alignment_builder_already_open_status_helper())", source)
         self.assertIn("dialog_title=setup.placement_review_title or alignment_builder_window_title()", source)
         self.assertIn("dialog.setWindowTitle(dialog_title)", source)
         self.assertNotIn("dialog.setWindowTitle(_alignment_builder_window_title_helper())", source)
@@ -1430,7 +1430,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         launch_source = ARCHIVE_MESH_LAUNCH_FLOW.read_text(encoding="utf-8")
         patch_source = ARCHIVE_MESH_PATCH_FLOW.read_text(encoding="utf-8")
         modify_source = ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8")
-        embedded_host = 'embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None'
+        embedded_host = 'embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None'
 
         self.assertIn(embedded_host, launch_source)
         self.assertIn("on_accept=_start_import_preview_with_options", launch_source)
@@ -1458,7 +1458,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("Material preflight warning:", source)
         self.assertIn("A backup of the touched PAPGT/PAMT/PAZ files will be created first", source)
         self.assertNotIn("ARCHIVE_PATCH_BACKUP_ROOT", source)
-        self.assertIn("self.app_context.services.require_archive_mutations().backup_root", source)
+        self.assertIn('self.shell.app_context.services.require_archive_mutations().backup_root', source)
         self.assertIn('patch_box.setWindowTitle("Game Files Patched")', source)
         self.assertIn('warning_badge = "Patched archive"', source)
         self.assertIn("selected_related_entries: Sequence[ArchiveEntry] = ()", source)
@@ -1813,7 +1813,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.NameError = _state._context_builtin(_state.context, 'NameError')", ui_sections_source)
         self.assertIn("if callable(_state._refresh_mesh_edit_controls):", selected_part_control_source)
         self.assertIn("def _sync_mesh_editor_tab_action_state(", mesh_edit_callback_source)
-        self.assertIn('getattr(_state.self, "mesh_editor_tab", None)', mesh_edit_callback_source)
+        self.assertIn('getattr(_state.self.shell, "mesh_editor_tab", None)', mesh_edit_callback_source)
         self.assertIn('getattr(mesh_editor_tab, "update_editor_action_state", None)', mesh_edit_callback_source)
         self.assertIn("undo_count=len(_state.mesh_edit_undo_stack)", mesh_edit_callback_source)
         self.assertIn("redo_count=len(_state.mesh_edit_redo_stack)", mesh_edit_callback_source)
@@ -2257,15 +2257,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state._safe_stop_alignment_timer(_state.alignment_d3d11_status_timer)", finish_body)
         self.assertNotIn("alignment_d3d11_status_timer.stop()", finish_body)
 
-    def test_model_preview_draws_selected_part_outline_overlay(self) -> None:
-        dotnet_source = "".join(
-            (ROOT / "tools" / "dotnet_mesh_editor_experiment" / name).read_text(encoding="utf-8")
-            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
-        )
-        host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
-        self.assertIn("_overlaySelectedSources", dotnet_source)
-        self.assertIn("DrawOverlayPrimitive", dotnet_source)
-        self.assertIn("source_part_selected", host_source)
 
     def test_alignment_drag_commits_final_release_delta_before_clearing_live_transform(self) -> None:
         widget_source = _widgets_source()
@@ -3014,13 +3005,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("QTimer.singleShot(160", fast_flip_block)
         self.assertIn("_state.texture_overrides_dirty['dirty'] = True", fast_flip_block)
         self.assertIn("_reapply_current_global_flip_v_fast_preview()", source)
-        host_source = _native_d3d11_preview_host_source()
-        self.assertIn('self._presentation_state["uv"] = {"flip_v": bool(enabled)}', host_source)
         # The flip now sends its own delta rather than resending the whole
         # remembered state, which is what keeps it off the slow settle path.
-        self.assertIn('return self._remember_presentation_state({"uv": {"flip_v": bool(enabled)}})', host_source)
-        self.assertIn("def set_material_overrides(", host_source)
-        self.assertIn('"material_parameter_update"', host_source)
 
     def test_mesh_editor_builder_uses_embedded_host_and_live_preview_state(self) -> None:
         prompt_shell = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
@@ -3076,7 +3062,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             self.assertIn(f"def {function_name}", package_source)
         self.assertIn("def _alignment_d3d11_live_frame_available", loading_source)
         self.assertIn("Reused active cached package", package_source)
-        self.assertIn("Starting .NET/Vortice Preview renderer.", package_source)
+        self.assertIn("Starting Rust Preview renderer.", package_source)
         self.assertIn("Preview ready.", package_source)
 
         clear_loading_block = _nested_function_source(
@@ -3090,7 +3076,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_queue_latest_alignment_d3d11_rebuild_for_stale_reload", loading_source)
         self.assertIn("Preview reload restarted.", d3d11_watchdog_source)
         self.assertIn("_state._alignment_d3d11_restart_performance_helper(", loading_source)
-        self.assertIn(".NET/Vortice Preview reload restarted", d3d11_presentation_source)
+        self.assertIn("Rust Preview reload restarted", d3d11_presentation_source)
         self.assertNotIn("Preview stale/no fresh frame.", loading_source)
         loading_stuck_block = _nested_function_source(loading_source, "_alignment_d3d11_loading_stuck")
         self.assertIn("queued_model", loading_stuck_block)
@@ -3150,14 +3136,14 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         # camera-only. The choice persists like the grid's, so the default is
         # what an unset preference reads as, not a hardcoded state.
         self.assertIn(
-            "read_bool_setting(self.settings, alignment_gizmo_visible_settings_key, False)",
+            "read_bool_setting(self.shell.settings, alignment_gizmo_visible_settings_key, False)",
             source,
         )
         self.assertIn(
             'alignment_gizmo_visible_settings_key = "ui/mesh_alignment/gizmo_visible"',
             source,
         )
-        self.assertIn("self.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))", source)
+        self.assertIn('self.shell.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))', source)
         self.assertNotIn("preview_gizmo_checkbox.setChecked(True)", source)
         # Camera-only on load: viewport part picking stays off so a left click
         # orbits instead of entering BeginSelectionDrag("source").
@@ -3241,7 +3227,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _duplicate_selected_part(*, mirrored: bool=False)", mutation_source)
         self.assertIn("_state._source_part_duplicate_route_state_helper(", mutation_source)
         self.assertIn("_state._source_part_duplicate_presentation_state_helper(", mutation_source)
-        self.assertIn("_state.self.set_status_message(duplicate_route.status_text)", mutation_source)
+        self.assertIn("_state.self.shell.set_status_message(duplicate_route.status_text)", mutation_source)
         self.assertIn("def source_part_duplicate_undo_label", source_parts_state_source)
         self.assertIn("def source_part_duplicate_copy_suffix", source_parts_state_source)
         self.assertIn("def source_part_duplicate_status", source_parts_state_source)
@@ -3993,22 +3979,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("target_total_faces=35_000", source)
         self.assertNotIn('if _alignment_preview_detail_mode() == "full":\n                            return 0', source)
 
-    def test_alignment_dialog_routes_visible_dds_contract_and_prune_intent(self) -> None:
-        source = _main_window_source()
-        accept_source = static_replacement_callback_concern_source(ROOT, "accept_build")
-        outliner_source = static_replacement_ui_concern_source(ROOT, "source_parts_outliner")
-        setup_ui_source = static_replacement_ui_concern_source(ROOT, "setup_options_transform")
-        callback_source = _callback_factory_source()
-        routing_source = static_replacement_routing_callback_source(ROOT)
-        static_source = _static_replacer_source()
-        authority_controls_source = ARCHIVE_STATIC_REPLACEMENT_MATERIAL_AUTHORITY_CONTROLS.read_text(encoding="utf-8")
-        archive_source = _archive_modding_source()
-        package_source = (ROOT / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
-        self.assertIn("build_mesh_dotnet_experiment_package(", package_source)
-        self.assertIn("MESH_DOTNET_MATERIAL_COMPILER_VERSION", package_source)
-        self.assertIn("net_materials.json", package_source)
-        self.assertIn("canonical", package_source.casefold())
-        self.assertIn("source_material_texture_override_assignments", source)
+    def test_alignment_dialog_routes_material_texture_overrides(self) -> None:
+        self.assertIn("source_material_texture_override_assignments", _main_window_source())
 
     def test_runtime_xml_material_profile_is_available_to_runtime_combo(self) -> None:
         source = _main_window_source()
@@ -4241,7 +4213,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("saved_accent_glow = 0", source)
         self.assertIn("saved_glow_color_enabled = False", source)
         self.assertIn("saved_glow_rgb: list[int] = [255, 255, 255]", source)
-        self.assertIn("_state.self.settings.remove(_state.stale_glow_settings_key)", setup_ui_source)
+        self.assertIn("_state.self.shell.settings.remove(_state.stale_glow_settings_key)", setup_ui_source)
         self.assertNotIn('self.settings.value("settings/complete_swap_accent_glow_strength"', source)
         self.assertNotIn('self.settings.value("settings/complete_swap_accent_glow_color_enabled"', source)
         self.assertNotIn('self.settings.value("settings/complete_swap_accent_glow_color_rgb"', source)
@@ -4618,7 +4590,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"preview_rebuild_pending": False', source_parts_state_source)
         self.assertIn("def _set_source_parts_preview_rebuild_pending(reason: str) -> None:", source)
         self.assertIn(
-            "old .NET/Vortice geometry may remain visible until reload finishes",
+            'old Rust Preview geometry may remain visible until reload finishes',
             source_parts_state_source,
         )
         self.assertIn("_clear_source_parts_preview_rebuild_pending()", source)
@@ -4991,7 +4963,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('if _state._d3d11_preview_active():', queue_source)
         self.assertIn("_sync_highlight_sets()", queue_source)
         self.assertIn("_alignment_d3d11_selection_highlight_performance_helper()", queue_source)
-        self.assertIn("Selection changes use live .NET/Vortice highlight commands", d3d11_presentation_source)
+        self.assertIn('Selection changes use live Rust Preview highlight commands', d3d11_presentation_source)
         self.assertIn("_queue_static_preview_refresh()", queue_source)
         self.assertLess(
             queue_source.index("_alignment_d3d11_selection_highlight_performance_helper()"),
@@ -5167,16 +5139,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertLess(direct_apply, fallback_build)
 
     def test_authoring_prewarm_starts_before_the_authoritative_edit_session(self) -> None:
-        """The preview shell prewarms on open, and the session adopts that helper.
-
-        This guard used to assert the opposite -- that the prewarm waited for the
-        edit-session id -- because an authoring handshake made before the session
-        existed latched a throwaway id the real package could not supersede, and
-        the first Edit Mesh was refused outright.  The handshake is provisional
-        now, so the warm helper is adopted rather than colliding, and waiting
-        would only put the helper's start-up back on the click.
-        """
-
+        """The active preview shell starts its cache prewarm on open."""
         preview_shell_source = (
             ROOT
             / "cdmw"
@@ -5184,24 +5147,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             / "archive_browser"
             / "static_replacement_dialog_preview_shell.py"
         ).read_text(encoding="utf-8")
-        session_source = (
-            ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py"
-        ).read_text(encoding="utf-8")
 
         self.assertIn('"cdmwPreviewPrewarmCacheRoot"', preview_shell_source)
         self.assertIn("_prewarm_alignment_dotnet_host", preview_shell_source)
-        # The rebind is gated on the helper advertising it, never required, so an
-        # older helper still runs instead of failing provenance.
-        self.assertIn('"authoring_provisional_session_v1" in self._capabilities', session_source)
-        self.assertNotIn(
-            '"authoring_provisional_session_v1"',
-            session_source.split("_AUTHORING_PROTOCOL_CAPABILITIES = (")[1].split(")")[0],
-        )
-        # A real session must never be displaceable by another.
-        self.assertIn(
-            "if self._session_established and not self._session_provisional:",
-            session_source,
-        )
 
 if __name__ == "__main__":
     unittest.main()

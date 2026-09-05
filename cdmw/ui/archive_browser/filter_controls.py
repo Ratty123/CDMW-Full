@@ -68,7 +68,7 @@ class ArchiveFilterControlsMixin:
             return normalize_archive_structure_filter_value(self.archive_structure_filter_pending_value)
         selected_value = ""
         for combo in self.archive_structure_filter_combos:
-            value = normalize_archive_structure_filter_value(self._combo_value(combo))
+            value = normalize_archive_structure_filter_value(self.textures._combo_value(combo))
             if not value or value == selected_value:
                 break
             selected_value = value
@@ -106,14 +106,14 @@ class ArchiveFilterControlsMixin:
         elif rebuild_children or (not self.archive_structure_filter_children and self.archive_entries):
             if defer_missing_children:
                 if len(self.archive_entries) >= 100_000:
-                    self.append_archive_log(
+                    self.shell.append_archive_log(
                         "Archive Browser activation timing | cause=structure_filter | start=deferred",
                         verbose=True,
                     )
                 QTimer.singleShot(0, self._start_archive_structure_filter_worker)
             else:
                 if len(self.archive_entries) >= 500_000:
-                    self.append_archive_log(
+                    self.shell.append_archive_log(
                         "WARNING: Archive structure filter map would build on the UI thread for a large archive; deferring to background worker.",
                         verbose=True,
                     )
@@ -162,22 +162,22 @@ class ArchiveFilterControlsMixin:
             combo.setMaxVisibleItems(30)
             combo.setMinimumWidth(170)
             if parent == "":
-                self._add_combo_choice(combo, "All packages", "")
+                self.textures._add_combo_choice(combo, "All packages", "")
             else:
-                self._add_combo_choice(combo, f"All in {parent.rsplit('/', 1)[-1]}/", parent)
+                self.textures._add_combo_choice(combo, f"All in {parent.rsplit('/', 1)[-1]}/", parent)
             for child_value, count in child_options:
-                self._add_combo_choice(combo, self._format_archive_structure_combo_label(child_value, count), child_value)
+                self.textures._add_combo_choice(combo, self._format_archive_structure_combo_label(child_value, count), child_value)
 
             selected_child_value = ""
             if len(segments) > level:
                 candidate = "/".join(segments[: level + 1])
                 if combo.findData(candidate) >= 0:
                     selected_child_value = candidate
-            self._set_combo_by_value(combo, selected_child_value if selected_child_value else (parent if parent else ""))
+            self.textures._set_combo_by_value(combo, selected_child_value if selected_child_value else (parent if parent else ""))
             combo.currentIndexChanged.connect(
                 lambda _index, level=level: self._handle_archive_structure_combo_changed(level)
             )
-            combo.setEnabled(self.worker_thread is None)
+            combo.setEnabled(self.shell.worker_thread is None)
             self.archive_structure_filter_layout.addWidget(combo)
             self.archive_structure_filter_combos.append(combo)
 
@@ -204,7 +204,7 @@ class ArchiveFilterControlsMixin:
             return
         self.archive_structure_filter_pending_value = self._current_archive_structure_filter_value()
         self._rebuild_archive_structure_filter_controls(self.archive_structure_filter_pending_value)
-        self._save_settings()
+        self.shell._save_settings()
         self._mark_archive_filters_dirty()
 
     def _update_archive_filter_button_state(self) -> None:
@@ -219,15 +219,15 @@ class ArchiveFilterControlsMixin:
             and remote_bridge.displays_v2
             and remote_bridge.current_session is not None
         )
-        can_apply = self.worker_thread is None and not remote_pending and self.archive_filters_dirty
+        can_apply = self.shell.worker_thread is None and not remote_pending and self.archive_filters_dirty
         self.archive_filter_apply_button.setEnabled(can_apply)
-        self.archive_path_search_button.setEnabled(self.worker_thread is None and not remote_pending)
+        self.archive_path_search_button.setEnabled(self.shell.worker_thread is None and not remote_pending)
         self.archive_extension_picker_button.setEnabled(
-            self.worker_thread is None and not remote_pending and bool(self._archive_extension_counts())
+            self.shell.worker_thread is None and not remote_pending and bool(self._archive_extension_counts())
         )
-        self.archive_filter_clear_button.setEnabled(self.worker_thread is None and not remote_pending)
+        self.archive_filter_clear_button.setEnabled(self.shell.worker_thread is None and not remote_pending)
         self.archive_asset_catalog_button.setEnabled(
-            self.worker_thread is None
+            self.shell.worker_thread is None
             and (
                 remote_session_ready
                 or (not remote_pending and bool(self.archive_item_asset_catalog))
@@ -235,7 +235,7 @@ class ArchiveFilterControlsMixin:
         )
         self.archive_clear_asset_scope_button.setVisible(bool(self.archive_active_asset_catalog_scope))
         self.archive_clear_asset_scope_button.setEnabled(
-            self.worker_thread is None and not remote_pending and bool(self.archive_active_asset_catalog_scope)
+            self.shell.worker_thread is None and not remote_pending and bool(self.archive_active_asset_catalog_scope)
         )
         if hasattr(self, "archive_scope_banner_label"):
             scope_text = str(self.archive_active_asset_catalog_scope or "").strip()
@@ -257,17 +257,17 @@ class ArchiveFilterControlsMixin:
         self.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
         self.archive_filter_edit.clear()
         self.archive_exclude_filter_edit.clear()
-        self._set_combo_by_value(self.archive_extension_filter_combo, ARCHIVE_EXTENSION_FILTER)
+        self.textures._set_combo_by_value(self.archive_extension_filter_combo, ARCHIVE_EXTENSION_FILTER)
         self.archive_package_filter_edit.clear()
         self.archive_structure_filter_pending_value = ARCHIVE_STRUCTURE_FILTER
         self._rebuild_archive_structure_filter_controls(ARCHIVE_STRUCTURE_FILTER)
-        self._set_combo_by_value(self.archive_role_filter_combo, ARCHIVE_ROLE_FILTER)
+        self.textures._set_combo_by_value(self.archive_role_filter_combo, ARCHIVE_ROLE_FILTER)
         self.archive_exclude_common_technical_checkbox.setChecked(ARCHIVE_EXCLUDE_COMMON_TECHNICAL_SUFFIXES)
         self.archive_min_size_spin.setValue(ARCHIVE_MIN_SIZE_KB)
         self.archive_previewable_only_checkbox.setChecked(ARCHIVE_PREVIEWABLE_ONLY)
-        self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)
+        self.textures._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)
         self.archive_package_filter_hint_label.setText("Exclude accepts semicolon-separated substrings or globs.")
-        self._save_settings()
+        self.shell._save_settings()
         self._apply_archive_filter()
 
     def _clear_archive_asset_catalog_scope(self) -> None:

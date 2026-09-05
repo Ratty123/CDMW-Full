@@ -300,19 +300,19 @@ class ArchiveMeshLaunchFlowMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, dict):
-                self.set_status_message(direct_source_model_swap_unexpected_payload_status(), error=True)
+                self.shell.set_status_message(direct_source_model_swap_unexpected_payload_status(), error=True)
                 return
             preview_result = result.get("preview")
             loose_result = result.get("loose")
             if not isinstance(preview_result, MeshImportPreviewResult) or not isinstance(loose_result, ArchiveLooseExportResult):
-                self.set_status_message(direct_source_model_swap_incomplete_payload_status(), error=True)
+                self.shell.set_status_message(direct_source_model_swap_incomplete_payload_status(), error=True)
                 return
             self._show_archive_import_preview(target_entry, preview_result, patched=False)
-            self.set_status_message(
+            self.shell.set_status_message(
                 direct_source_model_swap_written_status(target_entry.basename, loose_result.package_root),
             )
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=direct_source_model_swap_task_status(target_entry.basename),
             task=_task,
             on_complete=_handle_complete,
@@ -369,7 +369,7 @@ class ArchiveMeshLaunchFlowMixin:
         if getattr(self, "pending_in_game_mesh_swap_target", None) is None:
             return
         self._set_pending_in_game_mesh_swap_target(None)
-        self.set_status_message(pending_in_game_mesh_swap_cancelled_status())
+        self.shell.set_status_message(pending_in_game_mesh_swap_cancelled_status())
 
     def _report_in_game_mesh_swap_blocked(
         self,
@@ -384,7 +384,7 @@ class ArchiveMeshLaunchFlowMixin:
         stays armed, because the target is still a valid choice.
         """
 
-        self.set_status_message(f"In-game mesh swap is unavailable: {reason}", error=True)
+        self.shell.set_status_message(f"In-game mesh swap is unavailable: {reason}", error=True)
         QMessageBox.warning(
             self,
             "In-Game Mesh Swap Not Started",
@@ -401,7 +401,7 @@ class ArchiveMeshLaunchFlowMixin:
         pending_target = self.pending_in_game_mesh_swap_target
         if pending_target is None:
             self._set_pending_in_game_mesh_swap_target(entry)
-            self.set_status_message(
+            self.shell.set_status_message(
                 pending_in_game_mesh_swap_target_status(entry.basename)
             )
             return
@@ -419,14 +419,14 @@ class ArchiveMeshLaunchFlowMixin:
         try:
             dependencies = archive_workflow_dependency_context(self, entry)
         except ArchiveWorkflowDependenciesUnavailable as exc:
-            self.set_status_message(f"Mesh import preview is unavailable: {exc}", error=True)
+            self.shell.set_status_message(f"Mesh import preview is unavailable: {exc}", error=True)
             return
         entry = dependencies.selected_entry
         if preset_setup is None:
             scene_path, _selected = QFileDialog.getOpenFileName(
                 self,
                 mesh_import_file_dialog_title(),
-                str(self.settings_file_path.parent),
+                str(self.shell.settings_file_path.parent),
                 self._archive_mesh_import_file_filter(),
             )
             if not scene_path:
@@ -446,7 +446,7 @@ class ArchiveMeshLaunchFlowMixin:
             setup = preset_setup
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
-        self._open_mesh_editor_for_entry(
+        self.shell._open_mesh_editor_for_entry(
             entry,
             mode="external_import",
             source_path=scene_path_obj,
@@ -459,7 +459,7 @@ class ArchiveMeshLaunchFlowMixin:
             activate=import_mode != "static_replacement",
         )
         if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
-            self.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))
+            self.shell.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))
 
         def _start_import_preview_with_options(static_replacement_options: Optional[StaticMeshReplacementOptions]) -> None:
             supplemental_files = setup.supplemental_files
@@ -488,12 +488,12 @@ class ArchiveMeshLaunchFlowMixin:
 
             def _handle_complete(result: object) -> None:
                 if not isinstance(result, MeshImportPreviewResult):
-                    self.set_status_message(mesh_import_preview_unexpected_payload_status(), error=True)
+                    self.shell.set_status_message(mesh_import_preview_unexpected_payload_status(), error=True)
                     return
                 self._show_archive_import_preview(entry, result, patched=False)
-                self.set_status_message(mesh_import_preview_rebuilt_status(entry.basename))
+                self.shell.set_status_message(mesh_import_preview_rebuilt_status(entry.basename))
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=mesh_import_preview_rebuild_task_status(entry.basename),
                 task=_task,
                 on_complete=_handle_complete,
@@ -515,9 +515,9 @@ class ArchiveMeshLaunchFlowMixin:
                 preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
                 source_texture_evidence=setup.source_texture_evidence,
                 extra_supplemental_specs=setup.extra_supplemental_specs,
-                embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, "mesh_editor_tab") else None,
+                embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None,
                 on_accept=_start_import_preview_with_options,
-                on_cancel=lambda: self.set_status_message(mesh_import_preview_cancelled_status()),
+                on_cancel=lambda: self.shell.set_status_message(mesh_import_preview_cancelled_status()),
             )
             return
 
@@ -525,7 +525,7 @@ class ArchiveMeshLaunchFlowMixin:
 
     def _start_archive_in_game_mesh_swap(self, target_entry: ArchiveEntry, source_entry: ArchiveEntry) -> None:
         if self._same_archive_entry(target_entry, source_entry):
-            self.set_status_message(in_game_mesh_swap_same_source_status(), error=True)
+            self.shell.set_status_message(in_game_mesh_swap_same_source_status(), error=True)
             return
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
@@ -559,7 +559,7 @@ class ArchiveMeshLaunchFlowMixin:
                 entries_by_basename=getattr(self, "archive_entries_by_basename", {}) or {},
                 remote=False,
             )
-        self._open_mesh_editor_for_entry(
+        self.shell._open_mesh_editor_for_entry(
             target_entry,
             mode="in_game_swap",
             source_entry=source_entry,
@@ -587,7 +587,7 @@ class ArchiveMeshLaunchFlowMixin:
         def _failed(message: str) -> None:
             if (
                 request_id != int(getattr(self, "archive_in_game_mesh_swap_scope_request_id", 0) or 0)
-                or bool(getattr(self, "_shutting_down", False))
+                or bool(getattr(self.shell, "_shutting_down", False))
                 or is_expected_cancellation_message(message)
                 or "cancel" in str(message).casefold()
             ):
@@ -599,7 +599,7 @@ class ArchiveMeshLaunchFlowMixin:
                 not isinstance(payload, ArchiveMeshSwapScopePreflightResult)
                 or payload.request_id
                 != int(getattr(self, "archive_in_game_mesh_swap_scope_request_id", 0) or 0)
-                or bool(getattr(self, "_shutting_down", False))
+                or bool(getattr(self.shell, "_shutting_down", False))
             ):
                 return
             swap_scope = self._prompt_archive_in_game_mesh_swap_scope(
@@ -615,7 +615,7 @@ class ArchiveMeshLaunchFlowMixin:
                     dependencies=dependencies,
                 )
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message="Preparing in-game mesh swap scope...",
             task=_task,
             on_complete=_ready,
@@ -680,7 +680,7 @@ class ArchiveMeshLaunchFlowMixin:
         def _failed(message: str) -> None:
             if (
                 request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
-                or bool(getattr(self, "_shutting_down", False))
+                or bool(getattr(self.shell, "_shutting_down", False))
                 or is_expected_cancellation_message(message)
                 or "cancel" in str(message).casefold()
             ):
@@ -695,7 +695,7 @@ class ArchiveMeshLaunchFlowMixin:
             if (
                 not isinstance(payload, ArchiveInGameMeshSwapPreparationResult)
                 or payload.request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
-                or bool(getattr(self, "_shutting_down", False))
+                or bool(getattr(self.shell, "_shutting_down", False))
             ):
                 return
             if swap_scope.use_source_model_payload_directly:
@@ -718,7 +718,7 @@ class ArchiveMeshLaunchFlowMixin:
                 if (
                     setup is None
                     or request_id != int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0)
-                    or bool(getattr(self, "_shutting_down", False))
+                    or bool(getattr(self.shell, "_shutting_down", False))
                 ):
                     return
                 setup.preferred_rebuild_material_sidecar = bool(
@@ -742,7 +742,7 @@ class ArchiveMeshLaunchFlowMixin:
                 placement_context_note=swap_placement_note,
             )
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=progress_text["label"],
             task=_task,
             on_complete=_ready,

@@ -165,6 +165,9 @@ class _FakeD3D11Host:
 
 class _FakePreviewSettingsWindow(ArchivePreviewSettingsMixin):
     def __init__(self, *, live_tuning_result: bool) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._model_preview_render_settings = ModelPreviewRenderSettings()
         self.archive_d3d11_preview_host = _FakeD3D11Host(live_tuning_result)
         self.current_archive_preview_result = ArchivePreviewResult(

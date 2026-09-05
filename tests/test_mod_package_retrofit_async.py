@@ -73,6 +73,8 @@ def _summary() -> RetrofitPathRepairSummary:
 class _ToolOwner(ArchiveModPackageRetrofitDialogMixin, QObject):
     def __init__(self, base_dir: Path) -> None:
         QObject.__init__(self)
+        self.shell = self
+        self.textures = self
         self.settings_file_path = base_dir / "settings.json"
         self.ui_localizer = None
 

@@ -730,7 +730,6 @@ class MeshEditorSessionMixin:
         self._cancel_standalone_editable_package_export_worker()
         self._cancel_standalone_edited_package_import_worker()
         self._cancel_standalone_dotnet_package_worker()
-        self._cancel_standalone_dotnet_import_worker()
         self._stop_standalone_native_preview_process()
         self._stop_standalone_dotnet_editor_process()
         if controller is not None and dispatcher is None:

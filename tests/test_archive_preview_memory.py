@@ -13,6 +13,9 @@ from cdmw.ui.archive_browser.preview_memory import ArchivePreviewMemoryAuditMixi
 
 class _MemoryAuditHarness(ArchivePreviewMemoryAuditMixin):
     def __init__(self, diagnostics: dict[str, object], *, controller: object | None = None) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.current_archive_preview_result = ArchivePreviewResult(
             status="ok",
             native_preview_diagnostics=diagnostics,

@@ -42,13 +42,8 @@ def _owned_native_files() -> tuple[Path, ...]:
     return tuple(sorted(paths))
 
 
-def _owned_csharp_files() -> tuple[Path, ...]:
-    root = ROOT / "tools" / "dotnet_mesh_editor_experiment"
-    return tuple(sorted(root.glob("*.cs"))) if root.is_dir() else ()
-
-
 def _owned_files() -> tuple[Path, ...]:
-    return (*_owned_python_files(), *_owned_native_files(), *_owned_csharp_files())
+    return (*_owned_python_files(), *_owned_native_files())
 
 
 def _relative(path: Path) -> str:
@@ -211,7 +206,6 @@ def test_size_ratchet_covers_each_owned_language_family() -> None:
     assert "tests/test_architecture_size_ratchets.py" in paths
     assert "native/cdmw_mesh_core/src/main.cpp" in paths
     assert "native/cd_hkx/src/lib.rs" in paths
-    assert "tools/dotnet_mesh_editor_experiment/Program.cs" in paths
 
 
 def test_size_ratchet_is_function_only() -> None:

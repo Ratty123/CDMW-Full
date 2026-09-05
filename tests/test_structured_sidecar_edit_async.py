@@ -55,6 +55,9 @@ def test_structured_sidecar_ui_handler_only_queues_worker() -> None:
         )
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.dispatched: dict[str, object] | None = None
             self._structured_sidecar_request_id = 0
             self.status: list[tuple[str, bool]] = []

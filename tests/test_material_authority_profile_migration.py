@@ -47,7 +47,7 @@ def test_obsolete_profile_setting_migrates_to_automatic() -> None:
             "complete_swap_material_profile_combo": combo,
             "complete_swap_profile_store_path": "profile.json",
             "get_complete_swap_material_profile": get_complete_swap_material_profile,
-            "self": SimpleNamespace(settings=settings),
+            "self": SimpleNamespace(shell=SimpleNamespace(settings=settings)),
             "write_complete_swap_calibrated_material_profile": lambda path, name: writes.append((path, name)),
         }
     )._select_complete_swap_material_profile

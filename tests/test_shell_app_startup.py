@@ -52,6 +52,9 @@ class _AppStub:
 
 class _WindowStub:
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._app_window_icon_filter: object | None = None
         self.attached_splash: object | None = None
         self.hold_main_window = False
@@ -518,65 +521,6 @@ class ShellAppStartupTests(unittest.TestCase):
             root = Path(temp_dir)
             asset_path = root / "mesh.pac"
             asset_path.write_bytes(b"mesh")
-            exe_path = root / "cdmw-mesh-dotnet-editor.exe"
-            exe_path.write_text("fake", encoding="utf-8")
-            package_dir = root / "dotnet_package"
-            output_dir = package_dir / "output"
-            output_dir.mkdir(parents=True)
-            package = SimpleNamespace(
-                package_dir=package_dir,
-                mesh_path=package_dir / "mesh.obj",
-                obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-                cdmeta_path=package_dir / "mesh.cdmeta.json",
-                original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=output_dir / "dotnet_status.json",
-                output_dir=output_dir,
-                edit_operations_path=output_dir / "edit_operations.json",
-                launch_manifest_path=package_dir / "dotnet_launch.json",
-            )
-            calls: list[tuple[object, ...]] = []
-
-            def fake_build_package(mesh: object, *, output_root: Path | str | None = None) -> object:
-                calls.append(("build_package", mesh, output_root))
-                return package
-
-            def fake_command(executable: Path, package_arg: object) -> tuple[str, list[str]]:
-                calls.append(("command", executable, package_arg))
-                return (str(executable), ["--input-package", str(package_dir)])
-
-            def fake_run(command: list[str], **kwargs: object) -> object:
-                calls.append(("run", tuple(command), kwargs.get("cwd")))
-                self.assertIn("--headless-smoke", command)
-                package.status_path.write_text(
-                    json.dumps(
-                        {
-                            "event": "saved",
-                            "edited_mesh": str(output_dir / "mesh.obj"),
-                            "edit_operations": str(output_dir / "edit_operations.json"),
-                            "metrics": {
-                                "average_fps": 72.0,
-                                "frame_time_ms": 13.8,
-                                "responsiveness_ms": 1.5,
-                            },
-                        }
-                    ),
-                    encoding="utf-8",
-                )
-                return SimpleNamespace(returncode=0)
-
-            def fake_import_output(package_arg: object, payload: object) -> object:
-                calls.append(("import_output", package_arg, payload))
-                return SimpleNamespace(
-                    path="edited.obj",
-                    _cdmw_edit_operations=[{"operation": "replace_positions_same_count"}],
-                )
-
-            def fake_write_evaluation(package_arg: object, payload: object, *, validation_report: object) -> Path:
-                calls.append(("write_evaluation", package_arg, payload, validation_report))
-                evaluation_path = package_dir / "dotnet_evaluation.md"
-                evaluation_path.write_text("Keep/drop Recommendation: keep as experiment only\n", encoding="utf-8")
-                return evaluation_path
-
             with (
                 patch.dict(
                     os.environ,
@@ -585,18 +529,15 @@ class ShellAppStartupTests(unittest.TestCase):
                         "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_editor",
                         "CDMW_GUI_STARTUP_SMOKE_MESH_ASSET": str(asset_path),
                         "CDMW_GUI_STARTUP_SMOKE_MESH_DOTNET": "1",
+                        "CDMW_GUI_STARTUP_SMOKE_MESH_RUST": "0",
                     },
                 ),
-                patch("cdmw.services.mesh_dotnet_experiment.find_mesh_dotnet_experiment_editor", return_value=exe_path),
-                patch("cdmw.services.mesh_dotnet_experiment.build_mesh_dotnet_experiment_package", side_effect=fake_build_package),
-                patch("cdmw.services.mesh_dotnet_experiment.mesh_dotnet_experiment_command", side_effect=fake_command),
-                patch("cdmw.services.mesh_dotnet_experiment.import_mesh_dotnet_experiment_output", side_effect=fake_import_output),
-                patch("cdmw.services.mesh_dotnet_experiment.write_mesh_dotnet_experiment_evaluation", side_effect=fake_write_evaluation),
-                patch("cdmw.ui.mesh_editor.startup_smoke.subprocess.run", side_effect=fake_run),
+                patch("cdmw.ui.mesh_editor.startup_smoke.subprocess.run") as run,
             ):
                 self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+                run.assert_not_called()
 
-        self.assertEqual([], calls)
+        self.assertEqual([], mesh_editor_tab.mesh_smoke_service.calls)
         self.assertNotIn(
             "replace_working_mesh",
             [call[0] for call in mesh_editor_tab.mesh_smoke_service.calls],

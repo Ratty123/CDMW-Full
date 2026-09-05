@@ -658,6 +658,25 @@ def _apply_optional_ncnn(
     return output_png
 
 
+def _published_review_items(
+    review_items: Sequence[ReplaceAssistantReviewItem], stage_root: Path, payload_root: Path,
+) -> tuple[ReplaceAssistantReviewItem, ...]:
+    return tuple(
+        ReplaceAssistantReviewItem(
+            source_path=item.source_path,
+            relative_path=item.relative_path,
+            output_dds_path=payload_root / Path(
+                normalize_mod_package_payload_path(item.output_dds_path.relative_to(stage_root)).as_posix()
+            ),
+            original_dds_path=item.original_dds_path,
+            build_mode=item.build_mode,
+            size_mode=item.size_mode,
+        )
+        for item in review_items
+        if item.output_dds_path.exists()
+    )
+
+
 def build_replace_assistant_package(
     items: Sequence[ReplaceAssistantItem],
     options: ReplaceAssistantBuildOptions,
@@ -871,6 +890,7 @@ def build_replace_assistant_package(
                 create_no_encrypt_file=options.create_no_encrypt_file,
                 overwrite=options.overwrite_existing_package_files,
                 file_count=built_items,
+                stop_event=stop_event,
                 on_log=on_log,
             )
             final_package_root, final_payload_root = published_packages[0]
@@ -882,20 +902,7 @@ def build_replace_assistant_package(
                 failed_items=failed_items,
                 cancelled=cancelled,
                 output_root=final_package_root,
-                review_items=tuple(
-                    ReplaceAssistantReviewItem(
-                        source_path=item.source_path,
-                        relative_path=item.relative_path,
-                        output_dds_path=final_payload_root / Path(
-                            normalize_mod_package_payload_path(item.output_dds_path.relative_to(stage_root)).as_posix()
-                        ),
-                        original_dds_path=item.original_dds_path,
-                        build_mode=item.build_mode,
-                        size_mode=item.size_mode,
-                    )
-                    for item in review_items
-                    if item.output_dds_path.exists()
-                ),
+                review_items=_published_review_items(review_items, stage_root, final_payload_root),
             )
 
         if on_log:

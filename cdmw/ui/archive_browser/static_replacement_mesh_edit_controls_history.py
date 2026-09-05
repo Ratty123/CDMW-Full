@@ -288,7 +288,7 @@ def _mesh_edit_capture_undo_snapshot(_state, _callbacks, snapshot: object, *, ta
             "mesh_edit_native_undo_snapshot_failed",
             message="Native undo snapshot failed; Python full-mesh undo snapshot fallback is disabled.",
         )
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Native undo snapshot failed; Python full-mesh undo snapshot fallback is disabled.",
             error=True,
         )
@@ -348,7 +348,7 @@ def _mesh_edit_source_enable_mutation_blocked(_state, _callbacks, action: str, s
         source_indices=tuple(source_indices or ()),
         message=message,
     )
-    _state.self.set_status_message(message, error=True)
+    _state.self.shell.set_status_message(message, error=True)
 
 def _mesh_edit_restore_enabled_snapshot(_state, _callbacks, snapshot: object) -> None:
     if isinstance(snapshot, _state.Mapping) and bool(snapshot.get('metadata_only')):
@@ -573,7 +573,7 @@ def _mesh_edit_reset_scope(_state, _callbacks, ) -> None:
     _callbacks._mesh_edit_record_snapshot()
     if not _callbacks._mesh_edit_restore_base_sources_native(source_indices, operation="mesh_edit.reset_scope"):
         _callbacks._mesh_edit_abort_recorded_snapshot()
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Native Mesh Editor reset failed; Python geometry clone fallback is disabled.",
             error=True,
         )
@@ -623,7 +623,7 @@ def _mesh_edit_full_reset_mesh(_state, _callbacks, ) -> None:
     _callbacks._mesh_edit_record_snapshot()
     if not _callbacks._mesh_edit_restore_base_sources_native(source_indices, operation="mesh_edit.full_reset"):
         _callbacks._mesh_edit_abort_recorded_snapshot()
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Native Mesh Editor full reset failed; Python geometry clone fallback is disabled.",
             error=True,
         )

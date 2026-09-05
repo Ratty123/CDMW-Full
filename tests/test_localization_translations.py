@@ -117,12 +117,15 @@ def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
         _schedule_column_autofit=lambda: None,
     )
 
+    window.textures = window
     LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
     assert localizer.apply_calls == []
 
     localizer.language_code = "es"
+    window.textures = window
     LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
     localizer.language_code = "en"
+    window.textures = window
     LanguageControllerMixin._apply_ui_language(window)  # type: ignore[arg-type]
 
     assert localizer.apply_calls == [window, window]
@@ -219,8 +222,8 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Review Compare") == "Vergleich prüfen"
     assert spanish.translate("Placement & Animations") == "Colocación y animaciones"
     assert german.translate("Placement & Animations") == "Platzierung & Animationen"
-    assert spanish.translate("Texture Upscaling & Editing") == "Escalado y edición de texturas"
-    assert german.translate("Texture Upscaling & Editing") == "Textur-Hochskalierung & -Bearbeitung"
+    assert spanish.translate("Textures") == "Texturas"
+    assert german.translate("Textures") == "Texturen"
     assert spanish.translate("Texture Recolor") == "Recoloración de texturas"
     assert german.translate("Texture Recolor") == "Textur-Umfärbung"
     assert "Quick Start" not in spanish.translations
@@ -353,7 +356,6 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
     assert "Profiles do not save open archives, active documents, or per-tab project sessions." in main_window_source
     assert "Profile &gt; Export Profile" in main_window_source
     assert "Window &amp; Layout" in main_window_source
-    assert "window/detached/&lt;tool&gt;/geometry" in main_window_source
 
 
 def test_mod_packaging_documentation_covers_supported_manager_formats() -> None:
@@ -388,7 +390,7 @@ def test_documentation_and_readme_cover_current_mesh_and_texture_workflows() -> 
     assert "Appearance-Ruestungs-Swap" not in main_window_source
 
     assert "OBJ/DAE/glTF/GLB import" in readme_source
-    assert "bundled `cd-texture-dx.exe` native" in readme_source
+    assert "bundled `cd-texture-dx.exe` helper" in readme_source
     assert "DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`" in readme_source
 
 
@@ -445,6 +447,11 @@ def test_supported_documentation_languages_cover_all_topic_ids() -> None:
     from cdmw.ui.shell.about_documentation import AboutDocumentationMixin
 
     class _DocumentationSource(AboutDocumentationMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         settings_file_path = Path("settings.cfg")
         archive_cache_root = Path("cache")
 

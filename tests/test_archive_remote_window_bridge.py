@@ -59,6 +59,9 @@ class _ShadowService(QObject):
 class _ShadowWindow(QObject):
     def __init__(self) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_catalogue_service = _ShadowService(self)
         self.archive_package_root_edit = QLineEdit("C:/Game", parent=None)
         self.archive_entries = [_legacy(0)]
@@ -82,6 +85,9 @@ class _ShadowWindow(QObject):
 class _RemoteExportWindow(_ShadowWindow):
     def __init__(self) -> None:
         super().__init__()
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_tree = ArchiveBrowserTreeView()
 
 

@@ -271,7 +271,7 @@ class ArchiveSourceMixActionsMixin:
     def _open_archive_source_mix_package_dialog(self, entry: ArchiveEntry) -> None:
         target_entries = self._source_mix_default_target_entries(entry)
         if not target_entries:
-            self.set_status_message("No archive target files are available for source mixing.", error=True)
+            self.shell.set_status_message("No archive target files are available for source mixing.", error=True)
             return
         target_entries_by_virtual_path = self._source_mix_target_entries_by_virtual_path(target_entries)
         dialog = QDialog(self)
@@ -447,7 +447,7 @@ class ArchiveSourceMixActionsMixin:
             selected_dir = QFileDialog.getExistingDirectory(
                 dialog,
                 "Add Loose Mod Folder",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
             )
             if not selected_dir:
                 return
@@ -464,7 +464,7 @@ class ArchiveSourceMixActionsMixin:
             selected_path, _selected_filter = QFileDialog.getOpenFileName(
                 dialog,
                 "Add .pamt/.paz Mod",
-                str(self._suggest_workspace_base_dir()),
+                str(self.shell._suggest_workspace_base_dir()),
                 "Archive Mod Sources (*.pamt *.paz);;All Files (*.*)",
             )
             if not selected_path:
@@ -565,16 +565,16 @@ class ArchiveSourceMixActionsMixin:
 
             def _handle_complete(result: object) -> None:
                 if not isinstance(result, ArchiveLooseExportResult):
-                    self.set_status_message("Source mix loose export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Source mix loose export finished with an unexpected result payload.", error=True)
                     return
                 QMessageBox.information(
                     self,
                     "Source Mix Loose Export Complete",
                     f"Wrote source-mix payload(s) into:\n{result.package_root}",
                 )
-                self.set_status_message(f"Wrote source-mix loose package: {result.package_root}")
+                self.shell.set_status_message(f"Wrote source-mix loose package: {result.package_root}")
 
-            self._run_utility_task_when_idle(
+            self.shell._run_utility_task_when_idle(
                 status_message=f"Writing source-mix loose package for {entry.basename}...",
                 task=_commit_task,
                 on_complete=_handle_complete,

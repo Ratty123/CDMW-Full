@@ -25,35 +25,35 @@ class TextureWorkflowWorkerMixin:
     """Texture workflow scan/build workers and progress handlers."""
 
     def start_scan(self) -> None:
-        if self._background_task_active():
+        if self.shell._background_task_active():
             return
 
-        self.set_status_message("Scanning DDS files...")
-        self.append_log("Starting scan.")
-        self.reset_progress()
-        self._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(0)
+        self.shell.set_status_message("Scanning DDS files...")
+        self.shell.append_log("Starting scan.")
+        self.shell.reset_progress()
+        self.shell._activate_tool_widget(self.workflow_tab)
 
         worker = ScanWorker(self.collect_config())
         thread = QThread(self)
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
+        worker.log_message.connect(self.shell.append_log)
         worker.result_ready.connect(self._handle_scan_result)
-        worker.error.connect(self._handle_worker_error)
+        worker.assets_ready.connect(self._handle_scanned_assets)
+        worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(self.shell._cleanup_worker_refs)
 
         self.scan_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=False)
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=False)
         thread.start()
 
     def preview_texture_policy(self) -> None:
-        if self._background_task_active():
+        if self.shell._background_task_active():
             return
 
         config = self.collect_config()
@@ -92,54 +92,56 @@ class TextureWorkflowWorkerMixin:
 
         def on_complete(result: object) -> None:
             if not isinstance(result, dict):
-                self.set_status_message("Texture policy preview returned an unexpected result.", error=True)
+                self.shell.set_status_message("Texture policy preview returned an unexpected result.", error=True)
                 return
-            dialog = TexturePolicyPreviewDialog(theme_key=self.current_theme_key, settings=self.settings, parent=self)
+            dialog = TexturePolicyPreviewDialog(theme_key=self.shell.current_theme_key, settings=self.shell.settings, parent=self)
             dialog.set_payload(result)
-            self.set_status_message("Texture policy preview is ready.")
+            self.shell.set_status_message("Texture policy preview is ready.")
             dialog.exec()
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message="Building texture policy preview...",
             task=task,
             on_complete=on_complete,
         )
 
     def start_dds_to_png(self) -> None:
-        if self._background_task_active():
+        if self.shell._background_task_active():
             return
 
         config = self.collect_config()
-        if not self._prepare_workflow_output_roots_for_start(config, include_output_root=False):
-            return
-        self._apply_pending_archive_workflow_extract_if_needed()
-        self._apply_pending_texture_editor_workflow_export_if_needed()
-        self.set_status_message("Preparing DDS to PNG conversion...")
-        self.append_log("Starting DDS -> PNG conversion.")
-        self._set_last_active_operation(
+        self.shell.set_status_message("Preparing DDS to PNG conversion...")
+        self.shell.append_log("Starting DDS -> PNG conversion.")
+        self.shell._set_last_active_operation(
             "texture_conversion",
             mode="dds_to_png",
             original_dds_root=config.original_dds_root,
             png_root=config.png_root,
         )
         if config.upscale_backend == UPSCALE_BACKEND_NONE:
-            self.append_log(
+            self.shell.append_log(
                 "Warning: DDS-to-PNG conversion is enabled while the upscaling backend is disabled, so Start will convert DDS files to PNG and stop."
             )
-        self.reset_progress()
-        self._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(0)
+        self.shell.reset_progress()
+        self.shell._activate_tool_widget(self.workflow_tab)
 
+        try:
+            job_inputs = self.capture_texture_job_inputs()
+            self.begin_texture_operation("upscale")
+        except ValueError as exc:
+            self.shell.set_status_message(str(exc), error=True)
+            return
         worker = DdsToPngWorker(
             config,
-            crash_reports_dir=self.crash_reports_dir,
-            session_id=self._session_id,
+            job_inputs=job_inputs,
+            crash_reports_dir=self.shell.crash_reports_dir,
+            session_id=self.shell._session_id,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
+        worker.log_message.connect(self.shell.append_log)
         worker.phase_changed.connect(self._handle_phase_changed)
         worker.phase_progress_changed.connect(self._handle_phase_progress_changed)
         worker.total_found.connect(self._handle_total_found)
@@ -147,29 +149,25 @@ class TextureWorkflowWorkerMixin:
         worker.progress.connect(self._handle_progress)
         worker.completed.connect(self._handle_dds_to_png_complete)
         worker.cancelled.connect(self._handle_build_cancelled)
-        worker.error.connect(self._handle_worker_error)
+        worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(self.shell._cleanup_worker_refs)
 
         self.dds_to_png_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=True)
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=True)
         thread.start()
 
     def start_build(self) -> None:
-        if self._background_task_active():
+        if self.shell._background_task_active():
             return
 
         config = self.collect_config()
         if config.enable_dds_staging and config.upscale_backend == UPSCALE_BACKEND_NONE:
             self.start_dds_to_png()
             return
-        if not self._prepare_workflow_output_roots_for_start(config, include_output_root=True):
-            return
-        self._apply_pending_archive_workflow_extract_if_needed()
-        self._apply_pending_texture_editor_workflow_export_if_needed()
         self._last_build_unknown_review_result = None
         if config.upscale_backend != UPSCALE_BACKEND_NONE:
             self._check_unclassified_files_before_build(config)
@@ -177,25 +175,31 @@ class TextureWorkflowWorkerMixin:
         self._begin_build_with_config(config)
 
     def _begin_build_with_config(self, config: AppConfig) -> None:
-        if self._background_task_active():
+        if self.shell._background_task_active():
             return
 
-        self.set_status_message("Preparing build...")
-        self.append_log("Starting build.")
-        self.reset_progress()
-        self._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(0)
+        self.shell.set_status_message("Preparing build...")
+        self.shell.append_log("Starting build.")
+        self.shell.reset_progress()
+        self.shell._activate_tool_widget(self.workflow_tab)
 
+        try:
+            job_inputs = self.capture_texture_job_inputs()
+            self.begin_texture_operation("upscale")
+        except ValueError as exc:
+            self.shell.set_status_message(str(exc), error=True)
+            return
         worker = BuildWorker(
             config,
-            crash_reports_dir=self.crash_reports_dir,
-            session_id=self._session_id,
+            job_inputs=job_inputs,
+            crash_reports_dir=self.shell.crash_reports_dir,
+            session_id=self.shell._session_id,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
-        worker.log_message.connect(self.append_log)
+        worker.log_message.connect(self.shell.append_log)
         worker.phase_changed.connect(self._handle_phase_changed)
         worker.phase_progress_changed.connect(self._handle_phase_progress_changed)
         worker.total_found.connect(self._handle_total_found)
@@ -203,22 +207,22 @@ class TextureWorkflowWorkerMixin:
         worker.progress.connect(self._handle_progress)
         worker.completed.connect(self._handle_build_complete)
         worker.cancelled.connect(self._handle_build_cancelled)
-        worker.error.connect(self._handle_worker_error)
+        worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(self.shell._cleanup_worker_refs)
 
         self.build_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=True)
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=True)
         thread.start()
 
     def _begin_build_when_idle(self, config: AppConfig, *, attempt: int = 0) -> None:
-        if not self._background_task_active():
+        if not self.shell._background_task_active():
             self._begin_build_with_config(config)
             return
-        if self.utility_worker is not None and attempt < 100:
+        if self.shell.utility_worker is not None and attempt < 100:
             QTimer.singleShot(
                 10,
                 lambda config=config, attempt=attempt + 1: self._begin_build_when_idle(
@@ -227,25 +231,25 @@ class TextureWorkflowWorkerMixin:
                 ),
             )
             return
-        self.set_status_message("Build could not start after the pre-run classification check.", error=True)
-        self.append_log(
+        self.shell.set_status_message("Build could not start after the pre-run classification check.", error=True)
+        self.shell.append_log(
             "ERROR: Build start was blocked after the pre-run classification check did not fully release its worker state."
         )
 
     def _open_classification_review_for_paths(self, paths: Sequence[str]) -> None:
         path_list = [str(path).strip() for path in paths if str(path).strip()]
-        self._activate_tool_widget(self.research_tab)
+        self.shell._activate_tool_widget(self.shell.research_tab)
         if not path_list:
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Build paused so you can review DDS files that still need a saved local classification in Research -> Classification Review."
             )
             return
-        self.research_tab.focus_classification_review_for_paths(
+        self.shell.research_tab.focus_classification_review_for_paths(
             path_list,
             include_classified=True,
-            refresh_if_needed=not bool(getattr(self.research_tab, "research_payload", {})),
+            refresh_if_needed=not bool(getattr(self.shell.research_tab, "research_payload", {})),
         )
-        self.set_status_message(
+        self.shell.set_status_message(
             f"Build paused so you can review/save classification for {len(path_list):,} DDS file(s) in Research -> Classification Review."
         )
 
@@ -253,10 +257,10 @@ class TextureWorkflowWorkerMixin:
         normalized_path = source_path.strip().replace("\\", "/").strip("/")
         query = highlight_query.strip()
         if not normalized_path or not query:
-            self.set_status_message("The selected reference row is missing its source path or highlight query.", error=True)
+            self.shell.set_status_message("The selected reference row is missing its source path or highlight query.", error=True)
             return
         entry: Optional[ArchiveEntry] = None
-        for candidate in self.archive_entries:
+        for candidate in self.archive.archive_entries:
             if not isinstance(candidate, ArchiveEntry):
                 continue
             candidate_path = candidate.path.replace("\\", "/").strip("/")
@@ -264,14 +268,14 @@ class TextureWorkflowWorkerMixin:
                 entry = candidate
                 break
         if entry is None:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"Could not find the archive text entry for {normalized_path}. Refresh archives and try again.",
                 error=True,
             )
             return
-        if not self.text_search_tab.review_archive_entry(entry, highlight_query=query):
+        if not self.shell.text_search_tab.review_archive_entry(entry, highlight_query=query):
             return
-        self._activate_tool_widget(self.text_search_tab)
+        self.shell._activate_tool_widget(self.shell.text_search_tab)
 
     def _check_unclassified_files_before_build(self, config: AppConfig) -> None:
         def task(on_log: Callable[[str], None]) -> Dict[str, object]:
@@ -382,48 +386,48 @@ class TextureWorkflowWorkerMixin:
                     str(path) for path in payload.get("unknown_paths", [])
                     if str(path).strip()
                 ]
-                self.append_log(
+                self.shell.append_log(
                     f"Build paused so Research -> Classification Review can focus on {len(unknown_paths):,} unclassified DDS file(s)."
                 )
                 QTimer.singleShot(0, lambda paths=unknown_paths: self._open_classification_review_for_paths(paths))
                 return
             if clicked != continue_button:
-                self.set_status_message("Build cancelled before start.")
+                self.shell.set_status_message("Build cancelled before start.")
                 return
 
             self._last_build_unknown_review_result = payload
-            self.append_log(
+            self.shell.append_log(
                 f"Continuing build with {unknown_total:,} unclassified DDS file(s)."
             )
             QTimer.singleShot(0, lambda config=config: self._begin_build_when_idle(config))
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message="Checking for unclassified DDS files before build...",
             task=task,
             on_complete=on_complete,
         )
 
     def stop_build(self) -> None:
-        active_worker = self.build_worker or self.dds_to_png_worker or self.utility_worker
+        active_worker = self.build_worker or self.dds_to_png_worker or self.shell.utility_worker
         if active_worker is None:
-            request_id = getattr(self, "_archive_remote_export_request_id", None)
-            cancel_remote_export = getattr(self, "_cancel_remote_archive_export", None)
+            request_id = getattr(self.archive, "_archive_remote_export_request_id", None)
+            cancel_remote_export = getattr(self.archive, "_cancel_remote_archive_export", None)
             if request_id is not None and callable(cancel_remote_export):
                 cancel_remote_export()
-                self.set_status_message("Stop requested. Waiting for the archive export to exit cleanly...")
-                self.append_log("Archive export stop requested by user.")
-                self._set_archive_load_progress(
+                self.shell.set_status_message("Stop requested. Waiting for the archive export to exit cleanly...")
+                self.shell.append_log("Archive export stop requested by user.")
+                self.archive._set_archive_load_progress(
                     "Stop requested. Waiting for the archive export to exit cleanly...",
                     phase="Stopping",
                 )
                 self.stop_button.setEnabled(False)
             return
         active_worker.stop()
-        self.set_status_message("Stop requested. Waiting for the current task to exit cleanly...")
-        self.append_log("Stop requested by user.")
-        if self._utility_updates_archive_progress:
-            self.append_archive_log("Stop requested by user.")
-            self._set_archive_load_progress(
+        self.shell.set_status_message("Stop requested. Waiting for the current task to exit cleanly...")
+        self.shell.append_log("Stop requested by user.")
+        if self.shell._utility_updates_archive_progress:
+            self.shell.append_archive_log("Stop requested by user.")
+            self.archive._set_archive_load_progress(
                 "Stop requested. Waiting for the current scan to exit cleanly...",
                 phase="Stopping",
             )
@@ -432,7 +436,7 @@ class TextureWorkflowWorkerMixin:
     def open_output_folder(self) -> None:
         raw = self.output_root_edit.text().strip()
         if not raw:
-            self.set_status_message("Output root is empty.", error=True)
+            self.shell.set_status_message("Output root is empty.", error=True)
             return
 
         path = Path(raw).expanduser()
@@ -440,25 +444,25 @@ class TextureWorkflowWorkerMixin:
             try:
                 path.mkdir(parents=True, exist_ok=True)
             except OSError as exc:
-                self.set_status_message(f"Could not create output root: {exc}", error=True)
+                self.shell.set_status_message(f"Could not create output root: {exc}", error=True)
                 return
 
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     def _handle_scan_result(self, total: int) -> None:
         self._texture_workflow_total_files = int(total)
-        self.ui_localizer.set_number_text(self.total_files_value, total)
+        self.shell.ui_localizer.set_number_text(self.total_files_value, total)
         self.progress_bar.setRange(0, max(total, 1))
         self.progress_bar.setValue(0)
         self.current_file_value.setText("Ready to start")
-        self._dashboard_last_result_text = f"Texture scan complete: {total:,} DDS file(s) found."
-        self.set_status_message(f"Scan complete. Found {total} DDS files.")
+        self.archive._dashboard_last_result_text = f"Texture scan complete: {total:,} DDS file(s) found."
+        self.shell.set_status_message(f"Scan complete. Found {total} DDS files.")
 
     def _handle_total_found(self, total: int) -> None:
         self._texture_workflow_total_files = int(total)
-        self.ui_localizer.set_number_text(self.total_files_value, total)
+        self.shell.ui_localizer.set_number_text(self.total_files_value, total)
         self._set_phase_progress(0, total, "0 / {total} DDS files".format(total=total), "DDS files")
-        self.set_status_message(f"Found {total} DDS files. Processing...")
+        self.shell.set_status_message(f"Found {total} DDS files. Processing...")
 
     def _handle_phase_changed(self, phase_name: str, detail: str, indeterminate: bool) -> None:
         self.phase_value.setText(phase_name)
@@ -473,7 +477,7 @@ class TextureWorkflowWorkerMixin:
             )
             self.progress_bar.setRange(0, total)
             self.progress_bar.setFormat("%v / %m")
-        self.set_status_message(detail)
+        self.shell.set_status_message(detail)
 
     def _handle_phase_progress_changed(self, current: int, total: int, detail: str) -> None:
         units = "Items"
@@ -492,9 +496,9 @@ class TextureWorkflowWorkerMixin:
     def _handle_progress(self, processed: int, total: int, converted: int, skipped: int, failed: int) -> None:
         self._texture_workflow_total_files = int(total)
         self._set_phase_progress(processed, total, f"{processed} / {total} DDS files", "DDS files")
-        self.ui_localizer.set_number_text(self.converted_value, converted)
-        self.ui_localizer.set_number_text(self.skipped_value, skipped)
-        self.ui_localizer.set_number_text(self.failed_value, failed)
+        self.shell.ui_localizer.set_number_text(self.converted_value, converted)
+        self.shell.ui_localizer.set_number_text(self.skipped_value, skipped)
+        self.shell.ui_localizer.set_number_text(self.failed_value, failed)
 
     def _set_phase_progress(self, current: int, total: int, detail: str, units: str) -> None:
         self.phase_progress_value.setText(detail)
@@ -507,6 +511,8 @@ class TextureWorkflowWorkerMixin:
             self.progress_bar.setFormat(detail or "Working...")
 
     def _handle_build_complete(self, summary: RunSummary) -> None:
+        if not self.finish_texture_operation(summary):
+            return
         self._handle_progress(
             summary.converted + summary.skipped + summary.failed,
             summary.total_files,
@@ -516,22 +522,22 @@ class TextureWorkflowWorkerMixin:
         )
         self.current_file_value.setText("Completed")
         if summary.failed:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"Build completed with {summary.failed} failed file(s). Review the log for details.",
                 error=True,
             )
         else:
             unknown_total = int(self._last_build_unknown_review_result.get("unknown_total", 0) or 0) if isinstance(self._last_build_unknown_review_result, dict) else 0
             if unknown_total > 0:
-                self.set_status_message(
+                self.shell.set_status_message(
                     f"Build completed. {unknown_total:,} matched DDS file(s) were still unclassified in this run."
                 )
             else:
-                self.set_status_message("Build completed successfully.")
-        self.append_log(
+                self.shell.set_status_message("Build completed successfully.")
+        self.shell.append_log(
             f"Finished. Converted/planned={summary.converted}, skipped={summary.skipped}, failed={summary.failed}."
         )
-        self._dashboard_last_result_text = (
+        self.archive._dashboard_last_result_text = (
             "Texture build complete: "
             f"{summary.converted:,} converted/planned, {summary.skipped:,} skipped, {summary.failed:,} failed. "
             f"Output: {self.output_root_edit.text().strip() or 'not set'}"
@@ -541,21 +547,22 @@ class TextureWorkflowWorkerMixin:
             processed_unknowns = int(self._last_build_unknown_review_result.get("processed_unknowns", 0) or 0)
             preserved_unknowns = int(self._last_build_unknown_review_result.get("preserved_unknowns", 0) or 0)
             if unknown_total > 0:
-                self.append_log(
+                self.shell.append_log(
                     "Note: "
                     f"{unknown_total:,} matched DDS file(s) were still unclassified in this run. "
                     f"Current-policy estimate before start: {processed_unknowns:,} would be processed and {preserved_unknowns:,} would likely be left unchanged. "
                     "Open Research -> Classification Review if you want to review them."
                 )
         if summary.log_csv_path:
-            self.append_log(f"CSV log saved to {summary.log_csv_path}")
-        self._refresh_dashboard()
+            self.shell.append_log(f"CSV log saved to {summary.log_csv_path}")
+        self.shell._refresh_dashboard()
         self.refresh_compare_list(select_current=True)
-        self._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(1)
+        self.shell._activate_tool_widget(self.workflow_tab)
         self._last_build_unknown_review_result = None
 
     def _handle_dds_to_png_complete(self, summary: RunSummary) -> None:
+        if not self.finish_texture_operation(summary):
+            return
         self._handle_progress(
             summary.converted + summary.skipped + summary.failed,
             summary.total_files,
@@ -565,29 +572,28 @@ class TextureWorkflowWorkerMixin:
         )
         self.current_file_value.setText("Completed")
         if summary.failed:
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"DDS to PNG conversion completed with {summary.failed} failed file(s). Review the log for details.",
                 error=True,
             )
         else:
-            self.set_status_message("DDS to PNG conversion completed successfully.")
-        self.append_log(
+            self.shell.set_status_message("DDS to PNG conversion completed successfully.")
+        self.shell.append_log(
             f"Finished DDS -> PNG. Converted/planned={summary.converted}, skipped={summary.skipped}, failed={summary.failed}."
         )
-        self._dashboard_last_result_text = (
+        self.archive._dashboard_last_result_text = (
             "DDS to PNG complete: "
             f"{summary.converted:,} converted/planned, {summary.skipped:,} skipped, {summary.failed:,} failed."
         )
         if summary.log_csv_path:
-            self.append_log(f"CSV log saved to {summary.log_csv_path}")
-        self._refresh_dashboard()
-        self._activate_tool_widget(self.workflow_tab)
-        self.content_tabs.setCurrentIndex(0)
+            self.shell.append_log(f"CSV log saved to {summary.log_csv_path}")
+        self.shell._refresh_dashboard()
+        self.shell._activate_tool_widget(self.workflow_tab)
 
     def _handle_build_cancelled(self, message: str) -> None:
-        self.set_status_message(message, error=True)
+        self.shell.set_status_message(message, error=True)
         self.current_file_value.setText("Stopped")
-        self.append_log(message)
+        self.shell.append_log(message)
         self._last_build_unknown_review_result = None
 
 

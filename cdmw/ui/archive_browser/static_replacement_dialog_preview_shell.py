@@ -207,7 +207,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_grid_checkbox = QCheckBox(alignment_preview_control_text["grid"])
     preview_grid_checkbox.setObjectName("MeshAlignmentGridVisibleCheckbox")
     preview_grid_checkbox.setChecked(
-        read_bool_setting(self.settings, alignment_grid_visible_settings_key, True)
+        read_bool_setting(self.shell.settings, alignment_grid_visible_settings_key, True)
     )
     preview_grid_checkbox.setToolTip(alignment_preview_control_text["grid_tooltip"])
     preview_controls_row.addWidget(preview_grid_checkbox)
@@ -219,7 +219,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     # instead of orbiting. Persisted like the grid, so someone doing placement
     # work does not re-check it every session.
     preview_gizmo_checkbox.setChecked(
-        read_bool_setting(self.settings, alignment_gizmo_visible_settings_key, False)
+        read_bool_setting(self.shell.settings, alignment_gizmo_visible_settings_key, False)
     )
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
@@ -444,7 +444,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     original_preview_layout.addWidget(QLabel(alignment_preview_render_control_text["original_reference_label"]))
     original_dialog_preview = NativePreviewPanel(
         alignment_preview_render_control_text["original_reference_description"],
-        theme_key=self.current_theme_key,
+        theme_key=self.shell.current_theme_key,
     )
     original_dialog_preview.setMinimumSize(220, 260)
     original_dialog_preview.set_render_settings(preview_render_settings)
@@ -458,7 +458,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     replacement_preview_layout.addWidget(QLabel(alignment_preview_render_control_text["replacement_preview_label"]))
     static_dialog_preview = NativePreviewPanel(
         alignment_preview_render_control_text["replacement_preview_description"],
-        theme_key=self.current_theme_key,
+        theme_key=self.shell.current_theme_key,
     )
     static_dialog_preview.setMinimumSize(240, 260)
     static_dialog_preview.set_render_settings(preview_render_settings)
@@ -475,14 +475,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_splitter.setStretchFactor(0, 1)
     preview_splitter.setStretchFactor(1, 1)
     preview_splitter.setSizes([520, 520])
-    overlay_dialog_preview = NativePreviewPanel("Overlay preview.", theme_key=self.current_theme_key)
+    overlay_dialog_preview = NativePreviewPanel("Overlay preview.", theme_key=self.shell.current_theme_key)
     overlay_dialog_preview.setMinimumSize(300, 280)
     overlay_dialog_preview.set_render_settings(preview_render_settings)
     overlay_dialog_preview.set_use_textures(True)
     overlay_dialog_preview.set_high_quality_textures(True)
     overlay_dialog_preview.set_alignment_guides_visible(True)
     overlay_dialog_preview.set_alignment_editing_enabled(True)
-    replacement_only_preview = NativePreviewPanel("Replacement preview.", theme_key=self.current_theme_key)
+    replacement_only_preview = NativePreviewPanel("Replacement preview.", theme_key=self.shell.current_theme_key)
     replacement_only_preview.setMinimumSize(300, 280)
     replacement_only_preview.set_render_settings(preview_render_settings)
     replacement_only_preview.set_use_textures(True)
@@ -537,7 +537,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_split_ratio_settings_key = "ui/mesh_alignment/d3d11_side_by_side_split_ratio"
     try:
         alignment_d3d11_preview_host.set_side_by_side_split_ratio(
-            float(self.settings.value(alignment_d3d11_split_ratio_settings_key, 0.5) or 0.5)
+            float(self.shell.settings.value(alignment_d3d11_split_ratio_settings_key, 0.5) or 0.5)
         )
     except (TypeError, ValueError, AttributeError):
         alignment_d3d11_preview_host.set_side_by_side_split_ratio(0.5)
@@ -546,7 +546,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             return
         try:
             ratio = alignment_d3d11_preview_host.remember_side_by_side_split_ratio(float(payload.get("ratio", 0.5) or 0.5))
-            self.settings.setValue(alignment_d3d11_split_ratio_settings_key, ratio)
+            self.shell.settings.setValue(alignment_d3d11_split_ratio_settings_key, ratio)
         except (TypeError, ValueError, AttributeError):
             pass
     alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)
@@ -714,7 +714,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         _clear_all_part_selections()
     def _preview_grid_toggled(checked: bool = False) -> None:
         try:
-            self.settings.setValue(alignment_grid_visible_settings_key, bool(checked))
+            self.shell.settings.setValue(alignment_grid_visible_settings_key, bool(checked))
         except (AttributeError, RuntimeError):
             pass
         # The resident overlay flags ride along with the highlight state, so
@@ -722,7 +722,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         _sync_highlight_sets()
     def _preview_gizmo_toggled(checked: bool = False) -> None:
         try:
-            self.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))
+            self.shell.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))
         except (AttributeError, RuntimeError):
             pass
         _sync_highlight_sets()

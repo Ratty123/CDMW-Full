@@ -115,6 +115,11 @@ def test_legacy_profile_values_are_accepted_discarded_and_not_reexported(tmp_pat
     assert document.decoded_settings == (("appearance/theme", "dark"),)
 
     class _Profile(ProfileControllerMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         current_theme_key = "dark"
 
         @staticmethod

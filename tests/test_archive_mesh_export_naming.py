@@ -22,6 +22,9 @@ from cdmw.ui.archive_browser.mesh_patch_flow import ArchiveMeshPatchFlowMixin
 
 class _ArchiveMeshPresetFlowShell(ArchiveMeshLaunchFlowMixin, ArchiveMeshPatchFlowMixin):
     def __init__(self, settings_file_path: Path) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.settings_file_path = settings_file_path
         self.texconv_path_edit = SimpleNamespace(text=lambda: "")
         self.archive_entries_by_normalized_path = {}

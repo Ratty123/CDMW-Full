@@ -59,7 +59,7 @@ def _attachment_socket_editor_dependencies(
     try:
         return archive_workflow_dependency_context(owner, socket_entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Socket XML editor is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Socket XML editor is unavailable: {exc}", error=True)
         return None
 
 
@@ -212,8 +212,8 @@ class ArchiveAttachmentSocketEditorMixin:
         preview_editor = QPlainTextEdit()
         preview_editor.setReadOnly(True)
         preview_editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        preview_editor.setFont(build_monospace_font(self.settings))
-        preview_highlighter = PreviewSyntaxHighlighter(preview_editor.document(), self.current_theme_key)
+        preview_editor.setFont(build_monospace_font(self.shell.settings))
+        preview_highlighter = PreviewSyntaxHighlighter(preview_editor.document(), self.shell.current_theme_key)
         preview_highlighter.set_language_for_extension(".xml")
         xml_layout.addWidget(preview_label)
         xml_layout.addWidget(preview_editor, 1)
@@ -739,7 +739,7 @@ class ArchiveAttachmentSocketEditorMixin:
             _load_selected_socket()
             _refresh_preview()
             _refresh_compare_tree()
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"Copied {', '.join(copied)} from {other_socket.name or 'compare socket'} into {target_element.attrib.get('Name', '') or 'selected socket'}."
             )
 
@@ -794,12 +794,12 @@ class ArchiveAttachmentSocketEditorMixin:
                         "Socket XML Export Complete",
                         f"Wrote edited socket XML loose package:\n{result.package_root}",
                     )
-                    self.set_status_message(f"Wrote loose socket XML package for {socket_entry.basename}.")
+                    self.shell.set_status_message(f"Wrote loose socket XML package for {socket_entry.basename}.")
                     dialog.accept()
                 else:
-                    self.set_status_message("Socket XML export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Socket XML export finished with an unexpected result payload.", error=True)
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Writing loose socket XML for {socket_entry.basename}...",
                 task=_task,
                 on_complete=_handle_complete,

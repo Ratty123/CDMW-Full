@@ -75,7 +75,7 @@ def _prepare_mesh_import_setup_preflight(
             return MeshImportMemberSelectionResult(request.request_id, exc.members)
     raise_if_cancelled(stop_event, "Mesh import setup cancelled.")
     is_obj = request.scene_path.suffix.lower() == ".obj" and not request.force_static_replacement
-    has_roundtrip_sidecar = bool(getattr(owner, "_has_valid_obj_roundtrip_sidecar")(request.scene_path)) if is_obj else False
+    has_roundtrip_sidecar = bool(getattr(owner.archive, "_has_valid_obj_roundtrip_sidecar")(request.scene_path)) if is_obj else False
     progress(1, 4, "Reading original archive mesh...")
     loaded_original = request.original_mesh
     profile: Optional[ReplacementAssetProfile] = None
@@ -142,7 +142,7 @@ def dispatch_mesh_import_setup_preflight(
     try:
         dependencies = archive_workflow_dependency_context(owner, entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        set_status = getattr(owner, "set_status_message", None)
+        set_status = getattr(owner.shell, "set_status_message", None)
         if callable(set_status):
             set_status(f"Mesh import setup is unavailable: {exc}", error=True)
         on_complete(None)
@@ -196,10 +196,10 @@ def dispatch_mesh_import_setup_preflight(
         if (
             not isinstance(payload, MeshImportSetupPreflightResult)
             or payload.request_id != int(getattr(owner, "archive_mesh_import_setup_request_id", 0) or 0)
-            or bool(getattr(owner, "_shutting_down", False))
+            or bool(getattr(owner.shell, "_shutting_down", False))
         ):
             return
-        prompt = getattr(owner, "_prompt_archive_mesh_import_setup")
+        prompt = getattr(owner.archive, "_prompt_archive_mesh_import_setup")
         setup = prompt(
             entry,
             Path(scene_path),
@@ -218,7 +218,7 @@ def dispatch_mesh_import_setup_preflight(
     def failed(message: str) -> None:
         if (
             request_id != int(getattr(owner, "archive_mesh_import_setup_request_id", 0) or 0)
-            or bool(getattr(owner, "_shutting_down", False))
+            or bool(getattr(owner.shell, "_shutting_down", False))
             or is_expected_cancellation_message(message)
             or "cancel" in str(message).casefold()
         ):
@@ -230,7 +230,7 @@ def dispatch_mesh_import_setup_preflight(
         )
         on_complete(None)
 
-    run_when_idle = getattr(owner, "_run_utility_task_when_idle")
+    run_when_idle = getattr(owner.shell, "_run_utility_task_when_idle")
     run_when_idle(
         status_message=setup_control_text["startup_label"],
         task=task,

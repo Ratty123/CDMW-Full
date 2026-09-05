@@ -151,8 +151,8 @@ class MeshBuilderDriver:
         before = set(self.window._modeless_alignment_dialogs)
         try:
             prompt_archive_static_replacement_options(
-                self.window,
-                self.window.archive_entries[0],
+                self.window.archive,
+                self.window.archive.archive_entries[0],
                 self.root / f"{dialog_title}.obj",
                 dialog_title=dialog_title,
                 placement_context_note=placement_context_note,

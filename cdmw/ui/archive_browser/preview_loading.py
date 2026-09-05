@@ -189,7 +189,7 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_loading_stall_reported = False
         self.archive_preview_loading_entry_name = entry.basename if entry is not None else "selected file"
         self.archive_preview_loading_loose = bool(self.archive_preview_requested_loose)
-        self.set_status_message(
+        self.shell.set_status_message(
             f"Loading {'loose-file ' if self.archive_preview_loading_loose else ''}preview for {self.archive_preview_loading_entry_name}..."
         )
         self._update_archive_preview_loading_indicator()
@@ -236,7 +236,7 @@ class ArchivePreviewLoadingMixin:
         request_id = int(getattr(self, "archive_preview_loading_request_id", 0) or 0)
         has_fast_result = str(getattr(getattr(self, "current_archive_preview_result", None), "quality_tier", "") or "").strip().lower() == "fast"
         preview_phase = "full_after_fast" if has_fast_result or self.archive_preview_quick_result_active else "initial"
-        recorder = getattr(self, "_record_runtime_event", None)
+        recorder = getattr(self.shell, "_record_runtime_event", None)
         if self.archive_preview_worker is not None:
             try:
                 self.archive_preview_worker.stop()
@@ -281,10 +281,10 @@ class ArchivePreviewLoadingMixin:
         if has_fast_result:
             message = "Fast preview remains visible; full preview timed out and was stopped."
             self._set_archive_texture_upgrade_status("timed_out")
-            self.set_status_message(message, error=True)
+            self.shell.set_status_message(message, error=True)
             return
         self._clear_archive_preview("Preview timed out while loading. Select the file again or use Fast Detail.")
-        self.set_status_message("Archive preview timed out and was stopped.", error=True)
+        self.shell.set_status_message("Archive preview timed out and was stopped.", error=True)
 
     def _stop_archive_preview_loading_indicator(self, *, success: Optional[bool]) -> None:
         elapsed = (

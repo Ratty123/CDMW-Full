@@ -155,6 +155,9 @@ def test_tab_routes_warmup_to_the_same_native_cache_as_template_preview(tmp_path
 
     app = QApplication.instance() or QApplication([])
     window = SimpleNamespace(archive_cache_root=tmp_path / "archive-cache")
+    window.shell = window
+    window.archive = window
+    window.textures = window
     tab = NewItemStudioTab(window=window, get_package_root=lambda: str(tmp_path))
     tab._preview_cache_mode = cache_mode
     requests = []

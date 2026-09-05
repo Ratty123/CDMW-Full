@@ -26,20 +26,20 @@ MANIFEST = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
 #: `tests/test_format_explorer.py` checks each segment against the shell sources,
 #: so renaming a tab or an action breaks a test instead of leaving a stale path.
 TOOLS: Mapping[str, str] = {
-    ".paloc": "Tools > Translations",
-    ".dds": "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
-    ".png": "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
+    ".paloc": "Utilities > Edit Translations",
+    ".dds": "Textures",
+    ".png": "Textures",
     ".pac": "Mesh Editor",
     ".pam": "Mesh Editor",
     ".pamlod": "Mesh Editor",
-    ".prefab": "Archive Browser > Open Prefab Inspector...",
-    ".hkx": "Archive Browser > Edit HKX...",
-    ".hkt": "Archive Browser > Edit HKX...",
+    ".prefab": "Browse Archives > Open Prefab Inspector...",
+    ".hkx": "Browse Archives > Edit HKX...",
+    ".hkt": "Browse Archives > Edit HKX...",
     ".paa": "Placement & Animations",
     ".pab": "Placement & Animations",
     ".paac": "Placement & Animations",
     ".papr": "Placement & Animations > Driven bones",
-    ".wem": "Archive Browser > Import WAV + Patch to Game...",
+    ".wem": "Browse Archives > Import WAV + Patch to Game...",
 }
 
 #: Formats edited as plain text through any editor, once extracted.
@@ -125,17 +125,12 @@ def load_rows(manifest: Optional[Path] = None) -> Tuple[FormatRow, ...]:
 
 
 def headline(rows: Sequence[FormatRow]) -> str:
-    """One sentence a modder can act on, computed rather than written down."""
+    """Inventory size without treating format-level write flags as asset guarantees."""
 
     shipped = [row for row in rows if row.shipped]
-    editable = [row for row in shipped if row.moddable]
-    files_total = sum(row.files for row in shipped)
-    files_editable = sum(row.files for row in editable)
-    share = (100.0 * files_editable / files_total) if files_total else 0.0
     return (
-        f"The game ships {len(shipped)} file formats and {files_total:,} files. "
-        f"{len(editable)} of those formats can be edited today, covering "
-        f"{files_editable:,} files ({share:.0f}% of everything in the archives)."
+        f"Browse {len(shipped)} file formats found in the game. "
+        "Select a format for supported operations, editing limits and evidence."
     )
 
 

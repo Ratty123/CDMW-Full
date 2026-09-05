@@ -72,7 +72,7 @@ def _attachment_safe_placement_dependencies(
     try:
         dependencies = archive_workflow_dependency_context(owner, target_entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Safe placement editor is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Safe placement editor is unavailable: {exc}", error=True)
         return None
     if dependencies.remote and isinstance(donor_entry, ArchiveEntry):
         donor_entry = next(
@@ -80,13 +80,13 @@ def _attachment_safe_placement_dependencies(
             None,
         )
         if donor_entry is None:
-            owner.set_status_message(
+            owner.shell.set_status_message(
                 "Safe placement editor is unavailable: the placement source is outside the prepared candidate set.",
                 error=True,
             )
             return None
-    sidecars_by_path = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_path
-    sidecars_by_basename = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_basename
+    sidecars_by_path = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_path
+    sidecars_by_basename = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_basename
     return dependencies.selected_entry, donor_entry, dependencies, sidecars_by_path, sidecars_by_basename
 
 
@@ -428,7 +428,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             if "No fallback preview renderer is available." not in detail:
                 detail = f"{detail} No fallback preview renderer is available."
             placement_d3d11_status.setText(detail)
-            self.set_status_message(detail, error=True)
+            self.shell.set_status_message(detail, error=True)
 
         def _placement_d3d11_stop_worker() -> None:
             package_worker = d3d11_state.get("package_worker")
@@ -1017,12 +1017,12 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                         "Safe Placement Package Complete",
                         f"Wrote safe placement loose package:\n{result.package_root}",
                     )
-                    self.set_status_message(f"Wrote safe placement package for {target_entry.basename}.")
+                    self.shell.set_status_message(f"Wrote safe placement package for {target_entry.basename}.")
                     dialog.accept()
                 else:
-                    self.set_status_message("Safe placement package export finished with an unexpected result payload.", error=True)
+                    self.shell.set_status_message("Safe placement package export finished with an unexpected result payload.", error=True)
 
-            self._run_utility_task(
+            self.shell._run_utility_task(
                 status_message=f"Building safe placement package for {target_entry.basename}...",
                 task=_task,
                 on_complete=_handle_complete,

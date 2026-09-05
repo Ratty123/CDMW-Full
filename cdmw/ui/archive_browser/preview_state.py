@@ -161,7 +161,7 @@ class ArchivePreviewStateMixin:
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
-        if hasattr(self, "_shutdown_archive_isolated_renderer_host") and not getattr(self, "_shutting_down", False):
+        if hasattr(self, "_shutdown_archive_isolated_renderer_host") and not getattr(self.shell, "_shutting_down", False):
             self._shutdown_archive_isolated_renderer_host()
         self.archive_preview_cache_keys.clear()
         self.archive_preview_request_started_at.clear()
@@ -302,7 +302,7 @@ class ArchivePreviewStateMixin:
             "Archive File" if self.archive_preview_showing_loose else "Loose File"
         )
         self.archive_preview_loose_toggle_button.setVisible(bool(can_toggle_loose))
-        self.archive_preview_loose_toggle_button.setEnabled(bool(can_toggle_loose and not self._shutting_down))
+        self.archive_preview_loose_toggle_button.setEnabled(bool(can_toggle_loose and not self.shell._shutting_down))
 
     def _archive_model_preview_supports_textures(self, preview_model: Optional[object]) -> bool:
         if preview_model is None:

@@ -46,13 +46,13 @@ _EDITABLE = QColor(63, 143, 69, 72)
 _READ_ONLY = QColor(161, 122, 44, 72)
 _TOOL_LINK_PREFIX = "cdmw-tool:"
 _TOOL_KEYS = {
-    "Archive Browser": "archive_browser",
+    "Browse Archives": "archive_browser",
     "Mesh Editor": "mesh_editor",
     "Placement & Animations": "placement_studio",
     "Texture Upscaling & Editing": "texture_workflow",
     "Texture Replacer": "replace_assistant",
-    "Texture Editor": "texture_editor",
-    "Translations": "translation_studio",
+    "Textures": "textures",
+    "Edit Translations": "translation_studio",
 }
 
 

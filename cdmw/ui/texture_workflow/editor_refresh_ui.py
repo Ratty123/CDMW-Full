@@ -80,6 +80,16 @@ class TextureEditorRefreshUiMixin:
         return composite_state.rgba
 
     def _refresh_canvas(self) -> None:
+        if self.workspace_preview is not None:
+            from cdmw.models import TextureEditorSelection
+            source, result = self.workspace_preview
+            self.canvas.set_rgba_images(result, original_rgba=source)
+            self.canvas.set_selection(TextureEditorSelection())
+            self.canvas.set_quick_mask_overlay(None)
+            self.canvas.set_symmetry_mode("off")
+            self._refresh_zoom_indicators()
+            self._refresh_navigation_overlays()
+            return
         if self.document is None:
             self.canvas.set_image(None)
             self.canvas.set_quick_mask_overlay(None)

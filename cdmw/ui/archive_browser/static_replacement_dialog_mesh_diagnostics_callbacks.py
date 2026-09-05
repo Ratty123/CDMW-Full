@@ -327,7 +327,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         if not isinstance(text_widget, QPlainTextEdit):
             return
         QApplication.clipboard().setText(text_widget.toPlainText())
-        self.set_status_message(_mesh_editor_diagnostics_copied_status_helper())
+        self.shell.set_status_message(_mesh_editor_diagnostics_copied_status_helper())
 
     return SimpleNamespace(
         _refresh_mesh_editor_diagnostics=_refresh_mesh_editor_diagnostics,

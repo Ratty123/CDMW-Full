@@ -122,12 +122,12 @@ class ArchiveRemoteWindowBridge(QObject):
         self._item_scope_entry_ids: tuple[int, ...] = ()
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
-            window.archive_catalogue_service,
+            window.archive.archive_catalogue_service,
             self._model,
             parent=self,
         )
         self._preview_dependencies = (
-            ArchiveRemotePreviewDependencyProvider(window.archive_catalogue_service, parent=self)
+            ArchiveRemotePreviewDependencyProvider(window.archive.archive_catalogue_service, parent=self)
             if self._display_v2
             else None
         )
@@ -144,7 +144,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._controller.requestFailed.connect(self._handle_failure)
         self._controller.actionsSafeChanged.connect(self._handle_actions_safe)
         if self._display_v2:
-            window.archive_tree.use_remote_model(self._model)
+            window.archive.archive_tree.use_remote_model(self._model)
 
     @property
     def model(self) -> RemoteArchiveBrowserModel:
@@ -249,27 +249,27 @@ class ArchiveRemoteWindowBridge(QObject):
         self._clear_pending_progress()
         self._progress_operation = ""
         window = self._window
-        window.archive_remote_query_pending = False
+        window.archive.archive_remote_query_pending = False
         self._set_remote_operation_busy(False)
-        window._set_archive_warmup_overlay(False)
-        window._update_archive_filter_button_state()
+        window.archive._set_archive_warmup_overlay(False)
+        window.archive._update_archive_filter_button_state()
         if self.current_session is None:
             message = "Archive catalogue loading cancelled."
-            window._set_archive_cache_health(
+            window.shell._set_archive_cache_health(
                 "unknown",
                 "Cache Status: Unknown. Standalone archive catalogue loading was cancelled.",
                 package_root=self._last_open_root,
             )
         else:
             message = "Archive refresh cancelled. The previous catalogue remains available."
-            window._set_archive_cache_health(
+            window.shell._set_archive_cache_health(
                 "healthy",
                 "Cache Status: Healthy. The previous standalone archive catalogue remains active.",
                 package_root=self.current_session.package_root,
             )
-        window._set_archive_load_progress(message, phase="Ready", percent=100)
-        window.set_status_message(message)
-        window.append_archive_log(message)
+        window.archive._set_archive_load_progress(message, phase="Ready", percent=100)
+        window.shell.set_status_message(message)
+        window.shell.append_archive_log(message)
         return True
 
     def deactivate(self) -> None:
@@ -311,14 +311,14 @@ class ArchiveRemoteWindowBridge(QObject):
             return
         window = self._window
         waiting = bool(
-            getattr(window, "_shutting_down", False)
-            or getattr(window, "worker_thread", None) is not None
-            or getattr(window, "archive_scan_finalize_pending", False)
-            or getattr(window, "archive_filters_dirty", False)
-            or getattr(window, "archive_startup_saved_filter_apply_pending", False)
+            getattr(window.shell, "_shutting_down", False)
+            or getattr(window.shell, "worker_thread", None) is not None
+            or getattr(window.archive, "archive_scan_finalize_pending", False)
+            or getattr(window.archive, "archive_filters_dirty", False)
+            or getattr(window.archive, "archive_startup_saved_filter_apply_pending", False)
         )
         if waiting:
-            if getattr(window, "_shutting_down", False):
+            if getattr(window.shell, "_shutting_down", False):
                 return
             if attempt < 100:
                 QTimer.singleShot(
@@ -329,13 +329,13 @@ class ArchiveRemoteWindowBridge(QObject):
                     ),
                 )
             else:
-                window.append_archive_log(
+                window.shell.append_archive_log(
                     f"Archive backend shadow comparison skipped after waiting for {self._shadow_reason} to settle.",
                     verbose=True,
                 )
             return
-        package_root = str(window.archive_package_root_edit.text() or "").strip()
-        if not package_root or not window.archive_entries:
+        package_root = str(window.archive.archive_package_root_edit.text() or "").strip()
+        if not package_root or not window.archive.archive_entries:
             return
         self.start_shadow(package_root)
 
@@ -378,13 +378,13 @@ class ArchiveRemoteWindowBridge(QObject):
             )
         )[:32]
         window = self._window
-        window.archive_active_asset_catalog_scope = str(label or "Finder results")
-        window.archive_clear_asset_scope_button.setVisible(True)
-        if hasattr(window, "archive_scope_banner_label"):
-            window.archive_scope_banner_label.setText(
-                f"Scope active: {window.archive_active_asset_catalog_scope}. Clear Scope returns to normal archive filtering."
+        window.archive.archive_active_asset_catalog_scope = str(label or "Finder results")
+        window.archive.archive_clear_asset_scope_button.setVisible(True)
+        if hasattr(window.archive, "archive_scope_banner_label"):
+            window.archive.archive_scope_banner_label.setText(
+                f"Scope active: {window.archive.archive_active_asset_catalog_scope}. Clear Scope returns to normal archive filtering."
             )
-            window.archive_scope_banner_label.setVisible(True)
+            window.archive.archive_scope_banner_label.setVisible(True)
         query = ArchiveQuery(
             session_id=session.session_id,
             entry_ids=bounded_ids,
@@ -585,25 +585,25 @@ class ArchiveRemoteWindowBridge(QObject):
             return
         window = self._window
         self._clear_pending_progress()
-        reset_progress = getattr(window, "_reset_archive_load_progress", None)
+        reset_progress = getattr(window.archive, "_reset_archive_load_progress", None)
         if callable(reset_progress):
             reset_progress()
         self._progress_operation = str(operation or "").strip().lower()
-        window.archive_remote_query_pending = True
-        window._update_archive_filter_button_state()
-        window._set_archive_load_progress(
+        window.archive.archive_remote_query_pending = True
+        window.archive._update_archive_filter_button_state()
+        window.archive._set_archive_load_progress(
             text,
             phase="Filtering" if self._progress_operation == "query" else "Preparing",
             percent=1,
             allow_decrease=True,
         )
-        window._set_archive_warmup_overlay(
+        window.archive._set_archive_warmup_overlay(
             True,
             "Preparing Archive Browser",
             "The standalone archive worker is validating the cache and preparing the first bounded page.",
         )
-        window.set_status_message(text)
-        window.append_archive_log(text)
+        window.shell.set_status_message(text)
+        window.shell.append_archive_log(text)
         self._set_remote_operation_busy(True)
 
     def _clear_pending_progress(self) -> None:
@@ -628,7 +628,7 @@ class ArchiveRemoteWindowBridge(QObject):
             setter = getattr(widget, "setEnabled", None)
             if callable(setter):
                 setter(not busy)
-        refresh_button = getattr(window, "archive_refresh_scan_button", None)
+        refresh_button = getattr(window.archive, "archive_refresh_scan_button", None)
         if refresh_button is not None:
             try:
                 refresh_button.setText("Cancel" if busy else "Refresh")
@@ -668,13 +668,13 @@ class ArchiveRemoteWindowBridge(QObject):
         self._clear_pending_progress()
         self._progress_operation = ""
         window = self._window
-        publish_consumers = getattr(window, "_publish_archive_catalogue_session_to_consumers", None)
+        publish_consumers = getattr(window.shell, "_publish_archive_catalogue_session_to_consumers", None)
         if callable(publish_consumers) and self._controller.current_session is not None:
             publish_consumers(self._controller.current_session, handle)
         current_session = self._controller.current_session
         if current_session is not None:
             item_finder_warmup = getattr(
-                window,
+                window.archive,
                 "archive_item_finder_warmup_controller",
                 None,
             )
@@ -685,17 +685,17 @@ class ArchiveRemoteWindowBridge(QObject):
                     ui_generation=self._controller.generation,
                 )
             for warning in current_session.discovery_warnings:
-                window.append_archive_log(f"Warning: {warning}")
-        window.archive_remote_query_pending = False
-        window.archive_startup_autoload_defer_preview = False
-        window.archive_remote_total_matches = handle.total_matches
-        window.archive_filters_dirty = False
-        window.archive_result_filter_signature = window._current_archive_filter_signature()
-        window.archive_tree.use_remote_model(self._model)
-        window.archive_tree.setRootIsDecorated(self._model.view_mode.value != "flat")
-        window.archive_tree.setEnabled(True)
-        window._schedule_archive_tree_content_autofit()
-        window._update_archive_filter_button_state()
+                window.shell.append_archive_log(f"Warning: {warning}")
+        window.archive.archive_remote_query_pending = False
+        window.archive.archive_startup_autoload_defer_preview = False
+        window.archive.archive_remote_total_matches = handle.total_matches
+        window.archive.archive_filters_dirty = False
+        window.archive.archive_result_filter_signature = window.archive._current_archive_filter_signature()
+        window.archive.archive_tree.use_remote_model(self._model)
+        window.archive.archive_tree.setRootIsDecorated(self._model.view_mode.value != "flat")
+        window.archive.archive_tree.setEnabled(True)
+        window.shell._schedule_archive_tree_content_autofit()
+        window.archive._update_archive_filter_button_state()
         completion = f"Archive catalogue ready. Showing {handle.total_matches:,} entries."
         if current_session is not None:
             cache_detail = (
@@ -703,18 +703,18 @@ class ArchiveRemoteWindowBridge(QObject):
                 if current_session.cache_hit
                 else "Cache Status: Healthy. Built the standalone archive catalogue."
             )
-            window._set_archive_cache_health(
+            window.shell._set_archive_cache_health(
                 "healthy",
                 cache_detail,
                 package_root=current_session.package_root,
             )
-        window._set_archive_list_status(completion)
-        window._set_archive_warmup_overlay(False)
-        window._set_archive_load_progress(completion, phase="Ready", percent=100)
-        window.set_status_message(completion)
-        window.append_archive_log(completion)
+        window.archive._set_archive_list_status(completion)
+        window.archive._set_archive_warmup_overlay(False)
+        window.archive._set_archive_load_progress(completion, phase="Ready", percent=100)
+        window.shell.set_status_message(completion)
+        window.shell.append_archive_log(completion)
         if self._activate_tab_on_publish:
-            window._activate_tool_widget(window.archive_browser_tab)
+            window.shell._activate_tool_widget(window.shell.archive_browser_tab)
         self._activate_tab_on_publish = False
         self._set_remote_operation_busy(False)
         superseded = self._superseded_session_id
@@ -725,17 +725,17 @@ class ArchiveRemoteWindowBridge(QObject):
             and superseded != self._controller.current_session.session_id
         ):
             try:
-                window.archive_catalogue_service.close_archive(
+                window.archive.archive_catalogue_service.close_archive(
                     superseded,
                     ui_generation=self._controller.generation,
                 )
             except (RuntimeError, ValueError):
-                window.append_archive_log(
+                window.shell.append_archive_log(
                     "Warning: the superseded archive session will remain until backend shutdown.",
                     verbose=True,
                 )
-        window._write_heartbeat("running")
-        window._release_startup_splash()
+        window.shell._write_heartbeat("running")
+        window.shell._release_startup_splash()
         self._structure_requests_enabled = True
         self.request_structure_children("")
         QTimer.singleShot(
@@ -747,15 +747,15 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._shadow:
             return
         window = self._window
-        window.archive_extension_counts = Counter(
+        window.archive.archive_extension_counts = Counter(
             {facet.key: int(facet.count) for facet in facets.extensions if facet.key}
         )
-        window.archive_filtered_dds_count = next(
+        window.archive.archive_filtered_dds_count = next(
             (int(facet.count) for facet in facets.extensions if facet.key.casefold() == ".dds"),
             0,
         )
-        window._rebuild_archive_extension_filter_choices()
-        window._update_archive_filter_button_state()
+        window.archive._rebuild_archive_extension_filter_choices()
+        window.archive._update_archive_filter_button_state()
 
     def _handle_structure_children(self, parent_path: str, result: ArchiveChildrenResult) -> None:
         if not self._display_v2:
@@ -856,27 +856,27 @@ class ArchiveRemoteWindowBridge(QObject):
         self._clear_pending_progress()
         self._progress_operation = ""
         window = self._window
-        window.archive_remote_query_pending = False
-        window._update_archive_filter_button_state()
-        window._set_archive_warmup_overlay(False)
+        window.archive.archive_remote_query_pending = False
+        window.archive._update_archive_filter_button_state()
+        window.archive._set_archive_warmup_overlay(False)
         self._set_remote_operation_busy(False)
         message = f"Archive backend v2 failed during {kind}: {detail}"
         if kind in _SESSION_RECOVERY_FAILURES:
             current_session = self.current_session
             if current_session is not None:
-                window._set_archive_cache_health(
+                window.shell._set_archive_cache_health(
                     "healthy",
                     "Cache Status: Healthy. The previous standalone archive catalogue remains active.",
                     package_root=current_session.package_root,
                 )
             else:
-                window._set_archive_cache_health(
+                window.shell._set_archive_cache_health(
                     "unhealthy",
                     f"Cache Status: Unhealthy. Standalone archive catalogue failed: {detail}",
                     package_root=self._last_open_root,
                 )
-        window.set_status_message(message)
-        window.append_archive_log(message)
+        window.shell.set_status_message(message)
+        window.shell.append_archive_log(message)
         self._record_runtime("archive_backend_v2_failed", operation=kind, error=detail)
         if kind in _SESSION_RECOVERY_FAILURES:
             self.backendFailed.emit(kind, detail)

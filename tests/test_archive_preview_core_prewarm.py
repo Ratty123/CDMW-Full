@@ -18,6 +18,9 @@ def _entry(path: str) -> ArchiveEntry:
 
 class _Harness(ArchivePreviewCorePrewarmMixin):
     def __init__(self, entries: tuple[ArchiveEntry, ...], *, backend: str = ARCHIVE_MODEL_RENDERER_D3D11) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._shutting_down = False
         self._backend = backend
         self.archive_filtered_entries = entries

@@ -39,7 +39,7 @@ def test_bootstrap_ready_remains_accepted_after_mutation_capability_negotiation(
         {
             "event": "textures_ready",
             "renderer": {
-                "backend": "d3d11_vortice_shader",
+                "backend": "wgpu_d3d12_rust",
                 "gpu_backed": True,
                 "renderer_blocked": False,
             },
@@ -49,7 +49,7 @@ def test_bootstrap_ready_remains_accepted_after_mutation_capability_negotiation(
         {
             "event": "ready",
             "renderer": {
-                "backend": "d3d11_vortice_shader",
+                "backend": "wgpu_d3d12_rust",
                 "gpu_backed": True,
                 "renderer_blocked": False,
             },
@@ -83,14 +83,14 @@ def test_bootstrap_ready_does_not_reverify_provenance_after_protocol_ready() -> 
             "event": "ready",
             "capabilities": ["helper_build_provenance_v1", "runtime_renderer_capability"],
             "renderer": {
-                "backend": "d3d11_vortice_shader",
+                "backend": "wgpu_d3d12_rust",
                 "gpu_backed": True,
                 "renderer_blocked": False,
             },
         }
     )
 
-    assert verified_events == ["protocol_ready"]
+    assert verified_events == []
     assert getattr(builder, "_mesh_editor_embedded_dotnet_active", False)
     tab.deleteLater()
     _APP.processEvents()
@@ -136,13 +136,6 @@ def test_retired_texture_region_ack_with_envelope_remains_observable() -> None:
     _APP.processEvents()
 
 
-def test_save_request_is_declared_as_a_correlated_helper_mutation() -> None:
-    output = (
-        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Output.cs"
-    ).read_text(encoding="utf-8")
-
-    correlated = output.split("private static bool IsMutatingProtocolRequest", maxsplit=1)[1]
-    assert '"save_request" => true' in correlated
 
 
 def test_v3_selection_commit_remains_provisional_until_the_correlated_batch_ack() -> None:

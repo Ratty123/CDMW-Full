@@ -67,7 +67,7 @@ NAVIGATION_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "navigation_controller.
 SHELL_MENUS = ROOT / "cdmw" / "ui" / "shell" / "menus.py"
 SHELL_TOOL_TABS = ROOT / "cdmw" / "ui" / "shell" / "tool_tabs.py"
 SHELL_APP_STARTUP = ROOT / "cdmw" / "ui" / "shell" / "app_startup.py"
-SHELL_WORKSPACE_LAYOUT = ROOT / "cdmw" / "ui" / "shell" / "workspace_layout.py"
+SHELL_WORKSPACE_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "workspace_layout.py"
 STARTUP_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "startup_controller.py"
 SHELL_STARTUP_SPLASH = ROOT / "cdmw" / "ui" / "shell" / "startup_splash.py"
 PATH_CONTROLLER = ROOT / "cdmw" / "ui" / "shell" / "path_controller.py"
@@ -247,7 +247,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         )
 
     def test_gui_has_heartbeat_and_hang_watchdog(self) -> None:
-        source = MAIN_WINDOW.read_text(encoding="utf-8") + "\n" + SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8")
+        source = MAIN_WINDOW.read_text(encoding="utf-8") + "\n" + (SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8") + "\n" + (ROOT / "cdmw/ui/archive_browser/runtime_state.py").read_text(encoding="utf-8"))
         preview_core_source = (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_native_core.py").read_text(encoding="utf-8")
         preview_memory_source = (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_memory.py").read_text(encoding="utf-8")
         combined_source = source + "\n" + preview_core_source + "\n" + preview_memory_source
@@ -799,8 +799,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('self.open_documentation_action = self.help_menu.addAction("Documentation")', source)
         self.assertIn("self.open_settings_action.triggered.connect(self.show_settings)", source)
         self.assertIn("def show_settings(self, _checked: bool = False) -> None:", source)
-        self.assertIn("settings_tab_index = self.main_tabs.addTab(self.settings_tab, \"Settings\")", source)
-        self.assertIn("self.main_tabs.setTabVisible(settings_tab_index, False)", source)
+        self.assertIn('self._register_detachable_tool("settings", self.settings_tab, "Settings")', source)
         self.assertIn(
             "self.settings_tab.export_profile_requested.connect(self.export_profile_action.trigger)", source
         )
@@ -808,7 +807,7 @@ class CrashReportingGuardTests(unittest.TestCase):
             "self.settings_tab.import_profile_requested.connect(self.import_profile_action.trigger)", source
         )
         self.assertIn(
-            "self.settings_tab.preview_settings_requested.connect(self._open_model_preview_settings_dialog)", source
+            'self.settings_tab.preview_settings_requested.connect(self.archive._open_model_preview_settings_dialog)', source
         )
         self.assertIn('self.open_about_action = menu_bar.addAction("About")', source)
         self.assertIn("def _build_about_page(self) -> QWidget:", source)
@@ -866,7 +865,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('target = {"startup": "general", "safety": "general"}.get(target, target)', settings_source)
         self.assertIn("self.setup_page_layout.insertWidget(2, setup_section)", settings_source)
         self.assertIn("toggle_button.setVisible(False)", settings_source)
-        self.assertIn("self.setup_section.set_expanded(False)", navigation_source)
+        self.assertIn('self.textures.setup_section.set_expanded(False)', navigation_source)
         self.assertIn("self.paths_page_layout.insertWidget(2, paths_section)", settings_source)
         self.assertIn("self.paths_page_layout.insertWidget(3, archive_locations_section)", settings_source)
         self.assertNotIn("restore_archive_filters_checkbox", settings_source)
@@ -875,16 +874,16 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("Archive Browser starts with neutral filters.", settings_source)
         archive_filters_source = ARCHIVE_FILTERS.read_text(encoding="utf-8")
         self.assertIn("def _neutral_archive_filter_state(self) -> Dict[str, object]:", archive_filters_source)
-        self.assertIn("self._apply_archive_filter_state(self._neutral_archive_filter_state())", startup_source)
+        self.assertIn('self.archive._apply_archive_filter_state(self.archive._neutral_archive_filter_state())', startup_source)
         self.assertNotIn("QTimer.singleShot(6500, window._release_startup_splash)", shell_startup_source)
         self.assertIn('_write_heartbeat("archive_autoload_queued")', startup_source)
         self.assertIn('startup_splash.set_detail("Loading Archive Browser...")', startup_source)
-        autoload_start = startup_source.index("    if window._startup_archive_autoload_expected():")
+        autoload_start = startup_source.index("    if window.shell._startup_archive_autoload_expected():")
         autoload_body = startup_source[autoload_start: startup_source.index("    else:", autoload_start)]
         self.assertNotIn("window._release_startup_splash()", autoload_body)
         self.assertNotIn("QTimer.singleShot(500, self._maybe_autoload_archive_on_startup)", shell_startup_source)
         self.assertIn("Startup archive auto-load skipped because the previous session did not shut down cleanly", startup_source)
-        self.assertIn("self.archive_startup_autoload_defer_preview = True", startup_source)
+        self.assertIn('self.archive.archive_startup_autoload_defer_preview = True', startup_source)
         self.assertIn("defer_default_selection=defer_default_selection", main_behavior_source)
         self.assertIn("def show_settings_section(self, key: str) -> None:", settings_source)
         self.assertIn('self.settings_tab.show_settings_section("paths")', navigation_source)
@@ -893,7 +892,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         source = "\n".join(
             (
                 MAIN_WINDOW.read_text(encoding="utf-8"),
-                SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8"),
+                (SHELL_WINDOW_RUNTIME_STATE.read_text(encoding="utf-8") + "\n" + (ROOT / "cdmw/ui/archive_browser/runtime_state.py").read_text(encoding="utf-8")),
                 ARCHIVE_CONTROLS_PANEL.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_FAMILY_LAYOUT.read_text(encoding="utf-8"),
                 ARCHIVE_FILTER_CONTROLS.read_text(encoding="utf-8"),
@@ -1009,16 +1008,16 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("health_report = self._check_archive_cache_health(package_root_text)", autoload_body)
         self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
         self.assertIn("Keep CDMW open until the cache status reaches ready.", autoload_body)
-        self.assertIn("lambda: self.scan_archives(\n                    force_refresh=", autoload_body)
-        legacy_scan_start = autoload_body.rindex("self.scan_archives(force_refresh=")
+        self.assertIn("lambda: self.archive.scan_archives(\n                    force_refresh=", autoload_body)
+        legacy_scan_start = autoload_body.rindex("self.archive.scan_archives(force_refresh=")
         self.assertNotIn("self._release_startup_splash()", autoload_body[legacy_scan_start:])
         queue_start = source.index("def queue_startup_archive_autoload(")
         queue_body = source[queue_start : source.index("class StartupPromptMixin:", queue_start)]
-        self.assertIn("window._show_startup_archive_path_prompt_if_needed(", queue_body)
+        self.assertIn('window.shell._show_startup_archive_path_prompt_if_needed(', queue_body)
         self.assertIn("on_finished=continue_after_prompt", queue_body)
         self.assertIn('_write_heartbeat("startup_path_prompt")', queue_body)
         self.assertIn("continue_after_prompt()", queue_body)
-        self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
+        self.assertIn('QTimer.singleShot(0, window.shell._maybe_autoload_archive_on_startup)', source)
 
         self.assertIn("def _prompt_for_archive_package_root_if_missing(", source)
         self.assertIn('box.setWindowTitle("Crimson Desert Path Required")', source)
@@ -1045,7 +1044,7 @@ class CrashReportingGuardTests(unittest.TestCase):
 
         scan_start = source.index("    def scan_archives(")
         scan_body = source[scan_start : source.index("    def _ensure_archive_extension_index_ready", scan_start)]
-        self.assertIn("self._prompt_for_archive_package_root_if_missing(", scan_body)
+        self.assertIn("self.shell._prompt_for_archive_package_root_if_missing(", scan_body)
         self.assertIn('reason="refresh" if force_refresh else "scan"', scan_body)
         self.assertIn("after_autodetect=lambda: self.scan_archives(", scan_body)
 
@@ -1091,7 +1090,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('self._style_archive_role_columns(group_item, group_name, 0, 1, 2)', source)
         self.assertIn('self._style_archive_role_columns(child, group_name, 0, 1, 2)', source)
         self.assertIn('archive_extension_filter_label = QLabel("Extension")', source)
-        self.assertIn("self.archive_extension_filter_combo.currentTextChanged.connect(self._mark_archive_filters_dirty)", source)
+        self.assertIn('self.archive.archive_extension_filter_combo.currentTextChanged.connect(self.archive._mark_archive_filters_dirty)', source)
         texture_group_start = source.index('if ext in {".dds"')
         texture_group = source[texture_group_start : source.index('return "Texture / Image"', texture_group_start)]
         self.assertNotIn('".paa"', texture_group)
@@ -1109,8 +1108,8 @@ class CrashReportingGuardTests(unittest.TestCase):
             )
         )
         self.assertIn('ARCHIVE_BROWSER_VIEW_MODE = "flat"', constants_source)
-        self.assertIn('self._add_combo_choice(self.archive_browser_view_mode_combo, "Flat", "flat")', source)
-        self.assertIn('self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)', source)
+        self.assertIn('self.textures._add_combo_choice(self.archive_browser_view_mode_combo, "Flat", "flat")', source)
+        self.assertIn('self.textures._set_combo_by_value(self.archive.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)', source)
         self.assertNotIn('view_mode_value = "folders" if self._read_bool("archive/tree_view", True) else "flat"', source)
 
     def test_archive_controls_sidebar_keeps_readable_width(self) -> None:
@@ -1129,9 +1128,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("readable_values = (340, 390, 460)", source)
         self.assertIn('archive_controls_group.setObjectName("ArchiveControlsPanel")', source)
         self.assertIn("archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))", source)
-        self.assertIn("archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()", source)
+        self.assertIn('archive_controls_min, _archive_controls_pref, archive_controls_max = self.shell._archive_controls_sidebar_bounds()', source)
         self.assertIn(
-            "self.archive_extension_picker_button.setEnabled(not busy and bool(self._archive_extension_counts()))",
+            'self.archive.archive_extension_picker_button.setEnabled(not busy and bool(self.archive._archive_extension_counts()))',
             source,
         )
         self.assertIn("self.archive_log_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)", source)
@@ -1178,7 +1177,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("scale = ui_scale_for(widget) * responsive_screen_compact_scale(widget)", helper_source)
         self.assertIn("def build_bounded_splitter_sizes(", helper_source)
         self.assertIn("def _apply_responsive_width_policies(self) -> None:", source)
-        self.assertIn("self.archive_files_group.setMaximumWidth(16777215)", source)
+        self.assertIn('self.archive.archive_files_group.setMaximumWidth(16777215)', source)
         self.assertNotIn("normalized[1] > _files_max", source)
         self.assertIn("def _apply_archive_preview_content_responsive_sizes(self) -> None:", source)
         self.assertIn("not self.isMaximized()", source)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+
 import json
 import time
 from typing import Mapping
@@ -21,7 +23,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
     _RESIDENT_INTERACTION_MAX_PENDING = 16
     _RESIDENT_INTERACTION_MAX_BYTES = 64 * 1024 * 1024
 
-    def _launch_standalone_dotnet_editor_package(self, package: _tab.MeshDotNetExperimentPackage) -> bool:
+    def _launch_standalone_dotnet_editor_package(self, package: RustPreviewPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
             message = "Mesh Rust Preview helper executable is missing."
@@ -186,112 +188,6 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
                 # An embedded host can already be deleted by the time its
                 # modeless builder-finished callback reaches Mesh Editor.
                 pass
-    def _handle_standalone_dotnet_editor_finished(
-        self,
-        process: _tab.QProcess,
-        package: _tab.MeshDotNetExperimentPackage,
-    ) -> None:
-        if self.standalone_dotnet_editor_process is not process:
-            return
-        self._handle_dotnet_protocol_stdout_ready(process)
-        embedded_state_before_finish = self.standalone_dotnet_embedded_state
-        process_payload = self._dotnet_process_event_payload(process, package=package)
-        self._record_mesh_dotnet_event("mesh_dotnet_process_finished", **process_payload)
-        self.standalone_dotnet_ready_timer.stop()
-        self.standalone_dotnet_finish_scene_timer.stop()
-        self.standalone_dotnet_finish_scene_pending = None
-        self.standalone_dotnet_editor_process = None
-        self._cancel_dotnet_material_compile()
-        self.standalone_dotnet_update_ack_start_timer.stop()
-        self.standalone_dotnet_update_ack_timer.stop()
-        self._reset_resident_mutation_ui_state()
-        self.standalone_dotnet_update_queue.reset(reason="process_finished")
-        self.standalone_pending_dotnet_live_stroke_outcome = None
-        self._cancel_pending_dotnet_captures()
-        self.standalone_dotnet_scene_request_id += 1
-        self.standalone_dotnet_scene_pending = None
-        self.standalone_dotnet_scene_candidate = None
-        self.standalone_dotnet_scene_queued = None
-        self.standalone_dotnet_pending_clone_material_model = None
-        self.standalone_dotnet_pending_reference_material_model = None
-        self.standalone_dotnet_pending_imported_material_publish = False
-        self.standalone_dotnet_pending_paired_material_model = None
-        self.standalone_dotnet_pending_paired_material_upgrade = None
-        # A textured view this tab still meant to restore belongs to the session
-        # that is ending; the next one starts from its own scene.
-        self._forget_deferred_textured_view()
-        if self.standalone_dotnet_scene_worker is not None:
-            self.standalone_dotnet_scene_worker.stop()
-        self.update_editor_action_state(selection_empty=self.current_selection_empty)
-        payload: dict[str, object] = {}
-        if package.status_path.is_file():
-            try:
-                loaded = json.loads(package.status_path.read_text(encoding="utf-8-sig"))
-                if isinstance(loaded, dict):
-                    payload = loaded
-            except ValueError:
-                payload = {"event": "error", "message": "status JSON could not be parsed"}
-        self.standalone_dotnet_status_payload = dict(payload)
-        try:
-            evaluation_path = _tab.write_mesh_dotnet_experiment_evaluation(package, payload)
-        except Exception as exc:
-            self._record_mesh_dotnet_event("mesh_dotnet_evaluation_write_failed", error=str(exc))
-            evaluation_path = None
-        event = str(payload.get("event", "") or "closed").strip().lower()
-        message = str(payload.get("message", "") or "").strip()
-        if self.standalone_dotnet_target_embedded:
-            if self.standalone_dotnet_exit_pending and not self.standalone_dotnet_deactivate_acknowledged:
-                self.standalone_dotnet_deactivate_acknowledged = True
-                self._complete_pending_dotnet_exit()
-            intentional_exit = bool(
-                self.standalone_dotnet_embedded_exit_finalized
-                or self.standalone_dotnet_exit_pending
-                or embedded_state_before_finish == "suspended"
-            )
-            if not intentional_exit:
-                detail = message or "Embedded Rust helper exited unexpectedly."
-                self._set_embedded_dotnet_state("failed", active=False)
-                self._set_embedded_dotnet_preview_loading(False, detail)
-                self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
-                self._set_dotnet_status(
-                    "Rust Mesh Editor exited; resident edits remain saved but preview is unavailable. " + detail,
-                    error=True,
-                )
-                return
-            completed = self._complete_embedded_dotnet_exit("dotnet_process_finished")
-            if completed:
-                self._set_embedded_dotnet_state("closed", active=False)
-            if event in {"error", "blocked_renderer_unavailable"}:
-                text = (
-                    "Rust Mesh Editor closed with an error; resident native edits were preserved. "
-                    f"{message or 'External editor reported an error.'}"
-                )
-                self._set_dotnet_status(text, error=True)
-            elif completed:
-                self._set_dotnet_status("Rust Mesh Editor closed; resident edits saved and textured preview restored.")
-            return
-        if event in {"error", "blocked_renderer_unavailable"}:
-            text = f"Rust Mesh Editor error: {message or 'external editor reported an error.'}"
-            if evaluation_path is not None:
-                text += f" Evaluation: {evaluation_path}"
-            self._set_dotnet_status(text, error=True)
-            if self.standalone_dotnet_target_embedded:
-                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_status_error", diagnostics=message or text)
-            return
-        if not self._handle_dotnet_renderer_status(
-            payload,
-            source_event="process_finished",
-        ):
-            return
-        output_obj = _tab.mesh_dotnet_experiment_output_obj_path(package, payload)
-        if output_obj is not None and self._start_standalone_dotnet_output_import(package, payload):
-            self.status_message_requested.emit(f"Rust Mesh Editor closed; importing {output_obj}.", False)
-            return
-        output_hint = str(payload.get("edited_package", "") or package.output_dir)
-        text = f"Rust Mesh Editor closed. Output package: {output_hint}"
-        if evaluation_path is not None:
-            text += f" Evaluation: {evaluation_path}"
-        self._set_dotnet_status(text)
     def _handle_standalone_dotnet_editor_error(self, process: _tab.QProcess, qprocess_error: object = None) -> None:
         if self.standalone_dotnet_editor_process is not process:
             return
@@ -300,12 +196,6 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         detail = self._dotnet_process_diagnostics(process)
         payload = self._dotnet_process_event_payload(process, qprocess_error=qprocess_error)
         self._record_mesh_dotnet_event("mesh_dotnet_process_error", **payload)
-        package = self.standalone_dotnet_experiment_package
-        if package is not None:
-            try:
-                _tab.write_mesh_dotnet_launch_diagnostics(package, payload)
-            except Exception as diag_exc:
-                self._record_mesh_dotnet_event("mesh_dotnet_launch_diagnostics_write_failed", error=str(diag_exc))
         text = f"Rust Mesh Editor process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             if closing:

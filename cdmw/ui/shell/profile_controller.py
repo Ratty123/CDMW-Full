@@ -213,7 +213,7 @@ class ProfileControllerMixin:
             "profile_format": 4,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "theme": self.current_theme_key,
-            "config": dataclasses.asdict(self.collect_config()),
+            "config": dataclasses.asdict(self.textures.collect_config()),
             "settings": settings_snapshot,
             "settings_key_count": len(settings_snapshot),
         }
@@ -288,7 +288,7 @@ class ProfileControllerMixin:
         theme_key: str,
         decoded_settings: Optional[Dict[str, object]],
     ) -> int:
-        previous_config = self.collect_config()
+        previous_config = self.textures.collect_config()
         previous_theme = self.current_theme_key
         previous_settings = _decoded_profile_settings_snapshot(self._collect_profile_settings_snapshot())
         try:
@@ -310,116 +310,116 @@ class ProfileControllerMixin:
 
     def _chainner_diagnostic_snapshot(self) -> ChainnerDiagnosticSnapshot:
         return ChainnerDiagnosticSnapshot(
-            chain_path=self.chainner_chain_path_edit.text().strip(),
-            original_dds_root=self.original_dds_edit.text().strip(),
-            staging_png_root=self.dds_staging_root_edit.text().strip(),
-            png_root=self.png_root_edit.text().strip(),
-            override_json=self.chainner_override_edit.toPlainText(),
+            chain_path=self.textures.chainner_chain_path_edit.text().strip(),
+            original_dds_root=self.textures.original_dds_edit.text().strip(),
+            staging_png_root=self.textures.dds_staging_root_edit.text().strip(),
+            png_root=self.textures.png_root_edit.text().strip(),
+            override_json=self.textures.chainner_override_edit.toPlainText(),
         )
 
     def _apply_profile_config(self, config: AppConfig, *, theme_key: Optional[str] = None) -> None:
         previous_ready = self._settings_ready
         self._settings_ready = False
         try:
-            self.original_dds_edit.setText(config.original_dds_root)
-            self.png_root_edit.setText(config.png_root)
-            self.texture_editor_png_root_edit.setText(getattr(config, "texture_editor_png_root", ""))
-            self.dds_staging_root_edit.setText(config.dds_staging_root)
-            self.output_root_edit.setText(config.output_root)
-            self._set_combo_by_value(self.dds_format_mode_combo, config.dds_format_mode)
-            self._set_combo_by_value(self.dds_custom_format_combo, config.dds_custom_format)
-            self._set_combo_by_value(self.dds_size_mode_combo, config.dds_size_mode)
-            self.dds_custom_width_spin.setValue(int(config.dds_custom_width))
-            self.dds_custom_height_spin.setValue(int(config.dds_custom_height))
-            self._set_combo_by_value(self.dds_mip_mode_combo, config.dds_mip_mode)
-            self.dds_custom_mip_spin.setValue(int(config.dds_custom_mip_count))
-            self.enable_dds_staging_checkbox.setChecked(bool(config.enable_dds_staging))
-            self.enable_incremental_resume_checkbox.setChecked(bool(config.enable_incremental_resume))
-            self.dry_run_checkbox.setChecked(bool(config.dry_run))
-            self.csv_log_enabled_checkbox.setChecked(bool(config.csv_log_enabled))
-            self.csv_log_path_edit.setText(config.csv_log_path)
-            self.unique_basename_checkbox.setChecked(bool(config.allow_unique_basename_fallback))
-            self.overwrite_existing_checkbox.setChecked(bool(config.overwrite_existing_dds))
-            self.filters_edit.setPlainText(config.include_filters)
-            self._set_combo_by_value(
-                self.upscale_backend_combo,
+            self.textures.original_dds_edit.setText(config.original_dds_root)
+            self.textures.png_root_edit.setText(config.png_root)
+            self.textures.texture_editor_png_root_edit.setText(getattr(config, "texture_editor_png_root", ""))
+            self.textures.dds_staging_root_edit.setText(config.dds_staging_root)
+            self.textures.output_root_edit.setText(config.output_root)
+            self.textures._set_combo_by_value(self.textures.dds_format_mode_combo, config.dds_format_mode)
+            self.textures._set_combo_by_value(self.textures.dds_custom_format_combo, config.dds_custom_format)
+            self.textures._set_combo_by_value(self.textures.dds_size_mode_combo, config.dds_size_mode)
+            self.textures.dds_custom_width_spin.setValue(int(config.dds_custom_width))
+            self.textures.dds_custom_height_spin.setValue(int(config.dds_custom_height))
+            self.textures._set_combo_by_value(self.textures.dds_mip_mode_combo, config.dds_mip_mode)
+            self.textures.dds_custom_mip_spin.setValue(int(config.dds_custom_mip_count))
+            self.textures.enable_dds_staging_checkbox.setChecked(bool(config.enable_dds_staging))
+            self.textures.enable_incremental_resume_checkbox.setChecked(bool(config.enable_incremental_resume))
+            self.textures.dry_run_checkbox.setChecked(bool(config.dry_run))
+            self.textures.csv_log_enabled_checkbox.setChecked(bool(config.csv_log_enabled))
+            self.textures.csv_log_path_edit.setText(config.csv_log_path)
+            self.textures.unique_basename_checkbox.setChecked(bool(config.allow_unique_basename_fallback))
+            self.textures.overwrite_existing_checkbox.setChecked(bool(config.overwrite_existing_dds))
+            self.textures.filters_edit.setPlainText(config.include_filters)
+            self.textures._set_combo_by_value(
+                self.textures.upscale_backend_combo,
                 getattr(
                     config,
                     "upscale_backend",
                     UPSCALE_BACKEND_CHAINNER if config.enable_chainner else UPSCALE_BACKEND_NONE,
                 ),
             )
-            self.chainner_exe_path_edit.setText(config.chainner_exe_path)
-            self.chainner_chain_path_edit.setText(config.chainner_chain_path)
-            self.chainner_override_edit.setPlainText(config.chainner_override_json)
-            self.ncnn_exe_path_edit.setText(getattr(config, "ncnn_exe_path", ""))
-            self.ncnn_model_dir_edit.setText(getattr(config, "ncnn_model_dir", ""))
-            self.ncnn_extra_args_edit.setText(getattr(config, "ncnn_extra_args", ""))
-            self.ncnn_scale_spin.setValue(int(getattr(config, "ncnn_scale", REALESRGAN_NCNN_SCALE)))
-            self.ncnn_tile_size_spin.setValue(int(getattr(config, "ncnn_tile_size", REALESRGAN_NCNN_TILE_SIZE)))
-            self._set_combo_by_value(
-                self.upscale_post_correction_combo,
+            self.textures.chainner_exe_path_edit.setText(config.chainner_exe_path)
+            self.textures.chainner_chain_path_edit.setText(config.chainner_chain_path)
+            self.textures.chainner_override_edit.setPlainText(config.chainner_override_json)
+            self.textures.ncnn_exe_path_edit.setText(getattr(config, "ncnn_exe_path", ""))
+            self.textures.ncnn_model_dir_edit.setText(getattr(config, "ncnn_model_dir", ""))
+            self.textures.ncnn_extra_args_edit.setText(getattr(config, "ncnn_extra_args", ""))
+            self.textures.ncnn_scale_spin.setValue(int(getattr(config, "ncnn_scale", REALESRGAN_NCNN_SCALE)))
+            self.textures.ncnn_tile_size_spin.setValue(int(getattr(config, "ncnn_tile_size", REALESRGAN_NCNN_TILE_SIZE)))
+            self.textures._set_combo_by_value(
+                self.textures.upscale_post_correction_combo,
                 getattr(config, "upscale_post_correction_mode", DEFAULT_UPSCALE_POST_CORRECTION),
             )
-            self._set_combo_by_value(
-                self.upscale_texture_preset_combo,
+            self.textures._set_combo_by_value(
+                self.textures.upscale_texture_preset_combo,
                 getattr(config, "upscale_texture_preset", DEFAULT_UPSCALE_TEXTURE_PRESET),
             )
-            self.enable_automatic_texture_rules_checkbox.setChecked(
+            self.textures.enable_automatic_texture_rules_checkbox.setChecked(
                 bool(getattr(config, "enable_automatic_texture_rules", ENABLE_AUTOMATIC_TEXTURE_RULES))
             )
-            self.enable_unsafe_technical_override_checkbox.setChecked(
+            self.textures.enable_unsafe_technical_override_checkbox.setChecked(
                 bool(getattr(config, "enable_unsafe_technical_override", ENABLE_UNSAFE_TECHNICAL_OVERRIDE))
             )
-            self.retry_smaller_tile_checkbox.setChecked(
+            self.textures.retry_smaller_tile_checkbox.setChecked(
                 bool(getattr(config, "retry_smaller_tile_on_failure", RETRY_SMALLER_TILE_ON_FAILURE))
             )
-            self.enable_mod_ready_loose_export_checkbox.setChecked(
+            self.textures.enable_mod_ready_loose_export_checkbox.setChecked(
                 bool(getattr(config, "enable_mod_ready_loose_export", ENABLE_MOD_READY_LOOSE_EXPORT))
             )
-            self.mod_ready_export_root_edit.setText(getattr(config, "mod_ready_export_root", ""))
-            self.mod_ready_create_no_encrypt_checkbox.setChecked(
+            self.textures.mod_ready_export_root_edit.setText(getattr(config, "mod_ready_export_root", ""))
+            self.textures.mod_ready_create_no_encrypt_checkbox.setChecked(
                 bool(getattr(config, "mod_ready_create_no_encrypt_file", MOD_READY_CREATE_NO_ENCRYPT))
             )
-            self.mod_ready_package_title_edit.setText(getattr(config, "mod_ready_package_title", MOD_READY_PACKAGE_TITLE))
-            self.mod_ready_package_version_edit.setText(getattr(config, "mod_ready_package_version", MOD_READY_PACKAGE_VERSION))
-            self.mod_ready_package_author_edit.setText(getattr(config, "mod_ready_package_author", MOD_READY_PACKAGE_AUTHOR))
-            self.mod_ready_package_description_edit.setText(
+            self.textures.mod_ready_package_title_edit.setText(getattr(config, "mod_ready_package_title", MOD_READY_PACKAGE_TITLE))
+            self.textures.mod_ready_package_version_edit.setText(getattr(config, "mod_ready_package_version", MOD_READY_PACKAGE_VERSION))
+            self.textures.mod_ready_package_author_edit.setText(getattr(config, "mod_ready_package_author", MOD_READY_PACKAGE_AUTHOR))
+            self.textures.mod_ready_package_description_edit.setText(
                 getattr(config, "mod_ready_package_description", MOD_READY_PACKAGE_DESCRIPTION)
             )
-            self.mod_ready_package_nexus_url_edit.setText(
+            self.textures.mod_ready_package_nexus_url_edit.setText(
                 getattr(config, "mod_ready_package_nexus_url", MOD_READY_PACKAGE_NEXUS_URL)
             )
-            self._refresh_ncnn_model_picker(preferred_name=getattr(config, "ncnn_model_name", ""))
-            self.archive_package_root_edit.setText(config.archive_package_root)
-            self.archive_extract_root_edit.setText(config.archive_extract_root)
-            self.archive_filter_edit.setText(config.archive_filter_text)
-            self.archive_exclude_filter_edit.setText(getattr(config, "archive_exclude_filter_text", ""))
-            self._rebuild_archive_extension_filter_choices(config.archive_extension_filter)
-            self._set_combo_by_value(self.archive_extension_filter_combo, config.archive_extension_filter)
-            self.archive_package_filter_edit.setText(config.archive_package_filter_text)
-            self.archive_structure_filter_pending_value = config.archive_structure_filter
-            self._set_combo_by_value(self.archive_role_filter_combo, config.archive_role_filter)
-            self.archive_exclude_common_technical_checkbox.setChecked(
+            self.textures._refresh_ncnn_model_picker(preferred_name=getattr(config, "ncnn_model_name", ""))
+            self.archive.archive_package_root_edit.setText(config.archive_package_root)
+            self.archive.archive_extract_root_edit.setText(config.archive_extract_root)
+            self.archive.archive_filter_edit.setText(config.archive_filter_text)
+            self.archive.archive_exclude_filter_edit.setText(getattr(config, "archive_exclude_filter_text", ""))
+            self.archive._rebuild_archive_extension_filter_choices(config.archive_extension_filter)
+            self.textures._set_combo_by_value(self.archive.archive_extension_filter_combo, config.archive_extension_filter)
+            self.archive.archive_package_filter_edit.setText(config.archive_package_filter_text)
+            self.archive.archive_structure_filter_pending_value = config.archive_structure_filter
+            self.textures._set_combo_by_value(self.archive.archive_role_filter_combo, config.archive_role_filter)
+            self.archive.archive_exclude_common_technical_checkbox.setChecked(
                 bool(getattr(config, "archive_exclude_common_technical_suffixes", ARCHIVE_EXCLUDE_COMMON_TECHNICAL_SUFFIXES))
             )
-            self.archive_min_size_spin.setValue(int(config.archive_min_size_kb))
-            self.archive_previewable_only_checkbox.setChecked(bool(config.archive_previewable_only))
-            self._set_combo_by_value(
-                self.archive_browser_view_mode_combo,
+            self.archive.archive_min_size_spin.setValue(int(config.archive_min_size_kb))
+            self.archive.archive_previewable_only_checkbox.setChecked(bool(config.archive_previewable_only))
+            self.textures._set_combo_by_value(
+                self.archive.archive_browser_view_mode_combo,
                 str(getattr(config, "archive_browser_view_mode", ARCHIVE_BROWSER_VIEW_MODE) or ARCHIVE_BROWSER_VIEW_MODE),
             )
-            self._apply_workflow_state_from_config(config)
+            self.textures._apply_workflow_state_from_config(config)
         finally:
             self._settings_ready = previous_ready
 
         self._apply_csv_log_enabled_state()
-        self._apply_upscale_backend_state()
-        self._apply_mod_ready_export_state()
-        self._apply_dds_staging_enabled_state()
-        self._apply_dds_output_state()
-        self._refresh_chainner_chain_info()
-        self._schedule_workflow_match_refresh()
+        self.textures._apply_upscale_backend_state()
+        self.textures._apply_mod_ready_export_state()
+        self.textures._apply_dds_staging_enabled_state()
+        self.textures._apply_dds_output_state()
+        self.textures._refresh_chainner_chain_info()
+        self.textures._schedule_workflow_match_refresh()
         if theme_key and theme_key in UI_THEME_SCHEMES:
             self._handle_theme_changed(theme_key)
         self.flush_settings_save()
@@ -551,12 +551,12 @@ class ProfileControllerMixin:
             app_version=APP_VERSION,
             theme=self.current_theme_key,
             settings_file_path=Path(self.settings_file_path),
-            archive_cache_root=Path(self.archive_cache_root),
+            archive_cache_root=Path(self.archive.archive_cache_root),
             crash_reports_dir=self._crash_reports_dir(),
             profile_json=json.dumps(self._collect_profile_payload(flush=False), indent=2),
             chainner=self._chainner_diagnostic_snapshot(),
-            live_log=self.log_view.toPlainText(),
-            archive_scan_log=self.archive_log_view.toPlainText(),
+            live_log=self.textures.log_view.toPlainText(),
+            archive_scan_log=self.archive.archive_log_view.toPlainText(),
             crash_context_json=json.dumps(self._diagnostic_context_snapshot(), default=str),
             text_search_entries=text_search_entries,
             documentation_files=(
@@ -573,11 +573,11 @@ class ProfileControllerMixin:
         try:
             index = self.main_tabs.currentIndex()
             if index >= 0:
-                context["current_tab"] = self.main_tabs.tabText(index)
+                context["current_tab"] = self._tool_titles_by_key.get(self._tool_key_for_widget(self.tool_stack.widget(index)), "")
         except Exception:
             pass
         try:
-            entry = self._current_archive_entry()
+            entry = self.archive._current_archive_entry()
             if entry is not None:
                 context["selected_archive_path"] = entry.path
                 context["selected_archive_package"] = str(entry.pamt_path)
@@ -635,7 +635,7 @@ class ProfileControllerMixin:
 
     def validate_chainner_chain(self) -> None:
         analysis, text = self._resolve_chainner_analysis()
-        self.chainner_chain_info_view.setPlainText(text)
+        self.textures.chainner_chain_info_view.setPlainText(text)
         if analysis is None:
             self.set_status_message(text, error=True)
             return

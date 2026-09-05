@@ -16,7 +16,7 @@ class ArchiveBrowserActionControlsMixin:
         mesh_entry = self._current_archive_mesh_entry()
         hkx_entry = self._current_archive_hkx_entry()
         binary_sidecar_entry = self._current_archive_binary_sidecar_entry()
-        controls_enabled = self.worker_thread is None
+        controls_enabled = self.shell.worker_thread is None
         has_current_entry = isinstance(current_entry, ArchiveEntry)
         can_mesh_actions = mesh_entry is not None
         can_hkx_actions = hkx_entry is not None

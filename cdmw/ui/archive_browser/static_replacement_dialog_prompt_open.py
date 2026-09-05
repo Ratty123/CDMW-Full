@@ -34,7 +34,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _clear_all_part_selections = context["_clear_all_part_selections"]
     _refresh_mesh_editor_diagnostics = context["_refresh_mesh_editor_diagnostics"]
     _run_alignment_post_open_tasks = context["_run_alignment_post_open_tasks"]
-    _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
+    _record_runtime_event = getattr(self.shell, "_record_runtime_event", lambda *_args, **_kwargs: {})
     def _record_open_step(step: str) -> None:
         _record_runtime_event(
             "mesh_alignment_open_step",
@@ -58,7 +58,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             if dialog.isHidden():
                 _record_open_step("reveal_skipped_explicitly_hidden")
                 return
-            builder_host = self.mesh_editor_tab.builder_host()
+            builder_host = self.shell.mesh_editor_tab.builder_host()
             if dialog.parentWidget() is not builder_host:
                 _record_open_step("reveal_skipped_unmounted")
                 return
@@ -67,7 +67,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
                 _record_open_step("reveal_skipped_progress_visible")
                 return
             _record_open_step("reveal_mesh_editor_before")
-            self._activate_tool_widget(self.mesh_editor_tab)
+            self.shell._activate_tool_widget(self.shell.mesh_editor_tab)
             _record_open_step("reveal_mesh_editor_after")
         except RuntimeError:
             # The user can close the builder between show() and this queued
@@ -171,11 +171,11 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     setattr(dialog, "_cdmw_builder_construction_complete", True)
     _alignment_startup_step(alignment_startup_text["opening_builder"])
     _record_open_step("begin")
-    if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
+    if embedded_alignment_builder and hasattr(self.shell, "mesh_editor_tab"):
         _record_open_step("mount_embedded_before")
         dialog.setWindowTitle("Mesh Replacement Builder")
         root_layout.setContentsMargins(0, 0, 0, 0)
-        self.mesh_editor_tab.mount_embedded_builder(dialog)
+        self.shell.mesh_editor_tab.mount_embedded_builder(dialog)
         _record_open_step("mount_embedded_after")
         _apply_alignment_dialog_responsive_layout(force_sizes=True)
     else:

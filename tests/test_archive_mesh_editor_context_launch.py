@@ -22,6 +22,9 @@ def _entry() -> ArchiveEntry:
 
 class _ContextLaunchHarness(ArchiveBrowserActionMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self._shutting_down = False
         self.launched: list[ArchiveEntry] = []
 

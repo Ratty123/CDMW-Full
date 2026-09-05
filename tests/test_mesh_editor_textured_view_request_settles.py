@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skip(
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_input_signature
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
 from cdmw.services.mesh_dotnet_material_compiler import (
     snapshot_mesh_dotnet_material_inputs,
 )

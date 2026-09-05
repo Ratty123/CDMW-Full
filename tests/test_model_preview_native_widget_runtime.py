@@ -31,12 +31,7 @@ from cdmw.rendering.material_combiner import (
     combine_preview_material,
     decode_material_sample,
 )
-from cdmw.rendering.native_preview_package import (
-    _input_texture_kind,
-    _skeleton_overlay_metadata,
-    build_native_preview_payloads,
-    write_isolated_d3d11_preview_package,
-)
+from cdmw.rendering.native_preview_payloads import _input_texture_kind, build_native_preview_payloads
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
     ARCHIVE_MODEL_RENDERER_DEFAULT,
@@ -220,7 +215,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
             app.processEvents()
 
             details = widget.debug_details_text()
-            self.assertIn(".NET/Vortice preview data ready", details)
+            self.assertIn("Rust Preview preview data ready", details)
             payload = build_native_preview_payloads(prepared)[0]
             self.assertFalse(payload.texture_flip_vertical)
             prepared_path = Path(QUrl(payload.texture_source).toLocalFile())

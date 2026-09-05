@@ -121,21 +121,3 @@ def test_highlight_state_carries_the_flag_the_viewport_gate_reads() -> None:
     )
 
     assert payload["display"]["part_pick_enabled"] is False
-
-
-def test_viewport_only_begins_a_source_drag_behind_the_part_pick_gate() -> None:
-    """Pin the consumer, so the flag cannot be re-read somewhere ungated.
-
-    MeshViewport is C#; the Python gate above is only meaningful while this is
-    the sole path from a non-edit left click into whole-part selection.
-    """
-    source = MESH_VIEWPORT_INPUT.read_text(encoding="utf-8")
-    gate = source.index("if (PartPickEnabled)")
-    drag = source.index('BeginSelectionDrag(input.Location, "source")', gate)
-    between = source[gate:drag]
-
-    assert "\n        }" not in between, (
-        'BeginSelectionDrag(..., "source") is no longer directly inside the '
-        "PartPickEnabled gate"
-    )
-    assert source.count('BeginSelectionDrag(input.Location, "source")') == 1

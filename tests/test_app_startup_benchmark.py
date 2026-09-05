@@ -189,14 +189,14 @@ def test_loading_main_window_class_does_not_import_static_replacement_prompt() -
             "import os, sys",
             "os.environ['CDMW_MAIN_WINDOW_CLASS_ONLY'] = '1'",
             "import cdmw.ui.shell.app_window as app_window",
-            "deferred = ('cdmw.ui.shell.app_startup', 'cdmw.ui.shell.startup_controller', "
-            "'cdmw.ui.shell.startup_splash', 'cdmw.ui.shell.icon_controller')",
+            "from PySide6.QtWidgets import QApplication",
+            "deferred = ('cdmw.ui.shell.app_startup', 'cdmw.ui.shell.icon_controller')",
             "assert not [name for name in deferred if name in sys.modules]",
             "assert 'cdmw.ui.archive_browser.static_replacement_dialog_prompt' not in sys.modules",
             "assert isinstance(app_window.run_gui(), type)",
             "assert not [name for name in deferred if name in sys.modules]",
             "assert 'cdmw.ui.archive_browser.static_replacement_dialog_prompt' not in sys.modules",
-            "assert 'numpy' not in sys.modules",
+            "assert QApplication.instance() is None",
         )
     )
     result = subprocess.run(

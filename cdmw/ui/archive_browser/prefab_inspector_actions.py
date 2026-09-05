@@ -27,12 +27,12 @@ class ArchivePrefabInspectorActionsMixin:
     def _open_current_archive_prefab_inspector(self) -> None:
         entry = self._current_archive_prefab_entry()
         if entry is None:
-            self.set_status_message("Select a .prefab archive entry before opening the inspector.", error=True)
+            self.shell.set_status_message("Select a .prefab archive entry before opening the inspector.", error=True)
             return
         try:
             data, _decompressed, _note = read_archive_entry_data(entry)
         except Exception as exc:  # noqa: BLE001 - surfaced to the user
-            self.set_status_message(f"Could not read {entry.path}: {exc}", error=True)
+            self.shell.set_status_message(f"Could not read {entry.path}: {exc}", error=True)
             return
 
         def _index(log: Callable[[str], None]) -> dict[str, tuple[str, ...]]:
@@ -66,7 +66,7 @@ class ArchivePrefabInspectorActionsMixin:
             known = result if isinstance(result, dict) else {}
             self._show_prefab_inspector(entry, data, known)
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Preparing Prefab Inspector for {entry.basename}...",
             task=_index,
             on_complete=_open,
@@ -162,16 +162,16 @@ class ArchivePrefabInspectorActionsMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, ArchiveLooseExportResult):
-                self.set_status_message("Prefab export finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Prefab export finished with an unexpected result payload.", error=True)
                 return
             QMessageBox.information(
                 self,
                 "Prefab Package Complete",
                 f"Wrote prefab loose package into:\n{result.package_root}",
             )
-            self.set_status_message(f"Wrote prefab loose package: {result.package_root}")
+            self.shell.set_status_message(f"Wrote prefab loose package: {result.package_root}")
 
-        self._run_utility_task_when_idle(
+        self.shell._run_utility_task_when_idle(
             status_message=f"Building prefab package for {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,

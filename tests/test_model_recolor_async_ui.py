@@ -237,6 +237,11 @@ def test_shell_model_import_handler_defers_file_io_and_scene_import() -> None:
     entry = object()
 
     class Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         _import_local_model_to_current_archive = ModelLibraryShellBridgeMixin._import_local_model_to_current_archive
 
         def _current_archive_mesh_entry(self) -> object:
@@ -272,6 +277,11 @@ def test_shell_model_import_completion_dispatches_async_setup_before_opening_edi
     entry = object()
 
     class Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         _import_local_model_to_current_archive = ModelLibraryShellBridgeMixin._import_local_model_to_current_archive
 
         def _current_archive_mesh_entry(self) -> object:

@@ -232,7 +232,7 @@ def _remaining_geometry_history_step_008(_state):
             return True
         message = 'Native geometry history snapshot failed; Python full-mesh snapshot fallback blocked while native mesh core is available.'
         _state._record_runtime_event('mesh_edit_geometry_python_snapshot_fallback_blocked', message=message)
-        _state.self.set_status_message(message, error=True)
+        _state.self.shell.set_status_message(message, error=True)
         return False
     _state._geometry_python_mesh_snapshot_fallback_allowed = _geometry_python_mesh_snapshot_fallback_allowed
 
@@ -349,7 +349,7 @@ def _remaining_geometry_history_step_016(_state):
         source_indices = _state._geometry_sparse_restore_source_indices(before_positions)
         message = 'Native geometry history restore failed; Python restore fallback is disabled.'
         _state._record_runtime_event('mesh_edit_geometry_python_sparse_restore_fallback_blocked', source_indices=source_indices, message=message)
-        _state.self.set_status_message(message, error=True)
+        _state.self.shell.set_status_message(message, error=True)
         return False
     _state._geometry_python_sparse_restore_fallback_allowed = _geometry_python_sparse_restore_fallback_allowed
 
@@ -359,7 +359,7 @@ def _remaining_geometry_history_step_017(_state):
         message = 'Native geometry normal recompute failed; Python normal fallback is disabled.'
         normalized_source_indices = _state._geometry_source_index_tuple(source_indices)
         _state._record_runtime_event('mesh_edit_geometry_python_normals_fallback_blocked', source_indices=normalized_source_indices, message=message)
-        _state.self.set_status_message(message, error=True)
+        _state.self.shell.set_status_message(message, error=True)
         return False
     _state._geometry_python_normal_fallback_allowed = _geometry_python_normal_fallback_allowed
 
@@ -384,7 +384,7 @@ def _remaining_geometry_history_step_020(_state):
             return False
         message = 'Active Mesh Editor geometry history restore requires native history execution; Python state restore fallback is disabled.'
         _state._record_runtime_event('mesh_edit_geometry_history_python_state_restore_blocked', message=message)
-        _state.self.set_status_message(message, error=True)
+        _state.self.shell.set_status_message(message, error=True)
         return True
     _state._geometry_history_restore_mutation_blocked = _geometry_history_restore_mutation_blocked
 
@@ -451,12 +451,12 @@ def _remaining_geometry_history_step_023(_state):
                 return
             message = 'Rust Preview mesh edit commands are unavailable; preview is stale. Retry the preview to resync.'
             _state._record_runtime_event('mesh_edit_geometry_sparse_restore_live_update_unavailable', source_indices=tuple(sorted((int(index) for index in changed_vertices_by_submesh))), message=message)
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return
         if _state._geometry_mesh_edit_active():
             message = 'Active Mesh Editor geometry restore requires a Rust Preview refresh; software preview fallback is disabled.'
             _state._record_runtime_event('mesh_edit_geometry_sparse_restore_python_preview_rebuild_blocked', source_indices=tuple(sorted((int(index) for index in changed_vertices_by_submesh))), message=message)
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return
         _state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)
         _state._queue_static_preview_rebuild()
@@ -484,12 +484,12 @@ def _remaining_geometry_history_step_025(_state):
                 return
             message = 'Rust Preview mesh edit commands are unavailable; preview is stale. Retry the preview to resync.'
             _state._record_runtime_event('mesh_edit_geometry_full_restore_live_update_unavailable', message=message)
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return
         if _state._geometry_mesh_edit_active():
             message = 'Active Mesh Editor geometry restore requires a Rust Preview refresh; software preview fallback is disabled.'
             _state._record_runtime_event('mesh_edit_geometry_full_restore_python_preview_rebuild_blocked', message=message)
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return
         _state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping) if _state.state.replacement_mesh_for_mapping is not None else None
         _state._queue_static_preview_rebuild()
@@ -733,7 +733,7 @@ def _remaining_geometry_history_step_028(_state):
             # status line; overwriting it with "Undid ..." was the part that made a
             # no-op look like a successful undo.
             return
-        _state.self.set_status_message(_state._geometry_undo_status_text_helper(snapshot.get('reason', 'Geometry change')))
+        _state.self.shell.set_status_message(_state._geometry_undo_status_text_helper(snapshot.get('reason', 'Geometry change')))
     _state._undo_geometry_change = _undo_geometry_change
 
 def _remaining_geometry_history_step_029(_state):
@@ -748,7 +748,7 @@ def _remaining_geometry_history_step_029(_state):
             # Same as Undo: the blocked branch has already reported why, and saying
             # the geometry was reset over the top of it is the misleading part.
             return
-        _state.self.set_status_message(_state._geometry_reset_status_text_helper())
+        _state.self.shell.set_status_message(_state._geometry_reset_status_text_helper())
     _state._reset_geometry_changes = _reset_geometry_changes
 
 def _remaining_geometry_history_step_030(_state):
@@ -766,7 +766,7 @@ def _remaining_geometry_history_step_031(_state):
         _state.mapping_edit_refresh_timer.stop()
         if _state._geometry_mesh_edit_active():
             message = 'Active Mesh Editor mapping edits require native material execution; Python routing mutation fallback is disabled.'
-            _state.self.set_status_message(message, error=True)
+            _state.self.shell.set_status_message(message, error=True)
             return
         _state.texture_overrides_dirty['dirty'] = True
         _state._refresh_source_assignment_columns()

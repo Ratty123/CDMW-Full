@@ -66,13 +66,6 @@ def _assert_real_texture_editor(widget: QWidget) -> None:
         )
 
 
-def _apply_presentation(window: object, key: str, widget: QWidget) -> None:
-    from cdmw.ui.shell.compact.presentations import apply_compact_presentation
-
-    if not apply_compact_presentation(window, key, widget):
-        raise RuntimeError(f"Compact presentation was not applied for registered tool {key!r}.")
-
-
 def _resize_frame(window: QWidget, target: tuple[int, int]) -> None:
     """Resize the Qt window to the requested logical client size."""
 

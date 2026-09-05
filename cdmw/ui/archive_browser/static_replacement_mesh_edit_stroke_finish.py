@@ -133,7 +133,7 @@ def _mesh_edit_finish_remove_stroke(_state, _callbacks, payload: object) -> None
         _callbacks._mesh_edit_clear_active_stroke()
         _callbacks._refresh_mesh_edit_controls()
         mesh_edit_delete_faces_text = _state._mesh_edit_delete_faces_text_helper()
-        _state.self.set_status_message(mesh_edit_delete_faces_text["no_brush_faces"])
+        _state.self.shell.set_status_message(mesh_edit_delete_faces_text["no_brush_faces"])
         return
     _callbacks._mesh_editor_store_result_mesh(result)
     _callbacks._mesh_editor_remember_static_replacement_session_mesh()
@@ -179,7 +179,7 @@ def _mesh_edit_finish_geometry_stroke(
                     _require_native_history_delta=True,
                 )
         except Exception as exc:
-            _state.self.set_status_message(f"Native Mesh Editor stroke finish failed: {exc}", error=True)
+            _state.self.shell.set_status_message(f"Native Mesh Editor stroke finish failed: {exc}", error=True)
     changed = bool(_state.mesh_edit_active_stroke.get("changed"))
     if not changed:
         _callbacks._mesh_edit_pop_active_stroke_snapshots()

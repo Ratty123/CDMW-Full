@@ -169,19 +169,19 @@ class ArchiveProgressMixin:
         if hasattr(self, "archive_scan_progress_label"):
             self.archive_scan_progress_label.setText(phase_text)
             self.archive_scan_progress_label.setToolTip(detail_text)
-        self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)
+        self.shell._dashboard_set_archive_progress(phase_text, detail_text, percent_value)
 
     def _apply_archive_scan_progress(self, current: int, total: int, detail: str) -> None:
         progress_detail = str(detail or "Working...")
         if bool(getattr(self, "archive_startup_hold_until_ready", False)):
-            self._startup_splash_last_progress_at = time.monotonic()
+            self.shell._startup_splash_last_progress_at = time.monotonic()
         if total > 0:
             completed_value = min(max(current, 0), total)
             percent = self._archive_progress_percent_for_detail(completed_value, total, progress_detail)
             phase_percent = int(round(100.0 * completed_value / max(total, 1)))
             detail_with_progress = f"{progress_detail} ({phase_percent}%)"
             self._set_archive_load_progress(progress_detail, completed_value, total, percent=percent)
-            self._update_startup_splash(detail_with_progress, percent, 100)
+            self.shell._update_startup_splash(detail_with_progress, percent, 100)
             self._set_archive_warmup_overlay(
                 True,
                 "Scanning Archive Packages",
@@ -200,13 +200,13 @@ class ArchiveProgressMixin:
                 percent=percent,
                 indeterminate=True,
             )
-            self._update_startup_splash(detail_with_progress)
+            self.shell._update_startup_splash(detail_with_progress)
             self._set_archive_warmup_overlay(
                 True,
                 "Scanning Archive Packages",
                 progress_detail,
             )
-        self.set_status_message(progress_detail if total <= 0 else detail_with_progress)
+        self.shell.set_status_message(progress_detail if total <= 0 else detail_with_progress)
 
     def _flush_archive_scan_progress(self) -> None:
         pending = self._archive_scan_progress_pending
@@ -221,7 +221,7 @@ class ArchiveProgressMixin:
         self._archive_scan_progress_pending = (
             int(current or 0),
             int(total or 0),
-            self._startup_splash_progress_detail(str(detail or "Working...")),
+            self.shell._startup_splash_progress_detail(str(detail or "Working...")),
         )
         now = time.perf_counter()
         elapsed = now - self._archive_scan_progress_last_flush

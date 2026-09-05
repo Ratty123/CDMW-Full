@@ -41,7 +41,7 @@ def _setup_options_transform_step_014(_state):
 
 def _setup_options_transform_step_015(_state):
     _state.complete_swap_material_profile_combo.currentIndexChanged.connect(lambda _index: (_state._ensure_material_authority_route_active('profile_selection'), _state._save_complete_swap_material_profile(), _state._refresh_manual_material_profile_panel(), _state._refresh_global_gloss_reduction_hint(), _state._refresh_true_source_basic_controls_state(), _state._refresh_output_impact_review(), _state.material_authority_history_callbacks.refresh_preview()))
-    _state.modify_original_texture_tuning_checkbox.toggled.connect(lambda checked: (_state.self.settings.setValue(_state.modify_original_texture_tuning_enabled_key, bool(checked)), _state._refresh_manual_material_profile_panel(), _state._refresh_part_material_tuning_visibility(), _state._save_complete_swap_material_profile(), _state._refresh_output_impact_review(), _state.material_authority_history_callbacks.refresh_preview()))
+    _state.modify_original_texture_tuning_checkbox.toggled.connect(lambda checked: (_state.self.shell.settings.setValue(_state.modify_original_texture_tuning_enabled_key, bool(checked)), _state._refresh_manual_material_profile_panel(), _state._refresh_part_material_tuning_visibility(), _state._save_complete_swap_material_profile(), _state._refresh_output_impact_review(), _state.material_authority_history_callbacks.refresh_preview()))
     _state.texture_output_size_combo.currentIndexChanged.connect(_state.material_authority_history_callbacks.refresh_preview)
     _state._refresh_sidecar_option_state()
     _state._refresh_output_impact_review()

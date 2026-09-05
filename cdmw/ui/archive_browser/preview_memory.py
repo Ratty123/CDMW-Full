@@ -41,7 +41,7 @@ def _preview_core_process_metrics(diagnostics: Mapping[str, object]) -> Dict[str
 
 
 def _dotnet_preview_process_metrics(owner: object) -> Dict[str, object]:
-    host = getattr(owner, "archive_d3d11_preview_host", None)
+    host = getattr(owner.archive, "archive_d3d11_preview_host", None)
     controller = getattr(host, "controller", None)
     try:
         process_id = max(0, int(getattr(controller, "process_id", 0) or 0))
@@ -138,7 +138,7 @@ class ArchivePreviewMemoryAuditMixin:
         active_workers = [
             name
             for name, thread in (
-                ("archive_scan", getattr(self, "worker_thread", None)),
+                ("archive_scan", getattr(self.shell, "worker_thread", None)),
                 ("basic_index", getattr(self, "archive_basic_index_thread", None)),
                 ("enhanced_index", getattr(self, "archive_enhanced_index_thread", None)),
                 ("derived_cache_write", getattr(self, "archive_derived_cache_thread", None)),
@@ -237,7 +237,7 @@ class ArchivePreviewMemoryAuditMixin:
         log_if_high: bool = False,
     ) -> Dict[str, object]:
         payload = self._archive_memory_audit_payload(reason)
-        recorder = getattr(self, "_record_runtime_event", None)
+        recorder = getattr(self.shell, "_record_runtime_event", None)
         if callable(recorder):
             recorder("archive_memory_audit", **payload)
         main_private = self._memory_mib(payload.get("main_process_private_bytes", 0))
@@ -249,7 +249,7 @@ class ArchivePreviewMemoryAuditMixin:
         now = time.monotonic()
         if should_log and now - float(getattr(self, "archive_memory_audit_last_log_at", 0.0) or 0.0) >= 30.0:
             self.archive_memory_audit_last_log_at = now
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Memory audit | "
                 f"phase={str(reason or 'audit')}; "
                 f"main_private={main_private:.1f} MiB; "
@@ -266,7 +266,7 @@ class ArchivePreviewMemoryAuditMixin:
                 f"dotnet_running={bool(payload.get('dotnet_preview_process_running', False))}"
             )
             if main_private >= 3500.0:
-                self.append_archive_log(
+                self.shell.append_archive_log(
                     "WARNING: Archive Browser RAM is high "
                     f"during {str(reason or 'audit')}: main_private={main_private:.1f} MiB; "
                     f"workers={','.join(payload.get('archive_active_workers', ()) or ()) or 'none'}."

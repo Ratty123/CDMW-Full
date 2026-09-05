@@ -39,24 +39,6 @@ def test_registry_classifies_every_automatic_and_manual_key_once() -> None:
     assert len(MATERIAL_AUTHORITY_CONTROL_REGISTRY) == len(set(MATERIAL_AUTHORITY_CONTROL_REGISTRY))
 
 
-def test_hidden_dotnet_parity_report_covers_every_normal_control_once() -> None:
-    source = (
-        Path(__file__).parents[1]
-        / "tools"
-        / "dotnet_mesh_editor_experiment"
-        / "MaterialAuthorityParityReport.cs"
-    ).read_text(encoding="utf-8")
-    case_block = source.split("private static IReadOnlyList<CaseDefinition> Cases()", 1)[1]
-    case_block = case_block.split("private static void ApplyState", 1)[0]
-    case_keys = re.findall(r'new\("([a-z0-9_]+)"', case_block)
-    normal_keys = {
-        key
-        for key, spec in MATERIAL_AUTHORITY_CONTROL_REGISTRY.items()
-        if spec.capability is not MaterialAuthorityCapability.EXPERT_ONLY
-    }
-
-    assert len(case_keys) == len(set(case_keys))
-    assert set(case_keys) == normal_keys
 
 
 def test_expert_keys_are_never_enabled_in_normal_control_states() -> None:

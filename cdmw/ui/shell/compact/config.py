@@ -15,13 +15,13 @@ SHELL_VARIANTS = (LEGACY_SHELL_VARIANT, COMPACT_SHELL_VARIANT)
 COMPACT_SHELL_THEME_SETTING = "appearance/compact_shell_theme"
 DEFAULT_COMPACT_SHELL_THEME = DEFAULT_UI_THEME
 
-# All fifteen production tool presentations passed the compact visual review.
+# Both navigation styles share the same native tool content.
 APPLICATION_LAYOUT_SELECTOR_EXPOSED = True
 
 
 def normalize_shell_variant(value: object) -> str:
     candidate = str(value or "").strip().lower()
-    return candidate if candidate in SHELL_VARIANTS else LEGACY_SHELL_VARIANT
+    return candidate if candidate in SHELL_VARIANTS else COMPACT_SHELL_VARIANT
 
 
 def read_shell_variant(settings: object) -> str:

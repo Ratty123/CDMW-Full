@@ -269,7 +269,7 @@ class TextureWorkflowProfilesPanelMixin:
         direct_tile_size = (
             self.ncnn_tile_size_spin.value()
             if self.chainner_section.is_body_built()
-            else int(self.settings.value("ncnn/tile_size", REALESRGAN_NCNN_TILE_SIZE))
+            else int(self.shell.settings.value("ncnn/tile_size", REALESRGAN_NCNN_TILE_SIZE))
         )
         self._workflow_editor_syncing = True
         try:
@@ -383,8 +383,8 @@ class TextureWorkflowProfilesPanelMixin:
     def _schedule_workflow_match_refresh(self, *_args) -> None:
         if (
             not self.filters_section.is_body_built()
-            or not self._settings_ready
-            or self._shutting_down
+            or not self.shell._settings_ready
+            or self.shell._shutting_down
             or self._workflow_editor_syncing
         ):
             return
@@ -458,7 +458,7 @@ class TextureWorkflowProfilesPanelMixin:
         )
         self.workflow_profiles_state[index] = updated
         self._refresh_workflow_profiles_tree(select_profile_id=updated.profile_id)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _apply_selected_workflow_rule_edits(self, *_args) -> None:
@@ -487,7 +487,7 @@ class TextureWorkflowProfilesPanelMixin:
         )
         self.texture_rules_state[index] = updated
         self._refresh_workflow_rules_tree(select_index=index)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _add_workflow_profile(self, *_args) -> None:
@@ -497,7 +497,7 @@ class TextureWorkflowProfilesPanelMixin:
         )
         self.workflow_profiles_state.append(new_profile)
         self._refresh_workflow_profiles_tree(select_profile_id=new_profile.profile_id)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _duplicate_workflow_profile(self, *_args) -> None:
@@ -512,7 +512,7 @@ class TextureWorkflowProfilesPanelMixin:
         )
         self.workflow_profiles_state.insert(index + 1, duplicated)
         self._refresh_workflow_profiles_tree(select_profile_id=duplicated.profile_id)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _delete_workflow_profile(self, *_args) -> None:
@@ -526,14 +526,14 @@ class TextureWorkflowProfilesPanelMixin:
                 self.texture_rules_state[rule_index] = dataclasses.replace(rule, workflow_profile_id="")
         self._refresh_workflow_profiles_tree()
         self._refresh_workflow_rules_tree()
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _add_workflow_rule(self, *_args) -> None:
         rule = TextureRule(pattern="*.dds", enabled=True, match_mode="glob")
         self.texture_rules_state.append(rule)
         self._refresh_workflow_rules_tree(select_index=len(self.texture_rules_state) - 1)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _duplicate_workflow_rule(self, *_args) -> None:
@@ -543,7 +543,7 @@ class TextureWorkflowProfilesPanelMixin:
         duplicated = dataclasses.replace(self.texture_rules_state[index])
         self.texture_rules_state.insert(index + 1, duplicated)
         self._refresh_workflow_rules_tree(select_index=index + 1)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _delete_workflow_rule(self, *_args) -> None:
@@ -553,7 +553,7 @@ class TextureWorkflowProfilesPanelMixin:
         del self.texture_rules_state[index]
         next_index = min(index, len(self.texture_rules_state) - 1)
         self._refresh_workflow_rules_tree(select_index=next_index if next_index >= 0 else None)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _move_workflow_rule(self, offset: int, *_args) -> None:
@@ -568,7 +568,7 @@ class TextureWorkflowProfilesPanelMixin:
             self.texture_rules_state[index],
         )
         self._refresh_workflow_rules_tree(select_index=target_index)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _assign_profile_to_selected_workflow_matches(self, *_args) -> None:
@@ -603,7 +603,7 @@ class TextureWorkflowProfilesPanelMixin:
                 )
             )
         self._refresh_workflow_rules_tree(select_index=len(self.texture_rules_state) - 1)
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         self._schedule_workflow_match_refresh()
 
     def _apply_workflow_state_from_config(self, config: AppConfig) -> None:

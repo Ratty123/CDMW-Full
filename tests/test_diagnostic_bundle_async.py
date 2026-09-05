@@ -117,6 +117,9 @@ def test_diagnostic_export_handler_only_snapshots_and_dispatches() -> None:
             export_diagnostic_bundle = ProfileControllerMixin.export_diagnostic_bundle
 
             def __init__(self) -> None:
+                self.shell = self
+                self.archive = self
+                self.textures = self
                 self.settings_file_path = root / "settings.ini"
                 self._diagnostic_bundle_request_id = 0
                 self.dispatched = None
@@ -169,6 +172,9 @@ def test_diagnostic_request_snapshot_does_not_read_source_files() -> None:
         _diagnostic_context_snapshot = ProfileControllerMixin._diagnostic_context_snapshot
 
         def __init__(self, root: Path) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self.current_theme_key = "graphite"
             self.settings_file_path = root / "settings.ini"
             self.archive_cache_root = root / "cache"
@@ -209,6 +215,9 @@ def test_diagnostic_bundle_stale_completion_is_ignored() -> None:
         _handle_diagnostic_bundle_complete = ProfileControllerMixin._handle_diagnostic_bundle_complete
 
         def __init__(self) -> None:
+            self.shell = self
+            self.archive = self
+            self.textures = self
             self._diagnostic_bundle_request_id = 8
             self.status: list[str] = []
             self.logs: list[str] = []

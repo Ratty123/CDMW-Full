@@ -324,7 +324,7 @@ class ArchiveBrowserRowPayloadMixin:
         return "flat"
 
     def _archive_virtual_fetch_batch_size(self) -> int:
-        settings = self._current_archive_performance_settings()
+        settings = self.shell._current_archive_performance_settings()
         manual_batch = int(getattr(settings, "archive_fetch_batch_size", 0) or 0)
         if manual_batch > 0:
             return max(100, min(5000, manual_batch))
@@ -360,7 +360,7 @@ class ArchiveBrowserRowPayloadMixin:
     def _archive_background_worker_limit(self) -> int:
         """Preset-derived worker count, used when sidecar indexing has no manual one."""
 
-        settings = self._current_archive_performance_settings()
+        settings = self.shell._current_archive_performance_settings()
         profile = str(getattr(settings, "resource_profile", "balanced_60fps") or "balanced_60fps")
         if profile == "maximum_throughput":
             return min(16, max(4, (os.cpu_count() or 4) - 1))
@@ -434,7 +434,7 @@ class ArchiveBrowserTreeControllerMixin:
             self.archive_tree_sort_column = column
             self.archive_tree_sort_order = "asc"
         self._update_archive_tree_sort_indicator()
-        self.schedule_settings_save()
+        self.shell.schedule_settings_save()
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.apply_current_query()
@@ -442,13 +442,13 @@ class ArchiveBrowserTreeControllerMixin:
         if self._archive_sort_waits_for_enhanced_index():
             self._ensure_archive_enhanced_index_worker_started()
             self.archive_initial_sort_apply_pending = True
-            self.append_archive_log(
+            self.shell.append_archive_log(
                 "Archive name-column sort will apply after item-name search is ready.",
                 verbose=True,
             )
             self._schedule_archive_initial_sort_after_first_paint(700)
             return
-        if self.worker_thread is not None:
+        if self.shell.worker_thread is not None:
             if self.archive_filter_worker is not None:
                 self.archive_filter_apply_pending = True
                 self.archive_filter_worker.stop()
@@ -458,7 +458,7 @@ class ArchiveBrowserTreeControllerMixin:
                 )
             else:
                 self.archive_browser_refresh_pending = True
-                self.set_status_message("Archive column sort will apply after the current task finishes.")
+                self.shell.set_status_message("Archive column sort will apply after the current task finishes.")
             return
         if not self.archive_entries and not self.archive_filtered_entries:
             return
@@ -497,7 +497,7 @@ class ArchiveBrowserTreeControllerMixin:
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.apply_current_query()
             return
-        if self.worker_thread is not None:
+        if self.shell.worker_thread is not None:
             self.archive_browser_refresh_pending = True
             return
         current_entry = self._current_archive_entry()
@@ -586,7 +586,7 @@ class ArchiveBrowserTreeControllerMixin:
             defer_default_selection=defer_default_selection,
         )
         self._log_archive_browser_render_stage("finalize", finalize_started_at)
-        self._schedule_archive_tree_content_autofit()
+        self.shell._schedule_archive_tree_content_autofit()
         self._set_archive_warmup_overlay(False)
         self._mark_archive_browser_render_ready(reason="model_reset", on_complete=on_complete)
 
@@ -630,14 +630,14 @@ class ArchiveBrowserTreeControllerMixin:
     ) -> None:
         if rebuild_index:
             self.archive_tree_index_ready = False
-            if self.archive_entries and self.worker_thread is None:
+            if self.archive_entries and self.shell.worker_thread is None:
                 self._start_archive_filter_worker(preferred_path)
                 return
         if (
             self._archive_category_view_enabled()
             and not self._archive_category_index_ready()
             and self.archive_filtered_entries
-            and self.worker_thread is None
+            and self.shell.worker_thread is None
         ):
             self._start_archive_filter_worker(preferred_path)
             return
@@ -752,14 +752,14 @@ class ArchiveBrowserTreeControllerMixin:
 
     def _current_archive_action_entry(self, action_label: str) -> Optional[ArchiveEntry]:
         if not bool(getattr(self, "archive_remote_actions_safe", True)):
-            self.set_status_message(
+            self.shell.set_status_message(
                 f"{action_label} is unavailable until the refreshed archive session is published.",
                 error=True,
             )
             return None
         entry = self._current_archive_entry()
         if not isinstance(entry, ArchiveEntry):
-            self.set_status_message(f"Select an archive file before using {action_label}.", error=True)
+            self.shell.set_status_message(f"Select an archive file before using {action_label}.", error=True)
             return None
         return entry
 

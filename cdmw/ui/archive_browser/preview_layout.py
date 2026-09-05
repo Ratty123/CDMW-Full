@@ -572,7 +572,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_preview_label.set_wheel_zoom_handler(self._adjust_archive_preview_zoom)
         self.archive_model_preview = NativePreviewPanel(
             "Select an archive file to preview it here.",
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
         )
         self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
@@ -603,12 +603,12 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_preview_status_label.setVisible(False)
         self.archive_media_preview = MediaPreviewWidget(
             "Select an archive file to preview it here.",
-            theme_key=self.current_theme_key,
+            theme_key=self.shell.current_theme_key,
         )
         self.archive_media_preview.track_selected.connect(self._handle_archive_preview_track_selected)
-        self.archive_preview_text_edit = CodePreviewEditor(theme_key=self.current_theme_key)
+        self.archive_preview_text_edit = CodePreviewEditor(theme_key=self.shell.current_theme_key)
         self.archive_preview_text_edit.document().setMaximumBlockCount(5000)
-        self.archive_preview_info_edit = ArchiveDetailsEditor(theme_key=self.current_theme_key)
+        self.archive_preview_info_edit = ArchiveDetailsEditor(theme_key=self.shell.current_theme_key)
         self.archive_preview_info_edit.document().setMaximumBlockCount(2000)
         self.archive_preview_text_tools = self._build_archive_text_tools(self.archive_preview_text_edit)
         self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)
@@ -617,7 +617,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_preview_stack.addWidget(self.archive_media_preview)
         self.archive_preview_stack.addWidget(self.archive_preview_text_edit)
         self.archive_preview_stack.addWidget(self.archive_preview_info_edit)
-        self.archive_preview_details_edit = ArchiveDetailsEditor(theme_key=self.current_theme_key)
+        self.archive_preview_details_edit = ArchiveDetailsEditor(theme_key=self.shell.current_theme_key)
         self.archive_preview_details_edit.document().setMaximumBlockCount(2000)
         self._archive_preview_base_detail_text = ""
         self.archive_preview_tabs = QTabWidget()

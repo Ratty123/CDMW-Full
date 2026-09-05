@@ -130,7 +130,7 @@ def create_alignment_accept_dispatch_callbacks(context: dict[str, object]) -> Si
                     )
                 )
             if callback_route.should_report_started:
-                self.set_status_message(_alignment_build_started_status_helper())
+                self.shell.set_status_message(_alignment_build_started_status_helper())
             return
         if options_route.should_accept_dialog:
             _alignment_dialog_mark_accepted_helper(dialog_accepted_state)

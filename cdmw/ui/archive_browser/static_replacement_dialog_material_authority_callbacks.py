@@ -652,7 +652,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             minimum=-100,
             maximum=100,
         )
-        self.settings.setValue("settings/complete_swap_global_gloss_reduction", value)
+        self.shell.settings.setValue("settings/complete_swap_global_gloss_reduction", value)
         _refresh_global_gloss_reduction_hint()
         if refresh:
             _refresh_output_impact_review()
@@ -883,7 +883,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             maximum=maximum,
         )
         if state["settings_key"]:
-            self.settings.setValue(str(state["settings_key"]), value)
+            self.shell.settings.setValue(str(state["settings_key"]), value)
         if refresh:
             _refresh_output_impact_review()
             _queue_material_authority_adjustment_preview_refresh(resource_keys=resource_keys)
@@ -936,7 +936,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         if refresh:
             _ensure_material_authority_route_active("automatic_edge_relief_source")
         state = _material_authority_edge_relief_source_setting_helper(edge_relief_source_combo.currentData())
-        self.settings.setValue(str(state["settings_key"]), str(state["value"]))
+        self.shell.settings.setValue(str(state["settings_key"]), str(state["value"]))
         if refresh:
             _refresh_output_impact_review()
             _queue_material_authority_adjustment_preview_refresh(resource_keys=("edge_relief_source",))

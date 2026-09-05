@@ -53,6 +53,7 @@ def test_pac_material_action_resolves_supported_xml_companion(sidecar_basename: 
         _find_archive_entry_by_virtual_path=entries_by_path.get,
     )
 
+    owner.archive = owner
     resolved = ArchiveMaterialSidecarActionsMixin._related_material_sidecar_entry_for_archive_entry(owner, mesh)
 
     assert resolved is sidecar
@@ -65,6 +66,7 @@ def test_mesh_without_material_sidecar_has_no_edit_target() -> None:
         _find_archive_entry_by_virtual_path=lambda _path: None,
     )
 
+    owner.archive = owner
     resolved = ArchiveMaterialSidecarActionsMixin._related_material_sidecar_entry_for_archive_entry(owner, mesh)
 
     assert resolved is None

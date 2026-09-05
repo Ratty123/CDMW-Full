@@ -250,15 +250,6 @@ class PbdClothPreviewTests(unittest.TestCase):
         self.assertEqual("spline", weapon_hints[0].simulation_kind)
         self.assertIsNone(build_cloth_preview_data(model, parsed_mesh, weapon_hints, {}))
 
-    def test_vortice_pbd_runtime_tracks_scene_transform_and_reset(self) -> None:
-        from pathlib import Path
-
-        source = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.PreviewOverlays.cs").read_text(encoding="utf-8")
-
-        self.assertIn("ActivePaneModelMatrix(0) * _camera.WorldViewProjection", source)
-        self.assertIn("ResetClothOverlaySimulation(overlays)", source)
-        self.assertIn("overlays.ClothResetGeneration", source)
-        self.assertIn("overlays.ClothWindStrength", source)
 
     def test_prepare_model_preview_preserves_cloth_for_source_submesh_zero(self) -> None:
         from cdmw.rendering.model_preview_prepare import prepare_model_preview

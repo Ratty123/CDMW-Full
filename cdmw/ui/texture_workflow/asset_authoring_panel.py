@@ -113,21 +113,21 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self.openimageio_source_path_edit = QLineEdit()
         self.openimageio_output_path_edit = QLineEdit()
         self.openimageio_compare_path_edit = QLineEdit()
-        self.openimageio_source_browse_button = self._add_path_row(
+        self.openimageio_source_browse_button = self.shell._add_path_row(
             oiio_layout,
             0,
             "OpenImageIO source",
             self.openimageio_source_path_edit,
             self._browse_openimageio_source_path,
         )
-        self.openimageio_output_browse_button = self._add_path_row(
+        self.openimageio_output_browse_button = self.shell._add_path_row(
             oiio_layout,
             1,
             "Converted output",
             self.openimageio_output_path_edit,
             self._browse_openimageio_output_path,
         )
-        self.openimageio_compare_browse_button = self._add_path_row(
+        self.openimageio_compare_browse_button = self.shell._add_path_row(
             oiio_layout,
             2,
             "Diff against",
@@ -168,7 +168,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
 
     def _openimageio_configured_paths(self) -> dict[str, object]:
         configured: dict[str, object] = {}
-        settings = getattr(self, "settings", None)
+        settings = getattr(self.shell, "settings", None)
         value = getattr(settings, "value", None)
         if not callable(value):
             return configured
@@ -178,14 +178,14 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         return configured
 
     def _browse_openimageio_source_path(self) -> None:
-        self._browse_file(
+        self.shell._browse_file(
             self.openimageio_source_path_edit,
             "Select Source Image",
             "Source images (*.psd *.tga *.exr *.tif *.tiff *.ptex *.ptx *.png *.jpg *.jpeg *.bmp);;All files (*.*)",
         )
 
     def _browse_openimageio_output_path(self) -> None:
-        self._browse_file(
+        self.shell._browse_file(
             self.openimageio_output_path_edit,
             "Select Converted Output",
             "PNG files (*.png);;All files (*.*)",
@@ -193,7 +193,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         )
 
     def _browse_openimageio_compare_path(self) -> None:
-        self._browse_file(
+        self.shell._browse_file(
             self.openimageio_compare_path_edit,
             "Select Diff Target",
             "Images (*.png *.jpg *.jpeg *.bmp *.tga *.tif *.tiff *.exr *.dds);;All files (*.*)",
@@ -202,18 +202,18 @@ class TextureWorkflowAssetAuthoringPanelMixin:
     def _openimageio_existing_path(self, line_edit: QLineEdit, label: str) -> Path | None:
         raw = line_edit.text().strip()
         if not raw:
-            self.set_status_message(f"{label} path is empty.", error=True)
+            self.shell.set_status_message(f"{label} path is empty.", error=True)
             return None
         path = Path(raw).expanduser()
         if not path.is_file():
-            self.set_status_message(f"{label} does not exist: {path}", error=True)
+            self.shell.set_status_message(f"{label} does not exist: {path}", error=True)
             return None
         return path
 
     def _openimageio_output_path(self) -> Path | None:
         raw = self.openimageio_output_path_edit.text().strip()
         if not raw:
-            self.set_status_message("OpenImageIO output path is empty.", error=True)
+            self.shell.set_status_message("OpenImageIO output path is empty.", error=True)
             return None
         return Path(raw).expanduser()
 
@@ -240,24 +240,24 @@ class TextureWorkflowAssetAuthoringPanelMixin:
     def _start_openimageio_task(self, operation: str, paths: tuple[Path, ...]) -> None:
         from cdmw.workers.asset_authoring_workers import OpenImageIOTaskWorker
 
-        if self._background_task_active():
-            if self.worker_thread is not None:
-                self.set_status_message(
+        if self.shell._background_task_active():
+            if self.shell.worker_thread is not None:
+                self.shell.set_status_message(
                     "Another background task is still running. Wait for it to finish before running OpenImageIO.",
                     error=True,
                 )
             return
 
         operation_text = operation.replace("_", " ")
-        self.set_status_message(f"Running OpenImageIO {operation_text}...")
-        self.append_log(f"Starting OpenImageIO {operation_text}.")
+        self.shell.set_status_message(f"Running OpenImageIO {operation_text}...")
+        self.shell.append_log(f"Starting OpenImageIO {operation_text}.")
         self.openimageio_status_label.setText(f"Running OpenImageIO {operation_text}...")
         self.openimageio_report_view.clear()
-        self.reset_progress()
+        self.shell.reset_progress()
         self.phase_value.setText("OpenImageIO")
         self.current_file_value.setText(paths[0].name if paths else operation_text)
         self._set_phase_progress(0, 0, f"Running OpenImageIO {operation_text}...", "Steps")
-        self._activate_tool_widget(self.workflow_tab)
+        self.shell._activate_tool_widget(self.workflow_tab)
         self.content_tabs.setCurrentIndex(0)
 
         configured_paths = self._openimageio_configured_paths()
@@ -274,15 +274,15 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         thread.started.connect(worker.run)
         worker.completed.connect(self._handle_openimageio_task_complete)
         worker.cancelled.connect(self._handle_openimageio_task_cancelled)
-        worker.error.connect(self._handle_worker_error)
+        worker.error.connect(self.shell._handle_worker_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._cleanup_worker_refs)
+        thread.finished.connect(self.shell._cleanup_worker_refs)
 
-        self.utility_worker = worker
-        self.worker_thread = thread
-        self.set_busy(True, build_mode=True)
+        self.shell.utility_worker = worker
+        self.shell.worker_thread = thread
+        self.shell.set_busy(True, build_mode=True)
         thread.start()
 
     def _handle_openimageio_task_complete(self, result: object) -> None:
@@ -291,10 +291,8 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self.openimageio_status_label.setText(status_text)
         self.openimageio_report_view.setPlainText(openimageio_task_report_text(result, operation))
         self.current_file_value.setText("Completed" if not is_error else "Failed")
-        self.set_status_message(status_text, error=is_error)
-        self.append_log(status_text if not is_error else f"ERROR: {status_text}")
-        if not is_error:
-            self._queue_current_compare_preview_if_visible()
+        self.shell.set_status_message(status_text, error=is_error)
+        self.shell.append_log(status_text if not is_error else f"ERROR: {status_text}")
 
     def _handle_openimageio_task_cancelled(self, message: str) -> None:
         self.openimageio_status_label.setText(message)

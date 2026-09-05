@@ -160,7 +160,7 @@ def _transform_drag_step_004(_state):
         message = f'Active Mesh Editor static preview {kind} is disabled; Rust Preview preview payloads are required.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -174,7 +174,7 @@ def _transform_drag_step_005(_state):
         message = f'Active Mesh Editor source-part {kind} changes require native geometry execution; Python adjustment mutation fallback is disabled.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event('mesh_edit_source_part_adjustment_mutation_blocked', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True

@@ -23,10 +23,8 @@ from PySide6.QtWidgets import QApplication
 from PIL import Image
 
 from cdmw.models import PreviewMaterialTextureInput
-from cdmw.services.mesh_dotnet_experiment import (
-    MeshDotNetExperimentPackage,
-    mesh_dotnet_material_input_signature,
-)
+from cdmw.services.mesh_rust_preview_package import RustPreviewPackage
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
 from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import _dotnet_event_requires_correlation
@@ -124,16 +122,12 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
     original_signature = mesh_dotnet_material_input_signature(mesh)
     process = _FakeProcess(tab)
     process._state = process.Running
-    package = MeshDotNetExperimentPackage(
+    package = RustPreviewPackage(
         package_dir=Path("package"),
-        mesh_path=Path("package/mesh.obj"),
-        obj_sidecar_path=Path("package/mesh.obj.meta.json"),
-        cdmeta_path=Path("package/mesh.cdmeta.json"),
-        original_asset_hash_path=Path("package/original_asset_hash.txt"),
         status_path=Path("package/dotnet_status.json"),
         output_dir=Path("package/output"),
         edit_operations_path=Path("package/output/edit_operations.json"),
-        launch_manifest_path=Path("package/dotnet_launch.json"),
+        manifest_path=Path("package/dotnet_launch.json"),
         material_signature=original_signature,
         scene_frame=SimpleNamespace(
             source_identity=static_scene_source_identity(mesh, None),
@@ -191,16 +185,12 @@ def test_mesh_editor_reactivation_uses_the_applied_resident_material_signature()
     resident_signature = "resident-combined-material-state"
     process = _FakeProcess(tab)
     process._state = process.Running
-    package = MeshDotNetExperimentPackage(
+    package = RustPreviewPackage(
         package_dir=Path("package"),
-        mesh_path=Path("package/mesh.obj"),
-        obj_sidecar_path=Path("package/mesh.obj.meta.json"),
-        cdmeta_path=Path("package/mesh.cdmeta.json"),
-        original_asset_hash_path=Path("package/original_asset_hash.txt"),
         status_path=Path("package/dotnet_status.json"),
         output_dir=Path("package/output"),
         edit_operations_path=Path("package/output/edit_operations.json"),
-        launch_manifest_path=Path("package/dotnet_launch.json"),
+        manifest_path=Path("package/dotnet_launch.json"),
         material_signature=input_signature,
         scene_frame=SimpleNamespace(
             source_identity=static_scene_source_identity(mesh, None),
@@ -251,16 +241,12 @@ def test_helper_material_sync_request_forces_publish_past_local_dedup() -> None:
     input_signature = mesh_dotnet_material_input_signature(mesh)
     process = _FakeProcess(tab)
     process._state = process.Running
-    package = MeshDotNetExperimentPackage(
+    package = RustPreviewPackage(
         package_dir=Path("package"),
-        mesh_path=Path("package/mesh.obj"),
-        obj_sidecar_path=Path("package/mesh.obj.meta.json"),
-        cdmeta_path=Path("package/mesh.cdmeta.json"),
-        original_asset_hash_path=Path("package/original_asset_hash.txt"),
         status_path=Path("package/dotnet_status.json"),
         output_dir=Path("package/output"),
         edit_operations_path=Path("package/output/edit_operations.json"),
-        launch_manifest_path=Path("package/dotnet_launch.json"),
+        manifest_path=Path("package/dotnet_launch.json"),
         material_signature=input_signature,
         scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
     )

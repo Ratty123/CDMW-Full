@@ -1,34 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtWidgets import QMainWindow
-from PySide6.QtWidgets import QTabWidget, QWidget
+from PySide6.QtWidgets import QMainWindow, QWidget
 
-from cdmw.ui.shell.app_context import AppContext
-
-
-@dataclass(frozen=True, slots=True)
-class TabSpec:
-    key: str
-    title: str
-    factory: Callable[[AppContext], QWidget]
+from cdmw.ui.shell.compact.registry import compact_tool_label
 
 
 class TabRegistry:
-    def __init__(self, context: AppContext) -> None:
-        self.context = context
+    """The registered widgets and titles shared by both navigation styles."""
 
-    def specs(self) -> tuple[TabSpec, ...]:
-        return ()
+    def __init__(self) -> None:
+        self.widgets: dict[str, QWidget] = {}
+        self.titles: dict[str, str] = {}
 
-    def populate(self, tabs: QTabWidget) -> None:
-        for spec in self.specs():
-            widget = spec.factory(self.context)
-            widget.setObjectName(spec.key)
-            tabs.addTab(widget, spec.title)
+    def register(self, key: str, widget: QWidget, title: str) -> None:
+        if key in self.widgets:
+            raise ValueError(f"Tool is already registered: {key}")
+        self.widgets[key] = widget
+        self.titles[key] = compact_tool_label(key, title)
 
 
 class DetachedToolWindow(QMainWindow):
@@ -59,4 +48,4 @@ class DetachedToolWindow(QMainWindow):
         return super().event(event)
 
 
-__all__ = ["DetachedToolWindow", "TabRegistry", "TabSpec"]
+__all__ = ["DetachedToolWindow", "TabRegistry"]

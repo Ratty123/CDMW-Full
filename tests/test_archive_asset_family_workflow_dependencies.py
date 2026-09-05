@@ -52,6 +52,11 @@ def test_associated_asset_used_by_enrichment_uses_bounded_remote_candidates(tmp_
     snapshot = _snapshot(prepared_hkx, prepared_model)
 
     class _Owner(ArchiveAssetFamilyReferenceMixin):
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @property
@@ -78,6 +83,11 @@ def test_associated_asset_panel_uses_prepared_entry_and_bounded_remote_maps(tmp_
     snapshot = _snapshot(prepared_model, prepared_texture)
 
     class _Owner:
+        def __init__(self):
+            self.shell = self
+            self.archive = self
+            self.textures = self
+
         archive_remote_bridge = _Bridge(snapshot)
 
         @staticmethod

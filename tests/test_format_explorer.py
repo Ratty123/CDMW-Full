@@ -61,13 +61,13 @@ class RowTests(unittest.TestCase):
 
     def test_known_formats_name_the_tool_that_edits_them(self) -> None:
         by_extension = {row.extension: row for row in self.rows}
-        self.assertEqual(by_extension[".paloc"].tool, "Tools > Translations")
+        self.assertEqual(by_extension[".paloc"].tool, "Utilities > Edit Translations")
         self.assertEqual(
             by_extension[".dds"].tool,
-            "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
+            "Textures",
         )
         self.assertEqual(by_extension[".pac"].tool, "Mesh Editor")
-        self.assertEqual(by_extension[".hkx"].tool, "Archive Browser > Edit HKX...")
+        self.assertEqual(by_extension[".hkx"].tool, "Browse Archives > Edit HKX...")
 
     def test_an_undecoded_format_offers_no_tool(self) -> None:
         by_extension = {row.extension: row for row in self.rows}
@@ -94,7 +94,9 @@ class RowTests(unittest.TestCase):
             for relative in (
                 "cdmw/ui/shell/tool_tabs.py",
                 "cdmw/ui/shell/root_layout.py",
-                "cdmw/ui/shell/workspace_layout.py",
+                "cdmw/ui/shell/classic_navigation.py",
+                "cdmw/ui/shell/compact/registry.py",
+                "cdmw/ui/archive_browser/workspace_layout.py",
                 "cdmw/ui/shell/texture_workspace_layout.py",
                 "cdmw/ui/archive_browser/actions.py",
                 "tools/placement_studio/window.py",
@@ -115,14 +117,15 @@ class HeadlineTests(unittest.TestCase):
         text = headline(rows)
         shipped = sum(1 for row in rows if row.shipped)
         self.assertIn(f"{shipped} file formats", text)
-        self.assertIn("can be edited today", text)
+        self.assertIn("supported operations, editing limits and evidence", text)
+        self.assertNotIn("%", text)
 
     def test_the_headline_is_computed_not_asserted(self) -> None:
         """Numbers must follow the manifest, so they cannot go stale."""
 
         rows = load_rows()
-        editable = [row for row in rows if row.moddable]
-        self.assertIn(f"{len(editable)} of those formats", headline(rows))
+        shipped = [row for row in rows if row.shipped]
+        self.assertIn(f"{len(shipped)} file formats", headline(rows))
 
 
 class FilterTests(unittest.TestCase):
@@ -183,7 +186,7 @@ class PanelTests(unittest.TestCase):
     def test_the_panel_fills_from_the_manifest(self) -> None:
         panel = self._panel()
         self.assertGreater(panel.table.rowCount(), 50)
-        self.assertIn("can be edited today", panel.headline_label.text())
+        self.assertIn("editing limits and evidence", panel.headline_label.text())
 
     def test_the_editable_filter_narrows_the_table(self) -> None:
         panel = self._panel()
@@ -211,7 +214,7 @@ class PanelTests(unittest.TestCase):
         panel.table.selectRow(0)
         detail = panel.detail.toHtml()
         self.assertIn("What this rests on", detail)
-        self.assertIn("Tools &gt; Translations", detail)
+        self.assertIn("Utilities &gt; Edit Translations", detail)
 
     def test_an_empty_result_says_so_instead_of_showing_stale_detail(self) -> None:
         panel = self._panel()

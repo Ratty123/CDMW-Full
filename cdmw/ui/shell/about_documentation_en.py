@@ -54,12 +54,11 @@ class AboutDocumentationEnglishMixin:
                 "summary": "High-level tour of the app and its main surfaces.",
                 "keywords": "overview about features tools archive create item model icon mesh placement texture retrofit format translations research search settings",
                 "html": """
-                <p>Crimson Desert Mod Workbench exposes 15 tools, grouped by the job you want to complete. Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
+                <p>Use the <a href="topic:documentation_index">Documentation Index</a> for the complete reference or search across every topic from the field above.</p>
                 <table>
                   <tr><th>Area</th><th>Tools</th></tr>
                   <tr><td>Assets</td><td><a href="topic:new_item_studio">Create New Item</a>, <a href="topic:archive_browser">Archive Browser</a>, <a href="topic:model_library">Model Library</a>, and <a href="topic:icon_creator">Icon Creator</a></td></tr>
-                  <tr><td>Mesh &amp; Placement</td><td><a href="topic:mesh_editor">Mesh Editor</a> and <a href="topic:placement_studio">Placement &amp; Animations</a></td></tr>
-                  <tr><td>Textures</td><td><a href="topic:workflow_overview">Texture Workflow</a>, <a href="topic:replace_assistant">Texture Replacer</a>, <a href="topic:texture_recolor">Texture Recolor</a>, and <a href="topic:texture_editor">Texture Editor</a></td></tr>
+                  <tr><td>Authoring</td><td><a href="topic:mesh_editor">Mesh Editor</a>, <a href="topic:placement_studio">Placement &amp; Animations</a>, and <a href="topic:workflow_overview">Textures</a></td></tr>
                   <tr><td>Utilities</td><td><a href="topic:mod_package_retrofit">Retrofit/Repackage</a>, <a href="topic:format_explorer">Format Explorer</a>, <a href="topic:translation_studio">Translations</a>, <a href="topic:research">Research</a>, and <a href="topic:text_search">Text Search</a></td></tr>
                 </table>
                 <p>On a first run, follow the <a href="topic:first_run_checklist">First Run Checklist</a>. Compact Workspace is the first-run layout; a saved Compact or Classic choice remains authoritative.</p>
@@ -83,8 +82,8 @@ class AboutDocumentationEnglishMixin:
                   <li>In <b>Settings &gt; Setup</b>, run <b>Init Workspace</b> if you want the app to create its usual working folders, then review the status of bundled and optional helpers.</li>
                   <li>In <b>Settings &gt; Paths &gt; Archive Locations</b>, set <b>Game / Package</b> to the Crimson Desert folder or package root before the first Archive Browser scan.</li>
                   <li>Start in <b>Archive Browser</b> for read-only discovery: scan, filter, preview, inspect Asset Family links, and extract a small sample before opening an authoring tool.</li>
-                  <li>Use the <a href="topic:documentation_index">Documentation Index</a> or search to choose among the 15 current tools. Mesh, placement, texture, item, icon, and packaging work stay in their dedicated surfaces.</li>
-                  <li>For <b>Texture Workflow</b>, set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Test with <b>Disabled</b> first, then a configured <b>Real-ESRGAN NCNN</b> or <b>chaiNNer</b> backend.</li>
+                  <li>Use the <a href="topic:documentation_index">Documentation Index</a> or search to choose a tool.</li>
+                  <li>For <b>Textures &gt; Upscale</b>, set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Test with <b>Disabled</b> first, then a configured <b>Real-ESRGAN NCNN</b> or <b>chaiNNer</b> backend.</li>
                   <li>Keep preserve-first texture policy and automatic rules enabled, preview the plan, and test a small filtered batch before expanding it.</li>
                   <li>Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.</li>
                   <li>When setup is stable, export an app profile from <b>Settings &gt; General</b> so paths, preferences, language, and layout can be restored together.</li>
@@ -127,30 +126,10 @@ class AboutDocumentationEnglishMixin:
         return [
             {
                 "id": "workflow_overview",
-                "title": "Texture Workflow",
-                "summary": "Main batch-processing tab for loose DDS files.",
+                "title": 'Textures',
+                "summary": 'One asset list and canvas for Edit, Recolor, Upscale, and Review & Export.',
                 "keywords": "texture workflow batch dds png rebuild compare start scan preview policy run summary",
-                "html": """
-                <p><b>Texture Workflow</b> is the main batch-processing tab. It scans loose DDS files under <b>Original DDS root</b>, plans what to do per file, optionally creates/stages PNG intermediates, optionally upscales them, rebuilds DDS output, and lets you review the result in Compare.</p>
-                <h4>Typical run</h4>
-                <ol>
-                  <li>Configure <b>Settings / Setup</b>, <b>Settings / Paths</b>, and <b>DDS Output</b>.</li>
-                  <li>Review <a href="topic:workflow_profiles">Workflow Profiles</a>, <a href="topic:workflow_rules">Ordered Rules</a>, and <a href="topic:workflow_matched_files">Matched Files</a>.</li>
-                  <li>Choose your backend in <a href="topic:upscaling_backends">Upscaling</a>.</li>
-                  <li>Use <b>Preview Policy</b> to inspect the current per-file plan.</li>
-                  <li>Run <b>Scan</b> and then <b>Start</b>.</li>
-                  <li>Review output in <a href="topic:compare_review">Compare</a>.</li>
-                </ol>
-                <h4>Main sections inside Texture Workflow</h4>
-                <ul>
-                  <li><b>Setup</b>: workspace initialization, external tools, help links, and import helpers.</li>
-                  <li><b>Paths</b>: source, PNG, staging, output, and optional mod-export roots.</li>
-                  <li><b>DDS Output</b>: global default output format/size/mip behavior.</li>
-                  <li><b>Workflow Profiles, Rules &amp; Matches</b>: per-file planning surface.</li>
-                  <li><b>Upscaling</b>: backend, texture preset, direct NCNN controls, and policy notes.</li>
-                  <li><b>Progress / Live Log / Compare</b>: runtime feedback and review.</li>
-                </ul>
-                """,
+                "html": '<p><b>Textures</b> keeps the same documents, layers, history, selection, and original DDS bindings across three modes.</p><ul><li><b>Edit</b>: add images or open an existing project, then use the layered editor.</li><li><b>Recolor</b>: add a mod folder or ZIP, select texture or supported material-color targets, and review a template.</li><li><b>Upscale</b>: scan the configured Original DDS root or use current assets, configure output paths, profiles, rules, and a backend, then preview the policy.</li><li><b>Review &amp; Export</b>: choose edited-image export, replacement matching, recolor packages, or upscale output. Ambiguous originals require an explicit match.</li></ul><p>Batch jobs stage their outputs and publish them only after success. Cancellation or failure keeps previous output. Source mods and game archives are not modified by these export routes.</p>',
             },
             {
                 "id": "workflow_profiles",
@@ -337,18 +316,10 @@ class AboutDocumentationEnglishMixin:
             },
             {
                 "id": "compare_review",
-                "title": "Compare & Review",
-                "summary": "Side-by-side original/output DDS review.",
+                "title": 'Review & Export',
+                "summary": 'Review targets and export the shared texture job.',
                 "keywords": "compare review side by side sync pan preview size mip details open in texture editor",
-                "html": """
-                <p><b>Compare</b> is the final review surface for the current loose output set.</p>
-                <ul>
-                  <li>Preview original DDS and output DDS side by side.</li>
-                  <li>Change fit/zoom level, pan each side, or enable <b>Sync Pan</b>.</li>
-                  <li>Open the current texture in <b>Texture Editor</b> or jump to mip details in Research.</li>
-                  <li>Use this before large runs or before packaging output for a mod-ready folder.</li>
-                </ul>
-                """,
+                "html": '<p><b>Review &amp; Export</b> uses the selected assets and current document state.</p><ul><li><b>Edited texture</b>: export DDS or PNG, or save the layered project.</li><li><b>Replacement matches</b>: review the exact original DDS and target path before building a package. Choose ambiguous matches explicitly.</li><li><b>Recolor package</b>: choose a manager profile and output location for the current recolor template.</li><li><b>Upscale package</b>: review batch progress and output settings.</li></ul><p>The shared canvas provides original and split views. Export results remain available when switching modes; failed or cancelled batch jobs keep earlier usable output.</p>',
             },
         ]
 
@@ -382,7 +353,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <b>Edit HKX</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live model view.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
-                  <li>Use the dedicated Texture Workflow, Texture Replacer, Texture Recolor, and Texture Editor tabs directly for texture work; Archive Browser does not author or hand off textures.</li>
+                  <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
                 """,
@@ -472,7 +443,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>New assets and textures</h4>
                 <ul>
                   <li>From Model Library, <b>Use in Create New Item</b> resolves or downloads the model and opens Create New Item's Model step.</li>
-                  <li>Use Texture Workflow, Texture Replacer, Texture Recolor, or Texture Editor directly for texture work. Those dedicated tabs are unchanged.</li>
+                  <li>Use the shared Textures workspace for texture work.</li>
                 </ul>
                 <h4>HKX placement and socket workflows</h4>
                 <ul>
@@ -505,46 +476,24 @@ class AboutDocumentationEnglishMixin:
             },
             {
                 "id": "texture_editor",
-                "title": "Texture Editor",
-                "summary": "Layered editor for visible-texture work.",
+                "title": 'Textures: Edit',
+                "summary": 'Layered editing within the shared texture job.',
                 "keywords": "texture editor layers masks selections brush clone heal smudge patch gradient dodge burn channels compare",
-                "html": """
-                <p><b>Texture Editor</b> is built for visible-color texture work rather than general-purpose technical-map authoring.</p>
-                <ul>
-                  <li>Layered document with paint, erase, fill, gradient, clone, heal, smudge, patch, dodge/burn, sharpen, and soften tools.</li>
-                  <li>Selections, floating paste/move workflow, masks, channel locks, and non-destructive adjustments.</li>
-                  <li>RGBA/original/split preview modes and direct handoff to Compare, Texture Replacer, and Texture Workflow.</li>
-                  <li>Warnings are shown for technical textures because the editor is not the safest place to rebuild those blindly.</li>
-                </ul>
-                """,
+                "html": '<p><b>Textures &gt; Edit</b> provides layers, masks, selections, channel locks, brush tools, clone/heal, smudge, sharpen, and soften.</p><p>Switching to Recolor or Upscale retains the same sessions, history, original DDS, and target bindings. Use <b>Review &amp; Export</b> for DDS, PNG, project, or replacement-package output. Icon Creator handoffs remain available. Technical-map constraints still apply.</p>',
             },
             {
                 "id": "replace_assistant",
-                "title": "Texture Replacer",
-                "summary": "Guided one-off replacement flow for edited PNG/DDS files.",
+                "title": 'Textures: Replacement matches',
+                "summary": 'Match the shared job to original DDS sources before package export.',
                 "keywords": "replace assistant replace edited png dds original match mod ready loose export package",
-                "html": """
-                <p><b>Texture Replacer</b> is the best route when you already have an edited PNG or DDS and want to match it back to the correct original texture, rebuild it safely, and export a ready loose mod folder.</p>
-                <ul>
-                  <li>Match edited assets to original DDS files or archive entries.</li>
-                  <li>Apply correction and rebuild logic with current output settings.</li>
-                  <li>Export a mod-ready loose folder structure for the matched results.</li>
-                </ul>
-                """,
+                "html": '<p>Open <b>Textures &gt; Review &amp; Export &gt; Replacement matches</b>. The review uses current edits from the shared job.</p><p>Match each asset to an original DDS file or exact archive entry. Review the game-relative target, dimensions, format, and package profile, then build a loose replacement package. An ambiguous match never silently chooses the first candidate.</p>',
             },
             {
                 "id": "texture_recolor",
-                "title": "Texture Recolor",
-                "summary": "Build reviewed colour variants while preserving the established texture and package routes.",
+                "title": 'Textures: Recolor',
+                "summary": 'Recolor selected mod textures and supported material-color sidecars.',
                 "keywords": "texture recolor colour color variant palette source review package",
-                "html": """
-                <p><b>Texture Recolor</b> creates colour variants from a chosen source texture without turning the operation into an unrelated batch rebuild.</p>
-                <ul>
-                  <li>Choose the source, adjust the supported colour treatment, and review the visible result before export.</li>
-                  <li>Keep technical-map warnings in view; recolouring is intended for suitable visible textures.</li>
-                  <li>Finished variants continue through the existing Texture Workflow and mod-package output routes.</li>
-                </ul>
-                """,
+                "html": '<p><b>Textures &gt; Recolor</b> accepts a loose mod folder or ZIP. Its targets appear in the shared asset list.</p><p>Choose a template and selected targets, preview the color treatment on the shared canvas, and open editable textures in Edit when needed. Current document edits feed recolor previews and exports. Material-color targets retain their sidecar identity.</p><p>Use <b>Review &amp; Export &gt; Recolor package</b> to choose manager profiles and output. Sources remain unchanged; unsuccessful jobs retain previous output.</p>',
             },
         ]
 
@@ -670,21 +619,10 @@ class AboutDocumentationEnglishMixin:
             },
             {
                 "id": "window_layout",
-                "title": "Window & Layout",
-                "summary": "Detachable work tabs, saved geometry, and layout memory.",
+                "title": 'Window & Layout',
+                "summary": 'Compact or Classic navigation around the same tools.',
                 "keywords": "window layout detach attach tab geometry splitter restore detached tool",
-                "html": """
-                <p>The <b>Window</b> menu lets detachable work areas run in their own top-level windows while keeping their original navigation slots available.</p>
-                <ul>
-                  <li><b>Detach Current Tool</b> moves the current detachable tool into a separate window and leaves a placeholder behind.</li>
-                  <li><b>Reattach Current Tool</b> and <b>Reattach All Tools</b> return detached tools to their original tab groups.</li>
-                  <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
-                  <li><b>Settings / Appearance</b> controls whether pane sizes and splitters are remembered across sessions.</li>
-                  <li>The 14 detachable surfaces are Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Texture Workflow, Texture Replacer, Texture Recolor, Texture Editor, Retrofit/Repackage, Research, Text Search, and Settings.</li>
-                  <li><b>Format Explorer</b> and <b>Translations</b> stay anchored in Tools and are not presented as detachable workspaces.</li>
-                  <li>The bottom half of the <b>Window</b> menu lists a <b>Show &lt;tool&gt;</b> entry per tool. It selects the tool's tab, or raises its window when the tool is detached.</li>
-                </ul>
-                """,
+                "html": '<p>Choose Compact or Classic in Settings &gt; Appearance &gt; Layout, then restart.</p><p>Compact is the default; your saved layout choice is preserved.</p>',
             },
             {
                 "id": "safety",
@@ -713,7 +651,7 @@ class AboutDocumentationEnglishMixin:
         notices_text = escape(str(notices_path))
         license_text = escape(str(license_path))
         settings_text = escape(str(self.settings_file_path))
-        cache_text = escape(str(self.archive_cache_root))
+        cache_text = escape(str(self.archive.archive_cache_root))
         return [
             {
                 "id": "settings_files",

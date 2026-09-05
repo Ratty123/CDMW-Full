@@ -51,6 +51,9 @@ class _RecordingBar:
 
 class _Owner(ArchiveProgressMixin):
     def __init__(self) -> None:
+        self.shell = self
+        self.archive = self
+        self.textures = self
         self.archive_scan_progress_bar = _RecordingBar()
         self._archive_load_progress_percent = 0
         self._archive_load_progress_active = True

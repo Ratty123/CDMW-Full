@@ -4,7 +4,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 
-from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
+from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_state_payload
 
 
 # A resident material update recompiles real material maps on a worker thread.

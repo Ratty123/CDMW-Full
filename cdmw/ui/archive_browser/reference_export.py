@@ -45,7 +45,7 @@ class ArchiveReferenceExportMixin:
         return "All Files (*)"
 
     def _export_archive_reference_entry(self, entry: ArchiveEntry, *, title: str = "Export Referenced File") -> None:
-        default_dir = self.settings_file_path.parent / "archive_related_export"
+        default_dir = self.shell.settings_file_path.parent / "archive_related_export"
         default_target = default_dir / entry.basename
         output_path, _selected = QFileDialog.getSaveFileName(
             self,
@@ -66,12 +66,12 @@ class ArchiveReferenceExportMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, Path):
-                self.set_status_message("Referenced file export finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Referenced file export finished with an unexpected result payload.", error=True)
                 return
             QMessageBox.information(self, "Export Complete", f"Exported file:\n{result}")
-            self.set_status_message(f"Exported {entry.basename}.")
+            self.shell.set_status_message(f"Exported {entry.basename}.")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting {entry.basename}...",
             task=_task,
             on_complete=_handle_complete,
@@ -93,10 +93,10 @@ class ArchiveReferenceExportMixin:
             seen_paths.add(normalized_path)
             unique_entries.append(entry)
         if not unique_entries:
-            self.set_status_message("No resolved referenced files are available to export.", error=True)
+            self.shell.set_status_message("No resolved referenced files are available to export.", error=True)
             return
 
-        default_dir = self.settings_file_path.parent / "archive_related_export"
+        default_dir = self.shell.settings_file_path.parent / "archive_related_export"
         output_dir = QFileDialog.getExistingDirectory(
             self,
             title,
@@ -119,16 +119,16 @@ class ArchiveReferenceExportMixin:
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, list) or not all(isinstance(path, Path) for path in result):
-                self.set_status_message("Referenced-file export finished with an unexpected result payload.", error=True)
+                self.shell.set_status_message("Referenced-file export finished with an unexpected result payload.", error=True)
                 return
             QMessageBox.information(
                 self,
                 "Export Complete",
                 f"Exported {len(result)} referenced file(s) into:\n{Path(output_dir).expanduser()}",
             )
-            self.set_status_message(f"Exported {len(result)} referenced file(s).")
+            self.shell.set_status_message(f"Exported {len(result)} referenced file(s).")
 
-        self._run_utility_task(
+        self.shell._run_utility_task(
             status_message=f"Exporting {len(unique_entries)} referenced file(s)...",
             task=_task,
             on_complete=_handle_complete,
@@ -191,10 +191,10 @@ class ArchiveReferenceExportMixin:
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         make_tree_columns_persistent(
             tree,
-            self.settings,
+            self.shell.settings,
             "dialog/archive_reference_selection",
             minimum_width=48,
-            save_callback=self.schedule_settings_save,
+            save_callback=self.shell.schedule_settings_save,
         )
 
         def _reference_type_label(reference: ArchiveModelTextureReference) -> str:

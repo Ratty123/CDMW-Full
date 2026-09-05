@@ -13,7 +13,7 @@ class CompactToolSpec:
     icon: str
 
 
-COMPACT_CATEGORY_ORDER = ("Assets", "Authoring", "Textures", "Utilities")
+COMPACT_CATEGORY_ORDER = ("Assets", "Authoring", "Utilities")
 
 COMPACT_TOOL_SPECS = (
     CompactToolSpec("archive_browser", "Browse Archives", "Assets", "folder"),
@@ -22,10 +22,7 @@ COMPACT_TOOL_SPECS = (
     CompactToolSpec("new_item_studio", "Create New Item", "Assets", "add"),
     CompactToolSpec("mesh_editor", "Mesh Editor", "Authoring", "mesh"),
     CompactToolSpec("placement_studio", "Placement & Animations", "Authoring", "person"),
-    CompactToolSpec("texture_workflow", "Upscale Textures", "Textures", "layers"),
-    CompactToolSpec("replace_assistant", "Replace Textures", "Textures", "swap"),
-    CompactToolSpec("recolor_variants", "Texture Recolor", "Textures", "droplet"),
-    CompactToolSpec("texture_editor", "Texture Editor", "Textures", "brush"),
+    CompactToolSpec("textures", "Textures", "Authoring", "brush"),
     CompactToolSpec("mod_package_retrofit", "Repackage Mods", "Utilities", "package"),
     CompactToolSpec("format_explorer", "Inspect File Formats", "Utilities", "document"),
     CompactToolSpec("translation_studio", "Edit Translations", "Utilities", "globe"),

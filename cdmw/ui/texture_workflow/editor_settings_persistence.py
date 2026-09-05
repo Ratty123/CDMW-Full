@@ -34,6 +34,8 @@ class TextureEditorSettingsPersistenceMixin:
         return parsed
 
     def _save_texture_editor_splitter_sizes(self) -> None:
+        if self.workspace_embedded:
+            return
         if not self._settings_ready or self._texture_editor_splitter_restoring:
             return
         sizes = [max(0, int(size)) for size in self.main_splitter.sizes()]

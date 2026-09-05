@@ -17,10 +17,6 @@ from cdmw.ui.shell.compact.config import (
 class CompactWorkspaceSettingsMixin:
     def _build_compact_workspace_settings_ui(self, appearance_layout: QFormLayout) -> None:
         self._running_shell_variant = read_shell_variant(self.settings)
-        self.setProperty(
-            "compactPresentation",
-            self._running_shell_variant == COMPACT_SHELL_VARIANT,
-        )
         self.application_layout_combo = QComboBox()
         self.application_layout_combo.setObjectName("ApplicationLayoutCombo")
         self.application_layout_combo.addItem("Classic Workspace", LEGACY_SHELL_VARIANT)

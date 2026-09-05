@@ -248,7 +248,7 @@ def _mesh_editor_sync_static_replacement_session_to_working_mesh(_state, _callba
             reason=str(reason or "mesh_edit.sync"),
             message=str(exc),
         )
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Rust Preview Mesh Editor sync failed; reload the preview before continuing.",
             error=True,
         )
@@ -283,7 +283,7 @@ def _mesh_edit_refresh_replacement_preview_model(_state, _callbacks,
         and _state._mesh_edit_tab_active()
         and not _state._alignment_d3d11_preview_active()
     ):
-        _state.self.set_status_message(
+        _state.self.shell.set_status_message(
             "Active Mesh Editor preview refresh requires Rust Preview; Python preview rebuild fallback is disabled.",
             error=True,
         )

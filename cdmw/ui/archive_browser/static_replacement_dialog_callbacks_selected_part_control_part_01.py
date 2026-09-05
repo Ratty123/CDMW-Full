@@ -253,7 +253,7 @@ def _selected_part_control_step_009(_state):
         ):
             return False
         message = 'Active Mesh Editor source material tuning requires native material execution; Python adjustment mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -265,7 +265,7 @@ def _selected_part_control_step_010(_state):
         if not (callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active()):
             return False
         message = 'Active Mesh Editor copied-source texture routing requires native material execution; Python texture intent mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -279,7 +279,7 @@ def _selected_part_control_step_011(_state):
         if resident_material_parameters_available(_state.dialog):
             return False
         message = f'Active Mesh Editor source-part {action} requires native material execution; Python adjustment mutation fallback is disabled.'
-        set_status_message = getattr(_state.self, 'set_status_message', None)
+        set_status_message = getattr(_state.self.shell, 'set_status_message', None)
         if callable(set_status_message):
             set_status_message(message, error=True)
         return True
@@ -663,7 +663,7 @@ def _selected_part_control_step_024(_state):
         if not action_state.available:
             return
         if callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active():
-            set_status_message = getattr(_state.self, 'set_status_message', None)
+            set_status_message = getattr(_state.self.shell, 'set_status_message', None)
             if callable(set_status_message):
                 set_status_message('Resident part reset is disabled until a native reset command is supported.', error=True)
             return

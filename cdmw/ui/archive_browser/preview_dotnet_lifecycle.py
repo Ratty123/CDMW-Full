@@ -30,7 +30,7 @@ class ArchivePreviewDotNetLifecycleMixin:
     def _preserve_archive_resident_scene_error(self, message: str) -> bool:
         if not self._archive_resident_scene_available():
             return False
-        self.set_status_message(
+        self.shell.set_status_message(
             f"Preview update failed; the previous model remains visible: {message}",
             error=True,
         )
@@ -78,7 +78,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         start instead of landing on a resident renderer.
         """
 
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             return
         if int(attempt) >= ARCHIVE_DOTNET_PREWARM_ATTEMPT_LIMIT:
             return
@@ -100,7 +100,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         controller = getattr(host, "controller", None)
         if controller is None:
             return
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             controller.shutdown()
         else:
             controller.clear_preview()
@@ -120,8 +120,8 @@ class ArchivePreviewDotNetLifecycleMixin:
                     settings, use_textures_by_default=enabled,
                 )
                 self._sync_model_preview_settings_controls()
-                if self._settings_ready:
-                    self.schedule_settings_save()
+                if self.shell._settings_ready:
+                    self.shell.schedule_settings_save()
         else:
             enabled = bool(
                 package_dir is None
@@ -143,12 +143,12 @@ class ArchivePreviewDotNetLifecycleMixin:
             host.set_viewport_display_mode("textured")
             self._archive_textures_visible = True
             if not showing:
-                self.set_status_message("Textures shown.")
+                self.shell.set_status_message("Textures shown.")
         elif package_dir is not None and self._archive_active_package_has_textures():
             host.set_viewport_display_mode("untextured_wire")
             self._archive_textures_visible = False
             if showing:
-                self.set_status_message("Textures hidden; geometry remains resident.")
+                self.shell.set_status_message("Textures hidden; geometry remains resident.")
         self._sync_archive_texture_action_state()
 
     def _archive_preview_effective_render_settings(self, request_id: int | None = None):
@@ -189,7 +189,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_texture_request_loading = True
         self._archive_texture_request_automatic = bool(automatic)
         self._sync_archive_texture_action_state()
-        self.set_status_message("Loading textures while keeping geometry visible...")
+        self.shell.set_status_message("Loading textures while keeping geometry visible...")
         self._render_archive_preview(current, force=True)
         return True
 
@@ -236,7 +236,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         if has_textures and pending_result is not None:
             self.current_archive_preview_result = pending_result
             self._refresh_archive_preview_details_text()
-            self.set_status_message(
+            self.shell.set_status_message(
                 "Textures loaded in the resident Rust Preview preview."
                 if show_textures
                 else "Textures prepared; geometry remains untextured."
@@ -258,7 +258,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         ):
             failure = str(message or "Resident package update failed.")
             self._set_archive_texture_upgrade_status("failed", detail=failure)
-            self.set_status_message(f"Full preview failed after fast preview: {failure}", error=True)
+            self.shell.set_status_message(f"Full preview failed after fast preview: {failure}", error=True)
             return
         if int(generation or 0) != int(getattr(self, "_archive_texture_package_generation", 0) or 0):
             return
@@ -289,7 +289,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         untextured until the checkbox is toggled by hand.
         """
 
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             return
         key = self._archive_texture_retry_key()
         if not key:
@@ -310,7 +310,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         )
 
     def _retry_archive_preview_textures(self, key: str, automatic: bool) -> None:
-        if bool(getattr(self, "_shutting_down", False)):
+        if bool(getattr(self.shell, "_shutting_down", False)):
             return
         if self._archive_texture_retry_key() != str(key):
             # The selection moved on; the new entry owns its own retry budget.
@@ -323,7 +323,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             bool(automatic)
             and not bool(self._current_model_preview_render_settings().use_textures_by_default)
             and not isinstance(
-                getattr(self, "_mesh_editor_pending_rust_texture_launch", None),
+                getattr(self.shell, "_mesh_editor_pending_rust_texture_launch", None),
                 Mapping,
             )
         ):
@@ -348,7 +348,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         )
         self._sync_archive_texture_action_state()
         notify_mesh_editor = getattr(
-            self,
+            self.shell,
             "_finish_pending_rust_mesh_editor_texture_launch",
             None,
         )
@@ -364,7 +364,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         if success:
             self._archive_texture_retry_count = 0
             return True
-        self.set_status_message(
+        self.shell.set_status_message(
             f"Texture loading failed; the untextured model remains available: {message}",
             error=True,
         )
@@ -430,7 +430,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         reason = str(payload.get("reason", "") or "").strip() or "no reason reported"
         self._archive_presentation_rejection_reason = reason
-        self.set_status_message(
+        self.shell.set_status_message(
             f"The preview renderer refused the display change ({reason}); the viewport still shows the previous view.",
             error=True,
         )

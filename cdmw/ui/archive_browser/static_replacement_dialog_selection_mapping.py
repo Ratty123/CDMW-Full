@@ -26,7 +26,7 @@ def _mesh_edit_material_override_blocked(active: bool, dialog: object, owner: ob
         "Active Mesh Editor source material overrides require native material execution; "
         "Python adjustment mutation fallback is disabled."
     )
-    set_status_message = getattr(owner, "set_status_message", None)
+    set_status_message = getattr(owner.shell, "set_status_message", None)
     if callable(set_status_message):
         set_status_message(message, error=True)
     return True

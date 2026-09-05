@@ -20,15 +20,15 @@ def attachment_donor_dependencies(owner: object, target_entry: object):
     try:
         dependencies = archive_workflow_dependency_context(owner, target_entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
-        owner.set_status_message(f"Attachment source picker is unavailable: {exc}", error=True)
+        owner.shell.set_status_message(f"Attachment source picker is unavailable: {exc}", error=True)
         return None
     prepared_by_identity = (
         {entry.identity: entry for entry in dependencies.entries}
         if dependencies.remote
         else None
     )
-    sidecars_by_path = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_path
-    sidecars_by_basename = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_basename
+    sidecars_by_path = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_path
+    sidecars_by_basename = {} if dependencies.remote else owner.archive.archive_sidecar_entries_by_texture_basename
     return (
         dependencies.selected_entry,
         dependencies,
@@ -46,7 +46,7 @@ def attachment_donor_preview_inputs(
     sidecars_by_basename: Mapping[str, Sequence[ArchiveEntry]],
 ) -> tuple[object, ...]:
     return (
-        owner._find_archive_preview_companion_entry(
+        owner.archive._find_archive_preview_companion_entry(
             preview_entry,
             entries_by_normalized_path=dependencies.entries_by_normalized_path,
         ),
@@ -72,10 +72,10 @@ def attachment_donor_catalog_scope_entries(
     dependencies: ArchiveWorkflowDependencyContext,
 ) -> Tuple[List[ArchiveEntry], int, int]:
     if not dependencies.remote:
-        return owner._resolve_archive_asset_catalog_scope_entries(row, include_related=True)
+        return owner.archive._resolve_archive_asset_catalog_scope_entries(row, include_related=True)
     values: List[str] = []
     for key in ("pac_files", "model_stems", "icon_paths"):
-        values.extend(owner._archive_asset_catalog_row_values(row, key))
+        values.extend(owner.archive._archive_asset_catalog_row_values(row, key))
     normalized_values = tuple(
         str(value or "").replace("\\", "/").strip().strip("/").casefold()
         for value in values
