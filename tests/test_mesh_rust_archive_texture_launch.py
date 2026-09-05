@@ -5,7 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from cdmw.models import ArchiveEntry
+from cdmw.services.mesh_rust_contract import RUST_PREVIEW_PACKAGE
+from cdmw.workers.mesh_editor_aux_workers import MeshArchiveMaterialContextWorker
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import (
     ArchivePreviewDotNetLifecycleMixin,
 )
@@ -127,6 +131,51 @@ def _compiled_vortice_package(root: Path, entry: ArchiveEntry) -> Path:
     return root
 
 
+def _canonical_rust_package(root: Path, entry: ArchiveEntry) -> tuple[Path, Path]:
+    native = root / "native-entry" / "package"
+    native.mkdir(parents=True)
+    texture = native / "body.dds"
+    texture.write_bytes(b"DDS " + b"owned body texture" * 8)
+    (native / "manifest.json").write_text(json.dumps({
+        "source_path": entry.path,
+        "material_graph_version": 4,
+        "batches": [{
+            "editor_identity": {"source_local_submesh_index": 0},
+            "material_layers": [{"layer_role": "base", "tint": [0.8, 0.4, 0.2, 1]}],
+            "dds_textures": {
+                "base": {"source_path": str(texture)},
+                "material_inputs": [{
+                    "source_path": str(texture), "slot": "base",
+                    "semantic_type": "color", "semantic_subtype": "albedo",
+                    "parameter_name": "_baseColorTexture", "owner_slot_index": 0,
+                    "material_parameters": [{
+                        "parameter_name": "_skinDetailScale", "parameter_kind": "float",
+                        "numeric_value": 0.032,
+                    }],
+                }],
+            },
+        }],
+    }), encoding="utf-8")
+    (native.parent / "cache_entry.json").write_text(json.dumps({
+        "cache_key": "native-key",
+        "diagnostics": {"cache_dependency_entries": [{
+            "path": entry.path, "pamt_path": str(entry.pamt_path),
+            "paz_file": str(entry.paz_file), "paz_index": entry.paz_index,
+            "offset": entry.offset,
+        }]},
+    }), encoding="utf-8")
+    rust = root / "rust-entry" / "package"
+    rust.mkdir(parents=True)
+    (rust / "manifest.json").write_text(json.dumps({
+        "schema": RUST_PREVIEW_PACKAGE, "source": {"path": entry.path},
+        "textures": [{"role": "base_color", "file": {"path": "body.dds"}}],
+    }), encoding="utf-8")
+    (rust.parent / "cache_entry.json").write_text(json.dumps({
+        "archive_identity": "native-key", "source_package": str(native),
+    }), encoding="utf-8")
+    return rust, native
+
+
 class _Lease:
     def __init__(self) -> None:
         self.active = True
@@ -175,6 +224,9 @@ class _LaunchHarness(MeshEditorShellBridgeMixin):
 
     def _archive_active_package_has_textures(self) -> bool:
         package = Path(self.archive_isolated_renderer_active_package)
+        manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8")) if (package / "manifest.json").is_file() else {}
+        if manifest.get("schema") == RUST_PREVIEW_PACKAGE:
+            return bool(manifest.get("textures"))
         payload = json.loads((package / "net_materials.json").read_text(encoding="utf-8"))
         return bool(payload.get("resources"))
 
@@ -202,6 +254,90 @@ class _LaunchHarness(MeshEditorShellBridgeMixin):
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.statuses.append((str(message), bool(error)))
+
+
+def test_rust_preview_handoff_leases_its_exact_native_material_source(tmp_path: Path) -> None:
+    entry = _entry(tmp_path)
+    rust, native = _canonical_rust_package(tmp_path, entry)
+    harness = _LaunchHarness(entry, rust)
+    harness.current_archive_preview_result.preview_model = None
+    lease = _Lease()
+    with patch(
+        "cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path",
+        return_value=lease,
+    ) as acquire:
+        harness._launch_archive_mesh_editor_for_entry(entry)
+    assert harness.texture_requests == []
+    acquire.assert_called_once_with(native)
+    assert harness.opened[0][1]["material_package_path"] == str(native)
+    assert harness.opened[0][1]["material_package_lease"] is lease
+
+
+@pytest.mark.parametrize("mismatch", ["archive", "cache_key", "source_path", "missing"])
+def test_rust_preview_handoff_rejects_unrelated_or_missing_material_source(
+    tmp_path: Path, mismatch: str,
+) -> None:
+    entry = _entry(tmp_path)
+    rust, native = _canonical_rust_package(tmp_path, entry)
+    if mismatch == "archive":
+        entry = _entry(tmp_path, offset=99, package="0010")
+    elif mismatch == "cache_key":
+        path = rust.parent / "cache_entry.json"
+        payload = json.loads(path.read_text())
+        payload["archive_identity"] = "other-key"
+        path.write_text(json.dumps(payload))
+    elif mismatch == "source_path":
+        path = rust / "manifest.json"
+        payload = json.loads(path.read_text())
+        payload["source"]["path"] = "another.pac"
+        path.write_text(json.dumps(payload))
+    else:
+        (native / "manifest.json").unlink()
+    assert _LaunchHarness(entry, rust)._mesh_editor_active_textured_package_for_entry(entry) is None
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_current_rust_archive_material_context_preserves_full_graph_and_lease(
+    tmp_path: Path, cancel: bool,
+) -> None:
+    entry = _entry(tmp_path)
+    rust, native = _canonical_rust_package(tmp_path, entry)
+    worker = MeshArchiveMaterialContextWorker(7, entry, material_package_path=rust)
+    contexts, errors = [], []
+    worker.context_resolved.connect(lambda _request, context: contexts.append(context))
+    worker.error.connect(lambda _request, message: errors.append(message))
+    lease = _Lease()
+    decode = worker._native_package_material_model
+
+    def decode_and_optionally_cancel():
+        result = decode()
+        if cancel:
+            worker.stop()
+        return result
+
+    with patch.object(worker, "_native_package_material_model", side_effect=decode_and_optionally_cancel), patch(
+        "cdmw.workers.mesh_editor_aux_workers.build_archive_preview_result",
+        side_effect=AssertionError("Current native material graph must not be discarded and re-resolved"),
+    ), patch(
+        "cdmw.workers.mesh_editor_aux_workers.acquire_dotnet_preview_package_cache_lease_for_path",
+        return_value=lease,
+    ):
+        worker.run()
+    assert errors == []
+    if cancel:
+        assert contexts == []
+        assert not lease.active
+        return
+    assert len(contexts) == 1
+    context = contexts[0]
+    assert context.material_package_path == str(native)
+    assert context.material_package_lease is lease
+    part = context.preview_model.meshes[0]
+    assert Path(part.preview_texture_dds_path).read_bytes().startswith(b"DDS ")
+    assert part.preview_material_texture_inputs[0].material_parameters[0].numeric_value == 0.032
+    assert part.preview_native_material_overrides["material_layers"][0]["tint"] == [0.8, 0.4, 0.2, 1]
+    context.release()
+    assert not lease.active
 
 
 def test_missing_rust_blocks_before_archive_texture_resolution(tmp_path: Path) -> None:

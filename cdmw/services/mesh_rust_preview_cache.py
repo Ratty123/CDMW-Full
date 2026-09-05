@@ -1070,6 +1070,53 @@ def build_rust_preview_cache_prewarm_package(cache_root: Path) -> RustPreviewPac
     return build_rust_preview_prewarm_package(cache_root)
 
 
+def native_material_package_for_rust_preview(package_dir: Path) -> Path | None:
+    """Find the conserved native material graph behind a cached Rust preview.
+
+    Rust owns its render resources, while the source package also retains the
+    complete PAC XML parameter inputs used by authoring. Bind the cache link to
+    its exact source cache key; callers still verify the selected archive entry
+    and acquire the native package's lease before handing it to the editor.
+    """
+
+    def read_mapping(path: Path) -> Mapping[str, object]:
+        if path.stat().st_size > 8 * 1024 * 1024:
+            return {}
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
+        return value if isinstance(value, Mapping) else {}
+
+    try:
+        package = Path(package_dir).resolve()
+        manifest = read_mapping(package / "manifest.json")
+        if manifest.get("schema") != RUST_PREVIEW_PACKAGE:
+            return None
+        source = manifest.get("source")
+        if not isinstance(source, Mapping) or not source.get("path"):
+            return None
+        metadata = read_mapping(package.parent / "cache_entry.json")
+        source_text = str(metadata.get("source_package", "") or "").strip()
+        if not source_text:
+            return None
+        native_package = Path(source_text).resolve(strict=True)
+        if native_package == package:
+            return None
+        native_metadata = read_mapping(native_package.parent / "cache_entry.json")
+        native_key = str(native_metadata.get("cache_key", "") or "")
+        if not native_key or metadata.get("archive_identity") != native_key:
+            return None
+        native_manifest = read_mapping(native_package / "manifest.json")
+        def normalized(value: object) -> str:
+            return str(value or "").replace("\\", "/").strip().strip("/").casefold()
+
+        if normalized(source["path"]) != normalized(native_manifest.get("source_path")):
+            return None
+        if not isinstance(native_manifest.get("batches"), list):
+            return None
+        return native_package
+    except (OSError, RuntimeError, ValueError, TypeError):
+        return None
+
+
 __all__ = [
     "build_or_lookup_rust_preview_package",
     "build_or_lookup_rust_preview_package_from_model",
@@ -1082,6 +1129,7 @@ __all__ = [
     "lookup_rust_preview_package_from_preview_core_identity",
     "lookup_rust_preview_package_hit_from_model_identity",
     "parsed_mesh_from_model_preview",
+    "native_material_package_for_rust_preview",
     "rust_preview_package_cache_root",
     "RUST_PREVIEW_CACHE_SCHEMA",
     "validate_rust_preview_package",

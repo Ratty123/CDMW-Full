@@ -750,10 +750,12 @@ lets a reopened loose PAC reproduce the same presentation after hash validation.
 Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
 Browser material context when one exists. A native Archive Browser handoff pins
 its resident package before retiring the Browser renderer and carries both the
-resolved model and package path into the direct session. If that complete model
-is unavailable, the request-correlated material-context worker runs the full
-Archive Browser resolver before falling back to the package's flattened native
-batches. The lease remains held for the direct edit session so cache pruning
+resolved model and package path into the direct session. Current Rust preview
+cache entries link to the native material package using its exact cache key;
+the handoff verifies the selected archive identity and leases that source.
+The request-correlated worker reuses its complete PAC/PAC_XML inputs, including
+layer parameters and support maps. Older flattened packages still use the full
+archive resolver first. The lease remains held for the direct edit session so cache pruning
 cannot remove its DDS sources. PAM/PAMLOD handoffs also retain their companion;
 selecting **Solid (Textured)** waits on that worker and the resident material
 acknowledgement rather than failing because Archive Browser had not loaded textures

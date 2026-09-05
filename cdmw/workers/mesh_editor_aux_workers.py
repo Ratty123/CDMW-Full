@@ -17,6 +17,7 @@ from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.services.mesh_service import MeshService
+from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.modify_original_workspace_service import (
     ModifyOriginalDraft,
     discover_modify_original_drafts,
@@ -402,9 +403,12 @@ class MeshArchiveMaterialContextWorker(QObject):
         return self._cache_dependency_matches_entry(package_path)
 
     def _native_package_material_model(self) -> object | None:
+        self._native_material_graph_ready = False
         package_path = self.material_package_path
         if package_path is None:
             return None
+        package_path = native_material_package_for_rust_preview(package_path) or package_path
+        self.material_package_path = package_path
         manifest_path = package_path / "manifest.json"
         if not manifest_path.is_file():
             return None
@@ -434,6 +438,16 @@ class MeshArchiveMaterialContextWorker(QObject):
         )
         if apply_dotnet_native_material_batch_bindings(preview_model, batches) <= 0:
             return None
+        self._native_material_graph_ready = bool(
+            int(manifest.get("material_graph_version", 0) or 0) >= 4
+            and all(
+                isinstance(batch, Mapping)
+                and isinstance(batch.get("material_layers"), list)
+                and isinstance(batch.get("dds_textures"), Mapping)
+                and isinstance(batch["dds_textures"].get("material_inputs"), list)
+                for batch in batches
+            )
+        )
         return (
             preview_model
             if count_dotnet_own_material_bindings(preview_model) > 0
@@ -490,12 +504,16 @@ class MeshArchiveMaterialContextWorker(QObject):
         try:
             if self.stop_event.is_set():
                 return
-            # Resolve the same complete PAC/PAC_XML model used by Archive
-            # Browser before considering the native package's flattened batch
-            # rows.  Those rows are a safe texture fallback, but deliberately
-            # omit the dye/layer parameter graph needed to reproduce authored
-            # colours such as equipment gold and dyed cloth or leather.
+            # Current native packages conserve complete PAC/PAC_XML inputs.
+            # Older flattened batches still need the archive resolver first
+            # to recover dye/layer parameters omitted by their transport.
             native_fallback = self._native_package_material_model()
+            if native_fallback is not None and self._native_material_graph_ready:
+                # Current Preview Core batches conserve the full owner-bound
+                # material parameters and layer graph. Reuse those exact inputs
+                # and their DDS lease, including after a Rust cache hit.
+                self._publish_resolved_context(native_fallback, self.material_package_path)
+                return
             try:
                 result = build_archive_preview_result(
                     self.entry,

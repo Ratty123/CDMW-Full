@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Mesh Editor retains textures already loaded in Browse Archives.** The Rust preview handoff now verifies and leases the matching native material package, preserving its resolved DDS files, support maps, and complete PAC/PAC_XML layer parameters instead of losing them at the preview-to-editor boundary.
+
 - **New Item placement reuses Preview Core for template materials.** Imported and character comparison scenes no longer rebuild the full archive lookup maps to resolve the template again. Native textures remain owned until the complete scene has copied them, and textured comparison views receive the reference's full material tier.
 
 - **Model previews load textures from long Windows paths.** Native texture encoding, decoding, and report I/O now support deep model folders and hashed cache paths beyond `MAX_PATH`. Failed Model Library workers report their error and exit instead of opening a blocking exception dialog.

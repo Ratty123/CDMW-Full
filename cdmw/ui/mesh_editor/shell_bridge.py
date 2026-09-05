@@ -17,6 +17,7 @@ from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_workflow_service import SceneImportResult
+from cdmw.services.mesh_rust_preview_cache import native_material_package_for_rust_preview
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
@@ -356,6 +357,7 @@ class MeshEditorShellBridgeMixin:
             package = Path(package_path)
             if not bool(has_textures()):
                 return None
+            package = native_material_package_for_rust_preview(package) or package
         except (OSError, RuntimeError, TypeError, ValueError):
             return None
         return (
