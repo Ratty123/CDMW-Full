@@ -216,6 +216,14 @@ class NewItemModelControllerMixin:
                     template_frame=result.fit_template_frame,
                 )
             )
+            if not stop_event.is_set():
+                # The UI reads fitted bounds as soon as this result is published.
+                # Materialize that mesh here so the first read is a cache lookup.
+                try:
+                    result.baked_scene_mesh()
+                except Exception:
+                    result.cleanup()
+                    raise
             progress(1, 1, "Model source ready")
             return result
 

@@ -195,8 +195,9 @@ package load.
 The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
 `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
-and the same cancellable worker reads the template geometry and retains its bounds and
-centroid for later re-fit. Weapon-family paths use the grip/heavy-end fit; armour,
+and the same cancellable worker reads the template geometry, retains its bounds and
+centroid for later re-fit, and prepares the fitted mesh before publishing the import.
+The first UI read of the fitted bounds reuses that mesh. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
 weapons.
 `item_preview.py` owns the resident frame and publishes fitted geometry, direct

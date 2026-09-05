@@ -469,6 +469,66 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_failed_initial_geometry_bake_cleans_the_unpublished_import(self) -> None:
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        controller = NewItemStudioController(synchronous=True)
+        controller.snapshot = object()
+        controller.draft.template_key = 7
+        errors: list[str] = []
+        controller.model_import_failed.connect(errors.append)
+        source = ModelImportSource(
+            chosen_path=Path("helmet.dae"), model_path=Path("helmet.dae"),
+            scene=SimpleNamespace(mesh=None), preview_model=None,
+            bounds=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)), centroid=(0.0, 0.0, 0.0),
+        )
+        try:
+            with patch.object(controller, "_template_geometry_build", return_value=None), patch.object(
+                controller, "_template_uses_weapon_fit", return_value=False,
+            ), patch("cdmw.ui.new_item.controller.load_model_import_source", return_value=source), patch.object(
+                ModelImportSource, "baked_scene_mesh", side_effect=RuntimeError("geometry bake failed"),
+            ), patch.object(ModelImportSource, "cleanup", autospec=True) as cleanup:
+                self.assertTrue(controller.start_model_import(Path("helmet.dae")))
+                self.assertIsNone(controller.model_import)
+                self.assertEqual(len(errors), 1)
+                self.assertIn("geometry bake failed", errors[0])
+                cleanup.assert_called_once_with(source)
+        finally:
+            controller.deleteLater()
+
+    def test_cancelled_import_does_not_start_the_initial_geometry_bake(self) -> None:
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        controller = NewItemStudioController(synchronous=True)
+        controller.snapshot = object()
+        controller.draft.template_key = 7
+        stop = threading.Event()
+        source = ModelImportSource(
+            chosen_path=Path("helmet.dae"), model_path=Path("helmet.dae"),
+            scene=SimpleNamespace(mesh=None), preview_model=None,
+            bounds=((-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)), centroid=(0.0, 0.0, 0.0),
+        )
+
+        def run_task(_lane, task, *_args, **_kwargs):
+            self.assertIs(task(lambda *_args: None, lambda *_args: None, stop), source)
+            return True
+
+        try:
+            with patch.object(controller, "_run", side_effect=run_task), patch.object(
+                controller, "_template_geometry_build", return_value=None,
+            ), patch.object(controller, "_template_uses_weapon_fit", return_value=False), patch(
+                "cdmw.ui.new_item.controller.load_model_import_source", return_value=source,
+            ), patch.object(ModelImportSource, "set_bake", side_effect=lambda _fit: stop.set()), patch.object(
+                ModelImportSource, "baked_scene_mesh",
+            ) as bake:
+                self.assertTrue(controller.start_model_import(Path("helmet.dae")))
+                self.assertTrue(stop.is_set())
+                bake.assert_not_called()
+        finally:
+            controller.deleteLater()
+
     def test_model_import_fits_a_slow_template_without_blocking_the_ui_thread(self) -> None:
         """The source reader was asynchronous but its completion callback parsed the
         template PAC twice on the UI thread. A slow template therefore still produced a
@@ -505,6 +565,11 @@ class _TabOutputMixin:
         controller.draft.template_key = 7
         heartbeats: list[float] = []
         fit_threads: list[QThread] = []
+        bake_threads: list[QThread] = []
+        displayed_meshes: list[object] = []
+        controller.model_import_changed.connect(
+            lambda ready: displayed_meshes.append(ready.baked_scene_mesh())
+        )
         timer = QTimer()
         timer.setInterval(10)
         timer.timeout.connect(lambda: heartbeats.append(time.perf_counter()))
@@ -518,6 +583,11 @@ class _TabOutputMixin:
             fit_threads.append(QThread.currentThread())
             time.sleep(0.25)
             return template_mesh
+
+        def slow_bake(_mesh, _placement):
+            bake_threads.append(QThread.currentThread())
+            time.sleep(0.25)
+            return imported_mesh
 
         try:
             timer.start()
@@ -540,6 +610,9 @@ class _TabOutputMixin:
             ), patch(
                 "cdmw.ui.new_item.controller.load_model_import_source",
                 return_value=source,
+            ), patch(
+                "cdmw.ui.new_item.model_import.bake_mesh",
+                side_effect=slow_bake,
             ):
                 returned_at = time.perf_counter()
                 self.assertTrue(controller.start_model_import(Path("helmet.dae")))
@@ -559,6 +632,9 @@ class _TabOutputMixin:
             self.assertFalse(controller.busy)
             self.assertTrue(fit_threads)
             self.assertTrue(all(thread is not controller.thread() for thread in fit_threads))
+            self.assertEqual(displayed_meshes, [imported_mesh])
+            self.assertEqual(len(bake_threads), 1, "displaying the result reuses the worker's fitted mesh")
+            self.assertIsNot(bake_threads[0], controller.thread())
             self.assertLess(max(gaps, default=0.0), 0.12, "the 10 ms UI heartbeat stays live during the template fit")
             self.assertFalse(source.fit_match_grip, "a helmet template receives the centred equipment fit")
             self.assertAlmostEqual(source.baked_origin()[1], 1.7, places=6)
