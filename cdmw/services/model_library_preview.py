@@ -671,6 +671,12 @@ def prepare_model_library_inline_preview_in_subprocess(
         )
         if returncode != 0:
             message = (stderr or stdout or "").strip()
+            try:
+                failure = json.loads(output_path.read_text(encoding="utf-8"))
+                if isinstance(failure, dict) and isinstance(failure.get("error"), str):
+                    message = failure["error"]
+            except (OSError, ValueError):
+                pass
             raise RuntimeError(message[-1200:] or f"Model preview worker failed with exit code {returncode}.")
         if not output_path.is_file():
             raise RuntimeError("Model preview worker did not write a result.")
@@ -681,21 +687,33 @@ def prepare_model_library_inline_preview_in_subprocess(
 
 
 def run_model_library_preview_worker(input_path: Path, output_path: Path) -> int:
-    request = json.loads(Path(input_path).read_text(encoding="utf-8"))
-    if not isinstance(request, dict):
-        raise ValueError("Model preview worker request must be a JSON object.")
-    result = prepare_model_library_inline_preview(
-        request.get("source_path", ""),
-        payload=request.get("payload") if isinstance(request.get("payload"), dict) else None,
-        extract_root=Path(str(request.get("extract_root", ""))) if str(request.get("extract_root", "") or "").strip() else None,
-        render_settings=_model_preview_render_settings_from_payload(request.get("render_settings")),
-        renderer_backend=str(request.get("renderer_backend", RUST_MESH_RENDERER) or RUST_MESH_RENDERER),
-        model_name=str(request.get("model_name", "") or ""),
-        request_id=int(request.get("request_id", 0) or 0),
-        high_quality_textures=bool(request.get("high_quality_textures", False)),
-    )
-    Path(output_path).write_text(json.dumps(_model_library_preview_wire_result(result)), encoding="utf-8")
-    return 0
+    try:
+        request = json.loads(Path(input_path).read_text(encoding="utf-8"))
+        if not isinstance(request, dict):
+            raise ValueError("Model preview worker request must be a JSON object.")
+        result = prepare_model_library_inline_preview(
+            request.get("source_path", ""),
+            payload=request.get("payload") if isinstance(request.get("payload"), dict) else None,
+            extract_root=Path(str(request.get("extract_root", ""))) if str(request.get("extract_root", "") or "").strip() else None,
+            render_settings=_model_preview_render_settings_from_payload(request.get("render_settings")),
+            renderer_backend=str(request.get("renderer_backend", RUST_MESH_RENDERER) or RUST_MESH_RENDERER),
+            model_name=str(request.get("model_name", "") or ""),
+            request_id=int(request.get("request_id", 0) or 0),
+            high_quality_textures=bool(request.get("high_quality_textures", False)),
+        )
+        Path(output_path).write_text(json.dumps(_model_library_preview_wire_result(result)), encoding="utf-8")
+        return 0
+    except Exception as exc:
+        # A windowed frozen executable otherwise opens PyInstaller's exception
+        # dialog and never exits, leaving the preview's parent waiting for it.
+        message = str(exc)[-1200:]
+        try:
+            Path(output_path).write_text(json.dumps({"error": message}), encoding="utf-8")
+        except OSError:
+            pass
+        if sys.stderr is not None:
+            print(message, file=sys.stderr)
+        return 1
 
 
 __all__ = [

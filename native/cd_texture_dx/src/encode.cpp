@@ -127,7 +127,7 @@ std::string encode_dds_job(const EncodeJob& job) {
 
     DirectX::ScratchImage source_image;
     DirectX::TexMetadata source_metadata{};
-    HRESULT hr = DirectX::LoadFromWICFile(job.input.c_str(), wic_flags, &source_metadata, source_image);
+    HRESULT hr = DirectX::LoadFromWICFile(win32_file_path(job.input).c_str(), wic_flags, &source_metadata, source_image);
     if (FAILED(hr)) {
         return encode_error(job, hresult_message("LoadFromWICFile", hr));
     }
@@ -254,13 +254,14 @@ std::string encode_dds_job(const EncodeJob& job) {
         : DirectX::DDS_FLAGS_FORCE_DX10_EXT_MISC2;
 
     std::error_code ec;
-    fs::create_directories(fs::path(job.output).parent_path(), ec);
+    const auto output_path = win32_file_path(job.output);
+    fs::create_directories(fs::path(output_path).parent_path(), ec);
     hr = DirectX::SaveToDDSFile(
         final_image->GetImages(),
         final_image->GetImageCount(),
         output_metadata,
         dds_flags,
-        job.output.c_str()
+        output_path.c_str()
     );
     const auto elapsed = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started

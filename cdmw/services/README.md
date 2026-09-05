@@ -102,6 +102,10 @@ Missing image metadata must not brighten colour pixels, and embedded sRGB
 metadata must not alter roughness or metalness values. Explicit encoder policies
 still take precedence; older preview packages are invalidated by the cache schema.
 
+The Model Library preview subprocess returns preparation failures as an error
+result and a nonzero exit code. The parent displays that reason; a frozen worker
+must exit without opening a blocking PyInstaller exception dialog.
+
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
 and service entries under `tests/`.

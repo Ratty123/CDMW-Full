@@ -33,6 +33,7 @@ struct EncodeJob {
 };
 
 std::wstring utf8_to_wide(const std::string& text);
+std::wstring win32_file_path(const std::wstring& path);
 std::string json_escape(const std::string& text);
 std::string exception_item_json(
     const std::wstring& source,

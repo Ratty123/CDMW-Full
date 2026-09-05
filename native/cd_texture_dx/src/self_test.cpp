@@ -22,6 +22,12 @@ bool decoded_ok(const std::string& report) {
 }  // namespace
 
 bool texture_codec_self_test(std::string& failed_component) {
+    if (win32_file_path(L"C:\\cache\\.\\maps\\..\\base.dds") != L"\\\\?\\C:\\cache\\base.dds" ||
+        win32_file_path(L"\\\\server\\share\\base.dds") != L"\\\\?\\UNC\\server\\share\\base.dds" ||
+        win32_file_path(L"\\\\?\\C:\\cache\\base.dds") != L"\\\\?\\C:\\cache\\base.dds") {
+        failed_component = "win32_file_paths";
+        return false;
+    }
     const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
     const fs::path root = fs::temp_directory_path() /
         (L"cd_texture_dx_self_test_" + std::to_wstring(nonce));

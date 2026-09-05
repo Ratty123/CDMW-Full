@@ -69,7 +69,7 @@ std::string decode_preview_job(const PreviewJob& job) {
 
     DirectX::ScratchImage source_image;
     DirectX::TexMetadata metadata{};
-    HRESULT hr = DirectX::LoadFromDDSFile(job.input.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, source_image);
+    HRESULT hr = DirectX::LoadFromDDSFile(win32_file_path(job.input).c_str(), DirectX::DDS_FLAGS_NONE, &metadata, source_image);
     if (FAILED(hr)) {
         return preview_error(job, hresult_message("LoadFromDDSFile", hr));
     }
@@ -158,7 +158,8 @@ std::string decode_preview_job(const PreviewJob& job) {
     }
 
     std::error_code ec;
-    fs::create_directories(fs::path(job.output).parent_path(), ec);
+    const auto output_path = win32_file_path(job.output);
+    fs::create_directories(fs::path(output_path).parent_path(), ec);
     const DirectX::Image* final_image = output_image->GetImage(0, 0, 0);
     if (!final_image) {
         return preview_error(job, "prepared output image is empty");
@@ -170,7 +171,7 @@ std::string decode_preview_job(const PreviewJob& job) {
         *final_image,
         DirectX::WIC_FLAGS_NONE,
         GUID_ContainerFormatPng,
-        job.output.c_str(),
+        output_path.c_str(),
         target_wic_format
     );
     const auto elapsed = std::chrono::duration<double, std::milli>(
@@ -229,7 +230,7 @@ int inspect_json(const std::wstring& source) {
     cdmw_native_diag::event("inspect_start", {{"source_path", wide_to_utf8(source)}});
     DirectX::ScratchImage image;
     DirectX::TexMetadata metadata{};
-    const HRESULT hr = DirectX::LoadFromDDSFile(source.c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image);
+    const HRESULT hr = DirectX::LoadFromDDSFile(win32_file_path(source).c_str(), DirectX::DDS_FLAGS_NONE, &metadata, image);
     if (FAILED(hr)) {
         cdmw_native_diag::event(
             "inspect_error",

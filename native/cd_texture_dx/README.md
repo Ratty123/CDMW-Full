@@ -32,3 +32,7 @@ The batch parser is a bounded, allocation-light JSON scanner rather than
 `std::regex`; this keeps preview decoding reliable while the main application is
 holding a large archive index. `self-test` verifies nested job arrays, escaped
 Windows paths, Unicode/surrogate decoding, field aliases, and encode flags.
+
+Native image, DDS, job, and report I/O resolves local and UNC paths to Windows'
+extended path form. Deep model folders and hashed preview caches may exceed
+`MAX_PATH`; the original paths remain unchanged in protocol responses.

@@ -370,6 +370,26 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertIn("Preparing preview in isolated worker...", progress_messages)
             self.assertIn("Still preparing preview in isolated worker (16s)...", progress_messages)
 
+    def test_worker_failure_exits_without_a_windowed_exception_dialog(self) -> None:
+        from cdmw.services.model_library_preview import run_model_library_preview_worker
+
+        with tempfile.TemporaryDirectory() as tmp:
+            request, output = Path(tmp) / "request.json", Path(tmp) / "result.json"
+            request.write_text(json.dumps({"source_path": "model.gltf"}), encoding="utf-8")
+            with patch("cdmw.services.model_library_preview.prepare_model_library_inline_preview", side_effect=RuntimeError("Texture encode failed")), patch("sys.stderr", None):
+                self.assertEqual(run_model_library_preview_worker(request, output), 1)
+            self.assertEqual(json.loads(output.read_text()), {"error": "Texture encode failed"})
+
+    def test_subprocess_backend_reports_windowed_worker_failure(self) -> None:
+        def failed_worker(command, **_kwargs):
+            output = Path(command[command.index("--output") + 1])
+            output.write_text(json.dumps({"error": "Texture encode failed"}), encoding="utf-8")
+            return 1, "", ""
+
+        with patch("cdmw.services.model_library_preview.run_process_with_cancellation", side_effect=failed_worker):
+            with self.assertRaisesRegex(RuntimeError, "Texture encode failed"):
+                prepare_model_library_inline_preview_in_subprocess(Path("model.gltf"))
+
     def test_subprocess_backend_keeps_qt_event_loop_responsive(self) -> None:
         class _Receiver(QObject):
             def __init__(

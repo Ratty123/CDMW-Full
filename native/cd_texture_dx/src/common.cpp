@@ -55,6 +55,16 @@ std::string wide_to_utf8(const std::wstring& text) {
     return output;
 }
 
+std::wstring win32_file_path(const std::wstring& path) {
+    // WIC and DirectXTex otherwise reject deep source/cache paths at MAX_PATH.
+    // Keep protocol paths unchanged; expand only at the native file-I/O boundary.
+    auto absolute = fs::absolute(fs::path(path)).lexically_normal();
+    const std::wstring value = absolute.make_preferred().wstring();
+    if (value.starts_with(L"\\\\?\\") || value.starts_with(L"\\\\.\\")) return value;
+    if (value.starts_with(L"\\\\")) return L"\\\\?\\UNC\\" + value.substr(2);
+    return L"\\\\?\\" + value;
+}
+
 std::string json_escape(const std::string& text) {
     std::ostringstream out;
     const char* hex = "0123456789abcdef";
@@ -197,16 +207,17 @@ static std::string json_unescape(const std::string& text) {
 }
 
 std::string read_text_file(const fs::path& path) {
-    std::ifstream stream(path, std::ios::binary);
+    std::ifstream stream(fs::path(win32_file_path(path.wstring())), std::ios::binary);
     std::ostringstream buffer;
     buffer << stream.rdbuf();
     return buffer.str();
 }
 
 bool write_text_file(const fs::path& path, const std::string& text) {
+    const fs::path native_path(win32_file_path(path.wstring()));
     std::error_code ec;
-    fs::create_directories(path.parent_path(), ec);
-    std::ofstream stream(path, std::ios::binary);
+    fs::create_directories(native_path.parent_path(), ec);
+    std::ofstream stream(native_path, std::ios::binary);
     if (!stream) return false;
     stream.write(text.data(), static_cast<std::streamsize>(text.size()));
     return bool(stream);

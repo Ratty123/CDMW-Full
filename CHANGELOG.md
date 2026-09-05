@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Model previews load textures from long Windows paths.** Native texture encoding, decoding, and report I/O now support deep model folders and hashed cache paths beyond `MAX_PATH`. Failed Model Library workers report their error and exit instead of opening a blocking exception dialog.
+
 - **Imported model previews preserve their authored colours and reflective detail.** External base-colour and emissive images no longer receive an extra gamma conversion when image metadata is absent; normal and surface maps retain their linear values. Imported glTF materials use neutral HDR reflections and GGX highlights without category-based colour adjustments. Cached previews are rebuilt so dark metal, gold details, and texture contrast recover their source values.
 
 - **Initial Effects indexing no longer holds up New Item's UI and texture preparation.** Effect metadata decoding runs in a cancellable child process, retaining progress, cached results, and malformed-effect diagnostics while avoiding repeated allocation of unused numeric fields.

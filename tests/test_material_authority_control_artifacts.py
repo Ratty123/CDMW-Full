@@ -258,6 +258,29 @@ def test_external_preview_batch_preserves_colour_and_data_pixels(
         assert target.read_bytes()[level.offset : level.offset + level.byte_count] == pixels.tobytes()
 
 
+def test_external_preview_encodes_and_decodes_beyond_windows_max_path(tmp_path: Path) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    from cdmw.core.texture_native import decode_dds_preview_with_directxtex
+
+    deep = tmp_path / ("model-" + "a" * 95) / ("textures-" + "b" * 95)
+    deep.mkdir(parents=True)
+    source, target, preview = (deep / name for name in ("base.png", "base.dds", "preview.png"))
+    assert len(str(source)) > 260
+    Image.new("RGBA", (8, 8), (73, 41, 19, 255)).save(source)
+
+    _encode_owned_image_dds_batch(
+        ((source, target, "base"),), threading.Event(),
+        preview_uncompressed_max_bytes=1024 * 1024,
+    )
+    report = decode_dds_preview_with_directxtex(
+        target, preview, max_dimension=8, slot_kind="base", requested_mip=0,
+    )
+    assert report
+    with Image.open(preview) as image:
+        assert image.size == (8, 8)
+
+
 def _manual(values: dict[str, object]) -> object:
     return get_complete_swap_material_profile(
         serialize_complete_swap_manual_material_profile(values)
