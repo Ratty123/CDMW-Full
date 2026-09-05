@@ -16,4 +16,9 @@ feature package. Do not put business rules, archive mutation policy, or
 long-running work directly in UI modules; route those through services, domain
 rules, and workers.
 
+The shared Rust preview host keeps complete presentation state for process
+restarts, but sends only the changed fields to a running renderer. Display
+changes therefore preserve the user's live camera and do not request a geometry
+refresh. Shared Mesh Editor hosts continue to use their tab's presentation owner.
+
 Related tests: UI source guards and feature-specific entries under `tests/`.

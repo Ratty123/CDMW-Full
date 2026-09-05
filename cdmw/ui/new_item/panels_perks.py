@@ -323,7 +323,7 @@ class PerksPanel(QGroupBox):
         self.perks_page_layout.addStretch(1)
         self.effects_workspace = GuidedEffectsWorkspace(self._controller)
         self.effects_page = self.effects_workspace
-        self.tabs.addTab(self.perks_page, "Perks")
+        self.tabs.addTab(self.perks_page, "Perks (experimental)")
         self.tabs.addTab(self.effects_page, "Effects")
         self.tabs.setCurrentWidget(self.effects_page)
         self.own_perks.toggled.connect(self._show_perks_when_customizing)
@@ -704,7 +704,12 @@ class PerksPanel(QGroupBox):
 
     def _refresh_effects(self, *_args) -> None:
         current = str(self._controller.draft.effect_stem or "")
-        matches = list(self._controller.effect_stems(self.effect_filter.text()))
+        if getattr(self, "effects_workspace", None) is not None:
+            # The hidden compatibility selector only mirrors the committed choice.
+            # The visible workspace owns the searchable library.
+            matches = [current] if current else []
+        else:
+            matches = list(self._controller.effect_stems(self.effect_filter.text()))
         if current and current not in matches:
             matches.insert(0, current)
         self.effect.blockSignals(True)

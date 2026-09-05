@@ -125,6 +125,7 @@ class DotNetPreviewHostProtocolMixin:
             "presentation",
             "presentation_state_update",
             self._presentation_state,
+            live_patch=shared_patch,
         )
 
     def _remember_presentation_state_without_display(
@@ -147,6 +148,7 @@ class DotNetPreviewHostProtocolMixin:
             "presentation",
             "presentation_state_update",
             payload,
+            live_patch=shared_patch,
         )
 
     def _load_scene_state(self, package_dir: Path) -> None:

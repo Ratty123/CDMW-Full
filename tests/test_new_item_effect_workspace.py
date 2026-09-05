@@ -183,6 +183,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.app.processEvents()
         self.addCleanup(workspace.request_shutdown)
         self.addCleanup(workspace.deleteLater)
+        self._settle(lambda: not workspace._library_timer.isActive())
         return workspace, controller, confirmations
 
     def _settle(self, predicate, timeout_ms=5000):
@@ -190,6 +191,71 @@ class EffectWorkspaceTests(unittest.TestCase):
         while not predicate() and not deadline.hasExpired():
             self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 25)
         self.assertTrue(predicate())
+
+    def test_large_library_yields_before_labels_and_reuses_rows_for_filters(self) -> None:
+        from unittest.mock import patch
+
+        controller = _Controller()
+        controller.stems = tuple(f"fx_fire_{index:05d}_loop" for index in range(20_000))
+        with patch.object(controller, "effect_facts", wraps=controller.effect_facts) as facts:
+            workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
+            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(workspace.request_shutdown)
+            self.assertEqual(facts.call_count, 0, "mounting the page must not format the entire library")
+            self._settle(lambda: not workspace._library_timer.isActive())
+            self.assertEqual(workspace.library_model.rowCount(), 20_001)
+            prepared = facts.call_count
+            workspace.search.setText("fire 001")
+            workspace.loop_only.click()
+            workspace.category_buttons["Fire"].click()
+            self.assertEqual(facts.call_count, prepared, "filtering must reuse prepared facts and labels")
+            self.assertGreater(workspace.library_model.rowCount(), 1)
+
+    def test_replaced_library_build_cannot_publish_old_rows(self) -> None:
+        controller = _Controller()
+        controller.stems = tuple(f"fx_old_{index}" for index in range(20_000))
+        workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
+        self.addCleanup(workspace.deleteLater)
+        self.addCleanup(workspace.request_shutdown)
+        workspace._advance_library()
+        controller.stems = ("fx_new_fire_loop",)
+        controller.effect_catalogue_ready.emit()
+        self._settle(lambda: not workspace._library_timer.isActive())
+        self.assertEqual(workspace.library_model.rowCount(), 2)
+        self.assertEqual(workspace.library_model.row(1).stem, "fx_new_fire_loop")
+
+    def test_shutdown_cancels_pending_library_preparation(self) -> None:
+        controller = _Controller()
+        controller.stems = tuple(f"fx_fire_{index}" for index in range(20_000))
+        workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
+        self.addCleanup(workspace.deleteLater)
+        workspace.request_shutdown()
+        controller.effect_catalogue_ready.emit()
+        self.app.processEvents()
+        self.assertFalse(workspace._library_timer.isActive())
+        self.assertIsNone(workspace._library_build)
+        self.assertEqual(workspace.library_model.rowCount(), 1)
+
+    def test_hidden_effects_page_does_not_decode_the_item(self) -> None:
+        from unittest.mock import patch
+
+        controller = _Controller()
+        with patch.object(controller, "item_mesh_as_planned", wraps=controller.item_mesh_as_planned) as decode:
+            workspace = GuidedEffectsWorkspace(controller, placement_factory=_Placement)
+            self.addCleanup(workspace.deleteLater)
+            self.addCleanup(workspace.request_shutdown)
+            controller.model_changed.emit(None)
+            workspace._rebuild_preview()
+            self.app.processEvents()
+            self.assertEqual(decode.call_count, 0)
+            workspace.show()
+            self._settle(lambda: workspace.placement is not None)
+            self.assertEqual(decode.call_count, 1)
+            self.assertFalse(workspace.selection_timer.isActive(), "showing must queue only one initial preview")
+            workspace.hide()
+            controller.model_changed.emit(None)
+            workspace._rebuild_preview()
+            self.assertEqual(decode.call_count, 1)
 
     def test_fixed_categories_and_neutral_mechanical_labels(self) -> None:
         self.assertEqual(effect_category("pafx_weapon_flame_loop"), "Fire")
@@ -361,8 +427,9 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.show()
         self.app.processEvents()
 
-        self.assertTrue(workspace.selection_timer.isActive(), "re-entering Effects refreshes the current Model & Placement appearance")
+        self.assertFalse(workspace.selection_timer.isActive(), "re-entering Effects must not schedule a duplicate preview")
         self._settle(lambda: bool(workspace.placement.content_calls))
+        self.assertEqual(len(workspace.placement.content_calls), 1)
         self.assertIs(workspace.placement.content_calls[-1]["item_mesh"], updated)
 
     def test_character_fit_selector_rebuilds_only_the_preview_for_the_requested_rig(self) -> None:

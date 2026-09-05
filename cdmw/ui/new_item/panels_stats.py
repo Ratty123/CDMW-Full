@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QPushButton,
     QSpinBox,
@@ -56,14 +57,18 @@ class StatsPanel(QGroupBox):
         #: ladder's stats alone does not refill the whole list
         self._status_choice_keys: Optional[tuple] = None
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label(
+        self.experimental = NoteLabel("Experimental", WARN)
+        self.experimental.setToolTip(
             "Attack, defence and similar fields are raw game values, not the damage number shown to the player. "
             "Start from the template and compare changes rather than guessing a display value."
-        ))
+        )
+        layout.addWidget(self.experimental)
         self.carries = intro_label("")
         layout.addWidget(self.carries)
-        layout.addWidget(self._build_ladder_group())
-        layout.addWidget(self._build_base_group())
+        tables = QHBoxLayout()
+        tables.addWidget(self._build_ladder_group(), 3, Qt.AlignmentFlag.AlignTop)
+        tables.addWidget(self._build_base_group(), 1, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(tables)
         layout.addStretch(1)
         controller.template_changed.connect(self.rebuild)
 
@@ -73,6 +78,10 @@ class StatsPanel(QGroupBox):
         ladder = QGroupBox("Enhancement ladder: raw stats and the price at each level")
         ladder_layout = QVBoxLayout(ladder)
         self.table = QTableWidget(0, 0)
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setDefaultSectionSize(max(24, self.table.fontMetrics().height() + 8))
         self.table.setToolTip(
             "Stat columns are stored ItemInfo values: DDD is the raw attack field when this equipment has one. "
             "Price columns are currencies charged at that enhancement level."
@@ -202,11 +211,15 @@ class StatsPanel(QGroupBox):
 
     def _build_base_group(self) -> QGroupBox:
         base = QGroupBox("Shop price and stack size")
-        base_layout = QHBoxLayout(base)
+        base_layout = QVBoxLayout(base)
         self.price_table = QTableWidget(0, 2)
+        self.price_table.setAlternatingRowColors(True)
+        self.price_table.setShowGrid(False)
+        self.price_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.price_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.price_table.verticalHeader().setDefaultSectionSize(max(24, self.price_table.fontMetrics().height() + 8))
         self.price_table.setHorizontalHeaderLabels(["Money item", "Price"])
         self.price_table.setToolTip("The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.")
-        self.price_table.setMaximumWidth(420)
         self.price_table.cellChanged.connect(self._price_changed)
         base_layout.addWidget(self.price_table, 1)
         price_action = QHBoxLayout()
@@ -270,9 +283,7 @@ class StatsPanel(QGroupBox):
             self._table_resize_pending = False
             return
         rows = grid.level_count + self._controller.draft.extra_levels
-        self.table.resizeColumnsToContents()
         compact_table_height(self.table, rows)
-        self.price_table.resizeColumnsToContents()
         compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
         self._table_resize_pending = False
 

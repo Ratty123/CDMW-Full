@@ -230,7 +230,7 @@ class _RememberingController:
         self.result = result
         self.calls: list[tuple[str, str, dict]] = []
 
-    def remember_state(self, key: str, event: str, payload: dict) -> bool:
+    def remember_state(self, key: str, event: str, payload: dict, *, live_patch=None) -> bool:
         self.calls.append((key, event, payload))
         return self.result
 

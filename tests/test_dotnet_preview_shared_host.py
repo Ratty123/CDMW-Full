@@ -1755,14 +1755,21 @@ def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path)
     controller, process, package = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)
     assert host.load_package(package)
+    _make_ready(controller)
+    assert host.restore_view_state({"yaw": 27.0, "pitch": -11.0, "pan": (3.0, 4.0, 0.0)})
     package_requests_before = sum(
         payload.get("event") == "package_load_request" for payload in process.writes
     )
 
     assert host.set_lighting_preset("showcase")
+    live = process.writes[-1]
+    assert live["event"] == "presentation_state_update"
+    assert live["display"] == {"lighting_preset": "showcase"}
+    assert not {"camera", "uv", "visibility", "part_transforms", "comparison_mode"}.intersection(live)
     event, payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert event == "presentation_state_update"
     assert payload["display"]["lighting_preset"] == "showcase"
+    assert payload["camera"]["yaw"] == 27.0, "restart replay must retain the complete saved state"
     assert sum(
         item.get("event") == "package_load_request" for item in process.writes
     ) == package_requests_before

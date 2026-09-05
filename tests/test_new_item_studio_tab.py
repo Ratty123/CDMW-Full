@@ -228,7 +228,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         perks.own_perks.setChecked(True)
         self.assertTrue(perks.perk_results.isVisibleTo(perks))
         self.assertFalse(perks.catalogue.isVisibleTo(perks), "the legacy combo is data-only")
-        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks", "Effects"])
+        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks (experimental)", "Effects"])
         self.assertIs(perks.tabs.currentWidget(), perks.perks_page, "customizing perks reveals the Perks tab")
         perks.tabs.setCurrentWidget(perks.effects_page)
         self.assertFalse(perks._legacy_intro.isVisibleTo(perks), "the retired page intro does not float over the tabs")

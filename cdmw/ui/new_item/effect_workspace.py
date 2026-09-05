@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+import time
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -464,9 +465,16 @@ class GuidedEffectsWorkspace(QWidget):
         self._preview_retry_remaining = 1
         self._origin_defaulted_stem: Optional[str] = None
         self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
-        self._label_by_stem = _unique_effect_labels(tuple(controller.effect_stems("", limit=None)))
+        self._label_by_stem: dict[str, str] = {}
+        self._library_rows: dict[str, EffectLibraryRow] = {}
+        self._library_build = None
+        self._library_snapshot = None
+        self._library_closed = False
 
     def _configure_preview_timers(self) -> None:
+        self._library_timer = QTimer(self)
+        self._library_timer.setInterval(1)
+        self._library_timer.timeout.connect(self._advance_library)
         self.selection_timer = QTimer(self)
         self.selection_timer.setSingleShot(True)
         self.selection_timer.setInterval(150)
@@ -509,8 +517,10 @@ class GuidedEffectsWorkspace(QWidget):
         controller.model_import_changed.connect(self._source_changed)
         controller.model_changed.connect(self._source_changed)
         controller.model_placement_changed.connect(self._source_changed)
-        self._refresh_library()
-        self._initial_preview_timer.start()
+        snapshot_ready = getattr(controller, "snapshot_ready", None)
+        if snapshot_ready is not None:
+            snapshot_ready.connect(self._start_library)
+        self._start_library()
 
     @property
     def staged_state(self) -> EffectWorkspaceState:
@@ -523,7 +533,8 @@ class GuidedEffectsWorkspace(QWidget):
         super().showEvent(event)
         if self._controller.draft.template_key is not None:
             self._preview_retry_remaining = 1
-            self.selection_timer.start()
+            self.selection_timer.stop()
+            self._initial_preview_timer.start()
 
     def choose_effect(self, stem: str, *, scale: float = 1.0) -> None:
         """Compatibility entry point: stage an exact shipped stem at neutral defaults."""
@@ -612,23 +623,57 @@ class GuidedEffectsWorkspace(QWidget):
         for index, button in enumerate(buttons):
             self.category_layout.addWidget(button, index // columns, index % columns)
 
+    def _start_library(self, *_args) -> None:
+        """Prepare labels in short event-loop slices; reuse them while browsing."""
+
+        if self._library_closed:
+            return
+        self._library_snapshot = getattr(self._controller, "snapshot", None)
+        stems = self._controller.effect_stems("", limit=None)
+        self._library_build = self._prepare_library_rows(stems)
+        self.library_count.setText("Loading effects…")
+        self._library_timer.start()
+
+    def _prepare_library_rows(self, stems):
+        rows: dict[str, EffectLibraryRow] = {}
+        groups: dict[str, list[str]] = {}
+        for stem in stems:
+            row = EffectLibraryRow.from_stem(stem, self._controller.effect_facts(stem))
+            rows[stem] = row
+            groups.setdefault(row.label.casefold(), []).append(stem)
+            yield
+        for grouped in groups.values():
+            if len(grouped) > 1:
+                for stem, label in _unique_effect_labels(tuple(grouped)).items():
+                    rows[stem] = replace(rows[stem], label=label)
+            yield
+        self._library_rows = dict(sorted(rows.items(), key=lambda pair: pair[0].casefold()))
+        self._label_by_stem = {stem: row.label for stem, row in self._library_rows.items()}
+
+    def _advance_library(self) -> None:
+        if self._library_build is None:
+            return
+        deadline = time.perf_counter() + 0.004
+        try:
+            while time.perf_counter() < deadline:
+                next(self._library_build)
+        except StopIteration:
+            self._library_timer.stop()
+            self._library_build = None
+            self._refresh_library()
+
     def _refresh_library(self, *_args) -> None:
         selected = self._staged.stem
         terms = self.search.text().casefold().split()
-        stems = list(self._controller.effect_stems("", limit=None))
-        if selected and selected not in stems:
-            stems.insert(0, selected)
+        candidates = self._library_rows
+        if selected and selected not in candidates:
+            candidates = dict(candidates)
+            candidates[selected] = EffectLibraryRow.from_stem(selected, self._controller.effect_facts(selected))
         category = self._active_category()
         rows = []
         matches = 0
-        for stem in stems:
-            label = self._label_by_stem.get(stem) or effect_display_label(stem)
-            text_matches = all(term in f"{stem} {label}".casefold() for term in terms)
-            if not text_matches and stem != selected:
-                continue
-            facts = self._controller.effect_facts(stem)
-            row = EffectLibraryRow.from_stem(stem, facts)
-            row = replace(row, label=label)
+        for stem, row in candidates.items():
+            text_matches = all(term in f"{stem} {row.label}".casefold() for term in terms)
             matched = (
                 text_matches
                 and (category == "All" or row.category == category)
@@ -784,7 +829,7 @@ class GuidedEffectsWorkspace(QWidget):
         self.compatibility_label.setText(f"Indexing effect metadata: {done:,} / {total:,} — {stem}")
 
     def _catalogue_ready(self) -> None:
-        self._refresh_library()
+        self._start_library()
         self._refresh_compatibility()
         self._sync_placement_from_state()
 
@@ -810,6 +855,8 @@ class GuidedEffectsWorkspace(QWidget):
         self._origin_defaulted_stem = None
         self._reset_view_next = True
         self._preview_retry_remaining = 1
+        if self._library_snapshot is not getattr(self._controller, "snapshot", None):
+            self._start_library()
         self._refresh_library()
         self._refresh_compatibility()
         self._publish_dirty()
@@ -826,6 +873,8 @@ class GuidedEffectsWorkspace(QWidget):
         self.selection_timer.start()
 
     def _rebuild_preview(self) -> None:
+        if self._library_closed or not self.isVisible():
+            return
         mesh, item_label = self._controller.item_mesh_as_planned()
         if mesh is None:
             if self._controller.draft.template_key is None:
@@ -920,6 +969,9 @@ class GuidedEffectsWorkspace(QWidget):
         return self.placement.iter_shutdown_workers() if self.placement is not None else ()
 
     def request_shutdown(self) -> None:
+        self._library_closed = True
+        self._library_timer.stop()
+        self._library_build = None
         self._initial_preview_timer.stop()
         self.selection_timer.stop()
         self.look_timer.stop()

@@ -854,7 +854,15 @@ class RustPreviewSessionController(
             return
         self._launch_if_needed()
 
-    def remember_state(self, key: str, event: str, payload: Mapping[str, object]) -> bool:
+    def remember_state(
+        self,
+        key: str,
+        event: str,
+        payload: Mapping[str, object],
+        *,
+        live_patch: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Retain complete restart state and optionally send just the live change."""
         normalized_key = str(key or event).strip().lower()
         body = dict(payload)
         body.pop("event", None)
@@ -869,7 +877,7 @@ class RustPreviewSessionController(
             and self._renderer_ready
             and self._localization_initial_established
         ):
-            return self.send_correlated(event, body) > 0
+            return self.send_correlated(event, body if live_patch is None else live_patch) > 0
         return True
 
     def _store_resident_state(self, key: str, event: str, payload: Mapping[str, object]) -> None:

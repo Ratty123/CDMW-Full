@@ -77,6 +77,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Rust Preview display changes preserve the live camera.** Lighting, grid, and other presentation controls send only the changed fields, avoiding old camera commands and unnecessary geometry refreshes while preserving complete restart state.
+- **Perks & Effects opens without formatting the entire library on the UI thread at once.** Library preparation yields between short batches, filtering reuses prepared rows, and hidden Effects pages no longer decode item previews or queue duplicate initial loads.
+- **Stats and gameplay perks are clearly marked experimental.** Stats uses compact rows and separate enhancement and shop-price cards, with columns filling the available space.
 - **Browse Archive remembers Load textures across models and restarts.** Texture preparation no longer clears the checkbox or briefly hides resident textures during progressive loading, and late results respect the current preference.
 - **Rust previews load external image textures and untextured archive base layers correctly.** Model Library converts JPEG, TGA, and WebP textures to temporary PNGs before native DDS encoding. Browse Archive accepts Preview Core's source-free base layer when no global texture is bound, including models textured only through detail layers, while retaining ownership validation for textured layers.
 - **Mesh Editor preserves selection precision, authored normals, and resident viewport state.** Selection no longer submits geometry channels, and unchanged Rust float values retain the original source coordinates. Whole-part transforms preserve or correctly transform custom normals. State-only commands avoid geometry reloads; geometry updates reuse unchanged texture bindings and retain the Bones overlay toggle.

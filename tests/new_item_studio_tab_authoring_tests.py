@@ -650,9 +650,9 @@ class _TabAuthoringMixin:
             format="pac",
             submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])],
         )
+        tab.show()
         with patch.object(type(tab.controller), "item_mesh_as_planned", return_value=(blade, "template")):
             effects._rebuild_preview()
-        tab.show()
         for width, height in ((1280, 720), (1600, 900)):
             tab.resize(width, height)
             self.app.processEvents()

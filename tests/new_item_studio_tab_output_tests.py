@@ -152,6 +152,12 @@ class _TabOutputMixin:
         self.assertEqual(perks.effect_preset.currentData(), "")
         self.assertIsNotNone(tab.controller.effect_catalogue, "effect metadata is indexed automatically")
         self.assertEqual(len(tab.controller.effect_catalogue), 3)
+        from PySide6.QtCore import QDeadlineTimer, QEventLoop
+
+        deadline = QDeadlineTimer(2000)
+        while effects._library_timer.isActive() and not deadline.hasExpired():
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertFalse(effects._library_timer.isActive())
         effects.choose_effect("fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_stem, "", "selection remains staged")
         self.assertEqual(effects.staged_state.scale, 1.0, "every newly selected effect starts neutral")

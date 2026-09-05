@@ -65,7 +65,9 @@ would make. Identifier editors enforce the domain's character and 64-character
 limits, and per-field state icons point at the exact collision or format issue
 reported in the existing Checks box.
 
-The default Stats view labels ItemInfo values as raw game data and compares a
+Stats and gameplay perks are explicitly marked experimental. The Stats page uses
+compact, alternating rows with columns that fill the enhancement card, alongside
+a separate shop-price and stack card. The default view labels ItemInfo values as raw game data and compares a
 selected cell with the template and shipped range; arbitrary stats, flat values,
 extra levels and separate enhancement rows stay under an experimental fold. The
 base-price table also owns draft-added money items: an empty decoded list can create
@@ -106,7 +108,13 @@ single empty-state row, so blank
 compatibility and exact-stem labels do not repeat it. Search matches words in the
 readable name as well as the exact stem. Labelled All / Loops / One-shot filters,
 a result count and Reset filters make browsing explicit; the staged selection remains
-visible even when it falls outside the filters. The inspector groups Placement,
+visible even when it falls outside the filters. Library labels and facts are
+prepared in short event-loop slices and reused across filtering and placement
+changes. A replaced snapshot or catalogue cancels the previous preparation;
+shutdown prevents late catalogue events from restarting it. The hidden legacy
+selector mirrors only the committed choice. Item preview preparation starts when
+Effects becomes visible, with one initial request, instead of decoding the item
+while another step is open. The inspector groups Placement,
 Appearance and Preview, with Apply and Discard pinned below its scroll area.
 **Show effect** toggles only the particles for comparison with the item underneath;
 it never changes the draft, placement or camera. Selection, placement and look are staged; Apply publishes one draft
