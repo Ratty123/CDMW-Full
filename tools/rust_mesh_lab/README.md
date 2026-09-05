@@ -109,6 +109,13 @@ not resolve, launch, hash, or read a Vortice executable or report.
 
 ## Effects in CDMW previews
 
+Resident texture-package promotion waits for active camera and placement gestures
+to finish. Correlated `package_load_progress` messages pause the host's replacement
+deadline only while a prepared package waits for interaction, then restore the
+normal deadline. A same-source refresh keeps the completed placement and editable
+model matrix; an explicit reset, different source, or changed automatic fit uses
+the new package's placement.
+
 The resident effect overlay renders DDS sprites, interpolated flipbooks,
 packed mask channels and bounded decoded mesh particles. It uses authored
 velocity, damping, speed limits, independent size axes, colour and alpha curves.

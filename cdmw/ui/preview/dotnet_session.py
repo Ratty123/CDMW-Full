@@ -123,6 +123,7 @@ class RustPreviewSessionController(
         self._package_generation = 0
         self._package_request_id = 0
         self._pending_package_generation = 0
+        self._interaction_deferred_package_generation = 0
         self._protocol_request_id = 0
         self._launch_package_generation = 0
         self._launch_package_path = ""
@@ -604,6 +605,7 @@ class RustPreviewSessionController(
                 and self._session_established
                 and self._localization_initial_established
                 and not self._package_timer.isActive()
+                and self._interaction_deferred_package_generation != self._package_generation
             ):
                 # The helper consumes every accepted generation even when
                 # preparation fails. An explicit retry therefore needs a newer
@@ -1277,6 +1279,8 @@ class RustPreviewSessionController(
             self._handle_package_applied(payload)
         elif event == "package_load_failed":
             self._handle_package_failed(payload)
+        elif event == "package_load_progress":
+            self._handle_package_progress(payload)
         elif event == "view_state_changed":
             self.view_state_changed.emit(dict(payload))
         elif event == "part_pick_result":
@@ -1433,7 +1437,10 @@ class RustPreviewSessionController(
             return True
         if (
             self._pending_package_generation == self._package_generation
-            and self._package_timer.isActive()
+            and (
+                self._package_timer.isActive()
+                or self._interaction_deferred_package_generation == self._package_generation
+            )
         ):
             return True
         self._package_request_id += 1
@@ -1450,9 +1457,25 @@ class RustPreviewSessionController(
         )
         if sent:
             self._pending_package_generation = generation
+            self._interaction_deferred_package_generation = 0
             self._package_timer.start(_PACKAGE_TIMEOUT_MS)
             self._set_state("preparing", "Rust Preview is loading the selected model…")
         return sent
+
+    def _handle_package_progress(self, payload: Mapping[str, object]) -> None:
+        if (
+            not self._package_event_is_current(payload)
+            or self._pending_package_generation != self._package_generation
+            or self._pending_package_generation <= 0
+        ):
+            return
+        phase = payload.get("phase")
+        if phase == "waiting_for_interaction":
+            self._interaction_deferred_package_generation = self._package_generation
+            self._package_timer.stop()
+        elif phase == "preparing" and self._interaction_deferred_package_generation == self._package_generation:
+            self._interaction_deferred_package_generation = 0
+            self._package_timer.start(_PACKAGE_TIMEOUT_MS)
 
     def _handle_package_applied(self, payload: Mapping[str, object]) -> None:
         if not self._package_event_is_current(payload):
@@ -1791,6 +1814,12 @@ class RustPreviewSessionController(
         )
 
     def _handle_package_timeout(self) -> None:
+        if (
+            self._package_timer.isActive()
+            or self._pending_package_generation <= 0
+            or self._interaction_deferred_package_generation == self._pending_package_generation
+        ):
+            return
         self._fail_current_package("Package replacement timed out.")
 
     def _fail_current_package(self, message: str) -> None:

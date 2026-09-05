@@ -456,6 +456,57 @@ def test_preview_host_inherits_the_shell_localizer(tmp_path: Path) -> None:
     shell.deleteLater()
 
 
+@pytest.mark.parametrize("completion", ["applied", "timeout"])
+def test_ready_texture_package_waits_for_interaction_without_timing_out(tmp_path: Path, completion: str) -> None:
+    controller, process, _first = _start_controller(tmp_path)
+    failures = []
+    controller.package_failed.connect(lambda _path, _generation, message: failures.append(message))
+    _make_ready(controller)
+    package = _package(tmp_path, "textured")
+    assert controller.load_package(package, reset_view=False)
+    request = next(row for row in reversed(process.writes) if row.get("event") == "package_load_request")
+    progress = {**request, "event": "package_load_progress", "phase": "waiting_for_interaction"}
+    assert controller._package_timer.isActive()
+    controller._handle_protocol_event(progress, controller.process_generation)
+    assert not controller._package_timer.isActive()
+    assert controller._pending_package_generation == request["generation"]
+    controller._handle_package_timeout()  # A timeout queued before the pause is harmless.
+    assert controller._pending_package_generation == request["generation"]
+    before = len(process.writes)
+    assert controller._request_resident_package_load()
+    assert controller.load_package(package, reset_view=False)
+    assert controller.package_generation == request["generation"]
+    assert len(process.writes) == before
+    controller._handle_protocol_event({**progress, "phase": "preparing"}, controller.process_generation)
+    assert controller._package_timer.isActive()
+    controller._handle_package_timeout()  # A queued callback cannot expire the restarted deadline.
+    assert controller._pending_package_generation == request["generation"]
+    if completion == "applied":
+        controller._handle_protocol_event({**request, "event": "package_load_applied"}, controller.process_generation)
+        assert failures == []
+    else:
+        controller._package_timer.stop()  # A real single-shot timeout arrives inactive.
+        controller._handle_package_timeout()
+        assert failures == ["Package replacement timed out."]
+    assert not controller._package_timer.isActive()
+    controller.shutdown()
+
+
+def test_stale_or_finished_package_progress_cannot_suspend_a_new_load(tmp_path: Path) -> None:
+    controller, process, _first = _start_controller(tmp_path)
+    _make_ready(controller)
+    assert controller.load_package(_package(tmp_path, "second"))
+    previous = next(row for row in reversed(process.writes) if row.get("event") == "package_load_request")
+    assert controller.load_package(_package(tmp_path, "third"))
+    request = next(row for row in reversed(process.writes) if row.get("event") == "package_load_request")
+    controller._handle_protocol_event({**previous, "event": "package_load_progress", "phase": "waiting_for_interaction"}, controller.process_generation)
+    assert controller._package_timer.isActive()
+    controller._handle_protocol_event({**request, "event": "package_load_applied"}, controller.process_generation)
+    controller._handle_protocol_event({**request, "event": "package_load_progress", "phase": "preparing"}, controller.process_generation)
+    assert not controller._package_timer.isActive()
+    controller.shutdown()
+
+
 def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     controller, process, first = _start_controller(tmp_path)
     assert controller.process_id == 4242

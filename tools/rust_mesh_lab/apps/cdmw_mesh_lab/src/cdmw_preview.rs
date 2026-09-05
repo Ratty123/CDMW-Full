@@ -9,7 +9,7 @@ use crate::cdmw_session::{
     CdmwEffectTextureResource, CdmwTextureResource, LoadedCdmwSessionPackage, PREVIEW_BACKEND,
     PREVIEW_PROTOCOL, RENDERER, SessionMaterialPresentation,
 };
-use crate::preview_geometry::{PreviewGeometry, placed_scene};
+use crate::preview_geometry::{PreviewGeometry, placed_scene, retain_live_placement};
 use crate::preview_loader::{LoadRequest, PreviewLoader};
 use anyhow::{Context, Result};
 use cdmw_formats::{MeshDocument, SourceRange, Submesh};
@@ -377,6 +377,8 @@ pub struct PreviewApplication {
     capture_tx: Sender<CaptureResult>,
     capture_rx: Receiver<CaptureResult>,
     newest_package_generation: u64,
+    newest_package_request_id: u64,
+    package_waiting_for_interaction: bool,
 }
 
 impl PreviewApplication {
@@ -450,6 +452,8 @@ impl PreviewApplication {
             capture_tx,
             capture_rx,
             newest_package_generation: 0,
+            newest_package_request_id: 0,
+            package_waiting_for_interaction: false,
         };
         application.refresh_visible_snapshot();
         application.apply_canonical_view(false);
@@ -556,8 +560,12 @@ impl PreviewApplication {
         if generation < self.newest_package_generation {
             return;
         }
-        self.cancel_gesture();
+        if reset_view {
+            self.cancel_gesture();
+        }
         self.newest_package_generation = generation;
+        self.newest_package_request_id = request_id;
+        self.package_waiting_for_interaction = false;
         self.loader.request(LoadRequest {
             request_id,
             generation,
@@ -569,6 +577,32 @@ impl PreviewApplication {
     }
 
     fn poll_package_loads(&mut self) -> bool {
+        // Texture promotion must not cancel a live gesture or upload its new
+        // GPU resources between pointer samples. The loader keeps one ready
+        // result and replaces it when a newer selection arrives.
+        if self.gizmo_drag.is_some()
+            || self.orbiting
+            || self.panning
+            || self.navigator_drag.is_some()
+        {
+            if !self.package_waiting_for_interaction && !self.loader.results.is_empty() {
+                self.package_waiting_for_interaction = true;
+                self.bridge.send(json!({
+                    "event": "package_load_progress", "phase": "waiting_for_interaction",
+                    "request_id": self.newest_package_request_id,
+                    "generation": self.newest_package_generation,
+                }));
+            }
+            return false;
+        }
+        if self.package_waiting_for_interaction {
+            self.package_waiting_for_interaction = false;
+            self.bridge.send(json!({
+                "event": "package_load_progress", "phase": "preparing",
+                "request_id": self.newest_package_request_id,
+                "generation": self.newest_package_generation,
+            }));
+        }
         let mut changed = false;
         while let Ok(result) = self.loader.results.try_recv() {
             let request = result.request;
@@ -604,12 +638,15 @@ impl PreviewApplication {
                         .unwrap_or(Value::Null),
                 );
                 let old_package = std::mem::replace(&mut self.package, loaded.package);
+                let retained_placement =
+                    retain_live_placement(&old_scene, &mut self.state.scene, request.reset_view);
                 let old_revision = self.scene_revision;
                 self.scene_revision = self.scene_revision.saturating_add(1);
                 // Prepare visible CPU data without touching the resident GPU scene.
                 let renderer = self.renderer.take();
                 if request.presentation
                     != crate::preview_geometry::snapshot_presentation(&self.state.presentation)
+                    || (retained_placement && self.snapshot_scene_roles.is_none())
                 {
                     self.refresh_visible_snapshot();
                 }

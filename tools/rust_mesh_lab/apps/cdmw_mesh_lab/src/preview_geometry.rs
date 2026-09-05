@@ -77,6 +77,43 @@ pub fn placed_scene(scene: &Value, placement: &Value) -> (Mat4, Vec3) {
     }
 }
 
+/// Keep edits made while a same-source material package was being prepared.
+pub fn retain_live_placement(current: &Value, replacement: &mut Value, reset_view: bool) -> bool {
+    let Some(identity) = current.get("source_identity").and_then(Value::as_str) else {
+        return false;
+    };
+    if reset_view
+        || identity.is_empty()
+        || replacement.get("source_identity").and_then(Value::as_str) != Some(identity)
+        || current.get("automatic_alignment") != replacement.get("automatic_alignment")
+    {
+        return false;
+    }
+    let mut changed = false;
+    for key in ["placement", "placement_pivot"] {
+        if let Some(value) = current.get(key)
+            && replacement.get(key) != Some(value)
+        {
+            replacement[key] = value.clone();
+            changed = true;
+        }
+    }
+    if let Some(matrix) = current
+        .get("roles")
+        .and_then(|roles| roles.get("editable"))
+        .and_then(|role| role.get("model_matrix"))
+        && let Some(editable) = replacement
+            .get_mut("roles")
+            .and_then(|roles| roles.get_mut("editable"))
+            .and_then(Value::as_object_mut)
+        && editable.get("model_matrix") != Some(matrix)
+    {
+        editable.insert("model_matrix".into(), matrix.clone());
+        changed = true;
+    }
+    changed
+}
+
 #[derive(Debug)]
 struct Node {
     low: Vec3,
@@ -534,6 +571,65 @@ pub fn prepare_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn texture_upgrade_retains_the_completed_drag_and_new_scene_data() {
+        let moved = Mat4::from_translation(Vec3::new(2.0, 3.0, 4.0)).to_cols_array();
+        let current = serde_json::json!({
+            "source_identity": "same-mesh", "automatic_alignment": {"source_anchor": [0, 0, 0]},
+            "placement": {"translation": [2, 3, 4]}, "placement_pivot": [2, 3, 4],
+            "roles": {"editable": {"model_matrix": moved}}, "effects_overlay": "old"
+        });
+        let mut replacement = serde_json::json!({
+            "source_identity": "same-mesh", "automatic_alignment": {"source_anchor": [0, 0, 0]},
+            "placement": {"translation": [0, 0, 0]}, "placement_pivot": [0, 0, 0],
+            "roles": {"editable": {"model_matrix": Mat4::IDENTITY.to_cols_array(), "submesh_indices": [0, 1]}},
+            "effects_overlay": "new"
+        });
+        assert!(retain_live_placement(&current, &mut replacement, false));
+        assert_eq!(replacement["placement"], current["placement"]);
+        assert_eq!(replacement["placement_pivot"], current["placement_pivot"]);
+        assert_eq!(
+            role_model_matrix(&replacement, "editable"),
+            Mat4::from_cols_array(&moved)
+        );
+        assert_eq!(replacement["effects_overlay"], "new");
+        assert_eq!(
+            replacement["roles"]["editable"]["submesh_indices"],
+            serde_json::json!([0, 1])
+        );
+        assert!(!retain_live_placement(&current, &mut replacement, false));
+    }
+
+    #[test]
+    fn package_reset_changed_source_and_new_fit_keep_the_requested_placement() {
+        let current = serde_json::json!({
+            "source_identity": "same-mesh", "automatic_alignment": {"source_anchor": [0, 0, 0]},
+            "placement": {"translation": [2, 3, 4]}
+        });
+        let base = serde_json::json!({
+            "source_identity": "same-mesh", "automatic_alignment": {"source_anchor": [0, 0, 0]},
+            "placement": {"translation": [0, 0, 0]}
+        });
+        for (reset, identity, anchor) in [
+            (true, "same-mesh", [0, 0, 0]),
+            (false, "other-mesh", [0, 0, 0]),
+            (false, "same-mesh", [1, 0, 0]),
+        ] {
+            let mut replacement = base.clone();
+            replacement["source_identity"] = serde_json::json!(identity);
+            replacement["automatic_alignment"]["source_anchor"] = serde_json::json!(anchor);
+            let expected = replacement.clone();
+            assert!(!retain_live_placement(&current, &mut replacement, reset));
+            assert_eq!(replacement, expected);
+        }
+        let mut unidentified = serde_json::json!({"placement": {"translation": [0, 0, 0]}});
+        assert!(!retain_live_placement(
+            &Value::Null,
+            &mut unidentified,
+            false
+        ));
+    }
     use serde_json::json;
 
     #[test]

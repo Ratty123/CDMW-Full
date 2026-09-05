@@ -37,7 +37,8 @@ current orbit, pan and zoom controls in a footer outside the native viewport. In
 package framing survives helper startup and progressive texture state replay, while
 later explicit camera commands remain authoritative. Moving to step 3 reparents that
 live viewport without rebuilding
-its package or resetting its camera. Snapshot creation
+its package or resetting its camera. Texture upgrades wait for an active drag or
+orbit to finish and preserve the resulting placement. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable
 material-package hit is accepted before either preview builder. On a cold miss, bare
 geometry and Archive Browser's native schema-8 Preview Core package prepare in parallel;
