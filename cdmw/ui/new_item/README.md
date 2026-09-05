@@ -282,7 +282,11 @@ post-backup failure or cancellation. Temporary model extraction roots are retire
 their import is replaced, discarded, fails, or the studio closes. Model, Effects and
 Mesh Editor-accept workers lease the source while they read it; recursive removal runs
 on a tracked cleanup worker only after those usages finish, so Discard cancels first and
-never waits on filesystem cleanup in the UI thread. Entry points: the tool tab
+never waits on filesystem cleanup in the UI thread.
+Retired transient preview packages use the same tracked cleanup lane. Cleanup is
+serialized, remains visible to the shutdown coordinator until drained, and cannot
+remove the preview output root or paths outside it. Durable preview caches are retained.
+Entry points: the tool tab
 `new_item_studio` and the Item Finder's `Clone as new item...`; a ready Builder
 result can still be handed in through the tab's `receive_imported_model`.
 

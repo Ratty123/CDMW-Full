@@ -524,6 +524,18 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         cls.app = QApplication.instance() or QApplication([])
 
+    def tearDown(self) -> None:
+        from PySide6.QtCore import QEventLoop
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        frames = [widget for widget in self.app.allWidgets() if isinstance(widget, ItemPreviewFrame)]
+        for frame in frames:
+            frame.request_shutdown()
+        deadline = time.monotonic() + 3
+        while any(frame.iter_shutdown_workers() for frame in frames) and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertFalse(any(frame.iter_shutdown_workers() for frame in frames))
+
     @staticmethod
     def _fake_host_class():
         from PySide6.QtCore import QObject, Signal
@@ -817,7 +829,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.shutdown()
             self.assertLess(time.monotonic() - started, 0.08)
             self.assertTrue(frame.iter_shutdown_workers(), "the live worker remains discoverable for the shell close sweep")
-            while frame._thread is not None and time.monotonic() < deadline + 1.0:
+            while frame.iter_shutdown_workers() and time.monotonic() < deadline + 1.0:
                 self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
             self.assertEqual(frame.iter_shutdown_workers(), ())
 
@@ -975,8 +987,10 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual([call[1][0] for call in loads], [output / "geometry", output / "full"])
         self.assertEqual([call[2]["reset_view"] for call in loads], [True, False])
         self.assertIs(frame.host, host, "the resident host is reused for both stages")
+        self.assertTrue((output / "geometry").exists(), "the resident package stays intact until ready")
         frame.host.controller.state_changed.emit("ready", "")
-        self.app.processEvents()
+        while frame.iter_shutdown_workers() and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
         self.assertFalse((output / "geometry").exists(), "the old package retires only after ready")
         self.assertTrue((output / "full").exists())
         frame.shutdown()

@@ -15,7 +15,6 @@ the Model and icon step embeds and the icon capture dialog wraps.
 from __future__ import annotations
 
 import logging
-import shutil
 import tempfile
 import threading
 import time
@@ -40,6 +39,7 @@ from cdmw.ui.new_item.item_preview_materials import (
     upgrade_item_preview_package_materials,
 )
 from cdmw.workers.utility_workers import UtilityWorker
+from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane, PreviewPackageCleanup
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -570,6 +570,7 @@ class ItemPreviewFrame(QWidget):
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
+        self._cleanup_lane = ModelSourceCleanupLane(parent=self)
         self._active_source_usage: object | None = None
         self._closed = False
         #: (token, source) of the newest request; the build in flight may be older
@@ -1226,7 +1227,8 @@ class ItemPreviewFrame(QWidget):
     # ------------------------------------------------------------------ lifecycle
 
     def iter_shutdown_workers(self):
-        return (("new item preview", self._thread, self._worker),) if self._thread is not None else ()
+        building = (("new item preview", self._thread, self._worker),) if self._thread is not None else ()
+        return (*building, *self._cleanup_lane.iter_shutdown_workers())
 
     def request_shutdown(self) -> None:
         self._closed = True
@@ -1238,8 +1240,6 @@ class ItemPreviewFrame(QWidget):
             thread.requestInterruption()
             thread.quit()
 
-    def shutdown(self) -> None:
-        self.request_shutdown()
         if self.host is not None:
             try:
                 self.host.set_icon_capture_mode(False)
@@ -1253,6 +1253,9 @@ class ItemPreviewFrame(QWidget):
         for package in retired:
             self._remove_package(package)
         self._drop_deferred_package()
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
 
     def _remove_package(self, package_dir: Path) -> None:
         """Remove one transient package; durable cache entries outlive this frame."""
@@ -1269,7 +1272,9 @@ class ItemPreviewFrame(QWidget):
         ):
             if is_durable_dotnet_preview_package_path(cache_root, package_dir):
                 return
-        shutil.rmtree(self._package_cleanup_root(package_dir), ignore_errors=True)
+        self._cleanup_lane.retire(PreviewPackageCleanup(
+            self._package_cleanup_root(package_dir), self._output_root,
+        ))
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:
         return package_cleanup_root(package_dir, self._output_root)

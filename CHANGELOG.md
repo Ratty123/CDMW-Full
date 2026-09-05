@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **New Item preview cleanup no longer blocks navigation or texture promotion.** Retired temporary packages are removed on the tracked cleanup worker, one at a time, and shutdown retains the worker until cleanup finishes. Durable preview caches and files outside the preview output root are preserved.
+
 - **Mesh Editor's Visible brush no longer selects through fitted human meshes.** The depth tolerance now accounts only for floating-point rounding, keeping hidden back faces out of vertex, edge, and face selection while preserving explicit X-Ray selection and one-step brush Undo.
 
 - **Mesh Editor retains textures already loaded in Browse Archives.** The Rust preview handoff now verifies and leases the matching native material package, preserving its resolved DDS files, support maps, and complete PAC/PAC_XML layer parameters instead of losing them at the preview-to-editor boundary.
