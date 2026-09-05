@@ -697,7 +697,7 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
                 ("emissive", "emissive", material.get("emissiveTexture"), "_emissiveTexture"),
             )
         )
-        emissive_factor = material.get("emissiveFactor")
+        emissive_factor = material.get("emissiveFactor", (0.0, 0.0, 0.0))
         emissive_factor_active = False
         if isinstance(emissive_factor, Sequence) and len(emissive_factor) >= 3:
             try:
@@ -714,7 +714,7 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
                         color_value=rgb,
                     )
                 )
-        emissive_strength = 0.0
+        emissive_strength = 1.0
         emissive_extension = (
             extensions.get("KHR_materials_emissive_strength")
             if isinstance(extensions, dict)
@@ -722,14 +722,10 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
         )
         if isinstance(emissive_extension, dict):
             try:
-                emissive_strength = max(0.0, float(emissive_extension.get("emissiveStrength", 0.0)))
+                emissive_strength = max(0.0, float(emissive_extension.get("emissiveStrength", 1.0)))
             except (TypeError, ValueError, OverflowError):
                 emissive_strength = 0.0
-        if emissive_strength <= 0.0 and emissive_factor_active:
-            emissive_strength = 1.0
-        if emissive_strength <= 0.0 and material.get("emissiveTexture") is not None:
-            emissive_strength = 1.0
-        if emissive_strength > 0.0:
+        if emissive_factor_active or material.get("emissiveTexture") is not None or isinstance(emissive_extension, dict):
             preview_parameters.append(
                 PreviewMaterialParameterInput(
                     parameter_kind="float",

@@ -151,12 +151,9 @@ class EffectPlacementWorkspace(
         self.spawn_rate = float(spawn_rate)
         self.lifetime = float(lifetime)
         self._compatibility_ui = bool(compatibility_ui)
-        self._lighting_preset = (
-            str(lighting_preset or "neutral_studio").strip().lower()
-            if str(lighting_preset or "neutral_studio").strip().lower() in {"neutral_studio", "showcase"}
-            else "neutral_studio"
-        )
-        self._lighting_changed_callback = lighting_changed
+        # Keep legacy constructor keywords accepted after removing the mode selector.
+        del lighting_preset, lighting_changed
+        self._lighting_preset = "neutral_studio"
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
@@ -319,15 +316,6 @@ class EffectPlacementWorkspace(
                 setter(colour)
             except Exception:  # noqa: BLE001 - a host without the call keeps its own
                 pass
-
-    def _lighting_changed(self) -> None:
-        preset = str(self.lighting_choice.currentData() or "neutral_studio")
-        self._lighting_preset = preset
-        setter = getattr(self.host, "set_lighting_preset", None) if self.host is not None else None
-        if callable(setter):
-            setter(preset)
-        if callable(self._lighting_changed_callback):
-            self._lighting_changed_callback(preset)
 
     def _apply_orbit_preferences(self, *, remember: bool = False) -> None:
         """Apply this dialog's shared X/Y orbit choice without changing other tuning."""

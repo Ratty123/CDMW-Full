@@ -315,20 +315,10 @@ class EffectPlacementConstructionMixin:
                 break
         self.backdrop_choice.currentIndexChanged.connect(lambda _index: self._backdrop_changed())
         backdrop_row.addWidget(self.backdrop_choice, 1)
-        lighting_row = QHBoxLayout()
-        lighting_row.addWidget(QLabel("Lighting"))
-        self.lighting_choice = QComboBox()
-        self.lighting_choice.addItem("Neutral Studio", "neutral_studio")
-        self.lighting_choice.addItem("Showcase", "showcase")
-        selected = self.lighting_choice.findData(self._lighting_preset)
-        self.lighting_choice.setCurrentIndex(max(0, selected))
-        self.lighting_choice.currentIndexChanged.connect(lambda _index: self._lighting_changed())
-        lighting_row.addWidget(self.lighting_choice, 1)
         orbit_row = self._build_orbit_controls()
         self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
         view.addWidget(self.show_character)
         view.addLayout(backdrop_row)
-        view.addLayout(lighting_row)
         view.addLayout(orbit_row)
 
     def _build_orbit_controls(self) -> QHBoxLayout:

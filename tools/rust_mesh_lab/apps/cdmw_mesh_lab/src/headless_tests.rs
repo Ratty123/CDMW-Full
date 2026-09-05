@@ -1904,7 +1904,7 @@ fn offscreen_d3d12_renders_every_mode_without_a_window() -> TestResult {
     assert_eq!(report.adapter.backend, "Dx12");
     assert_eq!(report.modes_rendered, 15);
     assert_eq!(report.viewport_sizes_rendered, 3);
-    assert_eq!(report.frames_rendered, 84);
+    assert_eq!(report.frames_rendered, 86);
     assert_eq!(report.dds_textures_uploaded, 16);
     assert_eq!(report.sampled_material_roles, 13);
     assert_eq!(report.material_ranges_rendered, 2);

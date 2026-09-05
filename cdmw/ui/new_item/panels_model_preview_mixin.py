@@ -19,19 +19,6 @@ IMPORT_DIR_SETTING = "ui/new_item_import_dir"
 
 
 class ModelPanelPreviewMixin:
-    def _lighting_preset_changed(self, _index: int) -> None:
-        preset = str(self.lighting_preset.currentData() or "neutral_studio")
-        self.preview.set_lighting_preset(preset)
-        self._controller.set_preview_lighting_preset(preset)
-
-    def _sync_lighting_preset(self, preset: str) -> None:
-        index = self.lighting_preset.findData(str(preset))
-        if index >= 0 and index != self.lighting_preset.currentIndex():
-            self.lighting_preset.blockSignals(True)
-            self.lighting_preset.setCurrentIndex(index)
-            self.lighting_preset.blockSignals(False)
-        self.preview.set_lighting_preset(preset)
-
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
         for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):

@@ -35,7 +35,10 @@ Template does not repeat it in another group; its camera help follows the viewpo
 instead of separating the viewport from its heading. Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
 package framing survives helper startup and progressive texture state replay, while
-later explicit camera commands remain authoritative. Moving to step 3 reparents that
+later explicit camera commands remain authoritative. Model and Effect Placement use
+one neutral studio lighting setup without a lighting-mode selector. Imported glTF
+emissive factors also work without an emissive texture, including explicit zero strength.
+Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or
 orbit to finish and preserve the resulting placement. Snapshot creation

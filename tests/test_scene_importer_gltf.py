@@ -174,6 +174,30 @@ def _write_glb(path: Path, document: dict, bin_chunk: bytes) -> None:
 
 
 class GltfSceneImporterTests(unittest.TestCase):
+    def test_emissive_factors_preserve_default_black_and_explicit_zero_strength(self) -> None:
+        cases = (
+            ({"emissiveFactor": [1.0, 0.0, 0.0]}, (1.0, 0.0, 0.0), 1.0),
+            ({"emissiveFactor": [1.0, 0.0, 0.0], "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 0.0}}}, (1.0, 0.0, 0.0), 0.0),
+            ({"emissiveFactor": [1.0, 0.0, 0.0], "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 10.0}}}, (1.0, 0.0, 0.0), 10.0),
+            ({"emissiveTexture": {"index": 0}}, (0.0, 0.0, 0.0), 1.0),
+        )
+        for material, expected_color, expected_strength in cases:
+            with self.subTest(material=material), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                data, document = _triangle_payload()
+                (root / "triangle.bin").write_bytes(data)
+                write_valid_image(root / "emission.png")
+                document["buffers"][0]["uri"] = "triangle.bin"
+                document["materials"] = [material]
+                document["textures"] = [{"source": 0}]
+                document["images"] = [{"uri": "emission.png"}]
+                path = root / "triangle.gltf"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                mesh = import_scene_mesh(path)
+                parameters = {p.parameter_name: p for p in mesh.submeshes[0].preview_material_parameters}
+                self.assertEqual(parameters["_emissiveColor"].color_value, expected_color)
+                self.assertEqual(parameters["_emissiveIntensity"].numeric_value, expected_strength)
+
     def test_minimal_glb_triangle_import(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             bin_chunk, document = _triangle_payload()

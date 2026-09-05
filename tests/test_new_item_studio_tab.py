@@ -876,6 +876,21 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_model_preview_has_one_lighting_without_a_mode_selector(self) -> None:
+        from PySide6.QtWidgets import QComboBox
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        choices = [
+            combo.itemData(index)
+            for combo in tab.model_panel.findChildren(QComboBox)
+            for index in range(combo.count())
+        ]
+        self.assertNotIn("neutral_studio", choices)
+        self.assertNotIn("showcase", choices)
+        tab.close()
+        tab.deleteLater()
+
     def test_template_materials_use_preview_core_when_the_shared_native_cache_is_available(self) -> None:
         from types import SimpleNamespace
 

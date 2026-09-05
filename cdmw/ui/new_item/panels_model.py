@@ -233,7 +233,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         controller.model_changed.connect(lambda _result: self.refresh_glow_parts())
         controller.model_import_changed.connect(lambda _source: self.refresh_glow_parts())
         controller.model_import_failed.connect(self._import_failed)
-        controller.preview_lighting_changed.connect(self._sync_lighting_preset)
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
@@ -345,20 +344,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.grid_visible.setChecked(True)
         self.grid_visible.toggled.connect(self.preview.set_grid_visible)
         view_row.addWidget(self.grid_visible)
-        view_row.addWidget(QLabel("Lighting:"))
-        self.lighting_preset = QComboBox()
-        self.lighting_preset.addItem("Neutral Studio", "neutral_studio")
-        self.lighting_preset.addItem("Showcase", "showcase")
-        self.lighting_preset.setToolTip(
-            "Neutral Studio preserves material colour. Showcase adds darker contrast and warm highlights."
-        )
-        current_lighting = self.lighting_preset.findData(
-            self._controller.preview_lighting_preset
-        )
-        self.lighting_preset.setCurrentIndex(max(0, current_lighting))
-        self.lighting_preset.currentIndexChanged.connect(self._lighting_preset_changed)
-        view_row.addWidget(self.lighting_preset)
-        self.preview.set_lighting_preset(self._controller.preview_lighting_preset)
+        self.preview.set_lighting_preset("neutral_studio")
         view_row.addStretch(1)
         self.frame_view_button = QPushButton("Frame")
         self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")

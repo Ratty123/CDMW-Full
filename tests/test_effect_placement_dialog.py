@@ -205,23 +205,16 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
-    def test_lighting_choice_is_shared_and_changes_renderer_state_only(self) -> None:
+    def test_preview_uses_one_neutral_lighting_without_a_mode_selector(self) -> None:
         changes = []
         dialog = self._dialog(
             lighting_preset="showcase",
             lighting_changed=changes.append,
         )
-        self.assertEqual(dialog.lighting_choice.currentData(), "showcase")
         dialog._host_state("ready", "")
-        self.assertEqual(dialog.host.lightings[-1], "showcase")
-        loaded_before = dialog.host.loaded
-
-        dialog.lighting_choice.setCurrentIndex(
-            dialog.lighting_choice.findData("neutral_studio")
-        )
-        self.assertEqual(changes, ["neutral_studio"])
         self.assertEqual(dialog.host.lightings[-1], "neutral_studio")
-        self.assertIs(dialog.host.loaded, loaded_before)
+        self.assertFalse(hasattr(dialog, "lighting_choice"))
+        self.assertEqual(changes, [])
 
     def test_the_legend_names_what_is_on_screen_and_nothing_else(self) -> None:
         dialog = self._dialog()

@@ -381,7 +381,9 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         let value = select(0.08, 0.88, checker != 0u);
         return present_srgb(vec3<f32>(value), 1.0);
     }
-    if material.flags == 0u {
+    let has_emission = material.emissive_color_and_intensity.a > 0.0
+        && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
+    if material.flags == 0u && !has_emission {
         if camera.view_mode == 8u {
             let part_id = f32(input.part_id) + 1.0;
             return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
@@ -1025,7 +1027,8 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             * pow(1.0 - ndotv, 2.0)
             * category_feedback,
         is_glass);
-    var emissive = vec3<f32>(0.0);
+    var emissive = material.emissive_color_and_intensity.rgb
+        * material.emissive_color_and_intensity.a * 2.2;
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
         let emissive_sample = textureSampleBias(
             emissive_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
@@ -1033,10 +1036,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             emissive_sample.rgb,
             emissive_sample.rrr,
             (material.flags & MATERIAL_EMISSIVE_INTENSITY_MASK) != 0u);
-        emissive = emissive_rgb
-            * material.emissive_color_and_intensity.rgb
-            * material.emissive_color_and_intensity.a
-            * 2.2;
+        emissive *= emissive_rgb;
     }
     let showcase_warmth = select(vec3<f32>(1.0), vec3<f32>(1.08, 0.99, 0.90), showcase);
     let exposure = select(select(0.90, 1.0, showcase), 1.06, game_outdoor);
@@ -4538,6 +4538,22 @@ async fn run_headless_render_smoke_internal(
             ..MaterialPreviewFactors::default()
         },
     );
+    let constant_emissive_material_bindings = bindings_for_roles(
+        &[],
+        MaterialPreviewFactors {
+            emissive_color: Some([1.0, 0.0, 0.0]),
+            emissive_intensity: Some(10.0),
+            ..MaterialPreviewFactors::default()
+        },
+    );
+    let zero_emissive_material_bindings = bindings_for_roles(
+        &[],
+        MaterialPreviewFactors {
+            emissive_color: Some([1.0, 0.0, 0.0]),
+            emissive_intensity: Some(0.0),
+            ..MaterialPreviewFactors::default()
+        },
+    );
     let roughness_factor_material_bindings = bindings_for_roles(
         &[TextureRole::BaseColor],
         MaterialPreviewFactors {
@@ -4891,6 +4907,8 @@ async fn run_headless_render_smoke_internal(
         ("occlusion", base_occlusion_material_bindings),
         ("emissive", base_emissive_material_bindings),
         ("emissive factors", factored_emissive_material_bindings),
+        ("constant emissive", constant_emissive_material_bindings),
+        ("zero emissive", zero_emissive_material_bindings),
         ("roughness factor", roughness_factor_material_bindings),
         ("metalness factor", metalness_factor_material_bindings),
         (
@@ -5439,6 +5457,14 @@ async fn run_headless_render_smoke_internal(
     if emissive_factor_pixels_changed == 0 {
         return Err(RenderError::Device(
             "headless emissive color/intensity factors did not change any rendered pixel"
+                .to_owned(),
+        ));
+    }
+    let constant_emissive_pixels = &probe_pixels[probe_index("constant emissive")?];
+    let zero_emissive_pixels = &probe_pixels[probe_index("zero emissive")?];
+    if changed_pixel_count(constant_emissive_pixels, zero_emissive_pixels)? == 0 {
+        return Err(RenderError::Device(
+            "constant emissive factors without a texture did not change any rendered pixel"
                 .to_owned(),
         ));
     }
@@ -8307,7 +8333,13 @@ fn create_material_bind_group(
         skin_detail_opacity: factors.skin_detail_opacity.unwrap_or(0.0),
         _padding: 0,
         emissive_color_and_intensity: {
-            let color = factors.emissive_color.unwrap_or([1.0; 3]);
+            let color = factors
+                .emissive_color
+                .unwrap_or(if indices.emissive.is_some() {
+                    [1.0; 3]
+                } else {
+                    [0.0; 3]
+                });
             [
                 color[0],
                 color[1],

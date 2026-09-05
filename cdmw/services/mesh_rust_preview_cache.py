@@ -50,9 +50,8 @@ from cdmw.services.mesh_rust_preview_package import (
 )
 
 _PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
-    # Schema 3 normalizes pre-decoded external meshes to Rust's read-only
-    # ``preview`` wire format and bounds transient external texture previews.
-    "schema_version": 3,
+    # Schema 4 retains glTF's default black emission and explicit zero strength.
+    "schema_version": 4,
     "material_semantics_version": 1,
     "material_graph_version": 1,
 }
