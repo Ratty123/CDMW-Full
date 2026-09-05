@@ -35,6 +35,43 @@ class EffectFactsTests(unittest.TestCase):
         self.assertEqual(self.facts.walk_note, "")
         self.assertGreater(self.facts.byte_length, 20000)
 
+    def test_metadata_decode_preserves_catalogue_facts_with_fewer_value_objects(self) -> None:
+        for path in sorted(FIXTURE.parent.iterdir()):
+            if path.suffix not in {".pae", ".paem"}:
+                continue
+            with self.subTest(fixture=path.name):
+                data = path.read_bytes()
+                complete = decode_effect_binary(data)
+                metadata = decode_effect_binary(data, metadata_only=True)
+                self.assertEqual(
+                    effect_facts_from_document(path.stem, complete),
+                    effect_facts_from_document(path.stem, metadata),
+                )
+                self.assertEqual(complete.walk_complete, metadata.walk_complete)
+                self.assertEqual(complete.walk_note, metadata.walk_note)
+                retained = tuple(metadata.root.all_values())
+                self.assertLess(len(retained), len(tuple(complete.root.all_values())) // 2)
+                original = frozenset(complete.root.all_values())
+                self.assertTrue(all(value in original for value in retained))
+
+    def test_metadata_decode_keeps_binary_validation_failures(self) -> None:
+        import struct
+
+        data = bytearray(FIXTURE.read_bytes())
+        decoded = decode_effect_binary(data)
+        for position, changed in (
+            (decoded.blob_offset, struct.pack("<H", 0)),
+            (decoded.blob_offset + decoded.blob_length - 4, struct.pack("<I", 0xFFFFFFFF)),
+        ):
+            with self.subTest(position=position):
+                broken = bytearray(data)
+                broken[position:position + len(changed)] = changed
+                complete = decode_effect_binary(broken)
+                metadata = decode_effect_binary(broken, metadata_only=True)
+                self.assertFalse(complete.walk_complete)
+                self.assertEqual(complete.walk_note, metadata.walk_note)
+                self.assertEqual(effect_facts_from_document("broken", complete), effect_facts_from_document("broken", metadata))
+
     def test_search_matches_every_word_over_stem_emitters_and_textures(self) -> None:
         self.assertTrue(self.facts.matches(""))
         self.assertTrue(self.facts.matches("fire attach"))

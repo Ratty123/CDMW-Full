@@ -77,6 +77,14 @@ _MAX_COUNT = 100_000
 _MAX_STRING = 4096
 _MAX_DEPTH = 64
 
+# Catalogue metadata retains resource/name strings and these scalar/root fields.
+# The complete grammar is still walked, including omitted curves and parameters.
+_METADATA_VALUE_NAMES = frozenset({
+    "_boundingBoxMin", "_boundingBoxMax", "_hasInfiniteEmitter",
+    "_hasInfiniteLifeTimeParticle", "_hasEmitterLights", "_maxSpawnableTime",
+    "_effectLifeCycleTime", "_loopCount", "_isInfiniteParticle",
+})
+
 
 class EffectBinaryError(ValueError):
     """Raised when a payload does not follow the effect grammar."""
@@ -289,13 +297,21 @@ def write_value(data: bytes, value: ReflectValue, new_raw: bytes) -> bytes:
 
 
 class _Walker:
-    def __init__(self, data: bytes, base: int, types: Sequence[PrefabType], blob_offset: int, blob_length: int) -> None:
+    def __init__(self, data: bytes, base: int, types: Sequence[PrefabType], blob_offset: int, blob_length: int, *, metadata_only: bool = False) -> None:
         self.data = data
         #: Absolute offset of the reflect container within ``data``.
         self.base = base
         self.types = tuple(types)
         self.pos = base + blob_offset
         self.end = base + blob_offset + blob_length
+        self.metadata_only = metadata_only
+
+    def retain_value(self, member: PrefabMember) -> bool:
+        return (
+            not self.metadata_only
+            or member.flags in (KIND_STRING, KIND_STRING_LIST)
+            or member.name in _METADATA_VALUE_NAMES
+        )
 
     # -- primitives ---------------------------------------------------------
 
@@ -425,7 +441,8 @@ class _Walker:
                 null = self.u8()
                 if null == 1:
                     if member.flags in (KIND_ARRAY, KIND_STRING_LIST):
-                        node.values.append(ReflectValue(member.name, member.type_name, member.flags, b"", self.pos - 1, 0))
+                        if self.retain_value(member):
+                            node.values.append(ReflectValue(member.name, member.type_name, member.flags, b"", self.pos - 1, 0))
                     else:
                         node.children.append((member.name, None))
                     continue
@@ -441,9 +458,10 @@ class _Walker:
         kind = member.flags
         if kind in (KIND_INLINE, KIND_ENUM):
             self._need(member.value_size, f"{path}.{member.name}")
-            raw = self.data[at : at + member.value_size]
             self.pos += member.value_size
-            node.values.append(ReflectValue(member.name, member.type_name, kind, raw, at))
+            if self.retain_value(member):
+                raw = self.data[at : self.pos]
+                node.values.append(ReflectValue(member.name, member.type_name, kind, raw, at))
         elif kind == KIND_STRING:
             raw, length_at = self.text()
             # the span is the characters, after the u32 length, so a same-length write lands on them
@@ -469,9 +487,10 @@ class _Walker:
         if member.flags == KIND_ARRAY:
             size = count * member.value_size
             self._need(size, f"{path}.{member.name}")
-            raw = self.data[self.pos : self.pos + size]
             self.pos += size
-            node.values.append(ReflectValue(member.name, member.type_name, KIND_ARRAY, raw, at + 4, count))
+            if self.retain_value(member):
+                raw = self.data[at + 4 : self.pos]
+                node.values.append(ReflectValue(member.name, member.type_name, KIND_ARRAY, raw, at + 4, count))
             return
         if member.flags == KIND_STRING_LIST:
             start = self.pos
@@ -496,12 +515,16 @@ class _Walker:
         node.children.append((member.name, elements))
 
 
-def decode_effect_binary(data: bytes) -> EffectDocument:
+def decode_effect_binary(data: bytes, *, metadata_only: bool = False) -> EffectDocument:
     """Decode a ``.pae`` / ``.paem`` payload (with or without its PARC header).
 
     The type table and data header must parse or :class:`EffectBinaryError` is
     raised; the blob walk is reported through ``walk_complete`` / ``walk_note`` and
     the nodes read before a stop are kept.
+
+    ``metadata_only`` retains strings, bounds, looping flags, lights and timing
+    for catalogue indexing without allocating every editable numeric value.
+    It performs the same structural validation as a complete decode.
     """
 
     payload = bytes(data or b"")
@@ -516,7 +539,7 @@ def decode_effect_binary(data: bytes) -> EffectDocument:
     blob_end = header.blob_offset + header.blob_length
     if blob_end > len(body):
         raise EffectBinaryError(f"blob {header.blob_offset}+{header.blob_length} outside a {len(body)}-byte body")
-    walker = _Walker(payload, base, header.types, header.blob_offset, header.blob_length)
+    walker = _Walker(payload, base, header.types, header.blob_offset, header.blob_length, metadata_only=metadata_only)
     complete, note = True, ""
     try:
         root = walker.read_root()

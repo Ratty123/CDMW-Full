@@ -3,7 +3,7 @@
 The studio's effect list was a list of stems. An effect's binary says more
 (:mod:`cdmw.core.effect_binary`): which emitters it instances, which textures and
 meshes those draw, its bounding box, whether it loops. This service reads every
-effect once (about a minute for the 6,109 shipped ones), keeps the facts as a JSON
+effect once, keeps the facts as a JSON
 cache keyed by the archives' effect population, and answers searches over stem,
 emitter, texture and mesh names, so "fire", "lightning" or "ember" find effects by
 what they are made of and not only by what they are called.
@@ -187,7 +187,7 @@ def build_effect_catalogue(
             continue
         try:
             data = bytes(snapshot.read_entry(snapshot.entry(path)))
-            document = decode_effect_binary(data)
+            document = decode_effect_binary(data, metadata_only=True)
             catalogue.facts[stem] = effect_facts_from_document(stem, document)
         except (EffectBinaryError, ValueError, OSError) as exc:
             catalogue.facts[stem] = EffectFacts(

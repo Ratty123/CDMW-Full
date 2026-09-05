@@ -51,6 +51,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.services.model_library_preview import run_model_library_preview_worker
 
         return run_model_library_preview_worker(Path(args.input), Path(args.output))
+    if args.effect_catalogue_worker:
+        from cdmw.services.effect_catalogue_process import run_effect_catalogue_worker
+
+        return run_effect_catalogue_worker(Path(args.input), Path(args.output))
 
     # Before anything can spawn a helper. The helper modes above return early
     # on purpose: they are already children of a bound app process, and their

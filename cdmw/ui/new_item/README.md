@@ -12,7 +12,10 @@ behavior without changing that public class. Every plan is pinned to a draft rev
 invalidates it, and a worker result from an older revision is discarded. The
 controller runs the snapshot, plan, export, install and model import through
 `cdmw/workers/new_item_workers.py` on one owned task lane. The effect metadata
-index has a separate cancellable lane, and the resident placement workspace owns
+index has a separate cancellable lane with CPU decoding in an owned child process,
+so initial indexing does not compete for the UI interpreter. Effect payloads are
+spooled one at a time, cancelled children stop before temporary-file cleanup, and
+only complete results enter the existing metadata cache. The resident placement workspace owns
 its serialized latest-wins package lane. Changing the effect, item or reference rig
 cancels obsolete preparation before the selection debounce runs. Already queued
 launches also reject stale generations, while the displayed scene remains usable.

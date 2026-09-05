@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Initial Effects indexing no longer holds up New Item's UI and texture preparation.** Effect metadata decoding runs in a cancellable child process, retaining progress, cached results, and malformed-effect diagnostics while avoiding repeated allocation of unused numeric fields.
+
 - **Layered Rust previews prepare repeated textures faster.** Canonical package creation copies each unchanged DDS source once across its material layers while preserving cancellation, source-change checks, and atomic publication.
 - **Mesh Editor brush selection follows fast strokes and keeps face highlights accurate on dense meshes.** Face and Part highlights use GPU depth, retain filled faces above 4,000 selected faces, and reuse geometry while navigating. Brush strokes include the path between pointer samples, while selection counts refresh only when the selection changes, reducing CPU overhead on character meshes.
 - **New Item prepares the imported model's fitted geometry before showing its preview.** The import worker performs the initial geometry transform, avoiding a synchronous native transform when the UI first reads the model bounds. Cancellation skips that work, and a failed transform cleans up the unpublished import.

@@ -8,13 +8,14 @@ from typing import Optional, Tuple
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.services.effect_catalogue import (
     EffectCatalogue,
-    build_effect_catalogue,
     catalogue_signature,
     load_effect_catalogue,
     save_effect_catalogue,
 )
+from cdmw.services.effect_catalogue_process import build_effect_catalogue_in_subprocess as build_effect_catalogue
 from cdmw.services.new_item_snapshot import NewItemSnapshot
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -76,12 +77,15 @@ class EffectCatalogueIndexLane(QObject):
                     log(f"Loaded {len(catalogue)} effects from the metadata cache.")
                     return generation, snapshot, catalogue
 
-            catalogue = build_effect_catalogue(
-                snapshot,
-                on_log=log,
-                on_progress=lambda done, total, stem: self.progress.emit(done, total, stem),
-                stop_event=stop_event,
-            )
+            try:
+                catalogue = build_effect_catalogue(
+                    snapshot,
+                    on_log=log,
+                    on_progress=lambda done, total, stem: self.progress.emit(done, total, stem),
+                    stop_event=stop_event,
+                )
+            except RunCancelled as exc:
+                raise RuntimeError("Effect indexing cancelled.") from exc
             if stop_event.is_set():
                 raise RuntimeError("Effect indexing cancelled.")
             if cache_path is not None:

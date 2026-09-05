@@ -79,6 +79,13 @@ the model-preview services share the canonical material route rather than
 building a New Item-only renderer. None of these services mutates a widget or a
 shipped archive on its own.
 
+`effect_catalogue_process.py` spools effect inputs one at a time through the
+snapshot's reader, then decodes them in an owned, cancellable child process.
+This keeps Python effect decoding from delaying the UI and preview workers.
+The existing catalogue lane owns progress, cache I/O and stale-result rejection;
+the child receives effect bytes rather than the live archive index or reader.
+Metadata decoding retains catalogue fields while validating the full grammar.
+
 `mesh_rust_preview_package.py` adapts Preview Core's material graph for both
 direct and full Rust preview packages. An untextured base layer may carry
 Preview Core's absent-wrapper sentinel (`-1`), including when only detail
