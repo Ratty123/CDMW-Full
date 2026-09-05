@@ -279,6 +279,39 @@ class ItemPreviewPackageTests(unittest.TestCase):
         self.assertEqual(item_preview.package_cleanup_root(root / "mesh_pkg", root), root / "mesh_pkg")
         self.assertEqual(item_preview.package_cleanup_root(root / "other" / "package", root), root / "other" / "package")
 
+    def test_single_template_packages_keep_the_initial_model_in_its_frame(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import build_item_preview_package
+
+        mesh = ParsedMesh(
+            path="template.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="template",
+                vertices=[(3.0, 1.0, 0.0), (3.0, 3.0, 0.0), (3.2, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )],
+        )
+        with tempfile.TemporaryDirectory(prefix="cdmw_template_framing_") as temporary:
+            for materials in (False, True):
+                with self.subTest(include_material_resources=materials):
+                    package = build_item_preview_package(
+                        mesh, token="template", output_root=Path(temporary),
+                        stop_event=threading.Event(), include_material_resources=materials,
+                    )
+                    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+                    scene = manifest["state"]["preview_scene"]
+                    # The host uses replacement_only. A side-by-side package aims
+                    # the opening camera at a displaced model before host replay.
+                    self.assertEqual(scene["comparison_mode"], "replacement_only")
+                    self.assertEqual(scene["roles"]["reference"]["submesh_indices"], [])
+                    self.assertEqual(scene["roles"]["editable"]["submesh_indices"], [0])
+                    self.assertEqual(scene["framing"]["bounds"]["center"], [3.1, 2.0, 0.0])
+                    self.assertEqual(
+                        scene["framing"]["initial_view"]["fit_bounds"],
+                        [[3.0, 1.0, 0.0], [3.2, 3.0, 0.0]],
+                    )
+
     def test_a_cached_template_package_is_built_once(self) -> None:
         from cdmw.models import ModelPreviewData, ModelPreviewMesh
         from cdmw.services import mesh_rust_preview_cache as package_service

@@ -504,7 +504,7 @@ def build_item_preview_package(
                 item,
                 output_root=output_root,
                 reference_mesh=None,
-                comparison_mode="side_by_side",
+                comparison_mode="replacement_only",
                 interaction_profile="static_replacement",
                 grid_normal_axis=grid_normal_axis,
                 cancelled=stop_event.is_set,

@@ -41,7 +41,9 @@ Template does not repeat it in another group; its camera help follows the viewpo
 instead of separating the viewport from its heading. Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
 package framing survives helper startup and progressive texture state replay, while
-later explicit camera commands remain authoritative. Model and Effect Placement use
+later explicit camera commands remain authoritative. Single-template geometry uses the
+same replacement-only layout as its textured package so the initial camera stays centered
+when host presentation arrives. Model and Effect Placement use
 one neutral studio lighting setup without a lighting-mode selector. Imported glTF
 emissive factors also work without an emissive texture, including explicit zero strength.
 Imported glTF materials preserve their declared alpha mode and opacity, use

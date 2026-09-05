@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **New Item templates now stay in view on first selection.** Initial geometry uses the same layout as the textured preview, avoiding a sideways camera offset while texture upgrades preserve the current view.
+
 - **New Item prepares shared native preview caches while reading its archive tables.** One small model warms the native service and material indexes before a template is selected, reducing the subsequent wait for textures. The snapshot worker owns and cancels this optional work, including while it waits for a busy native service.
 
 - **New Item preview cleanup no longer blocks navigation or texture promotion.** Retired temporary packages are removed on the tracked cleanup worker, one at a time, and shutdown retains the worker until cleanup finishes. Durable preview caches and files outside the preview output root are preserved.
