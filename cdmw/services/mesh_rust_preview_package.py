@@ -613,6 +613,7 @@ def _build_preview_core_material_graph(
         textures,
     )
     initial_resource_shas = frozenset(resources)
+    copied_sources: dict[Path, tuple[tuple[int, int, int, int], dict[str, object]]] = {}
     materials: list[dict[str, object]] = []
     source_edge_count = 0
     for material_index, raw_batch in enumerate(raw_batches):
@@ -683,6 +684,7 @@ def _build_preview_core_material_graph(
             }
             layer_has_source = False
             for resource_role in ("diffuse", "normal", "material", "height", "mask"):
+                _cancelled(cancelled)
                 source_key = f"{resource_role}_source"
                 archive_key = f"{resource_role}_archive_path"
                 source_text = str(raw_layer.get(source_key, "") or "").strip()
@@ -699,17 +701,36 @@ def _build_preview_core_material_graph(
                             f"Preview Core material graph DDS is missing: {archive_path or source_text}"
                         )
                     if quality == "full":
-                        reference, next_index, aggregate_bytes = (
-                            _copy_preview_core_material_resource(
-                                package_dir,
-                                source,
-                                expected_root_identity=expected_root_identity,
-                                resources=resources,
-                                next_index=next_index,
-                                aggregate_bytes=aggregate_bytes,
-                                cancelled=cancelled,
-                            )
+                        source_stat = source.stat()
+                        source_identity = (
+                            source_stat.st_dev, source_stat.st_ino,
+                            source_stat.st_size, source_stat.st_mtime_ns,
                         )
+                        cached = copied_sources.get(source)
+                        if cached is not None:
+                            if cached[0] != source_identity:
+                                raise ValueError("Preview Core material DDS changed while its graph was built.")
+                            reference = copy.deepcopy(cached[1])
+                        else:
+                            reference, next_index, aggregate_bytes = (
+                                _copy_preview_core_material_resource(
+                                    package_dir,
+                                    source,
+                                    expected_root_identity=expected_root_identity,
+                                    resources=resources,
+                                    next_index=next_index,
+                                    aggregate_bytes=aggregate_bytes,
+                                    cancelled=cancelled,
+                                )
+                            )
+                            source_after = source.stat()
+                            if source_identity != (
+                                source_after.st_dev, source_after.st_ino,
+                                source_after.st_size, source_after.st_mtime_ns,
+                            ):
+                                raise ValueError("Preview Core material DDS changed while its graph was built.")
+                            if len(copied_sources) < _PREVIEW_CORE_MATERIAL_RESOURCE_LIMIT:
+                                copied_sources[source] = (source_identity, reference)
                 layer[resource_role] = reference
             if layer_has_source and not owner:
                 raise ValueError("Preview Core material layer lost its wrapper owner identity.")

@@ -85,6 +85,9 @@ Preview Core's absent-wrapper sentinel (`-1`), including when only detail
 layers supply textures. The adapter assigns that source-free base its local
 batch index while preserving its empty wrapper identity. Textured layers still
 require valid wrapper ownership; the adapter does not assign them an owner.
+Repeated material-layer references share one copied DDS resource per source
+file. Source identity checks, cancellation, and atomic package publication
+still apply, including when a repeated input changes during preparation.
 
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,

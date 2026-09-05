@@ -515,6 +515,55 @@ def test_native_source_identity_finds_the_published_full_package_before_decoding
     assert lookup_rust_preview_package_from_preview_core_identity(**lookup) is None
 
 
+@pytest.mark.parametrize("after_first_copy", ("unchanged", "changed", "cancelled"))
+def test_repeated_material_sources_are_copied_once_without_reusing_changed_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, after_first_copy: str,
+) -> None:
+    import threading
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.services import mesh_rust_preview_package as owner
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    manifest_path = source / "manifest.json"
+    native = json.loads(manifest_path.read_text(encoding="utf-8"))
+    batch = native["batches"][0]
+    batch["material_layers"] = [dict(batch["material_layers"][0]) for _ in range(32)]
+    manifest_path.write_text(json.dumps(native), encoding="utf-8")
+    stop = threading.Event()
+    copy_calls = []
+    original = owner._copy_preview_core_material_resource
+
+    def record_copy(*args, **kwargs):
+        result = original(*args, **kwargs)
+        copy_calls.append(args[1])
+        if len(copy_calls) == 1:
+            if after_first_copy == "changed":
+                args[1].write_bytes(b"DDS " + b"changed" * 200)
+            elif after_first_copy == "cancelled":
+                stop.set()
+        return result
+
+    monkeypatch.setattr(owner, "_copy_preview_core_material_resource", record_copy)
+    target = tmp_path / "published"
+    if after_first_copy != "unchanged":
+        error = RunCancelled if after_first_copy == "cancelled" else ValueError
+        with pytest.raises(error, match="[Cc]ancel|changed"):
+            build_rust_preview_package_from_preview_core(
+                source, output_package_dir=target, cancelled=stop.is_set,
+            )
+        assert not target.exists()
+        return
+
+    package = build_rust_preview_package_from_preview_core(source, output_package_dir=target)
+    assert len(copy_calls) == 1, "the same source was read, copied and flushed for every layer"
+    assert validate_rust_preview_package(package.package_dir) == ()
+    payload = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    graph = payload["preview_core_material_graph"]
+    assert graph["source_edge_count"] == 32
+    assert graph["unique_resource_count"] == 1
+    assert all(layer["diffuse"] == payload["textures"][0]["file"] for layer in graph["materials"][0]["layers"])
+
+
 def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
