@@ -1186,6 +1186,108 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual(frame._loaded_stage, "materials")
         frame.request_shutdown()
 
+    def test_template_materials_start_before_geometry_finishes_and_are_joined(self) -> None:
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource, _PreviewPackageTask
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_parallel_template_"))
+        started = threading.Event()
+        finished = threading.Event()
+
+        def materials(_stop):
+            started.set()
+            finished.set()
+            return output / "full"
+
+        def geometry(_stop):
+            self.assertTrue(started.wait(0.5), "material preparation must overlap geometry decode")
+            return object()
+
+        task = _PreviewPackageTask(
+            output_root=output, token=("template", 17),
+            candidate=ProgressivePreviewSource(geometry, materials),
+            is_placement=False, full_stage=False, base_package=None,
+            render_settings=None, cache_mode="off", native_preview_core_cache_root=None,
+            source_usage_required=False, source_usage_acquired=False,
+        )
+        progress = []
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", return_value=output / "bare"):
+            result = task(None, lambda *args: progress.append(args), threading.Event())
+        self.assertTrue(finished.is_set())
+        self.assertEqual(result.package_dir, output / "full")
+        self.assertEqual(len(progress), 1, "geometry must finish normally while materials run")
+
+    def test_progressive_failure_cancels_and_joins_material_preparation(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource, _PreviewPackageTask
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_parallel_template_cancel_"))
+        for failure in ("geometry_cancel", "progress_error"):
+            with self.subTest(failure=failure):
+                started, finished = threading.Event(), threading.Event()
+                cancelled = []
+
+                def materials(stop):
+                    started.set()
+                    cancelled.append(stop.wait(1.0))
+                    finished.set()
+                    return output / "full"
+
+                def geometry(_stop):
+                    self.assertTrue(started.wait(0.5))
+                    if failure == "geometry_cancel":
+                        raise RunCancelled("cancel geometry")
+                    return object()
+
+                def progress(*_args):
+                    raise RuntimeError("delivery failed")
+
+                task = _PreviewPackageTask(
+                    output_root=output, token=("template", 17), candidate=ProgressivePreviewSource(geometry, materials),
+                    is_placement=False, full_stage=False, base_package=None, render_settings=None,
+                    cache_mode="off", native_preview_core_cache_root=None,
+                    source_usage_required=False, source_usage_acquired=False,
+                )
+                expected = RunCancelled if failure == "geometry_cancel" else RuntimeError
+                with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", return_value=output / "bare"):
+                    with self.assertRaises(expected):
+                        task(None, progress, threading.Event())
+                self.assertTrue(finished.is_set())
+                self.assertEqual(cancelled, [True])
+
+    def test_native_template_cache_hit_bypasses_both_progressive_builders(self) -> None:
+        from cdmw.ui.new_item.item_preview import ProgressivePreviewSource, _PreviewPackageTask
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_native_template_hit_"))
+        cached = output / "durable" / "package"
+        contexts = []
+        built = []
+
+        def lookup(stop_event, **context):
+            self.assertFalse(stop_event.is_set())
+            contexts.append(context)
+            return cached
+
+        source = ProgressivePreviewSource(
+            geometry=lambda _stop: built.append("geometry"),
+            materials=lambda _stop: built.append("materials"),
+            cached_materials=lookup,
+        )
+        task = _PreviewPackageTask(
+            output_root=output, token=("template", 17), candidate=source,
+            is_placement=False, full_stage=False, base_package=None,
+            render_settings="captured-settings", cache_mode="balanced",
+            native_preview_core_cache_root=output / "native", source_usage_required=False,
+            source_usage_acquired=False,
+        )
+        result = task(None, lambda *_args: self.fail("cached package must not publish bare geometry"), threading.Event())
+        self.assertEqual(result.package_dir, cached)
+        self.assertEqual(result.stage, "materials")
+        self.assertEqual(built, [])
+        self.assertEqual(contexts, [{
+            "output_root": output, "native_preview_core_cache_root": output / "native",
+            "render_settings": "captured-settings", "cache_mode": "balanced",
+        }])
+
     def test_material_upgrade_preserves_geometry_and_adds_rust_textures(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.ui.new_item.item_preview import (

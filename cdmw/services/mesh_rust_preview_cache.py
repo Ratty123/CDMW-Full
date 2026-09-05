@@ -37,6 +37,9 @@ from cdmw.services.mesh_rust_contract import (
 )
 from cdmw.services.mesh_rust_preview_package import (
     RustPreviewPackage,
+    _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+    _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+    _PREVIEW_CORE_SCHEMA_MINIMUM,
     build_rust_preview_package,
     build_rust_preview_package_from_preview_core,
     build_rust_preview_prewarm_package,
@@ -959,6 +962,36 @@ def build_or_lookup_rust_preview_package_from_model(
     return request.run(quality, fast_package_ready)
 
 
+def lookup_rust_preview_package_from_preview_core_identity(
+    *,
+    cache_root: Path,
+    archive_identity: str,
+    cancelled: Callable[[], bool] | None = None,
+) -> RustPreviewPackage | None:
+    """Find the current canonical native package before decoding its source.
+
+    The identity must include the archive revisions, native compiler revision,
+    and rendering inputs, just as it does when publishing the native package.
+    Source versions come from the owning converter's accepted contract.
+    """
+
+    _check_cancelled(cancelled)
+    cache_key = rust_preview_package_cache_key(
+        archive_identity,
+        source_manifest={
+            "schema_version": _PREVIEW_CORE_SCHEMA_MINIMUM,
+            "material_semantics_version": _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION,
+            "material_graph_version": _PREVIEW_CORE_MATERIAL_GRAPH_VERSION,
+        },
+    )
+    hit = lookup_dotnet_preview_package_cache(
+        rust_preview_package_cache_root(cache_root), cache_key,
+        validate_package=_validate_rust_cache_package,
+    )
+    _check_cancelled(cancelled)
+    return rust_preview_package_from_path(hit.package_dir) if hit is not None else None
+
+
 def lookup_rust_preview_package_from_model_identity(
     *,
     cache_root: Path,
@@ -1029,6 +1062,7 @@ __all__ = [
     "rust_preview_overlays_from_preview_core_package",
     "rust_preview_package_cache_key",
     "lookup_rust_preview_package_from_model_identity",
+    "lookup_rust_preview_package_from_preview_core_identity",
     "lookup_rust_preview_package_hit_from_model_identity",
     "parsed_mesh_from_model_preview",
     "rust_preview_package_cache_root",

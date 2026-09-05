@@ -72,6 +72,7 @@ class ProgressivePreviewSource:
     materials: Callable[[threading.Event], Any]
     acquire_usage: Optional[Callable[[], object]] = None
     supports_fast_material_package: bool = False
+    cached_materials: Optional[Callable[..., Path | None]] = None
 
     def __call__(self, stop_event: threading.Event) -> Any:
         """Compatibility: callers that know only the old callable get full materials."""
@@ -133,6 +134,17 @@ class _PreviewPackageTask:
             and self.cache_mode in {"balanced", "aggressive"}
         ):
             return None
+        if self.candidate.cached_materials is not None and self.native_preview_core_cache_root is not None:
+            cached = self.candidate.cached_materials(
+                stop_event,
+                output_root=self.output_root,
+                native_preview_core_cache_root=self.native_preview_core_cache_root,
+                render_settings=self.render_settings,
+                cache_mode=self.cache_mode,
+            )
+            if cached is None:
+                return None
+            return _PreviewBuildProduct(Path(cached), self.candidate, "materials")
         from cdmw.services.mesh_rust_preview_cache import (
             lookup_rust_preview_package_from_model_identity,
         )
@@ -149,47 +161,47 @@ class _PreviewPackageTask:
     def _build_progressive(self, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
         candidate = self.candidate
         materials = _ProgressiveMaterialBuild(self, stop_event)
-        try:
-            geometry_item = candidate.geometry(stop_event)
-        except RunCancelled:
-            raise
-        except Exception:
-            package_dir = materials.package_for(materials.build_item())
-            return _PreviewBuildProduct(package_dir, candidate, "materials")
-
         material_thread = threading.Thread(
             target=materials.run,
             name="cdmw-new-item-preview-materials",
         )
         material_thread.start()
         try:
-            geometry_package = build_item_preview_package(
-                geometry_item,
-                token=self.token,
-                output_root=self.output_root,
-                stop_event=stop_event,
-                include_material_resources=False,
-                render_settings=self.render_settings,
-                cache_mode=self.cache_mode,
-            )
-        except Exception:  # noqa: BLE001 - the full package can still land
-            pass
-        else:
-            progress(
-                1,
-                3 if self.supports_fast_material_package else 2,
-                str(geometry_package),
-            )
-        if self.supports_fast_material_package:
-            while not (
-                materials.fast_ready.is_set()
-                or materials.done.is_set()
-                or stop_event.is_set()
-            ):
-                materials.fast_ready.wait(0.01)
-            if materials.fast_packages and not stop_event.is_set():
-                progress(2, 3, str(materials.fast_packages[-1]))
-        material_thread.join()
+            try:
+                geometry_item = candidate.geometry(stop_event)
+                geometry_package = build_item_preview_package(
+                    geometry_item,
+                    token=self.token,
+                    output_root=self.output_root,
+                    stop_event=stop_event,
+                    include_material_resources=False,
+                    render_settings=self.render_settings,
+                    cache_mode=self.cache_mode,
+                )
+            except RunCancelled:
+                raise
+            except Exception:  # noqa: BLE001 - the full package can still land
+                pass
+            else:
+                progress(
+                    1,
+                    3 if self.supports_fast_material_package else 2,
+                    str(geometry_package),
+                )
+            if self.supports_fast_material_package:
+                while not (
+                    materials.fast_ready.is_set()
+                    or materials.done.is_set()
+                    or stop_event.is_set()
+                ):
+                    materials.fast_ready.wait(0.01)
+                if materials.fast_packages and not stop_event.is_set():
+                    progress(2, 3, str(materials.fast_packages[-1]))
+        except BaseException:
+            stop_event.set()
+            raise
+        finally:
+            material_thread.join()
         return materials.product(candidate)
 
     def _build_single_stage(self, stop_event: threading.Event) -> _PreviewBuildProduct:

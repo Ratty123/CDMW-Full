@@ -124,8 +124,7 @@ class _TabAuthoringMixin:
         self.assertEqual(native_kwargs["model_property_indices"], {primary.path.casefold(): 1})
         model_property_indices.assert_called_once()
         archive_identity = build_package.call_args.kwargs["archive_identity"]
-        self.assertIn(f":template={TEMPLATE}:", archive_identity)
-        self.assertIn(prefab.path, archive_identity)
+        self.assertTrue(archive_identity.startswith("new_item_native:"))
         tab.close()
         tab.deleteLater()
 

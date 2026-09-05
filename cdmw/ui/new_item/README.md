@@ -40,7 +40,10 @@ live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or
 orbit to finish and preserve the resulting placement. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable
-material-package hit is accepted before either preview builder. On a cold miss, bare
+material-package hit is accepted before either preview builder, including packages
+produced by native Preview Core. The cache identity includes the native helper,
+rendering inputs, and archive-file revisions so borrowed textures also invalidate
+correctly. On a cold miss, bare
 geometry and Archive Browser's native schema-8 Preview Core package prepare in parallel;
 the native package reuses the shared DDS cache and bypasses New Item's former Python
 OBJ/material recompilation. Geometry reaches the resident viewport first, then textures

@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **New Item reuses completed native template previews before decoding.** Revisiting a template skips geometry and Preview Core preparation when its full material package is still valid. Archive, borrowed-texture, rendering, and native-helper changes invalidate the package. Cold geometry and material work now starts together, and cancellation joins the material worker before releasing its source.
+
 - **Texture loading no longer interrupts placement or camera gestures.** Centre and planar gizmo drags continue while the next texture package prepares, and promotion waits until the gesture finishes. The completed placement survives a same-model texture refresh, and longer gestures pause the replacement timeout while keeping its normal deadline for actual loading.
 
 - **Shared previews keep camera controls visible and preserve package framing through startup.** A footer shows the configured orbit and pan modifiers plus scroll-to-zoom controls beneath the native viewport. First-load and previous-model camera snapshots no longer overwrite a package's semantic view during state replay or texture upgrades.

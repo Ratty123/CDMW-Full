@@ -40,7 +40,7 @@ from cdmw.workers.new_item_workers import export_task, install_overlay_task, ins
 from cdmw.workers.utility_workers import UtilityWorker
 
 
-def _progressive_preview_source(geometry, materials, acquire_usage=None):
+def _progressive_preview_source(geometry, materials, acquire_usage=None, cached_materials=None):
     from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
     return ProgressivePreviewSource(
@@ -48,6 +48,7 @@ def _progressive_preview_source(geometry, materials, acquire_usage=None):
         materials,
         acquire_usage,
         supports_fast_material_package=True,
+        cached_materials=cached_materials,
     )
 
 
@@ -110,7 +111,12 @@ def _template_progressive_source(
     character_mesh,
 ):
     if not include_character:
-        return token, _progressive_preview_source(geometry_build, material_build)
+        from functools import partial
+
+        return token, _progressive_preview_source(
+            geometry_build, material_build,
+            cached_materials=partial(material_build, cache_only=True),
+        )
     from cdmw.ui.new_item.item_preview import PlacementScene
 
     def build_geometry_character_scene(stop_event):
@@ -417,6 +423,7 @@ class NewItemPreviewControllerMixin:
             render_settings=None,
             cache_mode="off",
             fast_package_ready=None,
+            cache_only=False,
         ):
             if output_root is not None and native_preview_core_cache_root is not None:
                 import shutil
@@ -425,6 +432,7 @@ class NewItemPreviewControllerMixin:
                 from cdmw.models import clamp_model_preview_render_settings
                 from cdmw.services.mesh_rust_preview_cache import (
                     build_or_lookup_rust_preview_package as build_or_lookup_dotnet_preview_package,
+                    lookup_rust_preview_package_from_preview_core_identity,
                 )
                 from cdmw.services.preview_rendering_service import (
                     dotnet_preview_package_cache_budget,
@@ -433,14 +441,28 @@ class NewItemPreviewControllerMixin:
                 from cdmw.workers.archive_preview_native import (
                     native_preview_core_timeout_seconds,
                 )
+                from cdmw.ui.new_item.template_preview_cache import template_preview_cache_identity
 
                 preview_root = Path(output_root)
-                preview_root.mkdir(parents=True, exist_ok=True)
-                native_package = preview_root / f"package_{time.time_ns()}_native"
                 native_render_settings = replace(
                     clamp_model_preview_render_settings(render_settings),
                     use_textures_by_default=True,
                 )
+                archive_identity = template_preview_cache_identity(
+                    entry, dependencies, template_key, native_render_settings, stop_event,
+                )
+                cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
+                if cache_mode in {"balanced", "aggressive"} and cache_max_bytes > 0:
+                    cached_package = lookup_rust_preview_package_from_preview_core_identity(
+                        cache_root=preview_root, archive_identity=archive_identity,
+                        cancelled=stop_event.is_set,
+                    )
+                    if cached_package is not None:
+                        return Path(cached_package.package_dir)
+                if cache_only:
+                    return None
+                preview_root.mkdir(parents=True, exist_ok=True)
+                native_package = preview_root / f"package_{time.time_ns()}_native"
                 try:
                     native_attempt = run_native_preview_core_preview_job(
                         entry,
@@ -460,17 +482,10 @@ class NewItemPreviewControllerMixin:
                         stop_event=stop_event,
                     )
                     if native_attempt.succeeded:
-                        cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(cache_mode)
                         package = build_or_lookup_dotnet_preview_package(
                             native_attempt.package_path,
                             cache_root=preview_root,
-                            archive_identity=(
-                                f"new_item_native:template={template_key}:"
-                                + "|".join(
-                                    f"{path}:{pamt}:{paz}:{offset}:{size}"
-                                    for path, pamt, paz, offset, size in dependency_revisions
-                                )
-                            ),
+                            archive_identity=archive_identity,
                             cache_mode=cache_mode,
                             max_bytes=cache_max_bytes,
                             target_bytes=cache_target_bytes,
@@ -487,6 +502,8 @@ class NewItemPreviewControllerMixin:
                     pass
                 shutil.rmtree(native_package, ignore_errors=True)
 
+            if cache_only:
+                return None
             from cdmw.services.archive_preview_service import build_archive_preview_result
 
             cached = cache.get(cache_key)

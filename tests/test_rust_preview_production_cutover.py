@@ -494,6 +494,27 @@ def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(
     ] == 4
 
 
+def test_native_source_identity_finds_the_published_full_package_before_decoding(tmp_path: Path) -> None:
+    from cdmw.services.mesh_rust_preview_cache import lookup_rust_preview_package_from_preview_core_identity
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    package = build_or_lookup_rust_preview_package(
+        source,
+        cache_root=tmp_path / "cache",
+        archive_identity="revision-with-archive-and-render-inputs",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+    lookup = dict(cache_root=tmp_path / "cache", archive_identity="revision-with-archive-and-render-inputs")
+    assert lookup_rust_preview_package_from_preview_core_identity(**lookup).package_dir == package.package_dir
+    assert lookup_rust_preview_package_from_preview_core_identity(
+        **{**lookup, "archive_identity": "another-revision"}
+    ) is None
+    package.manifest_path.unlink()
+    assert lookup_rust_preview_package_from_preview_core_identity(**lookup) is None
+
+
 def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
