@@ -10411,6 +10411,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1}s)",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0} (~30s)",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + Ziehen zum Drehen · {value_1} + Ziehen zum Verschieben · Scrollen zum Zoomen",
     "{value_0} - best guess, the file does not say what this is": "{value_0} – beste Vermutung, die Datei sagt nicht, was das ist",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

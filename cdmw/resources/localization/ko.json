@@ -10409,6 +10409,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1}s)",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0}(~30초)",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + 드래그로 회전 · {value_1} + 드래그로 이동 · 스크롤로 확대/축소",
     "{value_0} - best guess, the file does not say what this is": "{value_0} - 가장 좋은 추측입니다. 파일에서는 이것이 무엇인지 말하지 않습니다.",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

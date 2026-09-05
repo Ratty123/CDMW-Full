@@ -10415,6 +10415,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1}s)",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0} (~30 s)",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + przeciągnij, aby obrócić · {value_1} + przeciągnij, aby przesunąć · Kółko zmienia przybliżenie",
     "{value_0} - best guess, the file does not say what this is": "{value_0} - najlepiej przypuszczam, plik nie mówi co to jest",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

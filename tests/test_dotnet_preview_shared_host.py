@@ -1751,6 +1751,33 @@ def test_preview_host_turns_the_effect_particle_layer_off_and_on(tmp_path: Path)
     controller.shutdown()
 
 
+def test_preview_host_keeps_camera_hints_outside_the_native_viewport(tmp_path: Path) -> None:
+    controller, _process, _package_dir = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    host.resize(640, 400)
+    host.show()
+    try:
+        _APP.processEvents()
+        assert "Alt or Ctrl" in host._camera_hint.text()
+        assert "Shift" in host._camera_hint.text()
+        assert host._camera_hint.isVisibleTo(host)
+        assert host._viewport.geometry().bottom() < host._camera_hint.geometry().top()
+        assert host._host_hwnd() == int(host._viewport.winId())
+        assert host._host_hwnd() != int(host.winId())
+        assert host._status_panel.geometry() == host._viewport.geometry()
+
+        host.set_render_tuning(SimpleNamespace(camera_orbit_modifier="ctrl", camera_pan_modifier="alt"))
+        assert "Ctrl + drag to orbit" in host._camera_hint.text()
+        assert "Alt + drag to pan" in host._camera_hint.text()
+        with patch.object(controller, "request_capture", return_value=True) as capture:
+            assert host.request_frame_capture(tmp_path / "frame.png")
+        assert capture.call_args.kwargs == {"width": host._viewport.width(), "height": host._viewport.height()}
+    finally:
+        host.hide()
+        controller.shutdown()
+        host.deleteLater()
+
+
 def test_preview_host_lighting_is_a_resident_display_only_update(tmp_path: Path) -> None:
     controller, process, package = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)
@@ -1813,6 +1840,43 @@ def test_semantic_package_reset_waits_for_the_new_package_to_be_adopted(
         item.get("event") == "canonical_view_request"
         for item in process.writes[process.writes.index(package_request) + 1 :]
     ), "the helper must frame the newly adopted package, not the previously resident one"
+    controller.shutdown()
+
+
+@pytest.mark.parametrize("ready_before_load", [False, True])
+def test_semantic_package_camera_survives_state_replay_and_texture_upgrade(
+    tmp_path: Path, ready_before_load: bool,
+) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = ("semantic_framing_v1",)  # type: ignore[attr-defined]
+    if ready_before_load:
+        _make_ready(controller)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    host.restore_view_state({"yaw": 27.0, "pitch": -11.0, "pan": (33.0, -14.0, 0.0)})
+    assert host.load_package(package, reset_view=True)
+    if not ready_before_load:
+        _make_ready(controller)
+    host.set_render_tuning(SimpleNamespace())
+    assert "camera" not in controller._resident_state["presentation"][1]
+    controller.load_package(_package(tmp_path, "textured-upgrade"), reset_view=False)
+    process.writes.clear()
+    controller._replay_resident_state()
+    assert any(item.get("event") == "presentation_state_update" for item in process.writes)
+    assert all("camera" not in item for item in process.writes)
+    controller.shutdown()
+
+
+def test_semantic_handshake_preserves_a_later_explicit_camera(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    controller._test_handshake_capabilities = ("semantic_framing_v1",)  # type: ignore[attr-defined]
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package, reset_view=True)
+    host.restore_view_state({"yaw": 27.0, "pitch": -11.0, "pan": (33.0, -14.0, 0.0)})
+    _make_ready(controller)
+    camera = controller._resident_state["presentation"][1]["camera"]
+    assert camera["yaw"] == 27.0
+    assert camera["pitch"] == -11.0
+    assert camera["pan"] == [33.0, -14.0]
     controller.shutdown()
 
 

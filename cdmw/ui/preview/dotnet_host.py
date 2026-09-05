@@ -25,6 +25,7 @@ from shiboken6 import isValid as qt_object_is_valid
 from cdmw.domain.camera_bindings import (
     DEFAULT_MIDDLE_DRAG,
     DEFAULT_RIGHT_DRAG,
+    camera_modifier_label,
     normalize_camera_drag,
     resolve_camera_bindings,
 )
@@ -92,6 +93,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._fit_to_view = True
         self._side_by_side_split_ratio = 0.5
         self._camera_generation = 0
+        self._initial_package_camera_generation: int | None = None
         self._material_parameter_generation = 0
         self._scene_generation = 0
         self._icon_capture_mode = False
@@ -139,6 +141,20 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             },
         }
         self._scene_state: dict[str, object] = {}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self._viewport = QFrame(self)
+        self._viewport.setObjectName("RustPreviewViewport")
+        self._viewport.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        self._viewport.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(self._viewport, 1)
+        self._camera_hint = QLabel(self)
+        self._camera_hint.setObjectName("RustPreviewCameraHint")
+        self._camera_hint.setWordWrap(True)
+        self._camera_hint.setContentsMargins(6, 3, 6, 3)
+        layout.addWidget(self._camera_hint)
+        self._update_camera_hint({})
         self._status_panel = QFrame(self)
         self._status_panel.setObjectName("DotNetPreviewStatusPanel")
         status_layout = QVBoxLayout(self._status_panel)
@@ -188,11 +204,13 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self.controller.view_state_changed.connect(self._handle_view_state_payload)
         self.controller.part_pick_result.connect(self._handle_part_pick_result)
         self.controller.capture_completed.connect(self._handle_capture_completed)
+        self.controller.renderer_ready.connect(self._sync_semantic_camera_after_renderer_ready)
         self._connect_theme_ready_signal()
         self._retry_button.clicked.connect(self.controller.retry_now)
         self._resident_retry_button.clicked.connect(self.controller.retry_now)
         self.destroyed.connect(self.controller.shutdown)
         self.controller.set_visible(False)
+        self._viewport.installEventFilter(self)
         self.set_theme(theme_key)
 
     @staticmethod
@@ -217,7 +235,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
 
     def _host_hwnd(self) -> int:
         try:
-            return max(0, int(self.winId()))
+            viewport = getattr(self, "_viewport", None)
+            return max(0, int(viewport.winId())) if viewport is not None else 0
         except (RuntimeError, TypeError, ValueError):
             return 0
 
@@ -420,7 +439,11 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         )
 
     def request_frame_capture(self, output_path: Path) -> bool:
-        return self.controller.request_capture(output_path, width=max(64, self.width()), height=max(64, self.height()))
+        return self.controller.request_capture(
+            output_path,
+            width=max(64, self._viewport.width()),
+            height=max(64, self._viewport.height()),
+        )
 
     def set_display_mode(self, mode: str) -> bool:
         normalized = str(mode or "replacement_only").strip().lower()
@@ -487,9 +510,19 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         display["quality"] = quality
         self._presentation_state["display"] = display
         self._overlay_state["cloth"] = cloth
+        self._update_camera_hint(quality)
         presentation_ok = self._remember_presentation_state({"display": {"quality": quality}})
         overlay_ok = self.controller.remember_state("overlay", "overlay_state_update", self._overlay_state)
         return presentation_ok and overlay_ok
+
+    def _update_camera_hint(self, quality: Mapping[str, object]) -> None:
+        orbit, pan = resolve_camera_bindings(
+            quality.get("camera_orbit_modifier"), quality.get("camera_pan_modifier")
+        )
+        self._camera_hint.setText(
+            f"{camera_modifier_label(orbit)} + drag to orbit · "
+            f"{camera_modifier_label(pan)} + drag to pan · Scroll to zoom"
+        )
 
     def reset_tool_pbd_cloth_preview(self) -> bool:
         cloth = dict(self._overlay_state.get("cloth", {}))
@@ -962,11 +995,14 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
     ) -> None:
         """Stage a centered fit camera so later state replay cannot restore stale pan."""
 
+        self._initial_package_camera_generation = None
         if "semantic_framing_v1" in self.controller.capabilities:
             # reset_view travels with the asynchronous package request. The
             # helper applies the new package's semantic camera after adoption
             # and reports that exact state; sending a command here would still
             # address the previously resident package.
+            self._presentation_state.pop("camera", None)
+            self._remember_presentation_state({})
             return
 
         initial = initial_view_state if isinstance(initial_view_state, Mapping) else {}
@@ -1001,6 +1037,8 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             for role in ("replacement", "reference", "all")
         }
         self._camera_generation += 1
+        if not self.controller.capabilities:
+            self._initial_package_camera_generation = self._camera_generation
         self._presentation_state["camera"] = {
             "role": "editable",
             "yaw": yaw,
@@ -1016,6 +1054,20 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         )
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
         self.view_state_payload_changed.emit(self.view_state_snapshot())
+
+    def _sync_semantic_camera_after_renderer_ready(self, _payload: object) -> None:
+        generation = self._initial_package_camera_generation
+        self._initial_package_camera_generation = None
+        if (
+            generation is not None
+            and generation == self._camera_generation
+            and "semantic_framing_v1" in self.controller.capabilities
+        ):
+            # The first load was staged before the helper advertised semantic
+            # framing. Do not replay that provisional camera over its fitted
+            # package view; a later explicit user camera remains authoritative.
+            self._presentation_state.pop("camera", None)
+            self._remember_presentation_state({})
 
 # Compatibility name retained for consumers that key styling or tests from the
 # former class. Production constructors import the Rust name.

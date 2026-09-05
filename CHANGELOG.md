@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Shared previews keep camera controls visible and preserve package framing through startup.** A footer shows the configured orbit and pan modifiers plus scroll-to-zoom controls beneath the native viewport. First-load and previous-model camera snapshots no longer overwrite a package's semantic view during state replay or texture upgrades.
+
 - **Opening Effects keeps item preparation off the GUI thread.** Template parsing and imported-mesh placement use the existing cancellable preview worker, retain the captured item selection, and discard superseded geometry before package creation.
 - **Rust Preview display changes preserve the live camera.** Lighting, grid, and other presentation controls send only the changed fields, avoiding old camera commands and unnecessary geometry refreshes while preserving complete restart state.
 - **Perks & Effects opens without formatting the entire library on the UI thread at once.** Library preparation yields between short batches, filtering reuses prepared rows, and hidden Effects pages no longer decode item previews or queue duplicate initial loads.

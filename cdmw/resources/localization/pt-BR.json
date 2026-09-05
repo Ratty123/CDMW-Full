@@ -10413,6 +10413,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1}s)",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0} (~30s)",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + arraste para orbitar · {value_1} + arraste para mover · Role para ajustar o zoom",
     "{value_0} - best guess, the file does not say what this is": "{value_0} - melhor palpite, o arquivo não diz o que é",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

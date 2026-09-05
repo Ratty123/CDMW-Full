@@ -44,6 +44,9 @@ class DotNetPreviewHostThemeMixin:
 
     def _apply_qt_host_theme(self) -> None:
         theme = UI_THEME_SCHEMES[self._theme_key]
+        self._camera_hint.setStyleSheet(
+            f"color: {theme['text_muted']}; background: {theme['surface']};"
+        )
         self._status_panel.setStyleSheet(
             "QFrame#DotNetPreviewStatusPanel {"
             f" background: {theme['window']}; border: 1px solid {theme['border']};"

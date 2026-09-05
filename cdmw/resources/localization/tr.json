@@ -10409,6 +10409,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1}'ler)",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0} (~30s)",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + sürükle: döndür · {value_1} + sürükle: kaydır · Tekerlek: yakınlaştır/uzaklaştır",
     "{value_0} - best guess, the file does not say what this is": "{value_0} - en iyi tahmin, dosya bunun ne olduğunu söylemiyor",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

@@ -9,6 +9,11 @@ Rust host only when a prepared package is ready, then promotes it after the
 host reports `ready`; the unopened tab retains a lightweight placeholder.
 Archive Browser preview remains an explicit manual action.
 
+The shared preview host keeps its camera-control hint beneath the native viewport,
+using the configured orbit and pan bindings. A package reset discards the previous
+camera from state replay once the helper advertises semantic framing, including
+the first startup handshake; later explicit camera commands remain authoritative.
+
 Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
 stamps that orientation onto the preview meshes before the canonical package is
 written; the Flip V control inverts the same value and rebuilds. Prepared

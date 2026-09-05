@@ -32,7 +32,10 @@ be orbited and zoomed before the workflow inherits it. Search and results stay i
 left column while the preview receives the wider right column and the full working
 height. The workflow summary remains the one selected-template status authority, so
 Template does not repeat it in another group; its camera help follows the viewport
-instead of separating the viewport from its heading. Moving to step 3 reparents that
+instead of separating the viewport from its heading. Every shared preview keeps the
+current orbit, pan and zoom controls in a footer outside the native viewport. Initial
+package framing survives helper startup and progressive texture state replay, while
+later explicit camera commands remain authoritative. Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Snapshot creation
 reuses Archive Browser's published path, basename and extension indexes. A valid durable

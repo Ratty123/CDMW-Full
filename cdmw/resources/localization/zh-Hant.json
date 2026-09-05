@@ -10409,6 +10409,7 @@
     "{value_0} ({value_1}s)": "{value_0} ({value_1})",
     "{value_0} ({value_1}x)": "{value_0} ({value_1}x)",
     "{value_0} (~30s)": "{value_0}（~30秒）",
+    "{value_0} + drag to orbit · {value_1} + drag to pan · Scroll to zoom": "{value_0} + 拖曳以旋轉 · {value_1} + 拖曳以平移 · 滾輪縮放",
     "{value_0} - best guess, the file does not say what this is": "{value_0} - 最好的猜測，該文件沒有說明這是什麼",
     "{value_0} - {value_1}": "{value_0} - {value_1}",
     "{value_0} -> {value_1}": "{value_0} -> {value_1}",

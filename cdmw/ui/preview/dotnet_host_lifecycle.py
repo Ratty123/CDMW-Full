@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QResizeEvent
 
 
@@ -51,8 +52,22 @@ class DotNetPreviewHostLifecycleMixin:
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        self._status_panel.setGeometry(self.rect())
-        self._resident_banner.setGeometry(8, 8, max(0, self.width() - 16), 58)
+        self._sync_viewport_geometry()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is getattr(self, "_viewport", None):
+            if event.type() == QEvent.Type.WinIdChange:
+                self._reembed_helper_in_current_window()
+            elif event.type() == QEvent.Type.Resize:
+                self._sync_viewport_geometry()
+        return super().eventFilter(watched, event)
+
+    def _sync_viewport_geometry(self) -> None:
+        viewport = self._viewport.geometry()
+        self._status_panel.setGeometry(viewport)
+        self._resident_banner.setGeometry(
+            viewport.x() + 8, viewport.y() + 8, max(0, viewport.width() - 16), 58
+        )
         self._sync_embedded_child_geometry()
 
 
