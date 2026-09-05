@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Mesh Editor's Visible brush no longer selects through fitted human meshes.** The depth tolerance now accounts only for floating-point rounding, keeping hidden back faces out of vertex, edge, and face selection while preserving explicit X-Ray selection and one-step brush Undo.
+
 - **Mesh Editor retains textures already loaded in Browse Archives.** The Rust preview handoff now verifies and leases the matching native material package, preserving its resolved DDS files, support maps, and complete PAC/PAC_XML layer parameters instead of losing them at the preview-to-editor boundary.
 
 - **New Item placement reuses Preview Core for template materials.** Imported and character comparison scenes no longer rebuild the full archive lookup maps to resolve the template again. Native textures remain owned until the complete scene has copied them, and textured comparison views receive the reference's full material tier.

@@ -1337,6 +1337,70 @@ mod tests {
     }
 
     #[test]
+    fn visible_brush_excludes_nearby_back_surfaces_in_the_fitted_camera()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let rectangle = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1440.0, 900.0));
+        for scale in [1.0, 0.01, 100.0] {
+            let mut document = decode_mesh(
+                &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
+                MeshFormat::Pam,
+            )?;
+            // A fitted perspective camera compresses the front/back separation
+            // to well below 0.0001 in normalized depth, even on a thick torso.
+            document.lods[0].submeshes = [-0.05, 0.05]
+                .into_iter()
+                .map(|depth| {
+                    submesh(
+                        "surface",
+                        vec![
+                            [-scale, -scale, depth * scale],
+                            [scale, -scale, depth * scale],
+                            [0.0, scale, depth * scale],
+                        ],
+                        vec![0, 1, 2],
+                    )
+                })
+                .collect();
+            let mut mesh = WorkingMesh::from_document(&document)?;
+            let mut camera = OrbitCamera::default();
+            camera.frame_all_in_viewport(&mesh, rectangle);
+            let projection = ViewportProjection::build(&mesh, &camera, rectangle, 1);
+            let center = Vec2::new(rectangle.center().x, rectangle.center().y);
+            for domain in [
+                SelectionDomain::Vertex,
+                SelectionDomain::Edge,
+                SelectionDomain::Face,
+            ] {
+                for visible_only in [false, true] {
+                    let mut gesture = SelectionGesture::new(
+                        &mesh,
+                        SelectionTool::Brush,
+                        domain,
+                        SelectionOperation::Replace,
+                        visible_only,
+                        center,
+                        1000.0,
+                    );
+                    gesture.update(&mut mesh, &projection.interaction, center)?;
+                    let selected = mesh.selected_vertex_scope();
+                    assert_eq!(
+                        selected.len(),
+                        if visible_only { 3 } else { 6 },
+                        "{domain:?} visible={visible_only} scale={scale}"
+                    );
+                    if visible_only {
+                        assert!(selected.iter().all(|handle| {
+                            mesh.vertex(*handle)
+                                .is_some_and(|vertex| vertex.position[2] < 0.0)
+                        }));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn fast_face_brush_selects_between_samples_and_preserves_undo()
     -> Result<(), Box<dyn std::error::Error>> {
         let mut mesh = triangle();

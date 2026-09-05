@@ -8,7 +8,10 @@ use thiserror::Error;
 
 const MAX_LASSO_POINTS: usize = 4_096;
 const SCREEN_GRID_CELL_SIZE: f32 = 32.0;
-const DEPTH_VISIBILITY_EPSILON: f32 = 1.0e-4;
+// The perspective camera places fitted meshes close to 1 in normalized depth.
+// A 0.0001 tolerance can span their entire thickness. Allow only interpolation
+// roundoff here, so Visible selection cannot reach the surface behind them.
+const DEPTH_VISIBILITY_EPSILON: f32 = 4.0 * f32::EPSILON;
 const TRIANGLE_BVH_LEAF_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -13,6 +13,11 @@ Texture/material assignment, recolour/glow authoring, replacement/import-preview
 workflows, in-game swaps, and Texture Editor handoffs are not Mesh Editor
 features. Dedicated texture tools and Create New Item own those jobs.
 
+Rust's **Visible** selection compares projected depth with a floating-point
+rounding allowance, so fitted human meshes do not select the hidden back surface
+through the front. **X-Ray** explicitly selects through occluders. A brush stroke
+accumulates its painted path and commits one undo step.
+
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
 behavior. Retained `.NET`/`d3d11` module names are compatibility imports and
