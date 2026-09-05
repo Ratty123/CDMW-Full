@@ -556,6 +556,67 @@ pub struct ProjectedVertex {
     pub inside_view: bool,
 }
 
+#[derive(Debug)]
+pub struct FaceSelectionOverlay {
+    geometry_revision: u64,
+    topology_generation: u64,
+    selection_revision: u64,
+    visible_submeshes: Option<HashSet<u32>>,
+    colour: [f32; 4],
+    pub positions: Vec<[f32; 3]>,
+    pub uploaded: bool,
+}
+
+impl FaceSelectionOverlay {
+    pub fn build(mesh: &WorkingMesh, visible: Option<HashSet<u32>>, colour: [f32; 4]) -> Self {
+        let mut handles = if mesh.selection.submeshes.is_empty() {
+            mesh.selection.faces.iter().copied().collect::<Vec<_>>()
+        } else {
+            mesh.faces()
+                .filter_map(|(handle, face)| {
+                    (mesh.selection.faces.contains(&handle)
+                        || mesh.selection.submeshes.contains(&face.submesh))
+                    .then_some(handle)
+                })
+                .collect()
+        };
+        handles.sort_unstable();
+        let positions = handles
+            .iter()
+            .filter_map(|handle| mesh.face(*handle))
+            .filter(|face| {
+                visible
+                    .as_ref()
+                    .is_none_or(|visible| visible.contains(&face.submesh))
+            })
+            .flat_map(|face| face.vertices.iter())
+            .filter_map(|handle| mesh.vertex(*handle).map(|vertex| vertex.position))
+            .collect();
+        Self {
+            geometry_revision: mesh.geometry_revision,
+            topology_generation: mesh.topology_generation,
+            selection_revision: mesh.selection_revision,
+            visible_submeshes: visible,
+            colour,
+            positions,
+            uploaded: false,
+        }
+    }
+
+    pub fn matches(
+        &self,
+        mesh: &WorkingMesh,
+        visible: &Option<HashSet<u32>>,
+        colour: [f32; 4],
+    ) -> bool {
+        self.geometry_revision == mesh.geometry_revision
+            && self.topology_generation == mesh.topology_generation
+            && self.selection_revision == mesh.selection_revision
+            && &self.visible_submeshes == visible
+            && self.colour == colour
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ViewportProjection {
     pub rectangle: Rect,
@@ -817,10 +878,18 @@ impl SelectionGesture {
         snapshot: &InteractionSnapshot,
         point: Vec2,
     ) -> Result<(), InteractionError> {
+        let previous = self.current;
         self.record_point(point);
-        let Some(shape) = self.shape() else {
+        let Some(mut shape) = self.shape() else {
             return Ok(());
         };
+        if self.tool == SelectionTool::Brush {
+            shape = SelectionShape::BrushStroke {
+                start: previous,
+                end: point,
+                radius: self.radius,
+            };
+        }
         let query = SelectionQuery {
             domain: self.domain,
             operation: self.operation,
@@ -1264,6 +1333,54 @@ mod tests {
         );
         assert!(projection.matches_for_submeshes(&mesh, &camera, rectangle, 7, &visible));
         assert!(!projection.matches(&mesh, &camera, rectangle, 7));
+        Ok(())
+    }
+
+    #[test]
+    fn fast_face_brush_selects_between_samples_and_preserves_undo()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut mesh = triangle();
+        let camera = OrbitCamera::default();
+        let rectangle = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let projection = ViewportProjection::build(&mesh, &camera, rectangle, 1);
+        let center = projection
+            .interaction
+            .elements
+            .iter()
+            .find_map(|element| {
+                matches!(element.handle, ProjectedHandle::Face(_)).then_some(element.position)
+            })
+            .ok_or("projected face")?;
+        let start = center - Vec2::new(30.0, 0.0);
+        let end = center + Vec2::new(30.0, 0.0);
+        let mut gesture = SelectionGesture::new(
+            &mesh,
+            SelectionTool::Brush,
+            SelectionDomain::Face,
+            SelectionOperation::Toggle,
+            true,
+            start,
+            4.0,
+        );
+        gesture.update(&mut mesh, &projection.interaction, start)?;
+        assert!(mesh.selection.faces.is_empty());
+        gesture.update(&mut mesh, &projection.interaction, end)?;
+        assert_eq!(
+            mesh.selection.faces.len(),
+            1,
+            "a fast brush skipped the face between samples"
+        );
+        gesture.update(&mut mesh, &projection.interaction, start)?;
+        assert_eq!(
+            mesh.selection.faces.len(),
+            1,
+            "revisiting a face toggled it twice in one stroke"
+        );
+        let mut history = History::new(1_000_000);
+        assert!(gesture.commit(&mesh, &mut history)?);
+        assert_eq!(history.undo_len(), 1);
+        history.undo(&mut mesh)?;
+        assert!(mesh.selection.faces.is_empty());
         Ok(())
     }
 

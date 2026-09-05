@@ -2,6 +2,8 @@
 
 mod effect_particle_proof;
 mod effect_particle_shader;
+mod selection_overlay;
+pub use selection_overlay::verify_face_selection_depth;
 
 use bytemuck::{Pod, Zeroable};
 use cdmw_mesh::DrawSnapshot;
@@ -1108,6 +1110,11 @@ fn fs_effect(input: VertexOut) -> @location(0) vec4<f32> {
     let authored_color = clamp(input.normal, vec3<f32>(0.0), vec3<f32>(1.0));
     let alpha = clamp(input.deformation.x, 0.0, 1.0);
     return present_srgb(authored_color, alpha);
+}
+
+@fragment
+fn fs_selection(input: VertexOut) -> @location(0) vec4<f32> {
+    return present_srgb(input.deformation.rgb, input.deformation.a);
 }
 
 
@@ -2454,6 +2461,8 @@ pub struct WindowRenderer {
     bone_pipeline: wgpu::RenderPipeline,
     guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
+    face_selection: selection_overlay::FaceSelectionRenderer,
+    face_selection_xray: bool,
     effect_particle_alpha_pipeline: wgpu::RenderPipeline,
     effect_particle_additive_pipeline: wgpu::RenderPipeline,
     effect_quad: wgpu::Buffer,
@@ -2717,6 +2726,13 @@ impl WindowRenderer {
         let egui_renderer =
             egui_wgpu::Renderer::new(&device, format, egui_wgpu::RendererOptions::default());
         let clear_colour = clear_colour_for_target([0.025, 0.03, 0.04, 1.0], format.is_srgb());
+        let face_selection = selection_overlay::FaceSelectionRenderer::new(
+            &device,
+            format,
+            &texture_bind_group_layout,
+            &camera_bind_group_layout,
+            sample_count,
+        );
         Ok(Self {
             _instance: instance,
             surface,
@@ -2735,6 +2751,8 @@ impl WindowRenderer {
             bone_pipeline: pipelines.bone,
             guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
+            face_selection,
+            face_selection_xray: false,
             effect_particle_alpha_pipeline,
             effect_particle_additive_pipeline,
             effect_quad,
@@ -3011,6 +3029,19 @@ impl WindowRenderer {
             0,
             bytemuck::bytes_of(&self.camera_uniform),
         );
+    }
+
+    pub fn set_face_selection(
+        &mut self,
+        positions: &[[f32; 3]],
+        colour: [f32; 4],
+    ) -> Result<(), RenderError> {
+        self.face_selection
+            .upload(&self.device, &self.queue, positions, colour)
+    }
+
+    pub fn set_face_selection_xray(&mut self, xray: bool) {
+        self.face_selection_xray = xray;
     }
 
     pub fn set_skeleton_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
@@ -3431,6 +3462,14 @@ impl WindowRenderer {
                         scissor_bottom.saturating_sub(scissor_y).max(1),
                     );
                 }
+                self.face_selection.prepare_depth(
+                    &mut pass,
+                    mesh,
+                    &self.default_material_binding.bind_group,
+                    &self.camera_bind_group,
+                    self.view_mode,
+                    self.face_selection_xray,
+                );
                 draw_mesh(
                     &mut pass,
                     mesh,
@@ -3465,6 +3504,12 @@ impl WindowRenderer {
                     &self.camera_bind_group,
                     &self.effect_particle_alpha_pipeline,
                     &self.effect_particle_additive_pipeline,
+                );
+                self.face_selection.draw(
+                    &mut pass,
+                    &self.default_material_binding.bind_group,
+                    &self.camera_bind_group,
+                    self.face_selection_xray,
                 );
             }
         }
@@ -6984,6 +7029,7 @@ fn create_pipelines_with_sample_count(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PipelineDepth {
     Write,
+    DepthOnly,
     Test,
     Ignore,
 }
@@ -7003,7 +7049,7 @@ fn pipeline_depth_state(
     depth: PipelineDepth,
 ) -> (bool, wgpu::CompareFunction, wgpu::DepthBiasState) {
     match depth {
-        PipelineDepth::Write => (
+        PipelineDepth::Write | PipelineDepth::DepthOnly => (
             true,
             wgpu::CompareFunction::LessEqual,
             wgpu::DepthBiasState::default(),
@@ -7074,7 +7120,11 @@ fn create_pipeline(
             targets: &[Some(wgpu::ColorTargetState {
                 format,
                 blend,
-                write_mask: wgpu::ColorWrites::ALL,
+                write_mask: if depth == PipelineDepth::DepthOnly {
+                    wgpu::ColorWrites::empty()
+                } else {
+                    wgpu::ColorWrites::ALL
+                },
             })],
         }),
         multiview_mask: None,

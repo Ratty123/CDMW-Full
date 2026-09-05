@@ -6,6 +6,13 @@ use tempfile::tempdir;
 
 pub(super) type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[test]
+#[ignore = "requires a D3D12 adapter"]
+fn offscreen_face_selection_obeys_depth_xray_and_clear() -> TestResult {
+    pollster::block_on(cdmw_render_wgpu::verify_face_selection_depth())?;
+    Ok(())
+}
+
 pub(super) fn viewport() -> egui::Rect {
     egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 600.0))
 }

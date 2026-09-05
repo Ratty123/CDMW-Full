@@ -2817,13 +2817,23 @@ impl LabApplication {
     }
 
     fn selected_counts(&self) -> SelectedCounts {
-        self.mesh
-            .as_ref()
-            .map_or_else(SelectedCounts::default, |mesh| SelectedCounts {
-                vertices: mesh.selected_vertex_scope().len(),
-                edges: mesh.selection.edges.len(),
-                faces: mesh.selection.faces.len(),
-            })
+        let Some(mesh) = &self.mesh else {
+            self.selected_counts_cache.set(None);
+            return SelectedCounts::default();
+        };
+        let key = (mesh.topology_generation, mesh.selection_revision);
+        if let Some((cached_key, counts)) = self.selected_counts_cache.get()
+            && cached_key == key
+        {
+            return counts;
+        }
+        let counts = SelectedCounts {
+            vertices: mesh.selected_vertex_scope().len(),
+            edges: mesh.selection.edges.len(),
+            faces: mesh.selection.faces.len(),
+        };
+        self.selected_counts_cache.set(Some((key, counts)));
+        counts
     }
 
     fn selected_part_indices(&self) -> Vec<u32> {
@@ -2836,7 +2846,7 @@ impl LabApplication {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-struct SelectedCounts {
+pub(super) struct SelectedCounts {
     vertices: usize,
     edges: usize,
     faces: usize,

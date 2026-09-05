@@ -293,6 +293,7 @@ impl TriangleBvh {
 pub enum SelectionShape {
     Click { point: Vec2, radius: f32 },
     Brush { point: Vec2, radius: f32 },
+    BrushStroke { start: Vec2, end: Vec2, radius: f32 },
     Rectangle { minimum: Vec2, maximum: Vec2 },
     Lasso { points: Vec<Vec2> },
 }
@@ -715,6 +716,9 @@ fn validate_shape(shape: &SelectionShape) -> Result<(), InteractionError> {
         SelectionShape::Click { point, radius } | SelectionShape::Brush { point, radius } => {
             point.is_finite() && radius.is_finite() && *radius >= 0.0
         }
+        SelectionShape::BrushStroke { start, end, radius } => {
+            start.is_finite() && end.is_finite() && radius.is_finite() && *radius >= 0.0
+        }
         SelectionShape::Rectangle { minimum, maximum } => {
             minimum.is_finite() && maximum.is_finite()
         }
@@ -737,6 +741,10 @@ fn shape_bounds(shape: &SelectionShape) -> Option<(Vec2, Vec2)> {
         SelectionShape::Click { point, radius } | SelectionShape::Brush { point, radius } => {
             let extent = Vec2::splat(*radius);
             Some((*point - extent, *point + extent))
+        }
+        SelectionShape::BrushStroke { start, end, radius } => {
+            let extent = Vec2::splat(*radius);
+            Some((start.min(*end) - extent, start.max(*end) + extent))
         }
         SelectionShape::Rectangle { minimum, maximum } => Some((*minimum, *maximum)),
         SelectionShape::Lasso { points } => {
@@ -822,6 +830,16 @@ fn shape_contains(shape: &SelectionShape, point: Vec2) -> bool {
             point: center,
             radius,
         } => point.distance_squared(*center) <= radius * radius,
+        SelectionShape::BrushStroke { start, end, radius } => {
+            let segment = *end - *start;
+            let length_squared = segment.length_squared();
+            let fraction = if length_squared > 0.0 {
+                ((point - *start).dot(segment) / length_squared).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            point.distance_squared(*start + segment * fraction) <= radius * radius
+        }
         SelectionShape::Rectangle { minimum, maximum } => {
             let low = minimum.min(*maximum);
             let high = minimum.max(*maximum);

@@ -23,6 +23,60 @@ struct HeadlessUi {
     last_actions: Vec<UiAction>,
 }
 
+#[test]
+#[ignore = "requires an explicitly supplied local mesh and evidence path"]
+fn measure_authoring_selection_frames_on_supplied_mesh() -> TestResult {
+    let input = std::path::PathBuf::from(std::env::var("CDMW_SELECTION_PROBE_MESH")?);
+    let output = std::path::PathBuf::from(std::env::var("CDMW_SELECTION_PROBE_REPORT")?);
+    let bytes = std::fs::read(&input)?;
+    let document = if input.extension().is_some_and(|ext| ext == "json") {
+        serde_json::from_slice(&bytes)?
+    } else {
+        cdmw_formats::decode_mesh(&bytes, cdmw_formats::MeshFormat::Pac)?
+    };
+    let mesh = WorkingMesh::from_document(&document)?;
+    let faces = mesh.faces().count();
+    let vertices = mesh.vertices().count();
+    let mut application = LabApplication::new(None, None);
+    application.document = Some(document);
+    application.mesh = Some(mesh);
+    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1440.0, 900.0));
+    let mut results = Vec::new();
+    for selected in [false, true] {
+        let mesh = ui.application.mesh.as_mut().ok_or("mesh")?;
+        mesh.set_selection(Selection {
+            faces: if selected {
+                mesh.faces().map(|(handle, _)| handle).collect()
+            } else {
+                HashSet::new()
+            },
+            ..Selection::default()
+        })?;
+        for orbit in [false, true] {
+            let mut samples = Vec::new();
+            for _ in 0..20 {
+                if orbit {
+                    ui.application.camera.orbit(Vec2::new(1.0, 0.0));
+                }
+                let started = Instant::now();
+                ui.frame(Vec::new());
+                let _ = ui
+                    .application
+                    .egui_context
+                    .tessellate(ui.output.shapes.clone(), 1.0);
+                samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            }
+            samples.sort_by(f64::total_cmp);
+            results.push(json!({"selected": selected, "orbit": orbit, "median_ms": samples[10], "p95_ms": samples[18]}));
+        }
+    }
+    assert_eq!(std::fs::read(&input)?, bytes);
+    let report = json!({"input": input, "faces": faces, "vertices": vertices, "cpu_ui_frames": results, "input_unchanged": true, "gpu_measured": false});
+    std::fs::write(output, serde_json::to_vec_pretty(&report)?)?;
+    println!("{report}");
+    Ok(())
+}
+
 impl HeadlessUi {
     fn new(application: LabApplication, size: egui::Vec2) -> Self {
         let mut ui = Self {
@@ -264,6 +318,8 @@ impl HeadlessUi {
         domain: SelectionDomain,
     ) -> Result<Vec2, Box<dyn std::error::Error>> {
         self.frame(Vec::new());
+        let rectangle = self.application.viewport_rect.ok_or("viewport")?;
+        assert!(self.application.ensure_projection(rectangle));
         self.application
             .projection
             .as_ref()
@@ -1832,33 +1888,21 @@ fn integrated_part_row_highlights_and_move_changes_only_that_part() -> TestResul
     assert!(mesh.selection.faces.is_empty());
     assert_eq!(ui.application.history.undo_len(), 0);
 
-    let selection_colour = ui.application.overlay_selection_colour;
-    let selected_face_fill = Color32::from_rgba_unmultiplied(
-        selection_colour.r(),
-        selection_colour.g(),
-        selection_colour.b(),
-        72,
-    );
-    let highlighted_faces = ui
-        .output
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            egui::Shape::Mesh(mesh)
-                if !mesh.vertices.is_empty()
-                    && mesh
-                        .vertices
-                        .iter()
-                        .all(|vertex| vertex.color == selected_face_fill) =>
-            {
-                Some(mesh.triangles().count())
-            }
-            _ => None,
-        })
-        .sum::<usize>();
+    let highlighted = &ui
+        .application
+        .face_selection_overlay
+        .as_ref()
+        .ok_or("face highlight")?
+        .positions;
+    let expected = mesh
+        .faces()
+        .filter(|(_, face)| face.submesh == 0)
+        .flat_map(|(_, face)| face.vertices.iter())
+        .map(|handle| mesh.vertex(*handle).expect("face vertex").position)
+        .collect::<Vec<_>>();
     assert_eq!(
-        highlighted_faces, 1,
-        "the selected Part was not visibly filled"
+        highlighted, &expected,
+        "the selected Part must send only its own faces to the GPU"
     );
 
     let baseline = mesh
@@ -1899,6 +1943,122 @@ fn integrated_part_row_highlights_and_move_changes_only_that_part() -> TestResul
     assert_eq!(moved_part_vertices, 3);
     assert_eq!(ui.application.history.undo_len(), 1);
     assert!(!ui.application.status.contains("rolled back"));
+    Ok(())
+}
+
+#[test]
+fn integrated_face_brush_keeps_a_bent_pointer_path_within_one_frame() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    ui.application.cdmw_orbit_mode = false;
+    ui.application.viewport_tool = ViewportTool::Select;
+    ui.application.selection_tool = SelectionTool::Brush;
+    ui.application.selection_domain = SelectionDomain::Face;
+    ui.application.brush_radius = 4.0;
+    let rectangle = ui.application.viewport_rect.ok_or("viewport")?;
+    assert!(ui.application.ensure_projection(rectangle));
+    let center = ui
+        .application
+        .projection
+        .as_ref()
+        .ok_or("projection")?
+        .interaction
+        .elements
+        .iter()
+        .find_map(|element| {
+            matches!(element.handle, ProjectedHandle::Face(_)).then_some(element.position)
+        })
+        .ok_or("projected face")?;
+    let start = egui::pos2(center.x - 30.0, center.y - 30.0);
+    let end = egui::pos2(center.x + 30.0, center.y - 30.0);
+    ui.frame(vec![
+        Event::PointerMoved(start),
+        Event::PointerButton {
+            pos: start,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        },
+        Event::PointerMoved(egui::pos2(center.x, center.y)),
+        Event::PointerMoved(end),
+        Event::PointerButton {
+            pos: end,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        },
+    ]);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .selection
+            .faces
+            .len(),
+        1
+    );
+    assert_eq!(ui.application.history.undo_len(), 1);
+    assert_eq!(
+        ui.application
+            .face_selection_overlay
+            .as_ref()
+            .ok_or("highlight")?
+            .positions
+            .len(),
+        3
+    );
+    Ok(())
+}
+
+#[test]
+fn integrated_face_highlights_reuse_geometry_when_the_camera_moves() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    assert!(
+        ui.application.projection.is_none(),
+        "navigation must not build a picking index"
+    );
+    let mesh = ui.application.mesh.as_mut().ok_or("mesh")?;
+    mesh.set_selection(Selection {
+        faces: mesh.faces().map(|(handle, _)| handle).collect(),
+        ..Default::default()
+    })?;
+    ui.frame(Vec::new());
+    let positions = &ui
+        .application
+        .face_selection_overlay
+        .as_ref()
+        .ok_or("highlight")?
+        .positions;
+    assert_eq!(positions.len(), 3);
+    let buffer = positions.as_ptr();
+    ui.application.camera.orbit(Vec2::new(25.0, 5.0));
+    ui.frame(Vec::new());
+    assert!(ui.application.projection.is_none());
+    assert_eq!(
+        ui.application
+            .face_selection_overlay
+            .as_ref()
+            .ok_or("highlight")?
+            .positions
+            .as_ptr(),
+        buffer
+    );
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .set_selection(Selection::default())?;
+    ui.frame(Vec::new());
+    assert!(
+        ui.application
+            .face_selection_overlay
+            .as_ref()
+            .ok_or("highlight")?
+            .positions
+            .is_empty()
+    );
     Ok(())
 }
 
@@ -3595,7 +3755,7 @@ fn key_event(key: egui::Key, pressed: bool) -> Event {
 #[test]
 fn dense_face_selection_uses_a_fill_without_radiating_triangle_outlines() -> TestResult {
     let mut application = triangle_application()?;
-    for _ in 0..4 {
+    for _ in 0..6 {
         let selected = if application
             .mesh
             .as_ref()
@@ -3634,7 +3794,7 @@ fn dense_face_selection_uses_a_fill_without_radiating_triangle_outlines() -> Tes
             .selection
             .faces
             .len(),
-        256
+        4096
     );
     let ui = HeadlessUi::new(application, egui::vec2(1_280.0, 720.0));
     let selection_colour = ui.application.overlay_selection_colour;
@@ -3658,10 +3818,22 @@ fn dense_face_selection_uses_a_fill_without_radiating_triangle_outlines() -> Tes
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(face_meshes.len(), 1);
-    assert_eq!(face_meshes[0].triangles().count(), 256);
-    assert_eq!(face_meshes[0].vertices.len(), 256 * 3);
-    assert!(face_meshes[0].is_valid());
+    assert!(
+        face_meshes.is_empty(),
+        "faces must not bypass mesh depth through egui"
+    );
+    let positions = &ui
+        .application
+        .face_selection_overlay
+        .as_ref()
+        .ok_or("face highlight")?
+        .positions;
+    assert_eq!(
+        positions.len(),
+        4096 * 3,
+        "large selections must retain every filled face"
+    );
+    assert!(positions.iter().flatten().all(|value| value.is_finite()));
     assert!(ui.output.shapes.iter().all(|clipped| {
         !matches!(&clipped.shape, egui::Shape::LineSegment { stroke, .. }
             if stroke.color == selection_colour)
@@ -3677,7 +3849,7 @@ fn dense_face_selection_uses_a_fill_without_radiating_triangle_outlines() -> Tes
 }
 
 #[test]
-fn sparse_face_selection_uses_raw_fill_triangles_and_non_mitered_edge_segments() -> TestResult {
+fn sparse_face_selection_uses_depth_geometry_without_mitered_screen_edges() -> TestResult {
     let mut application = triangle_application()?;
     let face = application
         .mesh
@@ -3727,8 +3899,24 @@ fn sparse_face_selection_uses_raw_fill_triangles_and_non_mitered_edge_segments()
                     && (stroke.width - ui.application.overlay_wire_width).abs() < 0.01)
         })
         .count();
-    assert_eq!(fill_triangles, 1);
-    assert_eq!(independent_edges, 3);
+    assert_eq!(fill_triangles, 0);
+    assert_eq!(independent_edges, 0);
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let expected = mesh
+        .face(face)
+        .ok_or("selected face")?
+        .vertices
+        .iter()
+        .map(|handle| mesh.vertex(*handle).expect("face vertex").position)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ui.application
+            .face_selection_overlay
+            .as_ref()
+            .ok_or("face highlight")?
+            .positions,
+        expected
+    );
     assert!(ui.output.shapes.iter().all(|clipped| {
         !matches!(&clipped.shape, egui::Shape::Path(path)
             if path.closed

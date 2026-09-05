@@ -76,6 +76,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- **Mesh Editor brush selection follows fast strokes and keeps face highlights accurate on dense meshes.** Face and Part highlights use GPU depth, retain filled faces above 4,000 selected faces, and reuse geometry while navigating. Brush strokes include the path between pointer samples, while selection counts refresh only when the selection changes, reducing CPU overhead on character meshes.
 - **New Item prepares the imported model's fitted geometry before showing its preview.** The import worker performs the initial geometry transform, avoiding a synchronous native transform when the UI first reads the model bounds. Cancellation skips that work, and a failed transform cleans up the unpublished import.
 - **New Item imports and Effects previews avoid redundant archive and material processing.** Skeleton and character lookup filter out unrelated archive files before resolving or sorting paths. Apply Placement uses the captured archive indexes in its worker without scanning the family on the UI thread. Imported glTF, OBJ and DAE materials keep their direct textures when combined with placement markers or archive references, while archive-owned material layers still compile normally.
 

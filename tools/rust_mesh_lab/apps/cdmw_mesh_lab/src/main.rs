@@ -58,9 +58,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use tracing::error;
 use viewport::{
-    BrushFalloff, EditGesture, GizmoAxis, PointerEventQueue, SculptSymmetry, SculptSymmetryMap,
-    SelectionGesture, SelectionTool, ViewportPointerEvent, ViewportProjection, ViewportTool,
-    brush_vertex_weights, brush_vertex_weights_unclipped,
+    BrushFalloff, EditGesture, FaceSelectionOverlay, GizmoAxis, PointerEventQueue, SculptSymmetry,
+    SculptSymmetryMap, SelectionGesture, SelectionTool, ViewportPointerEvent, ViewportProjection,
+    ViewportTool, brush_vertex_weights, brush_vertex_weights_unclipped,
 };
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -69,7 +69,6 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 const LATENCY_SAMPLE_WINDOW: usize = 256;
 const HISTORY_BUDGET_BYTES: usize = 512 * 1024 * 1024;
-const DETAILED_FACE_OUTLINE_LIMIT: usize = 128;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -1994,6 +1993,8 @@ struct LabApplication {
     selection_gesture: Option<SelectionGesture>,
     edit_gesture: Option<EditGesture>,
     projection: Option<ViewportProjection>,
+    face_selection_overlay: Option<FaceSelectionOverlay>,
+    selected_counts_cache: std::cell::Cell<Option<((u64, u64), cdmw_ui::SelectedCounts)>>,
     last_selection_ms: Option<f64>,
     last_edit_ms: Option<f64>,
     last_selection_stats: Option<SelectionQueryStats>,
@@ -2144,6 +2145,8 @@ impl LabApplication {
             selection_gesture: None,
             edit_gesture: None,
             projection: None,
+            face_selection_overlay: None,
+            selected_counts_cache: std::cell::Cell::new(None),
             last_selection_ms: None,
             last_edit_ms: None,
             last_selection_stats: None,
@@ -4774,6 +4777,11 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.face_selection_overlay = None;
+        self.selected_counts_cache.set(None);
+        if let Some(renderer) = &mut self.renderer {
+            let _ = renderer.set_face_selection(&[], [0.0; 4]);
+        }
         self.projection = None;
         self.ensure_deformation_reference();
         let visible_submeshes = self.cdmw_visible_submeshes();
@@ -4869,7 +4877,10 @@ impl LabApplication {
                 let mut captured = false;
                 if self.raw_primary_captured {
                     if self.viewport_tool == ViewportTool::Select
-                        && self.selection_tool == SelectionTool::Lasso
+                        && matches!(
+                            self.selection_tool,
+                            SelectionTool::Lasso | SelectionTool::Brush
+                        )
                     {
                         self.pointer_events.push_primary_path_point(next);
                     } else {
@@ -5542,7 +5553,50 @@ impl LabApplication {
         }
     }
 
+    fn refresh_face_selection_overlay(&mut self) {
+        let visible = self.cdmw_visible_submeshes();
+        let mut colour = renderer_colour(self.overlay_selection_colour);
+        colour[3] = 72.0 / 255.0;
+        let Some(mesh) = &self.mesh else {
+            self.face_selection_overlay = None;
+            if let Some(renderer) = &mut self.renderer {
+                let _ = renderer.set_face_selection(&[], colour);
+            }
+            return;
+        };
+        if self
+            .face_selection_overlay
+            .as_ref()
+            .is_none_or(|overlay| !overlay.matches(mesh, &visible, colour))
+        {
+            self.face_selection_overlay = Some(FaceSelectionOverlay::build(mesh, visible, colour));
+        }
+        if let (Some(renderer), Some(overlay)) =
+            (&mut self.renderer, &mut self.face_selection_overlay)
+        {
+            renderer.set_face_selection_xray(
+                !self.selection_visible_only || self.view_mode == ViewMode::XRay,
+            );
+            if !overlay.uploaded {
+                match renderer.set_face_selection(&overlay.positions, colour) {
+                    Ok(()) => overlay.uploaded = true,
+                    Err(error) => self.status = format!("Selection highlight failed: {error}"),
+                }
+            }
+        }
+    }
+
     fn paint_viewport_overlay(&mut self, ui: &egui::Ui, rectangle: egui::Rect) {
+        self.refresh_face_selection_overlay();
+        // Face highlights use GPU depth; a CPU projection is only needed for vertex/edge
+        // markers and actual picking, never for ordinary camera navigation or face display.
+        if self.mesh.as_ref().is_none_or(|mesh| {
+            mesh.selection.vertices.is_empty() && mesh.selection.edges.is_empty()
+        }) {
+            self.paint_active_shape(ui);
+            self.paint_gizmo(ui, rectangle);
+            return;
+        }
         if !self.ensure_projection(rectangle) {
             return;
         }
@@ -5552,7 +5606,7 @@ impl LabApplication {
         let painter = ui.painter();
         // Wireframe and point display are rendered by the depth-tested wgpu pipelines. Painting
         // the same base geometry again in egui made every rear edge/vertex look permanently
-        // X-rayed. Egui owns only the interactive selection overlay.
+        // X-rayed. Egui owns the vertex/edge markers and gesture guides.
         let selection_xray = !self.selection_visible_only || self.view_mode == ViewMode::XRay;
         let mut depth_visible = Selection::default();
         if !selection_xray {
@@ -5580,9 +5634,6 @@ impl LabApplication {
             }
             if !mesh.selection.edges.is_empty() {
                 depth_visible.edges = query_domain(SelectionDomain::Edge).edges;
-            }
-            if !mesh.selection.faces.is_empty() || !mesh.selection.submeshes.is_empty() {
-                depth_visible.faces = query_domain(SelectionDomain::Face).faces;
             }
         }
         for handle in mesh
@@ -5622,91 +5673,6 @@ impl LabApplication {
                     ),
                 );
             }
-        }
-        let selected_faces = mesh
-            .faces()
-            .filter_map(|(handle, face)| {
-                (mesh.selection.faces.contains(&handle)
-                    || mesh.selection.submeshes.contains(&face.submesh))
-                .then_some(handle)
-            })
-            .filter(|handle| selection_xray || depth_visible.faces.contains(handle))
-            .collect::<Vec<_>>();
-        let detailed_faces = selected_faces.len() <= 4_000;
-        let outline_faces = selected_faces.len() <= DETAILED_FACE_OUTLINE_LIMIT;
-        let face_fill = Color32::from_rgba_unmultiplied(
-            self.overlay_selection_colour.r(),
-            self.overlay_selection_colour.g(),
-            self.overlay_selection_colour.b(),
-            72,
-        );
-        let mut face_fill_mesh = egui::Mesh::default();
-        face_fill_mesh.reserve_vertices(selected_faces.len().saturating_mul(3));
-        face_fill_mesh.reserve_triangles(selected_faces.len());
-        let mut face_outline_segments = Vec::with_capacity(if outline_faces {
-            selected_faces.len().saturating_mul(3)
-        } else {
-            0
-        });
-        for handle in selected_faces {
-            let Some(face) = mesh.face(handle) else {
-                continue;
-            };
-            let points = face
-                .vertices
-                .iter()
-                .filter_map(|vertex| projection.vertices.get(vertex))
-                .map(|point| egui::pos2(point.screen.x, point.screen.y))
-                .collect::<Vec<_>>();
-            if points.len() != 3 {
-                continue;
-            }
-            if detailed_faces {
-                let Ok(first_vertex) = u32::try_from(face_fill_mesh.vertices.len()) else {
-                    continue;
-                };
-                for point in &points {
-                    face_fill_mesh.colored_vertex(*point, face_fill);
-                }
-                face_fill_mesh.add_triangle(first_vertex, first_vertex + 1, first_vertex + 2);
-                if outline_faces {
-                    face_outline_segments.extend([
-                        [points[0], points[1]],
-                        [points[1], points[2]],
-                        [points[2], points[0]],
-                    ]);
-                }
-            } else {
-                let center = points
-                    .iter()
-                    .fold(egui::Vec2::ZERO, |sum, point| sum + point.to_vec2())
-                    / 3.0;
-                painter.circle_filled(
-                    egui::pos2(center.x, center.y),
-                    1.2,
-                    Color32::from_rgba_unmultiplied(
-                        self.overlay_selection_colour.r(),
-                        self.overlay_selection_colour.g(),
-                        self.overlay_selection_colour.b(),
-                        150,
-                    ),
-                );
-            }
-        }
-        if !face_fill_mesh.is_empty() {
-            // Submit selected faces as raw triangles. `Shape::convex_polygon` creates a closed
-            // anti-aliased path whose fill feather also uses unbounded miter joins at acute
-            // corners, even when its explicit stroke is disabled.
-            painter.add(egui::Shape::mesh(face_fill_mesh));
-        }
-        for segment in face_outline_segments {
-            // A stroked closed triangle goes through egui's miter-join path. Very acute
-            // projected faces can expand that join into screen-spanning rays. Independent
-            // two-point segments retain the outline without a corner join to amplify.
-            painter.line_segment(
-                segment,
-                Stroke::new(self.overlay_wire_width, self.overlay_selection_colour),
-            );
         }
         self.paint_active_shape(ui);
         self.paint_gizmo(ui, rectangle);

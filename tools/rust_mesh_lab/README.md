@@ -291,6 +291,12 @@ backup/rollback flow. Source PAMT/PAZ files remain unchanged.
 - Press **Esc** to cancel an active selection or edit gesture.
 - The inspector reports the last and rolling 256-sample p95 CPU selection/edit time. Selection also reports how many indexed candidates were inspected out of the complete projected element count; these are CPU callback measurements, not frame time or GPU latency.
 
+Face and Part highlights are filled triangles in the GPU depth buffer. Large selections
+keep the same fill instead of changing to dots; occluded portions stay hidden unless
+X-Ray selection or display is enabled. Brush strokes cover the path between retained
+pointer samples and toggle each element only once per stroke. Camera navigation reuses
+selection geometry and counts without rebuilding the CPU picking index every frame.
+
 Visible selection is CPU-local and nonblocking with respect to GPU readback: each candidate queries a bounded projected-triangle BVH and compares interpolated depth. It uses the current point-based vertex/edge/face selection representatives and double-sided triangle occlusion; a pixel-ID selection pass and full region/triangle overlap semantics are not implemented.
 
 ## Asset probe
