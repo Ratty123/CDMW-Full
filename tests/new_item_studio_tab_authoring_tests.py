@@ -515,6 +515,36 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_perk_text_index_is_reused_and_tracks_the_current_localization_table(self) -> None:
+        from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        controller = NewItemStudioController(read_entry=_read, synchronous=True)
+        self.addCleanup(controller.shutdown)
+        controller.start_snapshot(self.entries)
+        snapshot = controller.snapshot
+        key = next(iter(snapshot.perk_item_keys))
+        row = snapshot.rows[key]
+
+        def with_text(label: str, description: str):
+            return replace(snapshot, english=LocalizationTable((
+                LocalizationEntry(0, row.name_key, label),
+                LocalizationEntry(0, row.desc_key, description),
+            )))
+
+        controller.snapshot = with_text("First perk", "First description")
+        with patch.object(LocalizationTable, "index", autospec=True, side_effect=LocalizationTable.index) as index:
+            self.assertIn(key, dict(controller.perk_catalogue("First perk")))
+            self.assertIn("First perk", controller.perk_label(key))
+            for _ in range(10):
+                self.assertIn("First description", controller.perk_details(key))
+            self.assertEqual(index.call_count, 1, "all perk tooltips share one table lookup")
+
+            controller.snapshot = with_text("Second perk", "Second description")
+            self.assertIn("Second perk", controller.perk_label(key))
+            self.assertIn("Second description", controller.perk_details(key))
+            self.assertEqual(index.call_count, 2, "a replacement table cannot reuse stale text")
+
     def test_perk_search_list_double_click_adds_and_remove_button_removes(self) -> None:
         from PySide6.QtCore import Qt
         from PySide6.QtTest import QTest

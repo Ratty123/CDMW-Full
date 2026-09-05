@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Opening New Item and searching perks no longer rebuilds the full localization lookup for every tooltip.** Perk labels and descriptions share the loaded table's lookup and refresh when a different table is loaded.
+- **Returning to Effects keeps an unchanged preview resident.** Changed models, rigs and effects still reload, and failed updates remain retryable. Repeated library updates preserve selection and avoid measuring thousands of metadata rows during import.
 - **Cold archive and template previews spend less time preparing archive metadata.** Native scans avoid constructing paths for irrelevant records and reuse PAZ paths while preserving the same geometry and texture inputs.
 - **Changing an effect, item or reference rig immediately cancels obsolete preview work.** An older result cannot publish during the selection delay, and queued stale launches release their source usage without starting another build.
 

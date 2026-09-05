@@ -113,7 +113,9 @@ non-scrolling full-height page with Perks and Effects tabs. The navigator is a
 compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
 from visual-only effects. Perks are chosen through searchable Available and Selected
-lists that grow with the workspace rather than a popup catalogue. Four perks is
+lists that grow with the workspace rather than a popup catalogue. Perk search, labels
+and tooltips share one lookup for the immutable English table; loading a different
+table replaces it so descriptions stay current. Four perks is
 the evidence-backed default cap and five to eight requires an explicit experimental
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
@@ -127,7 +129,10 @@ readable name as well as the exact stem. Labelled All / Loops / One-shot filters
 a result count and Reset filters make browsing explicit; the staged selection remains
 visible even when it falls outside the filters. Library labels and facts are
 prepared in short event-loop slices and reused across filtering and placement
-changes. A replaced snapshot or catalogue cancels the previous preparation;
+changes. Unchanged rows retain their selection and layout, and metadata column
+sizing samples a bounded number of rows even while the page is hidden. Returning
+to Effects keeps the resident scene; changed inputs and failed updates still retry.
+A replaced snapshot or catalogue cancels the previous preparation;
 shutdown prevents late catalogue events from restarting it. The hidden legacy
 selector mirrors only the committed choice. Item preview preparation starts when
 Effects becomes visible, with one initial request, instead of decoding the item

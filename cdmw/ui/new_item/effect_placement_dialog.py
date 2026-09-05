@@ -171,6 +171,7 @@ class EffectPlacementWorkspace(
         self._active_model_source_usage: object | None = None
         self._package_generation = 0
         self._active_package_generation = 0
+        self._content_failed = False
         self._pending_package: Optional[tuple] = None
         self._loading_preview: Optional[EffectPlacementPreview] = None
         self._loading_sockets: tuple = ()

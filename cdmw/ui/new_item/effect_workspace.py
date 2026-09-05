@@ -197,6 +197,8 @@ class EffectLibraryModel(QAbstractTableModel):
         )
 
     def replace_rows(self, rows: tuple[EffectLibraryRow, ...]) -> None:
+        if rows == self._rows:
+            return
         self.beginResetModel()
         self._rows = rows
         self.endResetModel()
@@ -405,6 +407,8 @@ class GuidedEffectsWorkspace(QWidget):
         horizontal_header.setFixedHeight(22)
         horizontal_header.setMinimumSectionSize(20)
         horizontal_header.setStretchLastSection(False)
+        # Bound metadata sizing even before the hidden page has a viewport layout.
+        horizontal_header.setResizeContentsPrecision(32)
         horizontal_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -462,6 +466,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._staged = self._committed
         self._syncing = False
         self._reset_view_next = True
+        self._preview_dirty = True
         self._preview_retry_remaining = 1
         self._origin_defaulted_stem: Optional[str] = None
         self._placement_root = Path(tempfile.mkdtemp(prefix="cdmw_effect_workspace_"))
@@ -531,7 +536,13 @@ class GuidedEffectsWorkspace(QWidget):
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().showEvent(event)
-        if self._controller.draft.template_key is not None:
+        needs_preview = (
+            self._preview_dirty
+            or self.placement is None
+            or bool(getattr(self.placement, "_content_failed", False))
+            or bool(getattr(self.placement, "_renderer_failed", False))
+        )
+        if self._controller.draft.template_key is not None and needs_preview:
             self._preview_retry_remaining = 1
             self.selection_timer.stop()
             self._initial_preview_timer.start()
@@ -670,6 +681,8 @@ class GuidedEffectsWorkspace(QWidget):
             candidates = dict(candidates)
             candidates[selected] = EffectLibraryRow.from_stem(selected, self._controller.effect_facts(selected))
         category = self._active_category()
+        loop_only = self.loop_only.isChecked()
+        one_shot_only = self.one_shot_only.isChecked()
         rows = []
         matches = 0
         for stem, row in candidates.items():
@@ -677,8 +690,8 @@ class GuidedEffectsWorkspace(QWidget):
             matched = (
                 text_matches
                 and (category == "All" or row.category == category)
-                and (not self.loop_only.isChecked() or row.behavior == "Loop")
-                and (not self.one_shot_only.isChecked() or row.behavior == "One-shot")
+                and (not loop_only or row.behavior == "Loop")
+                and (not one_shot_only or row.behavior == "One-shot")
             )
             matches += int(matched)
             if not matched and stem != selected:
@@ -706,7 +719,7 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _select_stem(self, stem: str) -> None:
         index = self.library_model.index_for_stem(stem)
-        if index.isValid():
+        if index.isValid() and index != self.library_view.currentIndex():
             self.library_view.setCurrentIndex(index)
             self.library_view.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
 
@@ -873,6 +886,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._schedule_preview()
 
     def _schedule_preview(self, delay_ms: int = 150) -> None:
+        self._preview_dirty = True
         if self.placement is not None:
             self.placement.cancel_pending_content()
         self.selection_timer.start(delay_ms)
@@ -944,9 +958,12 @@ class GuidedEffectsWorkspace(QWidget):
                 reset_view=self._reset_view_next,
             )
         self._reset_view_next = False
+        self._preview_dirty = False
         self._sync_placement_from_state()
 
     def _item_mesh_ready(self, mesh, _item_label):
+        if mesh is None:
+            self._preview_dirty = True
         if self._library_closed or not self.isVisible():
             return
         if mesh is None:

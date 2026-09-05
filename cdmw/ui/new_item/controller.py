@@ -18,6 +18,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
 from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
+from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
@@ -102,6 +103,7 @@ class NewItemStudioController(
         self._read_entry = read_entry
         self._synchronous = bool(synchronous)
         self.snapshot: Optional[NewItemSnapshot] = None
+        self._perk_texts: tuple[LocalizationTable, Mapping[str, LocalizationEntry]] | None = None
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
@@ -461,6 +463,16 @@ class NewItemStudioController(
     def languages(self) -> Tuple[str, ...]:
         return self.snapshot.languages if self.snapshot else ("eng",)
 
+    def _perk_text_index(self) -> Mapping[str, LocalizationEntry]:
+        if self.snapshot is None:
+            return {}
+        table = self.snapshot.english
+        # LocalizationTable is immutable. Reuse its lookup across the catalogue and
+        # every tooltip, while a newly loaded table immediately replaces the cache.
+        if self._perk_texts is None or self._perk_texts[0] is not table:
+            self._perk_texts = (table, table.index())
+        return self._perk_texts[1]
+
     def perk_catalogue(self, text: str = "", *, limit: int = 400) -> Tuple[Tuple[int, str], ...]:
         """(item key, label) for every gem the archives know (embedded socket items and every
         item of their type), by English name."""
@@ -468,7 +480,7 @@ class NewItemStudioController(
         if self.snapshot is None:
             return ()
         needle = str(text or "").strip().casefold()
-        english = self.snapshot.english.index()
+        english = self._perk_text_index()
         users = self.snapshot.socket_item_users()
         out = []
         for key in self.snapshot.perk_item_keys:
@@ -491,7 +503,7 @@ class NewItemStudioController(
         row = self.snapshot.rows.get(int(key))
         if row is None:
             return str(key)
-        return self._perk_label(int(key), row, self.snapshot.english.index(), self.snapshot.socket_item_users())
+        return self._perk_label(int(key), row, self._perk_text_index(), self.snapshot.socket_item_users())
 
     @staticmethod
     def _perk_label(key: int, row, english, users) -> str:
@@ -509,7 +521,7 @@ class NewItemStudioController(
         row = self.snapshot.rows.get(int(key))
         if row is None:
             return ""
-        english = self.snapshot.english.index()
+        english = self._perk_text_index()
         description_entry = english.get(row.desc_key) if row.desc_key else None
         description = str(getattr(description_entry, "text", "") or "").strip()
         internal = str(row.string_key or "")

@@ -354,6 +354,44 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(model.data(model.index(6000, 0), EffectLibraryModel.StemRole), "fx_5999")
         self.assertEqual(model.data(model.index(6000, 0), int(Qt.ItemDataRole.SizeHintRole)).height(), 24)
 
+    def test_unchanged_library_rows_preserve_the_selected_model_index(self) -> None:
+        from dataclasses import replace
+        from PySide6.QtCore import QPersistentModelIndex
+
+        model = EffectLibraryModel()
+        rows = (EffectLibraryRow.from_stem("fx_fire_hit", None),)
+        model.replace_rows(rows)
+        selected = QPersistentModelIndex(model.index(0, 1))
+        resets = []
+        model.modelReset.connect(lambda: resets.append(True))
+
+        model.replace_rows(tuple(replace(row) for row in rows))
+        self.assertTrue(selected.isValid(), "an unchanged library must retain selection and layout")
+        self.assertEqual(resets, [])
+
+        model.replace_rows((replace(rows[0], label="Updated fire"),))
+        self.assertEqual(resets, [True])
+        self.assertEqual(model.data(model.index(0, 1)), "Updated fire")
+
+    def test_hidden_library_column_sizing_samples_a_bounded_number_of_rows(self) -> None:
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QHeaderView
+
+        workspace, _controller, _confirmations = self._workspace()
+        workspace.hide()
+        rows = tuple(EffectLibraryRow.from_stem(f"fx_{index:04d}", None) for index in range(6000))
+        workspace.library_model.replace_rows(rows)
+        inspected = set()
+        original = EffectLibraryModel.data
+
+        def data(model, index, role=int(Qt.ItemDataRole.DisplayRole)):
+            inspected.add(index.row())
+            return original(model, index, role)
+
+        with patch.object(EffectLibraryModel, "data", data):
+            workspace.library_view.horizontalHeader().resizeSections(QHeaderView.ResizeMode.ResizeToContents)
+        self.assertLess(len(inspected), 128, "hidden metadata columns must not measure the whole catalogue")
+
     def test_effect_table_uses_compact_regular_rows_and_metadata_columns(self) -> None:
         controller = _Controller()
         facts = SimpleNamespace(name="", loops=False, walk_note="", size=(2.5, 2.53, 2.64))
@@ -454,6 +492,32 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertGreaterEqual(calls, 2)
         self.assertFalse(workspace.placeholder.isVisibleTo(workspace))
 
+    def test_show_reuses_an_unchanged_resident_preview(self) -> None:
+        workspace, _controller, _confirmations = self._workspace()
+        self._settle(lambda: workspace.placement is not None)
+        workspace.selection_timer.stop()
+        workspace.look_timer.stop()
+        workspace._initial_preview_timer.stop()
+        workspace.placement.content_calls.clear()
+        workspace.placement._renderer_failed = False
+
+        workspace.hide()
+        self.app.processEvents()
+        workspace.show()
+        self.app.processEvents()
+        self._settle(lambda: not workspace.placement.item_timer.isActive())
+
+        self.assertFalse(workspace._initial_preview_timer.isActive())
+        self.assertEqual(workspace.placement.content_calls, [], "returning to Effects must keep its resident scene")
+
+        workspace.placement._content_failed = True
+        workspace.hide()
+        self.app.processEvents()
+        workspace.show()
+        self.app.processEvents()
+        self._settle(lambda: not workspace.placement.item_timer.isActive())
+        self.assertEqual(len(workspace.placement.content_calls), 1, "a failed content update must still retry")
+
     def test_show_refreshes_an_existing_preview_after_model_step_changes(self) -> None:
         controller = _Controller()
         current = {"mesh": _mesh()}
@@ -464,11 +528,13 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.look_timer.stop()
         workspace._initial_preview_timer.stop()
         workspace.placement.content_calls.clear()
+        workspace.placement._renderer_failed = False
 
         updated = _mesh()
         updated.path = "item-with-new-appearance.pac"
         current["mesh"] = updated
         workspace.hide()
+        controller.model_changed.emit(updated)
         self.app.processEvents()
         workspace.show()
         self.app.processEvents()

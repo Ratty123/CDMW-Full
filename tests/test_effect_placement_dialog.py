@@ -206,6 +206,30 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
+    def test_content_failure_retains_the_scene_and_marks_only_the_current_request_for_retry(self) -> None:
+        from dataclasses import replace
+        from unittest.mock import patch
+
+        dialog = self._dialog().workspace
+        dialog._initial_package_timer.stop()
+        resident = dialog._preview
+        dialog._package_failed("Texture could not be read")
+        self.assertTrue(dialog._content_failed)
+        self.assertIs(dialog._preview, resident)
+
+        dialog._content_failed = False
+        dialog._active_package_generation -= 1
+        dialog._package_failed("Obsolete failure")
+        self.assertFalse(dialog._content_failed)
+        self.assertIs(dialog._preview, resident)
+
+        dialog._active_package_generation = dialog._package_generation
+        rejected = replace(resident, package_dir=Path("rejected-preview"))
+        with patch.object(dialog.host, "load_package", return_value=False), patch.object(dialog, "_remove_owned_package"):
+            dialog._package_ready(rejected)
+        self.assertTrue(dialog._content_failed, "a rejected package must remain retryable")
+        self.assertIs(dialog._preview, resident)
+
     def test_preview_uses_one_neutral_lighting_without_a_mode_selector(self) -> None:
         changes = []
         dialog = self._dialog(

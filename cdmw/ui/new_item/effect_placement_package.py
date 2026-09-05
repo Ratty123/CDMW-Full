@@ -191,6 +191,7 @@ class EffectPlacementPackageMixin:
         elif isinstance(result, tuple) and len(result) == 2:
             result, sockets = result
         if result is None and not self._closed and int(generation) == self._package_generation:
+            self._content_failed = True
             self.item_mesh_ready.emit(None, "")
             return
         if not isinstance(result, EffectPlacementPreview):
@@ -198,6 +199,7 @@ class EffectPlacementPackageMixin:
         if self._closed or int(generation) != self._package_generation or self.host is None:
             self._remove_owned_package(result)
             return
+        self._content_failed = False
         if resolved_mesh is not None:
             self._item_mesh = resolved_mesh
             self._item_origin = placed_item_origin(resolved_mesh)
@@ -241,6 +243,7 @@ class EffectPlacementPackageMixin:
             if not self._package_ack_connected:
                 self._package_load_applied(str(result.package_dir), 0)
         else:
+            self._content_failed = True
             self._loading_preview = None
             self._loading_view_state = None
             self._remove_owned_package(result)
@@ -280,6 +283,7 @@ class EffectPlacementPackageMixin:
 
     def _package_failed(self, message: object) -> None:
         if not self._closed and self._active_package_generation == self._package_generation:
+            self._content_failed = True
             self.status.setText(f"The placement preview could not be built: {message}")
 
     def _worker_finished(self) -> None:
