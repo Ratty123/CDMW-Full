@@ -220,7 +220,7 @@ class ArchivePreviewResultMixin:
                 )
                 self.archive_d3d11_preview_host.set_render_tuning(render_settings)
                 self.archive_d3d11_preview_host.set_viewport_display_mode(
-                    "textured" if show_textures else "untextured_wire"
+                    "textured" if render_settings.use_textures_by_default else "untextured_wire"
                 )
                 self._archive_textures_visible = show_textures
                 sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)

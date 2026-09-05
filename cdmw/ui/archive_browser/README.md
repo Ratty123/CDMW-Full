@@ -24,8 +24,12 @@ as Preview Core finishes, then promote the same resident scene to the full
 PAC/PAC_XML material package without resetting its camera. Rust manifest texture
 resources are the active completion authority, so a successful package cannot
 trigger a redundant forced texture request through the retired material format.
-Archive Browser defaults to geometry-only and treats its **Load textures**
-checkbox as a request for the current model, not as a saved preference.
+Archive Browser defaults to geometry-only. Its **Load textures** checkbox saves
+the existing `archive/model_use_textures` preference and keeps that choice across
+model selections and application restarts. The checkbox represents user intent
+while the status row reports preparation and visibility; geometry, direct and
+full packages preserve textured display intent without momentarily hiding the
+resident textures. A late texture result respects the current saved choice.
 The preview health row stays highlighted while the fast package is being refined
 and remains explicit when the full texture pass completes, fails, or times out.
 

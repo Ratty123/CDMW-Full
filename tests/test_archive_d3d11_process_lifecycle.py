@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from cdmw.models import ArchivePreviewResult, ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
 from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
@@ -101,6 +103,8 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.details_refresh_count = 0
         self.settings_changes: list[ModelPreviewRenderSettings] = []
         self.populated_packages: list[Path] = []
+        self._settings_ready = True
+        self.settings_save_count = 0
 
     def _current_archive_entry(self) -> object:
         return self.entry
@@ -109,7 +113,13 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.render_requests.append((entry, bool(force)))
 
     def _current_model_preview_render_settings(self) -> object:
-        return self.settings
+        return vars(self).get("_model_preview_render_settings", self.settings)
+
+    def _sync_model_preview_settings_controls(self) -> None:
+        pass
+
+    def schedule_settings_save(self) -> None:
+        self.settings_save_count += 1
 
     def _handle_model_preview_settings_changed(self, settings: ModelPreviewRenderSettings) -> None:
         self.settings = settings
@@ -291,21 +301,22 @@ def test_initial_rust_package_uses_manifest_textures_without_followup_job(
     assert harness.render_requests == []
 
 
-def test_direct_then_full_rust_packages_preserve_the_resident_camera(
+def test_geometry_direct_and_full_packages_keep_camera_and_texture_intent(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    geometry = tmp_path / "geometry"
     direct = tmp_path / "direct"
     full = tmp_path / "full"
     source = {"path": "character/body.pac", "sha256": "same-source-hash"}
-    for package, quality in ((direct, "direct"), (full, "full")):
+    for package, quality in ((geometry, "geometry"), (direct, "direct"), (full, "full")):
         package.mkdir()
         (package / "manifest.json").write_text(
             json.dumps(
                 {
                     "source": source,
                     "texture_status": {"quality": quality, "available": True},
-                    "textures": [{"resource_id": "texture:base", "path": "base.dds"}],
+                    "textures": [] if quality == "geometry" else [{"resource_id": "texture:base", "path": "base.dds"}],
                 }
             ),
             encoding="utf-8",
@@ -317,6 +328,13 @@ def test_direct_then_full_rust_packages_preserve_the_resident_camera(
     harness = _PreviewResultHarness()
     harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
 
+    harness._show_archive_preview_result(
+        ArchivePreviewResult(
+            status="ok", quality_tier="fast", preferred_view="model",
+            dotnet_preview_package_path=str(geometry),
+        ),
+        use_loose=False, request_id=0,
+    )
     harness._show_archive_preview_result(
         ArchivePreviewResult(
             status="ok",
@@ -339,9 +357,11 @@ def test_direct_then_full_rust_packages_preserve_the_resident_camera(
     )
 
     assert harness.archive_d3d11_preview_host.loads == [
-        (direct, True),
+        (geometry, True),
+        (direct, False),
         (full, False),
     ]
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"] * 3
 
 
 def test_initial_package_keeps_wire_mode_when_texture_preference_is_disabled(
@@ -422,6 +442,7 @@ def test_resident_texture_apply_commits_latest_generation_once(tmp_path: Path) -
     )
     harness = _LifecycleHarness()
     harness._archive_texture_request_id = 5
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
     harness._archive_texture_request_loading = True
     harness._archive_texture_package_generation = 9
     harness._archive_texture_package_path = str(package)
@@ -454,7 +475,8 @@ def test_resident_package_apply_syncs_parts_and_character_context_without_textur
     assert harness.populated_packages == [package]
 
 
-def test_unchecked_preference_keeps_late_automatic_texture_result_hidden(tmp_path: Path) -> None:
+@pytest.mark.parametrize("automatic", (False, True))
+def test_unchecked_preference_keeps_late_texture_result_hidden(tmp_path: Path, automatic: bool) -> None:
     package = tmp_path / "textured"
     package.mkdir()
     (package / "net_materials.json").write_text(
@@ -464,7 +486,7 @@ def test_unchecked_preference_keeps_late_automatic_texture_result_hidden(tmp_pat
     harness = _LifecycleHarness()
     harness._archive_texture_request_id = 6
     harness._archive_texture_request_loading = True
-    harness._archive_texture_request_automatic = True
+    harness._archive_texture_request_automatic = automatic
     harness._archive_texture_package_generation = 10
     harness._archive_texture_package_path = str(package)
     harness._archive_texture_render_settings = ModelPreviewRenderSettings(use_textures_by_default=True)
@@ -547,7 +569,7 @@ def test_reload_without_package_requests_canonical_preparation() -> None:
     assert harness.render_requests == [(harness.entry, True)]
 
 
-def test_archive_texture_checkbox_is_a_current_model_request_not_a_persisted_preference() -> None:
+def test_archive_texture_checkbox_preserves_preference_across_selections() -> None:
     harness = _LifecycleHarness()
     checkbox = _FakeCheckbox()
     harness.archive_isolated_renderer_button = checkbox
@@ -556,11 +578,43 @@ def test_archive_texture_checkbox_is_a_current_model_request_not_a_persisted_pre
     harness._open_archive_isolated_d3d11_preview()
 
     assert harness.settings_changes == []
-    assert harness.settings.use_textures_by_default is False
+    assert harness._current_model_preview_render_settings().use_textures_by_default is True
+    assert harness.settings_save_count == 1
     assert harness.render_requests == [(harness.entry, True)]
     assert checkbox.checked is True
     assert checkbox.text == "Loading textures..."
     assert "restart" not in checkbox.tooltip.casefold()
+
+    harness._archive_texture_request_loading = False
+    harness.archive_isolated_renderer_active_package = None
+    harness.entry = SimpleNamespace(path="character/another.pac")
+    harness._sync_archive_texture_action_state()
+    assert checkbox.checked is True
+    assert harness._archive_preview_effective_render_settings(2).use_textures_by_default is True
+
+
+def test_texture_checkbox_click_saves_existing_settings_key(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication, QCheckBox
+    from cdmw.ui.shell.settings_persistence import SettingsPersistenceMixin
+
+    app = QApplication.instance() or QApplication([])
+    harness = _LifecycleHarness()
+    harness._model_preview_render_settings = ModelPreviewRenderSettings()
+    harness.settings = QSettings(str(tmp_path / "preview.ini"), QSettings.IniFormat)
+    harness.schedule_settings_save = lambda: SettingsPersistenceMixin._save_model_preview_settings_if_loaded(harness)
+    checkbox = QCheckBox()
+    harness.archive_isolated_renderer_button = checkbox
+    checkbox.toggled.connect(lambda _checked: harness._open_archive_isolated_d3d11_preview())
+    checkbox.click()
+    harness.settings.sync()
+    restored = QSettings(str(tmp_path / "preview.ini"), QSettings.IniFormat)
+    assert restored.value("archive/model_use_textures", False, type=bool) is True
+    assert len(harness.render_requests) == 1
+    assert checkbox.isChecked()
+    checkbox.deleteLater()
+    app.processEvents()
 
 
 def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:

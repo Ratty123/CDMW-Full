@@ -108,12 +108,20 @@ class ArchivePreviewDotNetLifecycleMixin:
         self.archive_isolated_renderer_package_source = ""
 
     def _open_archive_isolated_d3d11_preview(self) -> None:
-        """Apply the current model's texture checkbox without restarting the renderer."""
+        """Save texture intent and apply it without restarting the renderer."""
         checkbox = getattr(self, "archive_isolated_renderer_button", None)
         host = getattr(self, "archive_d3d11_preview_host", None)
         package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
         if checkbox is not None and hasattr(checkbox, "isChecked"):
             enabled = bool(checkbox.isChecked())
+            settings = self._current_model_preview_render_settings()
+            if enabled != bool(settings.use_textures_by_default):
+                self._model_preview_render_settings = replace(
+                    settings, use_textures_by_default=enabled,
+                )
+                self._sync_model_preview_settings_controls()
+                if self._settings_ready:
+                    self.schedule_settings_save()
         else:
             enabled = bool(
                 package_dir is None
@@ -210,11 +218,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._populate_archive_d3d11_part_visibility_menu(Path(package_path))
         render_settings = getattr(self, "_archive_texture_render_settings", None)
         host = getattr(self, "archive_d3d11_preview_host", None)
-        automatic_request = bool(getattr(self, "_archive_texture_request_automatic", False))
-        show_textures = bool(
-            not automatic_request
-            or self._current_model_preview_render_settings().use_textures_by_default
-        )
+        show_textures = bool(self._current_model_preview_render_settings().use_textures_by_default)
         if host is not None and render_settings is not None:
             host.set_render_tuning(render_settings)
             host.set_viewport_display_mode("textured" if show_textures else "untextured_wire")
@@ -337,7 +341,11 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_texture_package_path = ""
         self._archive_texture_render_settings = None
         self._archive_pending_texture_result = None
-        self._archive_textures_visible = bool(success and self._archive_active_package_has_textures())
+        self._archive_textures_visible = bool(
+            success
+            and self._current_model_preview_render_settings().use_textures_by_default
+            and self._archive_active_package_has_textures()
+        )
         self._sync_archive_texture_action_state()
         notify_mesh_editor = getattr(
             self,
@@ -368,13 +376,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         if checkbox is None:
             return
         loading = bool(getattr(self, "_archive_texture_request_loading", False))
-        checked = bool(
-            loading
-            or (
-                self._archive_active_package_has_textures()
-                and bool(getattr(self, "_archive_textures_visible", False))
-            )
-        )
+        checked = bool(self._current_model_preview_render_settings().use_textures_by_default)
         previous_blocked = checkbox.blockSignals(True)
         try:
             checkbox.setChecked(checked)
