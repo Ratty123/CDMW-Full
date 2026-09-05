@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Opening a template from Item Finder or the Builder avoids a duplicate catalogue search.** The handoff updates the search and selected item together, reducing the initial UI delay.
+
 - **New Item templates now stay in view on first selection.** Initial geometry uses the same layout as the textured preview, avoiding a sideways camera offset while texture upgrades preserve the current view.
 
 - **New Item prepares shared native preview caches while reading its archive tables.** One small model warms the native service and material indexes before a template is selected, reducing the subsequent wait for textures. The snapshot worker owns and cancels this optional work, including while it waits for a busy native service.

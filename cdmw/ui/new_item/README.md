@@ -34,7 +34,8 @@ all available width across the columns instead of leaving an empty strip. An exp
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
 does not rebuild every dependent step along the way. It mounts the same resident item
 viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
-be orbited and zoomed before the workflow inherits it. Search and results stay in the
+be orbited and zoomed before the workflow inherits it. Template handoffs search the
+catalogue once and select the requested row. Search and results stay in the
 left column while the preview receives the wider right column and the full working
 height. The workflow summary remains the one selected-template status authority, so
 Template does not repeat it in another group; its camera help follows the viewport

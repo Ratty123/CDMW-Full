@@ -546,6 +546,23 @@ class _TabLifecycleMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_template_handoff_searches_once_and_selects_the_requested_item(self) -> None:
+        from PySide6.QtCore import Qt
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        panel = tab.template_panel
+        with patch.object(tab.controller, "template_options", wraps=tab.controller.template_options) as search:
+            panel.prefill(OTHER)
+
+        search.assert_called_once_with(str(OTHER), limit=None)
+        self.assertEqual(tab.controller.draft.template_key, OTHER)
+        self.assertEqual(panel.filter_edit.text(), str(OTHER))
+        self.assertEqual(panel.matches.currentItem().data(0, Qt.UserRole), OTHER)
+        self.assertFalse(panel._pick_timer.isActive())
+        tab.close()
+        tab.deleteLater()
+
     def test_template_search_normalizes_terms_and_includes_localized_item_names(self) -> None:
         from dataclasses import replace
 

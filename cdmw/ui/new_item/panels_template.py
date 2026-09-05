@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -325,7 +325,8 @@ class TemplatePanel(QGroupBox):
     def prefill(self, template_key: int) -> None:
         self._pick_timer.stop()
         self._pending_key = None
-        self.filter_edit.setText(str(template_key))
+        with QSignalBlocker(self.filter_edit):
+            self.filter_edit.setText(str(template_key))
         self._controller.set_template(template_key)
         self._refresh_matches()
 
