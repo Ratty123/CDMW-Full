@@ -13,7 +13,10 @@ invalidates it, and a worker result from an older revision is discarded. The
 controller runs the snapshot, plan, export, install and model import through
 `cdmw/workers/new_item_workers.py` on one owned task lane. The effect metadata
 index has a separate cancellable lane, and the resident placement workspace owns
-its serialized latest-wins package lane. Mod-folder and icon-folder scans are part of that planning
+its serialized latest-wins package lane. Changing the effect, item or reference rig
+cancels obsolete preparation before the selection debounce runs. Already queued
+launches also reject stale generations, while the displayed scene remains usable.
+Mod-folder and icon-folder scans are part of that planning
 worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the

@@ -549,7 +549,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._sync_placement_from_state()
         self._refresh_compatibility()
         self._publish_dirty()
-        self.selection_timer.start()
+        self._schedule_preview()
 
     def apply_staged(self) -> bool:
         if not str(self._staged.stem or "").strip():
@@ -583,7 +583,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._sync_placement_from_state()
         self._refresh_compatibility()
         self._publish_dirty()
-        self.selection_timer.start()
+        self._schedule_preview()
 
     def _default_unreviewed_confirmation(self, reason: str) -> bool:
         answer = QMessageBox.warning(
@@ -719,7 +719,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._sync_placement_from_state()
         self._refresh_compatibility()
         self._publish_dirty()
-        self.selection_timer.start()
+        self._schedule_preview()
 
     def _refresh_selection_detail(self, stem: str) -> None:
         exact = str(stem or "").strip()
@@ -845,7 +845,7 @@ class GuidedEffectsWorkspace(QWidget):
             self._refresh_library()
             self._sync_placement_from_state()
             self._refresh_compatibility()
-            self.selection_timer.start()
+            self._schedule_preview()
         self._publish_dirty()
 
     def _source_changed(self, *_args) -> None:
@@ -860,7 +860,7 @@ class GuidedEffectsWorkspace(QWidget):
         self._refresh_library()
         self._refresh_compatibility()
         self._publish_dirty()
-        self.selection_timer.start()
+        self._schedule_preview()
 
     def _selected_character_rig(self) -> str:
         index = int(self.character_fit_choice.currentData() or 0)
@@ -870,7 +870,12 @@ class GuidedEffectsWorkspace(QWidget):
         # The choice changes only the reference body. Keep the reader's camera and stage
         # one immutable rig ID into the existing cancellable latest-wins package lane.
         self._reset_view_next = False
-        self.selection_timer.start()
+        self._schedule_preview()
+
+    def _schedule_preview(self, delay_ms: int = 150) -> None:
+        if self.placement is not None:
+            self.placement.cancel_pending_content()
+        self.selection_timer.start(delay_ms)
 
     def _rebuild_preview(self) -> None:
         if self._library_closed or not self.isVisible():
@@ -947,7 +952,7 @@ class GuidedEffectsWorkspace(QWidget):
         if mesh is None:
             if self._preview_retry_remaining > 0 and self.isVisible():
                 self._preview_retry_remaining -= 1
-                self.selection_timer.start(300)
+                self._schedule_preview(300)
             return
         self._preview_retry_remaining = 1
         stem = self._staged.stem

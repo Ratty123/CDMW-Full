@@ -137,6 +137,7 @@ class _Placement(QWidget):
         self.lifetime = float(kwargs.get("lifetime", 1.0))
         self.decoder_reason = ""
         self.content_calls = []
+        self.cancelled_content = 0
         self.character_fit_control = kwargs.get("character_fit_control")
         from PySide6.QtCore import QTimer
 
@@ -148,6 +149,10 @@ class _Placement(QWidget):
     def _queue_content(self, kwargs, *, initial=False):
         self._pending_content = (dict(kwargs), initial)
         self.item_timer.start(0)
+
+    def cancel_pending_content(self):
+        self.cancelled_content += 1
+        self.item_timer.stop()
 
     def _finish_content(self):
         import threading
@@ -472,6 +477,16 @@ class EffectWorkspaceTests(unittest.TestCase):
         self._settle(lambda: bool(workspace.placement.content_calls))
         self.assertEqual(len(workspace.placement.content_calls), 1)
         self.assertIs(workspace.placement.content_calls[-1]["item_mesh"], updated)
+
+    def test_source_change_invalidates_content_before_the_debounce_fires(self) -> None:
+        workspace, controller, _confirmations = self._workspace()
+        self._settle(lambda: workspace.placement is not None)
+        placement = workspace.placement
+        before = placement.cancelled_content
+        controller.draft.template_key = 2
+        controller.template_changed.emit(2)
+        self.assertGreater(placement.cancelled_content, before)
+        self.assertTrue(workspace.selection_timer.isActive())
 
     def test_character_fit_selector_rebuilds_only_the_preview_for_the_requested_rig(self) -> None:
         controller = _Controller()

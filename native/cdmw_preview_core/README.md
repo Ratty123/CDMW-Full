@@ -13,6 +13,11 @@ restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
 
+Cold PAMT scans classify entries before constructing archive paths, retain only
+the same preview-relevant records, and reuse each PAZ path within a table. XML
+classification still uses the complete directory path. These allocation savings
+leave the serialized index and material/texture resolution contract unchanged.
+
 For layered Crimson materials, `_colorBlendingMaskTexture` remains a colour-layer
 selector rather than a PBR map. Preview packages publish three `color_seed` rows from
 the PAC's `_tintColorR/G/B` values; the resident compiler reconstructs those masked

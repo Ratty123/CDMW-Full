@@ -229,7 +229,7 @@ static PamtIndexSourceStamp pamt_index_source_stamp(const fs::path& pamt_path) {
 }
 
 static std::pair<bool, bool> pamt_index_entry_traits(const ArchiveEntryRef& ref) {
-    const std::string path_lower = lower_copy(ref.path);
+    const std::string path_lower = ref.extension == ".xml" ? lower_copy(ref.path) : std::string{};
     const bool material_parameter_xml =
         ref.extension == ".xml" &&
         (
@@ -481,6 +481,8 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
     PamtIndex index;
     index.pamt_path = pamt_path;
     index.entry_count = file_count;
+    const fs::path archive_directory = pamt_path.parent_path();
+    std::unordered_map<std::uint16_t, fs::path> paz_paths;
     size_t folder_cursor = 0;
     for (std::uint32_t entry_index = 0; entry_index < file_count; ++entry_index) {
         const size_t base = file_table_offset + static_cast<size_t>(entry_index) * file_record_size;
@@ -493,6 +495,12 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
         std::string relative = file_resolver.get_full_path(name_offset);
         std::replace(relative.begin(), relative.end(), '\\', '/');
         while (!relative.empty() && relative.front() == '/') relative.erase(relative.begin());
+        ArchiveEntryRef ref;
+        ref.basename = basename_from_path(relative);
+        ref.extension = extension_from_path(relative);
+        // Only XML classification needs its directory. Discard other irrelevant
+        // entries before allocating full archive paths for the entire catalogue.
+        if (ref.extension != ".xml" && !pamt_index_entry_traits(ref).second) continue;
         while (folder_cursor < folder_ranges.size() && entry_index >= folder_ranges[folder_cursor].end) {
             ++folder_cursor;
         }
@@ -504,24 +512,22 @@ static PamtIndex parse_pamt_index(const fs::path& pamt_path) {
             }
         }
         const std::string full_path = folder.empty() ? relative : (folder + "/" + relative);
-        ArchiveEntryRef ref;
         ref.path = full_path;
-        ref.basename = basename_from_path(full_path);
-        ref.extension = extension_from_path(full_path);
+        const auto [material_sidecar, lookup_relevant] = pamt_index_entry_traits(ref);
+        if (!lookup_relevant) continue;
         ref.pamt_path = pamt_path;
         ref.paz_index = paz_index;
-        ref.paz_file = pamt_path.parent_path() / (std::to_string(paz_index) + ".paz");
+        auto [paz, inserted] = paz_paths.try_emplace(paz_index);
+        if (inserted) paz->second = archive_directory / (std::to_string(paz_index) + ".paz");
+        ref.paz_file = paz->second;
         ref.offset = paz_offset;
         ref.comp_size = comp_size;
         ref.orig_size = orig_size;
         ref.flags = flags;
-        const auto [material_sidecar, lookup_relevant] = pamt_index_entry_traits(ref);
-        if (lookup_relevant) {
-            index.by_basename[lower_copy(ref.basename)].push_back(ref);
-        }
         if (material_sidecar) {
             index.material_sidecars.push_back(ref);
         }
+        index.by_basename[lower_copy(ref.basename)].push_back(std::move(ref));
     }
     return index;
 }

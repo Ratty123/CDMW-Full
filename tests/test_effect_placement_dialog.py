@@ -14,6 +14,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -693,6 +694,47 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
                 self.assertEqual(published, [(latest, "placed", self.app.thread())])
                 self.assertIs(workspace._item_mesh, latest)
                 self.assertEqual(workspace.showing_label.text(), "Imported")
+            finally:
+                workspace.request_shutdown()
+                self._settle(lambda: workspace._thread is None)
+
+    def test_cancelling_pending_content_rejects_results_before_replacement_is_scheduled(self) -> None:
+        started, cancelled = threading.Event(), threading.Event()
+
+        def slow_item(stop):
+            started.set()
+            stop.wait(2.0)
+            cancelled.set()
+            return _blade(), "stale"
+
+        with tempfile.TemporaryDirectory() as folder:
+            workspace = EffectPlacementWorkspace(
+                item_mesh=None, item_mesh_builder=slow_item,
+                box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+                output_root=Path(folder), host_factory=lambda parent: _AckHost(parent),
+            )
+            self.addCleanup(workspace.deleteLater)
+            published = []
+            workspace.item_mesh_ready.connect(lambda *values: published.append(values))
+            workspace.show()
+            try:
+                self._settle(started.is_set)
+                workspace.cancel_pending_content()
+                self._settle(lambda: workspace._thread is None)
+                self.assertTrue(cancelled.is_set())
+                self.assertEqual(published, [])
+                self.assertEqual(workspace.host.loaded_requests, [])
+
+                # A queued launch may already have left _pending_package when the
+                # source changes. It must release its usage without starting work.
+                released = []
+                usage = SimpleNamespace(release=lambda: released.append(True))
+                workspace._launch_package((
+                    workspace._package_generation - 1, False, _blade(),
+                    workspace._box, Path(folder), None, None, None, usage, None,
+                ))
+                self.assertEqual(released, [True])
+                self.assertIsNone(workspace._thread)
             finally:
                 workspace.request_shutdown()
                 self._settle(lambda: workspace._thread is None)

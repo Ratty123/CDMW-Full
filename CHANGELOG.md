@@ -77,6 +77,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Cold archive and template previews spend less time preparing archive metadata.** Native scans avoid constructing paths for irrelevant records and reuse PAZ paths while preserving the same geometry and texture inputs.
+- **Changing an effect, item or reference rig immediately cancels obsolete preview work.** An older result cannot publish during the selection delay, and queued stale launches release their source usage without starting another build.
+
 - **Imported glTF previews preserve transparency and surface factors.** Explicit opaque, cutout and blended modes retain their authored opacity; blended surfaces draw in camera-depth order, including while moving a model. Metallic/roughness factors multiply their maps, and constant colours use the source material. Model Library and imported New Item previews open flat against the model's broad plane with an aligned grid, and cached packages retain that framing choice.
 - **Imported glTF materials now preserve emission without requiring an emissive texture.** The Rust preview applies authored emissive colour and strength to constant-emission materials, preserves explicit zero strength, and uses glTF's default black emissive factor when it is omitted. Existing imported-model preview caches are refreshed for the corrected factors.
 

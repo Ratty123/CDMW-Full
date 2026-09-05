@@ -73,6 +73,19 @@ class EffectPlacementPackageMixin:
         if self.host is not None:
             self._start_package(reset_view=reset_view)
 
+    def cancel_pending_content(self) -> None:
+        """Retire obsolete work immediately while retaining the displayed scene."""
+        if self._closed:
+            return
+        self._package_generation += 1
+        self._initial_package_timer.stop()
+        self._release_request_model_source_usage(self._pending_package)
+        self._pending_package = None
+        if self._worker is not None:
+            self._worker.stop()
+        if self._thread is not None:
+            self._thread.requestInterruption()
+
     def _start_package(self, *, reset_view: bool = True) -> None:
         if self._closed:
             return
@@ -104,7 +117,7 @@ class EffectPlacementPackageMixin:
         self._launch_package(request)
 
     def _launch_package(self, request: tuple) -> None:
-        if self._closed:
+        if self._closed or int(request[0]) != self._package_generation:
             self._release_request_model_source_usage(request)
             return
         generation, reset_view, mesh, box, root, effect_preview, texture_reader, builder, source_usage, item_builder = request
