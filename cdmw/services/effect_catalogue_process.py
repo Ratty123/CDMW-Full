@@ -67,7 +67,7 @@ def build_effect_catalogue_in_subprocess(
                     del data
                 rows.append(row)
                 if on_progress is not None and (index % 50 == 0 or index + 1 == len(wanted)):
-                    on_progress(0, len(wanted), "Reading effect metadata…")
+                    on_progress(0, len(wanted), stem)
         raise_if_cancelled(stop_event)
         if not rows:
             return EffectCatalogue(signature=signature)

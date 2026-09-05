@@ -56,6 +56,7 @@ def test_real_child_preserves_facts_read_errors_and_progress(monkeypatch, tmp_pa
         snapshot, on_progress=lambda *values: progress.append(values), on_log=logs.append,
     )
     assert actual == expected
+    assert progress[0] == (0, 4, "good")
     assert progress[-1] == (3, 3, "unreadable")
     assert logs == ["Indexed 3 effects; 2 did not decode."]
     assert not tuple(tmp_path.iterdir())

@@ -6166,7 +6166,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 85,
+          "line": 89,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -14431,7 +14431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 294,
+          "line": 302,
           "sink": "log"
         }
       ]
@@ -18641,7 +18641,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 66,
+          "line": 70,
           "sink": "error"
         }
       ]
@@ -18661,7 +18661,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 64,
+          "line": 68,
           "sink": "error"
         }
       ]
@@ -26426,7 +26426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 947,
+          "line": 968,
           "sink": "ValueError"
         }
       ]
@@ -26436,7 +26436,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 942,
+          "line": 963,
           "sink": "ValueError"
         }
       ]
@@ -26446,7 +26446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 954,
+          "line": 975,
           "sink": "ValueError"
         }
       ]
@@ -29016,12 +29016,37 @@
         },
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 74,
+          "line": 75,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 86,
+          "line": 88,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 90,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Effect indexing did not produce a complete metadata catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue_process.py",
+          "line": 103,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Effect indexing failed ({value_0}).",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue_process.py",
+          "line": 100,
           "sink": "RuntimeError"
         }
       ]
@@ -40411,7 +40436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 284,
+          "line": 292,
           "sink": "emit"
         }
       ]
@@ -41492,6 +41517,11 @@
         {
           "path": "cdmw/services/effect_catalogue.py",
           "line": 203,
+          "sink": "on_log"
+        },
+        {
+          "path": "cdmw/services/effect_catalogue_process.py",
+          "line": 105,
           "sink": "on_log"
         }
       ]
@@ -44451,7 +44481,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 68,
+          "line": 72,
           "sink": "error"
         }
       ]
@@ -45511,7 +45541,7 @@
       "origins": [
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 76,
+          "line": 77,
           "sink": "log"
         }
       ]
@@ -45766,7 +45796,7 @@
       "origins": [
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 71,
+          "line": 72,
           "sink": "emit"
         }
       ]
@@ -46061,7 +46091,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 90,
+          "line": 94,
           "sink": "update_pyinstaller_boot_splash"
         },
         {
@@ -49406,12 +49436,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 392,
+          "line": 400,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 393,
+          "line": 401,
           "sink": "emit"
         }
       ]
@@ -52971,7 +53001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 219,
+          "line": 227,
           "sink": "progress"
         }
       ]
@@ -61476,7 +61506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 329,
+          "line": 337,
           "sink": "emit"
         },
         {
@@ -69031,7 +69061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 346,
+          "line": 354,
           "sink": "log"
         },
         {
@@ -69491,7 +69521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1013,
+          "line": 1034,
           "sink": "ValueError"
         }
       ]
@@ -69501,7 +69531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 625,
+          "line": 626,
           "sink": "ValueError"
         }
       ]
@@ -69511,7 +69541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 967,
+          "line": 988,
           "sink": "ValueError"
         }
       ]
@@ -69621,7 +69651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1017,
+          "line": 1038,
           "sink": "ValueError"
         }
       ]
@@ -69641,7 +69671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 925,
+          "line": 946,
           "sink": "ValueError"
         }
       ]
@@ -69651,7 +69681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 927,
+          "line": 948,
           "sink": "ValueError"
         }
       ]
@@ -69672,6 +69702,21 @@
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
           "line": 556,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preview Core material DDS changed while its graph was built.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 712,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_package.py",
+          "line": 731,
           "sink": "ValueError"
         }
       ]
@@ -69711,7 +69756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 698,
+          "line": 700,
           "sink": "ValueError"
         }
       ]
@@ -69721,7 +69766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 620,
+          "line": 621,
           "sink": "ValueError"
         }
       ]
@@ -69731,7 +69776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 631,
+          "line": 632,
           "sink": "ValueError"
         }
       ]
@@ -69751,7 +69796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 663,
+          "line": 664,
           "sink": "ValueError"
         }
       ]
@@ -69761,7 +69806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 715,
+          "line": 736,
           "sink": "ValueError"
         }
       ]
@@ -69771,7 +69816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 627,
+          "line": 628,
           "sink": "ValueError"
         }
       ]
@@ -69781,7 +69826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 958,
+          "line": 979,
           "sink": "ValueError"
         }
       ]
@@ -69791,7 +69836,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1002,
+          "line": 1023,
           "sink": "ValueError"
         }
       ]
@@ -69801,7 +69846,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 960,
+          "line": 981,
           "sink": "ValueError"
         }
       ]
@@ -69811,7 +69856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 717,
+          "line": 738,
           "sink": "ValueError"
         }
       ]
@@ -82341,7 +82386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1497,
+          "line": 1518,
           "sink": "ValueError"
         }
       ]
@@ -82351,7 +82396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1500,
+          "line": 1521,
           "sink": "ValueError"
         }
       ]
@@ -82361,7 +82406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1509,
+          "line": 1530,
           "sink": "ValueError"
         }
       ]
@@ -83296,7 +83341,7 @@
       "origins": [
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 88,
+          "line": 92,
           "sink": "emit"
         }
       ]
@@ -92892,6 +92937,21 @@
       ]
     },
     {
+      "key": "Staged effect payload is incomplete.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue_process.py",
+          "line": 128,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/effect_catalogue_process.py",
+          "line": 132,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Staged overlay bytes do not match the confirmed preparation",
       "origins": [
         {
@@ -93561,7 +93621,7 @@
       "origins": [
         {
           "path": "cdmw/app/bootstrap.py",
-          "line": 82,
+          "line": 86,
           "sink": "update_pyinstaller_boot_splash"
         }
       ]
@@ -97686,22 +97746,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 338,
+          "line": 346,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 340,
+          "line": 348,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 345,
+          "line": 353,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 362,
+          "line": 370,
           "sink": "RuntimeError"
         },
         {
@@ -98346,7 +98406,7 @@
       "origins": [
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 92,
+          "line": 96,
           "sink": "log"
         }
       ]
@@ -98781,12 +98841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 245,
+          "line": 253,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 246,
+          "line": 254,
           "sink": "emit"
         }
       ]
@@ -98816,7 +98876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 224,
+          "line": 232,
           "sink": "emit"
         }
       ]
@@ -98981,7 +99041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 310,
+          "line": 318,
           "sink": "emit"
         }
       ]
@@ -102636,7 +102696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1291,
+          "line": 1312,
           "sink": "ValueError"
         }
       ]
@@ -102656,7 +102716,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1285,
+          "line": 1306,
           "sink": "ValueError"
         }
       ]
