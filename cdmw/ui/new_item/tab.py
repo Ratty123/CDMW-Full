@@ -302,6 +302,10 @@ class NewItemStudioTab(QWidget):
             entries_by_normalized_path=entries_by_normalized_path,
             entries_by_basename=entries_by_basename,
             entries_by_extension=entries_by_extension,
+            native_preview_core_cache_root=(
+                self._native_preview_core_cache_root() if self._preview_cache_mode != "off" else None
+            ),
+            preview_render_settings=self._preview_render_settings,
         ):
             if not self._panels_built:
                 self._read_button.setEnabled(True)
@@ -345,6 +349,10 @@ class NewItemStudioTab(QWidget):
             model_path, self._pending_model_import = self._pending_model_import, None
             self.open_model_source(model_path)
 
+    def _native_preview_core_cache_root(self) -> Path | None:
+        archive_root = getattr(self._window, "archive_cache_root", None)
+        return runtime_cache_layout(archive_root).native_preview_root if archive_root is not None else None
+
     def _mount_panels(self) -> None:
         if self._panels_built:
             return
@@ -357,15 +365,9 @@ class NewItemStudioTab(QWidget):
         self.template_panel = TemplatePanel(controller)
         self.template_panel.open_archive_entry_requested.connect(self.open_archive_entry_requested.emit)
         self.identity_panel = IdentityPanel(controller)
-        archive_cache_root = getattr(self._window, "archive_cache_root", None)
-        native_preview_core_cache_root = (
-            runtime_cache_layout(archive_cache_root).native_preview_root
-            if archive_cache_root is not None
-            else None
-        )
         self.model_panel = ModelPanel(
             controller,
-            native_preview_core_cache_root=native_preview_core_cache_root,
+            native_preview_core_cache_root=self._native_preview_core_cache_root(),
         )
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)

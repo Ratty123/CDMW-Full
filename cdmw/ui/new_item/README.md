@@ -56,7 +56,12 @@ reuses Archive Browser's published path, basename and extension indexes. A valid
 material-package hit is accepted before either preview builder, including packages
 produced by native Preview Core. The cache identity includes the native helper,
 rendering inputs, and archive-file revisions so borrowed textures also invalidate
-correctly. On a cold miss, bare
+correctly. With preview caching enabled, the snapshot worker also prepares the native
+service and shared material indexes using one small character model while the remaining
+archive tables load. It uses the template preview's cache and captured render settings;
+unfinished warm-up is cancelled and drained before the snapshot returns. Warm-up failure
+does not invalidate the table snapshot, and waiting for the native service is cancellable.
+On a cold miss, bare
 geometry and Archive Browser's native schema-8 Preview Core package prepare in parallel;
 the native package reuses the shared DDS cache and bypasses New Item's former Python
 OBJ/material recompilation. Geometry reaches the resident viewport first, then textures

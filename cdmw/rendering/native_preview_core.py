@@ -457,7 +457,10 @@ class NativePreviewCoreServiceClient:
         stop_event: Any = None,
         on_dispatched: Optional[Callable[[], None]] = None,
     ) -> None:
-        with self._lock:
+        while not self._lock.acquire(timeout=0.05):
+            raise_if_cancelled(stop_event, "Native preview-core job cancelled before dispatch.")
+        try:
+            raise_if_cancelled(stop_event, "Native preview-core job cancelled before dispatch.")
             self._start_locked(stop_event=stop_event)
             process = self._process
             if process is None or process.stdin is None:
@@ -496,6 +499,8 @@ class NativePreviewCoreServiceClient:
             if recycle_reason:
                 self._mark_report_recycle_reason(report_path, report, recycle_reason)
                 self.shutdown()
+        finally:
+            self._lock.release()
 
 
 _native_preview_core_service_lock = threading.RLock()

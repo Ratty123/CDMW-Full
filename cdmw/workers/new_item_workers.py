@@ -18,7 +18,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.mutation import ArchivePatchResult
 from cdmw.domain.new_item.spec import IconSource, NewItemSpec
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
-from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.models import ArchiveEntry, ModPackageInfo, clamp_model_preview_render_settings
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.services.new_item_service import NewItemExportResult, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot
@@ -42,7 +42,9 @@ def model_source_cleanup_task(source: object) -> Task:
     return run
 
 
-def list_archive_entries(package_root: Path, log: LogSink, stop_event: threading.Event) -> tuple[ArchiveEntry, ...]:
+def list_archive_entries(
+    package_root: Path, log: LogSink, stop_event: threading.Event, *, preview_warmup=None,
+) -> tuple[ArchiveEntry, ...]:
     """Every entry of every package table under `package_root`, read directly.
 
     The shell's standalone catalogue backend shows the Archive Browser without ever
@@ -62,7 +64,10 @@ def list_archive_entries(package_root: Path, log: LogSink, stop_event: threading
     for index, pamt in enumerate(tables, start=1):
         raise_if_cancelled(stop_event, "New item snapshot cancelled.")
         try:
-            entries.extend(parse_archive_pamt(pamt))
+            batch = parse_archive_pamt(pamt)
+            entries.extend(batch)
+            if preview_warmup is not None:
+                preview_warmup.offer(batch)
         except Exception as error:  # noqa: BLE001 - one bad package is not the end of the list
             log(f"Skipping {pamt.parent.name}/{pamt.name}: {error}")
         if index % 8 == 0 or index == len(tables):
@@ -79,6 +84,8 @@ def snapshot_task(
     entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    native_preview_core_cache_root: Optional[Path] = None,
+    preview_render_settings: object = None,
 ) -> Callable[[LogSink, threading.Event], NewItemSnapshot]:
     """Read every table a new item touches; seconds of work, once per archive scan.
 
@@ -88,22 +95,31 @@ def snapshot_task(
     """
 
     frozen = tuple(entries)
+    warmup_settings = clamp_model_preview_render_settings(preview_render_settings)
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemSnapshot:
-        listed = frozen
-        if not listed:
-            if package_root is None:
-                raise ValueError("The archive list is empty and no package root was given.")
-            listed = list_archive_entries(Path(package_root), log, stop_event)
-        return service.build_snapshot(
-            listed,
-            read_entry=read_entry,
-            on_log=log,
-            stop_event=stop_event,
-            entries_by_normalized_path=entries_by_normalized_path,
-            entries_by_basename=entries_by_basename,
-            entries_by_extension=entries_by_extension,
-        )
+        from cdmw.workers.new_item_preview_warmup import NewItemPreviewWarmup
+
+        warmup = NewItemPreviewWarmup(native_preview_core_cache_root, warmup_settings, stop_event)
+        try:
+            listed = frozen
+            if not listed:
+                if package_root is None:
+                    raise ValueError("The archive list is empty and no package root was given.")
+                listed = list_archive_entries(Path(package_root), log, stop_event, preview_warmup=warmup)
+            else:
+                warmup.offer(listed)
+            return service.build_snapshot(
+                listed,
+                read_entry=read_entry,
+                on_log=log,
+                stop_event=stop_event,
+                entries_by_normalized_path=entries_by_normalized_path,
+                entries_by_basename=entries_by_basename,
+                entries_by_extension=entries_by_extension,
+            )
+        finally:
+            warmup.finish()
 
     return run
 
