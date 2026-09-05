@@ -152,6 +152,7 @@ class _PreviewPackageTask:
         cached = lookup_rust_preview_package_from_model_identity(
             cache_root=self.output_root,
             archive_identity=f"new_item_preview:{token!r}",
+            semantic_view_axis="auto",
             cancelled=stop_event.is_set,
         )
         if cached is None:
@@ -338,6 +339,7 @@ def build_item_preview_package(
         cached_package = lookup_dotnet_preview_package_from_model_identity(
             cache_root=output_root,
             archive_identity=archive_identity,
+            semantic_view_axis="auto",
             cancelled=stop_event.is_set,
         )
         if cached_package is not None:

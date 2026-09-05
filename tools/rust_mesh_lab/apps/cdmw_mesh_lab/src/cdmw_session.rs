@@ -159,6 +159,9 @@ pub struct SessionMaterialPresentation {
     pub texture_flip_vertical: bool,
     pub alpha_mode: String,
     pub alpha_cutoff: Option<f32>,
+    pub opacity: Option<f32>,
+    #[serde(default)]
+    pub gltf_metallic_roughness: bool,
     pub double_sided: bool,
     pub roughness: Option<f32>,
     pub metalness: Option<f32>,
@@ -1581,6 +1584,7 @@ fn validate_material_presentations(
             )));
         }
         validate_optional_factor(row.alpha_cutoff, 0.0, 1.0, "alpha cutoff")?;
+        validate_optional_factor(row.opacity, 0.0, 1.0, "opacity")?;
         validate_optional_factor(row.roughness, 0.0, 1.0, "roughness")?;
         validate_optional_factor(row.metalness, 0.0, 1.0, "metalness")?;
         validate_optional_factor(row.specular, 0.0, 1.0, "specular")?;
@@ -2711,6 +2715,8 @@ mod tests {
             texture_flip_vertical: true,
             alpha_mode: "cutout".to_owned(),
             alpha_cutoff: Some(0.17),
+            opacity: None,
+            gltf_metallic_roughness: false,
             double_sided: false,
             roughness: Some(0.22),
             metalness: Some(0.81),
@@ -3376,6 +3382,38 @@ mod tests {
     }
 
     #[test]
+    fn cdmw_material_presentations_preserve_opacity_and_select_the_draw_alpha_mode() {
+        for mode in ["opaque", "cutout", "blend"] {
+            for opacity in [0.0, 0.5, 1.0] {
+                let mut row = material_presentation();
+                row.alpha_mode = mode.to_owned();
+                row.opacity = Some(opacity);
+                row.gltf_metallic_roughness = true;
+                let factors = crate::cdmw_material_preview_factors(&row);
+                let loaded = crate::loaded_cdmw_material_factor(&row, 1);
+                assert_eq!(factors.opacity, Some(opacity));
+                assert_eq!(factors.gltf_metallic_roughness, Some(true));
+                assert_eq!(
+                    loaded.gltf_metallic_roughness,
+                    factors.gltf_metallic_roughness
+                );
+                assert_eq!(factors.alpha_blend, Some(mode == "blend"));
+                assert_eq!(
+                    factors.alpha_cutoff,
+                    if mode == "cutout" {
+                        row.alpha_cutoff
+                    } else {
+                        None
+                    }
+                );
+                assert_eq!(loaded.opacity, factors.opacity);
+                assert_eq!(loaded.alpha_blend, factors.alpha_blend);
+                assert_eq!(loaded.alpha_cutoff, factors.alpha_cutoff);
+            }
+        }
+    }
+
+    #[test]
     fn cdmw_material_presentations_reject_invalid_category_range_and_index() {
         let mut manifest = CdmwBridge::for_test(
             tempdir().expect("root").path().to_path_buf(),
@@ -3395,6 +3433,13 @@ mod tests {
         invalid_range.roughness = Some(1.01);
         manifest.material_presentations = vec![invalid_range];
         assert!(validate_material_presentations(&manifest, &document()).is_err());
+
+        for opacity in [f32::NAN, -0.01, 1.01] {
+            let mut invalid_opacity = material_presentation();
+            invalid_opacity.opacity = Some(opacity);
+            manifest.material_presentations = vec![invalid_opacity];
+            assert!(validate_material_presentations(&manifest, &document()).is_err());
+        }
 
         let mut invalid_tint = material_presentation();
         invalid_tint.texture_tint = Some([0.5, f32::NAN, 0.5]);

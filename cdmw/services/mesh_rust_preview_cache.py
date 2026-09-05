@@ -50,11 +50,22 @@ from cdmw.services.mesh_rust_preview_package import (
 )
 
 _PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
-    # Schema 4 retains glTF's default black emission and explicit zero strength.
-    "schema_version": 4,
+    # Schema 6 retains glTF material semantics and aligns the grid with semantic framing.
+    "schema_version": 6,
     "material_semantics_version": 1,
     "material_graph_version": 1,
 }
+
+
+def _python_model_cache_identity(profile: str, identity: str, view_axis: str) -> str:
+    axis = str(view_axis or "").strip().lower()
+    if axis:
+        # The shared cache consumes only version fields from source_manifest.
+        # Encode framing in the identity so both publishing and early lookup use it.
+        return "python-semantic:" + json.dumps([profile, identity, axis], separators=(",", ":"))
+    return f"python:{profile}:{identity}"
+
+
 _CLOTH_PARTICLE = struct.Struct("<3f")
 _CLOTH_PIN = struct.Struct("<f")
 _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
@@ -776,7 +787,7 @@ class _ModelPreviewPackageRequest:
     def cache_key(self, quality: str) -> str:
         identity = _material_quality_identity(self.archive_identity, quality)
         return rust_preview_package_cache_key(
-            f"python:{self.interaction_profile}:{identity}",
+            _python_model_cache_identity(self.interaction_profile, identity, self.semantic_view_axis),
             sidecar_generation=self.sidecar_generation,
             source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
         )
@@ -785,6 +796,7 @@ class _ModelPreviewPackageRequest:
         mesh = parsed_mesh_from_model_preview(self.model)
         _check_cancelled(self.cancelled)
         initial_view = None
+        grid_normal_axis = "y"
         if self.semantic_view_axis:
             bounds = (
                 tuple(float(value) for value in mesh.bbox_min[:3]),
@@ -795,6 +807,7 @@ class _ModelPreviewPackageRequest:
                 extents = tuple(abs(bounds[1][index] - bounds[0][index]) for index in range(3))
                 view_axis = ("x", "y", "z")[min((2, 0, 1), key=extents.__getitem__)]
             initial_view = semantic_initial_view(bounds, view_axis)
+            grid_normal_axis = view_axis
         return build_rust_preview_package(
             mesh,
             output_package_dir=output_package_dir,
@@ -803,6 +816,7 @@ class _ModelPreviewPackageRequest:
             interaction_profile=self.interaction_profile,
             material_quality=quality,
             initial_view=initial_view,
+            grid_normal_axis=grid_normal_axis,
         )
 
     def cache_metadata(self, quality: str) -> dict[str, object]:
@@ -998,6 +1012,7 @@ def lookup_rust_preview_package_from_model_identity(
     sidecar_generation: int = 0,
     interaction_profile: str = "read_only",
     material_quality: str = "full",
+    semantic_view_axis: str = "",
     cancelled: Callable[[], bool] | None = None,
 ) -> RustPreviewPackage | None:
     """Return a valid canonical Python-model package without decoding its source."""
@@ -1008,6 +1023,7 @@ def lookup_rust_preview_package_from_model_identity(
         sidecar_generation=sidecar_generation,
         interaction_profile=interaction_profile,
         material_quality=material_quality,
+        semantic_view_axis=semantic_view_axis,
         cancelled=cancelled,
     )
     return hit[0] if hit is not None else None
@@ -1020,6 +1036,7 @@ def lookup_rust_preview_package_hit_from_model_identity(
     sidecar_generation: int = 0,
     interaction_profile: str = "read_only",
     material_quality: str = "full",
+    semantic_view_axis: str = "",
     cancelled: Callable[[], bool] | None = None,
 ) -> tuple[RustPreviewPackage, dict[str, object]] | None:
     """Return a canonical Python-model package and its publication metadata."""
@@ -1031,7 +1048,7 @@ def lookup_rust_preview_package_hit_from_model_identity(
     quality = normalize_rust_preview_material_quality(material_quality)
     identity = _material_quality_identity(str(archive_identity or ""), quality)
     cache_key = rust_preview_package_cache_key(
-        f"python:{profile}:{identity}",
+        _python_model_cache_identity(profile, identity, semantic_view_axis),
         sidecar_generation=sidecar_generation,
         source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
     )

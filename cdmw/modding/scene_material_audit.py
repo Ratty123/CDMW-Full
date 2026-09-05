@@ -1380,7 +1380,8 @@ def _apply_scene_material_parameters_to_submesh(
         alpha_value = max(0.0, min(1.0, float(alpha_factor)))
         native_overrides["opacity"] = alpha_value
         if alpha_value < 0.999:
-            submesh.preview_alpha_mode = "BLEND"
+            if not str(getattr(submesh, "preview_alpha_mode", "") or "").strip():
+                submesh.preview_alpha_mode = "BLEND"
             submesh.preview_vertex_alpha_mean = alpha_value
             submesh.preview_vertex_alpha_min = alpha_value
     if _scene_parameter_numeric(parameter_tuple, "gltfunlit") is not None:

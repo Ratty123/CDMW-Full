@@ -107,6 +107,17 @@ surface. Every enabled row must have a painted UI anchor and compiled dispatch
 target; every disabled row must have a reason. Rust contract generation does
 not resolve, launch, hash, or read a Vortice executable or report.
 
+## Materials in CDMW previews
+
+CDMW-imported glTF materials preserve OPAQUE, MASK and BLEND and scalar opacity.
+Blended triangles render after opaque geometry, with depth testing and without
+depth writes, sorted for each view and current placement. The same draw path serves
+the window and offscreen captures. Imported metallic/roughness factors multiply
+their maps and retain glTF defaults when maps are absent. The D3D12 pixel gate
+checks overlapping layers, opaque occlusion, moved layers, zero opacity, cutout,
+and mapped/unmapped factor semantics. This does not implement transmission,
+refraction or the remaining archive-specific layered material composition.
+
 ## Effects in CDMW previews
 
 Resident texture-package promotion waits for active camera and placement gestures

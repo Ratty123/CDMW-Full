@@ -600,12 +600,12 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
             continue
         material_names[material_index] = str(material.get("name", "") or f"material_{material_index}")
         material_flags[material_index] = {
-            "alpha_mode": str(material.get("alphaMode", "") or ""),
+            "alpha_mode": str(material.get("alphaMode", "OPAQUE") or "OPAQUE"),
             "double_sided": bool(material.get("doubleSided", False)),
             "unlit": False,
         }
         preview_parameters: list[PreviewMaterialParameterInput] = []
-        alpha_mode = str(material.get("alphaMode", "") or "").strip()
+        alpha_mode = str(material.get("alphaMode", "OPAQUE") or "OPAQUE").strip()
         if alpha_mode:
             preview_parameters.append(
                 PreviewMaterialParameterInput(
@@ -841,6 +841,7 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
             )
         if material_slots:
             material_texture_slots[material_index] = material_slots
+        material_flags[material_index]["pbr_workflow"] = material_workflows.get(material_index, "")
         if preview_parameters:
             material_preview_parameters[material_index] = tuple(preview_parameters)
     return (
@@ -884,6 +885,9 @@ def _apply_gltf_preview_material_metadata(
         material_parameters=preview_parameters,
         confidence="gltf",
     )
+    overrides = dict(getattr(submesh, "preview_native_material_overrides", {}) or {})
+    overrides["gltf_metallic_roughness"] = flags.get("pbr_workflow") == "metallicRoughness"
+    submesh.preview_native_material_overrides = overrides
 
 
 def _gltf_texture_image_path(

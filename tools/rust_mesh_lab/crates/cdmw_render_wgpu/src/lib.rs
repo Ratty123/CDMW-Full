@@ -46,7 +46,7 @@ struct MaterialUniform {
     flags: u32,
     skin_detail_scale: f32,
     skin_detail_opacity: f32,
-    _padding_0: u32,
+    opacity: f32,
     emissive_color_and_intensity: vec4<f32>,
     surface_factors: vec4<f32>,
     relief_factors: vec4<f32>,
@@ -98,6 +98,8 @@ const MATERIAL_SKIN_DETAIL_MATERIAL: u32 = 2097152u;
 const MATERIAL_GLOSSINESS: u32 = 4194304u;
 const MATERIAL_TEXTURE_TINT: u32 = 8388608u;
 const MATERIAL_FLIP_V: u32 = 16777216u;
+const MATERIAL_ALPHA_BLEND: u32 = 33554432u;
+const MATERIAL_GLTF_PBR: u32 = 67108864u;
 const MATERIAL_MIP_LOD_BIAS: f32 = -2.0;
 
 fn make_vertex_out(
@@ -401,7 +403,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             // A zero base-tint strength is the imported glTF baseColorFactor
             // contract: multiply the sampled texture exactly.
             texel = vec4<f32>(
-                clamp(texel.rgb * texture_tint, vec3<f32>(0.0), vec3<f32>(1.0)),
+                clamp(select(vec3<f32>(1.0), texel.rgb, (material.flags & MATERIAL_BASE_COLOR) != 0u) * texture_tint, vec3<f32>(0.0), vec3<f32>(1.0)),
                 texel.a);
         } else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u {
             // PAC hair dye is authored in display-space colour. Decode it before
@@ -442,6 +444,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if (material.flags & MATERIAL_OPACITY) != 0u {
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
+    material_alpha = clamp(material_alpha * material.opacity, 0.0, 1.0);
     if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
         if material_alpha < material.surface_factors.w {
             discard;
@@ -452,7 +455,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
     }
     if camera.view_mode == 2u {
-        return present(texel.rgb, 1.0);
+        return present(texel.rgb, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
     }
     if camera.view_mode == 5u {
         return present_srgb(vec3<f32>(material_alpha), 1.0);
@@ -537,6 +540,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
 
     let category_code = min(u32(material.relief_factors.z + 0.5), 14u);
     let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
+    let gltf_pbr = (material.flags & MATERIAL_GLTF_PBR) != 0u;
     let is_metal = category_code == 1u;
     let is_leather = category_code == 2u;
     let is_wood = category_code == 3u;
@@ -555,7 +559,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     let conservative_nonmetal = is_leather || is_wood || is_cloth || is_skin
         || is_hair || is_stone || is_tooth || is_bone || is_organic || is_foliage;
     let has_skin_specular_response =
-        is_skin && (material.flags & MATERIAL_SPECULAR) != 0u;
+        is_skin && !gltf_pbr && (material.flags & MATERIAL_SPECULAR) != 0u;
     let has_authoritative_roughness =
         (material.flags & (MATERIAL_SURFACE | MATERIAL_ROUGHNESS)) != 0u
         || has_skin_specular_response;
@@ -605,7 +609,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             MATERIAL_MIP_LOD_BIAS).r, 0.0, 1.0);
         roughness = clamp(1.0 - authored_glossiness, 0.04, 1.0);
     }
-    if !has_source_roughness {
+    if !has_source_roughness && !gltf_pbr {
         var category_roughness = 0.66;
         if is_metal { category_roughness = 0.16; }
         if is_leather { category_roughness = 0.76; }
@@ -620,16 +624,26 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         if is_tooth { category_roughness = 0.58; }
         roughness = mix(0.66, category_roughness, category_confidence);
     }
-    if !has_source_metalness && is_metal {
+    if !has_source_metalness && is_metal && !gltf_pbr {
         metalness = mix(0.28, 0.62, category_confidence);
     }
-    if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
+    if gltf_pbr {
+        roughness = select(1.0, roughness, has_source_roughness);
+        metalness = select(1.0, metalness, has_source_metalness);
+    }
+    if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u && gltf_pbr {
+        roughness = clamp(roughness * material.surface_factors.x, 0.04, 1.0);
+    } else if (material.flags & MATERIAL_ROUGHNESS_FACTOR) != 0u {
         let factor_weight = select(0.55, 0.15, has_source_roughness);
         roughness = clamp(mix(roughness, material.surface_factors.x, factor_weight), 0.04, 1.0);
     }
     if (material.flags & MATERIAL_METALNESS_FACTOR) != 0u {
         let declared_metalness = clamp(material.surface_factors.y, 0.0, 1.0);
-        metalness = select(declared_metalness, max(metalness, declared_metalness), has_source_metalness);
+        if gltf_pbr {
+            metalness *= declared_metalness;
+        } else {
+            metalness = select(declared_metalness, max(metalness, declared_metalness), has_source_metalness);
+        }
     }
     if (material.flags & MATERIAL_SKIN_DETAIL_MATERIAL) != 0u && skin_detail_weight > 0.0001 {
         let skin_detail_surface = textureSampleBias(
@@ -642,7 +656,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             0.04,
             1.0);
     }
-    if is_skin {
+    if is_skin && !gltf_pbr {
         metalness = 0.0;
     }
     if (material.flags & MATERIAL_HEIGHT) != 0u {
@@ -778,18 +792,22 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if is_leather { dielectric_f0 = 0.045; }
     if is_tooth { dielectric_f0 = 0.05; }
     dielectric_f0 = mix(0.04, dielectric_f0, category_confidence);
+    dielectric_f0 = select(dielectric_f0, 0.04, gltf_pbr);
     var f0 = mix(
         vec3<f32>(dielectric_f0),
         material_reference_albedo,
         vec3<f32>(metalness),
     );
+    if gltf_pbr && (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u {
+        f0 = mix(vec3<f32>(0.04 * material.surface_factors.z), material_reference_albedo, vec3<f32>(metalness));
+    }
     let source_stable_f0 = f0;
     if (material.flags & MATERIAL_SPECULAR) != 0u && !is_skin {
         let mapped_specular = textureSampleBias(specular_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).rgb;
         let source_weight = max(metalness, select(0.0, 0.75, is_glossy));
         f0 = mix(f0, max(f0, mapped_specular), vec3<f32>(source_weight));
     }
-    if (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u
+    if !gltf_pbr && (material.flags & MATERIAL_SPECULAR_FACTOR) != 0u
         && material.surface_factors.z > 0.02 {
         let factored_specular = mix(
             dielectric_f0,
@@ -1052,7 +1070,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             + glass_edge
             + emissive,
         exposure);
-    return present(shaded, 1.0);
+    return present(shaded, select(1.0, material_alpha, (material.flags & MATERIAL_ALPHA_BLEND) != 0u));
 }
 
 @fragment
@@ -1197,7 +1215,7 @@ struct MaterialUniform {
     flags: u32,
     skin_detail_scale: f32,
     skin_detail_opacity: f32,
-    _padding: u32,
+    opacity: f32,
     emissive_color_and_intensity: [f32; 4],
     surface_factors: [f32; 4],
     relief_factors: [f32; 4],
@@ -1229,6 +1247,8 @@ const MATERIAL_SKIN_DETAIL_MATERIAL: u32 = 2097152;
 const MATERIAL_GLOSSINESS: u32 = 4194304;
 const MATERIAL_TEXTURE_TINT: u32 = 8388608;
 const MATERIAL_FLIP_V: u32 = 16777216;
+const MATERIAL_ALPHA_BLEND: u32 = 33554432;
+const MATERIAL_GLTF_PBR: u32 = 67108864;
 const NEUTRAL_MISSING_BASE_COLOR_SRGB: [u8; 4] = [144, 144, 144, 255];
 
 impl CameraUniform {
@@ -1425,6 +1445,9 @@ pub struct MaterialPreviewFactors {
     pub texture_tint: Option<[f32; 3]>,
     pub base_tint_strength: Option<f32>,
     pub alpha_cutoff: Option<f32>,
+    pub alpha_blend: Option<bool>,
+    pub opacity: Option<f32>,
+    pub gltf_metallic_roughness: Option<bool>,
     pub hair_anisotropy: Option<bool>,
     pub layer_mask_channel: Option<u32>,
     pub category_code: Option<u32>,
@@ -1651,6 +1674,7 @@ pub struct GpuMeshBuffers {
     normal_lines: wgpu::Buffer,
     bounds_lines: wgpu::Buffer,
     material_ranges: Vec<GpuMaterialRange>,
+    sort_triangles: Vec<material_transparency::SortTriangle>,
     triangle_index_count: u32,
     wire_index_count: u32,
     vertex_count: u32,
@@ -1839,6 +1863,7 @@ struct DefaultMaterialTextures {
 struct GpuMaterialBinding {
     bind_group: wgpu::BindGroup,
     _uniform_buffer: wgpu::Buffer,
+    alpha_blend: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2098,6 +2123,7 @@ impl GpuMeshBuffers {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let (material_indices, material_ranges) = material_index_batches(snapshot)?;
+        let sort_triangles = material_transparency::sort_triangles(&vertices, &material_indices);
         let triangle_index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("CDMW Rust Mesh Lab triangle indices"),
             contents: bytemuck::cast_slice(&material_indices),
@@ -2128,6 +2154,7 @@ impl GpuMeshBuffers {
             normal_lines,
             bounds_lines,
             material_ranges,
+            sort_triangles,
             triangle_index_count: u32::try_from(snapshot.indices.len())
                 .map_err(|_| RenderError::ResourceLimit)?,
             wire_index_count: u32::try_from(wire_indices.len())
@@ -2211,6 +2238,9 @@ impl GpuMeshBuffers {
             ));
         }
         queue.write_buffer(&self.vertex, 0, bytemuck::cast_slice(&vertices));
+        for triangle in &mut self.sort_triangles {
+            triangle.refresh(&vertices);
+        }
         queue.write_buffer(
             &self.normal_lines,
             0,
@@ -2414,6 +2444,7 @@ pub struct WindowRenderer {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     solid_pipeline: wgpu::RenderPipeline,
+    blended_pipeline: wgpu::RenderPipeline,
     wire_pipeline: wgpu::RenderPipeline,
     xray_wire_pipeline: wgpu::RenderPipeline,
     point_pipeline: wgpu::RenderPipeline,
@@ -2694,6 +2725,7 @@ impl WindowRenderer {
             queue,
             config,
             solid_pipeline: pipelines.solid,
+            blended_pipeline: pipelines.blended,
             wire_pipeline: pipelines.wire,
             xray_wire_pipeline: pipelines.xray_wire,
             point_pipeline: pipelines.point,
@@ -3341,6 +3373,15 @@ impl WindowRenderer {
         output_height: u32,
         viewport: Option<[f32; 4]>,
     ) {
+        let transparency = self.mesh.as_ref().and_then(|mesh| {
+            material_transparency::prepare(
+                &self.device,
+                mesh,
+                &self.active_material_bindings,
+                &self.camera_uniform,
+                self.view_mode,
+            )
+        });
         {
             let (mesh_color_view, resolve_target, store) = if let Some(target) = multisample {
                 (&target.view, Some(view), wgpu::StoreOp::Discard)
@@ -3397,6 +3438,8 @@ impl WindowRenderer {
                     &self.active_material_bindings,
                     &self.camera_bind_group,
                     &self.solid_pipeline,
+                    &self.blended_pipeline,
+                    transparency.as_ref(),
                     &self.wire_pipeline,
                     &self.xray_wire_pipeline,
                     &self.point_pipeline,
@@ -3678,6 +3721,9 @@ fn validate_material_factor_ownership(
         && factors.texture_tint.is_none()
         && factors.base_tint_strength.is_none()
         && factors.alpha_cutoff.is_none()
+        && factors.alpha_blend.is_none()
+        && factors.opacity.is_none()
+        && factors.gltf_metallic_roughness.is_none()
         && factors.hair_anisotropy.is_none()
         && factors.layer_mask_channel.is_none()
         && factors.category_code.is_none()
@@ -3709,6 +3755,7 @@ fn validate_material_factor_ownership(
             factors.height_scale,
             factors.base_tint_strength,
             factors.alpha_cutoff,
+            factors.opacity,
             factors.category_confidence,
         ]
         .into_iter()
@@ -4625,6 +4672,28 @@ async fn run_headless_render_smoke_internal(
     // Pipeline construction alone missed particles disappearing on D3D12.
     // Assert actual pixels through the production bindings and vertex layout.
     effect_particle_proof::verify(&device, &queue)?;
+    material_transparency::verify(
+        &device,
+        &queue,
+        format,
+        &pipelines,
+        &camera_bind_group,
+        &mut camera_uniform,
+        &camera_buffer,
+        &default_material_binding.bind_group,
+        |factors| {
+            let roles: &[TextureRole] =
+                if factors.gltf_metallic_roughness == Some(true) && factors.metalness.is_some() {
+                    &[TextureRole::Material]
+                } else {
+                    &[]
+                };
+            bindings_for_roles(roles, factors)
+                .into_values()
+                .next()
+                .expect("material proof binding")
+        },
+    )?;
     let mut render_snapshot = snapshot.clone();
     render_snapshot.triangle_materials.fill(0);
     let first_triangle = render_snapshot.indices.get(..3).ok_or_else(|| {
@@ -4802,6 +4871,8 @@ async fn run_headless_render_smoke_internal(
             });
             record_headless_pass(
                 &mut encoder,
+                &device,
+                &camera_uniform,
                 multisample.as_ref().map_or(&view, |target| &target.view),
                 multisample.as_ref().map(|_| &view),
                 &depth.view,
@@ -6012,6 +6083,8 @@ fn material_proof_sphere_snapshot() -> DrawSnapshot {
 #[allow(clippy::too_many_arguments)]
 fn record_headless_pass(
     encoder: &mut wgpu::CommandEncoder,
+    device: &wgpu::Device,
+    camera_uniform: &CameraUniform,
     color: &wgpu::TextureView,
     resolve_target: Option<&wgpu::TextureView>,
     depth: &wgpu::TextureView,
@@ -6026,6 +6099,13 @@ fn record_headless_pass(
     show_bones: bool,
     effect_lines: Option<&GpuOverlayLines>,
 ) {
+    let transparency = material_transparency::prepare(
+        device,
+        mesh,
+        active_material_bindings,
+        camera_uniform,
+        mode,
+    );
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("CDMW Rust Mesh Lab headless viewport"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -6060,6 +6140,8 @@ fn record_headless_pass(
         active_material_bindings,
         camera_bind_group,
         &pipelines.solid,
+        &pipelines.blended,
+        transparency.as_ref(),
         &pipelines.wire,
         &pipelines.xray_wire,
         &pipelines.point,
@@ -6237,6 +6319,8 @@ fn render_headless_readback_at(
     });
     record_headless_pass(
         &mut encoder,
+        device,
+        camera_uniform,
         multisample.as_ref().map_or(&view, |target| &target.view),
         multisample.as_ref().map(|_| &view),
         &depth.view,
@@ -6519,6 +6603,7 @@ fn changed_pixel_count(reference: &[u8], candidate: &[u8]) -> Result<usize, Rend
 struct Pipelines {
     sample_count: u32,
     solid: wgpu::RenderPipeline,
+    blended: wgpu::RenderPipeline,
     wire: wgpu::RenderPipeline,
     xray_wire: wgpu::RenderPipeline,
     point: wgpu::RenderPipeline,
@@ -6761,6 +6846,19 @@ fn create_pipelines_with_sample_count(
             solid_cull_mode(),
             PipelineDepth::Write,
             Some(wgpu::BlendState::REPLACE),
+            sample_count,
+        ),
+        blended: create_pipeline(
+            device,
+            format,
+            &layout,
+            &shader,
+            "blended material",
+            wgpu::PrimitiveTopology::TriangleList,
+            "fs_solid",
+            solid_cull_mode(),
+            PipelineDepth::Test,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
             sample_count,
         ),
         wire: create_pipeline(
@@ -7074,10 +7172,19 @@ fn draw_textured_solid<'a>(
     default_material_bind_group: &'a wgpu::BindGroup,
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     pipeline: &'a wgpu::RenderPipeline,
+    blended_pipeline: &'a wgpu::RenderPipeline,
+    transparency: Option<&'a material_transparency::PreparedTransparency>,
 ) {
     pass.set_pipeline(pipeline);
     pass.set_index_buffer(mesh.triangle_index.slice(..), wgpu::IndexFormat::Uint32);
     for range in &mesh.material_ranges {
+        if transparency.is_some()
+            && active_material_bindings
+                .get(&range.material)
+                .is_some_and(|binding| binding.alpha_blend)
+        {
+            continue;
+        }
         let bind_group = active_material_bindings
             .get(&range.material)
             .map_or(default_material_bind_group, |binding| &binding.bind_group);
@@ -7087,6 +7194,19 @@ fn draw_textured_solid<'a>(
             0,
             range.part_id..range.part_id + 1,
         );
+    }
+    if let Some(transparency) = transparency {
+        pass.set_pipeline(blended_pipeline);
+        pass.set_index_buffer(transparency.index.slice(..), wgpu::IndexFormat::Uint32);
+        for batch in &transparency.batches {
+            let binding = &active_material_bindings[&batch.material];
+            pass.set_bind_group(0, &binding.bind_group, &[]);
+            pass.draw_indexed(
+                batch.first_index..batch.end_index,
+                0,
+                batch.part_id..batch.part_id + 1,
+            );
+        }
     }
 }
 
@@ -7131,6 +7251,8 @@ fn draw_mesh<'a>(
     active_material_bindings: &'a BTreeMap<u32, GpuMaterialBinding>,
     camera_bind_group: &'a wgpu::BindGroup,
     solid_pipeline: &'a wgpu::RenderPipeline,
+    blended_pipeline: &'a wgpu::RenderPipeline,
+    transparency: Option<&'a material_transparency::PreparedTransparency>,
     wire_pipeline: &'a wgpu::RenderPipeline,
     xray_wire_pipeline: &'a wgpu::RenderPipeline,
     point_pipeline: &'a wgpu::RenderPipeline,
@@ -7166,6 +7288,8 @@ fn draw_mesh<'a>(
             default_material_bind_group,
             active_material_bindings,
             solid_pipeline,
+            blended_pipeline,
+            transparency,
         ),
         ViewMode::Solid => draw_solid(pass, mesh, solid_pipeline),
         ViewMode::SolidWire => {
@@ -7413,6 +7537,15 @@ pub fn preview_material_factors(
         if changes.alpha_cutoff.is_some() {
             target.alpha_cutoff = changes.alpha_cutoff;
         }
+        if changes.alpha_blend.is_some() {
+            target.alpha_blend = changes.alpha_blend;
+        }
+        if changes.opacity.is_some() {
+            target.opacity = changes.opacity;
+        }
+        if changes.gltf_metallic_roughness.is_some() {
+            target.gltf_metallic_roughness = changes.gltf_metallic_roughness;
+        }
         if changes.hair_anisotropy.is_some() {
             target.hair_anisotropy = changes.hair_anisotropy;
         }
@@ -7561,6 +7694,39 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.alpha_cutoff = Some(alpha_cutoff);
+            }
+            if let Some(alpha_blend) = factors.alpha_blend {
+                if resolved
+                    .alpha_blend
+                    .is_some_and(|existing| existing != alpha_blend)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting alpha blend modes in LOD {lod_index}"
+                    )));
+                }
+                resolved.alpha_blend = Some(alpha_blend);
+            }
+            if let Some(opacity) = factors.opacity {
+                if resolved
+                    .opacity
+                    .is_some_and(|existing| existing.to_bits() != opacity.to_bits())
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting opacity factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.opacity = Some(opacity);
+            }
+            if let Some(gltf_pbr) = factors.gltf_metallic_roughness {
+                if resolved
+                    .gltf_metallic_roughness
+                    .is_some_and(|existing| existing != gltf_pbr)
+                {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting glTF PBR workflows in LOD {lod_index}"
+                    )));
+                }
+                resolved.gltf_metallic_roughness = Some(gltf_pbr);
             }
             if let Some(hair_anisotropy) = factors.hair_anisotropy {
                 if resolved
@@ -8314,6 +8480,12 @@ fn create_material_bind_group(
     if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
         flags |= MATERIAL_ALPHA_CUTOUT;
     }
+    if factors.alpha_blend == Some(true) {
+        flags |= MATERIAL_ALPHA_BLEND;
+    }
+    if factors.gltf_metallic_roughness == Some(true) {
+        flags |= MATERIAL_GLTF_PBR;
+    }
     if factors.normal_y_inverted == Some(true) {
         flags |= MATERIAL_NORMAL_Y_INVERTED;
     }
@@ -8331,7 +8503,7 @@ fn create_material_bind_group(
         flags,
         skin_detail_scale: factors.skin_detail_scale.unwrap_or(1.0),
         skin_detail_opacity: factors.skin_detail_opacity.unwrap_or(0.0),
-        _padding: 0,
+        opacity: factors.opacity.unwrap_or(1.0),
         emissive_color_and_intensity: {
             let color = factors
                 .emissive_color
@@ -8447,6 +8619,7 @@ fn create_material_bind_group(
     GpuMaterialBinding {
         bind_group,
         _uniform_buffer: uniform_buffer,
+        alpha_blend: factors.alpha_blend == Some(true),
     }
 }
 
@@ -8687,6 +8860,325 @@ fn map_dds_format(
         }
     };
     Ok(mapped)
+}
+
+mod material_transparency {
+    //! Draw authored blended surfaces after opaque geometry, ordered in the current view.
+    use super::{CameraUniform, GpuMaterialBinding, GpuMeshBuffers, GpuVertex, ViewMode};
+    use glam::{Mat4, Vec3};
+    use std::collections::BTreeMap;
+    use wgpu::util::DeviceExt;
+
+    pub(super) struct SortTriangle {
+        indices: [u32; 3],
+        fixed_center: Vec3,
+        editable_center: Vec3,
+        editable_weight: f32,
+    }
+
+    impl SortTriangle {
+        pub(super) fn refresh(&mut self, vertices: &[GpuVertex]) {
+            self.fixed_center = Vec3::ZERO;
+            self.editable_center = Vec3::ZERO;
+            self.editable_weight = 0.0;
+            for index in self.indices {
+                let vertex = &vertices[index as usize];
+                let position = Vec3::from_array(vertex.position) / 3.0;
+                if vertex.editable_role == 0 {
+                    self.fixed_center += position;
+                } else {
+                    self.editable_center += position;
+                    self.editable_weight += 1.0 / 3.0;
+                }
+            }
+        }
+
+        fn depth(&self, view_projection: Mat4, scene_model: Mat4) -> f32 {
+            let moved = scene_model * self.editable_center.extend(self.editable_weight);
+            let clip = view_projection * (self.fixed_center + moved.truncate()).extend(1.0);
+            if clip.w.abs() <= 1e-6 {
+                f32::INFINITY
+            } else {
+                clip.z / clip.w
+            }
+        }
+    }
+
+    pub(super) fn sort_triangles(vertices: &[GpuVertex], indices: &[u32]) -> Vec<SortTriangle> {
+        indices
+            .chunks_exact(3)
+            .map(|indices| {
+                let mut triangle = SortTriangle {
+                    indices: [indices[0], indices[1], indices[2]],
+                    fixed_center: Vec3::ZERO,
+                    editable_center: Vec3::ZERO,
+                    editable_weight: 0.0,
+                };
+                triangle.refresh(vertices);
+                triangle
+            })
+            .collect()
+    }
+
+    pub(super) struct DrawBatch {
+        pub(super) material: u32,
+        pub(super) part_id: u32,
+        pub(super) first_index: u32,
+        pub(super) end_index: u32,
+    }
+
+    pub(super) struct PreparedTransparency {
+        pub(super) index: wgpu::Buffer,
+        pub(super) batches: Vec<DrawBatch>,
+    }
+
+    pub(super) fn prepare(
+        device: &wgpu::Device,
+        mesh: &GpuMeshBuffers,
+        bindings: &BTreeMap<u32, GpuMaterialBinding>,
+        camera: &CameraUniform,
+        mode: ViewMode,
+    ) -> Option<PreparedTransparency> {
+        if !matches!(
+            mode,
+            ViewMode::TexturedSolid | ViewMode::GameOutdoor | ViewMode::BaseColor
+        ) || !bindings.values().any(|binding| binding.alpha_blend)
+        {
+            return None;
+        }
+        let view_projection = Mat4::from_cols_array_2d(&camera.view_projection);
+        let scene_model = Mat4::from_cols_array_2d(&camera.scene_model);
+        let mut ordered = Vec::new();
+        for range in &mesh.material_ranges {
+            if !bindings
+                .get(&range.material)
+                .is_some_and(|binding| binding.alpha_blend)
+            {
+                continue;
+            }
+            let first = (range.first_index / 3) as usize;
+            let count = (range.index_count / 3) as usize;
+            for (offset, triangle) in mesh.sort_triangles[first..first + count].iter().enumerate() {
+                ordered.push((
+                    triangle.depth(view_projection, scene_model),
+                    first + offset,
+                    range,
+                ));
+            }
+        }
+        if ordered.is_empty() {
+            return None;
+        }
+        ordered.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        let mut indices = Vec::with_capacity(ordered.len() * 3);
+        let mut batches: Vec<DrawBatch> = Vec::new();
+        for (_, triangle_index, range) in ordered {
+            let first_index = indices.len() as u32;
+            indices.extend_from_slice(&mesh.sort_triangles[triangle_index].indices);
+            if let Some(last) = batches
+                .last_mut()
+                .filter(|last| last.material == range.material && last.part_id == range.part_id)
+            {
+                last.end_index += 3;
+            } else {
+                batches.push(DrawBatch {
+                    material: range.material,
+                    part_id: range.part_id,
+                    first_index,
+                    end_index: first_index + 3,
+                });
+            }
+        }
+        // Each recorded view owns its sorted indices. A later capture or split view
+        // cannot overwrite indices still referenced by an earlier command buffer.
+        let index = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("CDMW blended material indices"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        Some(PreparedTransparency { index, batches })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn verify(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
+        pipelines: &super::Pipelines,
+        camera_binding: &wgpu::BindGroup,
+        camera: &mut CameraUniform,
+        camera_buffer: &wgpu::Buffer,
+        default_binding: &wgpu::BindGroup,
+        make_binding: impl Fn(super::MaterialPreviewFactors) -> GpuMaterialBinding,
+    ) -> Result<(), super::RenderError> {
+        let saved_camera = *camera;
+        let mut snapshot = cdmw_mesh::DrawSnapshot {
+            mesh_identity: u64::MAX - 19,
+            draw_revision: 1,
+            topology_generation: 1,
+            positions: Vec::new(),
+            normals: Vec::new(),
+            uvs: Vec::new(),
+            indices: Vec::new(),
+            triangle_materials: Vec::new(),
+            selected_vertices: Vec::new(),
+            fingerprint: "blended-material-layer-proof-v1".to_owned(),
+        };
+        let mut roles = Vec::new();
+        for (material, depth) in [(0, 0.8), (1, 0.2), (2, 0.5)] {
+            let first = snapshot.positions.len() as u32;
+            for [x, y] in [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]] {
+                snapshot.positions.push([x, y, depth]);
+                snapshot.normals.push([0.0, 0.0, -1.0]);
+                snapshot.uvs.push([0.5, 0.5]);
+                roles.push(u32::from(material == 1));
+            }
+            snapshot
+                .indices
+                .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
+            snapshot.triangle_materials.extend([material, material]);
+        }
+        let mesh = GpuMeshBuffers::upload_with_deformation(device, &snapshot, None, Some(&roles))?;
+        let mut factors = [
+            super::MaterialPreviewFactors {
+                texture_tint: Some([0.0, 0.0, 1.0]),
+                opacity: Some(0.5),
+                ..Default::default()
+            },
+            super::MaterialPreviewFactors {
+                texture_tint: Some([1.0, 0.0, 0.0]),
+                opacity: Some(0.5),
+                alpha_blend: Some(true),
+                ..Default::default()
+            },
+            super::MaterialPreviewFactors {
+                texture_tint: Some([0.0, 1.0, 0.0]),
+                opacity: Some(0.5),
+                alpha_blend: Some(true),
+                ..Default::default()
+            },
+        ];
+        for (case, expected) in [
+            ("ordered layers", [137u8, 137, 188, 255]),
+            ("opaque foreground", [255, 0, 0, 255]),
+            ("moved transparent layer", [137, 188, 137, 255]),
+            ("zero opacity", [255, 0, 0, 255]),
+            ("cutout opacity", [255, 0, 0, 255]),
+        ] {
+            camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
+            let projection = if case == "opaque foreground" {
+                Mat4::from_translation(Vec3::Z) * Mat4::from_scale(Vec3::new(1.0, 1.0, -1.0))
+            } else {
+                Mat4::IDENTITY
+            };
+            if case == "moved transparent layer" {
+                camera.scene_model =
+                    Mat4::from_translation(Vec3::new(0.0, 0.0, 0.5)).to_cols_array_2d();
+            }
+            if case == "zero opacity" {
+                factors[1].opacity = Some(0.0);
+                factors[2].opacity = Some(0.0);
+            }
+            if case == "cutout opacity" {
+                factors[1].alpha_blend = Some(false);
+                factors[1].opacity = Some(0.1);
+                factors[1].alpha_cutoff = Some(0.5);
+            }
+            let bindings = factors
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, factor)| (i as u32, make_binding(factor)))
+                .collect();
+            let (buffer, width, height) = super::render_headless_readback_at(
+                device,
+                queue,
+                format,
+                &mesh,
+                default_binding,
+                &bindings,
+                camera_binding,
+                pipelines,
+                camera,
+                camera_buffer,
+                ViewMode::BaseColor,
+                64,
+                64,
+                projection,
+                None,
+                false,
+                None,
+            );
+            let pixels = super::read_headless_pixels(device, &buffer, width, height)?;
+            let center = ((height / 2 * width + width / 2) * 4) as usize;
+            let actual = &pixels[center..center + 4];
+            if actual
+                .iter()
+                .zip(expected)
+                .any(|(actual, expected)| actual.abs_diff(expected) > 3)
+            {
+                return Err(super::RenderError::Device(format!(
+                    "blended material {case}: BGRA pixel {actual:?}, expected {expected:?}"
+                )));
+            }
+        }
+        for (case, expected) in [
+            ("glTF defaults without maps", [255u8, 255, 255, 255]),
+            ("glTF zero factors with a packed map", [0, 10, 0, 255]),
+        ] {
+            camera.scene_model = Mat4::IDENTITY.to_cols_array_2d();
+            let zero_factors = case.contains("zero");
+            for factor in &mut factors {
+                factor.alpha_blend = Some(false);
+                factor.alpha_cutoff = None;
+                factor.opacity = Some(1.0);
+                factor.gltf_metallic_roughness = Some(true);
+                factor.roughness = zero_factors.then_some(0.0);
+                factor.metalness = zero_factors.then_some(0.0);
+                factor.specular = zero_factors.then_some(0.0);
+            }
+            let bindings = factors
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(i, factor)| (i as u32, make_binding(factor)))
+                .collect();
+            let (buffer, width, height) = super::render_headless_readback_at(
+                device,
+                queue,
+                format,
+                &mesh,
+                default_binding,
+                &bindings,
+                camera_binding,
+                pipelines,
+                camera,
+                camera_buffer,
+                ViewMode::MaterialResponse,
+                64,
+                64,
+                Mat4::IDENTITY,
+                None,
+                false,
+                None,
+            );
+            let pixels = super::read_headless_pixels(device, &buffer, width, height)?;
+            let center = ((height / 2 * width + width / 2) * 4) as usize;
+            let actual = &pixels[center..center + 4];
+            if actual
+                .iter()
+                .zip(expected)
+                .any(|(actual, expected)| actual.abs_diff(expected) > 3)
+            {
+                return Err(super::RenderError::Device(format!(
+                    "material response {case}: BGRA pixel {actual:?}, expected {expected:?}"
+                )));
+            }
+        }
+        *camera = saved_camera;
+        queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera));
+        Ok(())
+    }
 }
 
 #[cfg(test)]

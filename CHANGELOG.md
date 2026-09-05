@@ -76,6 +76,8 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+
+- **Imported glTF previews preserve transparency and surface factors.** Explicit opaque, cutout and blended modes retain their authored opacity; blended surfaces draw in camera-depth order, including while moving a model. Metallic/roughness factors multiply their maps, and constant colours use the source material. Model Library and imported New Item previews open flat against the model's broad plane with an aligned grid, and cached packages retain that framing choice.
 - **Imported glTF materials now preserve emission without requiring an emissive texture.** The Rust preview applies authored emissive colour and strength to constant-emission materials, preserves explicit zero strength, and uses glTF's default black emissive factor when it is omitted. Existing imported-model preview caches are refreshed for the corrected factors.
 
 - **New Item reuses completed native template previews before decoding.** Revisiting a template skips geometry and Preview Core preparation when its full material package is still valid. Archive, borrowed-texture, rendering, and native-helper changes invalidate the package. Cold geometry and material work now starts together, and cancellation joins the material worker before releasing its source.

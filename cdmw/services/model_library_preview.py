@@ -409,6 +409,7 @@ def _build_model_library_fast_package(
         target_bytes=cache_target_bytes,
         cancelled=(stop_event.is_set if stop_event is not None else None),
         material_quality="direct",
+        semantic_view_axis="auto",
         metadata={
             "surface": "model_library",
             "source_path": str(import_path),
@@ -481,6 +482,7 @@ def prepare_model_library_inline_preview(
             cache_root=cache_root,
             archive_identity=cache_identity,
             material_quality="direct",
+            semantic_view_axis="auto",
             cancelled=(stop_event.is_set if stop_event is not None else None),
         )
         lookup_ms = max(0.0, (time.perf_counter() - lookup_started) * 1000.0)

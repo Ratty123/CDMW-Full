@@ -5707,6 +5707,13 @@ def _mesh_material_presentations(
                         )
                     ),
                     "alpha_mode": alpha_mode,
+                    "gltf_metallic_roughness": factor_parameters.get("gltf_metallic_roughness") is True,
+                    "opacity": _rust_material_optional_scalar(
+                        factor_parameters,
+                        "opacity",
+                        minimum=0.0,
+                        maximum=1.0,
+                    ),
                     "alpha_cutoff": _rust_material_optional_scalar(
                         source,
                         "alpha_cutoff",

@@ -1843,7 +1843,14 @@ fn cdmw_material_preview_factors(
         height_scale: presentation.height_scale,
         texture_tint: presentation.texture_tint,
         base_tint_strength: presentation.base_tint_strength,
-        alpha_cutoff: presentation.alpha_cutoff,
+        alpha_cutoff: if presentation.alpha_mode == "cutout" {
+            presentation.alpha_cutoff
+        } else {
+            None
+        },
+        alpha_blend: Some(presentation.alpha_mode == "blend"),
+        opacity: presentation.opacity,
+        gltf_metallic_roughness: Some(presentation.gltf_metallic_roughness),
         hair_anisotropy: Some(presentation.hair_anisotropy),
         layer_mask_channel: None,
         category_code: Some(presentation.category_code),
@@ -1880,7 +1887,14 @@ fn loaded_cdmw_material_factor(
         height_scale: presentation.height_scale,
         texture_tint: presentation.texture_tint,
         base_tint_strength: presentation.base_tint_strength,
-        alpha_cutoff: presentation.alpha_cutoff,
+        alpha_cutoff: if presentation.alpha_mode == "cutout" {
+            presentation.alpha_cutoff
+        } else {
+            None
+        },
+        alpha_blend: Some(presentation.alpha_mode == "blend"),
+        opacity: presentation.opacity,
+        gltf_metallic_roughness: Some(presentation.gltf_metallic_roughness),
         hair_anisotropy: Some(presentation.hair_anisotropy),
         layer_mask_channel: None,
         skin_detail_scale: presentation.skin_detail_scale,
@@ -3322,6 +3336,9 @@ impl LabApplication {
                         texture_tint: factors.texture_tint,
                         base_tint_strength: factors.base_tint_strength,
                         alpha_cutoff: factors.alpha_cutoff,
+                        alpha_blend: factors.alpha_blend,
+                        opacity: factors.opacity,
+                        gltf_metallic_roughness: factors.gltf_metallic_roughness,
                         hair_anisotropy: factors.hair_anisotropy,
                         layer_mask_channel: factors.layer_mask_channel,
                         skin_detail_scale: factors.skin_detail_scale,

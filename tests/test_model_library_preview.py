@@ -106,7 +106,35 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(result["faces"], 1)
             self.assertEqual(document["format"], "preview")
             self.assertEqual(manifest["source"]["format"], "gltf")
+            initial_view = manifest["state"]["preview_scene"]["framing"]["initial_view"]
+            self.assertEqual(initial_view["view_direction"], [0.0, 0.0, 1.0])
+            self.assertEqual(manifest["state"]["preview_scene"]["grid"]["normal_axis"], "z")
             self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
+
+    def test_cached_model_packages_keep_distinct_semantic_camera_axes(self) -> None:
+        from cdmw.core.archive_modding import import_scene_mesh_with_report, parsed_mesh_to_preview_model
+        from cdmw.services.mesh_rust_preview_cache import (
+            build_or_lookup_rust_preview_package_from_model,
+            lookup_rust_preview_package_from_model_identity,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = parsed_mesh_to_preview_model(import_scene_mesh_with_report(_write_triangle_gltf(root)).mesh)
+            packages = {}
+            for axis in ("auto", "x"):
+                package = build_or_lookup_rust_preview_package_from_model(
+                    model, cache_root=root / "cache", archive_identity="camera-axis-test",
+                    cache_mode="balanced", max_bytes=64 * 1024 * 1024,
+                    target_bytes=32 * 1024 * 1024, semantic_view_axis=axis,
+                )
+                packages[axis] = package.package_dir
+                cached = lookup_rust_preview_package_from_model_identity(
+                    cache_root=root / "cache", archive_identity="camera-axis-test", semantic_view_axis=axis,
+                )
+                self.assertIsNotNone(cached)
+                self.assertEqual(cached.package_dir, package.package_dir)
+            self.assertNotEqual(packages["auto"], packages["x"])
 
     def test_backend_uses_high_quality_combined_material_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

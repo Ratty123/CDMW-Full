@@ -38,6 +38,10 @@ package framing survives helper startup and progressive texture state replay, wh
 later explicit camera commands remain authoritative. Model and Effect Placement use
 one neutral studio lighting setup without a lighting-mode selector. Imported glTF
 emissive factors also work without an emissive texture, including explicit zero strength.
+Imported glTF materials preserve their declared alpha mode and opacity, use
+metallic/roughness factors as map multipliers, and draw blended surfaces in the
+current camera's depth order. Imported previews open flat against their broad
+plane with a matching grid; cache reuse preserves that framing choice.
 Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or

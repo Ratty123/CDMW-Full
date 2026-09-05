@@ -37,6 +37,13 @@ shadow revisions.
 
 ## Implemented and locally proven
 
+- CDMW-managed glTF previews retain scalar opacity and their explicit opaque,
+  cutout or blended mode. Blended geometry sorts behind-to-front after opaque
+  geometry without depth writes, including when placement changes. The shared
+  offscreen D3D12 pixel gate covers layer order, opaque occlusion, zero alpha,
+  cutout and glTF metallic/roughness map multipliers/defaults. This does not prove
+  archive blend-channel interpretation, transmission/refraction or game parity.
+
 - Isolated Cargo workspace; production CDMW imports none of its crates and
   invokes only the packaged executable when Rust Edit Mesh is explicitly chosen.
 - Pinned Rust 1.95.0 and locked dependencies.

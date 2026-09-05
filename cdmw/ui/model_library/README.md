@@ -13,6 +13,16 @@ The shared preview host keeps its camera-control hint beneath the native viewpor
 using the configured orbit and pan bindings. A package reset discards the previous
 camera from state replay once the helper advertises semantic framing, including
 the first startup handshake; later explicit camera commands remain authoritative.
+Imported models initially face their broad plane, with the grid aligned behind
+that plane. The framing axis participates in the package cache identity so an
+earlier package cannot silently restore a different opening view.
+
+Imported glTF materials retain OPAQUE, MASK and BLEND independently from their
+opacity factor. Blended triangles draw after opaque geometry in camera-depth
+order, including during placement changes. Metallic/roughness factors multiply
+their authored maps, and missing maps use glTF defaults; a constant base colour
+does not inherit the missing-texture placeholder. Transmission/refraction remains
+unsupported and is reported by the import diagnostics.
 
 Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
 stamps that orientation onto the preview meshes before the canonical package is

@@ -174,6 +174,27 @@ def _write_glb(path: Path, document: dict, bin_chunk: bytes) -> None:
 
 
 class GltfSceneImporterTests(unittest.TestCase):
+    def test_gltf_alpha_mode_and_opacity_survive_rust_material_presentation(self) -> None:
+        from cdmw.services.mesh_rust_authoring import _mesh_material_presentations
+
+        for mode, opacity in (("OPAQUE", 0.5), ("MASK", 0.5), ("BLEND", 0.5), (None, 0.5), ("BLEND", 0.0)):
+            with self.subTest(mode=mode, opacity=opacity), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                data, document = _triangle_payload()
+                (root / "triangle.bin").write_bytes(data)
+                document["buffers"][0]["uri"] = "triangle.bin"
+                material = {"pbrMetallicRoughness": {"baseColorFactor": [1.0, 0.0, 0.0, opacity]}}
+                if mode is not None:
+                    material["alphaMode"] = mode
+                document["materials"] = [material]
+                path = root / "alpha.gltf"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                mesh = import_scene_mesh(path)
+                row = _mesh_material_presentations(mesh)[0]
+                self.assertEqual(row["alpha_mode"], {"MASK": "cutout", "BLEND": "blend"}.get(mode, "opaque"))
+                self.assertEqual(row["opacity"], opacity)
+                self.assertTrue(row["gltf_metallic_roughness"])
+
     def test_emissive_factors_preserve_default_black_and_explicit_zero_strength(self) -> None:
         cases = (
             ({"emissiveFactor": [1.0, 0.0, 0.0]}, (1.0, 0.0, 0.0), 1.0),
