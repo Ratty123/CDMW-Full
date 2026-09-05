@@ -96,6 +96,12 @@ Repeated material-layer references share one copied DDS resource per source
 file. Source identity checks, cancellation, and atomic package publication
 still apply, including when a repeated input changes during preparation.
 
+External-image DDS preparation uses each material role's colour space: base
+colour and emission are sRGB, while normal and packed surface maps are linear.
+Missing image metadata must not brighten colour pixels, and embedded sRGB
+metadata must not alter roughness or metalness values. Explicit encoder policies
+still take precedence; older preview packages are invalidated by the cache schema.
+
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
 and service entries under `tests/`.

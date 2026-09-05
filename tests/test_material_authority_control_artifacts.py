@@ -230,6 +230,34 @@ def test_external_preview_normalized_images_are_removed_on_failure(
     assert source.read_bytes() == source_bytes
 
 
+@pytest.mark.parametrize("srgb_metadata", (False, True))
+def test_external_preview_batch_preserves_colour_and_data_pixels(
+    tmp_path: Path, srgb_metadata: bool,
+) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    from PIL.PngImagePlugin import PngInfo
+
+    source = tmp_path / "source.png"
+    pixels = Image.new("RGBA", (8, 8))
+    pixels.putdata([(8, 7, 6, 255), (73, 41, 19, 157), (170, 139, 69, 255), (255, 80, 234, 255)] * 16)
+    metadata = PngInfo()
+    if srgb_metadata:
+        metadata.add(b"sRGB", b"\0")
+    pixels.save(source, pnginfo=metadata)
+    jobs = tuple((source, tmp_path / f"{role}.dds", role) for role in ("base", "emissive", "material_mask"))
+
+    _encode_owned_image_dds_batch(
+        jobs, threading.Event(), preview_uncompressed_max_bytes=1024 * 1024,
+    )
+
+    for _source, target, role in jobs:
+        info = inspect_dds_native_path(target)
+        assert info.srgb is (role != "material_mask")
+        level = info.mip_levels[0]
+        assert target.read_bytes()[level.offset : level.offset + level.byte_count] == pixels.tobytes()
+
+
 def _manual(values: dict[str, object]) -> object:
     return get_complete_swap_material_profile(
         serialize_complete_swap_manual_material_profile(values)

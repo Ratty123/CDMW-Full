@@ -243,7 +243,7 @@ fn studio_softbox_lobe(
     ) * filtered_peak;
 }
 
-fn preview_environment_radiance(reflected_view: vec3<f32>, roughness: f32) -> vec3<f32> {
+fn preview_environment_radiance(reflected_view: vec3<f32>, roughness: f32, gltf_pbr: bool) -> vec3<f32> {
     let safe_roughness = clamp(roughness, 0.0, 1.0);
     let roughness_squared = safe_roughness * safe_roughness;
     let horizon_band = pow(clamp(1.0 - abs(reflected_view.y) * 1.12, 0.0, 1.0), 2.2);
@@ -262,10 +262,8 @@ fn preview_environment_radiance(reflected_view: vec3<f32>, roughness: f32) -> ve
         3.2,
     ) * clamp(0.95 - reflected_view.z, 0.0, 1.0);
 
-    // Match the live Vortice workbench: compose the directional studio at high
-    // precision, then compress every channel by the same peak-derived factor.
-    // That keeps the warm/cool lobe ratios without turning pale source colour
-    // into an exposure-like white reflection.
+    // Archive material approximations retain their bounded warm/cool studio.
+    // Imported PBR uses neutral HDR light and a single final tone map instead.
     var radiance = vec3<f32>(0.070, 0.065, 0.060);
     radiance += horizon_band * vec3<f32>(0.55, 0.46, 0.38);
     radiance += front_softbox * vec3<f32>(7.50, 6.20, 4.60);
@@ -273,10 +271,19 @@ fn preview_environment_radiance(reflected_view: vec3<f32>, roughness: f32) -> ve
     radiance += top_softbox * vec3<f32>(4.60, 4.30, 3.80);
     radiance += side_softbox * vec3<f32>(3.00, 2.65, 2.20);
     radiance += opposite_side_softbox * vec3<f32>(0.55, 0.65, 0.82);
+    if gltf_pbr && camera.lighting_preset == 0u {
+        // Neutral lights preserve the authored hue of imported conductors.
+        radiance = vec3<f32>(0.035 + horizon_band * 0.18
+            + front_softbox * 7.50 + back_softbox * 3.20
+            + top_softbox * 4.60 + side_softbox * 3.00)
+            + opposite_side_softbox * vec3<f32>(0.55, 0.65, 0.82);
+    }
     radiance *= mix(1.0, 0.16, dark_band * mix(0.96, 0.38, safe_roughness));
     radiance = mix(radiance, vec3<f32>(0.32, 0.28, 0.24), roughness_squared * 0.34);
     let radiance_peak = max(radiance.r, max(radiance.g, radiance.b));
-    radiance = radiance / (1.0 + radiance_peak);
+    // Imported PBR reflections remain HDR until the final surface tone map.
+    // Keep the existing bounded response for archive material approximations.
+    if !gltf_pbr { radiance = radiance / (1.0 + radiance_peak); }
     return max(radiance, vec3<f32>(0.010, 0.010, 0.012));
 }
 
@@ -540,9 +547,9 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present_srgb(surface_normal * 0.5 + vec3<f32>(0.5), 1.0);
     }
 
-    let category_code = min(u32(material.relief_factors.z + 0.5), 14u);
-    let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
     let gltf_pbr = (material.flags & MATERIAL_GLTF_PBR) != 0u;
+    let category_code = select(min(u32(material.relief_factors.z + 0.5), 14u), 0u, gltf_pbr);
+    let category_confidence = clamp(material.relief_factors.w, 0.0, 1.0);
     let is_metal = category_code == 1u;
     let is_leather = category_code == 2u;
     let is_wood = category_code == 3u;
@@ -719,6 +726,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     // light or changing the authored metal hue.
     let metal_body_scale = select(0.34, 0.20, has_source_metalness);
     var body_scale = mix(1.0, metal_body_scale, metalness);
+    if gltf_pbr { body_scale = 1.0 - metalness; }
     if is_glass { body_scale *= 0.68; }
     if is_gem { body_scale *= 0.78; }
     let authored_cloth_or_leather =
@@ -840,7 +848,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         return present_srgb(vec3<f32>(metalness, roughness, max(f0.r, max(f0.g, f0.b))), 1.0);
     }
     var specular = vec3<f32>(0.0);
-    if is_metal {
+    if is_metal || gltf_pbr {
         var metal_normal = surface_normal;
         if dot(metal_normal, view_direction) < 0.0 {
             metal_normal = -metal_normal;
@@ -870,10 +878,9 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             1.0,
             has_source_metalness,
         );
-        specular = min(
-            metal_cook_torrance * metal_ndotl * metal_direct_specular_scale,
-            vec3<f32>(0.85),
-        );
+        specular = metal_cook_torrance * metal_ndotl
+            * select(metal_direct_specular_scale, 1.0, gltf_pbr);
+        if !gltf_pbr { specular = min(specular, vec3<f32>(0.85)); }
     } else {
         let specular_power = mix(96.0, 8.0, roughness);
         let key_specular = pow(max(dot(surface_normal, key_half_vector), 0.0), specular_power);
@@ -925,6 +932,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         environment_scale = max(environment_scale, mix(0.06, 0.30, 1.0 - roughness));
     }
     if !showcase && !game_outdoor { environment_scale *= 0.68; }
+    if gltf_pbr { environment_scale = 1.0; }
     let smoothness = clamp(1.0 - roughness, 0.0, 1.0);
     let reflected_view = safe_normalize(
         reflect(-view_direction, surface_normal),
@@ -940,7 +948,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         dot(surface_normal, camera_up),
         -dot(surface_normal, view_direction),
     ), vec3<f32>(0.0, 1.0, 0.0));
-    let environment_radiance = preview_environment_radiance(environment_reflection, roughness);
+    let environment_radiance = preview_environment_radiance(environment_reflection, roughness, gltf_pbr);
     let environment_irradiance = preview_environment_irradiance(environment_normal);
     let environment_brdf = environment_brdf_approx(f0, roughness, ndotv);
     let environment_specular_occlusion = mix(occlusion, 1.0, smoothness * 0.55);
@@ -1048,7 +1056,7 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
             * category_feedback,
         is_glass);
     var emissive = material.emissive_color_and_intensity.rgb
-        * material.emissive_color_and_intensity.a * 2.2;
+        * material.emissive_color_and_intensity.a * select(2.2, 1.0, gltf_pbr);
     if (material.flags & MATERIAL_EMISSIVE) != 0u {
         let emissive_sample = textureSampleBias(
             emissive_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS);
@@ -9225,6 +9233,72 @@ mod material_transparency {
                 )));
             }
         }
+        // Test imported lighting with a neutral conductor under the key softbox.
+        // The authored PBR values must win over an inferred material category.
+        snapshot.normals.fill([-0.12, 0.14, -0.98285]);
+        let lit_mesh =
+            GpuMeshBuffers::upload_with_deformation(device, &snapshot, None, Some(&roles))?;
+        let mut samples = Vec::new();
+        for (tint, roughness, category) in [
+            ([0.8, 0.8, 0.8], 0.18, 0),
+            ([0.8, 0.8, 0.8], 0.18, 1),
+            ([0.8, 0.8, 0.8], 0.9, 0),
+            ([0.72, 0.30, 0.07], 0.18, 0),
+            ([0.004, 0.004, 0.004], 0.18, 0),
+        ] {
+            let bindings = (0..3)
+                .map(|material| {
+                    (
+                        material,
+                        make_binding(super::MaterialPreviewFactors {
+                            texture_tint: Some(tint),
+                            base_tint_strength: Some(0.0),
+                            roughness: Some(roughness),
+                            category_code: Some(category),
+                            category_confidence: Some(1.0),
+                            gltf_metallic_roughness: Some(true),
+                            ..Default::default()
+                        }),
+                    )
+                })
+                .collect();
+            let (buffer, width, height) = super::render_headless_readback_at(
+                device,
+                queue,
+                format,
+                &lit_mesh,
+                default_binding,
+                &bindings,
+                camera_binding,
+                pipelines,
+                camera,
+                camera_buffer,
+                ViewMode::TexturedSolid,
+                64,
+                64,
+                Mat4::IDENTITY,
+                None,
+                false,
+                None,
+            );
+            let pixels = super::read_headless_pixels(device, &buffer, width, height)?;
+            let center = ((height / 2 * width + width / 2) * 4) as usize;
+            samples.push(<[u8; 4]>::try_from(&pixels[center..center + 4]).expect("BGRA pixel"));
+        }
+        let [silver, classified_silver, rough, gold, dark] = samples.as_slice() else {
+            unreachable!("five imported lighting samples");
+        };
+        if silver != classified_silver
+            || silver[..3].iter().any(|value| *value < 220)
+            || rough[2] >= silver[2]
+            || gold[2] <= gold[1]
+            || gold[1] <= gold[0]
+            || dark[..3].iter().any(|value| *value > 100)
+        {
+            return Err(super::RenderError::Device(format!(
+                "glTF HDR lighting lost highlights, roughness, hue, or category independence: {samples:?}"
+            )));
+        }
         *camera = saved_camera;
         queue.write_buffer(camera_buffer, 0, bytemuck::bytes_of(camera));
         Ok(())
@@ -9453,7 +9527,7 @@ mod tests {
         );
         assert!(SHADER.contains("const MATERIAL_TEXTURE_TINT: u32 = 8388608u;"));
         assert!(SHADER.contains("if (material.flags & MATERIAL_TEXTURE_TINT) != 0u"));
-        assert!(SHADER.contains("texel.rgb * texture_tint"));
+        assert!(SHADER.contains("select(vec3<f32>(1.0), texel.rgb, (material.flags & MATERIAL_BASE_COLOR) != 0u) * texture_tint"));
         assert!(SHADER.contains("else if min(u32(material.relief_factors.z + 0.5), 14u) == 6u"));
         assert!(SHADER.contains("let linear_tint = srgb_to_linear(texture_tint);"));
         assert!(SHADER.contains("linear_tint / tint_luma"));
@@ -9579,7 +9653,7 @@ mod tests {
         assert!(
             SHADER.contains("let metal_fresnel = fresnel_schlick(metal_hdotv, source_stable_f0);")
         );
-        assert!(SHADER.contains("vec3<f32>(0.85),"));
+        assert!(SHADER.contains("if !gltf_pbr { specular = min(specular, vec3<f32>(0.85)); }"));
         assert!(SHADER.contains("shaded_albedo * (authored_base_scale + cloth_texture_boost)"));
         assert!(SHADER.contains("has_source_base_color && (is_cloth || is_leather)"));
         assert!(
@@ -9738,7 +9812,7 @@ mod tests {
         assert!(SHADER.contains("MATERIAL_MIP_LOD_BIAS).r * material.skin_detail_opacity"));
         assert!(SHADER.contains("tangent_normal.xy + detail_normal.xy"));
         assert!(SHADER.contains("mix(roughness, skin_detail_surface.g, skin_detail_weight)"));
-        assert!(SHADER.contains("if is_skin {\n        metalness = 0.0;"));
+        assert!(SHADER.contains("if is_skin && !gltf_pbr {\n        metalness = 0.0;"));
     }
 
     #[test]
@@ -9778,11 +9852,14 @@ mod tests {
             .find("let has_skin_specular_response =")
             .expect("skin/specular gate");
         let category_fallback = SHADER[skin_gate..]
-            .find("if !has_source_roughness {")
+            .find("if !has_source_roughness && !gltf_pbr {")
             .map(|offset| skin_gate + offset)
             .expect("category roughness fallback");
         let skin_response = &SHADER[skin_gate..category_fallback];
-        assert!(skin_response.contains("is_skin && (material.flags & MATERIAL_SPECULAR) != 0u"));
+        assert!(
+            skin_response
+                .contains("is_skin && !gltf_pbr && (material.flags & MATERIAL_SPECULAR) != 0u")
+        );
         assert!(skin_response.contains("|| has_skin_specular_response;"));
         assert!(skin_response.contains("roughness = clamp(skin_specular_response.g, 0.04, 1.0);"));
         assert!(skin_response.contains("clamp(skin_specular_response.r, 0.0, 1.0)"));
@@ -9792,7 +9869,7 @@ mod tests {
         assert!(
             SHADER.contains("let source_weight = max(metalness, select(0.0, 0.75, is_glossy));")
         );
-        assert!(SHADER.contains("if is_skin {\n        metalness = 0.0;"));
+        assert!(SHADER.contains("if is_skin && !gltf_pbr {\n        metalness = 0.0;"));
     }
 
     #[test]
@@ -10176,7 +10253,7 @@ mod tests {
             .find("roughness = clamp(1.0 - authored_glossiness, 0.04, 1.0);")
             .expect("gloss inversion");
         let category_fallback = SHADER
-            .find("if !has_source_roughness {")
+            .find("if !has_source_roughness && !gltf_pbr {")
             .expect("category roughness fallback");
         let rgb_specular_application = SHADER
             .find("let mapped_specular = textureSampleBias(specular_texture")

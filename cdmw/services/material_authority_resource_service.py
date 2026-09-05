@@ -264,6 +264,12 @@ def _encode_owned_image_dds_batch(
                     - _projected_rgba_dds_bytes(width, height, preset.mip_count),
                 )
             output_srgb = output_format.endswith("_SRGB")
+            # External colour pixels are already display-encoded, even when the
+            # image has no sRGB metadata. Data maps stay linear regardless of
+            # image metadata. Let the material role own the default conversion.
+            input_policy = source_color_policy
+            if str(input_policy).strip().lower() == "auto":
+                input_policy = "assume_srgb" if output_srgb else "ignore_srgb_metadata"
             target.parent.mkdir(parents=True, exist_ok=True)
             requests.append(
                 NativeTextureEncodeRequest(
@@ -274,7 +280,7 @@ def _encode_owned_image_dds_batch(
                     height=height,
                     mip_count=preset.mip_count,
                     overwrite=True,
-                    source_color_policy=source_color_policy,
+                    source_color_policy=input_policy,
                 )
             )
             plans.append(

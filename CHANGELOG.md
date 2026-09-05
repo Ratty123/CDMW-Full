@@ -77,6 +77,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Imported model previews preserve their authored colours and reflective detail.** External base-colour and emissive images no longer receive an extra gamma conversion when image metadata is absent; normal and surface maps retain their linear values. Imported glTF materials use neutral HDR reflections and GGX highlights without category-based colour adjustments. Cached previews are rebuilt so dark metal, gold details, and texture contrast recover their source values.
+
 - **Initial Effects indexing no longer holds up New Item's UI and texture preparation.** Effect metadata decoding runs in a cancellable child process, retaining progress, cached results, and malformed-effect diagnostics while avoiding repeated allocation of unused numeric fields.
 
 - **Layered Rust previews prepare repeated textures faster.** Canonical package creation copies each unchanged DDS source once across its material layers while preserving cancellation, source-change checks, and atomic publication.
