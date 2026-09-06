@@ -1595,6 +1595,78 @@ def test_shared_authoring_host_routes_scene_transform_through_tab_owner() -> Non
     host.deleteLater()
 
 
+@pytest.mark.parametrize("ready_before_placement", [False, True])
+def test_effect_placement_keeps_large_package_data_out_of_live_and_replayed_commands(
+    tmp_path: Path, ready_before_placement: bool,
+) -> None:
+    from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_LINE_LIMIT
+
+    controller, process, package = _start_controller(tmp_path)
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    curve = [[index / 127, 0.25, 0.5, 0.75, 1.0] for index in range(128)]
+    manifest["state"] = {
+        "preview_scene": {
+            "scene_generation": 1,
+            "roles": {
+                "editable": {
+                    "world_bounds": {"min": [-1, -2, -3], "max": [1, 2, 3]},
+                    "submesh_indices": [0],
+                },
+                "reference": {"submesh_indices": [1]},
+            },
+            "effects_overlay": {
+                "emitters": [{"name": f"smoke-{index}", "color_curve": curve} for index in range(64)],
+            },
+        },
+    }
+    manifest_bytes = json.dumps(manifest).encode("utf-8")
+    assert len(manifest_bytes) > DOTNET_PROTOCOL_LINE_LIMIT
+    package.manifest_path.write_bytes(manifest_bytes)
+    host = DotNetPreviewHostFrame(controller=controller)
+    try:
+        host._load_scene_state(package.package_dir)
+        if ready_before_placement:
+            _make_ready(controller)
+        assert host.set_alignment_preview_transform(
+            translation=(4.0, 5.0, 6.0),
+            rotation_degrees=(0.0, 0.0, 90.0),
+            scale_xyz=(2.0, 3.0, 4.0),
+        )
+        assert host.set_alignment_gizmo_tool("rotate")
+        if not ready_before_placement:
+            _make_ready(controller)
+
+        def scene_commands():
+            return [message for message in process.writes if message.get("event") == "scene_state_update"]
+
+        live_commands = scene_commands()
+        assert live_commands
+        process.writes.clear()
+        controller._replay_resident_state()
+        replay_commands = scene_commands()
+        assert len(replay_commands) == 1
+        for message in [*live_commands, *replay_commands]:
+            wire_bytes = (json.dumps(message, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+            assert len(wire_bytes) <= DOTNET_PROTOCOL_LINE_LIMIT
+            assert "effects_overlay" not in message
+            assert message["placement"]["translation"] == [4.0, 5.0, 6.0]
+            assert message["placement"]["rotation_degrees"] == [0.0, 0.0, 90.0]
+            assert message["placement"]["scale"] == [2.0, 3.0, 4.0]
+            editable = message["roles"]["editable"]
+            assert editable["model_matrix"] == pytest.approx(
+                [0, 2, 0, 0, -3, 0, 0, 0, 0, 0, 4, 0, 4, 5, 6, 1]
+            )
+            assert editable["world_bounds"]["min"] == pytest.approx([-2, 3, -6])
+            assert editable["world_bounds"]["max"] == pytest.approx([10, 7, 18])
+            assert message["placement_pivot"] == [4.0, 5.0, 6.0]
+        assert replay_commands[0]["gizmo"]["tool"] == "rotate"
+        assert replay_commands[0]["scene_generation"] == 3
+        assert package.manifest_path.read_bytes() == manifest_bytes
+    finally:
+        controller.shutdown()
+        host.deleteLater()
+
+
 def test_authoritative_rehydrator_prevents_controller_scene_replay_ownership() -> None:
     controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,

@@ -196,7 +196,10 @@ it never changes the draft, placement or camera. Selection, placement and look a
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
-the correlated renderer acknowledgement. Effect, emitter, preset and spawn-mesh decoding
+the correlated renderer acknowledgement. Live placement and gizmo updates, including
+restart replay, send only the mutable placement state; full effect definitions stay in
+the loaded package so complex effects do not exceed the control-message size limit.
+Effect, emitter, preset and spawn-mesh decoding
 runs in that cancellable lane rather than in the selection callback; spawn meshes are
 sampled across triangle area into 96 stable surface positions instead of clustering at
 vertices. Curves retain 128 samples. The Rust renderer fades particles against completed

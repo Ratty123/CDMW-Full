@@ -846,7 +846,25 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
             int(self._scene_state.get("scene_generation", 0) or 0) + 1,
         )
         self._scene_state["scene_generation"] = self._scene_generation
-        return self.controller.remember_state("scene", "scene_state_update", self._scene_state)
+        # The helper loads immutable scene data (including potentially large
+        # effect definitions) from the package. Retain only the mutable placement
+        # patch for live sends AND restart replay, both bounded control messages.
+        patch = {
+            key: self._scene_state[key]
+            for key in ("placement", "placement_pivot", "scene_generation", "gizmo")
+            if key in self._scene_state
+        }
+        roles = self._scene_state.get("roles")
+        editable = roles.get("editable") if isinstance(roles, Mapping) else None
+        if isinstance(editable, Mapping):
+            patch["roles"] = {
+                "editable": {
+                    key: editable[key]
+                    for key in ("model_matrix", "world_bounds")
+                    if key in editable
+                }
+            }
+        return self.controller.remember_state("scene", "scene_state_update", patch)
 
     def set_alignment_gizmo_tool(self, tool: str) -> bool:
         """Switch the placement gizmo between move, rotate and scale.

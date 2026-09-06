@@ -87,6 +87,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- Fixed New Item Effects repeatedly restarting with "Preview protocol line exceeded its safety limit" for complex effects. Placement and gizmo updates now send only their mutable state, including on restart recovery.
 - Completed translations for the recently added New Item model and placement controls.
 - **Placement & Animations no longer reads and decodes startup assets in the UI path.** Cached baseline loading, rig preparation, meshes, archive relationships and chart indexes run in cancellable background tasks. Selection changes retain the last usable scene and reject late results; closing does not wait on those tasks. Playback avoids repeated bone lookups, bind-transform calculations, topology conversion and individual bone projections while preserving preview detail.
 - **Mesh Editor now receives the current Archive Browser's prepared skeleton dependencies.** Rig & Weights can automatically attach the matching PAB when legacy global indexes are empty; queued opens and draft resumes retain the selected mesh's dependency snapshot.
