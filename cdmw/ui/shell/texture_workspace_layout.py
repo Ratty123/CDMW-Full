@@ -43,6 +43,9 @@ class TextureWorkspaceLayoutMixin:
 
         section = CollapsibleSection(title, body_builder=build)
         setattr(self, attribute, section)
+        section.toggled.connect(
+            lambda _expanded: QTimer.singleShot(0, self, self._fit_upscale_sidebar)
+        )
         section.set_expanded(expanded)
         return section
 

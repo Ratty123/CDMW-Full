@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.texture_workflow.config_collection import TextureWorkflowConfigCollectionMixin
@@ -64,3 +65,7 @@ class TexturesWorkspace(
         super().showEvent(event)
         if hasattr(self, "mode_controls"):
             self.set_texture_mode(self.job.mode)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self, self._fit_upscale_sidebar)

@@ -184,6 +184,7 @@ class TextureJobUiMixin:
             button.setChecked(key == mode)
         if mode == "upscale":
             self.mode_controls.setCurrentWidget(self.upscale_controls)
+            QTimer.singleShot(0, self, self._fit_upscale_sidebar)
         elif mode == "recolor":
             if activate:
                 self.recolor_container.request_widget()
@@ -195,6 +196,20 @@ class TextureJobUiMixin:
         self.preview_stack.setCurrentWidget(self.editor_container)
         if activate:
             self.editor_container.request_widget()
+
+    def _fit_upscale_sidebar(self) -> None:
+        if self.job.mode != "upscale" or not hasattr(self, "job_splitter"):
+            return
+        sizes = self.job_splitter.sizes()
+        available = sum(sizes)
+        if not available:
+            return
+        sidebar = self.job_splitter.widget(0)
+        width = min(sidebar.maximumWidth(), max(
+            sidebar.minimumWidth(), available - self.preview_stack.minimumSizeHint().width(),
+        ))
+        if sizes[0] != width:
+            self.job_splitter.setSizes([width, available - width])
 
     def activate_texture_alias(self, key: str) -> None:
         mode = TEXTURE_TOOL_ALIASES.get(key, self.job.mode)

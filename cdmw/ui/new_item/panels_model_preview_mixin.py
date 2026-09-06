@@ -193,7 +193,7 @@ class ModelPanelPreviewMixin:
         ):
             widget.setEnabled(not busy)
         model_busy = bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"}
-        self.placement_group.setVisible(
+        self._set_placement_visible(
             self._controller.model_import is not None or model_busy
         )
         self.operation_banner.setVisible(model_busy or self._preview_busy)

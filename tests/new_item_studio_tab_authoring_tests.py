@@ -790,7 +790,7 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_model_workspace_keeps_preview_and_placement_beside_compact_inspector(self) -> None:
+    def test_model_workspace_keeps_two_inspectors_around_the_resident_preview(self) -> None:
         from PySide6.QtGui import QFont, QFontDatabase, QPalette
         from PySide6.QtWidgets import QAbstractButton
         from cdmw.ui.themes import build_app_palette, build_app_stylesheet
@@ -819,15 +819,18 @@ class _TabAuthoringMixin:
         tab.show_step(2)
         panel = tab.model_panel
         panel.import_model.setChecked(True)
-        panel.placement_group.show()
+        panel._set_placement_visible(True)
         panel.import_summary.setText("wolf_gravestone_sword_free (1).zip\n14,709 vertices · 3 parts · 3 textures")
         panel.model_status.set_note("Full import notes and material warnings stay available.")
         panel.keep_physics.show()
         panel.flip_texture_v.show()
-        self.assertEqual(panel.workspace_splitter.count(), 2)
+        self.assertEqual(panel.workspace_splitter.count(), 3)
         self.assertIs(panel.workspace_splitter.widget(0), panel.model_icon_column)
-        self.assertIs(panel.workspace_splitter.widget(1), panel.placement_column)
+        self.assertIs(panel.workspace_splitter.widget(1), panel.preview_column)
+        self.assertIs(panel.workspace_splitter.widget(2), panel.placement_column)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
+        self.assertIs(panel.icon_thumbnail.parentWidget(), panel.icon_group)
+        self.assertTrue(panel.quick_turn_section.contents.isHidden())
         self.assertLess(panel.preview_layout.indexOf(panel.view_toolbar), panel.preview_layout.indexOf(panel.preview))
         self.assertFalse(panel.model_status.isVisibleTo(panel))
         panel.import_details.toggle.click()
@@ -837,21 +840,30 @@ class _TabAuthoringMixin:
         self.assertTrue(panel.blender_button.isVisibleTo(panel))
         panel.blender_details.toggle.click()
 
-        for width, height in ((1280, 720), (1440, 900), (1920, 1080)):
+        resident = panel.preview
+        for width, height in ((1280, 720), (1440, 900), (1140, 720), (1920, 1080)):
             tab.resize(width, height)
             self.app.processEvents()
             self.assertEqual(tab.size().width(), width, "the page must not force the window wider")
             self.assertEqual(tab.size().height(), height, "the page must not force the window taller")
-            self.assertGreater(panel.placement_column.width(), panel.model_icon_column.width())
+            self.assertIs(panel.preview, resident)
+            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
             self.assertGreaterEqual(panel.preview.height(), 300)
-            self.assertLessEqual(panel.placement_group.geometry().bottom(), panel.placement_column.height())
+            if width >= 1280:
+                self.assertTrue(panel.placement_column.isVisibleTo(panel))
+                self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), -1)
+                self.assertGreater(panel.preview_column.width(), panel.model_icon_column.width())
+                self.assertGreater(panel.preview_column.width(), panel.placement_column.width())
+                self.assertEqual(panel.placement_column.horizontalScrollBar().maximum(), 0)
+                self.assertLessEqual(panel.placement_group.geometry().bottom(), panel.placement_column.height())
             for index, page in enumerate((panel.appearance_page, panel.dyes, panel.icon_group)):
                 panel.inspector_tabs.setCurrentIndex(index)
                 self.app.processEvents()
                 self.assertTrue(page.isVisibleTo(panel))
                 self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
-                self.assertEqual(panel.model_icon_scroll.verticalScrollBar().maximum(), 0,
-                                 f"inspector tab {index} should fit at {width}x{height}")
+                if width >= 1280:
+                    self.assertEqual(panel.model_icon_scroll.verticalScrollBar().maximum(), 0,
+                                     f"inspector tab {index} should fit at {width}x{height}")
                 for button in page.findChildren(QAbstractButton):
                     if button.isVisibleTo(panel):
                         self.assertLessEqual(button.height(), 36, button.text())
@@ -859,9 +871,13 @@ class _TabAuthoringMixin:
             self.assertTrue(panel.glow_parts.isHidden())
             self.assertLessEqual(panel.import_button.height(), 36)
             self.assertLessEqual(panel.apply_button.height(), 36)
-            for button in (panel.apply_button, *panel.quick_turn_buttons.values()):
-                bounds = button.rect().translated(button.mapTo(panel, button.rect().topLeft()))
-                self.assertTrue(panel.rect().contains(bounds), button.text())
+            if width >= 1280:
+                panel.quick_turn_section.toggle.setChecked(True)
+                self.app.processEvents()
+                for button in (panel.apply_button, *panel.quick_turn_buttons.values()):
+                    bounds = button.rect().translated(button.mapTo(panel, button.rect().topLeft()))
+                    self.assertTrue(panel.rect().contains(bounds), button.text())
+                panel.quick_turn_section.toggle.setChecked(False)
 
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
@@ -883,6 +899,39 @@ class _TabAuthoringMixin:
         panel._preview_status("Full textures loaded.")
         self.assertFalse(panel.operation_banner.isVisibleTo(panel))
         self.assertEqual(panel.preview_status.text(), "Full textures loaded.")
+
+        # Other workflow pages set the complete tab's 1140 px minimum. Exercise the
+        # Model page alone below that width, retaining its controls and viewport.
+        panel.setParent(None)
+        self.addCleanup(panel.deleteLater)
+        self.addCleanup(panel.close)
+        panel.setStyleSheet(tab.styleSheet())
+        panel._set_placement_visible(True)
+        panel.show()
+        for width, height, point_size in ((960, 640, 10), (780, 900, 10), (1140, 720, 14), (1600, 900, 10)):
+            panel.setFont(QFont("Segoe UI", point_size))
+            panel.resize(width, height)
+            self.app.processEvents()
+            self.assertEqual(panel.size().toTuple(), (width, height))
+            self.assertIs(panel.preview, resident)
+            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
+            if width < 1280:
+                self.assertFalse(panel.placement_column.isVisibleTo(panel))
+                panel.inspector_tabs.setCurrentWidget(panel.placement_group)
+                panel.quick_turn_section.toggle.setChecked(True)
+                self.app.processEvents()
+                self.assertTrue(panel.apply_button.isVisibleTo(panel))
+                self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
+                panel.model_icon_scroll.ensureWidgetVisible(panel.apply_button)
+                self.app.processEvents()
+                panel.model_icon_scroll.verticalScrollBar().setValue(panel.model_icon_scroll.verticalScrollBar().maximum())
+                bounds = panel.apply_button.rect().translated(panel.apply_button.mapTo(panel.model_icon_scroll.viewport(), panel.apply_button.rect().topLeft()))
+                self.assertTrue(panel.model_icon_scroll.viewport().rect().contains(bounds),
+                                f"{width}x{height} {point_size}pt: button={bounds}, viewport={panel.model_icon_scroll.viewport().rect()}, scroll={panel.model_icon_scroll.verticalScrollBar().value()}/{panel.model_icon_scroll.verticalScrollBar().maximum()}")
+            else:
+                self.assertTrue(panel.placement_column.isVisibleTo(panel))
+                self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), -1)
+            panel.quick_turn_section.toggle.setChecked(False)
 
     def test_import_appearance_hides_template_specific_controls_when_they_cannot_apply(self) -> None:
         from types import SimpleNamespace

@@ -8,9 +8,11 @@ matching and the existing native DDS, PNG, project, and mod-package outputs.
 Recolor previews use the editor canvas's zoom and original/split views without
 changing the document or its undo history. Remove closes the active asset in the
 job; it does not delete the source file.
-Upscale controls fit the sidebar; the profile and rule tables open in their own
-editor through **Workflow Profiles, Rules & Matches > Edit**. Lazy panels restore
-their saved settings when first opened.
+Upscale automatically widens the sidebar when opened or expanded and adjusts it
+on window resize while retaining space for the preview. Asset Authoring path
+labels stack above their fields and Browse buttons. The profile and rule tables
+open in their own editor through **Workflow Profiles, Rules & Matches > Edit**.
+Lazy panels restore their saved settings when first opened.
 
 Workers receive immutable snapshots. Revisions, original DDS identity, exact target
 matches, and cancellation are checked before accepting results. Batch output is

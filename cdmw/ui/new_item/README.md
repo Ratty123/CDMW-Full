@@ -255,12 +255,15 @@ and the final Builder use; for a wearable, neutral effect placement starts at th
 origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
-The Model & Placement step uses two resizable columns: a compact inspector and a wider
-resident preview, with placement controls directly underneath. Model selection and import
-actions stay at the top of the inspector; Appearance, Dyes and Icon tabs retain their controls
-and values when switching. Full import notes and FBX setup expand on demand. Glow details
-still collapse while off. Common controls use compact heights, and the default inspector
-pages fit a 1280 × 720 window without scrolling. Expanded details remain scrollable locally.
+The Model & Placement step places two resizable inspectors around a tall resident preview.
+Model selection and import actions stay on the left above compact Appearance, Dyes and Icon
+tabs. Placement numbers, fit/reset actions and Apply placement stay on the right. The active
+left tab uses its natural height, and captured icon thumbnails stay in the Icon tab so the
+preview footer remains compact. Controls retain their values when switching tabs or resizing.
+When the three columns cannot fit, Placement joins the left tabs; very narrow pages stack
+that inspector above the preview. Both inspectors scroll locally, leaving the viewport fixed.
+Full import notes, FBX setup and Quick turn expand on demand; Glow details collapse while off.
+The default inspector pages fit a 1280 × 720 window without scrolling.
 Quick turn buttons add −90°, +90° or 180° to the X, Y or Z placement rotation around the
 fitted model pivot, retaining position and scale. **Reset rotation** restores the fitted
 orientation; **Fit to template** restores the complete fit. These actions move only the

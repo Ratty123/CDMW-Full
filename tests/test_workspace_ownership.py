@@ -193,6 +193,68 @@ def test_texture_controls_stay_in_the_selected_page_when_recolor_finishes_loadin
         app.setStyleSheet(stylesheet)
 
 
+@pytest.mark.parametrize("width, font_size", [(1120, 9), (1280, 12), (1920, 14)])
+def test_upscale_sidebar_fits_expanded_controls_without_dragging(
+    tmp_path, monkeypatch, width, font_size,
+) -> None:
+    from PySide6.QtCore import QPoint, Qt
+    from cdmw.services.settings_service import create_settings
+    from cdmw.ui.main_window import MainWindow
+    from cdmw.ui.shell.app_context import AppContext
+    from cdmw.ui.themes import build_app_stylesheet
+
+    app = QApplication.instance() or QApplication([])
+    font, palette, stylesheet = app.font(), app.palette(), app.styleSheet()
+    settings = create_settings(settings_file_path=tmp_path / "upscale.cfg")
+    settings.setValue("ui/active_tool_key", "archive_browser")
+    settings.setValue("appearance/ui_font_family", "Segoe UI")
+    settings.setValue("appearance/ui_font_size", font_size)
+    monkeypatch.setenv("CDMW_GUI_STARTUP_SMOKE", "1")
+    window = MainWindow(app_context=AppContext.from_settings(settings))
+    try:
+        app.setStyleSheet(build_app_stylesheet("nord", base_font_size=font_size))
+        window.setAttribute(Qt.WA_DontShowOnScreen)
+        window.resize(width, 800)
+        window.show()
+        window._activate_tool_key("texture_workflow")
+        window.texture_editor_tab.ensure_widget()
+        textures = window.textures
+        for name in ("settings", "asset_authoring", "dds_output", "filters", "chainner"):
+            section = getattr(textures, f"{name}_section")
+            section.toggle_button.click()
+            for _ in range(3):
+                app.processEvents()
+            assert textures.upscale_controls.horizontalScrollBar().maximum() == 0, name
+
+        for resized_width in (width + 240, width):
+            window.resize(resized_width, 650)
+            for _ in range(3):
+                app.processEvents()
+            viewport = textures.upscale_controls.viewport()
+            assert textures.upscale_controls.horizontalScrollBar().maximum() == 0
+            assert textures.left_panel.width() <= viewport.width()
+            assert textures.upscale_controls.verticalScrollBar().maximum() > 0
+            for control in (
+                textures.openimageio_source_browse_button,
+                textures.openimageio_output_browse_button,
+                textures.openimageio_compare_browse_button,
+                textures.dds_format_mode_combo,
+                textures.dds_size_mode_combo,
+                textures.upscale_backend_combo,
+                textures.upscale_texture_preset_combo,
+            ):
+                left = control.mapTo(viewport, QPoint()).x()
+                assert 0 <= left < left + control.width() <= viewport.width()
+    finally:
+        window._close_force_accept = True
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+        app.setFont(font)
+        app.setPalette(palette)
+        app.setStyleSheet(stylesheet)
+
+
 def test_texture_aliases_share_documents_and_review(tmp_path, monkeypatch) -> None:
     import time
     from PIL import Image

@@ -108,8 +108,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         oiio_layout.setContentsMargins(0, 0, 0, 0)
         oiio_layout.setHorizontalSpacing(10)
         oiio_layout.setVerticalSpacing(10)
-        oiio_layout.setColumnMinimumWidth(0, 136)
-        oiio_layout.setColumnStretch(1, 1)
+        oiio_layout.setColumnStretch(0, 1)
         self.openimageio_source_path_edit = QLineEdit()
         self.openimageio_output_path_edit = QLineEdit()
         self.openimageio_compare_path_edit = QLineEdit()
@@ -119,6 +118,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
             "OpenImageIO source",
             self.openimageio_source_path_edit,
             self._browse_openimageio_source_path,
+            stacked=True,
         )
         self.openimageio_output_browse_button = self.shell._add_path_row(
             oiio_layout,
@@ -126,6 +126,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
             "Converted output",
             self.openimageio_output_path_edit,
             self._browse_openimageio_output_path,
+            stacked=True,
         )
         self.openimageio_compare_browse_button = self.shell._add_path_row(
             oiio_layout,
@@ -133,6 +134,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
             "Diff against",
             self.openimageio_compare_path_edit,
             self._browse_openimageio_compare_path,
+            stacked=True,
         )
 
         oiio_button_row = QHBoxLayout()
