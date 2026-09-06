@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog,
     QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QStackedWidget,
-    QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from cdmw.models import TextureEditorSourceBinding
@@ -79,10 +79,9 @@ class TextureJobUiMixin:
         self.mode_button_group = QButtonGroup(self)
         self.mode_button_group.setExclusive(True)
         for key, label in (("edit", "Edit"), ("recolor", "Recolor"), ("upscale", "Upscale")):
-            button = QToolButton()
+            button = QPushButton()
             button.setText(label)
             button.setCheckable(True)
-            button.setToolButtonStyle(Qt.ToolButtonTextOnly)
             button.clicked.connect(lambda _checked=False, mode=key: self.set_texture_mode(mode))
             self.mode_button_group.addButton(button)
             self.mode_buttons[key] = button
@@ -127,6 +126,9 @@ class TextureJobUiMixin:
         self.mode_controls = QStackedWidget()
         self.mode_controls.addWidget(QLabel("Opening texture controls..."))
         self.mode_controls.addWidget(self.upscale_controls)
+        # Keep lazy content in its page: publication shows the child even if
+        # another mode became active while it was loading.
+        self.mode_controls.addWidget(recolor)
         side_layout.addWidget(self.mode_controls, stretch=3)
         self.job_splitter.addWidget(sidebar)
         self.preview_stack = QStackedWidget()
@@ -168,7 +170,6 @@ class TextureJobUiMixin:
 
     def _install_recolor_controls(self, recolor) -> None:
         self._recolor_controls = recolor
-        self.mode_controls.addWidget(recolor)
         self.set_texture_mode(self.job.mode)
 
     def set_texture_mode(self, mode: str, *, activate: bool = True) -> None:
@@ -186,10 +187,11 @@ class TextureJobUiMixin:
         elif mode == "recolor":
             if activate:
                 self.recolor_container.request_widget()
-            if self._recolor_controls is not None:
-                self.mode_controls.setCurrentWidget(self._recolor_controls)
+            self.mode_controls.setCurrentWidget(self.recolor_container)
         elif self._editor_controls is not None:
             self.mode_controls.setCurrentWidget(self._editor_controls)
+        else:
+            self.mode_controls.setCurrentIndex(0)
         self.preview_stack.setCurrentWidget(self.editor_container)
         if activate:
             self.editor_container.request_widget()

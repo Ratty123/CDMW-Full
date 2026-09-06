@@ -126,6 +126,73 @@ def test_both_navigation_styles_restore_and_reattach_the_same_content(tmp_path, 
         app.setStyleSheet(stylesheet)
 
 
+@pytest.mark.parametrize("initial_mode, final_mode", [
+    ("edit", "edit"), ("recolor", "upscale"), ("recolor", "recolor"),
+])
+def test_texture_controls_stay_in_the_selected_page_when_recolor_finishes_loading(
+    tmp_path, monkeypatch, initial_mode, final_mode,
+) -> None:
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QPushButton
+    from cdmw.services.settings_service import create_settings
+    from cdmw.ui.main_window import MainWindow
+    from cdmw.ui.shell.app_context import AppContext
+    from cdmw.ui.themes import build_app_palette, build_app_stylesheet
+
+    app = QApplication.instance() or QApplication([])
+    font, palette, stylesheet = app.font(), app.palette(), app.styleSheet()
+    settings = create_settings(settings_file_path=tmp_path / "textures.cfg")
+    settings.setValue("ui/active_tool_key", "archive_browser")
+    settings.setValue("ui/textures_mode", initial_mode)
+    monkeypatch.setenv("CDMW_GUI_STARTUP_SMOKE", "1")
+    window = MainWindow(app_context=AppContext.from_settings(settings))
+    try:
+        app.setPalette(build_app_palette("nord"))
+        app.setStyleSheet(build_app_stylesheet("nord"))
+        window.setAttribute(Qt.WA_DontShowOnScreen)
+        window.resize(1450, 1000)
+        window.show()
+        window._activate_tool_key("textures")
+        editor = window.texture_editor_tab.ensure_widget()
+        textures = window.textures
+        assert textures.job.mode == initial_mode
+        textures.set_texture_mode("recolor")
+        textures.set_texture_mode(final_mode)
+        recolor = window.recolor_variants_tab.ensure_widget()
+        app.processEvents()
+
+        assert textures.job.mode == final_mode
+        assert editor.left_scroll.isVisible() == (final_mode == "edit")
+        assert recolor.isVisible() == (final_mode == "recolor")
+        assert textures.upscale_controls.isVisible() == (final_mode == "upscale")
+        for index in range(textures.mode_controls.count()):
+            page = textures.mode_controls.widget(index)
+            assert page.isVisible() == (page is textures.mode_controls.currentWidget())
+
+        for mode, button in textures.mode_buttons.items():
+            assert isinstance(button, QPushButton)
+            QTest.mouseClick(button, Qt.LeftButton)
+            app.processEvents()
+            assert textures.job.mode == mode
+            assert button.isChecked()
+            assert sum(other.isChecked() for other in textures.mode_buttons.values()) == 1
+            checked = button.grab().toImage().pixelColor(8, button.height() // 2)
+            other = next(other for other in textures.mode_buttons.values() if other is not button)
+            QTest.mouseClick(other, Qt.LeftButton)
+            app.processEvents()
+            unchecked = button.grab().toImage().pixelColor(8, button.height() // 2)
+            assert checked != unchecked, f"{mode} has no painted selected state"
+    finally:
+        window._close_force_accept = True
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+        app.setFont(font)
+        app.setPalette(palette)
+        app.setStyleSheet(stylesheet)
+
+
 def test_texture_aliases_share_documents_and_review(tmp_path, monkeypatch) -> None:
     import time
     from PIL import Image

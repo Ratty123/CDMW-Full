@@ -22,6 +22,9 @@ and image processing run off the UI thread and never mutate PAMT/PAZ archives.
 `texture_workflow`, and `replace_assistant` remain handoff aliases for Edit, Recolor,
 Upscale, and replacement review. `ui/textures_mode` restores the last mode, falling
 back to Edit. Both shell layouts use this same widget and job.
+Mode buttons use the shared theme's hover, pressed and selected states. Controls
+remain inside their stacked page while loading, so switching modes cannot expose
+a second panel over the active one.
 
 Mesh-linked base/albedo documents defer resident dirty-region production until
 after the edit handler returns. The producer uses the composite cache, emits a
