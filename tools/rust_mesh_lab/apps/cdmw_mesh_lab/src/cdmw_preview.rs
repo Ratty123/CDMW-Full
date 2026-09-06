@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 #[cfg(test)]
 use crate::preview_effects::particle_kinematics;
-use crate::preview_effects::{effect_emitter_billboards, effect_emitter_lines, push_effect_line};
+use crate::preview_effects::{
+    effect_emitter_billboards, effect_emitter_billboards_with_limit, effect_emitter_lines,
+    push_effect_line,
+};
 
 use crate::camera::{OrbitCamera, StandardView};
 use crate::cdmw_material_preview_factors;
@@ -307,6 +310,8 @@ struct PendingGizmoUpdate {
 #[derive(Debug)]
 struct EffectClock {
     elapsed: f32,
+    speed: f32,
+    seek_serial: u64,
     last_tick: Instant,
 }
 
@@ -314,6 +319,8 @@ impl EffectClock {
     fn new() -> Self {
         Self {
             elapsed: 0.0,
+            speed: 1.0,
+            seek_serial: 0,
             last_tick: Instant::now(),
         }
     }
@@ -325,13 +332,14 @@ impl EffectClock {
         if !paused {
             // A suspended or heavily loaded UI must not make the next frame
             // fast-forward through an unbounded amount of simulation.
-            self.elapsed += delta.clamp(0.0, 0.1);
+            self.elapsed += delta.clamp(0.0, 0.1) * self.speed;
         }
         self.elapsed
     }
 
     fn reset(&mut self) {
         self.elapsed = 0.0;
+        self.seek_serial = 0;
         self.last_tick = Instant::now();
     }
 }
@@ -1196,6 +1204,27 @@ impl PreviewApplication {
             .and_then(|display| display.get("effect_particles_paused"))
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let display = self.state.presentation.get("display");
+        self.effect_clock.speed = display
+            .and_then(|v| v.get("effect_playback_speed"))
+            .and_then(Value::as_f64)
+            .filter(|v| v.is_finite())
+            .unwrap_or(1.0)
+            .clamp(0.05, 4.0) as f32;
+        let serial = display
+            .and_then(|v| v.get("effect_seek_serial"))
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        if serial != self.effect_clock.seek_serial {
+            self.effect_clock.seek_serial = serial;
+            self.effect_clock.elapsed = display
+                .and_then(|v| v.get("effect_seek_seconds"))
+                .and_then(Value::as_f64)
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0)
+                .clamp(0.0, 3600.0) as f32;
+            self.effect_clock.last_tick = Instant::now();
+        }
         self.effect_clock.sample(paused)
     }
 
@@ -1530,7 +1559,49 @@ impl PreviewApplication {
                 .abs()
                 .max(0.01);
             let minimum_radius = (framing_extent * 0.006).max(0.003);
-            for (emitter_index, emitter) in emitters.iter().take(128).enumerate() {
+            let overlay = self.state.scene.get("effects_overlay");
+            let display = self.state.presentation.get("display");
+            let control = |key: &str, fallback: i64| {
+                display
+                    .and_then(|v| v.get(key))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(fallback)
+            };
+            let active_layer = control(
+                "effect_active_layer",
+                overlay
+                    .and_then(|v| v.get("active_layer"))
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0),
+            );
+            let base_matrix = matrix_from_protocol(overlay.and_then(|v| v.get("base_transform")));
+            for (emitter_index, emitter) in emitters.iter().take(2048).enumerate() {
+                let layer_index = emitter
+                    .get("layer_index")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0);
+                let source_index = emitter
+                    .get("source_index")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(emitter_index as i64);
+                if control("effect_solo_layer", -1) >= 0
+                    && layer_index != control("effect_solo_layer", -1)
+                {
+                    continue;
+                }
+                if control("effect_solo_emitter", -1) >= 0
+                    && (layer_index != active_layer
+                        || source_index != control("effect_solo_emitter", -1))
+                {
+                    continue;
+                }
+                let effect_matrix = if layer_index == active_layer {
+                    editable_matrix * base_matrix
+                } else {
+                    matrix_from_protocol(emitter.get("layer_transform")) * base_matrix
+                };
+                let seeded_index = emitter_index
+                    + (control("effect_preview_seed", 0).clamp(0, 9999) as usize) * 131;
                 let kind = emitter
                     .get("kind")
                     .and_then(Value::as_str)
@@ -1542,12 +1613,12 @@ impl PreviewApplication {
                         .is_none_or(|v| v.is_empty())
                 {
                     for mut vertex in
-                        effect_emitter_lines(emitter, emitter_index, time, minimum_radius)
+                        effect_emitter_lines(emitter, seeded_index, time, minimum_radius)
                     {
                         if effect_lines.len() >= MAX_EFFECT_LINE_VERTICES {
                             break;
                         }
-                        vertex.position = editable_matrix
+                        vertex.position = effect_matrix
                             .transform_point3(Vec3::from_array(vertex.position))
                             .to_array();
                         effect_lines.push(vertex);
@@ -1559,16 +1630,17 @@ impl PreviewApplication {
                         .and_then(|path| self.effect_texture_indices.get(path))
                         .copied()
                         .unwrap_or(0);
-                    let instances = effect_emitter_billboards(
+                    let instances = effect_emitter_billboards_with_limit(
                         emitter,
-                        emitter_index,
+                        seeded_index,
                         time,
                         minimum_radius,
                         texture_index,
-                        editable_matrix,
+                        effect_matrix,
                         self.camera.right(),
                         self.camera.up(),
                         self.camera.forward(),
+                        control("effect_particle_budget", 256).clamp(64, 2048) as usize,
                     );
                     let faces_per_particle = if kind == "mesh" {
                         emitter
@@ -3554,6 +3626,18 @@ mod tests {
         let resumed = clock.sample(false);
         assert!(resumed > held);
         assert!(resumed - held < 0.05);
+    }
+
+    #[test]
+    fn playback_speed_and_package_reset_preserve_explicit_seek_requests() {
+        let mut clock = EffectClock::new();
+        clock.speed = 0.5;
+        clock.last_tick = Instant::now() - std::time::Duration::from_secs(1);
+        assert!((clock.sample(false) - 0.05).abs() < 0.0001);
+        clock.seek_serial = 8;
+        clock.reset();
+        assert_eq!(clock.seek_serial, 0);
+        assert_eq!(clock.elapsed, 0.);
     }
 
     #[test]

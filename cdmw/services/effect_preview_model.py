@@ -54,7 +54,7 @@ Vec3 = Tuple[float, float, float]
 ALPHA_CURVE_ID = 2
 #: Three-component curve around 1: read as scale over life.
 SCALE_CURVE_ID = 5
-CURVE_SAMPLES = 16
+CURVE_SAMPLES = 128
 SURFACE_POINTS = 96
 
 
@@ -119,6 +119,12 @@ class EmitterPreview:
     particle_uvs: Tuple[Tuple[float, float], ...] = ()
     particle_faces: Tuple[Tuple[int, int, int], ...] = ()
     rotation_3d: Tuple[Vec3, Vec3] = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    layer_index: int = 0
+    start_delay: Tuple[float, float] = (0.0, 0.0)
+    burst_min: int = 0
+    loop_count: int = 0
+    layer_transform: Tuple[float, ...] = ()
+    source_index: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +135,8 @@ class EffectPreview:
     box_max: Vec3
     #: what could not be read as intended, per emitter, for the status line
     notes: Tuple[str, ...] = ()
+    active_layer: int = 0
+    editor_emitters: Tuple[dict, ...] = ()
 
     @property
     def textures(self) -> Tuple[str, ...]:
@@ -364,6 +372,7 @@ class _Source:
 
     node: ReflectNode
     layout: EmitterLayout
+    group: str = ""
 
 
 RENDER_PRESET_TYPE = "EmitterRenderGroupData"
@@ -375,6 +384,8 @@ def _group_node(source: _Source, group: str) -> Optional[ReflectNode]:
 
     if not group:
         return source.node
+    if source.group == group:
+        return _first_child(source.node, group) or source.node
     if group == "_renderData" and source.node.type_name == RENDER_PRESET_TYPE:
         return source.node
     return _first_child(source.node, group)
@@ -483,7 +494,8 @@ def _emitter_preview(
         float(_read(sources, "_spawnData", "_lifeTimeMax", fallback("_lifeTimeMax", 1.0), _number)),
     )
     max_particles = int(_read(sources, "_spawnData", "_maxParticleCount", 200, _number))
-    loop = int(_read(sources, "_spawnData", "_loopCount", fallback("_loopCount", 0), _number)) == -1
+    loop_count = int(_read(sources, "_spawnData", "_loopCount", fallback("_loopCount", 0), _number))
+    loop = loop_count == -1
     spawn_time = float(_read(sources, "_spawnData", "_spawnTime", fallback("_spawnTime", 0.0), _number))
     mass = float(_read(sources, "_simulationData", "_mass", 1.0, _number))
     simulation_speed = float(_read(sources, "_simulationData", "_simulationSpeed", 1.0, _number))
@@ -579,13 +591,16 @@ def _emitter_preview(
 
     return EmitterPreview(
         name=name, kind=kind, texture=texture, blend=blend,
-        burst=max(1, burst), bursts_per_second=1.0 / term if term > 0.0 else 0.0, max_particles=max(1, min(max_particles, 2000)),
-        life=(max(0.05, life[0]), max(0.05, max(life))), loop=loop,
+        loop_count=loop_count,
+        burst_min=max(0, int(_read(sources, '_spawnData', '_spawnCountMin', burst, _number))),
+        start_delay=(float(_read(sources, '_spawnData', '_spawnDelayMin', 0.0, _number)), float(_read(sources, '_spawnData', '_spawnDelayMax', 0.0, _number))),
+        burst=max(0, burst), bursts_per_second=1.0 / term if term > 0.0 else 0.0, max_particles=max(1, min(max_particles, 2000)),
+        life=(max(0.01, life[0]), max(0.01, max(life))), loop=loop,
         spawn="points" if points else "spread", spread=tuple(abs(float(v)) for v in spread), points=points,  # type: ignore[arg-type]
         force=force, damping=damping, speed_limit=speed_limit, scale=scale, rotation=rotation,
         scale_over_life=scale_over_life, alpha_over_life=alpha_over_life, color_over_life=color_over_life,
         emissive_color=emissive, brightness=brightness, beam_width=beam_width, beam_jitter=beam_jitter, mesh=particle_mesh,
-        spawn_time=max(0.0, spawn_time), mass=max(0.0, mass), simulation_speed=max(0.05, simulation_speed),
+        spawn_time=max(0.0, spawn_time), mass=max(0.0, mass), simulation_speed=max(0.01, simulation_speed),
         sequence=sequence, velocity_stretch=max(0.0, velocity_stretch), beam_length=beam_length, beam_axis=beam_axis,
         velocity=velocity, scale_axes_over_life=tuple(tuple(max(0.0, float(v)) for v in s[:3]) for s in scale_curve),
         texture_is_mask=texture_is_mask, texture_channels=4 if packed_channels else 1,
@@ -653,6 +668,7 @@ def build_effect_preview(
 
     notes: List[str] = []
     emitters: List[EmitterPreview] = []
+    editor_emitters = []
     paths = emitter_paths_of(document)
     variations = document.root.child("_emitterVariationDataArray")
     for index, variation in enumerate(variations if isinstance(variations, tuple) else ()):
@@ -672,18 +688,39 @@ def build_effect_preview(
                 f"{name}: the emitter file {path.rsplit('/', 1)[-1]} is not in the archives; the effect's own overrides "
                 "describe it, and what they leave out is what a shipped emitter typically does"
             )
-        if not _read(sources, "", "_enableParticleRender", 1, _number):
-            continue
         preset_name = _string_from(sources, "_renderGroupPreset")
         preset = preset_documents.get(preset_name) if preset_name and preset_documents else None
         if preset is not None:
             sources.append(_Source(preset.root, EmitterLayout()))
-        emitters.append(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None or embedded.type_name == "EmitterData"))
+        simulation_name = _string_from(sources, "_simulationGroupPreset")
+        simulation = preset_documents.get(("simulation", simulation_name)) if simulation_name else None
+        if simulation is not None:
+            sources.append(_Source(simulation.root, EmitterLayout(), "_simulationData"))
+        elif simulation_name:
+            notes.append(f"{name}: simulation preset {simulation_name} is missing")
+        enabled = bool(_read(sources, "", "_enableParticleRender", 1, _number))
+        field_names = set()
+        for holder in (document, base_doc, preset, simulation):
+            if holder is not None:
+                reachable = {n.type_name for source in sources for n in source.node.walk()}
+                field_names.update(m.name for t in holder.types if t.type_name in reachable for m in t.members)
+        field_values = {}
+        for source in reversed(sources):
+            for value in source.node.all_values():
+                if value.kind not in (0, 2):
+                    continue
+                decoded = value.value
+                if isinstance(decoded, (int, float)) or (isinstance(decoded, tuple) and len(decoded) <= 4 and all(isinstance(v, (int, float)) for v in decoded)):
+                    field_values[value.name] = decoded if isinstance(decoded, tuple) else (decoded,)
+        editor_emitters.append({"index": index, "name": name, "enabled": enabled, "fields": sorted(field_names), "values": field_values, "resolved": document.walk_complete and (bool(base_doc and base_doc.walk_complete) or embedded.type_name == "EmitterData")})
+        if enabled:
+            from dataclasses import replace
+            emitters.append(replace(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None or embedded.type_name == "EmitterData"), source_index=index))
     box_min = _vec3(document.root, "_boundingBoxMin", (-0.5, -0.5, -0.5))
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:
         notes.append("the effect names no emitters")
-    return EffectPreview(stem=stem, emitters=tuple(emitters), box_min=box_min, box_max=box_max, notes=tuple(notes))
+    return EffectPreview(stem=stem, emitters=tuple(emitters), box_min=box_min, box_max=box_max, notes=tuple(notes), editor_emitters=tuple(editor_emitters))
 
 
 class _SnapshotLike(Protocol):
@@ -720,6 +757,9 @@ def preview_effect_from_snapshot(
     if not snapshot.has_entry(effect_path):
         raise KeyError(f"the archives have no {effect_path}")
     source = snapshot.payload(effect_path)
+    if look is not None:
+        from cdmw.services.effect_recipe import compile_effect_recipe
+        source = compile_effect_recipe(snapshot, source, look, cancelled=cancelled or (lambda: False))
     check_cancelled()
     document = decode_effect_binary(source)
     emitter_documents: dict = {}
@@ -740,11 +780,12 @@ def preview_effect_from_snapshot(
         referenced_presets.extend(preset_names_of(decode_effect_binary(data)))
     for kind, name in referenced_presets:
         check_cancelled()
-        if kind != "render" or name in preset_sources:
+        key = name if kind == "render" else (kind, name)
+        if key in preset_sources:
             continue
         path = preset_path(kind, name)
         if snapshot.has_entry(path):
-            preset_sources[name] = snapshot.payload(path)
+            preset_sources[key] = snapshot.payload(path)
     apply = look is not None and not getattr(look, "is_default", False)
     if apply:
         check_cancelled()
@@ -781,7 +822,10 @@ def preview_effect_from_snapshot(
                 check_cancelled()
                 parsed = parser(snapshot.payload(path), path.rsplit("/", 1)[-1])
                 check_cancelled()
-                vertices = _sample_parsed_mesh_surface(parsed, SURFACE_POINTS)
+                from cdmw.services.effect_preview_geometry import sample_spawn_surface
+                vertices = sample_spawn_surface(parsed, SURFACE_POINTS, check_cancelled)
+                if not vertices:
+                    vertices = _sample_parsed_mesh_surface(parsed, SURFACE_POINTS)
             except RunCancelled:
                 raise
             except Exception:  # noqa: BLE001 - a spawn mesh that does not parse is a spread, and a note
@@ -798,7 +842,7 @@ def preview_effect_from_snapshot(
 def effect_preview_json(preview: EffectPreview) -> str:
     """The preview as the viewer reads it: `effect_preview.json`, schema 1."""
 
-    payload = {"schema": 1, "stem": preview.stem, "box_min": list(preview.box_min), "box_max": list(preview.box_max), "notes": list(preview.notes), "emitters": []}
+    payload = {"schema": 1, "stem": preview.stem, "box_min": list(preview.box_min), "box_max": list(preview.box_max), "notes": list(preview.notes), "emitters": [], "active_layer": preview.active_layer}
     for emitter in preview.emitters:
         item = asdict(emitter)
         item["life"] = list(emitter.life)

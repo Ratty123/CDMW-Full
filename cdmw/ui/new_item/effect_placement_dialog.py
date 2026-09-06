@@ -98,6 +98,8 @@ class EffectPlacementWorkspace(
     transform_changed = Signal()
     look_changed = Signal()
     item_mesh_ready = Signal(object, str)
+    effect_preview_ready = Signal(object)
+    preview_presented = Signal(int)
     _standing_view_angles = STANDING_VIEW_ANGLES
 
     def __init__(

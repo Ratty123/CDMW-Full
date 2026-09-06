@@ -3,10 +3,20 @@
 use super::*;
 
 pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), RenderError> {
+    verify_samples(device, queue, 1)?;
+    verify_samples(device, queue, 4)
+}
+
+fn verify_samples(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    samples: u32,
+) -> Result<(), RenderError> {
     const SIZE: u32 = 64;
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let camera_layout = create_camera_bind_group_layout(device);
     let effect_layout = create_effect_texture_bind_group_layout(device);
+    let depth_layout = effect_depth::layout(device, samples);
     let mut camera = CameraUniform::new(true);
     camera.view_projection = (Mat4::orthographic_rh(-1., 1., -1., 1., 0.1, 10.)
         * Mat4::look_at_rh(Vec3::Z * 2., Vec3::ZERO, Vec3::Y))
@@ -29,7 +39,8 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         format,
         &camera_layout,
         &effect_layout,
-        1,
+        &depth_layout,
+        samples,
         wgpu::BlendState::ALPHA_BLENDING,
         "effect pixel proof",
     );
@@ -48,8 +59,9 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         usage: wgpu::BufferUsages::VERTEX,
     });
     let sampler = create_effect_sampler(device);
-    let render_dds = |instance: GpuEffectBillboardInstance,
-                      dds: &[u8]|
+    let render_depth = |instance: GpuEffectBillboardInstance,
+                        dds: &[u8],
+                        opaque_depth: f32|
      -> Result<Vec<u8>, RenderError> {
         let uploaded = upload_dds_texture(device, queue, dds, TextureRole::BaseColor)?;
         let textures = [effect_texture_binding(
@@ -78,7 +90,16 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         }];
         let target = create_headless_color_target(device, format, SIZE, SIZE);
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        let depth = create_depth_target_with_sample_count(device, SIZE, SIZE, 1);
+        let depth = create_depth_target_with_sample_count(device, SIZE, SIZE, samples);
+        let multisample = create_multisample_target(device, format, SIZE, SIZE, samples);
+        let colour = multisample.as_ref().map_or(&view, |target| &target.view);
+        let depth_binding = effect_depth::binding(
+            device,
+            &depth_layout,
+            &depth.view,
+            &camera,
+            [0., 0., SIZE as f32, SIZE as f32],
+        );
         let readback = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("effect pixel proof readback"),
             size: u64::from(padded_headless_bytes_per_row(SIZE) * SIZE),
@@ -87,10 +108,10 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         });
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("effect pixel proof"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: colour,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -101,9 +122,30 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth.view,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.),
+                        load: wgpu::LoadOp::Clear(opaque_depth),
                         store: wgpu::StoreOp::Store,
                     }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            drop(pass);
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("effect pixel proof sampled depth"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: colour,
+                    resolve_target: multisample.as_ref().map(|_| &view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth.view,
+                    depth_ops: None,
                     stencil_ops: None,
                 }),
                 timestamp_writes: None,
@@ -116,6 +158,7 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
                 &batches,
                 &textures,
                 &camera_binding,
+                &depth_binding,
                 &pipeline,
                 &pipeline,
             );
@@ -144,6 +187,7 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         queue.submit([encoder.finish()]);
         read_headless_pixels(device, &readback, SIZE, SIZE)
     };
+    let render_dds = |instance, dds: &[u8]| render_depth(instance, dds, 1.);
     let render = |instance, texels: [u8; 16]| {
         let mut dds = cdmw_texture::synthetic::rgba8_checker_dds();
         dds[148..164].copy_from_slice(&texels);
@@ -179,6 +223,23 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         }
     };
     let red = render(base, white)?;
+    let plane_depth = |z| {
+        let clip =
+            Mat4::from_cols_array_2d(&camera.view_projection) * Vec3::new(0., 0., z).extend(1.);
+        clip.z / clip.w
+    };
+    let mut white_dds = cdmw_texture::synthetic::rgba8_checker_dds();
+    white_dds[148..164].copy_from_slice(&white);
+    let soft = render_depth(base, &white_dds, plane_depth(-0.01))?;
+    let occluded = render_depth(base, &white_dds, plane_depth(0.01))?;
+    require(
+        center(&soft)[0] > 0 && center(&soft)[0] < center(&red)[0] / 2,
+        "particles did not fade against scene geometry",
+    )?;
+    require(
+        visible(&occluded) == 0,
+        "particles behind scene depth were visible",
+    )?;
     require(
         center(&red)[0] > 180 && center(&red)[1] < 5 && center(&red)[2] < 5,
         "camera binding, vertex layout or colour lost the red particle",

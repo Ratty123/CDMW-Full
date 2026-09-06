@@ -31,6 +31,8 @@ from cdmw.domain.new_item.spec import (
     UNLIMITED_STOCK,
 )
 
+from cdmw.domain.new_item.effect_authoring import EffectLayer, EmitterEdit
+
 MANAGERS: Tuple[str, ...] = ("CDUMM", "DMM", "JMM")
 STAT_KIND = "stat"
 BUY_PRICE_KIND = "buy_price"
@@ -231,6 +233,9 @@ class NewItemDraft:
     effect_size: float = 1.0
     effect_rate: float = 1.0
     effect_lifetime: float = 1.0
+    effect_emitter_edits: Tuple[EmitterEdit, ...] = ()
+    effect_emitter_order: Optional[Tuple[int, ...]] = None
+    effect_layers: Optional[Tuple[EffectLayer, ...]] = None
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -262,9 +267,38 @@ class EffectWorkspaceState:
     size: float = 1.0
     rate: float = 1.0
     lifetime: float = 1.0
+    emitter_edits: Tuple[EmitterEdit, ...] = ()
+    emitter_order: Optional[Tuple[int, ...]] = None
+    layers: Optional[Tuple[EffectLayer, ...]] = None
+    active_layer: int = 0
+
+    @property
+    def look(self) -> EffectLook:
+        return EffectLook(self.color, self.intensity, self.size, self.rate, self.lifetime, self.emitter_edits, self.emitter_order)
+
+    def resolved_layers(self) -> Tuple[EffectLayer, ...]:
+        layer = EffectLayer(self.stem, scale=self.scale, offset=self.offset, rotation=self.rotation, look=self.look)
+        if self.layers is None:
+            return (layer,) if self.stem else ()
+        layers = list(self.layers)
+        if layers and 0 <= self.active_layer < len(layers):
+            old = layers[self.active_layer]
+            layers[self.active_layer] = replace(layer, name=old.name, enabled=old.enabled, kind=old.kind)
+        return tuple(layers)
+
+    @classmethod
+    def from_layers(cls, layers: Tuple[EffectLayer, ...], active_layer: int = 0) -> "EffectWorkspaceState":
+        if not layers:
+            return cls(layers=())
+        index = max(0, min(active_layer, len(layers) - 1))
+        layer = layers[index]
+        look = layer.look
+        return cls(layer.stem, layer.scale, layer.offset, layer.rotation, look.color, look.intensity, look.size, look.rate, look.lifetime, look.emitters, look.emitter_order, layers, index)
 
     @classmethod
     def from_draft(cls, draft: NewItemDraft) -> "EffectWorkspaceState":
+        if draft.effect_layers:
+            return cls.from_layers(draft.effect_layers)
         return cls(
             stem=str(draft.effect_stem or ""),
             scale=float(draft.effect_scale),
@@ -275,6 +309,8 @@ class EffectWorkspaceState:
             size=float(draft.effect_size),
             rate=float(draft.effect_rate),
             lifetime=float(draft.effect_lifetime),
+            emitter_edits=draft.effect_emitter_edits, emitter_order=draft.effect_emitter_order,
+            layers=draft.effect_layers,
         )
 
     @classmethod
@@ -291,6 +327,9 @@ class EffectWorkspaceState:
         draft.effect_size = float(self.size)
         draft.effect_rate = float(self.rate)
         draft.effect_lifetime = float(self.lifetime)
+        draft.effect_emitter_edits = self.emitter_edits
+        draft.effect_emitter_order = self.emitter_order
+        draft.effect_layers = self.resolved_layers() if self.layers is not None else None
 
 
 def stat_edits_from_grid(draft: NewItemDraft, grid: StatGrid) -> Tuple[Tuple[StatEdit, ...], Tuple[BuyPriceEdit, ...]]:
@@ -401,7 +440,9 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
             color=tuple(float(v) for v in draft.effect_color) if draft.effect_color is not None else None,
             intensity=float(draft.effect_intensity), size=float(draft.effect_size),
             rate=float(draft.effect_rate), lifetime=float(draft.effect_lifetime),
+            emitters=draft.effect_emitter_edits, emitter_order=draft.effect_emitter_order,
         ),
+        effect_layers=draft.effect_layers,
     )
 
 

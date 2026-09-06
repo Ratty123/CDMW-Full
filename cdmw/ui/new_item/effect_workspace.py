@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import re
 import tempfile
 import time
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QModelIndex, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -30,10 +29,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.services.effect_catalogue import EffectFacts
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementWorkspace
 from cdmw.ui.new_item.state import EffectWorkspaceState
+from cdmw.ui.new_item.effect_workspace_authoring import EffectWorkspaceAuthoringMixin
 
 __all__ = [
     "CATEGORY_RULES",
@@ -44,238 +43,12 @@ __all__ = [
 ]
 
 
-CATEGORY_RULES = (
-    ("Fire", ("fire", "flame", "ember", "burn")),
-    ("Frost", ("ice", "frost", "frozen", "freeze")),
-    ("Lightning", ("lightning", "electric", "shock", "thunder")),
-    ("Glow", ("glow", "emissive")),
-    ("Aura", ("aura",)),
-    ("Trail", ("trail",)),
-    ("Sparks", ("spark",)),
+from cdmw.ui.new_item.effect_library_model import (  # noqa: F401 - compatibility exports
+    CATEGORY_RULES, CATEGORY_GLYPHS, EffectLibraryRow, EffectLibraryModel,
+    effect_category, effect_display_label, _unique_effect_labels, _effect_dimensions,
 )
 
-CATEGORY_GLYPHS = {
-    "Fire": "♨",
-    "Frost": "❄",
-    "Lightning": "ϟ",
-    "Glow": "◉",
-    "Aura": "◎",
-    "Trail": "↝",
-    "Sparks": "✦",
-    "Other": "◇",
-}
-
 _CHARACTER_RIGS = ("", "1_phm", "2_phw")
-
-
-def effect_category(stem: str, authoring_name: str = "") -> str:
-    """Deterministic first-match category using the product's fixed token rules."""
-
-    text = f"{stem} {authoring_name}".casefold()
-    for category, tokens in CATEGORY_RULES:
-        if any(token in text for token in tokens):
-            return category
-    return "Other"
-
-
-def effect_display_label(stem: str, authoring_name: str = "") -> str:
-    """Return a neutral, stem-authoritative label with stable token casing."""
-
-    source = str(stem or authoring_name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    source = re.sub(r"\.(?:level\.)?effect$", "", source, flags=re.I)
-    source = re.sub(r"\.(?:pae|paem|pafx)$", "", source, flags=re.I)
-    sections = source.split("__", 1)
-    acronyms = {"aoe", "cc", "dds", "lod", "npc", "pvp", "uv", "vfx"}
-
-    def words(section: str, *, first: bool) -> str:
-        separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", section)
-        tokens = re.findall(r"[A-Za-z]+\d+[A-Za-z]*|\d+[A-Za-z]*|[A-Za-z]+", separated)
-        while tokens and tokens[0].casefold() in {"fx", "pafx", "vfx", "effect", "cdem", "cdfx"}:
-            tokens.pop(0)
-        if first and tokens and tokens[0].casefold() == "action":
-            tokens.pop(0)
-        rendered = []
-        for token in tokens:
-            match = re.fullmatch(r"([A-Za-z]+)(\d+[A-Za-z]*)", token)
-            if match:
-                head, tail = match.groups()
-                if len(head) <= 2 or head.casefold() in acronyms or (head.isupper() and len(head) <= 4):
-                    rendered.append((head.upper() if len(head) <= 4 else head.capitalize()) + tail)
-                else:
-                    rendered.extend((head.capitalize(), tail.casefold()))
-            elif re.fullmatch(r"\d+[A-Za-z]+", token):
-                rendered.append(token.casefold())
-            elif token.casefold() in acronyms or (token.isupper() and len(token) <= 4):
-                rendered.append(token.upper())
-            else:
-                rendered.append(token.capitalize())
-        return " ".join(rendered)
-
-    family = words(sections[0], first=True)
-    variant = words(sections[1], first=False) if len(sections) > 1 else ""
-    if family and variant:
-        return f"{family} · {variant}"
-    return family or variant or str(stem or "No effect")
-
-
-@dataclass(frozen=True, slots=True)
-class EffectLibraryRow:
-    stem: str
-    label: str
-    category: str
-    behavior: str
-    facts: Optional[EffectFacts] = None
-
-    @classmethod
-    def from_stem(cls, stem: str, facts: Optional[EffectFacts]) -> "EffectLibraryRow":
-        name = facts.name if facts is not None else ""
-        loops = (
-            bool(facts.loops) or (bool(facts.walk_note) and "loop" in stem.casefold())
-            if facts is not None
-            else "loop" in stem.casefold()
-        )
-        behavior = "Loop" if loops else "One-shot"
-        return cls(
-            stem=stem,
-            label=effect_display_label(stem, name),
-            category=effect_category(stem, name),
-            behavior=behavior,
-            facts=facts,
-        )
-
-
-def _unique_effect_labels(stems: tuple[str, ...]) -> dict[str, str]:
-    """Disambiguate the rare normalized collision with the shortest stem suffix."""
-
-    labels = {stem: effect_display_label(stem) for stem in stems}
-    groups: dict[str, list[str]] = {}
-    for stem, label in labels.items():
-        groups.setdefault(label.casefold(), []).append(stem)
-    for grouped in groups.values():
-        if len(grouped) < 2:
-            continue
-        parts = {stem: tuple(token for token in re.split(r"[_/]+", stem) if token) for stem in grouped}
-        qualifiers: dict[str, str] = {}
-        maximum = max((len(value) for value in parts.values()), default=1)
-        for depth in range(1, maximum + 1):
-            candidates = {stem: "_".join(value[-depth:]) for stem, value in parts.items()}
-            if len({value.casefold() for value in candidates.values()}) == len(grouped):
-                qualifiers = candidates
-                break
-        rendered = {stem: effect_display_label(qualifiers.get(stem, stem)) for stem in grouped}
-        if len({value.casefold() for value in rendered.values()}) != len(grouped):
-            namespaces = {stem: (parts[stem][0].upper() if parts[stem] else stem) for stem in grouped}
-            if len({value.casefold() for value in namespaces.values()}) == len(grouped):
-                rendered = namespaces
-            else:
-                rendered = {stem: qualifiers.get(stem, stem).replace("_", " ") for stem in grouped}
-        for stem in grouped:
-            labels[stem] = f"{labels[stem]} · {rendered[stem]}"
-    return labels
-
-
-def _effect_dimensions(facts: Optional[EffectFacts]) -> str:
-    if facts is None:
-        return "—"
-    values = (0.0 if abs(float(value)) < 1e-12 else float(value) for value in facts.size)
-    return "×".join(f"{value:.3g}" for value in values)
-
-
-class EffectLibraryModel(QAbstractTableModel):
-    COLUMN_HEADERS = ("", "Effect", "Type", "Size")
-    StemRole = int(Qt.ItemDataRole.UserRole) + 1
-    LabelRole = StemRole + 1
-    CategoryRole = StemRole + 2
-    BehaviorRole = StemRole + 3
-    GlyphRole = StemRole + 4
-    DimensionsRole = StemRole + 5
-
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
-        super().__init__(parent)
-        self._rows: tuple[EffectLibraryRow, ...] = (
-            EffectLibraryRow("", "No effect", "Other", "Off"),
-        )
-
-    def replace_rows(self, rows: tuple[EffectLibraryRow, ...]) -> None:
-        if rows == self._rows:
-            return
-        self.beginResetModel()
-        self._rows = rows
-        self.endResetModel()
-
-    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802 - Qt override
-        return 0 if parent.isValid() else len(self._rows)
-
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: N802 - Qt override
-        return 0 if parent.isValid() else len(self.COLUMN_HEADERS)
-
-    def headerData(  # noqa: N802 - Qt override
-        self,
-        section: int,
-        orientation: Qt.Orientation,
-        role: int = int(Qt.ItemDataRole.DisplayRole),
-    ):
-        if orientation != Qt.Orientation.Horizontal or not 0 <= int(section) < len(self.COLUMN_HEADERS):
-            return None
-        if role == int(Qt.ItemDataRole.DisplayRole):
-            return self.COLUMN_HEADERS[int(section)]
-        if role == int(Qt.ItemDataRole.TextAlignmentRole):
-            return (
-                Qt.AlignmentFlag.AlignCenter
-                if int(section) == 0
-                else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-            )
-        return None
-
-    def row(self, index: int) -> Optional[EffectLibraryRow]:
-        return self._rows[index] if 0 <= int(index) < len(self._rows) else None
-
-    def index_for_stem(self, stem: str) -> QModelIndex:
-        wanted = str(stem or "")
-        for row, item in enumerate(self._rows):
-            if item.stem == wanted:
-                return self.index(row, 1)
-        return QModelIndex()
-
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)):  # noqa: D401
-        if not index.isValid() or not 0 <= index.row() < len(self._rows):
-            return None
-        item = self._rows[index.row()]
-        dimensions = _effect_dimensions(item.facts)
-        if role == int(Qt.ItemDataRole.DisplayRole):
-            return (
-                CATEGORY_GLYPHS.get(item.category, CATEGORY_GLYPHS["Other"]),
-                item.label,
-                item.behavior,
-                dimensions,
-            )[index.column()]
-        if role == int(Qt.ItemDataRole.ToolTipRole):
-            return item.stem or "Clear the visual effect and all placement/look tuning."
-        if role == int(Qt.ItemDataRole.AccessibleTextRole):
-            return f"{item.label}; {item.stem or 'no effect'}; {item.behavior}"
-        if role == int(Qt.ItemDataRole.TextAlignmentRole):
-            return (
-                Qt.AlignmentFlag.AlignCenter
-                if index.column() == 0
-                else Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-            )
-        if role == int(Qt.ItemDataRole.SizeHintRole):
-            # Metadata columns use the delegate's font-aware width so translated
-            # types and dimensions do not clip inside a fixed pixel allocation.
-            return QSize((24, 170)[index.column()], 24) if index.column() < 2 else None
-        if role == self.StemRole:
-            return item.stem
-        if role == self.LabelRole:
-            return item.label
-        if role == self.CategoryRole:
-            return item.category
-        if role == self.BehaviorRole:
-            return item.behavior
-        if role == self.GlyphRole:
-            return CATEGORY_GLYPHS.get(item.category, CATEGORY_GLYPHS["Other"])
-        if role == self.DimensionsRole:
-            return dimensions
-        return None
 
 
 class _CategoryChipPanel(QWidget):
@@ -286,7 +59,7 @@ class _CategoryChipPanel(QWidget):
         self.resized.emit(self.width())
 
 
-class GuidedEffectsWorkspace(QWidget):
+class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
     """The complete resident Effects tab; edits stay staged until Apply placement."""
 
     staged_changed = Signal(bool)
@@ -404,7 +177,7 @@ class GuidedEffectsWorkspace(QWidget):
         self.category_group = QButtonGroup(self)
         self.category_group.setExclusive(True)
         self.category_buttons: dict[str, QToolButton] = {}
-        for category in ("All", *(name for name, _tokens in CATEGORY_RULES)):
+        for category in ("All", *(name for name, _tokens in CATEGORY_RULES), "Other"):
             button = QToolButton()
             button.setText(category)
             button.setCheckable(True)
@@ -420,6 +193,7 @@ class GuidedEffectsWorkspace(QWidget):
 
         self.library_model = EffectLibraryModel(self)
         self._build_library_view(library_layout)
+        self._build_library_tools(library_layout)
         self.empty_results = QLabel("No matching effects. Change or reset the filters.")
         self.empty_results.setWordWrap(True)
         self.empty_results.setVisible(False)
@@ -536,7 +310,7 @@ class GuidedEffectsWorkspace(QWidget):
         return self._staged
 
     def has_staged_changes(self) -> bool:
-        return self._staged != self._committed
+        return self._staged.resolved_layers() != self._committed.resolved_layers()
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().showEvent(event)
@@ -555,10 +329,7 @@ class GuidedEffectsWorkspace(QWidget):
         """Compatibility entry point: stage an exact shipped stem at neutral defaults."""
 
         clean = str(stem or "").strip()
-        if clean == self._committed.stem:
-            self._staged = self._committed
-        else:
-            self._staged = EffectWorkspaceState.defaults(clean)
+        self._stage_source(clean)
         self._refresh_library()
         self._select_stem(clean)
         self._sync_placement_from_state()
@@ -572,11 +343,16 @@ class GuidedEffectsWorkspace(QWidget):
         if not self.has_staged_changes():
             self._publish_dirty()
             return True
-        compatibility = self._controller.effect_target_compatibility(self._staged.stem)
-        if self._staged.stem and (compatibility is None or not compatibility.supported):
-            self._refresh_compatibility()
-            return False
+        for layer in self._staged.resolved_layers():
+            if not layer.enabled:
+                continue
+            compatibility = self._controller.effect_target_compatibility(layer.stem)
+            if compatibility is None or not compatibility.supported:
+                self._refresh_compatibility()
+                return False
         placement = self.placement
+        if placement is not None and getattr(placement, '_content_failed', False) and self._has_authored_emitters():
+            return False
         reviewed = placement is not None and placement.host is not None and not getattr(placement, "_renderer_failed", False)
         if self._staged.stem and not reviewed:
             reason = "The resident renderer is unavailable."
@@ -690,12 +466,14 @@ class GuidedEffectsWorkspace(QWidget):
         rows = []
         matches = 0
         for stem, row in candidates.items():
-            text_matches = all(term in f"{stem} {row.label}".casefold() for term in terms)
+            text_matches = all(term in f"{row.search_text} {row.label}".casefold() for term in terms)
             matched = (
                 text_matches
-                and (category == "All" or row.category == category)
+                and (category == "All" or category in row.tags)
                 and (not loop_only or row.behavior == "Loop")
                 and (not one_shot_only or row.behavior == "One-shot")
+                and (not self.favourites_only.isChecked() or stem in self.user_library.favourites)
+                and (not self.family_only.isChecked() or self._effect_family(stem) == self._effect_family(selected))
             )
             matches += int(matched)
             if not matched and stem != selected:
@@ -711,7 +489,7 @@ class GuidedEffectsWorkspace(QWidget):
             self._syncing = False
         self.library_count.setText(self.tr("{count} effects").format(count=matches))
         self.empty_results.setVisible(matches == 0)
-        self.reset_filters.setVisible(bool(terms) or category != "All" or not self.behavior_all.isChecked())
+        self.reset_filters.setVisible(bool(terms) or category != "All" or not self.behavior_all.isChecked() or self.favourites_only.isChecked() or self.family_only.isChecked())
 
     def _reset_filters(self) -> None:
         self.search.blockSignals(True)
@@ -719,6 +497,8 @@ class GuidedEffectsWorkspace(QWidget):
         self.search.blockSignals(False)
         self.behavior_all.setChecked(True)
         self.category_buttons["All"].setChecked(True)
+        self.favourites_only.setChecked(False)
+        self.family_only.setChecked(False)
         self._refresh_library()
 
     def _select_stem(self, stem: str) -> None:
@@ -732,7 +512,7 @@ class GuidedEffectsWorkspace(QWidget):
             return
         stem = str(current.data(EffectLibraryModel.StemRole) or "")
         self._refresh_selection_detail(stem)
-        self._staged = self._committed if stem == self._committed.stem else EffectWorkspaceState.defaults(stem)
+        self._stage_source(stem)
         self._sync_placement_from_state()
         self._refresh_compatibility()
         self._publish_dirty()
@@ -743,6 +523,7 @@ class GuidedEffectsWorkspace(QWidget):
         self.selection_detail.setText(exact)
         self.selection_detail.setToolTip(exact)
         self.selection_detail.setVisible(bool(exact))
+        self._sync_library_tools(exact)
 
     def _sync_placement_from_state(self) -> None:
         placement = self.placement
@@ -779,6 +560,7 @@ class GuidedEffectsWorkspace(QWidget):
             lifetime=self._staged.lifetime,
         )
         placement.set_decoder_reason(decoder_reason)
+        self._sync_authoring()
         self._publish_dirty()
 
     def _placement_transform_changed(self) -> None:
@@ -806,10 +588,13 @@ class GuidedEffectsWorkspace(QWidget):
             lifetime=float(placement.lifetime),
         )
         self._publish_dirty()
+        self.thumbnail.setEnabled(False)
         self.look_timer.start()
 
     def _publish_dirty(self) -> None:
         dirty = self.has_staged_changes()
+        if getattr(self, 'recipe_panel', None) is not None:
+            self.recipe_panel.state = self._staged
         if self.placement is not None:
             self.placement.apply_button.setEnabled(dirty and bool(self._staged.stem or self._committed.stem))
             self.placement.discard_button.setEnabled(dirty)
@@ -891,6 +676,7 @@ class GuidedEffectsWorkspace(QWidget):
 
     def _schedule_preview(self, delay_ms: int = 150) -> None:
         self._preview_dirty = True
+        self.thumbnail.setEnabled(False)
         if self.placement is not None:
             self.placement.cancel_pending_content()
         self.selection_timer.start(delay_ms)
@@ -946,6 +732,7 @@ class GuidedEffectsWorkspace(QWidget):
             self.placement.look_changed.connect(self._placement_look_changed)
             self.placement.apply_requested.connect(self.apply_staged)
             self.placement.discard_button.clicked.connect(self.discard_staged)
+            self._attach_authoring()
             self.placeholder.setVisible(False)
             self.placement_layout.addWidget(self.placement, 1)
         else:
@@ -1003,6 +790,7 @@ class GuidedEffectsWorkspace(QWidget):
 
     def request_shutdown(self) -> None:
         self._library_closed = True
+        self._thumbnail_timer.stop()
         self._library_timer.stop()
         self._library_build = None
         self._initial_preview_timer.stop()

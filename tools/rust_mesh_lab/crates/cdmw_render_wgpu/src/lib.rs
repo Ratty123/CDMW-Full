@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod effect_depth;
 mod effect_particle_proof;
 mod effect_particle_shader;
 mod selection_overlay;
@@ -2476,6 +2477,7 @@ pub struct WindowRenderer {
     effect_particle_additive_pipeline: wgpu::RenderPipeline,
     effect_quad: wgpu::Buffer,
     effect_texture_bind_group_layout: wgpu::BindGroupLayout,
+    effect_depth_layout: wgpu::BindGroupLayout,
     effect_sampler: wgpu::Sampler,
     effect_textures: Vec<GpuEffectTexture>,
     effect_batches: Vec<GpuEffectBatch>,
@@ -2664,11 +2666,13 @@ impl WindowRenderer {
             &effect_texture_bind_group_layout,
             &effect_sampler,
         )];
+        let effect_depth_layout = effect_depth::layout(&device, sample_count);
         let effect_particle_alpha_pipeline = create_effect_particle_pipeline(
             &device,
             format,
             &camera_bind_group_layout,
             &effect_texture_bind_group_layout,
+            &effect_depth_layout,
             sample_count,
             wgpu::BlendState::ALPHA_BLENDING,
             "CDMW Rust Preview alpha effect particles",
@@ -2678,6 +2682,7 @@ impl WindowRenderer {
             format,
             &camera_bind_group_layout,
             &effect_texture_bind_group_layout,
+            &effect_depth_layout,
             sample_count,
             wgpu::BlendState {
                 color: wgpu::BlendComponent {
@@ -2766,6 +2771,7 @@ impl WindowRenderer {
             effect_particle_additive_pipeline,
             effect_quad,
             effect_texture_bind_group_layout,
+            effect_depth_layout,
             effect_sampler,
             effect_textures,
             effect_batches: Vec::new(),
@@ -3428,7 +3434,7 @@ impl WindowRenderer {
         });
         {
             let (mesh_color_view, resolve_target, store) = if let Some(target) = multisample {
-                (&target.view, Some(view), wgpu::StoreOp::Discard)
+                (&target.view, Some(view), wgpu::StoreOp::Store)
             } else {
                 (view, None, wgpu::StoreOp::Store)
             };
@@ -3509,23 +3515,26 @@ impl WindowRenderer {
                     self.show_bounds,
                     self.show_bones,
                 );
-                draw_effect_particles(
-                    &mut pass,
-                    &self.effect_quad,
-                    &self.effect_batches,
-                    &self.effect_textures,
-                    &self.camera_bind_group,
-                    &self.effect_particle_alpha_pipeline,
-                    &self.effect_particle_additive_pipeline,
-                );
-                self.face_selection.draw(
-                    &mut pass,
-                    &self.default_material_binding.bind_group,
-                    &self.camera_bind_group,
-                    self.face_selection_xray,
-                );
+                if self.effect_batches.is_empty() {
+                    self.face_selection.draw(
+                        &mut pass,
+                        &self.default_material_binding.bind_group,
+                        &self.camera_bind_group,
+                        self.face_selection_xray,
+                    );
+                }
             }
         }
+        effect_depth::render(
+            self,
+            encoder,
+            view,
+            depth,
+            multisample,
+            output_width,
+            output_height,
+            viewport,
+        );
     }
 
     pub fn capture_frame(
@@ -6813,19 +6822,30 @@ fn create_effect_particle_pipeline(
     format: wgpu::TextureFormat,
     camera_layout: &wgpu::BindGroupLayout,
     effect_layout: &wgpu::BindGroupLayout,
+    depth_layout: &wgpu::BindGroupLayout,
     sample_count: u32,
     blend: wgpu::BlendState,
     label: &str,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("CDMW Rust Preview effect particle shader"),
-        source: wgpu::ShaderSource::Wgsl(effect_particle_shader::SHADER.into()),
+        source: wgpu::ShaderSource::Wgsl(if sample_count > 1 {
+            effect_particle_shader::SHADER
+                .replace("texture_depth_2d", "texture_depth_multisampled_2d")
+                .replace(
+                    "textureLoad(effect_scene_depth, pixel, 0)",
+                    "textureLoad(effect_scene_depth, pixel, i32(sample_index))",
+                )
+                .into()
+        } else {
+            effect_particle_shader::SHADER.into()
+        }),
     });
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("CDMW Rust Preview effect particle pipeline layout"),
         // Contiguous bindings are required for the particle camera on D3D12.
         // This dedicated shader never includes the 16-texture mesh material group.
-        bind_group_layouts: &[Some(camera_layout), Some(effect_layout)],
+        bind_group_layouts: &[Some(camera_layout), Some(effect_layout), Some(depth_layout)],
         immediate_size: 0,
     });
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -7179,7 +7199,7 @@ fn create_depth_target_with_sample_count(
         sample_count,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -7404,6 +7424,7 @@ fn draw_effect_particles<'a>(
     batches: &'a [GpuEffectBatch],
     textures: &'a [GpuEffectTexture],
     camera_bind_group: &'a wgpu::BindGroup,
+    depth_bind_group: &'a wgpu::BindGroup,
     alpha_pipeline: &'a wgpu::RenderPipeline,
     additive_pipeline: &'a wgpu::RenderPipeline,
 ) {
@@ -7421,6 +7442,7 @@ fn draw_effect_particles<'a>(
         });
         pass.set_bind_group(0, camera_bind_group, &[]);
         pass.set_bind_group(1, &texture.bind_group, &[]);
+        pass.set_bind_group(2, depth_bind_group, &[]);
         pass.set_vertex_buffer(1, batch.instances.slice(..));
         pass.draw(
             0..6,

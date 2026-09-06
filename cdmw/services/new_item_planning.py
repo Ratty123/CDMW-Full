@@ -24,10 +24,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
 from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, add_icon_texture
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
-from cdmw.core.prefab_binary_edit import PrefabEditError
-from cdmw.core.effect_binary import decode_effect_binary
-from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_layout_of, emitter_paths_of, preset_names_of, preset_path, rename_effect_strings, rename_string_values, same_length_stem
-from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
+from cdmw.core.effect_edit import EMITTER_DIR
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
 from cdmw.core.multichangeinfo_table import allocate_multichange_keys, clone_transition_rows, find_multichange_keys, transition_rows_for
@@ -55,8 +52,9 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import MAX_SHIPPED_SOCKET_SLOTS, ValidationIssue
 from cdmw.domain.new_item.spec import UNLIMITED_STOCK, EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
-from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError, TablePair
-from cdmw.services.new_item_effect_targets import inspect_effect_targets, is_sheathed_family_part
+from cdmw.services.new_item_snapshot import EFFECT_DIR, NewItemSnapshot, NewItemSnapshotError, TablePair
+from cdmw.services.new_item_effect_planning import EffectPlanningMixin
+from cdmw.services.new_item_effect_targets import is_sheathed_family_part
 
 
 def _effect_file(stem: str) -> str:
@@ -119,7 +117,7 @@ class ModelFiles:
 
 
 @dataclass(slots=True)
-class _Planner:
+class _Planner(EffectPlanningMixin):
     spec: NewItemSpec
     snapshot: NewItemSnapshot
     model: Optional[ModelFiles]
@@ -141,6 +139,7 @@ class _Planner:
     variant_plan: object = None
     #: What the graft names: the shipped effect, or the clone with the item's look.
     effect_reference: str = ""
+    effect_outputs: List[tuple] = field(default_factory=list)
 
     # ------------------------------------------------------------------ helpers
 
@@ -621,142 +620,6 @@ class _Planner:
         for note in self.model.notes:
             self.summary.append(f"  {note}")
         self.warnings.extend(self.model.warnings)
-
-    def _effect_donor(self) -> Optional[bytes]:
-        if self.spec.effect is None:
-            self.manifest["effect"] = None
-            return None
-        compatibility = inspect_effect_targets(self.snapshot, self.spec)
-        if not compatibility.supported:
-            raise NewItemPlanError("; ".join(compatibility.errors))
-        self.effect_reference = str(self.spec.effect)
-        self.manifest["effect"] = {"path": str(self.spec.effect), "donor": EFFECT_DONOR_PREFAB, "prefabs": []}
-        self.warnings.append(
-            f"The visual effect {self.spec.effect} is grafted into {len(compatibility.target_prefabs)} owned prefab(s) "
-            "as an EffectComponent; it may need a scale or an offset, so verify its final fit in game."
-        )
-        self._clone_effect_for_look()
-        return self.snapshot.payload(EFFECT_DONOR_PREFAB)
-
-    def _clone_effect_for_look(self) -> None:
-        """With a look that is not as shipped: the effect and its emitters cloned under
-        stems of the item's own (same length, no relocation), edited in place, added; the
-        graft then names the clone."""
-
-        look = self.spec.effect_look
-        if look.is_default:
-            self.manifest["effect"]["look"] = None
-            return
-        stem, suffix = str(self.spec.effect).split(".", 1)
-        effect_path = _effect_file(stem)
-        if not self.snapshot.has_entry(effect_path):
-            raise NewItemPlanError(f"the archives have no {effect_path}, so its look cannot be edited")
-        tag = f"_n{int(self.spec.item_key or 0) % 100000:05d}"
-        taken = set(self.snapshot.effect_stems)
-        new_stem = same_length_stem(stem, tag, taken=taken)
-        taken.add(new_stem)
-        source = self.snapshot.payload(effect_path)
-        document = decode_effect_binary(source)
-        if not document.walk_complete:
-            raise NewItemPlanError(f"{effect_path} did not decode fully ({document.walk_note}); its look cannot be edited")
-        renames: Dict[str, str] = {stem: new_stem}
-        emitter_clones: List[Tuple[str, str, str]] = []
-        for emitter_path in emitter_paths_of(document):
-            if not self.snapshot.has_entry(emitter_path):
-                self.warnings.append(f"The effect names {emitter_path}, which the archives do not have; the clone keeps naming the shipped emitter.")
-                continue
-            old_emitter = emitter_path.rsplit("/", 1)[-1][: -len(".paem")]
-            new_emitter = same_length_stem(old_emitter, tag, taken=taken)
-            taken.add(new_emitter)
-            renames[old_emitter] = new_emitter
-            emitter_clones.append((emitter_path, old_emitter, new_emitter))
-        # the render and simulation presets the effect and its emitters name: cloned too,
-        # since an emitter's colour is the render preset's unless it overrides it
-        emitter_sources = {path: self.snapshot.payload(path) for path, _old, _new in emitter_clones}
-        preset_renames: Dict[str, str] = {}
-        preset_clones: List[Tuple[str, str, str]] = []
-        seen_presets: List[Tuple[str, str]] = []
-        for kind, name in preset_names_of(document) + tuple(
-            item for data in emitter_sources.values() for item in preset_names_of(decode_effect_binary(data))
-        ):
-            if (kind, name) in seen_presets:
-                continue
-            seen_presets.append((kind, name))
-            path = preset_path(kind, name)
-            if not self.snapshot.has_entry(path):
-                continue
-            new_name = same_length_stem(name, tag, taken=taken)
-            taken.add(new_name)
-            preset_renames[name] = new_name
-            preset_clones.append((path, kind, new_name))
-        report = EffectEditReport()
-
-        def cloned(data: bytes) -> bytes:
-            renamed = rename_effect_strings(data, renames)
-            if preset_renames:
-                renamed = rename_string_values(renamed, preset_renames)
-            return renamed
-
-        # the effect overrides its emitters' curves and material parameters by position:
-        # the emitters' layouts (under the clones' paths, which the renamed effect names)
-        # let a colour reach those overrides too
-        layouts = {
-            _emitter_file(new_emitter): emitter_layout_of(decode_effect_binary(emitter_sources[emitter_path]))
-            for emitter_path, _old, new_emitter in emitter_clones
-        }
-        edited_effect, report = apply_effect_look(cloned(source), look, report=report, emitter_layouts=layouts)
-        new_effect_path = _effect_file(new_stem)
-        self.add(self.snapshot.entry(effect_path), new_effect_path, edited_effect, f"effect clone: {new_effect_path}")
-        written = [new_effect_path]
-        for emitter_path, _old, new_emitter in emitter_clones:
-            edited, report = apply_effect_look(cloned(emitter_sources[emitter_path]), look, report=report)
-            new_path = _emitter_file(new_emitter)
-            self.add(self.snapshot.entry(emitter_path), new_path, edited, f"emitter clone: {new_path}")
-            written.append(new_path)
-        for path, kind, new_name in preset_clones:
-            edited, report = apply_effect_look(rename_string_values(self.snapshot.payload(path), preset_renames), look, report=report)
-            new_path = preset_path(kind, new_name)
-            self.add(self.snapshot.entry(path), new_path, edited, f"preset clone: {new_path}")
-            written.append(new_path)
-        self.effect_reference = f"{new_stem}.{suffix}"
-        self.manifest["effect"]["path"] = self.effect_reference
-        self.manifest["effect"]["look"] = {
-            "source": str(self.spec.effect), "color": list(look.color) if look.color else None,
-            "intensity": look.intensity, "size": look.size, "rate": look.rate, "lifetime": look.lifetime,
-            "files": written, "edited": dict(report.edited),
-        }
-        touched = ", ".join(f"{name} x{count}" for name, count in sorted(report.edited.items())) or "nothing the files carry"
-        self.summary.append(f"effect look: {stem} cloned as {new_stem} with {len(emitter_clones)} emitter(s) and {len(preset_clones)} preset(s); edited {touched}")
-        if not report.total:
-            self.warnings.append("The chosen look edits nothing this effect carries (no colour, brightness, scale, spawn count or lifetime member); the clone draws as shipped.")
-
-    def _graft_effect(self, prefab: bytes, donor: bytes, new_path: str) -> bytes:
-        from cdmw.services.effect_placement_rotation import euler_xyz_quaternion
-
-        try:
-            scale = float(self.spec.effect_scale)
-            offset = tuple(float(v) for v in self.spec.effect_offset)
-            rotation = tuple(float(v) for v in self.spec.effect_rotation_degrees)
-            result = graft_prefab_component(
-                prefab, donor, component_type="EffectComponent",
-                path_replacements={EFFECT_DONOR_PATH: str(self.effect_reference)},
-                offset_transform=encode_transform(
-                    scale=(scale, scale, scale),
-                    rotation=euler_xyz_quaternion(rotation),
-                    position=offset,
-                ),
-            )
-        except PrefabEditError as exc:
-            raise NewItemPlanError(f"{new_path}: the effect could not be grafted: {exc}") from exc
-        self.manifest["effect"]["prefabs"].append(new_path)
-        self.manifest["effect"]["scale"] = scale
-        self.manifest["effect"]["offset"] = list(offset)
-        self.manifest["effect"]["rotation_degrees"] = list(rotation)
-        placed = f", scale {scale:g}" + (f", offset {offset[0]:g} {offset[1]:g} {offset[2]:g}" if any(offset) else "")
-        if any(rotation):
-            placed += f", rotation {rotation[0]:g} {rotation[1]:g} {rotation[2]:g} deg"
-        self.summary.append(f"effect: {self.effect_reference} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'}{placed})")
-        return result.data
 
     def _texture_renames(self) -> Mapping[str, str]:
         """texture file name -> new file name for the textures the import produced."""

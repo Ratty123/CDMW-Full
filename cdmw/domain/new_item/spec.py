@@ -141,26 +141,7 @@ class Placement:
     stock_index: Optional[int] = None
 
 
-@dataclass(frozen=True, slots=True)
-class EffectLook:
-    """Edits to a shipped effect's named values, all multiplicative except the colour.
-
-    `color` replaces the emitters' emissive and particle colours (their brightness is
-    kept: the new colour is scaled to the old colour's peak component); `intensity`
-    multiplies the emissive brightness; `size` the particle scale; `rate` the spawn
-    counts; `lifetime` the particle lifetimes. 1.0 (and no colour) means as shipped.
-    Which of these the game honours is a matter for the first in-game look.
-    """
-
-    color: Optional[Tuple[float, float, float]] = None
-    intensity: float = 1.0
-    size: float = 1.0
-    rate: float = 1.0
-    lifetime: float = 1.0
-
-    @property
-    def is_default(self) -> bool:
-        return self.color is None and all(abs(float(v) - 1.0) < 1e-9 for v in (self.intensity, self.size, self.rate, self.lifetime))
+from cdmw.domain.new_item.effect_authoring import EffectLook, EffectLayer
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +235,16 @@ class NewItemSpec:
     #: instances are cloned under stems of the item's own and their named values edited in
     #: place (see :mod:`cdmw.core.effect_edit`). Only read with an effect.
     effect_look: "EffectLook" = field(default_factory=lambda: EffectLook())
+    effect_layers: Optional[Tuple[EffectLayer, ...]] = None
+
+    @property
+    def active_effect_layers(self) -> Tuple[EffectLayer, ...]:
+        if self.effect_layers is not None:
+            return tuple(layer for layer in self.effect_layers if layer.enabled and layer.stem)
+        if self.effect is None:
+            return ()
+        parts = str(self.effect).split('.')
+        return (EffectLayer(parts[0], scale=self.effect_scale, offset=self.effect_offset, rotation=self.effect_rotation_degrees, look=self.effect_look, kind=parts[1] if len(parts) > 1 else 'level'),)
 
     @property
     def needs_new_model_files(self) -> bool:
@@ -263,7 +254,7 @@ class NewItemSpec:
     def needs_own_family(self) -> bool:
         """The item gets prefabs, mesh and side files of its own under its stem."""
 
-        return self.model_source is ModelSource.IMPORTED or self.effect is not None or bool(self.variants)
+        return self.model_source is ModelSource.IMPORTED or bool(self.active_effect_layers) or bool(self.variants)
 
     @property
     def needs_new_stem(self) -> bool:

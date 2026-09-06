@@ -679,6 +679,24 @@ class PlanTests(_PackageCase):
         self.assertTrue(any("shipped equipment carries it" in w for w in outside.warnings), outside.warnings)
         self.assertTrue(any(f"{low:,}" in w and f"{high:,}" in w for w in outside.warnings), outside.warnings)
 
+    def test_effect_layers_export_distinct_components_and_keep_action_references(self) -> None:
+        from cdmw.domain.new_item.effect_authoring import EffectLayer
+        layers = (EffectLayer('fx_test_fire', name='Flame', offset=(1.,0.,0.)),
+                  EffectLayer('fx_test_ice', name='Frost', scale=.5, kind='action'),
+                  EffectLayer('fx_test_fire', enabled=False))
+        plan = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect_layers=layers), self.snapshot)
+        assert len(plan.manifest['effects']) == 2
+        assert plan.manifest['effects'][0]['offset'] == [1.,0.,0.]
+        for request in plan.additions:
+            if request.path.endswith('.prefab'):
+                doc = decode_prefab_binary(request.payload_data)
+                assert doc.walk_complete
+                assert [o.component_type for o in doc.objects].count('EffectComponent') == 2
+                assert 'fx_test_fire.level.effect' in [r.text for r in doc.resource_strings()]
+                assert 'fx_test_ice.action.effect' in [r.text for r in doc.resource_strings()]
+        legacy = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect='fx_test_fire.action.effect'), self.snapshot)
+        assert legacy.manifest['effect']['path'] == 'fx_test_fire.action.effect'
+
     def test_an_effect_gives_the_item_prefabs_of_its_own_with_an_effect_component(self) -> None:
         context = build_context(self.snapshot, TEMPLATE)
         self.assertEqual(context.effect_stems, frozenset({"fx_test_fire", "fx_test_ice"}))
@@ -703,7 +721,7 @@ class PlanTests(_PackageCase):
         self.assertEqual(plan.manifest["effect"]["path"], "fx_test_fire.level.effect")
         self.assertEqual(len(plan.manifest["effect"]["prefabs"]), 2)
         self.assertEqual((plan.manifest["effect"]["scale"], plan.manifest["effect"]["offset"]), (1.0, [0.0, 0.0, 0.0]))
-        self.assertTrue(any("grafted" in w and "scale or an offset" in w for w in plan.warnings), plan.warnings)
+        self.assertTrue(any("grafted" in w and "placement" in w for w in plan.warnings), plan.warnings)
         self.assertTrue(any(line.startswith("effect: fx_test_fire") and "scale 1" in line for line in plan.summary_lines))
         # the grafted component carries the spec's transform: a uniform scale and an offset in the weapon's axes
         from cdmw.core.prefab_component_graft import encode_transform
@@ -831,6 +849,15 @@ class PlanTests(_PackageCase):
         plain = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_real_fire.level.effect"), snapshot)
         self.assertFalse(any(path.startswith("effect/") for path in (r.path for r in plain.additions)))
         self.assertIsNone(plain.manifest["effect"]["look"])
+
+        from cdmw.domain.new_item.effect_authoring import EffectLayer, EmitterEdit
+        layers = tuple(EffectLayer('fx_real_fire', name=f'Layer {count}', look=EffectLook(emitter_order=(0,), emitters=(EmitterEdit(0, values=(('_spawnCountMax',(float(count),)),)),))) for count in (4,8))
+        authored = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect_layers=layers), snapshot)
+        clones = [decode_effect_binary(r.payload_data) for r in authored.additions if r.path.endswith('.pae')]
+        assert len(clones) == 2
+        assert len({row['path'] for row in authored.manifest['effects']}) == 2
+        assert sorted(doc.root.child('_emitterVariationDataArray')[0].child('_internalEmitterData').child('_spawnData').value('_spawnCountMax').value for doc in clones) == [4,8]
+        assert all(len(doc.root.child('_emitterVariationDataArray')) == 1 for doc in clones)
 
     def test_refusals(self) -> None:
         with self.assertRaises(NewItemPlanError) as caught:

@@ -703,6 +703,32 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"effect_particles_paused": bool(paused)}})
 
+    def set_effect_preview_controls(self, *, speed=None, time_seconds=None, seed=None, quality=None, solo_layer=None, solo_emitter=None, active_layer=None) -> bool:
+        """Preview-only playback and inspection; no package or camera replacement."""
+        import math
+        patch = {}
+        for key, value, low, high in (
+            ("effect_playback_speed", speed, 0.05, 4.0),
+            ("effect_preview_seed", seed, 0, 9999),
+            ("effect_particle_budget", quality, 64, 2048),
+            ("effect_solo_layer", solo_layer, -1, 15),
+            ("effect_solo_emitter", solo_emitter, -1, 127),
+            ("effect_active_layer", active_layer, 0, 15),
+        ):
+            if value is not None:
+                number = float(value)
+                if not math.isfinite(number) or not low <= number <= high:
+                    raise ValueError(f"Invalid {key}.")
+                patch[key] = number if key == "effect_playback_speed" else int(number)
+        if time_seconds is not None:
+            seconds = float(time_seconds)
+            if not math.isfinite(seconds) or not 0 <= seconds <= 3600:
+                raise ValueError("Preview time must be between 0 and 3600 seconds.")
+            self._effect_seek_serial = getattr(self, "_effect_seek_serial", 0) + 1
+            patch.update(effect_seek_serial=self._effect_seek_serial, effect_seek_seconds=seconds)
+        self._presentation_state.setdefault('display', {}).update(patch)
+        return self._remember_presentation_state({"display": patch})
+
     def set_viewport_backdrop(self, color: str) -> bool:
         """This viewport's clear colour, as `#RRGGBB`.
 

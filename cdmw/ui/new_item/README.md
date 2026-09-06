@@ -157,13 +157,20 @@ and compact Type and approximate Size columns; the exact stem stays searchable a
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
 single empty-state row, so blank
 compatibility and exact-stem labels do not repeat it. Search matches words in the
-readable name as well as the exact stem. Labelled All / Loops / One-shot filters,
+readable name, exact stem, emitter, texture, mesh and preset metadata. The background
+index follows emitter and render/simulation preset dependencies once per definition;
+schema 2 invalidates old caches and includes dependency paths and archive locations.
+Missing definitions are shown in tooltips without hiding otherwise usable effects.
+Labelled All / Loops / One-shot filters,
 a result count and Reset filters make browsing explicit; the staged selection remains
 visible even when it falls outside the filters. Library labels and facts are
 prepared in short event-loop slices and reused across filtering and placement
 changes. Unchanged rows retain their selection and layout, and metadata column
 sizing samples a bounded number of rows even while the page is hidden. Returning
 to Effects keeps the resident scene; changed inputs and failed updates still retry.
+Favourites and Variants narrow the library. **Thumbnail** captures the current preview
+frame into the local library; **Large thumbnails** expands the rows, loading only the
+visible cached images. Saved recipes contain references and settings, never game assets.
 A replaced snapshot or catalogue cancels the previous preparation;
 shutdown prevents late catalogue events from restarting it. The hidden legacy
 selector mirrors only the committed choice. Item preview preparation starts when
@@ -173,7 +180,17 @@ placement, glow, snapshot and template key without decoding them. Item parsing a
 baking then run in the existing placement package worker alongside effect preparation;
 cancelled requests cannot publish their item mesh, and source leases last through
 worker teardown. The inspector groups Placement,
-Appearance and Preview, with Apply and Discard pinned below its scroll area.
+Appearance and Preview, with Apply and Discard pinned below its scroll area. Its
+Layers / Emitters / Saved tabs add up to 16 effect layers with independent placement,
+visibility and appearance. Selecting another layer does not itself create a draft edit.
+Layer solo and emitter solo affect only the preview. **Create from this emitter** starts
+a custom recipe from an existing emitter; duplicate/remove controls change its emitter
+list, while the inspector exposes declared emission, lifetime, force, velocity, size,
+rotation and atlas fields. Overrides are opt-in, show inherited values, and unavailable
+fields are disabled. Colour, size and opacity curves use Start/Middle/End controls;
+portable JSON recipes can retain up to 128 samples. Save, load, import and export retain
+the complete composition. Playback speed, seek, seed, restart and preview
+quality support repeatable comparisons; playback settings do not change exported files.
 **Show effect** toggles only the particles for comparison with the item underneath;
 it never changes the draft, placement or camera. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
@@ -181,9 +198,26 @@ Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebui
 effect/look packages without resetting the camera, and retains old package files until
 the correlated renderer acknowledgement. Effect, emitter, preset and spawn-mesh decoding
 runs in that cancellable lane rather than in the selection callback; spawn meshes are
-sampled directly to the 96 points the viewport uses instead of copying their full vertex
-arrays. Reset actions clear the corresponding draft
+sampled across triangle area into 96 stable surface positions instead of clustering at
+vertices. Curves retain 128 samples. The Rust renderer fades particles against completed
+scene depth for soft intersections, including MSAA, and offers 64/256/1024/2048 particles
+per emitter with a 32,768-instance scene limit. Reset actions clear the corresponding draft
 authority, and the workflow summary reports effective changes rather than UI mode.
+
+`effect_authoring.py` owns immutable layer/emitter recipes. `effect_recipe.py` resolves
+editable inherited emitters and compiles the same bytes for preview and export.
+`effect_writer.py` rebuilds typed graphs, presence masks, strings, collections and self
+pointers, and decodes its output before accepting it. Unknown collection layouts and
+incomplete graphs fail rather than producing speculative binary edits. The planner
+clones edited definitions and grafts each enabled layer into the item's owned prefabs;
+the legacy single-effect API and `.action.effect` references remain compatible. Recipe
+creation and loose-package planning do not mutate game archives.
+
+The preview remains an approximation of the game renderer: unknown spawn-volume enums,
+vector fields, multi-texture shader graphs, distortion and injected lights are not fully
+reproduced. Custom graphs use verified typed fields and existing emitter templates;
+arbitrary game shader authoring is not provided. Binary readback and synthetic GPU tests
+do not establish in-game appearance or acceptance of a newly authored composition.
 For an imported item, Effects always derives its placed preview from the live import
 source before and after **Apply placement**, so its PBR rows are the same authority that
 Model & Placement displays. The rebuilt PAC remains output authority but its borrowed template

@@ -242,8 +242,34 @@ pub(crate) fn effect_emitter_billboards(
     camera_up: Vec3,
     camera_forward: Vec3,
 ) -> Vec<EffectBillboardInstance> {
-    const MAX_PARTICLES_PER_EMITTER: usize = 256;
-    const MAX_INSTANCES_PER_EMITTER: usize = MAX_PARTICLES_PER_EMITTER * 8;
+    effect_emitter_billboards_with_limit(
+        emitter,
+        emitter_index,
+        time,
+        minimum_radius,
+        texture_index,
+        model_matrix,
+        camera_right,
+        camera_up,
+        camera_forward,
+        256,
+    )
+}
+
+pub(crate) fn effect_emitter_billboards_with_limit(
+    emitter: &Value,
+    emitter_index: usize,
+    time: f32,
+    minimum_radius: f32,
+    texture_index: usize,
+    model_matrix: Mat4,
+    camera_right: Vec3,
+    camera_up: Vec3,
+    camera_forward: Vec3,
+    particle_limit: usize,
+) -> Vec<EffectBillboardInstance> {
+    let max_particles_per_emitter = particle_limit.clamp(64, 2048);
+    let max_instances_per_emitter = max_particles_per_emitter * 8;
     let simulation_speed = emitter
         .get("simulation_speed")
         .and_then(Value::as_f64)
@@ -251,7 +277,12 @@ pub(crate) fn effect_emitter_billboards(
         .filter(|value| value.is_finite())
         .unwrap_or(1.0)
         .clamp(0.0, 20.0);
-    let simulation_time = time.max(0.0) * simulation_speed;
+    let (delay_low, delay_high) = value_pair(emitter.get("start_delay"), (0.0, 0.0));
+    let delay = delay_low + (delay_high - delay_low) * seed_unit(emitter_index as f32 + 17.3);
+    let simulation_time = time.max(0.0) * simulation_speed - delay.max(0.0);
+    if simulation_time < 0.0 || emitter.get("burst").and_then(Value::as_u64) == Some(0) {
+        return Vec::new();
+    }
     let burst = emitter
         .get("burst")
         .and_then(Value::as_u64)
@@ -263,7 +294,7 @@ pub(crate) fn effect_emitter_billboards(
         .and_then(Value::as_u64)
         .and_then(|value| usize::try_from(value).ok())
         .unwrap_or(burst)
-        .clamp(1, MAX_PARTICLES_PER_EMITTER);
+        .clamp(1, max_particles_per_emitter);
     let bursts_per_second = emitter
         .get("bursts_per_second")
         .and_then(Value::as_f64)
@@ -286,6 +317,12 @@ pub(crate) fn effect_emitter_billboards(
         .filter(|value| value.is_finite())
         .unwrap_or(0.0)
         .max(0.0);
+    let repeats = emitter
+        .get("loop_count")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        .clamp(0, 1000);
+    let spawn_time = spawn_time * (repeats + 1) as f32;
     let last_birth = if looping {
         simulation_time
     } else {
@@ -293,7 +330,7 @@ pub(crate) fn effect_emitter_billboards(
     };
     let newest_burst = (last_birth / interval).floor() as i64;
     let burst_history =
-        ((longest_life / interval).ceil() as usize + 1).min(MAX_PARTICLES_PER_EMITTER);
+        ((longest_life / interval).ceil() as usize + 1).min(max_particles_per_emitter);
     let kind = emitter
         .get("kind")
         .and_then(Value::as_str)
@@ -370,8 +407,17 @@ pub(crate) fn effect_emitter_billboards(
         if age < 0.0 || age > longest_life {
             continue;
         }
-        for particle in 0..burst {
-            if emitted >= maximum || instances.len() >= MAX_INSTANCES_PER_EMITTER {
+        let minimum_burst = emitter
+            .get("burst_min")
+            .and_then(Value::as_u64)
+            .unwrap_or(burst as u64)
+            .min(burst as u64) as usize;
+        let actual_burst = minimum_burst
+            + (seed_unit(emitter_index as f32 * 173.17 + burst_index as f32 * 19.91)
+                * (burst - minimum_burst + 1) as f32)
+                .floor() as usize;
+        for particle in 0..actual_burst.min(burst) {
+            if emitted >= maximum || instances.len() >= max_instances_per_emitter {
                 break 'bursts;
             }
             let seed =
@@ -450,7 +496,7 @@ pub(crate) fn effect_emitter_billboards(
                     texture_index,
                     texture_channel,
                     blend,
-                    MAX_INSTANCES_PER_EMITTER,
+                    max_instances_per_emitter,
                 );
             } else if kind == "beam" {
                 let local_axis =
@@ -486,7 +532,7 @@ pub(crate) fn effect_emitter_billboards(
                     .normalize_or(camera_right);
                 let mut previous = center;
                 for segment in 1..=6 {
-                    if instances.len() >= MAX_INSTANCES_PER_EMITTER {
+                    if instances.len() >= max_instances_per_emitter {
                         break;
                     }
                     let fraction = segment as f32 / 6.0;
@@ -948,6 +994,48 @@ mod tests {
     }
     fn emitter() -> Value {
         json!({"loop":false,"bursts_per_second":0.,"life":[2.,2.],"alpha_over_life":[1.],"scale":[[0.1,0.4,0.1],[0.1,0.4,0.1]],"color_over_life":[[1.,0.3,0.1]],"emissive_color":[0.1,0.1,0.1]})
+    }
+    #[test]
+    fn delay_zero_bursts_and_finite_repeats_control_emission() {
+        let mut e = emitter();
+        e["start_delay"] = json!([2., 2.]);
+        assert!(draw(&e, 1.).is_empty());
+        assert!(!draw(&e, 2.5).is_empty());
+        e["burst"] = json!(0);
+        assert!(draw(&e, 2.5).is_empty());
+        e["burst"] = json!(1);
+        e["start_delay"] = json!([0., 0.]);
+        e["life"] = json!([0.1, 0.1]);
+        e["bursts_per_second"] = json!(30.);
+        e["spawn_time"] = json!(1.);
+        assert!(draw(&e, 1.5).is_empty());
+        e["loop_count"] = json!(2);
+        assert!(!draw(&e, 1.5).is_empty());
+    }
+
+    #[test]
+    fn quality_is_bounded_and_seeded_particle_comparisons_are_repeatable() {
+        let e = json!({"loop":true,"burst":32,"bursts_per_second":30.,"life":[10.,10.],"max_particles":10000,"spread":[1.,1.,1.],"scale":[[0.1,0.1,0.1],[0.1,0.1,0.1]],"alpha_over_life":[1.]});
+        let render = |budget, seed| {
+            effect_emitter_billboards_with_limit(
+                &e,
+                seed,
+                5.,
+                1.,
+                0,
+                Mat4::IDENTITY,
+                Vec3::X,
+                Vec3::Y,
+                -Vec3::Z,
+                budget,
+            )
+        };
+        let draft = render(64, 0);
+        let high = render(1024, 0);
+        assert!(!draft.is_empty() && draft.len() <= 64);
+        assert!(high.len() > draft.len() && high.len() <= 1024);
+        assert_eq!(high[0].center, render(1024, 0)[0].center);
+        assert_ne!(high[0].center, render(1024, 1)[0].center);
     }
     #[test]
     fn authored_velocity_colour_and_rectangular_shape_survive_without_invented_spin() {

@@ -703,6 +703,9 @@ def build_effect_placement_package(
     missing: Tuple[str, ...] = ()
     if effect_preview is not None:
         effect_payload = json.loads(effect_preview_json(effect_preview))
+        if rotation is not None:
+            r = rotation
+            effect_payload["base_transform"] = [r[0],r[1],r[2],0,r[3],r[4],r[5],0,r[6],r[7],r[8],0,0,0,0,1]
         missing_items: list[str] = []
         for path in effect_preview.textures:
             try:

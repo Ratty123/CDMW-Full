@@ -210,6 +210,10 @@ class EffectPlacementPackageMixin:
                 self._remove_owned_package(result)
                 return
         self._effect_preview = presented_preview
+        self.effect_preview_ready.emit(presented_preview)
+        if self._closed or int(generation) != self._package_generation:
+            self._remove_owned_package(result)
+            return
         self._box = (tuple(float(value) for value in result.box_min), tuple(float(value) for value in result.box_max))
         self._box_size = tuple(high - low for low, high in zip(*self._box))
         low, high = self._item_bounds()
@@ -226,6 +230,7 @@ class EffectPlacementPackageMixin:
         if self._loading_preview is not None:
             self._retired_previews.append(self._loading_preview)
         self._loading_preview = result
+        self._loading_content_generation = int(generation)
         self._loading_sockets = tuple(sockets or ())
         self._loading_view_state = None
         if not bool(reset_view):
@@ -280,6 +285,7 @@ class EffectPlacementPackageMixin:
                 restore_view(preserved_view)
             except Exception:  # noqa: BLE001 - the loaded scene remains usable
                 pass
+        self.preview_presented.emit(getattr(self, '_loading_content_generation', self._package_generation))
 
     def _package_failed(self, message: object) -> None:
         if not self._closed and self._active_package_generation == self._package_generation:

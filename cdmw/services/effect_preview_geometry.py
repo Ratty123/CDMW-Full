@@ -2,12 +2,49 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import replace
 
 from cdmw.domain.cancellation import RunCancelled
 
 MAX_VERTICES = 4096
 MAX_FACES = 2048
+
+
+def sample_spawn_surface(parsed, count, check_cancelled=lambda: None):
+    """Area-weighted triangle samples with bounded memory and stable positions."""
+    def triangles():
+        for submesh in getattr(parsed, 'submeshes', ()):
+            vertices = getattr(submesh, 'vertices', ())
+            for index, face in enumerate(getattr(submesh, 'faces', ())):
+                if index % 1024 == 0:
+                    check_cancelled()
+                if len(face) != 3 or any(i < 0 or i >= len(vertices) for i in face):
+                    continue
+                a, b, c = (tuple(float(v) for v in vertices[i][:3]) for i in face)
+                if not all(math.isfinite(v) for p in (a,b,c) for v in p):
+                    continue
+                u, v = tuple(y-x for x,y in zip(a,b)), tuple(y-x for x,y in zip(a,c))
+                cross = (u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0])
+                area = math.sqrt(sum(x*x for x in cross)) * .5
+                if area > 1e-12:
+                    yield area, a, b, c
+    total = sum(area for area, *_ in triangles())
+    if total <= 0 or count <= 0:
+        return ()
+    rng = random.Random(0)
+    targets = sorted(rng.random() * total for _ in range(min(count, 1024)))
+    result, end, picked = [], 0., 0
+    for area, a, b, c in triangles():
+        end += area
+        while picked < len(targets) and targets[picked] <= end:
+            u = math.sqrt(rng.random())
+            v = rng.random()
+            result.append(tuple((1-u)*x + u*(1-v)*y + u*v*z for x,y,z in zip(a,b,c)))
+            picked += 1
+        if picked == len(targets):
+            break
+    return tuple(result)
 
 
 def particle_geometry(parsed):

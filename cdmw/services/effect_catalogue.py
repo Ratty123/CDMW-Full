@@ -12,6 +12,7 @@ what they are made of and not only by what they are called.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import threading
 import uuid
@@ -32,7 +33,7 @@ __all__ = [
     "save_effect_catalogue",
 ]
 
-CATALOGUE_SCHEMA = 1
+CATALOGUE_SCHEMA = 2
 Vec3 = Tuple[float, float, float]
 LogFn = Callable[[str], None]
 ProgressFn = Callable[[int, int, str], None]
@@ -60,6 +61,10 @@ class EffectFacts:
     byte_length: int
     #: "" when the file walked to the byte; the walk note otherwise.
     walk_note: str = ""
+    presets: Tuple[str, ...] = ()
+    dependencies: Tuple[str, ...] = ()
+    missing_dependencies: Tuple[str, ...] = ()
+    dependency_notes: Tuple[str, ...] = ()
 
     @property
     def size(self) -> Vec3:
@@ -70,7 +75,7 @@ class EffectFacts:
         return self.infinite_emitter or self.infinite_particle
 
     def search_text(self) -> str:
-        return " ".join((self.stem, self.name, *self.emitters, *self.textures, *self.meshes)).casefold()
+        return " ".join((self.stem, self.name, *self.emitters, *self.textures, *self.meshes, *self.presets, *self.dependencies)).casefold()
 
     def matches(self, needle: str) -> bool:
         needle = needle.casefold().strip()
@@ -153,17 +158,14 @@ def effect_facts_from_document(stem: str, document: EffectDocument) -> EffectFac
 
 
 def catalogue_signature(snapshot: NewItemSnapshot) -> str:
-    """Count and total size of the effect entries: what a cache is valid for."""
-
-    total = 0
-    count = 0
-    for stem in snapshot.effect_stems:
-        entry = snapshot.entries.get(f"{EFFECT_DIR}{stem}.pae")
-        if entry is None:
-            continue
-        count += 1
-        total += int(getattr(entry, "orig_size", 0) or getattr(entry, "comp_size", 0) or 0)
-    return f"{CATALOGUE_SCHEMA}:{count}:{total}"
+    """Definition paths, archive locations and sizes, including dependent presets."""
+    from cdmw.services.effect_catalogue_dependencies import effect_binary_entries
+    digest = hashlib.sha256()
+    for path, entry in effect_binary_entries(snapshot):
+        values = (path, *(str(getattr(entry, key, '')) for key in ('orig_size','comp_size','offset','paz_idx','pamt_path')))
+        digest.update('\0'.join(values).encode('utf-8'))
+        digest.update(b'\n')
+    return f'{CATALOGUE_SCHEMA}:{digest.hexdigest()}'
 
 
 def build_effect_catalogue(
@@ -179,6 +181,11 @@ def build_effect_catalogue(
     wanted = sorted(stems) if stems is not None else sorted(snapshot.effect_stems)
     catalogue = EffectCatalogue(signature=catalogue_signature(snapshot))
     total = len(wanted)
+    from cdmw.services.effect_catalogue_dependencies import DependencyIndex
+    def check_cancelled():
+        if stop_event is not None and stop_event.is_set():
+            raise RuntimeError('Effect indexing cancelled.')
+    dependencies = DependencyIndex(snapshot, check_cancelled)
     for index, stem in enumerate(wanted):
         if stop_event is not None and stop_event.is_set():
             raise RuntimeError("Effect indexing cancelled.")
@@ -188,7 +195,7 @@ def build_effect_catalogue(
         try:
             data = bytes(snapshot.read_entry(snapshot.entry(path)))
             document = decode_effect_binary(data, metadata_only=True)
-            catalogue.facts[stem] = effect_facts_from_document(stem, document)
+            catalogue.facts[stem] = dependencies.enrich(effect_facts_from_document(stem, document), document)
         except (EffectBinaryError, ValueError, OSError) as exc:
             catalogue.facts[stem] = EffectFacts(
                 stem=stem, name="", emitters=(), textures=(), meshes=(), box_min=(0.0, 0.0, 0.0), box_max=(0.0, 0.0, 0.0),
@@ -248,6 +255,8 @@ def load_effect_catalogue(path: Path, *, signature: str = "") -> Optional[Effect
                 has_lights=bool(row.get("has_lights")), max_spawnable_time=float(row.get("max_spawnable_time", 0.0)),
                 life_cycle_time=float(row.get("life_cycle_time", 0.0)), byte_length=int(row.get("byte_length", 0)),
                 walk_note=str(row.get("walk_note", "")),
+                presets=tuple(row.get('presets', ())), dependencies=tuple(row.get('dependencies', ())),
+                missing_dependencies=tuple(row.get('missing_dependencies', ())), dependency_notes=tuple(row.get('dependency_notes', ())),
             )
         except (KeyError, TypeError, ValueError):
             continue

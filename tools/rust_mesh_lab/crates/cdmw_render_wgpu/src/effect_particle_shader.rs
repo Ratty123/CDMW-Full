@@ -18,6 +18,12 @@ pub(super) const SHADER: &str = r#"struct CameraUniform {
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(1) @binding(0) var effect_sprite: texture_2d<f32>;
 @group(1) @binding(1) var effect_sampler: sampler;
+struct EffectDepth {
+    inverse_view_projection: mat4x4<f32>,
+    viewport: vec4<f32>,
+};
+@group(2) @binding(0) var effect_scene_depth: texture_depth_2d;
+@group(2) @binding(1) var<uniform> effect_depth: EffectDepth;
 
 fn linear_to_srgb(value: vec3<f32>) -> vec3<f32> {
     let bounded = max(value, vec3<f32>(0.0));
@@ -64,6 +70,8 @@ struct EffectParticleOut {
     @location(1) colour: vec4<f32>,
     @location(2) @interpolate(flat) uv_rect: vec4<f32>,
     @location(3) @interpolate(flat) sprite_options: vec3<f32>,
+    @location(4) world: vec3<f32>,
+    @location(5) @interpolate(flat) soft_range: f32,
 };
 
 @vertex
@@ -95,11 +103,13 @@ fn vs_effect_particle(
         out.uv_rect = vec4<f32>(0.0,0.0,1.0,1.0);
         out.sprite_options.y = 0.0;
     }
+    out.world = world;
+    out.soft_range = max(min(length(axis_right), length(axis_up)) * 0.25, 0.0001);
     return out;
 }
 
 @fragment
-fn fs_effect_particle(input: EffectParticleOut) -> @location(0) vec4<f32> {
+fn fs_effect_particle(input: EffectParticleOut, @builtin(sample_index) sample_index: u32) -> @location(0) vec4<f32> {
     let cell = input.uv_rect.zw;
     let origin = input.uv_rect.xy;
     // Stay inside a flipbook cell: filtering must not pull in adjacent frames.
@@ -123,7 +133,14 @@ fn fs_effect_particle(input: EffectParticleOut) -> @location(0) vec4<f32> {
     }
     let rgb = max(sprite.rgb * input.colour.rgb, vec3<f32>(0.0));
     let mapped = vec3<f32>(aces_tone_map(rgb.r), aces_tone_map(rgb.g), aces_tone_map(rgb.b));
-    return present(mapped, clamp(sprite.a * input.colour.a, 0.0, 1.0));
+    let pixel = vec2<i32>(input.position.xy);
+    let scene_depth = textureLoad(effect_scene_depth, pixel, 0);
+    let uv = (input.position.xy - effect_depth.viewport.xy) / effect_depth.viewport.zw;
+    let ndc = vec2<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    let scene = effect_depth.inverse_view_projection * vec4<f32>(ndc, scene_depth, 1.0);
+    let distance = length(scene.xyz / scene.w - input.world);
+    let fade = select(smoothstep(0.0, input.soft_range, distance), 1.0, scene_depth >= 0.999999);
+    return present(mapped, clamp(sprite.a * input.colour.a * fade, 0.0, 1.0));
 }
 
 "#;

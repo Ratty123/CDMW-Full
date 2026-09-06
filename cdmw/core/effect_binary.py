@@ -134,6 +134,8 @@ class ReflectNode:
     #: (member name, node) for by-value and pointer members; (member name, tuple of
     #: nodes) for collections; (member name, None) for a null pointer or null list.
     children: list[tuple[str, Union["ReflectNode", tuple["ReflectNode", ...], None]]] = field(default_factory=list)
+    # Preserve non-value record metadata for structural serialization.
+    wire: dict = field(default_factory=dict, repr=False)
 
     def value(self, name: str) -> Optional[ReflectValue]:
         for item in self.values:
@@ -369,12 +371,13 @@ class _Walker:
             raise EffectBinaryError(f"{what} at 0x{start:x}: header flag {override}")
         if type_index >= len(self.types):
             raise EffectBinaryError(f"{what} at 0x{start:x}: type index {type_index} of {len(self.types)}")
+        self.header_width = width
         return mask, self.types[type_index], override
 
     def read_record(self, what: str) -> Tuple[str, int]:
         """The owner, self pointer and name record; returns (name, pointee start)."""
 
-        self.u64()  # owner / identity
+        owner = self.u64()
         site = self.pos
         target = self.u32()
         # self pointers are container-relative: the offset of the byte after them
@@ -387,10 +390,12 @@ class _Walker:
         if z not in (0, 1) or count > 1:
             raise EffectBinaryError(f"{what}: name record ({z}, {count}) at 0x{pointee:x}")
         name = ""
+        tag = 0
         if count == 1:
-            self.u16()
+            tag = self.u16()
             raw, _at = self.text()
             name = raw.decode("utf-8", "replace")
+        self.record_wire = dict(owner=owner, z=z, has_name=bool(count), name_tag=tag)
         return name, pointee
 
     def read_length(self, pointee: int, what: str) -> None:
@@ -406,6 +411,7 @@ class _Walker:
         if extra != 0:
             raise EffectBinaryError(f"root at 0x{start:x}: extra byte {extra}")
         node = ReflectNode(type_name=kind.type_name, offset=start, override=override, mask=mask)
+        node.wire["width"] = self.header_width
         self.read_members(node, kind, mask, 0)
         return node
 
@@ -414,6 +420,7 @@ class _Walker:
         mask, kind, override = self.read_header(path)
         name, pointee = self.read_record(f"{path} ({kind.type_name})")
         node = ReflectNode(type_name=kind.type_name, offset=start, name=name, override=override, mask=mask)
+        node.wire.update(self.record_wire, width=self.header_width)
         self.read_members(node, kind, mask, depth)
         self.read_length(pointee, f"{path} ({kind.type_name})")
         return node
@@ -421,10 +428,10 @@ class _Walker:
     def read_element(self, path: str, with_ids: bool, depth: int) -> ReflectNode:
         start = self.pos
         mask, kind, override = self.read_header(path)
-        if with_ids:
-            self.u32()
+        element_id = self.u32() if with_ids else None
         name, pointee = self.read_record(f"{path} ({kind.type_name})")
         node = ReflectNode(type_name=kind.type_name, offset=start, name=name, override=override, mask=mask)
+        node.wire.update(self.record_wire, width=self.header_width, element_id=element_id)
         self.read_members(node, kind, mask, depth)
         self.read_length(pointee, f"{path} ({kind.type_name})")
         return node
@@ -439,6 +446,7 @@ class _Walker:
                 if member.attr_flags & ATTR_NOT_SERIALISED:
                     continue
                 null = self.u8()
+                node.wire[member.name] = {"null": null == 1}
                 if null == 1:
                     if member.flags in (KIND_ARRAY, KIND_STRING_LIST):
                         if self.retain_value(member):
@@ -502,13 +510,15 @@ class _Walker:
         with_ids = self.u8()
         if with_ids not in (0, 1):
             raise EffectBinaryError(f"{path}.{member.name}: preamble flag {with_ids} at 0x{self.pos - 1:x}")
-        self.u32()
-        self.u32()
+        a = self.u32()
+        b = self.u32()
         extra = self.u32()
         if extra > _MAX_COUNT:
             raise EffectBinaryError(f"{path}.{member.name}: preamble count {extra}")
         self._need(8 * extra, "preamble")
+        pairs = self.data[self.pos:self.pos + 8 * extra]
         self.pos += 8 * extra
+        node.wire[member.name] = dict(null=False, with_ids=with_ids, a=a, b=b, pairs=pairs, count=count)
         elements = tuple(
             self.read_element(f"{path}.{member.name}[{index}]", with_ids == 1, depth + 1) for index in range(count)
         )

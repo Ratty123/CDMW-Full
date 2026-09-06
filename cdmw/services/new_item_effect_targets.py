@@ -63,6 +63,10 @@ def effect_target_source_paths(
 def inspect_effect_targets(snapshot: NewItemSnapshot, spec: NewItemSpec) -> EffectTargetCompatibility:
     """Dry-run the real component graft against every prefab the spec will own."""
 
+    if spec.effect_layers is not None:
+        from dataclasses import replace
+        layers = spec.active_effect_layers
+        spec = replace(spec, effect=layers[0].reference if layers else None, effect_layers=None)
     if spec.effect is None:
         return EffectTargetCompatibility(True, ())
     if not snapshot.has_entry(EFFECT_DONOR_PREFAB):

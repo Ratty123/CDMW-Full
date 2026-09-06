@@ -135,8 +135,25 @@ def _issue(code: str, field_name: str, message: str, severity: str = "error") ->
 # --------------------------------------------------------------------------- offline
 
 
+def _validate_effect_layers(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
+    from dataclasses import replace
+    base = replace(spec, effect=None, effect_layers=None)
+    issues = list(validate_spec(base))
+    if len(spec.effect_layers) > 16:
+        issues.append(_issue('effect.layers.limit', 'effect_layers', 'An item supports at most 16 effect layers.'))
+    for index, layer in enumerate(spec.effect_layers[:16]):
+        if type(layer.enabled) is not bool or not isinstance(layer.name, str) or len(layer.name) > 128:
+            issues.append(_issue('effect.layer.invalid', f'effect_layers[{index}]', 'Invalid layer name or visibility.'))
+        single = replace(base, effect=layer.reference, effect_scale=layer.scale, effect_offset=layer.offset, effect_rotation_degrees=layer.rotation, effect_look=layer.look)
+        issues.extend(replace(issue, field=f'effect_layers[{index}].{issue.field}') for issue in validate_spec(single) if issue.code.startswith('effect.'))
+    return tuple(issues)
+
+
 def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
     """Shapes, ranges and internal consistency; needs no archive access."""
+
+    if spec.effect_layers is not None:
+        return _validate_effect_layers(spec)
 
     issues: list[ValidationIssue] = []
     name = str(spec.internal_name or "")
@@ -223,6 +240,11 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         if len(rotation) != 3 or any(not -180.0 <= float(v) <= 180.0 for v in rotation):
             issues.append(_issue("effect.rotation", "effect_rotation_degrees", "The effect rotation is three Euler degrees about the item's axes (x, then y, then z), each within 180."))
         look = spec.effect_look
+        from cdmw.domain.new_item.effect_authoring import validate_emitter_edits
+        try:
+            validate_emitter_edits(look)
+        except (TypeError, ValueError) as exc:
+            issues.append(_issue("effect.emitters.invalid", "effect_look", str(exc)))
         for name in ("intensity", "size", "rate", "lifetime"):
             try:
                 factor = float(getattr(look, name))
@@ -322,8 +344,8 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
             issues.append(_issue("stem.unused", "stem", "A stem was given but the item keeps the template's model and icon, so it is not used.", "warning"))
     if spec.needs_own_family and not template.owned_stems:
         issues.append(_issue("template.no_owned_stems", "template_key", f"{template.internal_name} owns no prefab stems to clone (all of its parts are borrowed)."))
-    if spec.effect is not None:
-        stem = str(spec.effect).split(".", 1)[0]
+    for layer in spec.active_effect_layers:
+        stem = layer.stem
         if context.effect_stems and stem not in context.effect_stems:
             issues.append(_issue("effect.unknown", "effect", f"No shipped effect is named {stem}."))
         issues.append(_issue("effect.unproven", "effect", "The visual effect is grafted into every compatible prefab the item owns as an EffectComponent. Compatibility is checked structurally; verify the final placement and fit in game.", "warning"))

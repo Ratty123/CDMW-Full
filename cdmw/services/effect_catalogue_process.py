@@ -17,6 +17,7 @@ from cdmw.services.effect_catalogue import (
     catalogue_signature, load_effect_catalogue, save_effect_catalogue,
 )
 from cdmw.services.new_item_snapshot import EFFECT_DIR, NewItemSnapshot
+from cdmw.services.effect_catalogue_dependencies import effect_binary_entries
 
 
 def _worker_command(input_path: Path, output_path: Path) -> list[str]:
@@ -41,18 +42,18 @@ def build_effect_catalogue_in_subprocess(
     raise_if_cancelled(stop_event)
     signature = catalogue_signature(snapshot)
     wanted = sorted(snapshot.effect_stems)
+    effect_paths = {f'{EFFECT_DIR}{stem}.pae': stem for stem in wanted}
+    definitions = [(path, snapshot.entry(path)) for path in effect_paths if snapshot.has_entry(path)]
+    definitions += [(path, entry) for path, entry in effect_binary_entries(snapshot) if path not in effect_paths and path.endswith(('.paem','.parg','.pasg'))]
     with TemporaryDirectory(prefix="cdmw_effect_catalogue_") as folder:
         root = Path(folder)
         rows = []
         with (root / "payloads.bin").open("wb") as payloads:
-            for index, stem in enumerate(wanted):
+            for index, (path, entry) in enumerate(definitions):
                 raise_if_cancelled(stop_event)
-                path = f"{EFFECT_DIR}{stem}.pae"
-                if not snapshot.has_entry(path):
-                    continue
-                entry = snapshot.entry(path)
+                stem = effect_paths.get(path, '')
                 row = {
-                    "stem": stem, "offset": payloads.tell(), "length": 0,
+                    "stem": stem, "path": path, "offset": payloads.tell(), "length": 0,
                     "orig_size": int(getattr(entry, "orig_size", 0) or getattr(entry, "comp_size", 0) or 0),
                     "error": "",
                 }
@@ -66,13 +67,13 @@ def build_effect_catalogue_in_subprocess(
                     row["length"] = len(data)
                     del data
                 rows.append(row)
-                if on_progress is not None and (index % 50 == 0 or index + 1 == len(wanted)):
-                    on_progress(0, len(wanted), stem)
+                if on_progress is not None and (index % 50 == 0 or index + 1 == len(definitions)):
+                    on_progress(0, len(wanted), stem or path.rsplit('/', 1)[-1])
         raise_if_cancelled(stop_event)
         if not rows:
             return EffectCatalogue(signature=signature)
         input_path, output_path = root / "request.json", root / "result.json"
-        input_path.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        input_path.write_text(json.dumps({'schema': 2, 'signature': signature, 'rows': rows}, ensure_ascii=False), encoding="utf-8")
         progress_path = root / "progress.json"
         previous_progress = None
 
@@ -99,7 +100,7 @@ def build_effect_catalogue_in_subprocess(
         if returncode:
             raise RuntimeError((stderr or stdout).strip()[-1200:] or f"Effect indexing failed ({returncode}).")
         catalogue = load_effect_catalogue(output_path, signature=signature)
-        if catalogue is None or set(catalogue.facts) != {row["stem"] for row in rows}:
+        if catalogue is None or set(catalogue.facts) != {row["stem"] for row in rows if row['stem']}:
             raise RuntimeError("Effect indexing did not produce a complete metadata catalogue.")
         if on_log is not None:
             on_log(f"Indexed {len(catalogue)} effects; {sum(bool(item.walk_note) for item in catalogue.facts.values())} did not decode.")
@@ -112,8 +113,8 @@ class _StagedEffects:
     def __init__(self, rows: list[dict], payloads) -> None:
         self._payloads = payloads
         self._size = os.fstat(payloads.fileno()).st_size
-        self.entries = {f"{EFFECT_DIR}{row['stem']}.pae": SimpleNamespace(**row) for row in rows}
-        self.effect_stems = tuple(row["stem"] for row in rows)
+        self.entries = {row.get('path') or f"{EFFECT_DIR}{row['stem']}.pae": SimpleNamespace(**row) for row in rows}
+        self.effect_stems = tuple(row["stem"] for row in rows if row['stem'])
 
     def has_entry(self, path: str) -> bool:
         return path in self.entries
@@ -134,7 +135,8 @@ class _StagedEffects:
 
 
 def run_effect_catalogue_worker(input_path: Path, output_path: Path) -> int:
-    rows = json.loads(input_path.read_text(encoding="utf-8"))
+    request = json.loads(input_path.read_text(encoding="utf-8"))
+    rows = request['rows'] if isinstance(request, dict) else request
     progress_path = input_path.parent / "progress.json"
     temporary_progress = progress_path.with_suffix(".tmp")
 
@@ -147,5 +149,7 @@ def run_effect_catalogue_worker(input_path: Path, output_path: Path) -> int:
 
     with (input_path.parent / "payloads.bin").open("rb") as payloads:
         catalogue = build_effect_catalogue(_StagedEffects(rows, payloads), on_progress=progress)
+    if isinstance(request, dict):
+        catalogue.signature = str(request['signature'])
     save_effect_catalogue(catalogue, output_path)
     return 0

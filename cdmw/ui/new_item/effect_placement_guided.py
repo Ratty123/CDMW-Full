@@ -115,6 +115,9 @@ class EffectPlacementGuidedMixin:
         QTimer.singleShot(0, lambda: self._reflow_guided_toolbar(toolbar_panel.width()))
         self._set_viewport_controls_available(self.host is not None)
         layout.addWidget(toolbar_panel)
+        from cdmw.ui.new_item.effect_playback import EffectPlaybackControls
+        self.playback_controls = EffectPlaybackControls(self)
+        layout.addWidget(self.playback_controls)
         if self.host is not None:
             self.host.setMinimumSize(480, 360)
             layout.addWidget(self.host, 1)

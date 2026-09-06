@@ -523,6 +523,9 @@ class PerksPanel(QGroupBox):
             finally:
                 self._syncing_effect = False
             self._controller.draft.effect_stem = ""
+            self._controller.draft.effect_layers = None
+            self._controller.draft.effect_emitter_edits = ()
+            self._controller.draft.effect_emitter_order = None
             self._reset_effect_tuning(invalidate=False)
             self._controller.invalidate_plan()
         else:
@@ -740,6 +743,9 @@ class PerksPanel(QGroupBox):
             self._refresh_effect_selection()
             return
         draft.effect_stem = stem
+        draft.effect_layers = None
+        draft.effect_emitter_edits = ()
+        draft.effect_emitter_order = None
         self._reset_effect_tuning(invalidate=False)
         self._sync_preset_to_effect()
         self._controller.invalidate_plan()
@@ -766,6 +772,9 @@ class PerksPanel(QGroupBox):
             if index >= 0:
                 self.effect.setCurrentIndex(index)
             self._controller.draft.effect_stem = clean
+            self._controller.draft.effect_layers = None
+            self._controller.draft.effect_emitter_edits = ()
+            self._controller.draft.effect_emitter_order = None
         finally:
             self._syncing_effect = False
         self._reset_effect_tuning(scale=float(scale), invalidate=False)

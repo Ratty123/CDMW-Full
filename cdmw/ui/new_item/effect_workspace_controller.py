@@ -54,7 +54,7 @@ class NewItemEffectWorkspaceControllerMixin:
         if self.snapshot is None or self.draft.template_key is None:
             return None
         try:
-            spec = replace(self.current_spec(), effect=effect_reference(stem))
+            spec = replace(self.current_spec(), effect=effect_reference(stem), effect_layers=None)
         except ValueError:
             return None
         cache_key = (
@@ -84,19 +84,27 @@ class NewItemEffectWorkspaceControllerMixin:
         if snapshot is None or not chosen:
             return None, None
         look_source = state or EffectWorkspaceState.from_draft(self.draft)
+        layers = look_source.resolved_layers()
+        active_layer = look_source.active_layer
         look = EffectLook(
             color=tuple(float(value) for value in look_source.color) if look_source.color is not None else None,
             intensity=float(look_source.intensity),
             size=float(look_source.size),
             rate=float(look_source.rate),
             lifetime=float(look_source.lifetime),
+            emitters=look_source.emitter_edits, emitter_order=look_source.emitter_order,
         )
         def build_preview(cancelled):
             try:
+                if look_source.layers is not None:
+                    from cdmw.services.effect_composition import preview_effect_layers
+                    return preview_effect_layers(snapshot, layers, active_layer, cancelled=cancelled)
                 return preview_effect_from_snapshot(snapshot, chosen, look, cancelled=cancelled)
             except RunCancelled:
                 raise
             except Exception as exc:  # noqa: BLE001 - numeric placement remains usable
+                if look.emitters or look.emitter_order is not None or look_source.layers is not None:
+                    raise
                 self.log_message.emit(f"The effect {chosen} gave no particle description: {exc}")
                 return None
 

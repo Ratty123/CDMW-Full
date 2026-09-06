@@ -394,7 +394,7 @@ class EffectWorkspaceTests(unittest.TestCase):
 
     def test_effect_table_uses_compact_regular_rows_and_metadata_columns(self) -> None:
         controller = _Controller()
-        facts = SimpleNamespace(name="", loops=False, walk_note="", size=(2.5, 2.53, 2.64))
+        facts = SimpleNamespace(name="", loops=False, walk_note="", size=(2.5, 2.53, 2.64), search_text=lambda: 'fx_fire_hit')
         controller.effect_facts = lambda stem: facts if stem == "fx_fire_hit" else None
         workspace, _controller, _confirmations = self._workspace(controller)
         view = workspace.library_view
