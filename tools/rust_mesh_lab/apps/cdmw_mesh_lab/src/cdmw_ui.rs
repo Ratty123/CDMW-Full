@@ -180,7 +180,6 @@ impl LabApplication {
         let button_pressed = cdmw_theme_colour(theme, "button_pressed", surface);
         let button_border = cdmw_theme_colour(theme, "button_border", border_strong);
         let accent = cdmw_theme_colour(theme, "accent", Color32::from_rgb(53, 150, 215));
-        let accent_text = cdmw_theme_colour(theme, "accent_text", text_strong);
         let accent_soft = cdmw_theme_colour(theme, "accent_soft", accent.gamma_multiply(0.55));
         let mut visuals = if dark {
             egui::Visuals::dark()
@@ -199,7 +198,8 @@ impl LabApplication {
         visuals.warn_fg_color = cdmw_theme_colour(theme, "warning_text", visuals.warn_fg_color);
         visuals.error_fg_color = cdmw_theme_colour(theme, "error", visuals.error_fg_color);
         visuals.selection.bg_fill = accent_soft;
-        visuals.selection.stroke = Stroke::new(1.0, accent_text);
+        // Selected controls use the muted accent surface, not the bright accent.
+        visuals.selection.stroke = Stroke::new(1.0, text_strong);
         visuals.widgets.noninteractive.bg_fill = surface;
         visuals.widgets.noninteractive.weak_bg_fill = surface;
         visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, border);
@@ -217,7 +217,9 @@ impl LabApplication {
         visuals.widgets.active.bg_stroke = Stroke::new(1.0, accent);
         visuals.widgets.active.fg_stroke = Stroke::new(1.0, text_strong);
         visuals.widgets.open = visuals.widgets.hovered;
-        visuals.disabled_alpha = 0.62;
+        // Fill, border, and interaction distinguish disabled controls without
+        // fading their labels below readable contrast in the darker palettes.
+        visuals.disabled_alpha = 0.9;
         style.visuals = visuals;
         self.egui_context.set_style_of(active_theme, style);
         // An explicit preference is required: egui-winit also reports the OS
@@ -3030,6 +3032,14 @@ mod tests {
         let style = application.egui_context.global_style();
         assert_eq!(style.visuals.panel_fill, Color32::from_rgb(244, 246, 248));
         assert_eq!(style.visuals.window_fill, Color32::WHITE);
+        assert_eq!(
+            style.visuals.selection.bg_fill,
+            Color32::from_rgb(219, 234, 254)
+        );
+        assert_eq!(
+            style.visuals.selection.stroke.color,
+            Color32::from_rgb(17, 24, 39)
+        );
         assert_eq!(style.spacing.item_spacing, egui::vec2(10.0, 8.0));
         assert_eq!(style.spacing.interact_size.y, 34.0);
         let body = style

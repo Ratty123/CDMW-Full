@@ -9,14 +9,16 @@ import re
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QImage, QPainter, QPalette, QTextDocument
+from PySide6.QtGui import QColor, QImage, QPainter, QPalette, QTextDocument
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QStyle,
+    QStyleOptionButton,
     QStyleOptionToolButton,
     QToolButton,
 )
@@ -33,6 +35,92 @@ from tools.placement_studio.window import PlacementStudioWindow
 
 
 _APP = QApplication.instance() or QApplication([])
+
+
+def _color_contrast(first: QColor, second: QColor) -> float:
+    def luminance(color: QColor) -> float:
+        return sum(
+            (value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4) * weight
+            for value, weight in zip(color.getRgbF()[:3], (0.2126, 0.7152, 0.0722))
+        )
+    low, high = sorted((luminance(first), luminance(second)))
+    return (high + 0.05) / (low + 0.05)
+
+
+def _painted_button_text_contrast(button, state: QStyle.StateFlag) -> float:
+    image = QImage(button.size(), QImage.Format.Format_ARGB32)
+    # Tool buttons can be transparent; composite them over the themed window.
+    image.fill(_APP.palette().color(QPalette.ColorRole.Window))
+    tool_button = isinstance(button, QToolButton)
+    option = QStyleOptionToolButton() if tool_button else QStyleOptionButton()
+    option.initFrom(button)
+    option.rect = button.rect()
+    option.text = button.text()
+    option.state = state
+    painter = QPainter(image)
+    painter.setFont(button.font())
+    if tool_button:
+        option.toolButtonStyle = Qt.ToolButtonStyle.ToolButtonTextOnly
+        button.style().drawComplexControl(QStyle.ComplexControl.CC_ToolButton, option, painter, button)
+    else:
+        button.style().drawControl(QStyle.ControlElement.CE_PushButton, option, painter, button)
+    painter.end()
+    background = image.pixelColor(8, image.height() // 2)
+    text_height = button.fontMetrics().height()
+    top = (image.height() - text_height) // 2
+    colors = {
+        image.pixelColor(x, y).rgb()
+        for y in range(top, top + text_height)
+        for x in range(12, image.width() - 12)
+    }
+    return max(_color_contrast(QColor.fromRgb(value), background) for value in colors)
+
+
+def test_every_theme_paints_readable_button_text_in_classic_and_compact() -> None:
+    previous_palette = QPalette(_APP.palette())
+    previous_stylesheet = _APP.styleSheet()
+    parents = []
+    cases = []
+    for compact in (False, True):
+        parent = QFrame()
+        parent.setProperty("compactPresentation", compact)
+        parents.append(parent)
+        for button_class, name in (
+            (QPushButton, "StandardButton"),
+            (QPushButton, "EditorPrimaryButton"),
+            (QToolButton, "EditorToolButton"),
+            (QToolButton, "MeshEditorBuildModButton"),
+        ):
+            button = button_class(parent)
+            button.setObjectName(name)
+            button.setText("Readability")
+            button.setCheckable(True)
+            button.resize(220, 44)
+            cases.append((compact, name, button))
+    enabled = QStyle.StateFlag.State_Enabled
+    states = {
+        "normal": enabled,
+        "hover": enabled | QStyle.StateFlag.State_MouseOver,
+        "pressed": enabled | QStyle.StateFlag.State_Sunken,
+        "checked": enabled | QStyle.StateFlag.State_On,
+        "checked_hover": enabled | QStyle.StateFlag.State_On | QStyle.StateFlag.State_MouseOver,
+        "disabled": QStyle.StateFlag.State_None,
+    }
+    try:
+        for key in UI_THEME_SCHEMES:
+            _APP.setPalette(build_app_palette(key))
+            _APP.setStyleSheet(build_app_stylesheet(key))
+            for compact, name, button in cases:
+                button.ensurePolished()
+                for state_name, state in states.items():
+                    contrast = _painted_button_text_contrast(button, state)
+                    assert contrast >= 4.5, f"{key}/{compact=}/{name}/{state_name}: {contrast:.2f}:1"
+    finally:
+        for parent in parents:
+            parent.deleteLater()
+        _APP.processEvents()
+        _APP.setStyleSheet(previous_stylesheet)
+        _APP.setPalette(previous_palette)
 
 
 def _tool_button_background(button: QToolButton, state: QStyle.StateFlag) -> str:

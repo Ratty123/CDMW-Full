@@ -23,6 +23,116 @@ struct HeadlessUi {
     last_actions: Vec<UiAction>,
 }
 
+fn painted_label_contrast(ui: &HeadlessUi, label: &str) -> Result<f32, Box<dyn std::error::Error>> {
+    let text = ui
+        .output
+        .shapes
+        .iter()
+        .find_map(|clipped| {
+            let egui::Shape::Text(text) = &clipped.shape else {
+                return None;
+            };
+            (text.galley.job.text == label).then_some(text)
+        })
+        .ok_or_else(|| format!("missing painted label {label}"))?;
+    let background = ui
+        .rectangle_fills_at(text.visual_bounding_rect().center())
+        .last()
+        .copied()
+        .ok_or("missing button background")?;
+    let mut foreground = text
+        .override_text_color
+        .unwrap_or(text.galley.job.sections[0].format.color);
+    if foreground == Color32::PLACEHOLDER {
+        foreground = text.fallback_color;
+    }
+    let opacity = text.opacity_factor * f32::from(foreground.a()) / 255.0;
+    let bg = [background.r(), background.g(), background.b()].map(|v| f32::from(v) / 255.0);
+    let fg = [foreground.r(), foreground.g(), foreground.b()].map(|v| f32::from(v) / 255.0);
+    let blended = std::array::from_fn(|i| fg[i] * opacity + bg[i] * (1.0 - opacity));
+    let luminance = |values: [f32; 3]| {
+        values
+            .into_iter()
+            .zip([0.2126, 0.7152, 0.0722])
+            .map(|(v, weight)| {
+                weight
+                    * if v <= 0.04045 {
+                        v / 12.92
+                    } else {
+                        ((v + 0.055) / 1.055).powf(2.4)
+                    }
+            })
+            .sum::<f32>()
+    };
+    let (a, b) = (luminance(blended), luminance(bg));
+    Ok((a.max(b) + 0.05) / (a.min(b) + 0.05))
+}
+
+#[test]
+#[ignore = "requires current application palettes exported to CDMW_THEME_PALETTES_FILE"]
+fn integrated_theme_button_readability_for_supplied_palettes() -> TestResult {
+    let palettes: serde_json::Map<String, Value> =
+        serde_json::from_slice(&std::fs::read(std::env::var("CDMW_THEME_PALETTES_FILE")?)?)?;
+    assert!(!palettes.is_empty(), "no application palettes supplied");
+    let mut results = Vec::new();
+    for (key, palette) in palettes {
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1480.0, 1050.0));
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"theme": key, "palette": palette}));
+        ui.frame(Vec::new());
+        ui.frame(Vec::new());
+        ui.click("Select")?;
+        ui.click("Face")?;
+        ui.frame(vec![Event::PointerMoved(egui::pos2(0.0, 0.0))]);
+        for label in [
+            "Exact",
+            "Select",
+            "Face",
+            "Visible",
+            "Free Edit",
+            "Clear Selection",
+            "Invert",
+        ] {
+            let contrast = painted_label_contrast(&ui, label)?;
+            assert!(
+                contrast >= 4.5,
+                "{key}: {label} contrast is {contrast:.2}:1"
+            );
+            results.push(
+                json!({"theme": key, "control": label, "state": "rest", "contrast": contrast}),
+            );
+        }
+        for label in ["Clear Selection", "Select"] {
+            let center = ui.reveal(label)?.center();
+            for (state, events) in [
+                ("hover", vec![Event::PointerMoved(center)]),
+                (
+                    "pressed",
+                    vec![pointer_button(center, PointerButton::Primary, true)],
+                ),
+            ] {
+                ui.frame(events);
+                let contrast = painted_label_contrast(&ui, label)?;
+                assert!(
+                    contrast >= 4.5,
+                    "{key}: {label} {state} contrast is {contrast:.2}:1"
+                );
+                results.push(
+                    json!({"theme": key, "control": label, "state": state, "contrast": contrast}),
+                );
+            }
+            ui.frame(vec![pointer_button(center, PointerButton::Primary, false)]);
+        }
+    }
+    let report = std::env::var("CDMW_THEME_READABILITY_REPORT")?;
+    std::fs::write(
+        report,
+        serde_json::to_vec_pretty(&json!({"ok": true, "cases": results}))?,
+    )?;
+    Ok(())
+}
+
 #[test]
 #[ignore = "requires an explicitly supplied local mesh and evidence path"]
 fn measure_authoring_selection_frames_on_supplied_mesh() -> TestResult {

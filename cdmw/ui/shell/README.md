@@ -52,9 +52,13 @@ All 19 application themes use semantic palette roles for shared and
 feature-owned chrome. Feature surfaces may retain intentional content colours
 only with an explicit paired foreground; they must not pin buttons, fields,
 selection, warnings, editors, or disabled text to a Graphite-era literal.
+Use `accent_text` on `accent`, and `text_strong` on `accent_soft`; the two
+foregrounds are not interchangeable. Button text targets at least 4.5:1 contrast
+in normal, hover, pressed, checked, and disabled states.
 `tests/test_theme_surface_coherence.py` applies every theme to real Classic
 Placement, Mesh Editor, Archive Browser, New Item, and XML-editor surfaces and
-guards new stylesheet/rich-text literals. Compact's separate synthetic harness
+guards new stylesheet/rich-text literals. It also checks painted button text in
+both Classic and Compact. Compact's separate synthetic harness
 continues to cover the same production widgets at its supported sizes.
 
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries

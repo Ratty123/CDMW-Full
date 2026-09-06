@@ -78,6 +78,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Mesh Editor buttons stay readable across all 19 themes.** Selected controls use the correct foreground for their muted highlight, and disabled text retains readable contrast. Shared Classic and Compact button states are checked across every theme.
+
 - **Mesh Editor selection release keeps side-panel text stable.** Recording a completed selection no longer briefly dims the surrounding controls; conflicting edits still wait for acknowledgement.
 
 - **Closing a Mesh Builder keeps its cancelled workers alive until their threads finish.** The closed dialog is deleted asynchronously, avoiding a crash during rapid close.

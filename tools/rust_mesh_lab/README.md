@@ -163,6 +163,12 @@ separates Parts, Layers, and History. CDMW supplies its semantic palette,
 light/dark variant, UI and data font sizes, scale, and density before reveal and
 on live appearance changes, so embedded egui controls do not inherit an
 unrelated operating-system theme.
+Selected controls use the strong-text foreground on the muted accent surface.
+Disabled controls retain readable text alongside their distinct fill and border.
+The optional `integrated_theme_button_readability_for_supplied_palettes` test
+reads current palettes exported from CDMW's theme registry through
+`CDMW_THEME_PALETTES_FILE` and writes `CDMW_THEME_READABILITY_REPORT`. It checks
+paint data without maintaining a second palette list or opening a desktop window.
 Rust-native Select, Move, Rotate, Scale, Grab, Smooth, Inflate, and Pinch remain
 local; numeric translation, rotation, and per-axis/uniform scale steps commit
 through the same local history. Inflate's signed strength inflates above zero

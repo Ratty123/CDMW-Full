@@ -19,6 +19,9 @@ through the front. **X-Ray** explicitly selects through occluders. A brush strok
 accumulates its painted path and commits one undo step.
 Recording a completed selection keeps the side panels visually stable; new edits
 still wait for the host acknowledgement, without briefly dimming the whole UI.
+Selected controls pair the muted accent background with the theme's strong text
+colour. Disabled labels stay readable; their fill, border, and interaction still
+distinguish unavailable controls.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
