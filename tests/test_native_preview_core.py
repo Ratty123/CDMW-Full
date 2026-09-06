@@ -917,7 +917,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_native_core_keeps_weapon_masked_layer_tint_off_base(self) -> None:
         source = preview_core_source()
-        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_start = source.index("static void append_bound_texture_layers")
         layer_end = source.index("static std::string material_layer_json", layer_start)
         layer_source = source[layer_start:layer_end]
         policy_start = source.index("static void apply_layer_weight_and_tint_policy")
@@ -1285,7 +1285,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         hold_start = source.index("static bool shader_rule_holds_layer_albedo")
         hold_end = source.index("static bool shader_rule_supports_conservative_layer_stack", hold_start)
         hold = source[hold_start:hold_end]
-        compile_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        compile_start = source.index("static void append_bound_texture_layers")
         compile_end = source.index("static std::string material_layer_json", compile_start)
         compiler = source[compile_start:compile_end]
 
@@ -1333,7 +1333,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_native_core_allows_pbd_generic_layer_stack_for_cloaks(self) -> None:
         source = preview_core_source()
-        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_start = source.index("static void append_bound_texture_layers")
         layer_end = source.index("static std::string material_layer_json", layer_start)
         layer_source = source[layer_start:layer_end]
 
@@ -1398,7 +1398,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         role_start = source.index("static std::string role_from_parameter_shader_and_name")
         role_end = source.index("static std::string semantic_type_for_role", role_start)
         role_source = source[role_start:role_end]
-        layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
+        layer_start = source.index("static void append_bound_texture_layers")
         layer_end = source.index("static std::string material_layer_json", layer_start)
         layer_source = source[layer_start:layer_end]
         policy_start = source.index("static void apply_layer_weight_and_tint_policy")
@@ -1445,10 +1445,10 @@ class NativePreviewCoreTests(unittest.TestCase):
 
     def test_native_core_treats_emissive_intensity_masks_as_linear_scalar_data(self) -> None:
         graph_source = Path(
-            "native/cdmw_preview_core/src/owners/material_graph.cpp"
+            "native/cdmw_preview_core/src/owners/material_graph_cache.cpp"
         ).read_text(encoding="utf-8")
         selection_source = Path(
-            "native/cdmw_preview_core/src/owners/material_selection.cpp"
+            "native/cdmw_preview_core/src/owners/material_selection_cache.cpp"
         ).read_text(encoding="utf-8")
 
         srgb_start = graph_source.index("static std::string srgb_mode_for_role")

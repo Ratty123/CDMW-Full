@@ -23,6 +23,52 @@ _GRAPH_BOARD_WRAP_COLUMNS = 118
 GRAPH_BOARD_MAX_HEIGHT = 16_000
 
 
+def _build_graph_source_boards(graph_only, asset_root, asset_id, Image, ImageDraw):
+    graph_shards = _shard_graph_textures(
+        graph_only,
+        max_height=GRAPH_BOARD_MAX_HEIGHT,
+    )
+    graph_boards: list[dict[str, object]] = []
+    shard_count = len(graph_shards)
+    for shard_index, texture_rows in enumerate(graph_shards):
+        board_path = asset_root / f"graph-source-board-{shard_index:03d}.png"
+        _draw_graph_board(
+            board_path,
+            asset_id=asset_id,
+            textures=texture_rows,
+            shard_index=shard_index,
+            shard_count=shard_count,
+            image_type=Image,
+            draw_type=ImageDraw,
+        )
+        graph_boards.append(
+            {
+                "graph_board_index": shard_index,
+                "shard_index": shard_index,
+                "shard_count": shard_count,
+                "path": str(board_path),
+                "sha256": _sha256_file(board_path),
+                "texture_count": len(texture_rows),
+                "component_scope_ids": sorted(
+                    {
+                        str(row.get("component_scope_id", "") or "")
+                        for row in texture_rows
+                        if str(row.get("component_scope_id", "") or "")
+                    },
+                    key=str.casefold,
+                ),
+                "source_texture_ordinals": [
+                    _safe_int(row.get("source_texture_ordinal"), -1)
+                    for row in texture_rows
+                ],
+                "logical_edges": [
+                    _graph_edge_manifest_row(row) for row in texture_rows
+                ],
+            }
+        )
+    return graph_boards
+
+
 def build_source_material_boards(
     asset_id: str,
     resolved_textures: Sequence[Mapping[str, object]],
@@ -115,48 +161,7 @@ def build_source_material_boards(
                 ),
             }
         )
-    graph_shards = _shard_graph_textures(
-        graph_only,
-        max_height=GRAPH_BOARD_MAX_HEIGHT,
-    )
-    graph_boards: list[dict[str, object]] = []
-    shard_count = len(graph_shards)
-    for shard_index, texture_rows in enumerate(graph_shards):
-        board_path = asset_root / f"graph-source-board-{shard_index:03d}.png"
-        _draw_graph_board(
-            board_path,
-            asset_id=asset_id,
-            textures=texture_rows,
-            shard_index=shard_index,
-            shard_count=shard_count,
-            image_type=Image,
-            draw_type=ImageDraw,
-        )
-        graph_boards.append(
-            {
-                "graph_board_index": shard_index,
-                "shard_index": shard_index,
-                "shard_count": shard_count,
-                "path": str(board_path),
-                "sha256": _sha256_file(board_path),
-                "texture_count": len(texture_rows),
-                "component_scope_ids": sorted(
-                    {
-                        str(row.get("component_scope_id", "") or "")
-                        for row in texture_rows
-                        if str(row.get("component_scope_id", "") or "")
-                    },
-                    key=str.casefold,
-                ),
-                "source_texture_ordinals": [
-                    _safe_int(row.get("source_texture_ordinal"), -1)
-                    for row in texture_rows
-                ],
-                "logical_edges": [
-                    _graph_edge_manifest_row(row) for row in texture_rows
-                ],
-            }
-        )
+    graph_boards = _build_graph_source_boards(graph_only, asset_root, asset_id, Image, ImageDraw)
     manifest = {
         "schema": SOURCE_BOARD_SCHEMA,
         "asset_id": asset_id,

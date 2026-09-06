@@ -366,6 +366,47 @@ class SnapshotTests(_PackageCase):
         self.assertEqual(snapshot.model_stems, self.snapshot.model_stems)
         self.assertEqual(snapshot.effect_stems, self.snapshot.effect_stems)
 
+    def test_snapshot_reads_static_status_and_equipment_tables(self) -> None:
+        for stems in (("statusinfo",), ("equiptypeinfo",), ("statusinfo", "equiptypeinfo")):
+            with self.subTest(stems=stems):
+                files = synthetic_files()
+                for stem in stems:
+                    for old, new in (("pabgb", "staticinfobody"), ("pabgh", "staticinfoheader")):
+                        files[f"gamedata/binarystaticinfo__/bin/{stem}.{new}"] = files.pop(f"{BIN}/{stem}.{old}")
+                pamt = build_package(self.root / "-".join(stems), files)
+
+                snapshot = self.service.build_snapshot(parse_archive_pamt(pamt), read_entry=_read)
+
+                self.assertEqual(snapshot.status_names, self.snapshot.status_names)
+                self.assertEqual(snapshot.equip_type_names, self.snapshot.equip_type_names)
+                self.assertEqual(build_context(snapshot, TEMPLATE), build_context(self.snapshot, TEMPLATE))
+
+    def test_snapshot_keeps_complete_legacy_name_tables_when_both_layouts_exist(self) -> None:
+        files = synthetic_files()
+        for stem in ("statusinfo", "equiptypeinfo"):
+            payload, header = _table4([(1, _named_row(1, "OtherName"))])
+            files[f"gamedata/binarystaticinfo__/bin/{stem}.staticinfobody"] = payload
+            files[f"gamedata/binarystaticinfo__/bin/{stem}.staticinfoheader"] = header
+        pamt = build_package(self.root / "both-layouts", files)
+
+        snapshot = self.service.build_snapshot(parse_archive_pamt(pamt), read_entry=_read)
+
+        self.assertEqual(snapshot.status_names, self.snapshot.status_names)
+        self.assertEqual(snapshot.equip_type_names, self.snapshot.equip_type_names)
+
+    def test_snapshot_does_not_mix_incomplete_name_table_pairs(self) -> None:
+        from cdmw.services.new_item_snapshot import NewItemSnapshotError
+
+        for stem in ("statusinfo", "equiptypeinfo"):
+            for old, new in (("pabgb", "staticinfobody"), ("pabgh", "staticinfoheader")):
+                with self.subTest(stem=stem, moved=old):
+                    files = synthetic_files()
+                    files[f"gamedata/binarystaticinfo__/bin/{stem}.{new}"] = files.pop(f"{BIN}/{stem}.{old}")
+                    pamt = build_package(self.root / f"incomplete-{stem}-{old}", files)
+
+                    with self.assertRaisesRegex(NewItemSnapshotError, stem):
+                        self.service.build_snapshot(parse_archive_pamt(pamt), read_entry=_read)
+
 
     def test_the_validation_context_is_built_once_per_template(self) -> None:
         """The studio validates on every edit, and the context's frozensets span the

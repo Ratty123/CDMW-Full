@@ -188,69 +188,10 @@ class EquipmentPerformanceError(ValueError):
     """Raised when performance evidence is unsafe, malformed, or ambiguous."""
 
 
-def build_equipment_performance_summary(
-    evidence_root: Path | str,
-    *,
-    baseline_root: Path | str | None = None,
-    repetition_results_path: Path | str | None = None,
-    baseline_repetition_results_path: Path | str | None = None,
-    expected_logical_count: int = EXPECTED_LOGICAL_PAC_COUNT,
-) -> dict[str, object]:
-    """Build a read-only census summary and objective-level acceptance state."""
-
-    root = Path(evidence_root).expanduser().resolve(strict=True)
-    manifest_path = root / "capture-manifest.json"
-    manifest = _read_json_object(manifest_path, label="capture manifest")
-    if manifest.get("schema") != EQUIPMENT_CAPTURE_MANIFEST_SCHEMA:
-        raise EquipmentPerformanceError("Capture manifest schema is incompatible.")
-
-    expected = int(expected_logical_count)
-    if expected <= 0:
-        raise EquipmentPerformanceError("Expected logical PAC count must be positive.")
-    manifest_assets = _mapping_rows(manifest, "assets")
-    census_identity = _mapping(manifest.get("census_identity"))
-    asset_rows: list[dict[str, object]] = []
-    missing_assets: list[dict[str, object]] = []
-    source_only_assets: list[dict[str, object]] = []
-    integrity_failures: list[dict[str, object]] = []
-    ordinals = [_safe_int(row.get("ordinal"), -1) for row in manifest_assets]
-    asset_ids = [str(row.get("asset_id", "") or "") for row in manifest_assets]
-    identities = [
-        str(row.get("identity", "") or "").casefold() for row in manifest_assets
-    ]
-    for gate, ok, detail in (
-        (
-            "manifest_ordinal_identity",
-            len(manifest_assets) != expected
-            or sorted(ordinals) == list(range(expected)),
-            "complete-size manifest ordinals are not exactly 0..expected-1",
-        ),
-        (
-            "manifest_asset_id_identity",
-            all(asset_ids) and len(set(asset_ids)) == len(asset_ids),
-            "manifest asset IDs are empty or duplicated",
-        ),
-        (
-            "manifest_logical_identity",
-            all(identities) and len(set(identities)) == len(identities),
-            "manifest logical PAC identities are empty or duplicated",
-        ),
-        (
-            "census_identity",
-            manifest.get("capture_complete") is not True
-            or census_identity.get("schema") == EQUIPMENT_CAPTURE_IDENTITY_SCHEMA,
-            "complete manifest has no compatible census identity",
-        ),
-    ):
-        if not ok:
-            integrity_failures.append({"gate": gate, "detail": detail})
-    if manifest.get("capture_complete") is True:
-        integrity_failures.extend(
-            _census_identity_failures(
-                census_identity,
-                manifest_capture_binaries=_mapping(manifest.get("capture_binaries")),
-            )
-        )
+def _read_census_asset_reports(
+    asset_rows, census_identity, integrity_failures, manifest, manifest_assets, missing_assets, root,
+    source_only_assets,
+):
     for manifest_row in sorted(
         manifest_assets,
         key=lambda row: (
@@ -397,6 +338,78 @@ def build_equipment_performance_summary(
                     "detail": "asset and census binary hashes differ",
                 }
             )
+
+
+def _validate_census_completeness(
+    asset_ids, census_identity, expected, identities, integrity_failures, manifest, manifest_assets, ordinals,
+):
+    for gate, ok, detail in (
+        (
+            "manifest_ordinal_identity",
+            len(manifest_assets) != expected
+            or sorted(ordinals) == list(range(expected)),
+            "complete-size manifest ordinals are not exactly 0..expected-1",
+        ),
+        (
+            "manifest_asset_id_identity",
+            all(asset_ids) and len(set(asset_ids)) == len(asset_ids),
+            "manifest asset IDs are empty or duplicated",
+        ),
+        (
+            "manifest_logical_identity",
+            all(identities) and len(set(identities)) == len(identities),
+            "manifest logical PAC identities are empty or duplicated",
+        ),
+        (
+            "census_identity",
+            manifest.get("capture_complete") is not True
+            or census_identity.get("schema") == EQUIPMENT_CAPTURE_IDENTITY_SCHEMA,
+            "complete manifest has no compatible census identity",
+        ),
+    ):
+        if not ok:
+            integrity_failures.append({"gate": gate, "detail": detail})
+    if manifest.get("capture_complete") is True:
+        integrity_failures.extend(
+            _census_identity_failures(
+                census_identity,
+                manifest_capture_binaries=_mapping(manifest.get("capture_binaries")),
+            )
+        )
+
+
+def build_equipment_performance_summary(
+    evidence_root: Path | str,
+    *,
+    baseline_root: Path | str | None = None,
+    repetition_results_path: Path | str | None = None,
+    baseline_repetition_results_path: Path | str | None = None,
+    expected_logical_count: int = EXPECTED_LOGICAL_PAC_COUNT,
+) -> dict[str, object]:
+    """Build a read-only census summary and objective-level acceptance state."""
+
+    root = Path(evidence_root).expanduser().resolve(strict=True)
+    manifest_path = root / "capture-manifest.json"
+    manifest = _read_json_object(manifest_path, label="capture manifest")
+    if manifest.get("schema") != EQUIPMENT_CAPTURE_MANIFEST_SCHEMA:
+        raise EquipmentPerformanceError("Capture manifest schema is incompatible.")
+
+    expected = int(expected_logical_count)
+    if expected <= 0:
+        raise EquipmentPerformanceError("Expected logical PAC count must be positive.")
+    manifest_assets = _mapping_rows(manifest, "assets")
+    census_identity = _mapping(manifest.get("census_identity"))
+    asset_rows: list[dict[str, object]] = []
+    missing_assets: list[dict[str, object]] = []
+    source_only_assets: list[dict[str, object]] = []
+    integrity_failures: list[dict[str, object]] = []
+    ordinals = [_safe_int(row.get("ordinal"), -1) for row in manifest_assets]
+    asset_ids = [str(row.get("asset_id", "") or "") for row in manifest_assets]
+    identities = [
+        str(row.get("identity", "") or "").casefold() for row in manifest_assets
+    ]
+    _validate_census_completeness(asset_ids, census_identity, expected, identities, integrity_failures, manifest, manifest_assets, ordinals)
+    _read_census_asset_reports(asset_rows, census_identity, integrity_failures, manifest, manifest_assets, missing_assets, root, source_only_assets)
 
     expected_renderable = max(0, expected - len(source_only_assets))
     canonical_rhett_present = any(
@@ -654,60 +667,7 @@ def build_equipment_repetition_plan(
     }
 
 
-def evaluate_equipment_repetition_results(
-    current: Mapping[str, object],
-    *,
-    baseline: Mapping[str, object] | None,
-    expected_targets: Sequence[Mapping[str, object]],
-    expected_capture_binaries: Mapping[str, object] | None = None,
-    expected_census_manifest_sha256: str = "",
-) -> dict[str, object]:
-    """Validate exact 7/20 coverage, production invariants, and performance deltas."""
-
-    if current.get("schema") != EQUIPMENT_PERFORMANCE_REPETITION_RESULTS_SCHEMA:
-        raise EquipmentPerformanceError("Repetition result schema is incompatible.")
-    target_ids = [str(row.get("asset_id", "")) for row in expected_targets]
-    target_identities = [str(row.get("identity", "")) for row in expected_targets]
-    if (
-        not target_ids
-        or any(not target for target in target_ids)
-        or any(not identity for identity in target_identities)
-        or len(set(target_ids)) != len(target_ids)
-    ):
-        return _missing_comparison("repetition_targets_unavailable")
-    expected_identities = {
-        str(row.get("asset_id", "")): str(row.get("identity", ""))
-        for row in expected_targets
-    }
-    samples = _mapping_rows(current, "samples")
-    failures: list[dict[str, object]] = []
-    if current.get("complete") is not True:
-        failures.append(
-            {
-                "gate": "result_complete",
-                "detail": "repetition evidence is not marked complete",
-            }
-        )
-    if expected_capture_binaries is not None and not _capture_binaries_match(
-        _mapping(current.get("capture_binaries")), expected_capture_binaries
-    ):
-        failures.append(
-            {
-                "gate": "capture_binary_identity",
-                "detail": "repetition helper hashes differ from the finalized census",
-            }
-        )
-    expected_manifest_sha = str(expected_census_manifest_sha256 or "").casefold()
-    if expected_manifest_sha and str(
-        current.get("census_manifest_sha256", "") or ""
-    ).casefold() != expected_manifest_sha:
-        failures.append(
-            {
-                "gate": "census_manifest_identity",
-                "detail": "repetition evidence targets another census manifest",
-            }
-        )
-    coverage: list[dict[str, object]] = []
+def _validate_target_repetition_coverage(coverage, expected_identities, failures, samples, target_ids):
     for target_id in target_ids:
         target_samples = [row for row in samples if row.get("asset_id") == target_id]
         mismatched_identities = sorted(
@@ -762,6 +722,63 @@ def evaluate_equipment_repetition_results(
                     "detail": ", ".join(unexpected_modes),
                 }
             )
+
+
+def evaluate_equipment_repetition_results(
+    current: Mapping[str, object],
+    *,
+    baseline: Mapping[str, object] | None,
+    expected_targets: Sequence[Mapping[str, object]],
+    expected_capture_binaries: Mapping[str, object] | None = None,
+    expected_census_manifest_sha256: str = "",
+) -> dict[str, object]:
+    """Validate exact 7/20 coverage, production invariants, and performance deltas."""
+
+    if current.get("schema") != EQUIPMENT_PERFORMANCE_REPETITION_RESULTS_SCHEMA:
+        raise EquipmentPerformanceError("Repetition result schema is incompatible.")
+    target_ids = [str(row.get("asset_id", "")) for row in expected_targets]
+    target_identities = [str(row.get("identity", "")) for row in expected_targets]
+    if (
+        not target_ids
+        or any(not target for target in target_ids)
+        or any(not identity for identity in target_identities)
+        or len(set(target_ids)) != len(target_ids)
+    ):
+        return _missing_comparison("repetition_targets_unavailable")
+    expected_identities = {
+        str(row.get("asset_id", "")): str(row.get("identity", ""))
+        for row in expected_targets
+    }
+    samples = _mapping_rows(current, "samples")
+    failures: list[dict[str, object]] = []
+    if current.get("complete") is not True:
+        failures.append(
+            {
+                "gate": "result_complete",
+                "detail": "repetition evidence is not marked complete",
+            }
+        )
+    if expected_capture_binaries is not None and not _capture_binaries_match(
+        _mapping(current.get("capture_binaries")), expected_capture_binaries
+    ):
+        failures.append(
+            {
+                "gate": "capture_binary_identity",
+                "detail": "repetition helper hashes differ from the finalized census",
+            }
+        )
+    expected_manifest_sha = str(expected_census_manifest_sha256 or "").casefold()
+    if expected_manifest_sha and str(
+        current.get("census_manifest_sha256", "") or ""
+    ).casefold() != expected_manifest_sha:
+        failures.append(
+            {
+                "gate": "census_manifest_identity",
+                "detail": "repetition evidence targets another census manifest",
+            }
+        )
+    coverage: list[dict[str, object]] = []
+    _validate_target_repetition_coverage(coverage, expected_identities, failures, samples, target_ids)
     unexpected = sorted(
         {
             str(row.get("asset_id", ""))
@@ -813,6 +830,182 @@ def evaluate_equipment_repetition_results(
     }
 
 
+def _capture_target_repetitions(
+    _validate_native_manifest, _validate_rust_package_manifest, archive_entry_from_worker,
+    build_rust_preview_package_from_preview_core, cache, helper, plans_by_asset, reports_root, result,
+    result_path, run_native_preview_core_preview_job, runtime_root, targets, timeout,
+):
+    for target in targets:
+        asset_id = str(target["asset_id"])
+        plan_row = plans_by_asset.get(asset_id)
+        if plan_row is None:
+            raise EquipmentPerformanceError(
+                f"Frozen target {asset_id} is absent from the capture plan."
+            )
+        for repetition in range(1, COLD_REPETITIONS + 1):
+            runtime = Path(
+                tempfile.mkdtemp(prefix=f"{asset_id}-cold-", dir=runtime_root)
+            )
+            try:
+                cold_cache = runtime / "isolated-empty-cache"
+                cold_cache.mkdir(parents=True, exist_ok=False)
+                prepared = _prepare_production_packages(
+                    plan_row,
+                    runtime,
+                    cache_root=cold_cache,
+                    use_service=False,
+                    build_rust_preview_package_from_preview_core=(
+                        build_rust_preview_package_from_preview_core
+                    ),
+                    run_native_preview_core_preview_job=run_native_preview_core_preview_job,
+                    archive_entry_from_worker=archive_entry_from_worker,
+                    validate_native_manifest=_validate_native_manifest,
+                    validate_rust_manifest=_validate_rust_package_manifest,
+                    timeout_seconds=timeout,
+                )
+                _append_full_package(
+                    prepared,
+                    runtime,
+                    build_rust_preview_package_from_preview_core=(
+                        build_rust_preview_package_from_preview_core
+                    ),
+                    validate_rust_manifest=_validate_rust_package_manifest,
+                )
+                direct_report, direct_process = _run_repeated_audit_process(
+                    helper,
+                    Path(str(prepared["direct_manifest_path"])),
+                    runtime / "cold-direct",
+                    repetitions=1,
+                    timeout_seconds=timeout,
+                )
+                full_report, full_process = _run_repeated_audit_process(
+                    helper,
+                    Path(str(prepared["full_manifest_path"])),
+                    runtime / "cold-full",
+                    repetitions=1,
+                    timeout_seconds=timeout,
+                )
+                retained = _retain_audit_reports(
+                    reports_root / asset_id / f"cold-{repetition:02d}",
+                    {"direct": direct_report, "full": full_report},
+                )
+                sample = _cold_sample(
+                    target,
+                    repetition,
+                    prepared,
+                    direct_report,
+                    direct_process,
+                    full_report,
+                    full_process,
+                    retained,
+                )
+                cast_samples = result["samples"]
+                cast_reports = result["retained_reports"]
+                if isinstance(cast_samples, list):
+                    cast_samples.append(sample)
+                if isinstance(cast_reports, list):
+                    cast_reports.extend(retained.values())
+                _write_repetition_checkpoint(result_path, result)
+            finally:
+                shutil.rmtree(runtime, ignore_errors=True)
+
+        runtime = Path(
+            tempfile.mkdtemp(prefix=f"{asset_id}-warm-", dir=runtime_root)
+        )
+        try:
+            prepared = _prepare_production_packages(
+                plan_row,
+                runtime,
+                cache_root=cache,
+                use_service=True,
+                build_rust_preview_package_from_preview_core=(
+                    build_rust_preview_package_from_preview_core
+                ),
+                run_native_preview_core_preview_job=run_native_preview_core_preview_job,
+                archive_entry_from_worker=archive_entry_from_worker,
+                validate_native_manifest=_validate_native_manifest,
+                validate_rust_manifest=_validate_rust_package_manifest,
+                timeout_seconds=timeout,
+            )
+            _append_full_package(
+                prepared,
+                runtime,
+                build_rust_preview_package_from_preview_core=(
+                    build_rust_preview_package_from_preview_core
+                ),
+                validate_rust_manifest=_validate_rust_package_manifest,
+            )
+            direct_report, _ = _run_repeated_audit_process(
+                helper,
+                Path(str(prepared["direct_manifest_path"])),
+                runtime / "warm-direct-prime",
+                repetitions=1,
+                timeout_seconds=timeout,
+            )
+            warm_report, warm_process = _run_repeated_audit_process(
+                helper,
+                Path(str(prepared["full_manifest_path"])),
+                runtime / "warm-full",
+                repetitions=WARM_REPETITIONS,
+                timeout_seconds=max(timeout, timeout * WARM_REPETITIONS),
+            )
+            retained = _retain_audit_reports(
+                reports_root / asset_id / "warm",
+                {"direct-prime": direct_report, "full-repetitions": warm_report},
+            )
+            warm_samples = _warm_samples(
+                target,
+                prepared,
+                warm_report,
+                warm_process,
+                retained,
+            )
+            cast_samples = result["samples"]
+            cast_reports = result["retained_reports"]
+            if isinstance(cast_samples, list):
+                cast_samples.extend(warm_samples)
+            if isinstance(cast_reports, list):
+                cast_reports.extend(retained.values())
+            _write_repetition_checkpoint(result_path, result)
+        finally:
+            shutil.rmtree(runtime, ignore_errors=True)
+
+
+def _validate_repetition_output_locations(cache, evidence, output, resolution):
+    protected_roots = [Path(__file__).resolve().parents[2], evidence]
+    game_root_text = str(
+        _mapping(resolution.get("live_archive")).get("package_root", "") or ""
+    )
+    if game_root_text:
+        protected_roots.append(Path(game_root_text).expanduser().resolve())
+    if any(
+        output == protected
+        or output.is_relative_to(protected)
+        or protected.is_relative_to(output)
+        for protected in protected_roots
+    ):
+        raise EquipmentPerformanceError(
+            "Repetition output must remain outside the repository, census, and game install."
+        )
+    if any(
+        cache == protected
+        or cache.is_relative_to(protected)
+        or protected.is_relative_to(cache)
+        for protected in protected_roots
+    ) or (
+        cache == output
+        or cache.is_relative_to(output)
+        or output.is_relative_to(cache)
+    ):
+        raise EquipmentPerformanceError(
+            "Repetition cache must remain separate from the repository, census, game install, and evidence output."
+        )
+    if (output / "equipment-performance-repetitions.json").exists():
+        raise EquipmentPerformanceError(
+            "Repetition output already exists; choose a new output root."
+        )
+
+
 def run_equipment_performance_repetitions(
     *,
     catalogue_path: Path | str,
@@ -853,38 +1046,7 @@ def run_equipment_performance_repetitions(
     catalogue, resolution = load_equipment_capture_inputs(
         catalogue_file, resolution_file
     )
-    protected_roots = [Path(__file__).resolve().parents[2], evidence]
-    game_root_text = str(
-        _mapping(resolution.get("live_archive")).get("package_root", "") or ""
-    )
-    if game_root_text:
-        protected_roots.append(Path(game_root_text).expanduser().resolve())
-    if any(
-        output == protected
-        or output.is_relative_to(protected)
-        or protected.is_relative_to(output)
-        for protected in protected_roots
-    ):
-        raise EquipmentPerformanceError(
-            "Repetition output must remain outside the repository, census, and game install."
-        )
-    if any(
-        cache == protected
-        or cache.is_relative_to(protected)
-        or protected.is_relative_to(cache)
-        for protected in protected_roots
-    ) or (
-        cache == output
-        or cache.is_relative_to(output)
-        or output.is_relative_to(cache)
-    ):
-        raise EquipmentPerformanceError(
-            "Repetition cache must remain separate from the repository, census, game install, and evidence output."
-        )
-    if (output / "equipment-performance-repetitions.json").exists():
-        raise EquipmentPerformanceError(
-            "Repetition output already exists; choose a new output root."
-        )
+    _validate_repetition_output_locations(cache, evidence, output, resolution)
     summary = build_equipment_performance_summary(evidence)
     census = _mapping(summary.get("census"))
     plan = _mapping(summary.get("repetition_plan"))
@@ -948,140 +1110,7 @@ def run_equipment_performance_repetitions(
 
     timeout = max(30.0, float(capture_timeout_seconds))
     try:
-        for target in targets:
-            asset_id = str(target["asset_id"])
-            plan_row = plans_by_asset.get(asset_id)
-            if plan_row is None:
-                raise EquipmentPerformanceError(
-                    f"Frozen target {asset_id} is absent from the capture plan."
-                )
-            for repetition in range(1, COLD_REPETITIONS + 1):
-                runtime = Path(
-                    tempfile.mkdtemp(prefix=f"{asset_id}-cold-", dir=runtime_root)
-                )
-                try:
-                    cold_cache = runtime / "isolated-empty-cache"
-                    cold_cache.mkdir(parents=True, exist_ok=False)
-                    prepared = _prepare_production_packages(
-                        plan_row,
-                        runtime,
-                        cache_root=cold_cache,
-                        use_service=False,
-                        build_rust_preview_package_from_preview_core=(
-                            build_rust_preview_package_from_preview_core
-                        ),
-                        run_native_preview_core_preview_job=run_native_preview_core_preview_job,
-                        archive_entry_from_worker=archive_entry_from_worker,
-                        validate_native_manifest=_validate_native_manifest,
-                        validate_rust_manifest=_validate_rust_package_manifest,
-                        timeout_seconds=timeout,
-                    )
-                    _append_full_package(
-                        prepared,
-                        runtime,
-                        build_rust_preview_package_from_preview_core=(
-                            build_rust_preview_package_from_preview_core
-                        ),
-                        validate_rust_manifest=_validate_rust_package_manifest,
-                    )
-                    direct_report, direct_process = _run_repeated_audit_process(
-                        helper,
-                        Path(str(prepared["direct_manifest_path"])),
-                        runtime / "cold-direct",
-                        repetitions=1,
-                        timeout_seconds=timeout,
-                    )
-                    full_report, full_process = _run_repeated_audit_process(
-                        helper,
-                        Path(str(prepared["full_manifest_path"])),
-                        runtime / "cold-full",
-                        repetitions=1,
-                        timeout_seconds=timeout,
-                    )
-                    retained = _retain_audit_reports(
-                        reports_root / asset_id / f"cold-{repetition:02d}",
-                        {"direct": direct_report, "full": full_report},
-                    )
-                    sample = _cold_sample(
-                        target,
-                        repetition,
-                        prepared,
-                        direct_report,
-                        direct_process,
-                        full_report,
-                        full_process,
-                        retained,
-                    )
-                    cast_samples = result["samples"]
-                    cast_reports = result["retained_reports"]
-                    if isinstance(cast_samples, list):
-                        cast_samples.append(sample)
-                    if isinstance(cast_reports, list):
-                        cast_reports.extend(retained.values())
-                    _write_repetition_checkpoint(result_path, result)
-                finally:
-                    shutil.rmtree(runtime, ignore_errors=True)
-
-            runtime = Path(
-                tempfile.mkdtemp(prefix=f"{asset_id}-warm-", dir=runtime_root)
-            )
-            try:
-                prepared = _prepare_production_packages(
-                    plan_row,
-                    runtime,
-                    cache_root=cache,
-                    use_service=True,
-                    build_rust_preview_package_from_preview_core=(
-                        build_rust_preview_package_from_preview_core
-                    ),
-                    run_native_preview_core_preview_job=run_native_preview_core_preview_job,
-                    archive_entry_from_worker=archive_entry_from_worker,
-                    validate_native_manifest=_validate_native_manifest,
-                    validate_rust_manifest=_validate_rust_package_manifest,
-                    timeout_seconds=timeout,
-                )
-                _append_full_package(
-                    prepared,
-                    runtime,
-                    build_rust_preview_package_from_preview_core=(
-                        build_rust_preview_package_from_preview_core
-                    ),
-                    validate_rust_manifest=_validate_rust_package_manifest,
-                )
-                direct_report, _ = _run_repeated_audit_process(
-                    helper,
-                    Path(str(prepared["direct_manifest_path"])),
-                    runtime / "warm-direct-prime",
-                    repetitions=1,
-                    timeout_seconds=timeout,
-                )
-                warm_report, warm_process = _run_repeated_audit_process(
-                    helper,
-                    Path(str(prepared["full_manifest_path"])),
-                    runtime / "warm-full",
-                    repetitions=WARM_REPETITIONS,
-                    timeout_seconds=max(timeout, timeout * WARM_REPETITIONS),
-                )
-                retained = _retain_audit_reports(
-                    reports_root / asset_id / "warm",
-                    {"direct-prime": direct_report, "full-repetitions": warm_report},
-                )
-                warm_samples = _warm_samples(
-                    target,
-                    prepared,
-                    warm_report,
-                    warm_process,
-                    retained,
-                )
-                cast_samples = result["samples"]
-                cast_reports = result["retained_reports"]
-                if isinstance(cast_samples, list):
-                    cast_samples.extend(warm_samples)
-                if isinstance(cast_reports, list):
-                    cast_reports.extend(retained.values())
-                _write_repetition_checkpoint(result_path, result)
-            finally:
-                shutil.rmtree(runtime, ignore_errors=True)
+        _capture_target_repetitions(_validate_native_manifest, _validate_rust_package_manifest, archive_entry_from_worker, build_rust_preview_package_from_preview_core, cache, helper, plans_by_asset, reports_root, result, result_path, run_native_preview_core_preview_job, runtime_root, targets, timeout)
         result["complete"] = True
         result["acceptance"] = evaluate_equipment_repetition_results(
             result,
@@ -1704,146 +1733,10 @@ def _write_repetition_checkpoint(path: Path, result: Mapping[str, object]) -> No
     atomic_write_text(path, json.dumps(result, indent=2, sort_keys=True) + "\n")
 
 
-def _instrumented_asset_row(
-    asset_root: Path,
-    manifest_row: Mapping[str, object],
-    report: Mapping[str, object],
-) -> tuple[dict[str, object], list[dict[str, object]]]:
-    performance = _mapping(report.get("performance"))
-    preview = _mapping(performance.get("preview_core"))
-    package = _mapping(performance.get("package_build"))
-    render = _mapping(performance.get("render"))
-    direct = _mapping(render.get("direct"))
-    full = _mapping(render.get("full"))
-    resources = _mapping(performance.get("resources"))
-    direct_source = _mapping(resources.get("direct_source_dds"))
-    full_source = _mapping(resources.get("full_source_dds"))
-    direct_runtime = _mapping(resources.get("direct_runtime_dds"))
-    full_runtime = _mapping(resources.get("full_runtime_dds"))
-    direct_phase = _validated_phase_timings(
-        direct, label=f"direct Rust audit {asset_root.name}"
-    )
-    full_phase = _validated_phase_timings(
-        full, label=f"full Rust audit {asset_root.name}"
-    )
-
-    numeric = {
-        "asset_wall_ms": _required_number(report, "wall_ms"),
-        "preview_core_elapsed_ms": _required_number(preview, "elapsed_ms"),
-        "preview_core_wall_ms": _required_number(preview, "wall_ms"),
-        "direct_package_build_ms": _required_number(package, "direct_ms"),
-        "full_package_build_ms": _required_number(package, "full_ms"),
-        "direct_process_wall_ms": _required_number(direct, "process_wall_ms"),
-        "full_process_wall_ms": _required_number(full, "process_wall_ms"),
-        "direct_renderer_wall_ms": _required_number(direct, "renderer_wall_ms"),
-        "full_renderer_wall_ms": _required_number(full, "renderer_wall_ms"),
-        "direct_peak_private_bytes": _required_number(direct, "peak_private_bytes"),
-        "full_peak_private_bytes": _required_number(full, "peak_private_bytes"),
-        "direct_peak_working_set_bytes": _required_number(
-            direct, "peak_working_set_bytes"
-        ),
-        "full_peak_working_set_bytes": _required_number(full, "peak_working_set_bytes"),
-        "direct_gpu_resident_bytes": _required_number(
-            direct_runtime, "reported_gpu_resident_bytes"
-        ),
-        "full_gpu_resident_bytes": _required_number(
-            full_runtime, "reported_gpu_resident_bytes"
-        ),
-    }
-    native_diagnostics = _mapping(
-        _mapping(report.get("preview_core")).get("diagnostics")
-    )
-    numeric["preview_core_process_private_bytes"] = _required_number(
-        native_diagnostics, "process_private_bytes"
-    )
-    numeric["preview_core_process_working_set_bytes"] = _required_number(
-        native_diagnostics, "process_working_set_bytes"
-    )
-    for quality, phase in (("direct", direct_phase), ("full", full_phase)):
-        for field, value in phase.items():
-            numeric[f"{quality}_{field}"] = value
-    numeric["direct_process_boundary_overhead_ms"] = _process_boundary_overhead_ms(
-        direct, direct_phase
-    )
-    numeric["full_process_boundary_overhead_ms"] = _process_boundary_overhead_ms(
-        full, full_phase
-    )
-    numeric["direct_first_textured_frame_with_process_boundary_overhead_ms"] = (
-        _parent_observed_phase_ms(direct, direct_phase, "first_textured_frame_ms")
-    )
-    numeric["full_texture_resources_ready_with_process_boundary_overhead_ms"] = (
-        _parent_observed_phase_ms(full, full_phase, "texture_resources_ready_ms")
-    )
-    numeric["first_usable_ms"] = (
-        numeric["preview_core_wall_ms"]
-        + numeric["direct_package_build_ms"]
-        + numeric["direct_first_textured_frame_with_process_boundary_overhead_ms"]
-    )
-    numeric["full_texture_readiness_ms"] = (
-        numeric["preview_core_wall_ms"]
-        + numeric["direct_package_build_ms"]
-        + numeric["full_package_build_ms"]
-        + numeric[
-            "full_texture_resources_ready_with_process_boundary_overhead_ms"
-        ]
-    )
-    numeric["peak_private_bytes"] = max(
-        numeric["preview_core_process_private_bytes"],
-        numeric["direct_peak_private_bytes"],
-        numeric["full_peak_private_bytes"],
-    )
-    numeric["gpu_resident_bytes"] = max(
-        numeric["direct_gpu_resident_bytes"], numeric["full_gpu_resident_bytes"]
-    )
-
-    full_manifest_row = _mapping(
-        _mapping(report.get("rust_packages")).get("full_manifest")
-    )
-    full_manifest = _read_evidence_object(
-        asset_root,
-        full_manifest_row,
-        label=f"full Rust manifest {asset_root.name}",
-    )
-    geometry = _mapping(full_manifest.get("preview_core_geometry"))
-    batches = _sequence(geometry.get("batches"))
-    presentations = [
-        _mapping(row) for row in _sequence(full_manifest.get("material_presentations"))
-    ]
-    categories = sorted(
-        {
-            str(row.get("material_category", "") or "")
-            for row in presentations
-            if str(row.get("material_category", "") or "")
-        },
-        key=str.casefold,
-    )
-    normalized_categories = {category.casefold() for category in categories}
-    required_mixed_categories = {"metal", "leather", "cloth"}
-    regions = _sequence(
-        _mapping(report.get("composites")).get("material_region_sheets")
-    )
-    logical_edges = _safe_int(resources.get("logical_texture_edge_count"), -1)
-    unique_dds_bytes = max(
-        _safe_int(direct_source.get("unique_source_dds_bytes"), -1),
-        _safe_int(full_source.get("unique_source_dds_bytes"), -1),
-    )
-    facts = {
-        "graph_edge_count": logical_edges,
-        "unique_dds_bytes": unique_dds_bytes,
-        "visible_submesh_count": len(batches),
-        "material_region_count": len(regions),
-        "mixed_material_category_count": len(categories),
-        "metal_leather_cloth_category_count": len(
-            normalized_categories & required_mixed_categories
-        ),
-        "contains_metal_leather_cloth": required_mixed_categories.issubset(
-            normalized_categories
-        ),
-        "material_categories": categories,
-    }
-
-    identity = str(report.get("identity", "") or "")
-    asset_id = str(report.get("asset_id", "") or "")
+def _instrumented_asset_failures(
+    asset_id, batches, direct, direct_runtime, direct_source, full, full_runtime, full_source, identity,
+    logical_edges, native_diagnostics, numeric, regions, report, unique_dds_bytes,
+):
     failures: list[dict[str, object]] = []
 
     def fail(gate: str, detail: str) -> None:
@@ -1940,6 +1833,164 @@ def _instrumented_asset_row(
             )
     if logical_edges < 0 or unique_dds_bytes < 0 or not batches or not regions:
         fail("worst_case_facts", "graph/resource/submesh/region evidence is incomplete")
+    return failures, service_recycle_reason
+
+
+def _instrumented_asset_metrics(direct, direct_phase, direct_runtime, full, full_phase, full_runtime, package, preview, report):
+    numeric = {
+        "asset_wall_ms": _required_number(report, "wall_ms"),
+        "preview_core_elapsed_ms": _required_number(preview, "elapsed_ms"),
+        "preview_core_wall_ms": _required_number(preview, "wall_ms"),
+        "direct_package_build_ms": _required_number(package, "direct_ms"),
+        "full_package_build_ms": _required_number(package, "full_ms"),
+        "direct_process_wall_ms": _required_number(direct, "process_wall_ms"),
+        "full_process_wall_ms": _required_number(full, "process_wall_ms"),
+        "direct_renderer_wall_ms": _required_number(direct, "renderer_wall_ms"),
+        "full_renderer_wall_ms": _required_number(full, "renderer_wall_ms"),
+        "direct_peak_private_bytes": _required_number(direct, "peak_private_bytes"),
+        "full_peak_private_bytes": _required_number(full, "peak_private_bytes"),
+        "direct_peak_working_set_bytes": _required_number(
+            direct, "peak_working_set_bytes"
+        ),
+        "full_peak_working_set_bytes": _required_number(full, "peak_working_set_bytes"),
+        "direct_gpu_resident_bytes": _required_number(
+            direct_runtime, "reported_gpu_resident_bytes"
+        ),
+        "full_gpu_resident_bytes": _required_number(
+            full_runtime, "reported_gpu_resident_bytes"
+        ),
+    }
+    native_diagnostics = _mapping(
+        _mapping(report.get("preview_core")).get("diagnostics")
+    )
+    numeric["preview_core_process_private_bytes"] = _required_number(
+        native_diagnostics, "process_private_bytes"
+    )
+    numeric["preview_core_process_working_set_bytes"] = _required_number(
+        native_diagnostics, "process_working_set_bytes"
+    )
+    for quality, phase in (("direct", direct_phase), ("full", full_phase)):
+        for field, value in phase.items():
+            numeric[f"{quality}_{field}"] = value
+    numeric["direct_process_boundary_overhead_ms"] = _process_boundary_overhead_ms(
+        direct, direct_phase
+    )
+    numeric["full_process_boundary_overhead_ms"] = _process_boundary_overhead_ms(
+        full, full_phase
+    )
+    numeric["direct_first_textured_frame_with_process_boundary_overhead_ms"] = (
+        _parent_observed_phase_ms(direct, direct_phase, "first_textured_frame_ms")
+    )
+    numeric["full_texture_resources_ready_with_process_boundary_overhead_ms"] = (
+        _parent_observed_phase_ms(full, full_phase, "texture_resources_ready_ms")
+    )
+    numeric["first_usable_ms"] = (
+        numeric["preview_core_wall_ms"]
+        + numeric["direct_package_build_ms"]
+        + numeric["direct_first_textured_frame_with_process_boundary_overhead_ms"]
+    )
+    numeric["full_texture_readiness_ms"] = (
+        numeric["preview_core_wall_ms"]
+        + numeric["direct_package_build_ms"]
+        + numeric["full_package_build_ms"]
+        + numeric[
+            "full_texture_resources_ready_with_process_boundary_overhead_ms"
+        ]
+    )
+    numeric["peak_private_bytes"] = max(
+        numeric["preview_core_process_private_bytes"],
+        numeric["direct_peak_private_bytes"],
+        numeric["full_peak_private_bytes"],
+    )
+    numeric["gpu_resident_bytes"] = max(
+        numeric["direct_gpu_resident_bytes"], numeric["full_gpu_resident_bytes"]
+    )
+    return numeric, native_diagnostics
+
+
+def _instrumented_asset_row(
+    asset_root: Path,
+    manifest_row: Mapping[str, object],
+    report: Mapping[str, object],
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    performance = _mapping(report.get("performance"))
+    preview = _mapping(performance.get("preview_core"))
+    package = _mapping(performance.get("package_build"))
+    render = _mapping(performance.get("render"))
+    direct = _mapping(render.get("direct"))
+    full = _mapping(render.get("full"))
+    resources = _mapping(performance.get("resources"))
+    direct_source = _mapping(resources.get("direct_source_dds"))
+    full_source = _mapping(resources.get("full_source_dds"))
+    direct_runtime = _mapping(resources.get("direct_runtime_dds"))
+    full_runtime = _mapping(resources.get("full_runtime_dds"))
+    direct_phase = _validated_phase_timings(
+        direct, label=f"direct Rust audit {asset_root.name}"
+    )
+    full_phase = _validated_phase_timings(
+        full, label=f"full Rust audit {asset_root.name}"
+    )
+
+    (
+        numeric, native_diagnostics,
+    ) = _instrumented_asset_metrics(
+        direct, direct_phase, direct_runtime, full, full_phase, full_runtime, package, preview, report,
+    )
+
+    full_manifest_row = _mapping(
+        _mapping(report.get("rust_packages")).get("full_manifest")
+    )
+    full_manifest = _read_evidence_object(
+        asset_root,
+        full_manifest_row,
+        label=f"full Rust manifest {asset_root.name}",
+    )
+    geometry = _mapping(full_manifest.get("preview_core_geometry"))
+    batches = _sequence(geometry.get("batches"))
+    presentations = [
+        _mapping(row) for row in _sequence(full_manifest.get("material_presentations"))
+    ]
+    categories = sorted(
+        {
+            str(row.get("material_category", "") or "")
+            for row in presentations
+            if str(row.get("material_category", "") or "")
+        },
+        key=str.casefold,
+    )
+    normalized_categories = {category.casefold() for category in categories}
+    required_mixed_categories = {"metal", "leather", "cloth"}
+    regions = _sequence(
+        _mapping(report.get("composites")).get("material_region_sheets")
+    )
+    logical_edges = _safe_int(resources.get("logical_texture_edge_count"), -1)
+    unique_dds_bytes = max(
+        _safe_int(direct_source.get("unique_source_dds_bytes"), -1),
+        _safe_int(full_source.get("unique_source_dds_bytes"), -1),
+    )
+    facts = {
+        "graph_edge_count": logical_edges,
+        "unique_dds_bytes": unique_dds_bytes,
+        "visible_submesh_count": len(batches),
+        "material_region_count": len(regions),
+        "mixed_material_category_count": len(categories),
+        "metal_leather_cloth_category_count": len(
+            normalized_categories & required_mixed_categories
+        ),
+        "contains_metal_leather_cloth": required_mixed_categories.issubset(
+            normalized_categories
+        ),
+        "material_categories": categories,
+    }
+
+    identity = str(report.get("identity", "") or "")
+    asset_id = str(report.get("asset_id", "") or "")
+    (
+        failures, service_recycle_reason,
+    ) = _instrumented_asset_failures(
+        asset_id, batches, direct, direct_runtime, direct_source, full, full_runtime, full_source, identity,
+        logical_edges, native_diagnostics, numeric, regions, report, unique_dds_bytes,
+    )
 
     return (
         {
@@ -2113,12 +2164,7 @@ def _repetition_targets(
     )
 
 
-def _compare_census_baseline(
-    current_rows: Sequence[Mapping[str, object]], baseline_root: Path
-) -> dict[str, object]:
-    current_by_identity = {
-        str(row.get("identity", "")).casefold(): row for row in current_rows
-    }
+def _read_baseline_census_rows(baseline_root):
     baseline_rows: list[dict[str, object]] = []
     for asset_root in sorted(
         (baseline_root / "assets").iterdir()
@@ -2181,6 +2227,16 @@ def _compare_census_baseline(
             if wall_ms is not None:
                 metrics[f"{quality}_renderer_wall_ms"] = wall_ms
         baseline_rows.append({"identity": identity, "metrics": metrics})
+    return baseline_rows
+
+
+def _compare_census_baseline(
+    current_rows: Sequence[Mapping[str, object]], baseline_root: Path
+) -> dict[str, object]:
+    current_by_identity = {
+        str(row.get("identity", "")).casefold(): row for row in current_rows
+    }
+    baseline_rows = _read_baseline_census_rows(baseline_root)
 
     baseline_by_identity: dict[str, dict[str, object]] = {}
     duplicate_baseline_identities: set[str] = set()
@@ -2429,6 +2485,160 @@ def _validated_baseline_repetition_samples(
     return samples, failures
 
 
+def _normalize_baseline_warm_samples(fail, failures, normalized, packet, provenance_sha256, target, target_id, target_identity):
+    warm_batch = dict(_mapping(packet.get("warm_batch")))
+    warm_metrics, warm_batch_failures = _a48f00ce_process_envelope(
+        warm_batch,
+        target=target,
+        expected_sample_id="warm-resident-20",
+        repetitions=WARM_REPETITIONS,
+        warm=True,
+        provenance_sha256=provenance_sha256,
+        asset_id=target_id,
+    )
+    failures.extend(warm_batch_failures)
+    warm_raw = _sequence(packet.get("warm_samples"))
+    warm_rows = [dict(row) for row in warm_raw if isinstance(row, Mapping)]
+    expected_warm_ids = [f"warm-{index:02d}" for index in range(1, 21)]
+    expected_indices = list(range(WARM_REPETITIONS))
+    if (
+        len(warm_rows) != WARM_REPETITIONS
+        or len(warm_rows) != len(warm_raw)
+        or [str(row.get("sample_id", "") or "") for row in warm_rows]
+        != expected_warm_ids
+        or [_safe_int(row.get("repetition_index"), -1) for row in warm_rows]
+        != expected_indices
+    ):
+        fail(
+            "baseline_warm_coverage",
+            "raw baseline must contain warm-01 through warm-20 with exact indices",
+            mode="warm",
+        )
+    batch_id = str(warm_batch.get("resident_batch_id", "") or "")
+    generation = _safe_int(warm_batch.get("resident_process_generation"), -1)
+    warm_walls: list[float] = []
+    expected_warm_fields = {
+        "sample_id",
+        "baseline_provenance_sha256",
+        "repetition_index",
+        "wall_ms",
+        "resident_batch_id",
+        "resident_process_generation",
+        "package_load_count",
+        "package_reloads_between_repetitions",
+        "renderer_batch_count",
+        "renderer_device_count",
+        "texture_upload_pass_count",
+        "resource_reloads_between_repetitions",
+    }
+    for repetition, row in enumerate(warm_rows, 1):
+        wall_ms = _optional_number(row.get("wall_ms"))
+        require_ok = (
+            set(row) == expected_warm_fields
+            and str(row.get("baseline_provenance_sha256", "") or "").casefold()
+            == provenance_sha256
+            and _safe_int(row.get("repetition_index"), -1) == repetition - 1
+            and wall_ms is not None
+            and wall_ms > 0.0
+            and str(row.get("resident_batch_id", "") or "") == batch_id
+            and _safe_int(row.get("resident_process_generation"), -1) == generation
+            and _safe_int(row.get("package_load_count"), -1) == 1
+            and _safe_int(row.get("package_reloads_between_repetitions"), -1) == 0
+            and _safe_int(row.get("renderer_batch_count"), -1) == 1
+            and _safe_int(row.get("renderer_device_count"), -1) == 1
+            and _safe_int(row.get("texture_upload_pass_count"), -1) == 1
+            and _safe_int(row.get("resource_reloads_between_repetitions"), -1) == 0
+        )
+        if not require_ok:
+            fail(
+                "baseline_warm_residency",
+                f"warm repetition {repetition} is incomplete or not resident",
+                mode="warm",
+            )
+        if wall_ms is not None:
+            warm_walls.append(wall_ms)
+        if target_id:
+            normalized.append(
+                {
+                    "asset_id": target_id,
+                    "identity": target_identity,
+                    "mode": "warm",
+                    "repetition": repetition,
+                    "warm_capture_ms": wall_ms,
+                    "peak_private_bytes": warm_metrics.get("peak_private_bytes"),
+                    "gpu_resident_bytes": warm_metrics.get("gpu_resident_bytes"),
+                }
+            )
+    proof_walls = [
+        value
+        for raw in _sequence(
+            _mapping(warm_batch.get("warm_cache_proof")).get(
+                "per_repetition_wall_ms"
+            )
+        )
+        if (value := _optional_number(raw)) is not None
+    ]
+    if warm_walls != proof_walls:
+        fail(
+            "baseline_warm_timing_binding",
+            "warm sample timings do not exactly match the hashed resident report",
+            mode="warm",
+        )
+
+
+def _normalize_baseline_cold_samples(fail, failures, packet, provenance_sha256, target, target_id, target_identity):
+    normalized: list[dict[str, object]] = []
+    cold_raw = _sequence(packet.get("cold_samples"))
+    cold_rows = [dict(row) for row in cold_raw if isinstance(row, Mapping)]
+    expected_cold_ids = [f"cold-{index:02d}" for index in range(1, 8)]
+    if (
+        len(cold_rows) != COLD_REPETITIONS
+        or len(cold_rows) != len(cold_raw)
+        or [str(row.get("sample_id", "") or "") for row in cold_rows]
+        != expected_cold_ids
+    ):
+        fail(
+            "baseline_cold_coverage",
+            "raw baseline must contain cold-01 through cold-07 exactly once in order",
+            mode="cold",
+        )
+    report_paths: list[str] = []
+    for repetition, row in enumerate(cold_rows, 1):
+        metrics, row_failures = _a48f00ce_process_envelope(
+            row,
+            target=target,
+            expected_sample_id=f"cold-{repetition:02d}",
+            repetitions=1,
+            warm=False,
+            provenance_sha256=provenance_sha256,
+            asset_id=target_id,
+        )
+        failures.extend(row_failures)
+        report_paths.append(str(row.get("report_path", "") or "").casefold())
+        if target_id:
+            normalized.append(
+                {
+                    "asset_id": target_id,
+                    "identity": target_identity,
+                    "mode": "cold",
+                    "repetition": repetition,
+                    "first_usable_ms": metrics.get("first_usable_ms"),
+                    "full_texture_readiness_ms": metrics.get(
+                        "full_texture_readiness_ms"
+                    ),
+                    "peak_private_bytes": metrics.get("peak_private_bytes"),
+                    "gpu_resident_bytes": metrics.get("gpu_resident_bytes"),
+                }
+            )
+    if len(set(report_paths)) != len(report_paths) or "" in report_paths:
+        fail(
+            "baseline_cold_process_isolation",
+            "each cold sample must bind a distinct hashed helper-process report",
+            mode="cold",
+        )
+    return normalized
+
+
 def _normalize_a48f00ce_packet(
     packet: Mapping[str, object],
     *,
@@ -2563,180 +2773,13 @@ def _normalize_a48f00ce_packet(
     if target_manifest_failure:
         fail("baseline_target_manifest", target_manifest_failure)
 
-    normalized: list[dict[str, object]] = []
-    cold_raw = _sequence(packet.get("cold_samples"))
-    cold_rows = [dict(row) for row in cold_raw if isinstance(row, Mapping)]
-    expected_cold_ids = [f"cold-{index:02d}" for index in range(1, 8)]
-    if (
-        len(cold_rows) != COLD_REPETITIONS
-        or len(cold_rows) != len(cold_raw)
-        or [str(row.get("sample_id", "") or "") for row in cold_rows]
-        != expected_cold_ids
-    ):
-        fail(
-            "baseline_cold_coverage",
-            "raw baseline must contain cold-01 through cold-07 exactly once in order",
-            mode="cold",
-        )
-    report_paths: list[str] = []
-    for repetition, row in enumerate(cold_rows, 1):
-        metrics, row_failures = _a48f00ce_process_envelope(
-            row,
-            target=target,
-            expected_sample_id=f"cold-{repetition:02d}",
-            repetitions=1,
-            warm=False,
-            provenance_sha256=provenance_sha256,
-            asset_id=target_id,
-        )
-        failures.extend(row_failures)
-        report_paths.append(str(row.get("report_path", "") or "").casefold())
-        if target_id:
-            normalized.append(
-                {
-                    "asset_id": target_id,
-                    "identity": target_identity,
-                    "mode": "cold",
-                    "repetition": repetition,
-                    "first_usable_ms": metrics.get("first_usable_ms"),
-                    "full_texture_readiness_ms": metrics.get(
-                        "full_texture_readiness_ms"
-                    ),
-                    "peak_private_bytes": metrics.get("peak_private_bytes"),
-                    "gpu_resident_bytes": metrics.get("gpu_resident_bytes"),
-                }
-            )
-    if len(set(report_paths)) != len(report_paths) or "" in report_paths:
-        fail(
-            "baseline_cold_process_isolation",
-            "each cold sample must bind a distinct hashed helper-process report",
-            mode="cold",
-        )
+    normalized = _normalize_baseline_cold_samples(fail, failures, packet, provenance_sha256, target, target_id, target_identity)
 
-    warm_batch = dict(_mapping(packet.get("warm_batch")))
-    warm_metrics, warm_batch_failures = _a48f00ce_process_envelope(
-        warm_batch,
-        target=target,
-        expected_sample_id="warm-resident-20",
-        repetitions=WARM_REPETITIONS,
-        warm=True,
-        provenance_sha256=provenance_sha256,
-        asset_id=target_id,
-    )
-    failures.extend(warm_batch_failures)
-    warm_raw = _sequence(packet.get("warm_samples"))
-    warm_rows = [dict(row) for row in warm_raw if isinstance(row, Mapping)]
-    expected_warm_ids = [f"warm-{index:02d}" for index in range(1, 21)]
-    expected_indices = list(range(WARM_REPETITIONS))
-    if (
-        len(warm_rows) != WARM_REPETITIONS
-        or len(warm_rows) != len(warm_raw)
-        or [str(row.get("sample_id", "") or "") for row in warm_rows]
-        != expected_warm_ids
-        or [_safe_int(row.get("repetition_index"), -1) for row in warm_rows]
-        != expected_indices
-    ):
-        fail(
-            "baseline_warm_coverage",
-            "raw baseline must contain warm-01 through warm-20 with exact indices",
-            mode="warm",
-        )
-    batch_id = str(warm_batch.get("resident_batch_id", "") or "")
-    generation = _safe_int(warm_batch.get("resident_process_generation"), -1)
-    warm_walls: list[float] = []
-    expected_warm_fields = {
-        "sample_id",
-        "baseline_provenance_sha256",
-        "repetition_index",
-        "wall_ms",
-        "resident_batch_id",
-        "resident_process_generation",
-        "package_load_count",
-        "package_reloads_between_repetitions",
-        "renderer_batch_count",
-        "renderer_device_count",
-        "texture_upload_pass_count",
-        "resource_reloads_between_repetitions",
-    }
-    for repetition, row in enumerate(warm_rows, 1):
-        wall_ms = _optional_number(row.get("wall_ms"))
-        require_ok = (
-            set(row) == expected_warm_fields
-            and str(row.get("baseline_provenance_sha256", "") or "").casefold()
-            == provenance_sha256
-            and _safe_int(row.get("repetition_index"), -1) == repetition - 1
-            and wall_ms is not None
-            and wall_ms > 0.0
-            and str(row.get("resident_batch_id", "") or "") == batch_id
-            and _safe_int(row.get("resident_process_generation"), -1) == generation
-            and _safe_int(row.get("package_load_count"), -1) == 1
-            and _safe_int(row.get("package_reloads_between_repetitions"), -1) == 0
-            and _safe_int(row.get("renderer_batch_count"), -1) == 1
-            and _safe_int(row.get("renderer_device_count"), -1) == 1
-            and _safe_int(row.get("texture_upload_pass_count"), -1) == 1
-            and _safe_int(row.get("resource_reloads_between_repetitions"), -1) == 0
-        )
-        if not require_ok:
-            fail(
-                "baseline_warm_residency",
-                f"warm repetition {repetition} is incomplete or not resident",
-                mode="warm",
-            )
-        if wall_ms is not None:
-            warm_walls.append(wall_ms)
-        if target_id:
-            normalized.append(
-                {
-                    "asset_id": target_id,
-                    "identity": target_identity,
-                    "mode": "warm",
-                    "repetition": repetition,
-                    "warm_capture_ms": wall_ms,
-                    "peak_private_bytes": warm_metrics.get("peak_private_bytes"),
-                    "gpu_resident_bytes": warm_metrics.get("gpu_resident_bytes"),
-                }
-            )
-    proof_walls = [
-        value
-        for raw in _sequence(
-            _mapping(warm_batch.get("warm_cache_proof")).get(
-                "per_repetition_wall_ms"
-            )
-        )
-        if (value := _optional_number(raw)) is not None
-    ]
-    if warm_walls != proof_walls:
-        fail(
-            "baseline_warm_timing_binding",
-            "warm sample timings do not exactly match the hashed resident report",
-            mode="warm",
-        )
+    _normalize_baseline_warm_samples(fail, failures, normalized, packet, provenance_sha256, target, target_id, target_identity)
     return normalized, target_id, failures
 
 
-def _a48f00ce_process_envelope(
-    row: Mapping[str, object],
-    *,
-    target: Mapping[str, object],
-    expected_sample_id: str,
-    repetitions: int,
-    warm: bool,
-    provenance_sha256: str,
-    asset_id: str,
-) -> tuple[dict[str, float], list[dict[str, object]]]:
-    failures: list[dict[str, object]] = []
-    mode = "warm" if warm else "cold"
-
-    def fail(gate: str, detail: str) -> None:
-        failure: dict[str, object] = {
-            "gate": gate,
-            "detail": detail,
-            "mode": mode,
-        }
-        if asset_id:
-            failure["asset_id"] = asset_id
-        failures.append(failure)
-
+def _validate_baseline_process_identity(expected_sample_id, fail, provenance_sha256, repetitions, row, target):
     expected_fields = {
         "sample_id",
         "baseline_provenance_sha256",
@@ -2794,6 +2837,32 @@ def _a48f00ce_process_envelope(
             "baseline_execution_attestation",
             f"{expected_sample_id} lacks explicit D3D12/no-timeout/no-restart/no-fallback proof",
         )
+
+
+def _a48f00ce_process_envelope(
+    row: Mapping[str, object],
+    *,
+    target: Mapping[str, object],
+    expected_sample_id: str,
+    repetitions: int,
+    warm: bool,
+    provenance_sha256: str,
+    asset_id: str,
+) -> tuple[dict[str, float], list[dict[str, object]]]:
+    failures: list[dict[str, object]] = []
+    mode = "warm" if warm else "cold"
+
+    def fail(gate: str, detail: str) -> None:
+        failure: dict[str, object] = {
+            "gate": gate,
+            "detail": detail,
+            "mode": mode,
+        }
+        if asset_id:
+            failure["asset_id"] = asset_id
+        failures.append(failure)
+
+    _validate_baseline_process_identity(expected_sample_id, fail, provenance_sha256, repetitions, row, target)
 
     numeric: dict[str, float] = {}
     for field in (
@@ -3384,6 +3453,132 @@ def _compare_repetition_samples(
     }
 
 
+def _require_cold_sample_timing(row, require):
+    require(
+        row.get("native_service_used") is False,
+        "cold_fresh_preview_core_process",
+        "cold sample must disable the resident Preview Core service",
+    )
+    require(
+        row.get("native_cache_started_empty") is True,
+        "cold_empty_cache",
+        "cold sample must start with an isolated empty cache",
+    )
+    require(
+        row.get("timing_basis") == "explicit_rust_phase_milestones_v1",
+        "cold_timing_basis",
+        "cold timing must use explicit Rust milestones",
+    )
+    try:
+        direct_phase = _validated_phase_timings(
+            {"phase_timings": _mapping(row.get("direct_phase_timings"))},
+            label="cold direct sample",
+        )
+        full_phase = _validated_phase_timings(
+            {"phase_timings": _mapping(row.get("full_phase_timings"))},
+            label="cold full sample",
+        )
+    except EquipmentPerformanceError as exc:
+        direct_phase = None
+        full_phase = None
+        require(False, "cold_phase_timings", str(exc))
+    timing_parts = {
+        key: _optional_number(row.get(key))
+        for key in (
+            "preview_core_wall_ms",
+            "direct_package_build_ms",
+            "full_package_build_ms",
+            "direct_process_boundary_overhead_ms",
+            "full_process_boundary_overhead_ms",
+            "direct_first_textured_frame_with_process_boundary_overhead_ms",
+            "full_texture_resources_ready_with_process_boundary_overhead_ms",
+            "direct_audit_completion_wall_ms",
+            "full_audit_completion_wall_ms",
+        )
+    }
+    require(
+        all(value is not None for value in timing_parts.values()),
+        "cold_timing_components",
+        "cold timing components are missing or non-finite",
+    )
+    if (
+        direct_phase is not None
+        and full_phase is not None
+        and all(value is not None for value in timing_parts.values())
+    ):
+        direct_audit_wall = float(timing_parts["direct_audit_completion_wall_ms"])
+        full_audit_wall = float(timing_parts["full_audit_completion_wall_ms"])
+        direct_boundary_overhead = max(
+            0.0, direct_audit_wall - direct_phase["audit_completion_ms"]
+        )
+        full_boundary_overhead = max(
+            0.0, full_audit_wall - full_phase["audit_completion_ms"]
+        )
+        direct_with_boundary = (
+            direct_boundary_overhead + direct_phase["first_textured_frame_ms"]
+        )
+        full_with_boundary = (
+            full_boundary_overhead + full_phase["texture_resources_ready_ms"]
+        )
+        require(
+            abs(
+                float(timing_parts["direct_process_boundary_overhead_ms"])
+                - direct_boundary_overhead
+            )
+            <= 0.01
+            and abs(
+                float(timing_parts["full_process_boundary_overhead_ms"])
+                - full_boundary_overhead
+            )
+            <= 0.01,
+            "cold_process_boundary_overhead",
+            "process boundary overhead does not match process wall minus audit completion",
+        )
+        require(
+            abs(
+                float(
+                    timing_parts[
+                        "direct_first_textured_frame_with_process_boundary_overhead_ms"
+                    ]
+                )
+                - direct_with_boundary
+            )
+            <= 0.01,
+            "cold_direct_phase_formula",
+            "direct first-frame timing does not match the explicit phase milestone",
+        )
+        require(
+            abs(
+                float(
+                    timing_parts[
+                        "full_texture_resources_ready_with_process_boundary_overhead_ms"
+                    ]
+                )
+                - full_with_boundary
+            )
+            <= 0.01,
+            "cold_full_phase_formula",
+            "full resource timing does not match the explicit phase milestone",
+        )
+        native = float(timing_parts["preview_core_wall_ms"])
+        direct_build = float(timing_parts["direct_package_build_ms"])
+        full_build = float(timing_parts["full_package_build_ms"])
+        expected_first = native + direct_build + direct_with_boundary
+        expected_full = native + direct_build + full_build + full_with_boundary
+        actual_first = _optional_number(row.get("first_usable_ms"))
+        actual_full = _optional_number(row.get("full_texture_readiness_ms"))
+        require(
+            actual_first is not None and abs(actual_first - expected_first) <= 0.01,
+            "cold_first_usable_formula",
+            "first usable includes something other than the direct first-frame path",
+        )
+        require(
+            actual_full is not None and abs(actual_full - expected_full) <= 0.01,
+            "cold_full_readiness_formula",
+            "full readiness does not match the sequential direct/full package path",
+        )
+
+
 def _sample_failures(
     row: Mapping[str, object], *, target_id: str, mode: str
 ) -> list[dict[str, object]]:
@@ -3495,129 +3690,7 @@ def _sample_failures(
         except EquipmentPerformanceError as exc:
             require(False, "warm_phase_timings", str(exc))
     else:
-        require(
-            row.get("native_service_used") is False,
-            "cold_fresh_preview_core_process",
-            "cold sample must disable the resident Preview Core service",
-        )
-        require(
-            row.get("native_cache_started_empty") is True,
-            "cold_empty_cache",
-            "cold sample must start with an isolated empty cache",
-        )
-        require(
-            row.get("timing_basis") == "explicit_rust_phase_milestones_v1",
-            "cold_timing_basis",
-            "cold timing must use explicit Rust milestones",
-        )
-        try:
-            direct_phase = _validated_phase_timings(
-                {"phase_timings": _mapping(row.get("direct_phase_timings"))},
-                label="cold direct sample",
-            )
-            full_phase = _validated_phase_timings(
-                {"phase_timings": _mapping(row.get("full_phase_timings"))},
-                label="cold full sample",
-            )
-        except EquipmentPerformanceError as exc:
-            direct_phase = None
-            full_phase = None
-            require(False, "cold_phase_timings", str(exc))
-        timing_parts = {
-            key: _optional_number(row.get(key))
-            for key in (
-                "preview_core_wall_ms",
-                "direct_package_build_ms",
-                "full_package_build_ms",
-                "direct_process_boundary_overhead_ms",
-                "full_process_boundary_overhead_ms",
-                "direct_first_textured_frame_with_process_boundary_overhead_ms",
-                "full_texture_resources_ready_with_process_boundary_overhead_ms",
-                "direct_audit_completion_wall_ms",
-                "full_audit_completion_wall_ms",
-            )
-        }
-        require(
-            all(value is not None for value in timing_parts.values()),
-            "cold_timing_components",
-            "cold timing components are missing or non-finite",
-        )
-        if (
-            direct_phase is not None
-            and full_phase is not None
-            and all(value is not None for value in timing_parts.values())
-        ):
-            direct_audit_wall = float(timing_parts["direct_audit_completion_wall_ms"])
-            full_audit_wall = float(timing_parts["full_audit_completion_wall_ms"])
-            direct_boundary_overhead = max(
-                0.0, direct_audit_wall - direct_phase["audit_completion_ms"]
-            )
-            full_boundary_overhead = max(
-                0.0, full_audit_wall - full_phase["audit_completion_ms"]
-            )
-            direct_with_boundary = (
-                direct_boundary_overhead + direct_phase["first_textured_frame_ms"]
-            )
-            full_with_boundary = (
-                full_boundary_overhead + full_phase["texture_resources_ready_ms"]
-            )
-            require(
-                abs(
-                    float(timing_parts["direct_process_boundary_overhead_ms"])
-                    - direct_boundary_overhead
-                )
-                <= 0.01
-                and abs(
-                    float(timing_parts["full_process_boundary_overhead_ms"])
-                    - full_boundary_overhead
-                )
-                <= 0.01,
-                "cold_process_boundary_overhead",
-                "process boundary overhead does not match process wall minus audit completion",
-            )
-            require(
-                abs(
-                    float(
-                        timing_parts[
-                            "direct_first_textured_frame_with_process_boundary_overhead_ms"
-                        ]
-                    )
-                    - direct_with_boundary
-                )
-                <= 0.01,
-                "cold_direct_phase_formula",
-                "direct first-frame timing does not match the explicit phase milestone",
-            )
-            require(
-                abs(
-                    float(
-                        timing_parts[
-                            "full_texture_resources_ready_with_process_boundary_overhead_ms"
-                        ]
-                    )
-                    - full_with_boundary
-                )
-                <= 0.01,
-                "cold_full_phase_formula",
-                "full resource timing does not match the explicit phase milestone",
-            )
-            native = float(timing_parts["preview_core_wall_ms"])
-            direct_build = float(timing_parts["direct_package_build_ms"])
-            full_build = float(timing_parts["full_package_build_ms"])
-            expected_first = native + direct_build + direct_with_boundary
-            expected_full = native + direct_build + full_build + full_with_boundary
-            actual_first = _optional_number(row.get("first_usable_ms"))
-            actual_full = _optional_number(row.get("full_texture_readiness_ms"))
-            require(
-                actual_first is not None and abs(actual_first - expected_first) <= 0.01,
-                "cold_first_usable_formula",
-                "first usable includes something other than the direct first-frame path",
-            )
-            require(
-                actual_full is not None and abs(actual_full - expected_full) <= 0.01,
-                "cold_full_readiness_formula",
-                "full readiness does not match the sequential direct/full package path",
-            )
+        _require_cold_sample_timing(row, require)
     required_metrics = (
         ("warm_capture_ms", "peak_private_bytes", "gpu_resident_bytes")
         if mode == "warm"

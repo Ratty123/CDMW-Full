@@ -369,6 +369,44 @@ def _parameter_row(
     }
 
 
+def _material_graph_wrappers(binding_rows, parameter_rows, raw_family):
+    wrappers_by_key: defaultdict[tuple[int, str], list[dict[str, object]]] = defaultdict(list)
+    for binding in binding_rows:
+        wrappers_by_key[
+            (
+                _safe_int(binding.get("owner_slot_index", -1)),
+                str(binding.get("owner_wrapper_item_id", "") or ""),
+            )
+        ].append(binding)
+    wrappers = [
+        {
+            "owner_slot_index": key[0],
+            "owner_wrapper_item_id": key[1],
+            "material_name": next(
+                (str(row.get("material_name", "") or "") for row in rows if row.get("material_name")),
+                "",
+            ),
+            "part_name": next(
+                (str(row.get("part_name", "") or "") for row in rows if row.get("part_name")),
+                "",
+            ),
+            "shader_family": next(
+                (str(row.get("shader_family", "") or "") for row in rows if row.get("shader_family")),
+                raw_family,
+            ),
+            "binding_count": len(rows),
+            "parameter_count": sum(
+                1
+                for parameter in parameter_rows
+                if _safe_int(parameter.get("owner_slot_index", -1)) == key[0]
+                and str(parameter.get("owner_wrapper_item_id", "") or "") == key[1]
+            ),
+        }
+        for key, rows in sorted(wrappers_by_key.items(), key=lambda item: item[0])
+    ]
+    return wrappers
+
+
 def build_pac_material_graph_v1(
     source: object | None,
     resolved_channels: Mapping[str, str] | None = None,
@@ -519,40 +557,7 @@ def build_pac_material_graph_v1(
             }
         )
 
-    wrappers_by_key: defaultdict[tuple[int, str], list[dict[str, object]]] = defaultdict(list)
-    for binding in binding_rows:
-        wrappers_by_key[
-            (
-                _safe_int(binding.get("owner_slot_index", -1)),
-                str(binding.get("owner_wrapper_item_id", "") or ""),
-            )
-        ].append(binding)
-    wrappers = [
-        {
-            "owner_slot_index": key[0],
-            "owner_wrapper_item_id": key[1],
-            "material_name": next(
-                (str(row.get("material_name", "") or "") for row in rows if row.get("material_name")),
-                "",
-            ),
-            "part_name": next(
-                (str(row.get("part_name", "") or "") for row in rows if row.get("part_name")),
-                "",
-            ),
-            "shader_family": next(
-                (str(row.get("shader_family", "") or "") for row in rows if row.get("shader_family")),
-                raw_family,
-            ),
-            "binding_count": len(rows),
-            "parameter_count": sum(
-                1
-                for parameter in parameter_rows
-                if _safe_int(parameter.get("owner_slot_index", -1)) == key[0]
-                and str(parameter.get("owner_wrapper_item_id", "") or "") == key[1]
-            ),
-        }
-        for key, rows in sorted(wrappers_by_key.items(), key=lambda item: item[0])
-    ]
+    wrappers = _material_graph_wrappers(binding_rows, parameter_rows, raw_family)
 
     dropped = [
         {

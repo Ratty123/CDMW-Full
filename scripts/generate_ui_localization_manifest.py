@@ -115,6 +115,9 @@ MANUAL_SOURCE_KEYS = frozenset(
         "warning",
         "{count} files",
         "{count} topics",
+        # Shared-memory descriptor validation is owned by the pure mesh domain.
+        # Its error is presented by the UI, but domain files are not scanned.
+        "Invalid resident interaction transaction descriptor.",
         # Associated Assets group headers. They are rendered from
         # `cdmw.domain.archives.association_vocabulary.ASSET_FAMILY_GROUP_ORDER`
         # so the panel, the dialog and the graph builder cannot disagree about

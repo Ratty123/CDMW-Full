@@ -25,6 +25,76 @@ from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlow
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
 
+def _exact_archive_identity_matches(declared_identity: object, entry, normalized_path, normalized_file_path) -> bool:
+    identity = entry.identity
+    expected_paz = normalized_file_path(entry.paz_file)
+    if isinstance(declared_identity, Mapping):
+        declared_path = normalized_path(
+            declared_identity.get("normalized_path", "")
+            or declared_identity.get("path", "")
+        )
+        declared_pamt = normalized_file_path(
+            declared_identity.get("source_pamt", "")
+            or declared_identity.get("pamt_path", "")
+        )
+        declared_paz = normalized_file_path(
+            declared_identity.get("paz_file", "")
+            or declared_identity.get("source_paz", "")
+        )
+        try:
+            declared_paz_index = int(declared_identity["paz_index"])
+            declared_offset = int(
+                declared_identity.get(
+                    "entry_offset",
+                    declared_identity.get("offset"),
+                )
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
+        return bool(
+            declared_path == identity.normalized_path
+            and declared_pamt == identity.source_pamt
+            and declared_paz == expected_paz
+            and declared_paz_index == identity.paz_index
+            and declared_offset == identity.entry_offset
+        )
+
+    raw = str(declared_identity or "").strip()
+    if not raw:
+        return False
+    parts = raw.split("::")
+    # Reference-preview packages retain this explicit archive identity.
+    if len(parts) == 5:
+        pamt, paz, offset, comp_size, source_path = parts
+        try:
+            return bool(
+                normalized_file_path(pamt) == identity.source_pamt
+                and normalized_file_path(paz) == expected_paz
+                and int(offset) == identity.entry_offset
+                and int(comp_size) == int(entry.comp_size)
+                and normalized_path(source_path) == identity.normalized_path
+            )
+        except (TypeError, ValueError, OverflowError):
+            return False
+    # Archive Browser's durable Python-preview cache key begins with
+    # the complete selected-entry identity before renderer settings.
+    if len(parts) >= 12 and parts[6].startswith("quality:"):
+        try:
+            return bool(
+                normalized_path(parts[0]) == identity.normalized_path
+                and normalized_file_path(parts[1]) == identity.source_pamt
+                and normalized_file_path(parts[3]) == expected_paz
+                and int(parts[7]) == identity.entry_offset
+                and int(parts[8]) == int(entry.comp_size)
+                and int(parts[9]) == int(entry.orig_size)
+                and int(parts[10]) == int(entry.flags)
+                and int(parts[11]) == identity.paz_index
+            )
+        except (TypeError, ValueError, OverflowError):
+            return False
+    return False
+
+
 class MeshEditorShellBridgeMixin:
     """Route shell/archive actions into Mesh Editor sessions."""
     def _export_current_archive_mesh(self, export_format: str) -> None:
@@ -205,75 +275,6 @@ class MeshEditorShellBridgeMixin:
             except (TypeError, ValueError, OverflowError):
                 return False
 
-        def exact_archive_identity_matches(declared_identity: object) -> bool:
-            identity = entry.identity
-            expected_paz = normalized_file_path(entry.paz_file)
-            if isinstance(declared_identity, Mapping):
-                declared_path = normalized_path(
-                    declared_identity.get("normalized_path", "")
-                    or declared_identity.get("path", "")
-                )
-                declared_pamt = normalized_file_path(
-                    declared_identity.get("source_pamt", "")
-                    or declared_identity.get("pamt_path", "")
-                )
-                declared_paz = normalized_file_path(
-                    declared_identity.get("paz_file", "")
-                    or declared_identity.get("source_paz", "")
-                )
-                try:
-                    declared_paz_index = int(declared_identity["paz_index"])
-                    declared_offset = int(
-                        declared_identity.get(
-                            "entry_offset",
-                            declared_identity.get("offset"),
-                        )
-                    )
-                except (KeyError, TypeError, ValueError, OverflowError):
-                    return False
-                return bool(
-                    declared_path == identity.normalized_path
-                    and declared_pamt == identity.source_pamt
-                    and declared_paz == expected_paz
-                    and declared_paz_index == identity.paz_index
-                    and declared_offset == identity.entry_offset
-                )
-
-            raw = str(declared_identity or "").strip()
-            if not raw:
-                return False
-            parts = raw.split("::")
-            # Reference-preview packages retain this explicit archive identity.
-            if len(parts) == 5:
-                pamt, paz, offset, comp_size, source_path = parts
-                try:
-                    return bool(
-                        normalized_file_path(pamt) == identity.source_pamt
-                        and normalized_file_path(paz) == expected_paz
-                        and int(offset) == identity.entry_offset
-                        and int(comp_size) == int(entry.comp_size)
-                        and normalized_path(source_path) == identity.normalized_path
-                    )
-                except (TypeError, ValueError, OverflowError):
-                    return False
-            # Archive Browser's durable Python-preview cache key begins with
-            # the complete selected-entry identity before renderer settings.
-            if len(parts) >= 12 and parts[6].startswith("quality:"):
-                try:
-                    return bool(
-                        normalized_path(parts[0]) == identity.normalized_path
-                        and normalized_file_path(parts[1]) == identity.source_pamt
-                        and normalized_file_path(parts[3]) == expected_paz
-                        and int(parts[7]) == identity.entry_offset
-                        and int(parts[8]) == int(entry.comp_size)
-                        and int(parts[9]) == int(entry.orig_size)
-                        and int(parts[10]) == int(entry.flags)
-                        and int(parts[11]) == identity.paz_index
-                    )
-                except (TypeError, ValueError, OverflowError):
-                    return False
-            return False
-
         def cache_dependency_identity_matches(cache_metadata: object) -> bool:
             if not isinstance(cache_metadata, Mapping):
                 return False
@@ -287,7 +288,7 @@ class MeshEditorShellBridgeMixin:
             ):
                 return False
             return any(
-                exact_archive_identity_matches(dependency)
+                _exact_archive_identity_matches(dependency, entry, normalized_path, normalized_file_path)
                 for dependency in dependencies
             )
 
@@ -333,8 +334,8 @@ class MeshEditorShellBridgeMixin:
                 "source_identity"
             ) or cache_metadata.get("archive_identity")
         if not (
-            exact_archive_identity_matches(scene_identity)
-            or exact_archive_identity_matches(cache_identity)
+            _exact_archive_identity_matches(scene_identity, entry, normalized_path, normalized_file_path)
+            or _exact_archive_identity_matches(cache_identity, entry, normalized_path, normalized_file_path)
         ):
             return False
         launch_signature = str(launch_input.get("material_signature", "") or "").strip()

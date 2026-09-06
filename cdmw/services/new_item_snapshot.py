@@ -25,7 +25,7 @@ from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
-from cdmw.core.paloc_format import LocalizationTable, language_of_paloc_path, parse_paloc
+from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, language_of_paloc_path, parse_paloc
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
 from cdmw.core.storeinfo_table import StoreInfoError, StoreRow, parse_store_table
 from cdmw.core.stringinfo_table import parse_stringinfo, stringinfo_index
@@ -54,7 +54,7 @@ class NewItemSnapshotError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class TablePair:
-    """A `.pabgb` payload and its `.pabgh` directory, with the entries they came from."""
+    """A table payload and row directory, with the entries they came from."""
 
     payload_entry: ArchiveEntry
     header_entry: ArchiveEntry
@@ -325,13 +325,20 @@ def _default_reader(entry: ArchiveEntry) -> bytes:
 
 
 def _table_pair(entries: Mapping[str, ArchiveEntry], read: ReadEntry, stem: str) -> TablePair:
-    payload_path = f"{TABLE_DIR}/{stem}.pabgb"
-    header_path = f"{TABLE_DIR}/{stem}.pabgh"
-    payload_entry = entries.get(payload_path)
-    header_entry = entries.get(header_path)
-    if payload_entry is None or header_entry is None:
-        raise NewItemSnapshotError(f"the archives have no {stem}.pabgb/.pabgh pair")
-    return TablePair(payload_entry, header_entry, bytes(read(payload_entry)), bytes(read(header_entry)))
+    paths = [(f"{TABLE_DIR}/{stem}.pabgb", f"{TABLE_DIR}/{stem}.pabgh")]
+    expected = f"{stem}.pabgb/.pabgh pair"
+    if stem in {"statusinfo", "equiptypeinfo"}:
+        # These read-only name tables also ship in the static-info directory with
+        # the same row layout. Select a complete pair; never combine layouts.
+        static_path = f"gamedata/binarystaticinfo__/bin/{stem}"
+        paths.append((f"{static_path}.staticinfobody", f"{static_path}.staticinfoheader"))
+        expected += f" or {stem}.staticinfobody/.staticinfoheader pair"
+    for payload_path, header_path in paths:
+        payload_entry = entries.get(payload_path)
+        header_entry = entries.get(header_path)
+        if payload_entry is not None and header_entry is not None:
+            return TablePair(payload_entry, header_entry, bytes(read(payload_entry)), bytes(read(header_entry)))
+    raise NewItemSnapshotError(f"the archives have no {expected}")
 
 
 def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:

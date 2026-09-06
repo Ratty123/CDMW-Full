@@ -103,6 +103,41 @@ class MeshExportValidationReport:
         return not self.blockers
 
 
+def _validate_export_container(issues, mesh_format, submeshes, exact_output):
+    supported_formats = (
+        SUPPORTED_GAME_MESH_FORMATS
+        if exact_output
+        else SUPPORTED_FREE_EDIT_MESH_FORMATS
+    )
+    if mesh_format not in supported_formats:
+        _add(
+            issues,
+            "blocker",
+            "unsupported_mesh_format",
+            f"Unsupported game mesh format for export: {mesh_format or 'unknown'}.",
+            "format",
+            expected=tuple(sorted(supported_formats)),
+            actual=mesh_format or "unknown",
+        )
+    if not submeshes:
+        _add(issues, "blocker", "empty_mesh", "Mesh has no parts to export.", "topology", expected=">=1", actual=0)
+
+
+def _validate_export_skeleton(issues, mesh, skinned, skeleton_bone_count):
+    if skinned and not skeleton_bone_count:
+        inferred_bone_count = _inferred_bone_count(mesh)
+        detail = f" Inferred bone count from vertex weights: {inferred_bone_count}." if inferred_bone_count else ""
+        _add(
+            issues,
+            "blocker",
+            "missing_skeleton_metadata",
+            f"Skinned mesh export needs linked skeleton metadata before export.{detail}",
+            "skeleton",
+            expected="linked skeleton metadata",
+            actual=inferred_bone_count or None,
+        )
+
+
 def validate_mesh_export(
     mesh: object,
     *,
@@ -127,23 +162,7 @@ def validate_mesh_export(
     issues: list[MeshExportValidationIssue] = []
     texture_keys = _texture_keys(available_textures) if available_textures is not None else None
 
-    supported_formats = (
-        SUPPORTED_GAME_MESH_FORMATS
-        if exact_output
-        else SUPPORTED_FREE_EDIT_MESH_FORMATS
-    )
-    if mesh_format not in supported_formats:
-        _add(
-            issues,
-            "blocker",
-            "unsupported_mesh_format",
-            f"Unsupported game mesh format for export: {mesh_format or 'unknown'}.",
-            "format",
-            expected=tuple(sorted(supported_formats)),
-            actual=mesh_format or "unknown",
-        )
-    if not submeshes:
-        _add(issues, "blocker", "empty_mesh", "Mesh has no parts to export.", "topology", expected=">=1", actual=0)
+    _validate_export_container(issues, mesh_format, submeshes, exact_output)
 
     vertex_total = 0
     face_total = 0
@@ -166,9 +185,7 @@ def validate_mesh_export(
             "active_lod_index",
             getattr(mesh, "displayed_lod_index", 0),
         )
-    )
-    if active_lod_index is None:
-        active_lod_index = 0
+    ) or 0
     for submesh_index, submesh in enumerate(submeshes):
         vertices = tuple(getattr(submesh, "vertices", ()) or ())
         uvs = tuple(getattr(submesh, "uvs", ()) or ())
@@ -226,18 +243,7 @@ def validate_mesh_export(
             mesh_format=mesh_format,
         ) or skinned
 
-    if skinned and not skeleton_bone_count:
-        inferred_bone_count = _inferred_bone_count(mesh)
-        detail = f" Inferred bone count from vertex weights: {inferred_bone_count}." if inferred_bone_count else ""
-        _add(
-            issues,
-            "blocker",
-            "missing_skeleton_metadata",
-            f"Skinned mesh export needs linked skeleton metadata before export.{detail}",
-            "skeleton",
-            expected="linked skeleton metadata",
-            actual=inferred_bone_count or None,
-        )
+    _validate_export_skeleton(issues, mesh, skinned, skeleton_bone_count)
 
     _validate_bounds(issues, mesh, geometry_points)
     if exact_output and original_mesh is not None:
@@ -533,72 +539,7 @@ def _validate_material(
         )
 
 
-def _validate_skinning(
-    issues: list[MeshExportValidationIssue],
-    submesh: object,
-    vertex_count: int,
-    submesh_index: int,
-    *,
-    original_submesh: object | None,
-    skeleton_bone_count: int | None,
-    safe_replacement_authorized: bool,
-    safe_replacement_palette_size: int | None,
-    exact_output: bool,
-    mesh_format: str,
-) -> bool:
-    bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
-    bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
-    has_skinning = bool(bone_indices or bone_weights)
-    if not has_skinning:
-        return False
-    if len(bone_indices) != vertex_count or len(bone_weights) != vertex_count:
-        _add(
-            issues,
-            "blocker",
-            "skinning_count_mismatch",
-            "Bone index/weight rows must match vertex count.",
-            "skeleton",
-            submesh_index=submesh_index,
-            expected=vertex_count,
-            actual={"bone_indices": len(bone_indices), "bone_weights": len(bone_weights)},
-        )
-        return True
-    topology_contract = _export_topology_contract(submesh, original_submesh)
-    changed_from_original = original_submesh is not None and _skinning_changed_from_original(
-        original_submesh, bone_indices, bone_weights, topology_contract=topology_contract
-    )
-    if changed_from_original:
-        if safe_replacement_authorized and exact_output and mesh_format == "pac":
-            _validate_safe_skin_weight_replacement(
-                issues,
-                submesh,
-                original_submesh,
-                submesh_index,
-                palette_size=safe_replacement_palette_size,
-            )
-        else:
-            _add(
-                issues,
-                "blocker",
-                (
-                    "skin_weight_operation_requires_exact_pac"
-                    if safe_replacement_authorized
-                    else "skinning_data_changed"
-                ),
-                (
-                    "Safe skin-weight replacement is available only for exact PAC LOD 0 output."
-                    if safe_replacement_authorized
-                    else "Bone indices and weights must match the original asset unless an explicit safe skinning operation exists."
-                ),
-                "skeleton",
-                submesh_index=submesh_index,
-                expected=(
-                    "exact PAC LOD 0 output"
-                    if safe_replacement_authorized
-                    else "original bone indices and weights"
-                ),
-                actual=(mesh_format or "unknown") if safe_replacement_authorized else "changed",
-            )
+def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract):
     preserved_unnormalized = False
     for vertex_index, (indices, weights) in enumerate(zip(bone_indices, bone_weights)):
         index_row = tuple(indices or ())
@@ -691,6 +632,75 @@ def _validate_skinning(
             expected="sum ~= 1.0",
             actual="preserved original values",
         )
+
+
+def _validate_skinning(
+    issues: list[MeshExportValidationIssue],
+    submesh: object,
+    vertex_count: int,
+    submesh_index: int,
+    *,
+    original_submesh: object | None,
+    skeleton_bone_count: int | None,
+    safe_replacement_authorized: bool,
+    safe_replacement_palette_size: int | None,
+    exact_output: bool,
+    mesh_format: str,
+) -> bool:
+    bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
+    bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
+    has_skinning = bool(bone_indices or bone_weights)
+    if not has_skinning:
+        return False
+    if len(bone_indices) != vertex_count or len(bone_weights) != vertex_count:
+        _add(
+            issues,
+            "blocker",
+            "skinning_count_mismatch",
+            "Bone index/weight rows must match vertex count.",
+            "skeleton",
+            submesh_index=submesh_index,
+            expected=vertex_count,
+            actual={"bone_indices": len(bone_indices), "bone_weights": len(bone_weights)},
+        )
+        return True
+    topology_contract = _export_topology_contract(submesh, original_submesh)
+    changed_from_original = original_submesh is not None and _skinning_changed_from_original(
+        original_submesh, bone_indices, bone_weights, topology_contract=topology_contract
+    )
+    if changed_from_original:
+        if safe_replacement_authorized and exact_output and mesh_format == "pac":
+            _validate_safe_skin_weight_replacement(
+                issues,
+                submesh,
+                original_submesh,
+                submesh_index,
+                palette_size=safe_replacement_palette_size,
+            )
+        else:
+            _add(
+                issues,
+                "blocker",
+                (
+                    "skin_weight_operation_requires_exact_pac"
+                    if safe_replacement_authorized
+                    else "skinning_data_changed"
+                ),
+                (
+                    "Safe skin-weight replacement is available only for exact PAC LOD 0 output."
+                    if safe_replacement_authorized
+                    else "Bone indices and weights must match the original asset unless an explicit safe skinning operation exists."
+                ),
+                "skeleton",
+                submesh_index=submesh_index,
+                expected=(
+                    "exact PAC LOD 0 output"
+                    if safe_replacement_authorized
+                    else "original bone indices and weights"
+                ),
+                actual=(mesh_format or "unknown") if safe_replacement_authorized else "changed",
+            )
+    _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract)
     return True
 
 
@@ -747,6 +757,56 @@ def _skin_weight_operation_palette_sizes(
             else -1
         )
     return palette_sizes
+
+
+def _validate_safe_skin_weight_rows(issues, submesh, submesh_index, palette_size):
+    bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
+    bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
+    proven_palette_size = _coerce_index(palette_size)
+    for vertex_index, (raw_indices, raw_weights) in enumerate(zip(bone_indices, bone_weights)):
+        indices = tuple(raw_indices or ())
+        weights = tuple(raw_weights or ())
+        clean_indices = tuple(_coerce_index(value) for value in indices)
+        clean_weights = tuple(_coerce_float(value) for value in weights)
+        invalid = (
+            not indices
+            or len(indices) != len(weights)
+            or len(indices) > MAX_SKIN_INFLUENCES
+            or any(
+                value is None
+                or value < 0
+                or value > 1023
+                or proven_palette_size is None
+                or proven_palette_size <= 0
+                or value >= proven_palette_size
+                for value in clean_indices
+            )
+            or len({value for value in clean_indices if value is not None}) != len(clean_indices)
+            or any(value is None or value < 0.0 for value in clean_weights)
+            or not math.isclose(
+                sum(value for value in clean_weights if value is not None),
+                1.0,
+                rel_tol=1.0e-6,
+                abs_tol=1.0e-6,
+            )
+        )
+        if not invalid:
+            continue
+        _add(
+            issues,
+            "blocker",
+            "invalid_safe_skin_weight_row",
+            "Safe PAC skin-weight rows must contain one to six unique slots from the original palette and finite, nonnegative normalized weights.",
+            "skeleton",
+            submesh_index=submesh_index,
+            vertex_index=vertex_index,
+            expected=(
+                f"1..6 unique slots in 0..{proven_palette_size - 1}; weights sum to 1"
+                if proven_palette_size is not None and proven_palette_size > 0
+                else "host-proven PAC palette size and 1..6 unique in-range slots; weights sum to 1"
+            ),
+            actual={"indices": indices, "weights": weights},
+        )
 
 
 def _validate_safe_skin_weight_replacement(
@@ -855,53 +915,7 @@ def _validate_safe_skin_weight_replacement(
             actual="protected extra influence lane is live",
         )
 
-    bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
-    bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
-    proven_palette_size = _coerce_index(palette_size)
-    for vertex_index, (raw_indices, raw_weights) in enumerate(zip(bone_indices, bone_weights)):
-        indices = tuple(raw_indices or ())
-        weights = tuple(raw_weights or ())
-        clean_indices = tuple(_coerce_index(value) for value in indices)
-        clean_weights = tuple(_coerce_float(value) for value in weights)
-        invalid = (
-            not indices
-            or len(indices) != len(weights)
-            or len(indices) > MAX_SKIN_INFLUENCES
-            or any(
-                value is None
-                or value < 0
-                or value > 1023
-                or proven_palette_size is None
-                or proven_palette_size <= 0
-                or value >= proven_palette_size
-                for value in clean_indices
-            )
-            or len({value for value in clean_indices if value is not None}) != len(clean_indices)
-            or any(value is None or value < 0.0 for value in clean_weights)
-            or not math.isclose(
-                sum(value for value in clean_weights if value is not None),
-                1.0,
-                rel_tol=1.0e-6,
-                abs_tol=1.0e-6,
-            )
-        )
-        if not invalid:
-            continue
-        _add(
-            issues,
-            "blocker",
-            "invalid_safe_skin_weight_row",
-            "Safe PAC skin-weight rows must contain one to six unique slots from the original palette and finite, nonnegative normalized weights.",
-            "skeleton",
-            submesh_index=submesh_index,
-            vertex_index=vertex_index,
-            expected=(
-                f"1..6 unique slots in 0..{proven_palette_size - 1}; weights sum to 1"
-                if proven_palette_size is not None and proven_palette_size > 0
-                else "host-proven PAC palette size and 1..6 unique in-range slots; weights sum to 1"
-            ),
-            actual={"indices": indices, "weights": weights},
-        )
+    _validate_safe_skin_weight_rows(issues, submesh, submesh_index, palette_size)
 
 
 def _skinning_row_matches_original(

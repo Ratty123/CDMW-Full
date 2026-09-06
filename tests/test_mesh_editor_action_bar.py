@@ -238,6 +238,13 @@ class _EmbeddedMeshBuilder(QFrame):
         for title in ("Setup", "Parts & Routing", "Mesh Editing", "Diagnostics"):
             self.tabs.addTab(QFrame(self.tabs), title)
         layout.addWidget(self.tabs)
+        # Retained static-replacement callers mount a shared preview host;
+        # the separate Rust authoring host intentionally has no such controller.
+        from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+
+        self.preview_host = DotNetPreviewHostFrame(self, profile=DotNetPreviewProfile.AUTHORING)
+        self.preview_host.setObjectName("AlignmentDotNetVorticePreviewHost")
+        layout.addWidget(self.preview_host)
         self.controller = MeshEditorController()
         self.controller.open_mesh(_build_two_part_synthetic_mesh(), session_id=str(session_id), mode="edit")
         self.part_actions: list[tuple[str, tuple[int, ...]]] = []
@@ -252,6 +259,9 @@ class _EmbeddedMeshBuilder(QFrame):
     def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
         self.setFont(font)
         self.tabs.setFont(font)
+        self.preview_host.setFont(font)
+        for child in self.preview_host.findChildren(QWidget):
+            child.setFont(font)
         self.synced_data_font = QFont(data_font or font)
 
     def _mesh_editor_embedded_apply_native_update(self, _native_update: object) -> bool:
@@ -409,6 +419,14 @@ def _install_shared_dotnet_test_process(
         if tab.standalone_dotnet_target_embedded
         else tab.standalone_native_host_frame
     )
+    if host.controller is None:
+        from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
+
+        host = DotNetPreviewHostFrame(tab, profile=DotNetPreviewProfile.AUTHORING)
+        if not tab.standalone_dotnet_target_embedded:
+            tab.standalone_preview_stack.addWidget(host)
+            tab.standalone_native_host_frame = host
+        tab.set_native_preview_host(host)
     controller = host.controller
     controller._process = process
     controller._process_generation = int(generation)

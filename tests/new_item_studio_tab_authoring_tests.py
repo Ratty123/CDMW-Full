@@ -789,6 +789,41 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
+    def _assert_model_columns_fit_window_sizes(self, tab, panel):
+        for width, height in ((1720, 720), (1920, 900)):
+            tab.resize(width, height)
+            self.app.processEvents()
+            panel.model_icon_scroll.verticalScrollBar().setValue(0)
+            first_y = panel.keep_model.mapTo(panel.model_icon_scroll.viewport(), panel.keep_model.rect().topLeft()).y()
+            next_y = panel.import_model.mapTo(panel.model_icon_scroll.viewport(), panel.import_model.rect().topLeft()).y()
+            self.assertLessEqual(first_y, 12, f"the Model/Icon column starts without a dead title gutter at {width}x{height}")
+            self.assertLessEqual(next_y - first_y, 36, f"the model choice stays compact at {width}x{height}")
+            self.assertTrue(panel.model_group.isVisibleTo(panel))
+            self.assertTrue(panel.icon_group.isVisibleTo(panel))
+            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
+            self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
+            self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
+            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
+            self.assertEqual(panel.preview_group.height(), panel.workspace_splitter.height())
+            self.assertGreaterEqual(panel.preview.height(), 300)
+            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.workspace_splitter.rect().bottom())
+            self.assertLessEqual(panel.preview.geometry().bottom(), panel.preview_group.rect().bottom())
+
+            panel.import_model.setChecked(True)
+            self.app.processEvents()
+            panel.model_icon_scroll.verticalScrollBar().setValue(0)
+            self.assertEqual(
+                panel.model_icon_scroll.verticalScrollBar().maximum(),
+                0,
+                f"the inactive-Glow imported-model form fits without scrolling at {width}x{height}",
+            )
+            self.assertTrue(panel.glow_parts.isHidden(), "inactive Glow details do not consume the model pane")
+            self.assertTrue(panel.icon_group.isVisibleTo(panel))
+            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
+            blender_y = panel.blender_button.mapTo(panel.model_icon_scroll.viewport(), panel.blender_button.rect().topLeft()).y()
+            self.assertLessEqual(blender_y, 260, f"the complete model form stays packed at {width}x{height}")
+
+
     def test_model_workspace_shows_model_icon_placement_and_preview_in_three_columns(self) -> None:
         from PySide6.QtGui import QPalette
         from PySide6.QtWidgets import QScrollArea, QSizePolicy, QTabWidget
@@ -879,38 +914,7 @@ class _TabAuthoringMixin:
         panel.keep_physics.setVisible(True)
         panel.flip_texture_v.setVisible(True)
 
-        for width, height in ((1720, 720), (1920, 900)):
-            tab.resize(width, height)
-            self.app.processEvents()
-            panel.model_icon_scroll.verticalScrollBar().setValue(0)
-            first_y = panel.keep_model.mapTo(panel.model_icon_scroll.viewport(), panel.keep_model.rect().topLeft()).y()
-            next_y = panel.import_model.mapTo(panel.model_icon_scroll.viewport(), panel.import_model.rect().topLeft()).y()
-            self.assertLessEqual(first_y, 12, f"the Model/Icon column starts without a dead title gutter at {width}x{height}")
-            self.assertLessEqual(next_y - first_y, 36, f"the model choice stays compact at {width}x{height}")
-            self.assertTrue(panel.model_group.isVisibleTo(panel))
-            self.assertTrue(panel.icon_group.isVisibleTo(panel))
-            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
-            self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
-            self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
-            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
-            self.assertEqual(panel.preview_group.height(), panel.workspace_splitter.height())
-            self.assertGreaterEqual(panel.preview.height(), 300)
-            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.workspace_splitter.rect().bottom())
-            self.assertLessEqual(panel.preview.geometry().bottom(), panel.preview_group.rect().bottom())
-
-            panel.import_model.setChecked(True)
-            self.app.processEvents()
-            panel.model_icon_scroll.verticalScrollBar().setValue(0)
-            self.assertEqual(
-                panel.model_icon_scroll.verticalScrollBar().maximum(),
-                0,
-                f"the inactive-Glow imported-model form fits without scrolling at {width}x{height}",
-            )
-            self.assertTrue(panel.glow_parts.isHidden(), "inactive Glow details do not consume the model pane")
-            self.assertTrue(panel.icon_group.isVisibleTo(panel))
-            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
-            blender_y = panel.blender_button.mapTo(panel.model_icon_scroll.viewport(), panel.blender_button.rect().topLeft()).y()
-            self.assertLessEqual(blender_y, 260, f"the complete model form stays packed at {width}x{height}")
+        self._assert_model_columns_fit_window_sizes(tab, panel)
 
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)

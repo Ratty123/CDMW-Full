@@ -403,7 +403,10 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
         state["native_package_path"] = ""
         calls.append("release_texture_package")
 
-    dialog = SimpleNamespace(deleteLater=lambda: calls.append("delete_dialog"))
+    dialog = SimpleNamespace(
+        findChildren=lambda _kind: [],
+        deleteLater=lambda: calls.append("delete_dialog"),
+    )
     preview_timer = SimpleNamespace(name="preview_timer", stop=lambda: None)
     tree_timer = SimpleNamespace(name="tree_timer", stop=lambda: None)
     owner = SimpleNamespace(

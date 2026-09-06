@@ -60,6 +60,40 @@ void invert_green_channel(DirectX::ScratchImage& image) {
 
 }  // namespace
 
+static std::string preview_result_json(const PreviewJob& job, const DirectX::TexMetadata& metadata, size_t target_width, size_t target_height, const std::string& output_pixel_type, double elapsed) {
+    const bool bc_compressed = is_bc_compressed_format(metadata.format);
+    const bool normal_green_inverted = should_invert_green(job);
+    std::ostringstream out;
+    out << "{"
+        << "\"status\":\"decoded\","
+        << "\"protocol_version\":2,"
+        << "\"backend\":\"directxtex_native_0.2\","
+        << "\"native_backend\":\"directxtex\","
+        << "\"source_path\":\"" << json_escape(wide_to_utf8(job.input)) << "\","
+        << "\"output_path\":\"" << json_escape(wide_to_utf8(job.output)) << "\","
+        << "\"slot\":\"" << json_escape(job.slot) << "\","
+        << "\"format\":\"" << dxgi_format_name(metadata.format) << "\","
+        << "\"dxgi_format\":" << static_cast<unsigned int>(metadata.format) << ","
+        << "\"compressed\":" << (bc_compressed ? "true" : "false") << ","
+        << "\"compressed_family\":\"" << json_escape(bc_family(metadata.format)) << "\","
+        << "\"srgb\":" << (is_srgb_format(metadata.format) ? "true" : "false") << ","
+        << "\"direct_upload_candidate\":" << (bc_compressed ? "true" : "false") << ","
+        << "\"width\":" << metadata.width << ","
+        << "\"height\":" << metadata.height << ","
+        << "\"prepared_width\":" << target_width << ","
+        << "\"prepared_height\":" << target_height << ","
+        << "\"mip_count\":" << metadata.mipLevels << ","
+        << "\"requested_mip\":" << job.requested_mip << ","
+        << "\"output_pixel_type\":\"" << json_escape(output_pixel_type) << "\","
+        << "\"dds_alpha_mode\":\"" << alpha_mode_name(metadata.GetAlphaMode()) << "\","
+        << "\"normal_space\":\""
+        << (normal_green_inverted ? "green_up_inverted" : json_escape(job.normal_space)) << "\","
+        << "\"normal_green_inverted\":" << (normal_green_inverted ? "true" : "false") << ","
+        << "\"decode_ms\":" << elapsed
+        << "}";
+    return out.str();
+}
+
 std::string decode_preview_job(const PreviewJob& job) {
     const auto started = std::chrono::steady_clock::now();
     const std::string output_pixel_type = lower_copy(job.output_pixel_type);
@@ -181,37 +215,7 @@ std::string decode_preview_job(const PreviewJob& job) {
         return preview_error(job, hresult_message("SaveToWICFile", hr));
     }
 
-    const bool bc_compressed = is_bc_compressed_format(metadata.format);
-    const bool normal_green_inverted = should_invert_green(job);
-    std::ostringstream out;
-    out << "{"
-        << "\"status\":\"decoded\","
-        << "\"protocol_version\":2,"
-        << "\"backend\":\"directxtex_native_0.2\","
-        << "\"native_backend\":\"directxtex\","
-        << "\"source_path\":\"" << json_escape(wide_to_utf8(job.input)) << "\","
-        << "\"output_path\":\"" << json_escape(wide_to_utf8(job.output)) << "\","
-        << "\"slot\":\"" << json_escape(job.slot) << "\","
-        << "\"format\":\"" << dxgi_format_name(metadata.format) << "\","
-        << "\"dxgi_format\":" << static_cast<unsigned int>(metadata.format) << ","
-        << "\"compressed\":" << (bc_compressed ? "true" : "false") << ","
-        << "\"compressed_family\":\"" << json_escape(bc_family(metadata.format)) << "\","
-        << "\"srgb\":" << (is_srgb_format(metadata.format) ? "true" : "false") << ","
-        << "\"direct_upload_candidate\":" << (bc_compressed ? "true" : "false") << ","
-        << "\"width\":" << metadata.width << ","
-        << "\"height\":" << metadata.height << ","
-        << "\"prepared_width\":" << target_width << ","
-        << "\"prepared_height\":" << target_height << ","
-        << "\"mip_count\":" << metadata.mipLevels << ","
-        << "\"requested_mip\":" << job.requested_mip << ","
-        << "\"output_pixel_type\":\"" << json_escape(output_pixel_type) << "\","
-        << "\"dds_alpha_mode\":\"" << alpha_mode_name(metadata.GetAlphaMode()) << "\","
-        << "\"normal_space\":\""
-        << (normal_green_inverted ? "green_up_inverted" : json_escape(job.normal_space)) << "\","
-        << "\"normal_green_inverted\":" << (normal_green_inverted ? "true" : "false") << ","
-        << "\"decode_ms\":" << elapsed
-        << "}";
-    return out.str();
+    return preview_result_json(job, metadata, target_width, target_height, output_pixel_type, elapsed);
 }
 
 static std::string decode_preview_guarded(const PreviewJob& job) {

@@ -752,11 +752,7 @@ def test_stroke_geometry_gate_uses_the_full_authoritative_multisubmesh_selection
     assert state.changed_only_selected_geometry is True
 
 
-def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
-    monkeypatch,
-) -> None:
-    from tools.mesh_harness import real_dotnet
-
+def _frontmost_submesh_pair():
     submesh = SimpleNamespace(
         vertices=[
             (0.0, 0.0, 0.0),
@@ -776,6 +772,15 @@ def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
         ],
         faces=[(0, 1, 2)],
     )
+    return submesh, frontmost_submesh
+
+
+def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
+    monkeypatch,
+) -> None:
+    from tools.mesh_harness import real_dotnet
+
+    submesh, frontmost_submesh = _frontmost_submesh_pair()
     projected_world_points: list[tuple[float, float, float]] = []
     tool_state_events = iter(
         (

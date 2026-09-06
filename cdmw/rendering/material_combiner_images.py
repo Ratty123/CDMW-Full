@@ -513,83 +513,10 @@ def _seed_target_from_layer(
     return target
 
 
-def _generate_synthesized_albedo_map(
-    base_image: QImage,
-    layer_inputs: Sequence[PreviewMaterialTextureInput],
-    mask_inputs: dict[str, PreviewMaterialTextureInput],
-    output_dir: Path,
-    stem: str,
-    *,
-    flip_vertical: bool,
-    max_dimension: int,
-    neutral_base_color: Tuple[float, float, float] = (),
-    color_blending_mask_input: Optional[PreviewMaterialTextureInput] = None,
-    color_blending_tints: Sequence[Tuple[float, float, float]] = (),
-    preserve_base_alpha: bool = False,
-    prefer_largest_source_domain: bool = False,
-    cancelled: Callable[[], bool] | None = None,
-) -> Tuple[str, str]:
-    _raise_if_material_combiner_cancelled(cancelled)
-    prepared_base = (
-        QImage()
-        if len(neutral_base_color) >= 3
-        else _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    )
-    source_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
-    for item in layer_inputs:
-        _raise_if_material_combiner_cancelled(cancelled)
-        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
-        if image.isNull():
-            continue
-        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-        if prepared.isNull():
-            continue
-        prepared = _apply_pac_layer_sampling_transform(
-            prepared,
-            item,
-            cancelled=cancelled,
-        )
-        source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
-    color_blending_mask = QImage()
-    if color_blending_mask_input is not None and len(color_blending_tints) >= 3:
-        color_blending_mask = _image_reader(
-            str(getattr(color_blending_mask_input, "preview_texture_path", "") or ""),
-            max_dimension=max_dimension,
-        )
-        if not color_blending_mask.isNull():
-            color_blending_mask = _support_source_image(
-                color_blending_mask,
-                flip_vertical=flip_vertical,
-                max_dimension=max_dimension,
-            ).convertToFormat(QImage.Format.Format_RGBA8888)
-    if prepared_base.isNull() and not source_layers and color_blending_mask.isNull():
-        return "", ""
-
-    prepared_masks: dict[str, QImage] = {}
-    for role, item in mask_inputs.items():
-        _raise_if_material_combiner_cancelled(cancelled)
-        image = _image_reader(
-            str(getattr(item, "preview_texture_path", "") or ""),
-            max_dimension=max_dimension,
-        )
-        if image.isNull():
-            continue
-        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-        if prepared.isNull():
-            continue
-        prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
-
-    target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
-    target, width, height, layer_start = _initialize_synthesized_albedo_target(
-        prepared_base,
-        source_layers,
-        color_blending_mask,
-        neutral_base_color,
-        tuple(prepared_masks.values()) if prefer_largest_source_domain else (),
-        preserve_base_alpha=preserve_base_alpha,
-        cancelled=cancelled,
-    )
-
+def _apply_albedo_selector_dye(
+    target, color_blending_mask, color_blending_tints, width, height, target_format, preserve_base_alpha,
+    cancelled,
+):
     color_blending_seed_applied = False
     color_blending_dye_strengths = _selector_dye_strengths(
         color_blending_tints
@@ -677,6 +604,92 @@ def _generate_synthesized_albedo_map(
                         ),
                     )
         color_blending_seed_applied = True
+    return target, color_blending_seed_applied
+
+
+def _generate_synthesized_albedo_map(
+    base_image: QImage,
+    layer_inputs: Sequence[PreviewMaterialTextureInput],
+    mask_inputs: dict[str, PreviewMaterialTextureInput],
+    output_dir: Path,
+    stem: str,
+    *,
+    flip_vertical: bool,
+    max_dimension: int,
+    neutral_base_color: Tuple[float, float, float] = (),
+    color_blending_mask_input: Optional[PreviewMaterialTextureInput] = None,
+    color_blending_tints: Sequence[Tuple[float, float, float]] = (),
+    preserve_base_alpha: bool = False,
+    prefer_largest_source_domain: bool = False,
+    cancelled: Callable[[], bool] | None = None,
+) -> Tuple[str, str]:
+    _raise_if_material_combiner_cancelled(cancelled)
+    prepared_base = (
+        QImage()
+        if len(neutral_base_color) >= 3
+        else _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    )
+    source_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
+    for item in layer_inputs:
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
+        if image.isNull():
+            continue
+        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+        if prepared.isNull():
+            continue
+        prepared = _apply_pac_layer_sampling_transform(
+            prepared,
+            item,
+            cancelled=cancelled,
+        )
+        source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
+    color_blending_mask = QImage()
+    if color_blending_mask_input is not None and len(color_blending_tints) >= 3:
+        color_blending_mask = _image_reader(
+            str(getattr(color_blending_mask_input, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if not color_blending_mask.isNull():
+            color_blending_mask = _support_source_image(
+                color_blending_mask,
+                flip_vertical=flip_vertical,
+                max_dimension=max_dimension,
+            ).convertToFormat(QImage.Format.Format_RGBA8888)
+    if prepared_base.isNull() and not source_layers and color_blending_mask.isNull():
+        return "", ""
+
+    prepared_masks: dict[str, QImage] = {}
+    for role, item in mask_inputs.items():
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(
+            str(getattr(item, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if image.isNull():
+            continue
+        prepared = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+        if prepared.isNull():
+            continue
+        prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+
+    target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
+    target, width, height, layer_start = _initialize_synthesized_albedo_target(
+        prepared_base,
+        source_layers,
+        color_blending_mask,
+        neutral_base_color,
+        tuple(prepared_masks.values()) if prefer_largest_source_domain else (),
+        preserve_base_alpha=preserve_base_alpha,
+        cancelled=cancelled,
+    )
+
+    (
+        target, color_blending_seed_applied,
+    ) = _apply_albedo_selector_dye(
+        target, color_blending_mask, color_blending_tints, width, height, target_format, preserve_base_alpha,
+        cancelled,
+    )
 
     for role, prepared in tuple(prepared_masks.items()):
         if int(prepared.width()) != width or int(prepared.height()) != height:
@@ -832,20 +845,7 @@ def _selector_reference_lumas(target, selector_mask, *, cancelled=None):
     )
 
 
-def _blend_selector_tints(
-    target,
-    selector_mask,
-    tints,
-    *,
-    target_format,
-    preserve_base_alpha: bool,
-    cancelled=None,
-):
-    """Apply the PAC RGB palette without erasing the source texture's value detail."""
-
-    numpy = numpy_module()
-    if numpy is None or target.isNull() or selector_mask.isNull():
-        return None
+def _selector_tint_palette(numpy, tints):
     palette = numpy.zeros((3, 3), dtype=numpy.float64)
     channel_strengths = numpy.array(
         _selector_dye_strengths(tints),
@@ -861,6 +861,27 @@ def _blend_selector_tints(
             ]
     except (TypeError, ValueError, OverflowError):
         return None
+    return palette, channel_strengths
+
+
+def _blend_selector_tints(
+    target,
+    selector_mask,
+    tints,
+    *,
+    target_format,
+    preserve_base_alpha: bool,
+    cancelled=None,
+):
+    """Apply the PAC RGB palette without erasing the source texture's value detail."""
+
+    numpy = numpy_module()
+    if numpy is None or target.isNull() or selector_mask.isNull():
+        return None
+    palette_state = _selector_tint_palette(numpy, tints)
+    if palette_state is None:
+        return None
+    palette, channel_strengths = palette_state
     if not bool(channel_strengths.any()):
         return target.convertToFormat(target_format)
     base_rgba = target.convertToFormat(QImage.Format.Format_RGBA8888)
@@ -1109,39 +1130,7 @@ def _compose_albedo_layer(
     return result, tinted_detail
 
 
-def _generate_spec_gloss_preview_albedo_map(
-    base_image: QImage,
-    spec_gloss_image: QImage,
-    output_dir: Path,
-    stem: str,
-    *,
-    flip_vertical: bool,
-    max_dimension: int,
-    prefer_largest_source_domain: bool = False,
-    preserve_base_alpha: bool = False,
-    cancelled: Callable[[], bool] | None = None,
-) -> Tuple[str, str]:
-    _raise_if_material_combiner_cancelled(cancelled)
-    spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    if spec_source.isNull():
-        return "", ""
-    base_source = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    if prefer_largest_source_domain:
-        target_size = _largest_meaningful_image_size(
-            (spec_source, base_source),
-            max_dimension=max_dimension,
-        )
-        width = int(target_size.width())
-        height = int(target_size.height())
-        if int(spec_source.width()) != width or int(spec_source.height()) != height:
-            spec_source = spec_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-    else:
-        width = int(spec_source.width())
-        height = int(spec_source.height())
-    if width <= 0 or height <= 0:
-        return "", ""
-    if not base_source.isNull() and (int(base_source.width()) != width or int(base_source.height()) != height):
-        base_source = base_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+def _vectorized_spec_gloss_albedo(spec_source, base_source, width, height, preserve_base_alpha, cancelled):
     spec_rgba = spec_source.convertToFormat(QImage.Format.Format_RGBA8888)
     base_rgba = base_source.convertToFormat(QImage.Format.Format_RGBA8888) if not base_source.isNull() else QImage()
     target_format = (
@@ -1262,6 +1251,47 @@ def _generate_spec_gloss_preview_albedo_map(
                     )
         except (BufferError, MemoryError, TypeError, ValueError):
             vectorized = False
+    return spec_rgba, base_rgba, target, target_format, vectorized
+
+
+def _generate_spec_gloss_preview_albedo_map(
+    base_image: QImage,
+    spec_gloss_image: QImage,
+    output_dir: Path,
+    stem: str,
+    *,
+    flip_vertical: bool,
+    max_dimension: int,
+    prefer_largest_source_domain: bool = False,
+    preserve_base_alpha: bool = False,
+    cancelled: Callable[[], bool] | None = None,
+) -> Tuple[str, str]:
+    _raise_if_material_combiner_cancelled(cancelled)
+    spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if spec_source.isNull():
+        return "", ""
+    base_source = _support_source_image(base_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
+    if prefer_largest_source_domain:
+        target_size = _largest_meaningful_image_size(
+            (spec_source, base_source),
+            max_dimension=max_dimension,
+        )
+        width = int(target_size.width())
+        height = int(target_size.height())
+        if int(spec_source.width()) != width or int(spec_source.height()) != height:
+            spec_source = spec_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    else:
+        width = int(spec_source.width())
+        height = int(spec_source.height())
+    if width <= 0 or height <= 0:
+        return "", ""
+    if not base_source.isNull() and (int(base_source.width()) != width or int(base_source.height()) != height):
+        base_source = base_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    (
+        spec_rgba, base_rgba, target, target_format, vectorized,
+    ) = _vectorized_spec_gloss_albedo(
+        spec_source, base_source, width, height, preserve_base_alpha, cancelled,
+    )
     if not vectorized:
         target = QImage(width, height, target_format)
         for y in range(height):
@@ -1573,6 +1603,43 @@ def _numpy_unit_bytes(np, values):
     return np.clip(np.rint(np.clip(values, 0.0, 1.0) * 255.0), 0, 255).astype(np.uint8)
 
 
+def _apply_vectorized_external_factors(np, external_factors, ao, roughness, metalness, specular):
+    has_external_factors = bool(getattr(external_factors, "input_present", False))
+    factor_mode = str(getattr(external_factors, "mode", "") or "")
+    roughness_factor = getattr(external_factors, "roughness_factor", None)
+    metallic_factor = getattr(external_factors, "metallic_factor", None)
+    glossiness_factor = getattr(external_factors, "glossiness_factor", None)
+    specular_factor = getattr(external_factors, "specular_factor", None)
+    specular_color = float(getattr(external_factors, "specular_color", 0.0) or 0.0)
+    occlusion_strength = getattr(external_factors, "occlusion_strength", None)
+    if has_external_factors:
+        if factor_mode == "metallic_roughness":
+            if roughness_factor is not None:
+                roughness = np.clip(roughness * float(roughness_factor), 0.0, 1.0)
+            if metallic_factor is not None:
+                metalness = np.clip(metalness * float(metallic_factor), 0.0, 1.0)
+        elif factor_mode in {"specular_glossiness", "glossiness"}:
+            if glossiness_factor is not None:
+                glossiness = np.clip((1.0 - roughness) * float(glossiness_factor), 0.0, 1.0)
+                roughness = np.clip(1.0 - glossiness, 0.04, 0.98)
+            if specular_factor is not None:
+                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+            if specular_color > 0.0:
+                specular = np.clip(specular * specular_color, 0.0, 1.0)
+        elif factor_mode in {"specular", "clearcoat", "sheen"}:
+            if specular_factor is not None:
+                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+            if specular_color > 0.0:
+                specular = np.clip(specular * specular_color, 0.0, 1.0)
+        if occlusion_strength is not None:
+            ao = np.clip(1.0 + (ao - 1.0) * float(occlusion_strength), 0.45, 1.0)
+        ao = np.clip(ao, 0.45, 1.0)
+        roughness = np.clip(roughness, 0.04, 1.0)
+        metalness = np.clip(metalness, 0.0, 1.0)
+        specular = np.clip(specular, 0.0, 1.0)
+    return ao, roughness, metalness, specular
+
+
 def _vectorised_material_maps(
     *,
     mode: str,
@@ -1612,14 +1679,6 @@ def _vectorised_material_maps(
     if np is None:
         return None
 
-    has_external_factors = bool(getattr(external_factors, "input_present", False))
-    factor_mode = str(getattr(external_factors, "mode", "") or "")
-    roughness_factor = getattr(external_factors, "roughness_factor", None)
-    metallic_factor = getattr(external_factors, "metallic_factor", None)
-    glossiness_factor = getattr(external_factors, "glossiness_factor", None)
-    specular_factor = getattr(external_factors, "specular_factor", None)
-    specular_color = float(getattr(external_factors, "specular_color", 0.0) or 0.0)
-    occlusion_strength = getattr(external_factors, "occlusion_strength", None)
     metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(surface_category)
     mask_channel_index = _LAYER_CHANNEL_INDEX.get(mask_channel, 0)
     metal_peak = 0.0
@@ -1656,31 +1715,7 @@ def _vectorised_material_maps(
             metalness = slot("metalness")
             specular = slot("specular")
 
-            if has_external_factors:
-                if factor_mode == "metallic_roughness":
-                    if roughness_factor is not None:
-                        roughness = np.clip(roughness * float(roughness_factor), 0.0, 1.0)
-                    if metallic_factor is not None:
-                        metalness = np.clip(metalness * float(metallic_factor), 0.0, 1.0)
-                elif factor_mode in {"specular_glossiness", "glossiness"}:
-                    if glossiness_factor is not None:
-                        glossiness = np.clip((1.0 - roughness) * float(glossiness_factor), 0.0, 1.0)
-                        roughness = np.clip(1.0 - glossiness, 0.04, 0.98)
-                    if specular_factor is not None:
-                        specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
-                    if specular_color > 0.0:
-                        specular = np.clip(specular * specular_color, 0.0, 1.0)
-                elif factor_mode in {"specular", "clearcoat", "sheen"}:
-                    if specular_factor is not None:
-                        specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
-                    if specular_color > 0.0:
-                        specular = np.clip(specular * specular_color, 0.0, 1.0)
-                if occlusion_strength is not None:
-                    ao = np.clip(1.0 + (ao - 1.0) * float(occlusion_strength), 0.45, 1.0)
-                ao = np.clip(ao, 0.45, 1.0)
-                roughness = np.clip(roughness, 0.04, 1.0)
-                metalness = np.clip(metalness, 0.0, 1.0)
-                specular = np.clip(specular, 0.0, 1.0)
+            ao, roughness, metalness, specular = _apply_vectorized_external_factors(np, external_factors, ao, roughness, metalness, specular)
 
             source_metalness = metalness
             if force_nonmetal_skin:
@@ -1777,6 +1812,60 @@ def _has_authoritative_pac_layer_metal_response(
     )
 
 
+def _resolve_material_surface_hints(decode_mode, input_item, surface_category, force_nonmetal_surface):
+    mode = str(decode_mode or "").strip().lower()
+    shader_rule = _texture_rule_for_input(input_item) if input_item is not None else ""
+    force_nonmetal_skin = bool(shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"})
+    resolved_surface_category = str(surface_category or "").strip().lower() or _material_surface_category(input_item)
+    resolved_force_nonmetal_surface = bool(
+        surface_category in _NONMETAL_RESPONSE_LIMITS
+        and not force_nonmetal_skin
+        and not _strong_metallic_override(input_item)
+    )
+    if force_nonmetal_surface is not None:
+        resolved_force_nonmetal_surface = bool(force_nonmetal_surface)
+    else:
+        resolved_force_nonmetal_surface = bool(
+            resolved_surface_category in _NONMETAL_RESPONSE_LIMITS
+            and not force_nonmetal_skin
+            and not _strong_metallic_override(input_item)
+        )
+    force_nonmetal_surface = resolved_force_nonmetal_surface
+    surface_category = resolved_surface_category
+    preserve_authored_metal_islands = _has_authoritative_pac_layer_metal_response(
+        input_item,
+        decode_mode,
+    )
+    apply_sidecar_hints = bool(
+        input_item is not None
+        and not force_nonmetal_skin
+        and shader_rule in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard", "static_multitextured", "static_standard"}
+    )
+    metallic_hint = 0.0
+    roughness_hint = 0.0
+    specular_hint = 0.0
+    if apply_sidecar_hints and input_item is not None:
+        channel = _layer_channel(input_item)
+        metallic_hint = _material_parameter_channel_hint(input_item, channel, "metallic", "metalness", "scratchmetallic")
+        roughness_hint = _material_parameter_channel_hint(input_item, channel, "roughness", "scratchroughness")
+        specular_hint = _material_parameter_hint(input_item, "specular", "specularamount")
+    return mode, force_nonmetal_skin, surface_category, force_nonmetal_surface, preserve_authored_metal_islands, apply_sidecar_hints, metallic_hint, roughness_hint, specular_hint
+
+
+def _requested_material_map_output_flags(decode_mode, requested_slots):
+    emit_occlusion, emit_roughness, emit_metalness, emit_specular = _material_decode_output_flags(decode_mode)
+    if requested_slots is not None:
+        normalized_requested_slots = {
+            "metalness" if str(slot or "").strip().casefold() == "metallic" else str(slot or "").strip().casefold()
+            for slot in requested_slots
+        }
+        emit_occlusion = emit_occlusion and "occlusion" in normalized_requested_slots
+        emit_roughness = emit_roughness and "roughness" in normalized_requested_slots
+        emit_metalness = emit_metalness and "metalness" in normalized_requested_slots
+        emit_specular = emit_specular and "specular" in normalized_requested_slots
+    return emit_occlusion, emit_roughness, emit_metalness, emit_specular
+
+
 def _generate_material_maps(
     image: QImage,
     output_dir: Path,
@@ -1845,16 +1934,7 @@ def _generate_material_maps(
     effective_layer_weight = _clamp(layer_weight, 0.0, 1.0)
     if not mask_source.isNull() and effective_layer_weight <= 0.001:
         return (), ("", "", "", "")
-    emit_occlusion, emit_roughness, emit_metalness, emit_specular = _material_decode_output_flags(decode_mode)
-    if requested_slots is not None:
-        normalized_requested_slots = {
-            "metalness" if str(slot or "").strip().casefold() == "metallic" else str(slot or "").strip().casefold()
-            for slot in requested_slots
-        }
-        emit_occlusion = emit_occlusion and "occlusion" in normalized_requested_slots
-        emit_roughness = emit_roughness and "roughness" in normalized_requested_slots
-        emit_metalness = emit_metalness and "metalness" in normalized_requested_slots
-        emit_specular = emit_specular and "specular" in normalized_requested_slots
+    emit_occlusion, emit_roughness, emit_metalness, emit_specular = _requested_material_map_output_flags(decode_mode, requested_slots)
     if not any((emit_occlusion, emit_roughness, emit_metalness, emit_specular)):
         return (), ("", "", "", "")
     # Layer maps are RGBA: RGB carries the decoded value, alpha carries how much
@@ -1876,42 +1956,12 @@ def _generate_material_maps(
         or (emit_specular and spec_view is None)
     ):
         return (), ("", "", "", "")
-    mode = str(decode_mode or "").strip().lower()
-    shader_rule = _texture_rule_for_input(input_item) if input_item is not None else ""
-    force_nonmetal_skin = bool(shader_rule == "skin" or mode in {"skin_material", "skin_detail_mask"})
-    resolved_surface_category = str(surface_category or "").strip().lower() or _material_surface_category(input_item)
-    resolved_force_nonmetal_surface = bool(
-        surface_category in _NONMETAL_RESPONSE_LIMITS
-        and not force_nonmetal_skin
-        and not _strong_metallic_override(input_item)
+    (
+        mode, force_nonmetal_skin, surface_category, force_nonmetal_surface, preserve_authored_metal_islands,
+        apply_sidecar_hints, metallic_hint, roughness_hint, specular_hint,
+    ) = _resolve_material_surface_hints(
+        decode_mode, input_item, surface_category, force_nonmetal_surface,
     )
-    if force_nonmetal_surface is not None:
-        resolved_force_nonmetal_surface = bool(force_nonmetal_surface)
-    else:
-        resolved_force_nonmetal_surface = bool(
-            resolved_surface_category in _NONMETAL_RESPONSE_LIMITS
-            and not force_nonmetal_skin
-            and not _strong_metallic_override(input_item)
-        )
-    force_nonmetal_surface = resolved_force_nonmetal_surface
-    surface_category = resolved_surface_category
-    preserve_authored_metal_islands = _has_authoritative_pac_layer_metal_response(
-        input_item,
-        decode_mode,
-    )
-    apply_sidecar_hints = bool(
-        input_item is not None
-        and not force_nonmetal_skin
-        and shader_rule in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "standard", "static_multitextured", "static_standard"}
-    )
-    metallic_hint = 0.0
-    roughness_hint = 0.0
-    specular_hint = 0.0
-    if apply_sidecar_hints and input_item is not None:
-        channel = _layer_channel(input_item)
-        metallic_hint = _material_parameter_channel_hint(input_item, channel, "metallic", "metalness", "scratchmetallic")
-        roughness_hint = _material_parameter_channel_hint(input_item, channel, "roughness", "scratchroughness")
-        specular_hint = _material_parameter_hint(input_item, "specular", "specularamount")
     metal_peak = 0.0
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0

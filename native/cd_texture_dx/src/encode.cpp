@@ -83,6 +83,23 @@ size_t maximum_mip_count(size_t width, size_t height) {
 
 }  // namespace
 
+static DirectX::WIC_FLAGS source_policy_wic_flags(const std::string& source_color_policy) {
+    DirectX::WIC_FLAGS wic_flags = DirectX::WIC_FLAGS_NONE;
+    if (source_color_policy == "ignore_srgb_metadata") {
+        wic_flags = static_cast<DirectX::WIC_FLAGS>(
+            static_cast<unsigned int>(wic_flags) |
+            static_cast<unsigned int>(DirectX::WIC_FLAGS_IGNORE_SRGB)
+        );
+    } else if (source_color_policy == "assume_srgb") {
+        wic_flags = static_cast<DirectX::WIC_FLAGS>(
+            static_cast<unsigned int>(wic_flags) |
+            static_cast<unsigned int>(DirectX::WIC_FLAGS_DEFAULT_SRGB)
+        );
+    }
+
+    return wic_flags;
+}
+
 std::string encode_dds_job(const EncodeJob& job) {
     const auto started = std::chrono::steady_clock::now();
     if (!job.overwrite && fs::exists(fs::path(job.output))) {
@@ -112,18 +129,7 @@ std::string encode_dds_job(const EncodeJob& job) {
         return encode_error(job, "unsupported dds_alpha_mode " + job.dds_alpha_mode);
     }
 
-    DirectX::WIC_FLAGS wic_flags = DirectX::WIC_FLAGS_NONE;
-    if (source_color_policy == "ignore_srgb_metadata") {
-        wic_flags = static_cast<DirectX::WIC_FLAGS>(
-            static_cast<unsigned int>(wic_flags) |
-            static_cast<unsigned int>(DirectX::WIC_FLAGS_IGNORE_SRGB)
-        );
-    } else if (source_color_policy == "assume_srgb") {
-        wic_flags = static_cast<DirectX::WIC_FLAGS>(
-            static_cast<unsigned int>(wic_flags) |
-            static_cast<unsigned int>(DirectX::WIC_FLAGS_DEFAULT_SRGB)
-        );
-    }
+    const DirectX::WIC_FLAGS wic_flags = source_policy_wic_flags(source_color_policy);
 
     DirectX::ScratchImage source_image;
     DirectX::TexMetadata source_metadata{};

@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import string
+
+RESIDENT_INTERACTION_FORMAT_VERSION = 2
+RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION = 1
+RESIDENT_INTERACTION_MAPPING_PREFIX = "Local\\CDMW.MeshInteraction."
+RESIDENT_INTERACTION_MAX_BYTES = 128 * 1024 * 1024
 
 
 def _mapping_tuple(values: Sequence[Mapping[str, object]]) -> tuple[dict[str, object], ...]:
@@ -118,3 +124,96 @@ class ResidentMutationBatch:
 
 
 __all__ = ["ResidentMutationBatch"]
+
+
+_RESIDENT_INTERACTION_DESCRIPTOR_FIELDS = (
+    "mapping_name",
+    "length",
+    "sha256",
+    "session_id",
+    "gesture_id",
+    "transaction_sequence",
+    "tool",
+    "base_revision",
+    "target_revision",
+    "base_selection_revision",
+    "target_selection_revision",
+    "topology_generation",
+    "request_id",
+    "process_generation",
+    "helper_process_id",
+    "format_version",
+)
+
+def _resident_interaction_descriptor(payload: Mapping[str, object]) -> dict[str, object]:
+    descriptor = {name: payload.get(name) for name in _RESIDENT_INTERACTION_DESCRIPTOR_FIELDS}
+    mapping_name = str(descriptor["mapping_name"] or "")
+    suffix = mapping_name.removeprefix(RESIDENT_INTERACTION_MAPPING_PREFIX)
+    sha256 = str(descriptor["sha256"] or "")
+    format_version = descriptor["format_version"]
+    if type(format_version) is not int:
+        raise ValueError("Invalid resident interaction transaction descriptor.")
+    required_names = {
+        "gesture_id",
+        "base_revision",
+        "base_selection_revision",
+        "topology_generation",
+        "format_version",
+    }
+    if int(format_version) == RESIDENT_INTERACTION_FORMAT_VERSION:
+        required_names.update(
+            {
+                "transaction_sequence",
+                "tool",
+                "target_revision",
+                "target_selection_revision",
+                "request_id",
+                "process_generation",
+                "helper_process_id",
+            }
+        )
+    if (
+        not mapping_name.startswith(RESIDENT_INTERACTION_MAPPING_PREFIX)
+        or len(suffix) != 32
+        or any(character not in string.hexdigits for character in suffix)
+        or len(sha256) != 64
+        or any(character not in string.hexdigits for character in sha256)
+        or not str(descriptor["session_id"] or "")
+        or any(type(descriptor[name]) is not int for name in required_names)
+        or type(descriptor["length"]) is not int
+        or int(descriptor["length"] or 0) <= 0
+        or int(descriptor["gesture_id"] or 0) <= 0
+        or int(descriptor["format_version"] or 0) not in {
+            RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
+            RESIDENT_INTERACTION_FORMAT_VERSION,
+        }
+        or (
+            int(descriptor["format_version"] or 0) == RESIDENT_INTERACTION_FORMAT_VERSION
+            and (
+                int(descriptor["transaction_sequence"] or 0) <= 0
+                or int(descriptor["request_id"] or 0) <= 0
+                or int(descriptor["process_generation"] or 0) <= 0
+                or int(descriptor["helper_process_id"] or 0) <= 0
+            )
+        )
+    ):
+        raise ValueError("Invalid resident interaction transaction descriptor.")
+    descriptor["mapping_name"] = mapping_name
+    descriptor["sha256"] = sha256.lower()
+    descriptor["session_id"] = str(descriptor["session_id"])
+    if int(format_version) == RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION:
+        descriptor = {
+            name: descriptor[name]
+            for name in (
+                "mapping_name",
+                "length",
+                "sha256",
+                "session_id",
+                "gesture_id",
+                "base_revision",
+                "base_selection_revision",
+                "topology_generation",
+                "format_version",
+            )
+        }
+    return descriptor

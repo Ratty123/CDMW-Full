@@ -698,10 +698,81 @@ def test_limitation_requires_exact_supported_effect_and_complete_source_evidence
     assert invalidated["unreviewed_count"] == 1
 
 
-def test_source_only_rows_need_parser_derived_non_rendered_dispositions(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _assert_reviewed_source_dispositions_invalidate_on_change(
+    index, tmp_path, packet, excluded, authored_labels, row_hashes, parsed_empty_hash, prefab_path,
+):
+    second_unit = index["assets"][1]["source_disposition_review_unit"]
+    second_facts = {
+        "catalogue_identity": "cd_boss_reward_masterthief.pac",
+        "owner_item_ids": [1002159],
+        "owner_record_ids": ["1828-1002159"],
+        "item_row_sha256s": {"1002159": row_hashes[1002159]},
+        "item_type": 4_001,
+        "equip_type_key": 0,
+        "equipment_slot_count": 0,
+        "icon_only_false_positive": True,
+    }
+    record_equipment_review_units(
+        tmp_path,
+        [second_unit],
+        verdict="EXCLUDED_CATALOGUE_DEFECT",
+        observations="The second parsed row is also a non-equipment catalogue defect.",
+        disposition_evidence={
+            **excluded,
+            "review_unit_id": second_unit,
+            "source_facts": second_facts,
+        },
+    )
+
+    third_unit = index["assets"][2]["source_disposition_review_unit"]
+    authored = {
+        "schema": EQUIPMENT_REVIEW_SOURCE_DISPOSITION_SCHEMA,
+        "review_unit_id": third_unit,
+        "disposition": "AUTHORED_EMPTY",
+        "source_facts": {
+            "catalogue_identity": "cd_t0000_fist_0001.pac",
+            "owner_item_ids": [1001523, 1003687, 1003688],
+            "owner_record_ids": [
+                "1770-1001523",
+                "1771-1003687",
+                "1772-1003688",
+            ],
+            "item_row_sha256s": {
+                "1001523": row_hashes[1001523],
+                "1003687": row_hashes[1003687],
+                "1003688": row_hashes[1003688],
+            },
+            "item_type": 108,
+            "equip_type_key": 0x3338361E,
+            "equipment_slot_count": 0,
+            "authoritative_part_hash": parsed_empty_hash,
+            "authoritative_part_stem": "cd_t9999_empty",
+            "authoritative_prefab": prefab_path,
+            "authoritative_prefab_selection": True,
+            "model_edge_count": 0,
+        },
+        "source_evidence": [packet[label] for label in authored_labels],
+    }
+    completed = record_equipment_review_units(
+        tmp_path,
+        [third_unit],
+        verdict="AUTHORED_EMPTY",
+        observations="The selected source prefab authoritatively contains no model edge.",
+        disposition_evidence=authored,
+    )
+    assert completed["ok"] is True
+    assert completed["rendered_pass_count"] == 0
+    assert completed["excluded_catalogue_defect_count"] == 2
+    assert completed["authored_empty_count"] == 1
+    assert completed["reviewed_count"] == 3
+
+    packet_path = tmp_path / packet["iteminfo_payload"]["path"]
+    packet_path.write_bytes(packet_path.read_bytes() + b"changed")
+    invalidated = summarize_equipment_review(tmp_path)
+    assert invalidated["unreviewed_count"] == 3
+
+
+def _write_source_disposition_assets(tmp_path):
     source_assets = (
         (
             "cd_boss_reward_bigmoney.pac",
@@ -755,6 +826,14 @@ def test_source_only_rows_need_parser_derived_non_rendered_dispositions(
         )
     _write_capture_manifest(tmp_path, assets)
     _write_frozen_source_inputs(tmp_path, assets)
+    return assets
+
+
+def test_source_only_rows_need_parser_derived_non_rendered_dispositions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assets = _write_source_disposition_assets(tmp_path)
     index = build_equipment_review_index(
         tmp_path,
         expected_asset_count=3,
@@ -858,75 +937,7 @@ def test_source_only_rows_need_parser_derived_non_rendered_dispositions(
         disposition_evidence=excluded,
     )
 
-    second_unit = index["assets"][1]["source_disposition_review_unit"]
-    second_facts = {
-        "catalogue_identity": "cd_boss_reward_masterthief.pac",
-        "owner_item_ids": [1002159],
-        "owner_record_ids": ["1828-1002159"],
-        "item_row_sha256s": {"1002159": row_hashes[1002159]},
-        "item_type": 4_001,
-        "equip_type_key": 0,
-        "equipment_slot_count": 0,
-        "icon_only_false_positive": True,
-    }
-    record_equipment_review_units(
-        tmp_path,
-        [second_unit],
-        verdict="EXCLUDED_CATALOGUE_DEFECT",
-        observations="The second parsed row is also a non-equipment catalogue defect.",
-        disposition_evidence={
-            **excluded,
-            "review_unit_id": second_unit,
-            "source_facts": second_facts,
-        },
-    )
-
-    third_unit = index["assets"][2]["source_disposition_review_unit"]
-    authored = {
-        "schema": EQUIPMENT_REVIEW_SOURCE_DISPOSITION_SCHEMA,
-        "review_unit_id": third_unit,
-        "disposition": "AUTHORED_EMPTY",
-        "source_facts": {
-            "catalogue_identity": "cd_t0000_fist_0001.pac",
-            "owner_item_ids": [1001523, 1003687, 1003688],
-            "owner_record_ids": [
-                "1770-1001523",
-                "1771-1003687",
-                "1772-1003688",
-            ],
-            "item_row_sha256s": {
-                "1001523": row_hashes[1001523],
-                "1003687": row_hashes[1003687],
-                "1003688": row_hashes[1003688],
-            },
-            "item_type": 108,
-            "equip_type_key": 0x3338361E,
-            "equipment_slot_count": 0,
-            "authoritative_part_hash": parsed_empty_hash,
-            "authoritative_part_stem": "cd_t9999_empty",
-            "authoritative_prefab": prefab_path,
-            "authoritative_prefab_selection": True,
-            "model_edge_count": 0,
-        },
-        "source_evidence": [packet[label] for label in authored_labels],
-    }
-    completed = record_equipment_review_units(
-        tmp_path,
-        [third_unit],
-        verdict="AUTHORED_EMPTY",
-        observations="The selected source prefab authoritatively contains no model edge.",
-        disposition_evidence=authored,
-    )
-    assert completed["ok"] is True
-    assert completed["rendered_pass_count"] == 0
-    assert completed["excluded_catalogue_defect_count"] == 2
-    assert completed["authored_empty_count"] == 1
-    assert completed["reviewed_count"] == 3
-
-    packet_path = tmp_path / packet["iteminfo_payload"]["path"]
-    packet_path.write_bytes(packet_path.read_bytes() + b"changed")
-    invalidated = summarize_equipment_review(tmp_path)
-    assert invalidated["unreviewed_count"] == 3
+    _assert_reviewed_source_dispositions_invalidate_on_change(index, tmp_path, packet, excluded, authored_labels, row_hashes, parsed_empty_hash, prefab_path)
 
 
 def test_review_index_accepts_idempotently_finalized_source_only_capture(

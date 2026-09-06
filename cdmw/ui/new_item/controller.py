@@ -18,7 +18,7 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
 from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
-from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable
+from cdmw.services.new_item_snapshot import LocalizationEntry, LocalizationTable
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec

@@ -289,8 +289,10 @@ def test_source_evidence_matches_batch_by_declared_path_after_source_default(
     assert textures[0]["declared_source_missing"] is True
 
 
+@pytest.mark.parametrize("include_other_batch", [False, True])
 def test_source_evidence_keeps_colliding_local_owner_edges_component_scoped(
     tmp_path: Path,
+    include_other_batch: bool,
 ) -> None:
     source = tmp_path / "native" / "shared.dds"
     source.parent.mkdir()
@@ -337,20 +339,35 @@ def test_source_evidence_keeps_colliding_local_owner_edges_component_scoped(
         ],
     }
 
+    if include_other_batch:
+        manifest["batches"].append(
+            {
+                "index": 1,
+                "component_scope_id": scopes[1],
+                "material_name": "component-b",
+                "dds_textures": {
+                    "material_inputs": [{**descriptor, "component_scope_id": scopes[1]}]
+                },
+            }
+        )
+
     textures, material_state = capture._publish_material_source_evidence(
         manifest,
         source_cache_root=tmp_path / "source-cache",
     )
 
     assert [row["component_scope_id"] for row in textures] == list(scopes)
-    assert [row["submesh_indices"] for row in textures] == [[0], []]
+    assert [row["submesh_indices"] for row in textures] == [[0], [1] if include_other_batch else []]
+    assert [row["component_scope_id"] for row in material_state["submeshes"]] == list(
+        scopes if include_other_batch else scopes[:1]
+    )
     assert [
         row["component_scope_id"]
         for row in material_state["submeshes"][0]["pac_xml_parameters"]
     ] == [scopes[0]]
     assert [
         row["component_scope_id"] for row in material_state["unassigned_parameters"]
-    ] == [scopes[1]]
+    ] == ([] if include_other_batch else [scopes[1]])
 
 
 def test_component_identity_validation_distinguishes_component_local_owners() -> None:

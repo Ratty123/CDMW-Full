@@ -80,8 +80,8 @@ def step_style(palette) -> str:
     text = palette.color(QPalette.ColorRole.WindowText).name()
     muted = muted_color(palette)
     caution = palette.color(QPalette.ColorRole.Link).name()
-    hover = palette.color(QPalette.ColorRole.Highlight).lighter(112).name()
-    pressed = palette.color(QPalette.ColorRole.Highlight).darker(115).name()
+    hover = palette.color(QPalette.ColorRole.Button).name()
+    pressed = palette.color(QPalette.ColorRole.Mid).name()
     disabled = palette.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText).name()
     return (STEP_STYLE % {"muted": muted}) + f"""
         QWidget#new_item_steps, QStackedWidget {{ background: {background}; }}
@@ -125,8 +125,8 @@ def step_style(palette) -> str:
             min-height: 32px; padding: 0 16px; border-radius: 5px;
             color: {active_text}; background: {active}; border: 1px solid {active}; font-weight: 600;
         }}
-        QPushButton[newItemPrimary="true"]:hover {{ background: {hover}; border-color: {hover}; }}
-        QPushButton[newItemPrimary="true"]:pressed {{ background: {pressed}; border-color: {pressed}; }}
+        QPushButton[newItemPrimary="true"]:hover {{ color: {text}; background: {hover}; border-color: {active}; }}
+        QPushButton[newItemPrimary="true"]:pressed {{ color: {text}; background: {pressed}; border-color: {active}; }}
         QPushButton[newItemPrimary="true"]:focus {{ border: 2px solid {text}; }}
         QPushButton[newItemPrimary="true"]:disabled {{ background: {panel}; color: {disabled}; border-color: {border}; }}
         QToolButton[effectChip="true"]:hover {{ border-color: {active}; }}

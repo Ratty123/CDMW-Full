@@ -38,19 +38,20 @@ class _ResidentToolStateHost:
 @pytest.mark.parametrize("modify_original_clone_mode", (False, True))
 def test_real_builder_opens_dotnet_in_orbit_with_part_brush_defaults(
     modify_original_clone_mode: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with open_mesh_builder(
         modify_original_clone_mode=modify_original_clone_mode,
         dialog_title="Mesh Editor neutral defaults",
-    ) as builder:
+    ) as builder, monkeypatch.context() as patch:
         sync = builder.control("_sync_mesh_edit_preview_settings")
         assert isinstance(sync, partial)
         state, callbacks = sync.args[:2]
         host = _ResidentToolStateHost()
-        state.alignment_d3d11_preview_host = host
-        state._alignment_d3d11_preview_active = lambda: True
-        state._mesh_edit_tab_active = lambda: True
-        callbacks._mesh_edit_can_edit_scope = lambda: (True, "")
+        patch.setattr(state, "alignment_d3d11_preview_host", host)
+        patch.setattr(state, "_alignment_d3d11_preview_active", lambda: True)
+        patch.setattr(state, "_mesh_edit_tab_active", lambda: True)
+        patch.setattr(callbacks, "_mesh_edit_can_edit_scope", lambda: (True, ""))
         state.mesh_edit_enabled_checkbox.blockSignals(True)
         state.mesh_edit_enabled_checkbox.setChecked(True)
         state.mesh_edit_enabled_checkbox.blockSignals(False)
@@ -71,29 +72,33 @@ def test_real_builder_opens_dotnet_in_orbit_with_part_brush_defaults(
         assert host.alignment_transform_count == 0
 
 
-def test_real_builder_tool_click_publishes_one_tool_state_without_scene_or_display_replay() -> None:
+def test_real_builder_tool_click_publishes_one_tool_state_without_scene_or_display_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with open_mesh_builder(
         modify_original_clone_mode=True,
         dialog_title="Mesh Editor tool publication",
-    ) as builder:
+    ) as builder, monkeypatch.context() as patch:
         sync = builder.control("_sync_mesh_edit_preview_settings")
         adopt_tool = builder.control("_mesh_editor_dotnet_tool_changed")
         assert isinstance(sync, partial)
         assert isinstance(adopt_tool, partial)
         state, callbacks = sync.args[:2]
         host = _ResidentToolStateHost()
-        state.alignment_d3d11_preview_host = host
-        state._alignment_d3d11_preview_active = lambda: True
-        state._mesh_edit_tab_active = lambda: True
-        callbacks._mesh_edit_can_edit_scope = lambda: (True, "")
+        patch.setattr(state, "alignment_d3d11_preview_host", host)
+        patch.setattr(state, "_alignment_d3d11_preview_active", lambda: True)
+        patch.setattr(state, "_mesh_edit_tab_active", lambda: True)
+        patch.setattr(callbacks, "_mesh_edit_can_edit_scope", lambda: (True, ""))
         state.mesh_edit_enabled_checkbox.blockSignals(True)
         state.mesh_edit_enabled_checkbox.setChecked(True)
         state.mesh_edit_enabled_checkbox.blockSignals(False)
         action_state_updates: list[dict[str, object]] = []
-        state.self.shell.mesh_editor_tab = SimpleNamespace(
-            update_editor_action_state=lambda **payload: action_state_updates.append(
-                dict(payload)
-            )
+        patch.setattr(
+            state.self.shell,
+            "mesh_editor_tab",
+            SimpleNamespace(
+                update_editor_action_state=lambda **payload: action_state_updates.append(dict(payload))
+            ),
         )
 
         assert adopt_tool({"tool": "grab"})

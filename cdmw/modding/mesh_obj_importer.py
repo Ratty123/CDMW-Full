@@ -689,6 +689,32 @@ def _match_obj_roundtrip_sidecar_submeshes(
 #  OBJ IMPORTER
 # ═══════════════════════════════════════════════════════════════════════
 
+def _build_obj_import_result(
+    source_path, source_format, submeshes, sidecar_payload, matched_sidecar_entries, material_texture_map,
+    obj_path,
+):
+    result = ParsedMesh(
+        path=source_path,
+        format=source_format,
+        submeshes=submeshes,
+        total_vertices=sum(len(s.vertices) for s in submeshes),
+        total_faces=sum(len(s.faces) for s in submeshes),
+        has_uvs=any(s.uvs for s in submeshes),
+    )
+    _attach_obj_sidecar_source_identity(result, sidecar_payload)
+    _attach_obj_sidecar_lod_identity(result, sidecar_payload)
+    _attach_obj_sidecar_warnings(result, matched_sidecar_entries, material_texture_map)
+    _attach_obj_sidecar_edit_operations(result, matched_sidecar_entries, sidecar_payload, Path(obj_path).name)
+
+    if result.submeshes:
+        all_v = [v for s in submeshes for v in s.vertices]
+        if all_v:
+            xs, ys, zs = zip(*all_v)
+            result.bbox_min = (min(xs), min(ys), min(zs))
+            result.bbox_max = (max(xs), max(ys), max(zs))
+    return result
+
+
 def import_obj(
     obj_path: str,
     *,
@@ -1034,25 +1060,7 @@ def import_obj(
         if any(not 0 <= corner[2] < len(all_normals) for corner in corners):
             submesh.normals = _compute_smooth_normals(submesh.vertices, submesh.faces)
 
-    result = ParsedMesh(
-        path=source_path,
-        format=source_format,
-        submeshes=submeshes,
-        total_vertices=sum(len(s.vertices) for s in submeshes),
-        total_faces=sum(len(s.faces) for s in submeshes),
-        has_uvs=any(s.uvs for s in submeshes),
-    )
-    _attach_obj_sidecar_source_identity(result, sidecar_payload)
-    _attach_obj_sidecar_lod_identity(result, sidecar_payload)
-    _attach_obj_sidecar_warnings(result, matched_sidecar_entries, material_texture_map)
-    _attach_obj_sidecar_edit_operations(result, matched_sidecar_entries, sidecar_payload, Path(obj_path).name)
-
-    if result.submeshes:
-        all_v = [v for s in submeshes for v in s.vertices]
-        if all_v:
-            xs, ys, zs = zip(*all_v)
-            result.bbox_min = (min(xs), min(ys), min(zs))
-            result.bbox_max = (max(xs), max(ys), max(zs))
+    result = _build_obj_import_result(source_path, source_format, submeshes, sidecar_payload, matched_sidecar_entries, material_texture_map, obj_path)
 
     logger.info("Imported OBJ %s: %d submeshes, %d verts, %d faces, source=%s (%s)",
                 obj_path, len(submeshes), result.total_vertices,

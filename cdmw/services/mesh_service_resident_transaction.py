@@ -11,6 +11,12 @@ from dataclasses import dataclass
 
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+from cdmw.domain.mesh.resident_mutation import (
+    RESIDENT_INTERACTION_FORMAT_VERSION,
+    RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION,
+    RESIDENT_INTERACTION_MAPPING_PREFIX,
+    RESIDENT_INTERACTION_MAX_BYTES,
+)
 from cdmw.modding.mesh_deformer import recompute_mesh_normals
 from cdmw.modding.mesh_parser import SubMesh
 from cdmw.services.mesh_service_kernel import _record_session_edit_operations
@@ -21,11 +27,6 @@ from cdmw.services.mesh_service_state import (
     _MeshVertexPositionDelta,
 )
 
-
-RESIDENT_INTERACTION_FORMAT_VERSION = 2
-RESIDENT_INTERACTION_LEGACY_FORMAT_VERSION = 1
-RESIDENT_INTERACTION_MAPPING_PREFIX = "Local\\CDMW.MeshInteraction."
-RESIDENT_INTERACTION_MAX_BYTES = 128 * 1024 * 1024
 
 _MAGIC_V1 = b"CDMWMIT1"
 _MAGIC_V2 = b"CDMWMIT2"

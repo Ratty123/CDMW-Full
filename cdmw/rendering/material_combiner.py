@@ -353,6 +353,106 @@ def _prepare_normal_source(
     return "", 0.0
 
 
+def _prepare_height_support_maps(
+    inputs, height_output_requested, normal_output_requested, normal_source, normal_strength, tangents_usable,
+    output_dir, batch_index, prepare_flip_vertical, support_map_max_dimension, settings, notes, outputs,
+    cancelled,
+):
+    height_source = ""
+    height_amount = 0.0
+    height_image = QImage()
+    height_candidates = (
+        [
+            item
+            for item in inputs
+            if str(item.slot_kind or "").strip().lower() == "height"
+        ]
+        if height_output_requested
+        or (normal_output_requested and not normal_source)
+        else []
+    )
+    best_height_contrast = -1.0
+    best_height_index = -1
+    selected_height_source = ""
+    selected_height_item: Optional[PreviewMaterialTextureInput] = None
+    for height_index, item in enumerate(height_candidates):
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
+        if image.isNull():
+            notes.append(f"height unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
+            continue
+        if _image_exceeds_dimension(image, support_map_max_dimension):
+            notes.append(f"support maps capped:{support_map_max_dimension}px")
+        height_image = image
+        height_source, contrast = _generate_height_map(
+            image,
+            output_dir,
+            f"batch_{batch_index:03d}_{height_index:02d}",
+            flip_vertical=prepare_flip_vertical,
+            max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
+        )
+        if not height_source:
+            notes.append(f"height flat:{contrast:.3f}")
+            continue
+        if contrast > best_height_contrast:
+            best_height_contrast = contrast
+            best_height_index = height_index
+            height_image = image
+            selected_height_source = height_source
+            selected_height_item = item
+    if best_height_contrast >= 0.0:
+        height_source = selected_height_source
+        height_multiplier = 1.0
+        height_parameter = ""
+        if selected_height_item is not None:
+            height_multiplier, height_parameter = _height_amount_multiplier(selected_height_item)
+        height_amount = _clamp(
+            settings.height_amount * _clamp(0.65 + (best_height_contrast * 1.40), 0.65, 1.0) * height_multiplier,
+            0.0,
+            0.12,
+        )
+        if height_output_requested:
+            outputs.append("height")
+        if height_parameter:
+            notes.append(f"height scale:{height_multiplier:.2f} from {height_parameter}")
+        if len(height_candidates) > 1:
+            notes.append(f"height selected:{best_height_index} contrast={best_height_contrast:.3f}")
+    if not normal_source and tangents_usable and not height_image.isNull():
+        derived_normal_source, contrast = _derive_normal_from_height(
+            height_image,
+            output_dir,
+            f"batch_{batch_index:03d}",
+            flip_vertical=prepare_flip_vertical,
+            max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
+        )
+        if derived_normal_source:
+            normal_source = derived_normal_source
+            normal_strength = _clamp(settings.normal_strength_floor * 0.55, 0.15, settings.normal_strength_cap)
+            outputs.append("normal-from-height")
+            notes.append("normal derived from height")
+        elif height_candidates:
+            notes.append(f"height normal derivation skipped:{contrast:.3f}")
+    if not height_output_requested:
+        height_source = ""
+        height_amount = 0.0
+    return height_source, height_amount, normal_source, normal_strength
+
+
+def _record_material_registry_authority(material_candidates, material_candidate_decode_modes, notes, cancelled):
+    registry_authority_notes = []
+    for candidate, mode in zip(material_candidates, material_candidate_decode_modes):
+        _raise_if_material_combiner_cancelled(cancelled)
+        decode = _registry_decode_for_input(candidate)
+        authority = str(decode.get("authority", "") or AUTHORITY_GUESS)
+        source_kind = str(decode.get("source_kind", "") or "")
+        if authority != AUTHORITY_GUESS and source_kind not in {"unknown_crimson_texture", ""}:
+            registry_authority_notes.append(f"{mode}:{authority}:{source_kind}")
+    if registry_authority_notes:
+        notes.append("registry authority:" + ",".join(dict.fromkeys(registry_authority_notes)))
+
+
 def combine_preview_material(
     payload: object,
     output_dir: Path,
@@ -627,16 +727,7 @@ def combine_preview_material(
     if culled_material_count > 0:
         notes.append(f"material inputs culled:{len(raw_material_candidates)}->{len(material_candidates)}")
     material_candidate_decode_modes = tuple(_decode_mode_for_input(candidate) for candidate in material_candidates)
-    registry_authority_notes = []
-    for candidate, mode in zip(material_candidates, material_candidate_decode_modes):
-        _raise_if_material_combiner_cancelled(cancelled)
-        decode = _registry_decode_for_input(candidate)
-        authority = str(decode.get("authority", "") or AUTHORITY_GUESS)
-        source_kind = str(decode.get("source_kind", "") or "")
-        if authority != AUTHORITY_GUESS and source_kind not in {"unknown_crimson_texture", ""}:
-            registry_authority_notes.append(f"{mode}:{authority}:{source_kind}")
-    if registry_authority_notes:
-        notes.append("registry authority:" + ",".join(dict.fromkeys(registry_authority_notes)))
+    _record_material_registry_authority(material_candidates, material_candidate_decode_modes, notes, cancelled)
     suppress_standard_v2_specular_metalness = any(
         mode in {"standard_v2_mask", "standard_v2_material"}
         for mode in material_candidate_decode_modes
@@ -806,85 +897,13 @@ def combine_preview_material(
     if blended_slots:
         notes.append(f"material slots blended:{', '.join(blended_slots)}")
 
-    height_source = ""
-    height_amount = 0.0
-    height_image = QImage()
-    height_candidates = (
-        [
-            item
-            for item in inputs
-            if str(item.slot_kind or "").strip().lower() == "height"
-        ]
-        if height_output_requested
-        or (normal_output_requested and not normal_source)
-        else []
+    (
+        height_source, height_amount, normal_source, normal_strength,
+    ) = _prepare_height_support_maps(
+        inputs, height_output_requested, normal_output_requested, normal_source, normal_strength,
+        tangents_usable, output_dir, batch_index, prepare_flip_vertical, support_map_max_dimension, settings,
+        notes, outputs, cancelled,
     )
-    best_height_contrast = -1.0
-    best_height_index = -1
-    selected_height_source = ""
-    selected_height_item: Optional[PreviewMaterialTextureInput] = None
-    for height_index, item in enumerate(height_candidates):
-        _raise_if_material_combiner_cancelled(cancelled)
-        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
-        if image.isNull():
-            notes.append(f"height unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
-            continue
-        if _image_exceeds_dimension(image, support_map_max_dimension):
-            notes.append(f"support maps capped:{support_map_max_dimension}px")
-        height_image = image
-        height_source, contrast = _generate_height_map(
-            image,
-            output_dir,
-            f"batch_{batch_index:03d}_{height_index:02d}",
-            flip_vertical=prepare_flip_vertical,
-            max_dimension=support_map_max_dimension,
-            cancelled=cancelled,
-        )
-        if not height_source:
-            notes.append(f"height flat:{contrast:.3f}")
-            continue
-        if contrast > best_height_contrast:
-            best_height_contrast = contrast
-            best_height_index = height_index
-            height_image = image
-            selected_height_source = height_source
-            selected_height_item = item
-    if best_height_contrast >= 0.0:
-        height_source = selected_height_source
-        height_multiplier = 1.0
-        height_parameter = ""
-        if selected_height_item is not None:
-            height_multiplier, height_parameter = _height_amount_multiplier(selected_height_item)
-        height_amount = _clamp(
-            settings.height_amount * _clamp(0.65 + (best_height_contrast * 1.40), 0.65, 1.0) * height_multiplier,
-            0.0,
-            0.12,
-        )
-        if height_output_requested:
-            outputs.append("height")
-        if height_parameter:
-            notes.append(f"height scale:{height_multiplier:.2f} from {height_parameter}")
-        if len(height_candidates) > 1:
-            notes.append(f"height selected:{best_height_index} contrast={best_height_contrast:.3f}")
-    if not normal_source and tangents_usable and not height_image.isNull():
-        derived_normal_source, contrast = _derive_normal_from_height(
-            height_image,
-            output_dir,
-            f"batch_{batch_index:03d}",
-            flip_vertical=prepare_flip_vertical,
-            max_dimension=support_map_max_dimension,
-            cancelled=cancelled,
-        )
-        if derived_normal_source:
-            normal_source = derived_normal_source
-            normal_strength = _clamp(settings.normal_strength_floor * 0.55, 0.15, settings.normal_strength_cap)
-            outputs.append("normal-from-height")
-            notes.append("normal derived from height")
-        elif height_candidates:
-            notes.append(f"height normal derivation skipped:{contrast:.3f}")
-    if not height_output_requested:
-        height_source = ""
-        height_amount = 0.0
 
     _raise_if_material_combiner_cancelled(cancelled)
     return MaterialPreviewCombinerResult(

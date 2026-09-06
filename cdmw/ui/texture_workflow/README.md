@@ -1,6 +1,7 @@
 # Textures
 
-**Authoring > Textures** opens `TexturesWorkspace`, which owns one asset list and job. Edit reuses the existing editor
+Owns the unified **Authoring > Textures** workspace, with one asset list and job.
+`TexturesWorkspace` reuses the existing editor for Edit
 sessions, layers, and history; Recolor keeps package/ZIP analysis and material-color
 rules; Upscale reuses the existing batch pipeline. Review & Export owns replacement
 matching and the existing native DDS, PNG, project, and mod-package outputs.

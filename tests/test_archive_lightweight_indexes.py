@@ -148,6 +148,7 @@ def test_archive_index_receiver_delivers_worker_lifecycle_on_ui_thread(kind: str
 
     class Owner(QObject):
         def __init__(self):
+            super().__init__()
             self.shell = self
             self.archive = self
             self.textures = self

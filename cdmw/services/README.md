@@ -32,8 +32,10 @@ weapon-swap, and index operations.
 
 `mesh_workflow_service.py` and `texture_workflow_service.py` expose the UI's
 mesh/native and texture/recolor coordination surfaces without eager imports.
-`mesh_service_resident_transaction.py` is the trust boundary for terminal
-gestures from the packaged .NET/Vortice Mesh Editor. It validates the
+`mesh_rust_authoring.py` owns the production Rust editor's disposable shadow
+session, revisioned commands, and validated finish publication.
+`mesh_service_resident_transaction.py` retains the compatibility trust boundary
+for shared-memory terminal gestures. It validates the
 shared-memory descriptor, session identity, revisions, topology generation,
 tool/payload kind, and bounds before committing sparse geometry or selection
 changes to `MeshService`. One accepted gesture creates one history entry;
@@ -41,6 +43,10 @@ stale, malformed, or rejected transactions fail closed. The helper keeps its
 native result provisional until the correlated host decision, and accepted,
 rejected, Undo, and Redo decisions resynchronize the resident
 `cdmw_mesh_core` mirror.
+`mesh_service_history.py` owns history capture and restoration;
+`mesh_service_history_files.py` owns bounded Morph & Refit file snapshots and
+atomic restoration. Replacement publication keeps its checkpoint together so
+rollback restores the same session state and owned files.
 Focused material-sidecar, text-search, Texture Replacer, HKX-edit, and startup
 splash services provide the same boundary for their owning features. UI code
 does not import `cdmw.core`, `cdmw.modding`, or `cdmw.rendering` directly.

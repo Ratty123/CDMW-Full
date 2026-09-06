@@ -295,6 +295,35 @@ def _write_contact_sheet(rows: list[dict[str, object]], output: Path, count: int
     sheet.save(output)
 
 
+def _write_icon_ranking_results(
+    args, ranking, catalogue, items, desired_paths, query, entries, prepared, prepared_by_virtual_path,
+    decoded,
+):
+    args.output.mkdir(parents=True, exist_ok=True)
+    ranking_path = args.output / "ranking.json"
+    contact_sheet_path = args.output / "top-matches.png"
+    ranking_path.write_text(json.dumps(ranking, indent=2), encoding="utf-8")
+    _write_contact_sheet(ranking, contact_sheet_path, args.top)
+    return {
+        "schema": "cdmw_item_icon_reference_match_v1",
+        "read_only_archive_access": True,
+        "catalogue": str(catalogue),
+        "candidate_items": len(items),
+        "candidate_icon_paths": len(desired_paths),
+        "archive_query_matches": query.total_matches,
+        "resolved_icons": len(entries),
+        "prepared_icons": prepared.prepared,
+        "existing_prepared_icons": sum(
+            1 for path in prepared_by_virtual_path.values() if path.is_file()
+        ),
+        "sample_prepared_path": str(next(iter(prepared_by_virtual_path.values()), "")),
+        "decoded_icons": len(decoded),
+        "ranking": str(ranking_path),
+        "contact_sheet": str(contact_sheet_path) if contact_sheet_path.is_file() else "",
+        "top": ranking[: min(args.top, len(ranking))],
+    }
+
+
 def run(args: argparse.Namespace) -> dict[str, object]:
     cache_root = args.cache_root.resolve()
     catalogue = args.catalogue.resolve() if args.catalogue else _catalogue_path(cache_root)
@@ -428,29 +457,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             }
         )
     ranking.sort(key=lambda row: float(row["score"]), reverse=True)
-    args.output.mkdir(parents=True, exist_ok=True)
-    ranking_path = args.output / "ranking.json"
-    contact_sheet_path = args.output / "top-matches.png"
-    ranking_path.write_text(json.dumps(ranking, indent=2), encoding="utf-8")
-    _write_contact_sheet(ranking, contact_sheet_path, args.top)
-    return {
-        "schema": "cdmw_item_icon_reference_match_v1",
-        "read_only_archive_access": True,
-        "catalogue": str(catalogue),
-        "candidate_items": len(items),
-        "candidate_icon_paths": len(desired_paths),
-        "archive_query_matches": query.total_matches,
-        "resolved_icons": len(entries),
-        "prepared_icons": prepared.prepared,
-        "existing_prepared_icons": sum(
-            1 for path in prepared_by_virtual_path.values() if path.is_file()
-        ),
-        "sample_prepared_path": str(next(iter(prepared_by_virtual_path.values()), "")),
-        "decoded_icons": len(decoded),
-        "ranking": str(ranking_path),
-        "contact_sheet": str(contact_sheet_path) if contact_sheet_path.is_file() else "",
-        "top": ranking[: min(args.top, len(ranking))],
-    }
+    return _write_icon_ranking_results(args, ranking, catalogue, items, desired_paths, query, entries, prepared, prepared_by_virtual_path, decoded)
 
 
 def _parser() -> argparse.ArgumentParser:

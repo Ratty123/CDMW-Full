@@ -496,6 +496,46 @@ void mesh_interaction_refresh_projected_vertices(
     }
 }
 
+static double inflate_world_units_per_pixel(const MeshInteractionAbiSession& runtime, const CdmwMeshInteractionGestureV1& request, int submesh_index, double projected_depth, double projected_weight_sum) {
+    double world_units_per_pixel = 0.0;
+    if (request.tool == CDMW_MESH_TOOL_INFLATE && projected_weight_sum > 0.0) {
+        const auto matrix = runtime.submesh_world_view_projections.find(submesh_index);
+        std::array<double, 16> inverse{};
+        Vec3 pointer_center{};
+        Vec3 pointer_one_pixel_down{};
+        if (matrix != runtime.submesh_world_view_projections.end()
+            && matrix4x4_inverse(matrix->second, inverse)
+            && unproject_screen_point_with_matrix_inverse(
+                inverse,
+                request.current_x,
+                request.current_y,
+                projected_depth / projected_weight_sum,
+                0.0,
+                0.0,
+                runtime.viewport_width,
+                runtime.viewport_height,
+                pointer_center)
+            && unproject_screen_point_with_matrix_inverse(
+                inverse,
+                request.current_x,
+                request.current_y + 1.0,
+                projected_depth / projected_weight_sum,
+                0.0,
+                0.0,
+                runtime.viewport_width,
+                runtime.viewport_height,
+                pointer_one_pixel_down)) {
+            world_units_per_pixel = length_vec3(
+                sub_vec3(pointer_one_pixel_down, pointer_center)
+            );
+        }
+        if (!(world_units_per_pixel > 0.0) || !std::isfinite(world_units_per_pixel)) {
+            throw std::runtime_error("inflate brush could not resolve world units per pixel");
+        }
+    }
+    return world_units_per_pixel;
+}
+
 void mesh_interaction_apply_weighted_delta(
     MeshInteractionAbiSession& runtime,
     std::map<int, MeshSessionSubmesh>& submeshes,
@@ -560,42 +600,8 @@ void mesh_interaction_apply_weighted_delta(
             }
         }
         if (weight_sum > 0.0) center = scale_vec3(center, 1.0 / weight_sum);
-        double world_units_per_pixel = 0.0;
-        if (request.tool == CDMW_MESH_TOOL_INFLATE && projected_weight_sum > 0.0) {
-            const auto matrix = runtime.submesh_world_view_projections.find(group.first);
-            std::array<double, 16> inverse{};
-            Vec3 pointer_center{};
-            Vec3 pointer_one_pixel_down{};
-            if (matrix != runtime.submesh_world_view_projections.end()
-                && matrix4x4_inverse(matrix->second, inverse)
-                && unproject_screen_point_with_matrix_inverse(
-                    inverse,
-                    request.current_x,
-                    request.current_y,
-                    projected_depth / projected_weight_sum,
-                    0.0,
-                    0.0,
-                    runtime.viewport_width,
-                    runtime.viewport_height,
-                    pointer_center)
-                && unproject_screen_point_with_matrix_inverse(
-                    inverse,
-                    request.current_x,
-                    request.current_y + 1.0,
-                    projected_depth / projected_weight_sum,
-                    0.0,
-                    0.0,
-                    runtime.viewport_width,
-                    runtime.viewport_height,
-                    pointer_one_pixel_down)) {
-                world_units_per_pixel = length_vec3(
-                    sub_vec3(pointer_one_pixel_down, pointer_center)
-                );
-            }
-            if (!(world_units_per_pixel > 0.0) || !std::isfinite(world_units_per_pixel)) {
-                throw std::runtime_error("inflate brush could not resolve world units per pixel");
-            }
-        }
+        const double world_units_per_pixel = inflate_world_units_per_pixel(
+            runtime, request, group.first, projected_depth, projected_weight_sum);
         if (request.tool == CDMW_MESH_TOOL_PINCH && projected_weight_sum > 0.0) {
             const auto matrix = runtime.submesh_world_view_projections.find(group.first);
             std::array<double, 16> inverse{};

@@ -950,7 +950,7 @@ def prepare_model_import_mesh_edit(
     preview_model = parsed_mesh_to_preview_model(mesh)
     raise_if_cancelled(stop_event)
     texture_count = int(attach_scene_preview_textures(preview_model, edited_scene, Path(model_path)) or 0)
-    from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+    from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
 
     set_dotnet_preview_texture_flip_vertical(
         preview_model,
@@ -1211,7 +1211,7 @@ def load_model_import_source(
         raise_if_cancelled(stop_event)
         preview_model = parsed_mesh_to_preview_model(scene.mesh)
         texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
-        from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+        from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
 
         set_dotnet_preview_texture_flip_vertical(
             preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),

@@ -154,6 +154,41 @@ def _synthesis_preview_profile(
     return max_dimension, decode_slot, srgb, normal_space
 
 
+def _retain_undecoded_primary_normal(
+    layered_normal_synthesis, selected_normal_index, updated_inputs, decoded_indices,
+    deferred_raw_channel_labels,
+):
+    from cdmw.rendering.material_combiner_support_maps import _is_layer_normal_input
+    from cdmw.rendering.material_combiner_rules import _texture_label
+    if layered_normal_synthesis and selected_normal_index is not None:
+        selected_normal = updated_inputs[selected_normal_index]
+        selected_decoded = selected_normal_index in decoded_indices
+        if not selected_decoded:
+            deferred_raw_channel_labels.setdefault("normal", set()).add(
+                _texture_label(
+                    _input_value(selected_normal, "preview_texture_path"),
+                    _input_value(selected_normal, "texture_name"),
+                ).casefold()
+            )
+        updated_inputs = [
+            item
+            for item in updated_inputs
+            if item is selected_normal
+            or not isinstance(item, PreviewMaterialTextureInput)
+            or (
+                selected_decoded
+                and _is_layer_normal_input(item)
+            )
+            or (
+                str(_input_value(item, "slot_kind") or "").strip().casefold()
+                != "normal"
+                and str(_input_value(item, "semantic_type") or "").strip().casefold()
+                != "normal"
+            )
+        ]
+    return updated_inputs
+
+
 def _decode_synthesis_input_previews(
     inputs: tuple[object, ...],
     raw_channels: Mapping[str, str],
@@ -308,32 +343,10 @@ def _decode_synthesis_input_previews(
             continue
         updated_inputs[index] = replace(item, preview_texture_path=str(preview_path))
         decoded_indices.add(index)
-    if layered_normal_synthesis and selected_normal_index is not None:
-        selected_normal = updated_inputs[selected_normal_index]
-        selected_decoded = selected_normal_index in decoded_indices
-        if not selected_decoded:
-            deferred_raw_channel_labels.setdefault("normal", set()).add(
-                _texture_label(
-                    _input_value(selected_normal, "preview_texture_path"),
-                    _input_value(selected_normal, "texture_name"),
-                ).casefold()
-            )
-        updated_inputs = [
-            item
-            for item in updated_inputs
-            if item is selected_normal
-            or not isinstance(item, PreviewMaterialTextureInput)
-            or (
-                selected_decoded
-                and _is_layer_normal_input(item)
-            )
-            or (
-                str(_input_value(item, "slot_kind") or "").strip().casefold()
-                != "normal"
-                and str(_input_value(item, "semantic_type") or "").strip().casefold()
-                != "normal"
-            )
-        ]
+    updated_inputs = _retain_undecoded_primary_normal(
+        layered_normal_synthesis, selected_normal_index, updated_inputs, decoded_indices,
+        deferred_raw_channel_labels,
+    )
     diagnostics["decoded_input_count"] = len(decoded_indices)
     return (
         tuple(updated_inputs),

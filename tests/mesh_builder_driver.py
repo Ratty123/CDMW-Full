@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Sequence, TypeVar
@@ -24,7 +25,8 @@ from typing import Iterator, Sequence, TypeVar
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QTimer
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QThread, QTimer
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QAbstractButton,
     QApplication,
@@ -285,22 +287,31 @@ class MeshBuilderDriver:
             for dialog in tuple(self.window._modeless_alignment_dialogs.values()):
                 dialog.reject()
             self.pump()
+            # Closing cancels work asynchronously. Keep its parent alive while
+            # queued results and native thread teardown complete.
+            deadline = time.monotonic() + 5.0
+            while any(not thread.wait(0) for thread in self.window.findChildren(QThread)):
+                if time.monotonic() >= deadline:
+                    raise AssertionError("Builder workers did not finish after close")
+                QTest.qWait(10)
+            self.pump()
             active_timers = active_builder_timer_names(context)
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             self.pump()
             self.window._finalize_close()
             self.pump()
+            remaining = set(self.window._modeless_alignment_dialogs)
         finally:
             APPLICATION.removeEventFilter(self.parentless_show)
             if callable(self._original_record_runtime_event):
                 self.window._record_runtime_event = self._original_record_runtime_event
             self.window.deleteLater()
+            QCoreApplication.sendPostedEvents(self.window, QEvent.Type.DeferredDelete)
             self.pump()
             self._temp.cleanup()
 
         if not check_invariants:
             return
-        remaining = set(self.window._modeless_alignment_dialogs)
         if remaining:
             raise AssertionError(f"Builder dialog did not close cleanly: {remaining}")
         if active_timers:

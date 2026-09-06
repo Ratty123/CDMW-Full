@@ -20,6 +20,7 @@ OWNER_PATHS = (
     ROOT / "cdmw/services/mesh_service_payloads.py",
     ROOT / "cdmw/services/mesh_service_reports.py",
     ROOT / "cdmw/services/mesh_service_history.py",
+    ROOT / "cdmw/services/mesh_service_history_files.py",
     ROOT / "cdmw/services/mesh_service_kernel.py",
     ROOT / "cdmw/services/mesh_service_rigging.py",
     ROOT / "cdmw/services/mesh_service_rebuild.py",

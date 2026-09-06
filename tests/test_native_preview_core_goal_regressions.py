@@ -83,8 +83,8 @@ class NativePreviewCoreGoalRegressionTests(unittest.TestCase):
         """
 
         archive_source = Path("native/cdmw_preview_core/src/owners/archive_decode.cpp").read_text(encoding="utf-8")
-        graph_source = Path("native/cdmw_preview_core/src/owners/material_graph.cpp").read_text(encoding="utf-8")
-        sidecar_source = Path("native/cdmw_preview_core/src/owners/material_selection.cpp").read_text(encoding="utf-8")
+        graph_source = Path("native/cdmw_preview_core/src/owners/material_graph_cache.cpp").read_text(encoding="utf-8")
+        sidecar_source = Path("native/cdmw_preview_core/src/owners/material_selection_cache.cpp").read_text(encoding="utf-8")
         lookup_source = Path("native/cdmw_preview_core/src/owners/material_archive_lookup.cpp").read_text(encoding="utf-8")
         report_source = Path("native/cdmw_preview_core/src/owners/preview_report.cpp").read_text(encoding="utf-8")
 

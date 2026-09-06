@@ -212,6 +212,12 @@ from cdmw.services.mesh_service_payloads import (
     _stop_event_from_params,
 )
 from cdmw.services.mesh_service_history import (
+    _capture_history_material_state,
+    _capture_history_session_state,
+    _restore_history_session_state,
+    _restore_history_material_state,
+    _restore_geometry_layer_structure,
+
     MeshHistoryServiceMixin,
     _history_metrics,
     _history_snapshot_retained_bytes,
@@ -2196,113 +2202,6 @@ def _snapshot(session: _MeshEditSession, *, prefer_native: bool = False) -> _Mes
     return _clone_history_snapshot_for_python_fallback(session)
 
 
-def _capture_history_material_state(
-    session: _MeshEditSession,
-    snapshot: _MeshHistorySnapshot,
-) -> _MeshHistorySnapshot:
-    if snapshot.material_generation is None:
-        snapshot.material_generation = int(session.material_generation)
-    if snapshot.committed_texture_resources is None:
-        snapshot.committed_texture_resources = tuple(
-            session.committed_texture_resources[key]
-            for key in sorted(session.committed_texture_resources)
-        )
-    return snapshot
-
-
-def _capture_history_session_state(
-    session: _MeshEditSession,
-    snapshot: _MeshHistorySnapshot,
-    template: _MeshHistorySnapshot,
-) -> _MeshHistorySnapshot:
-    """Capture the reciprocal service-owned state carried by one history marker."""
-
-    if template.restore_geometry_layer_state:
-        snapshot.geometry_layers = tuple(session.geometry_layers)
-        snapshot.active_geometry_layer_id = session.active_geometry_layer_id
-        snapshot.geometry_layer_copy_counter = session.geometry_layer_copy_counter
-        snapshot.restore_geometry_layer_state = True
-    if template.output_policy is not None:
-        snapshot.output_policy = session.output_policy
-    if template.output_destination is not None:
-        snapshot.output_destination = session.output_destination
-    if template.output_destination_ready is not None:
-        snapshot.output_destination_ready = session.output_destination_ready
-    if template.morph_profile_root is not None:
-        existed, files, _fingerprint = _mesh_morph_profile_directory_state(
-            template.morph_profile_root
-        )
-        snapshot.morph_profile_root = template.morph_profile_root
-        snapshot.morph_profile_root_existed = existed
-        snapshot.morph_profile_files = files
-        snapshot.morph_profile_expected_fingerprint = _mesh_morph_profile_state_fingerprint(
-            bool(template.morph_profile_root_existed),
-            tuple(template.morph_profile_files or ()),
-        )
-    return snapshot
-
-
-def _restore_history_session_state(
-    session: _MeshEditSession,
-    snapshot: _MeshHistorySnapshot,
-) -> None:
-    """Restore only the service-owned fields explicitly included in a marker."""
-
-    if snapshot.restore_geometry_layer_state:
-        target_layers = tuple(snapshot.geometry_layers or ())
-        target_active = str(snapshot.active_geometry_layer_id or "base")
-        target_copy_counter = int(snapshot.geometry_layer_copy_counter or 0)
-        layers_changed = (
-            session.geometry_layers != target_layers
-            or session.active_geometry_layer_id != target_active
-            or session.geometry_layer_copy_counter != target_copy_counter
-        )
-        session.geometry_layers = target_layers
-        session.active_geometry_layer_id = target_active
-        session.geometry_layer_copy_counter = target_copy_counter
-        if layers_changed:
-            session.geometry_layer_revision += 1
-    if snapshot.output_policy is not None:
-        session.output_policy = snapshot.output_policy
-    if snapshot.output_destination is not None:
-        session.output_destination = snapshot.output_destination
-    if snapshot.output_destination_ready is not None:
-        session.output_destination_ready = snapshot.output_destination_ready
-    if snapshot.morph_profile_root is not None:
-        _restore_mesh_morph_profile_directory_state(
-            snapshot.morph_profile_root,
-            existed=bool(snapshot.morph_profile_root_existed),
-            files=tuple(snapshot.morph_profile_files or ()),
-            expected_fingerprint=str(snapshot.morph_profile_expected_fingerprint or ""),
-        )
-
-
-def _restore_history_material_state(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> None:
-    resources = snapshot.committed_texture_resources
-    if resources is None:
-        return
-    current = dict(session.committed_texture_resources)
-    target = {(resource.resource_id, resource.channel): resource for resource in resources}
-    assignment_keys = {
-        key
-        for key in set(current) | set(target)
-        if bool(getattr(current.get(key), "source_dds_path", ""))
-        or bool(getattr(target.get(key), "source_dds_path", ""))
-    }
-    restored = dict(current)
-    for key in assignment_keys:
-        if key in target:
-            restored[key] = target[key]
-        else:
-            restored.pop(key, None)
-    if restored != current:
-        session.committed_texture_resources = restored
-        session.material_generation = max(
-            int(session.material_generation),
-            int(snapshot.material_generation or 0),
-        ) + 1
-
-
 def _dispose_history_snapshot(snapshot: _MeshHistorySnapshot) -> None:
     if snapshot.native_submesh_snapshot is not None:
         dispose_native_mesh_submesh_snapshot(snapshot.native_submesh_snapshot)
@@ -2375,6 +2274,21 @@ def _trim_native_history_markers(
 
 
 
+def _native_history_selection(report):
+    native_selection_payload = native_mesh_editor_session_selection_from_report(report)
+    native_selection = (
+        MeshEditSelection.from_maps(
+            vertices_by_submesh=native_selection_payload.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=native_selection_payload.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=native_selection_payload.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=native_selection_payload.get("source_indices"),  # type: ignore[arg-type]
+        )
+        if native_selection_payload is not None
+        else None
+    )
+    return native_selection
+
+
 def _restore_native_editor_history(
     session: _MeshEditSession,
     snapshot: _MeshHistorySnapshot,
@@ -2410,17 +2324,7 @@ def _restore_native_editor_history(
         raise RuntimeError(f"native mesh editor {command} failed")
     native_preview_vertex_update_groups = native_mesh_editor_session_preview_vertex_update_groups(report)
     native_preview_triangle_groups = native_mesh_editor_session_preview_triangle_groups(report)
-    native_selection_payload = native_mesh_editor_session_selection_from_report(report)
-    native_selection = (
-        MeshEditSelection.from_maps(
-            vertices_by_submesh=native_selection_payload.get("vertices_by_submesh"),  # type: ignore[arg-type]
-            edges_by_submesh=native_selection_payload.get("edges_by_submesh"),  # type: ignore[arg-type]
-            faces_by_submesh=native_selection_payload.get("faces_by_submesh"),  # type: ignore[arg-type]
-            source_indices=native_selection_payload.get("source_indices"),  # type: ignore[arg-type]
-        )
-        if native_selection_payload is not None
-        else None
-    )
+    native_selection = _native_history_selection(report)
     native_selection_groups = native_mesh_editor_session_selection_groups_from_report(report)
     apply_started = time.perf_counter()
     current_submesh_count = len(before_signature)
@@ -2531,59 +2435,6 @@ def _restore_native_editor_history(
         submesh_counts=after_signature,
         metrics=metrics,
     )
-
-
-def _restore_geometry_layer_structure(
-    target_layers: tuple[_MeshGeometryLayer, ...],
-    current_layers: tuple[_MeshGeometryLayer, ...],
-) -> tuple[_MeshGeometryLayer, ...]:
-    """Restore geometry membership without rolling back non-history metadata."""
-
-    current_by_id = {layer.layer_id: layer for layer in current_layers}
-    target_by_id = {layer.layer_id: layer for layer in target_layers}
-    restored_by_id = {
-        layer.layer_id: (
-            replace(
-                layer,
-                name=current_by_id[layer.layer_id].name,
-                visible=current_by_id[layer.layer_id].visible,
-            )
-            if layer.layer_id in current_by_id
-            else layer
-        )
-        for layer in target_layers
-    }
-
-    # Existing layers keep the user's current Move Up/Down order. A layer that
-    # the geometry action removed is reinserted beside its closest historical
-    # neighbour, so Undo Delete restores its former position without moving the
-    # layers that remained editable in the meantime.
-    ordered_ids = [layer.layer_id for layer in current_layers if layer.layer_id in target_by_id]
-    for target_index, target in enumerate(target_layers):
-        if target.layer_id in ordered_ids:
-            continue
-        previous = next(
-            (
-                target_layers[index].layer_id
-                for index in range(target_index - 1, -1, -1)
-                if target_layers[index].layer_id in ordered_ids
-            ),
-            None,
-        )
-        if previous is not None:
-            ordered_ids.insert(ordered_ids.index(previous) + 1, target.layer_id)
-            continue
-        following = next(
-            (
-                target_layers[index].layer_id
-                for index in range(target_index + 1, len(target_layers))
-                if target_layers[index].layer_id in ordered_ids
-            ),
-            None,
-        )
-        ordered_ids.insert(ordered_ids.index(following) if following is not None else len(ordered_ids), target.layer_id)
-
-    return tuple(restored_by_id[layer_id] for layer_id in ordered_ids)
 
 
 def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:

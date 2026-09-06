@@ -544,6 +544,61 @@ def _decoded_linear_channel_summary(source: object) -> dict[str, object]:
     }
 
 
+def _refine_decoded_material_response(refined, metallic_summary, generated, synthesis):
+    if not str(refined.get("material_category_reason", "") or "").strip():
+        # A blank reason left every generic classification unauditable: there was
+        # no way to tell a part the decoded maps confirm is a dielectric from one
+        # nothing is known about.  The synthesized metal channel answers that
+        # directly, so record what it showed.
+        if isinstance(metallic_summary, Mapping) and "metallic" in generated:
+            coverage = float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
+            q90 = float(metallic_summary.get("q90", 0.0) or 0.0)
+            if q90 <= _DECODED_DIELECTRIC_Q90_MAX and coverage <= _DECODED_DIELECTRIC_COVERAGE_MAX:
+                refined["material_category_reason"] = (
+                    "generic:decoded_metal_channel_confirms_dielectric"
+                )
+                # Data-backed, so it should outrank a bare naming guess.
+                refined["material_category_confidence"] = max(
+                    float(refined.get("material_category_confidence", 0.0) or 0.0),
+                    0.70,
+                )
+            else:
+                refined["material_category_reason"] = (
+                    "generic:decoded_metal_channel_is_mixed"
+                )
+        elif generated & _GENERATED_SUPPORT_CHANNELS:
+            # Synthesis ran and emitted support maps but dropped metalness, which
+            # it only does when the metal peak is essentially zero.  That absence
+            # is itself a dielectric reading, not a gap in knowledge.
+            refined["material_category_reason"] = (
+                "generic:decoded_metal_channel_absent_confirms_dielectric"
+            )
+            refined["material_category_confidence"] = max(
+                float(refined.get("material_category_confidence", 0.0) or 0.0),
+                0.70,
+            )
+        else:
+            refined["material_category_reason"] = "generic:no_decoded_material_maps"
+
+    alpha_summary = synthesis.get("base_alpha_summary")
+    if (
+        isinstance(alpha_summary, Mapping)
+        and str(refined.get("alpha_mode", "") or "").strip().casefold() == "cutout"
+        and str(refined.get("alpha_authority", "") or "").strip().casefold() == "inferred"
+    ):
+        cutoff = float(refined.get("alpha_cutoff", 0.5) or 0.5)
+        q90 = float(alpha_summary.get("alpha_q90", 1.0) or 0.0)
+        coverage = float(alpha_summary.get("coverage_at_cutoff", 1.0) or 0.0)
+        if q90 <= cutoff and coverage <= 0.10:
+            refined["alpha_mode"] = "opaque"
+            refined["alpha_cutoff"] = 0.5
+            refined["alpha_authority"] = "inferred_fallback"
+            refined["alpha_reason"] = (
+                "inferred hair cutout would discard at least 90% of the decoded color texture; "
+                "opaque card fallback retained"
+            )
+
+
 def _refine_synthesized_material_contract(
     semantic_contract: Mapping[str, object],
     synthesis: Mapping[str, object],
@@ -677,58 +732,7 @@ def _refine_synthesized_material_contract(
         )
         refined["material_response_promoted"] = True
 
-    if not str(refined.get("material_category_reason", "") or "").strip():
-        # A blank reason left every generic classification unauditable: there was
-        # no way to tell a part the decoded maps confirm is a dielectric from one
-        # nothing is known about.  The synthesized metal channel answers that
-        # directly, so record what it showed.
-        if isinstance(metallic_summary, Mapping) and "metallic" in generated:
-            coverage = float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
-            q90 = float(metallic_summary.get("q90", 0.0) or 0.0)
-            if q90 <= _DECODED_DIELECTRIC_Q90_MAX and coverage <= _DECODED_DIELECTRIC_COVERAGE_MAX:
-                refined["material_category_reason"] = (
-                    "generic:decoded_metal_channel_confirms_dielectric"
-                )
-                # Data-backed, so it should outrank a bare naming guess.
-                refined["material_category_confidence"] = max(
-                    float(refined.get("material_category_confidence", 0.0) or 0.0),
-                    0.70,
-                )
-            else:
-                refined["material_category_reason"] = (
-                    "generic:decoded_metal_channel_is_mixed"
-                )
-        elif generated & _GENERATED_SUPPORT_CHANNELS:
-            # Synthesis ran and emitted support maps but dropped metalness, which
-            # it only does when the metal peak is essentially zero.  That absence
-            # is itself a dielectric reading, not a gap in knowledge.
-            refined["material_category_reason"] = (
-                "generic:decoded_metal_channel_absent_confirms_dielectric"
-            )
-            refined["material_category_confidence"] = max(
-                float(refined.get("material_category_confidence", 0.0) or 0.0),
-                0.70,
-            )
-        else:
-            refined["material_category_reason"] = "generic:no_decoded_material_maps"
-
-    alpha_summary = synthesis.get("base_alpha_summary")
-    if (
-        isinstance(alpha_summary, Mapping)
-        and str(refined.get("alpha_mode", "") or "").strip().casefold() == "cutout"
-        and str(refined.get("alpha_authority", "") or "").strip().casefold() == "inferred"
-    ):
-        cutoff = float(refined.get("alpha_cutoff", 0.5) or 0.5)
-        q90 = float(alpha_summary.get("alpha_q90", 1.0) or 0.0)
-        coverage = float(alpha_summary.get("coverage_at_cutoff", 1.0) or 0.0)
-        if q90 <= cutoff and coverage <= 0.10:
-            refined["alpha_mode"] = "opaque"
-            refined["alpha_cutoff"] = 0.5
-            refined["alpha_authority"] = "inferred_fallback"
-            refined["alpha_reason"] = (
-                "inferred hair cutout would discard at least 90% of the decoded color texture; "
-                "opaque card fallback retained"
-            )
+    _refine_decoded_material_response(refined, metallic_summary, generated, synthesis)
     return refined
 
 
@@ -1007,6 +1011,53 @@ def _combiner_outputs_have_raw_channels(
     return True
 
 
+def _material_synthesis_result(
+    combined, raw_channels, inputs, raw_contract, output_dir, deferred_raw_channel_labels,
+    decoded_preview_input_count, decode_diagnostics, base_alpha_summary,
+):
+    generated = _generated_channels(combined, raw_channels, inputs, raw_contract)
+    identity_noop = bool(
+        not generated
+        and tuple(raw_contract.get("layer_bindings", ()) or ())
+        and _layer_graph_is_source_identity(inputs)
+        and _combiner_outputs_have_raw_channels(combined, raw_channels)
+    )
+    if not generated:
+        shutil.rmtree(output_dir, ignore_errors=True)
+    channels = dict(raw_channels)
+    channels.update(generated)
+    synthesis_notes = _relabel_deferred_raw_channel_notes(
+        tuple(getattr(combined, "notes", ()) or ()),
+        deferred_raw_channel_labels,
+    )
+    if identity_noop:
+        synthesis_notes.append("material graph resolved as source-identity no-op")
+    metadata: dict[str, object] = {
+        "attempted": True,
+        "succeeded": bool(generated) or identity_noop,
+        "identity_noop": identity_noop,
+        "outputs": list(tuple(getattr(combined, "outputs", ()) or ())),
+        "generated_channels": sorted(generated),
+        "decode_modes": list(tuple(getattr(combined, "decode_modes", ()) or ())),
+        "notes": synthesis_notes,
+        "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
+        "decoded_preview_input_count": int(decoded_preview_input_count),
+        "decode_diagnostics": decode_diagnostics,
+    }
+    if base_alpha_summary:
+        metadata["base_alpha_summary"] = base_alpha_summary
+    metallic_summary = _decoded_linear_channel_summary(generated.get("metallic", ""))
+    if metallic_summary:
+        metadata["metallic_summary"] = metallic_summary
+    if getattr(combined, "base_note", ""):
+        metadata["base_note"] = str(combined.base_note)
+    if generated.get("normal"):
+        metadata["normal_strength"] = float(getattr(combined, "normal_strength", 0.0) or 0.0)
+    if generated.get("height"):
+        metadata["height_amount"] = float(getattr(combined, "height_amount", 0.0) or 0.0)
+    return channels, metadata, tuple(sorted(generated))
+
+
 def _synthesize_dotnet_material_channels(
     source: object | None,
     raw_channels: Mapping[str, str],
@@ -1154,47 +1205,7 @@ def _synthesize_dotnet_material_channels(
             "succeeded": False,
             "skipped": "cancelled_after_synthesis",
         }, ()
-    generated = _generated_channels(combined, raw_channels, inputs, raw_contract)
-    identity_noop = bool(
-        not generated
-        and tuple(raw_contract.get("layer_bindings", ()) or ())
-        and _layer_graph_is_source_identity(inputs)
-        and _combiner_outputs_have_raw_channels(combined, raw_channels)
-    )
-    if not generated:
-        shutil.rmtree(output_dir, ignore_errors=True)
-    channels = dict(raw_channels)
-    channels.update(generated)
-    synthesis_notes = _relabel_deferred_raw_channel_notes(
-        tuple(getattr(combined, "notes", ()) or ()),
-        deferred_raw_channel_labels,
-    )
-    if identity_noop:
-        synthesis_notes.append("material graph resolved as source-identity no-op")
-    metadata: dict[str, object] = {
-        "attempted": True,
-        "succeeded": bool(generated) or identity_noop,
-        "identity_noop": identity_noop,
-        "outputs": list(tuple(getattr(combined, "outputs", ()) or ())),
-        "generated_channels": sorted(generated),
-        "decode_modes": list(tuple(getattr(combined, "decode_modes", ()) or ())),
-        "notes": synthesis_notes,
-        "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
-        "decoded_preview_input_count": int(decoded_preview_input_count),
-        "decode_diagnostics": decode_diagnostics,
-    }
-    if base_alpha_summary:
-        metadata["base_alpha_summary"] = base_alpha_summary
-    metallic_summary = _decoded_linear_channel_summary(generated.get("metallic", ""))
-    if metallic_summary:
-        metadata["metallic_summary"] = metallic_summary
-    if getattr(combined, "base_note", ""):
-        metadata["base_note"] = str(combined.base_note)
-    if generated.get("normal"):
-        metadata["normal_strength"] = float(getattr(combined, "normal_strength", 0.0) or 0.0)
-    if generated.get("height"):
-        metadata["height_amount"] = float(getattr(combined, "height_amount", 0.0) or 0.0)
-    return channels, metadata, tuple(sorted(generated))
+    return _material_synthesis_result(combined, raw_channels, inputs, raw_contract, output_dir, deferred_raw_channel_labels, decoded_preview_input_count, decode_diagnostics, base_alpha_summary)
 
 
 def _resolved_synthesis_features(
@@ -1274,6 +1285,31 @@ def _apply_dark_neutral_pac_readability(
         return 0
     parameters.setdefault("shadow_lift", shadow_lift)
     return int(parameters.get("shadow_lift", 0) or 0)
+
+
+def _record_material_synthesis_evidence(raw_contract, semantic_contract, synthesis, resolved_features, generated, include_resources):
+    remaining_unsupported = list(raw_contract["unsupported_features"])
+    if (
+        "shader_family_layer_graph" in remaining_unsupported
+        and bool(synthesis.get("succeeded", False))
+        and resolved_features
+    ):
+        remaining_unsupported.remove("shader_family_layer_graph")
+    semantic_contract["unsupported_features"] = remaining_unsupported
+    semantic_contract["resolved_features"] = resolved_features
+    semantic_contract["synthesis_evidence"] = {
+        "compiler": "canonical_mesh_dotnet_material_compiler",
+        "generated_channels": list(generated),
+        "resolved_features": list(resolved_features),
+        "required_graph_compiled": bool(
+            include_resources and "shader_family_layer_graph" not in remaining_unsupported
+        ),
+    }
+    for channel in generated:
+        semantic_contract["channel_authorities"][channel] = "synthesized_shared_combiner"
+        semantic_contract["channel_color_spaces"][channel] = (
+            "srgb" if channel in _GENERATED_COLOR_CHANNELS else "linear"
+        )
 
 
 def _dotnet_submesh_material_payload(
@@ -1360,28 +1396,7 @@ def _dotnet_submesh_material_payload(
             source_asset_path=source_asset_path,
         )
         resolved_features = ()
-    remaining_unsupported = list(raw_contract["unsupported_features"])
-    if (
-        "shader_family_layer_graph" in remaining_unsupported
-        and bool(synthesis.get("succeeded", False))
-        and resolved_features
-    ):
-        remaining_unsupported.remove("shader_family_layer_graph")
-    semantic_contract["unsupported_features"] = remaining_unsupported
-    semantic_contract["resolved_features"] = resolved_features
-    semantic_contract["synthesis_evidence"] = {
-        "compiler": "canonical_mesh_dotnet_material_compiler",
-        "generated_channels": list(generated),
-        "resolved_features": list(resolved_features),
-        "required_graph_compiled": bool(
-            include_resources and "shader_family_layer_graph" not in remaining_unsupported
-        ),
-    }
-    for channel in generated:
-        semantic_contract["channel_authorities"][channel] = "synthesized_shared_combiner"
-        semantic_contract["channel_color_spaces"][channel] = (
-            "srgb" if channel in _GENERATED_COLOR_CHANNELS else "linear"
-        )
+    _record_material_synthesis_evidence(raw_contract, semantic_contract, synthesis, resolved_features, generated, include_resources)
     submesh_index = _safe_int(submesh_map.get("submesh_index"), fallback_index)
     if include_resources:
         packaged_channels = _copy_dotnet_texture_channel_resources(

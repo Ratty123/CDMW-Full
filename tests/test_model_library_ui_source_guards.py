@@ -187,8 +187,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._use_model_in_new_item_studio", source)
         self.assertIn("self.open_new_item_studio(model_path=Path(import_path_text))", source)
         self.assertIn("self._preview_model_library_mesh", source)
-        self.assertIn("self._handle_model_library_item_icon_generated", source)
-        self.assertIn(".NET/Vortice Preview rejected the prepared package", source)
+        self.assertIn("self.textures._handle_model_library_item_icon_generated", source)
+        self.assertIn("Rust Preview rejected the prepared package", source)
         self.assertIn('"model_library"', source)
         self.assertNotIn("SketchfabLibraryTab", source)
         self.assertNotIn("Connect Sketchfab", source)
@@ -402,7 +402,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('QPushButton("Preview")', source)
         self.assertIn('QCheckBox("Auto preview local selection")', source)
         self.assertIn("Automatically previews local selections in the Model Library preview panel", source)
-        self.assertIn(".NET/Vortice Preview", source)
+        self.assertIn("Rust Preview", source)
         self.assertIn("Preview In Archive Browser", source)
         self.assertNotIn("Import Local Model", source)
         self.assertIn("Generate Icon", source)
@@ -416,7 +416,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("WEBGL_PBR_RENDERER_BACKEND", source)
         self.assertNotIn("webgl_pbr", source)
         self.assertIn("def _inline_preview_renderer_backend", source)
-        self.assertIn('return "d3d11_vortice_shader"', source)
+        self.assertIn('return RUST_MESH_RENDERER', source)
         self.assertNotIn("inline_green_up", source)
         self.assertIn("self.inline_preview_stack", source)
         self.assertIn('inline_render_settings.visible_texture_mode = "sidecar_visible_first"', source)
@@ -442,7 +442,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("settings.flip_texture_v = bool(checked)", source)
         self.assertIn("def _reload_inline_preview_for_orientation", source)
         self.assertIn("reset_orientation=False", source)
-        self.assertIn('== "d3d11_vortice_shader"', source)
+        self.assertIn('== RUST_MESH_RENDERER', source)
         self.assertIn("self._inline_preview_loaded_texture_count", source)
         self.assertIn("preview_render_settings = self.inline_preview_render_settings", source)
         self.assertIn("render_settings=preview_render_settings", source)
@@ -461,7 +461,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             "self._pending_icon_generation_request_id = self._inline_preview_request_id + 1",
             source,
         )
-        self.assertIn('summary or ".NET/Vortice Model Library preview ready."', source)
+        self.assertIn('summary or "Rust Model Library preview ready."', source)
         self.assertNotIn("write_isolated_d3d11_preview_package", source)
         self.assertNotIn("def _inline_preview_material_channel_summary", source)
         self.assertIn("channels: {material_channel_summary}", source)
@@ -608,7 +608,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
 
         complete_start = source.index("        def complete(", load_start)
         complete_body = source[complete_start: source.index("        def handle_error(", complete_start)]
-        self.assertIn('result.get("dotnet_preview_package_path"', complete_body)
+        self.assertIn('result.get("rust_preview_package_path"', complete_body)
         self.assertIn("self._start_inline_d3d11_process(package_dir", complete_body)
         self.assertIn("no legacy fallback is available", complete_body)
         self.assertNotIn("set_prepared_model", complete_body)
@@ -668,8 +668,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
     def test_dotnet_controller_owns_launch_retry_and_provenance(self) -> None:
         source = Path("cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
 
-        self.assertIn("profile=self.profile.value", source)
-        self.assertIn("mesh_dotnet_helper_provenance_blockers", source)
+        self.assertIn("self.profile = DotNetPreviewProfile.normalize(profile)", source)
+        self.assertIn("validate_rust_mesh_editor_package(", source)
         self.assertIn("_TRANSIENT_RETRY_DELAYS_MS", source)
         self.assertIn("_STATIC_RETRY_DELAY_MS", source)
 

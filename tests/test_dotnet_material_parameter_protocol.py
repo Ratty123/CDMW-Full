@@ -55,13 +55,14 @@ def test_late_modify_original_materials_also_route_to_the_exact_editable_clone()
     assert "def apply_resident_clone_material_resources(" in protocol_source
     assert 'reason="late_exact_clone_resources"' in protocol_source
     assert "standalone_dotnet_pending_clone_material_model" in protocol_source
-    launch_source = (
-        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+    process_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_process.py"
     ).read_text(encoding="utf-8")
     connect_source = (
         ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py"
     ).read_text(encoding="utf-8")
-    assert launch_source.index("standalone_dotnet_pending_clone_material_model = None") < launch_source.index(
-        "standalone_dotnet_package_request_id += 1"
+    stop_source = process_source.split("def _stop_standalone_dotnet_editor_process(", 1)[1]
+    assert stop_source.index("standalone_dotnet_pending_clone_material_model = None") < stop_source.index(
+        "controller.clear_preview()"
     )
     assert "standalone_dotnet_pending_clone_material_model = None" not in connect_source

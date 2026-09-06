@@ -20,7 +20,11 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from cdmw.services.mesh_rust_authoring import _RustMaterialSynthesisState
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
@@ -37,19 +41,6 @@ from cdmw.modding.static_mesh_scene_frame import (
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
 from cdmw.services.mesh_dotnet_material_bindings import (
     apply_dotnet_native_material_batch_binding,
-)
-from cdmw.services.mesh_rust_authoring import (
-    _atomic_write_payload,
-    _deterministic_luminance_face_indices,
-    _encode_rust_preview_dds_batch,
-    _mesh_channel_payload,
-    _mesh_document_payload,
-    _mesh_lods,
-    _mesh_material_presentations,
-    _mesh_texture_payloads,
-    _RustMaterialSynthesisState,
-    _session_root_identity,
-    _source_hash,
 )
 from cdmw.services.mesh_rust_contract import (
     RUST_MESH_RENDERER,
@@ -84,6 +75,10 @@ def _write_effect_texture_resources(
     cancelled: Callable[[], bool] | None,
 ) -> tuple[dict[str, str], list[dict[str, object]]]:
     """Publish bounded, hash-addressed DDS sprites inside an immutable package."""
+
+    from cdmw.services.mesh_rust_authoring import (
+        _session_root_identity,
+    )
 
     if len(resources) > _EFFECT_TEXTURE_RESOURCE_LIMIT:
         raise ValueError("Effect preview contains too many sprite textures.")
@@ -264,6 +259,12 @@ def _encode_non_dds_preview_textures(
 ) -> dict[tuple[int, int, str], Path]:
     """Convert external-model images to owned DDS while preserving PAC DDS unchanged."""
 
+    from cdmw.services.mesh_rust_authoring import (
+        _RustMaterialSynthesisState,
+        _encode_rust_preview_dds_batch,
+        _mesh_lods,
+    )
+
     overrides: dict[tuple[int, int, str], Path] = {}
     encoded_sources: dict[tuple[Path, str], Path] = {}
     bindings: list[tuple[object, str, int, int, str, Path]] = []
@@ -391,6 +392,10 @@ def _copy_preview_core_binary(
     expected_root_identity: tuple[int, int],
     cancelled: Callable[[], bool] | None,
 ) -> dict[str, object]:
+    from cdmw.services.mesh_rust_authoring import (
+        _session_root_identity,
+    )
+
     if kind not in {"geometry", "identity"}:
         raise ValueError("Unsupported Preview Core binary role.")
     if expected_byte_length <= 0:
@@ -513,6 +518,10 @@ def _copy_preview_core_material_resource(
     aggregate_bytes: int,
     cancelled: Callable[[], bool] | None,
 ) -> tuple[dict[str, object], int, int]:
+    from cdmw.services.mesh_rust_authoring import (
+        _session_root_identity,
+    )
+
     try:
         source_size = source.stat().st_size
     except OSError as exc:
@@ -598,24 +607,10 @@ def _preview_core_layer_tint(value: object) -> list[float]:
     return (components + [1.0] * 4)[:4]
 
 
-def _build_preview_core_material_graph(
-    source_package: Path,
-    package_dir: Path,
-    raw_batches: Sequence[object],
-    *,
-    quality: str,
-    textures: Sequence[object],
-    expected_root_identity: tuple[int, int],
-    cancelled: Callable[[], bool] | None,
-) -> dict[str, object]:
-    resources, next_index, aggregate_bytes = _preview_core_material_resource_index(
-        package_dir,
-        textures,
-    )
-    initial_resource_shas = frozenset(resources)
-    copied_sources: dict[Path, tuple[tuple[int, int, int, int], dict[str, object]]] = {}
-    materials: list[dict[str, object]] = []
-    source_edge_count = 0
+def _copy_preview_core_material_layers(
+    raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes, copied_sources,
+    materials, source_edge_count, cancelled, expected_root_identity,
+):
     for material_index, raw_batch in enumerate(raw_batches):
         if not isinstance(raw_batch, Mapping):
             raise ValueError("Preview Core material graph contains an invalid batch.")
@@ -751,6 +746,33 @@ def _build_preview_core_material_graph(
                 "layers": layers,
             }
         )
+    return aggregate_bytes, source_edge_count
+
+
+def _build_preview_core_material_graph(
+    source_package: Path,
+    package_dir: Path,
+    raw_batches: Sequence[object],
+    *,
+    quality: str,
+    textures: Sequence[object],
+    expected_root_identity: tuple[int, int],
+    cancelled: Callable[[], bool] | None,
+) -> dict[str, object]:
+    resources, next_index, aggregate_bytes = _preview_core_material_resource_index(
+        package_dir,
+        textures,
+    )
+    initial_resource_shas = frozenset(resources)
+    copied_sources: dict[Path, tuple[tuple[int, int, int, int], dict[str, object]]] = {}
+    materials: list[dict[str, object]] = []
+    source_edge_count = 0
+    (
+        aggregate_bytes, source_edge_count,
+    ) = _copy_preview_core_material_layers(
+        raw_batches, source_package, package_dir, quality, resources, next_index, aggregate_bytes,
+        copied_sources, materials, source_edge_count, cancelled, expected_root_identity,
+    )
     copied_resource_shas = set(resources).difference(initial_resource_shas)
     return {
         "schema_version": _PREVIEW_CORE_MATERIAL_GRAPH_SCHEMA,
@@ -810,6 +832,10 @@ def _preview_core_material_sample(
     list[tuple[float, float]],
     list[tuple[int, int, int]],
 ]:
+    from cdmw.services.mesh_rust_authoring import (
+        _deterministic_luminance_face_indices,
+    )
+
     positions: list[tuple[float, float, float]] = []
     uvs: list[tuple[float, float]] = []
     faces: list[tuple[int, int, int]] = []
@@ -921,97 +947,104 @@ def _texture_status(textures: Sequence[object], quality: str) -> dict[str, objec
     }
 
 
-@atomic_preview_publication
-def build_rust_preview_package_from_preview_core(
-    preview_core_package_dir: Path | str,
-    *,
-    source_manifest: Mapping[str, object] | None = None,
-    output_root: Path | str | None = None,
-    output_package_dir: Path | str | None = None,
-    preview_overlays: Mapping[str, object] | None = None,
-    include_material_resources: bool = True,
-    material_quality: str = "full",
-    theme: Mapping[str, object] | None = None,
-    cancelled: Callable[[], bool] | None = None,
-) -> RustPreviewPackage:
-    """Publish schema-8 Preview Core geometry without a Python/JSON round trip."""
-
-    quality = normalize_rust_preview_material_quality(material_quality)
-    source_package = Path(preview_core_package_dir).expanduser().resolve(strict=True)
-    manifest = copy.deepcopy(dict(source_manifest or {}))
-    if not manifest:
-        try:
-            loaded = json.loads((source_package / "manifest.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise ValueError("Preview Core manifest is missing or invalid.") from exc
-        if not isinstance(loaded, Mapping):
-            raise ValueError("Preview Core manifest is not an object.")
-        manifest = copy.deepcopy(dict(loaded))
-    source_schema = _preview_core_int(manifest.get("schema_version"), 0)
-    material_graph_version = _preview_core_int(
-        manifest.get("material_graph_version"), 0
+def _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled):
+    frame = build_authoritative_static_scene_frame(
+        metadata_mesh,
+        metadata_mesh,
+        StaticReplacementTransform(
+            alignment_mode="manual",
+            scale_to_original_length=False,
+        ),
+        source_identity=static_scene_source_identity(metadata_mesh, None),
+        scene_generation=1,
+        comparison_mode="replacement_only",
+        interaction_mode="preview",
+        reference_draw="wire",
+        cancelled=cancelled,
     )
-    material_semantics_version = _preview_core_int(
-        manifest.get("material_semantics_version"), 0
+    framing_extent = max(0.01, 2.0 / abs(scale))
+    framing_bounds = StaticWorldBounds(
+        tuple(center[axis] - framing_extent * 0.5 for axis in range(3)),
+        tuple(center[axis] + framing_extent * 0.5 for axis in range(3)),
     )
-    center = _preview_core_vec3(manifest.get("normalization_center"))
-    scale = _preview_core_float(manifest.get("normalization_scale"), 0.0)
-    source_format = str(manifest.get("format", "") or "").strip().lower()
-    raw_batches = manifest.get("batches")
-    raw_material_conservation = manifest.get("material_conservation")
-    if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
-        raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
-    if (
-        material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
-        or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
-    ):
-        raise ValueError(
-            "Direct Rust preview requires Preview Core material graph v4 and semantics v10."
-        )
-    if (
-        not isinstance(raw_material_conservation, Mapping)
-        or raw_material_conservation.get("conserved") is not True
-    ):
-        raise ValueError(
-            "Direct Rust preview requires a conserved Preview Core material graph."
-        )
-    if center is None or abs(scale) <= 1.0e-12:
-        raise ValueError("Preview Core normalization is invalid.")
-    if source_format not in {"pac", "pam", "pamlod"}:
-        raise ValueError("Preview Core source format is not supported by Rust Preview.")
-    if (
-        not isinstance(raw_batches, Sequence)
-        or isinstance(raw_batches, (str, bytes, bytearray))
-        or not raw_batches
-        or len(raw_batches) > _PREVIEW_CORE_BATCH_LIMIT
-    ):
-        raise ValueError("Preview Core batch list is invalid or exceeds the package limit.")
-
-    _cancelled(cancelled)
-    root = (
-        Path(output_root)
-        if output_root is not None
-        else Path(tempfile.gettempdir()) / "cdmw_rust_preview"
+    empty_bounds = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+    frame = replace(
+        frame,
+        editable=replace(frame.editable, world_bounds=framing_bounds),
+        reference=StaticSceneRoleFrame(
+            role="reference",
+            model_matrix=frame.reference.model_matrix,
+            world_bounds=empty_bounds,
+            visible=False,
+            submesh_indices=(),
+        ),
+        framing_bounds=framing_bounds,
+        framing_extent=framing_extent,
     )
-    package_dir = (
-        Path(output_package_dir)
-        if output_package_dir is not None
-        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
-    )
-    package_dir.mkdir(parents=True, exist_ok=False)
-    root_identity = _session_root_identity(package_dir)
-    document = _atomic_write_payload(
-        package_dir,
-        "document.json",
+    session_id = uuid4().hex
+    scene_payload = frame.to_protocol_payload()
+    scene_payload.update(
         {
-            "schema_version": 1,
-            "geometry_authority": "manifest.preview_core_geometry",
-        },
-        data_type="mesh_document_pointer_json",
-        element_count=1,
-        expected_root_identity=root_identity,
+            "renderer_authority": "rust_wgpu_resident_scene",
+            "session_id": session_id,
+            "part_identities": part_identities,
+        }
+    )
+    if isinstance(preview_overlays, Mapping):
+        for source, target_key in (
+            ("skeleton", "skeleton_overlay"),
+            ("cloth", "cloth_overlay"),
+            ("effects", "effects_overlay"),
+        ):
+            value = preview_overlays.get(source)
+            if isinstance(value, Mapping):
+                scene_payload[target_key] = dict(value)
+    return frame, session_id, scene_payload
+
+
+def _prepare_preview_core_materials(
+    package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
+    include_material_resources,
+):
+    from cdmw.services.mesh_rust_authoring import (
+        _RustMaterialSynthesisState,
+        _mesh_material_presentations,
+        _mesh_texture_payloads,
     )
 
+    synthesis = _RustMaterialSynthesisState()
+    stop_event = _CancellationView(cancelled)
+    textures = (
+        _mesh_texture_payloads(
+            package_dir,
+            metadata_mesh,
+            expected_root_identity=root_identity,
+            stop_event=stop_event,  # type: ignore[arg-type]
+            synthesis_state=synthesis,
+            material_package_path=source_package,
+            enable_material_synthesis=False,
+        )
+        if include_material_resources
+        else []
+    )
+    preview_core_material_graph = _build_preview_core_material_graph(
+        source_package,
+        package_dir,
+        raw_batches,
+        quality=quality,
+        textures=textures,
+        expected_root_identity=root_identity,
+        cancelled=cancelled,
+    )
+    presentations = _mesh_material_presentations(
+        metadata_mesh,
+        generated_overrides=synthesis.presentation_overrides,
+    )
+    _cancelled(cancelled)
+    return textures, preview_core_material_graph, presentations
+
+
+def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_identity, cancelled):
     prepared_batches: list[tuple[Mapping[str, object], Path, int]] = []
     direct_batches: list[dict[str, object]] = []
     part_identities: list[dict[str, object]] = []
@@ -1098,6 +1131,117 @@ def build_rust_preview_package_from_preview_core(
         destination_geometry = package_dir / str(geometry_reference["path"])
         prepared_batches.append((raw_batch, destination_geometry, vertex_count))
         total_vertices += vertex_count
+    return prepared_batches, direct_batches, part_identities
+
+
+def _validated_preview_core_source(preview_core_package_dir, source_manifest):
+    source_package = Path(preview_core_package_dir).expanduser().resolve(strict=True)
+    manifest = copy.deepcopy(dict(source_manifest or {}))
+    if not manifest:
+        try:
+            loaded = json.loads((source_package / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError("Preview Core manifest is missing or invalid.") from exc
+        if not isinstance(loaded, Mapping):
+            raise ValueError("Preview Core manifest is not an object.")
+        manifest = copy.deepcopy(dict(loaded))
+    source_schema = _preview_core_int(manifest.get("schema_version"), 0)
+    material_graph_version = _preview_core_int(
+        manifest.get("material_graph_version"), 0
+    )
+    material_semantics_version = _preview_core_int(
+        manifest.get("material_semantics_version"), 0
+    )
+    center = _preview_core_vec3(manifest.get("normalization_center"))
+    scale = _preview_core_float(manifest.get("normalization_scale"), 0.0)
+    source_format = str(manifest.get("format", "") or "").strip().lower()
+    raw_batches = manifest.get("batches")
+    raw_material_conservation = manifest.get("material_conservation")
+    if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
+        raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
+    if (
+        material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
+        or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
+    ):
+        raise ValueError(
+            "Direct Rust preview requires Preview Core material graph v4 and semantics v10."
+        )
+    if (
+        not isinstance(raw_material_conservation, Mapping)
+        or raw_material_conservation.get("conserved") is not True
+    ):
+        raise ValueError(
+            "Direct Rust preview requires a conserved Preview Core material graph."
+        )
+    if center is None or abs(scale) <= 1.0e-12:
+        raise ValueError("Preview Core normalization is invalid.")
+    if source_format not in {"pac", "pam", "pamlod"}:
+        raise ValueError("Preview Core source format is not supported by Rust Preview.")
+    if (
+        not isinstance(raw_batches, Sequence)
+        or isinstance(raw_batches, (str, bytes, bytearray))
+        or not raw_batches
+        or len(raw_batches) > _PREVIEW_CORE_BATCH_LIMIT
+    ):
+        raise ValueError("Preview Core batch list is invalid or exceeds the package limit.")
+    return source_package, manifest, source_schema, material_graph_version, material_semantics_version, center, scale, source_format, raw_batches, raw_material_conservation
+
+
+@atomic_preview_publication
+def build_rust_preview_package_from_preview_core(
+    preview_core_package_dir: Path | str,
+    *,
+    source_manifest: Mapping[str, object] | None = None,
+    output_root: Path | str | None = None,
+    output_package_dir: Path | str | None = None,
+    preview_overlays: Mapping[str, object] | None = None,
+    include_material_resources: bool = True,
+    material_quality: str = "full",
+    theme: Mapping[str, object] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> RustPreviewPackage:
+    """Publish schema-8 Preview Core geometry without a Python/JSON round trip."""
+
+    from cdmw.services.mesh_rust_authoring import _atomic_write_payload, _session_root_identity
+
+    quality = normalize_rust_preview_material_quality(material_quality)
+    (
+        source_package, manifest, source_schema, material_graph_version, material_semantics_version, center,
+        scale, source_format, raw_batches, raw_material_conservation,
+    ) = _validated_preview_core_source(
+        preview_core_package_dir, source_manifest,
+    )
+
+    _cancelled(cancelled)
+    root = (
+        Path(output_root)
+        if output_root is not None
+        else Path(tempfile.gettempdir()) / "cdmw_rust_preview"
+    )
+    package_dir = (
+        Path(output_package_dir)
+        if output_package_dir is not None
+        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+    )
+    package_dir.mkdir(parents=True, exist_ok=False)
+    root_identity = _session_root_identity(package_dir)
+    document = _atomic_write_payload(
+        package_dir,
+        "document.json",
+        {
+            "schema_version": 1,
+            "geometry_authority": "manifest.preview_core_geometry",
+        },
+        data_type="mesh_document_pointer_json",
+        element_count=1,
+        expected_root_identity=root_identity,
+    )
+
+    (
+        prepared_batches, direct_batches, part_identities,
+    ) = _copy_preview_core_geometry(
+        raw_batches, source_package, package_dir, root_identity, cancelled,
+    )
 
     channels = _atomic_write_payload(
         package_dir,
@@ -1123,86 +1267,13 @@ def build_rust_preview_package_from_preview_core(
     # Production full-material work is completed by Rust from the conserved
     # Preview Core graph. Python packages only directly upload already authored
     # base/support maps; the Python combiner remains available as an oracle.
-    synthesis = _RustMaterialSynthesisState()
-    stop_event = _CancellationView(cancelled)
-    textures = (
-        _mesh_texture_payloads(
-            package_dir,
-            metadata_mesh,
-            expected_root_identity=root_identity,
-            stop_event=stop_event,  # type: ignore[arg-type]
-            synthesis_state=synthesis,
-            material_package_path=source_package,
-            enable_material_synthesis=False,
-        )
-        if include_material_resources
-        else []
+    (
+        textures, preview_core_material_graph, presentations,
+    ) = _prepare_preview_core_materials(
+        package_dir, metadata_mesh, root_identity, quality, source_package, raw_batches, cancelled,
+        include_material_resources,
     )
-    preview_core_material_graph = _build_preview_core_material_graph(
-        source_package,
-        package_dir,
-        raw_batches,
-        quality=quality,
-        textures=textures,
-        expected_root_identity=root_identity,
-        cancelled=cancelled,
-    )
-    presentations = _mesh_material_presentations(
-        metadata_mesh,
-        generated_overrides=synthesis.presentation_overrides,
-    )
-    _cancelled(cancelled)
-    frame = build_authoritative_static_scene_frame(
-        metadata_mesh,
-        metadata_mesh,
-        StaticReplacementTransform(
-            alignment_mode="manual",
-            scale_to_original_length=False,
-        ),
-        source_identity=static_scene_source_identity(metadata_mesh, None),
-        scene_generation=1,
-        comparison_mode="replacement_only",
-        interaction_mode="preview",
-        reference_draw="wire",
-        cancelled=cancelled,
-    )
-    framing_extent = max(0.01, 2.0 / abs(scale))
-    framing_bounds = StaticWorldBounds(
-        tuple(center[axis] - framing_extent * 0.5 for axis in range(3)),
-        tuple(center[axis] + framing_extent * 0.5 for axis in range(3)),
-    )
-    empty_bounds = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-    frame = replace(
-        frame,
-        editable=replace(frame.editable, world_bounds=framing_bounds),
-        reference=StaticSceneRoleFrame(
-            role="reference",
-            model_matrix=frame.reference.model_matrix,
-            world_bounds=empty_bounds,
-            visible=False,
-            submesh_indices=(),
-        ),
-        framing_bounds=framing_bounds,
-        framing_extent=framing_extent,
-    )
-    session_id = uuid4().hex
-    scene_payload = frame.to_protocol_payload()
-    scene_payload.update(
-        {
-            "renderer_authority": "rust_wgpu_resident_scene",
-            "session_id": session_id,
-            "part_identities": part_identities,
-        }
-    )
-    if isinstance(preview_overlays, Mapping):
-        for source, target_key in (
-            ("skeleton", "skeleton_overlay"),
-            ("cloth", "cloth_overlay"),
-            ("effects", "effects_overlay"),
-        ):
-            value = preview_overlays.get(source)
-            if isinstance(value, Mapping):
-                scene_payload[target_key] = dict(value)
+    frame, session_id, scene_payload = _preview_core_scene_frame(metadata_mesh, center, scale, part_identities, preview_overlays, cancelled)
 
     source_sha256 = str(manifest.get("source_sha256", "") or "").strip().upper()
     manifest_payload = {
@@ -1267,148 +1338,10 @@ def build_rust_preview_package_from_preview_core(
     )
 
 
-@atomic_preview_publication
-def build_rust_preview_package(
-    mesh: ParsedMesh,
-    *,
-    output_root: Path | str | None = None,
-    output_package_dir: Path | str | None = None,
-    reference_mesh: ParsedMesh | None = None,
-    comparison_mode: str = "replacement_only",
-    reference_draw: str = "wire",
-    grid_normal_axis: str = "y",
-    interaction_profile: str = "read_only",
-    interaction_mode: str | None = None,
-    scene_transform: StaticReplacementTransform | None = None,
-    scene_generation: int = 1,
-    scene_session_id: str = "",
-    selection_pivot_source: tuple[float, float, float] | None = None,
-    preview_overlays: Mapping[str, object] | None = None,
-    effects_overlay: Mapping[str, object] | None = None,
-    effect_texture_resources: Mapping[str, bytes] | None = None,
-    framing_bounds: tuple[Sequence[float], Sequence[float]] | None = None,
-    initial_view: Mapping[str, object] | None = None,
-    material_package_path: Path | str | None = None,
-    include_material_resources: bool = True,
-    material_quality: str = "full",
-    theme: Mapping[str, object] | None = None,
-    cancelled: Callable[[], bool] | None = None,
-) -> RustPreviewPackage:
-    """Publish one immutable Rust preview package.
-
-    ``static_replacement`` is the only profile allowed to advertise preview
-    mesh-edit input.  Both profiles remain read-only with respect to PAMT/PAZ.
-    """
-
-    quality = normalize_rust_preview_material_quality(material_quality)
-    profile = str(interaction_profile or "read_only").strip().lower()
-    if profile not in {"read_only", "static_replacement"}:
-        raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
-    mode = str(
-        interaction_mode
-        or ("mesh_edit" if profile == "static_replacement" else "preview")
-    ).strip().lower()
-    if mode not in {"preview", "placement", "mesh_edit"}:
-        raise ValueError(f"Unsupported Rust preview interaction mode: {mode}")
-    _cancelled(cancelled)
-    root = (
-        Path(output_root)
-        if output_root is not None
-        else Path(tempfile.gettempdir()) / "cdmw_rust_preview"
-    )
-    package_dir = (
-        Path(output_package_dir)
-        if output_package_dir is not None
-        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
-    )
-    package_dir.mkdir(parents=True, exist_ok=False)
-    root_identity = _session_root_identity(package_dir)
-
-    scene = _scene_mesh(mesh, reference_mesh)
-    editable_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
-    reference_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh else 0
-    target = reference_mesh if reference_mesh is not None else mesh
-    frame = build_authoritative_static_scene_frame(
-        target,
-        mesh,
-        scene_transform
-        or StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
-        source_identity=static_scene_source_identity(mesh, reference_mesh),
-        scene_generation=max(1, int(scene_generation)),
-        comparison_mode=str(comparison_mode or "replacement_only"),
-        interaction_mode=mode,
-        reference_draw=str(reference_draw or "wire"),
-        grid_normal_axis=str(grid_normal_axis or "y"),
-        selection_pivot_source=selection_pivot_source,
-        cancelled=cancelled,
-    )
-    if reference_mesh is None:
-        empty = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-        frame = replace(
-            frame,
-            reference=StaticSceneRoleFrame(
-                role="reference",
-                model_matrix=frame.reference.model_matrix,
-                world_bounds=empty,
-                visible=False,
-                submesh_indices=(),
-            ),
-            framing_bounds=frame.editable.world_bounds,
-            framing_extent=max(0.01, frame.editable.world_bounds.extent),
-        )
-    _cancelled(cancelled)
-    document = _atomic_write_payload(
-        package_dir,
-        "document.json",
-        _mesh_document_payload(scene, allow_preview_formats=True),
-        data_type="mesh_document_json",
-        element_count=sum(len(level) for level in _mesh_lods(scene)),
-        expected_root_identity=root_identity,
-    )
-    channels = _atomic_write_payload(
-        package_dir,
-        "channels.json",
-        _mesh_channel_payload(scene),
-        data_type="mesh_channels_compact_json",
-        element_count=sum(
-            len(tuple(getattr(submesh, "vertices", ()) or ()))
-            for level in _mesh_lods(scene)
-            for submesh in level
-        ),
-        expected_root_identity=root_identity,
-    )
-    synthesis = _RustMaterialSynthesisState()
-    stop_event = _CancellationView(cancelled)
-    if include_material_resources:
-        with tempfile.TemporaryDirectory(
-            prefix="cdmw-rust-preview-images-",
-            dir=package_dir.parent,
-        ) as preview_image_staging:
-            image_overrides = _encode_non_dds_preview_textures(
-                scene,
-                Path(preview_image_staging),
-                stop_event,
-                synthesis,
-            )
-            textures = _mesh_texture_payloads(
-                package_dir,
-                scene,
-                expected_root_identity=root_identity,
-                stop_event=stop_event,  # type: ignore[arg-type]
-                synthesis_state=synthesis,
-                material_package_path=material_package_path or "",
-                preview_texture_overrides=image_overrides,
-                enable_material_synthesis=quality == "full",
-            )
-    else:
-        textures = []
-    presentations = _mesh_material_presentations(
-        scene,
-        generated_overrides=synthesis.presentation_overrides,
-    )
-    _cancelled(cancelled)
-    session_id = str(scene_session_id or uuid4().hex)
-    scene_payload = frame.to_protocol_payload()
+def _populate_preview_scene_overlays(
+    scene_payload, session_id, scene, mesh, framing_bounds, initial_view, preview_overlays, effects_overlay,
+    effect_texture_resources, package_dir, root_identity, cancelled,
+):
     if framing_bounds is not None:
         low, high = framing_bounds
         minimum = [float(low[index]) for index in range(3)]
@@ -1467,6 +1400,177 @@ def build_rust_preview_package(
         else:
             effect_payload.setdefault("texture_files", {})
         scene_payload["effects_overlay"] = effect_payload
+    return effect_texture_references
+
+
+def _write_preview_mesh_resources(package_dir, scene, root_identity, include_material_resources, material_package_path, quality, cancelled):
+    from cdmw.services.mesh_rust_authoring import (
+        _RustMaterialSynthesisState,
+        _atomic_write_payload,
+        _mesh_channel_payload,
+        _mesh_document_payload,
+        _mesh_lods,
+        _mesh_material_presentations,
+        _mesh_texture_payloads,
+    )
+
+    document = _atomic_write_payload(
+        package_dir,
+        "document.json",
+        _mesh_document_payload(scene, allow_preview_formats=True),
+        data_type="mesh_document_json",
+        element_count=sum(len(level) for level in _mesh_lods(scene)),
+        expected_root_identity=root_identity,
+    )
+    channels = _atomic_write_payload(
+        package_dir,
+        "channels.json",
+        _mesh_channel_payload(scene),
+        data_type="mesh_channels_compact_json",
+        element_count=sum(
+            len(tuple(getattr(submesh, "vertices", ()) or ()))
+            for level in _mesh_lods(scene)
+            for submesh in level
+        ),
+        expected_root_identity=root_identity,
+    )
+    synthesis = _RustMaterialSynthesisState()
+    stop_event = _CancellationView(cancelled)
+    if include_material_resources:
+        with tempfile.TemporaryDirectory(
+            prefix="cdmw-rust-preview-images-",
+            dir=package_dir.parent,
+        ) as preview_image_staging:
+            image_overrides = _encode_non_dds_preview_textures(
+                scene,
+                Path(preview_image_staging),
+                stop_event,
+                synthesis,
+            )
+            textures = _mesh_texture_payloads(
+                package_dir,
+                scene,
+                expected_root_identity=root_identity,
+                stop_event=stop_event,  # type: ignore[arg-type]
+                synthesis_state=synthesis,
+                material_package_path=material_package_path or "",
+                preview_texture_overrides=image_overrides,
+                enable_material_synthesis=quality == "full",
+            )
+    else:
+        textures = []
+    presentations = _mesh_material_presentations(
+        scene,
+        generated_overrides=synthesis.presentation_overrides,
+    )
+    _cancelled(cancelled)
+    return document, channels, textures, presentations
+
+
+@atomic_preview_publication
+def build_rust_preview_package(
+    mesh: ParsedMesh,
+    *,
+    output_root: Path | str | None = None,
+    output_package_dir: Path | str | None = None,
+    reference_mesh: ParsedMesh | None = None,
+    comparison_mode: str = "replacement_only",
+    reference_draw: str = "wire",
+    grid_normal_axis: str = "y",
+    interaction_profile: str = "read_only",
+    interaction_mode: str | None = None,
+    scene_transform: StaticReplacementTransform | None = None,
+    scene_generation: int = 1,
+    scene_session_id: str = "",
+    selection_pivot_source: tuple[float, float, float] | None = None,
+    preview_overlays: Mapping[str, object] | None = None,
+    effects_overlay: Mapping[str, object] | None = None,
+    effect_texture_resources: Mapping[str, bytes] | None = None,
+    framing_bounds: tuple[Sequence[float], Sequence[float]] | None = None,
+    initial_view: Mapping[str, object] | None = None,
+    material_package_path: Path | str | None = None,
+    include_material_resources: bool = True,
+    material_quality: str = "full",
+    theme: Mapping[str, object] | None = None,
+    cancelled: Callable[[], bool] | None = None,
+) -> RustPreviewPackage:
+    """Publish one immutable Rust preview package.
+
+    ``static_replacement`` is the only profile allowed to advertise preview
+    mesh-edit input.  Both profiles remain read-only with respect to PAMT/PAZ.
+    """
+
+    from cdmw.services.mesh_rust_authoring import _session_root_identity, _source_hash
+
+    quality = normalize_rust_preview_material_quality(material_quality)
+    profile = str(interaction_profile or "read_only").strip().lower()
+    if profile not in {"read_only", "static_replacement"}:
+        raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
+    mode = str(
+        interaction_mode
+        or ("mesh_edit" if profile == "static_replacement" else "preview")
+    ).strip().lower()
+    if mode not in {"preview", "placement", "mesh_edit"}:
+        raise ValueError(f"Unsupported Rust preview interaction mode: {mode}")
+    _cancelled(cancelled)
+    root = (
+        Path(output_root)
+        if output_root is not None
+        else Path(tempfile.gettempdir()) / "cdmw_rust_preview"
+    )
+    package_dir = (
+        Path(output_package_dir)
+        if output_package_dir is not None
+        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+    )
+    package_dir.mkdir(parents=True, exist_ok=False)
+    root_identity = _session_root_identity(package_dir)
+
+    scene = _scene_mesh(mesh, reference_mesh)
+    editable_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+    reference_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh else 0
+    target = reference_mesh if reference_mesh is not None else mesh
+    frame = build_authoritative_static_scene_frame(
+        target,
+        mesh,
+        scene_transform
+        or StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+        source_identity=static_scene_source_identity(mesh, reference_mesh),
+        scene_generation=max(1, int(scene_generation)),
+        comparison_mode=str(comparison_mode or "replacement_only"),
+        interaction_mode=mode,
+        reference_draw=str(reference_draw or "wire"),
+        grid_normal_axis=str(grid_normal_axis or "y"),
+        selection_pivot_source=selection_pivot_source,
+        cancelled=cancelled,
+    )
+    if reference_mesh is None:
+        empty = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        frame = replace(
+            frame,
+            reference=StaticSceneRoleFrame(
+                role="reference",
+                model_matrix=frame.reference.model_matrix,
+                world_bounds=empty,
+                visible=False,
+                submesh_indices=(),
+            ),
+            framing_bounds=frame.editable.world_bounds,
+            framing_extent=max(0.01, frame.editable.world_bounds.extent),
+        )
+    _cancelled(cancelled)
+    (
+        document, channels, textures, presentations,
+    ) = _write_preview_mesh_resources(
+        package_dir, scene, root_identity, include_material_resources, material_package_path, quality,
+        cancelled,
+    )
+    session_id = str(scene_session_id or uuid4().hex)
+    scene_payload = frame.to_protocol_payload()
+    effect_texture_references = _populate_preview_scene_overlays(
+        scene_payload, session_id, scene, mesh, framing_bounds, initial_view, preview_overlays,
+        effects_overlay, effect_texture_resources, package_dir, root_identity, cancelled,
+    )
     manifest = {
         "schema": RUST_PREVIEW_PACKAGE,
         "protocol": RUST_PREVIEW_PROTOCOL,

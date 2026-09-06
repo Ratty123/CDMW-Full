@@ -483,6 +483,36 @@ def _continuity_identity(
     }
 
 
+def _control_transition_summary(cases, transition_ms):
+    ordered = sorted(transition_ms)
+    p95_index = max(0, min(len(ordered) - 1, int(len(ordered) * 0.95 + 0.999999) - 1))
+    p95_ms = ordered[p95_index]
+    if p95_ms > 50.0:
+        timings = [
+            {
+                "control": str(case.get("control_text", "") or ""),
+                "settled_ms": float(case.get("settled_ms", 0.0) or 0.0),
+                "dispatch_ms": float(
+                    dict(case.get("actual_control", {})).get("message_dispatch_ms", 0.0)
+                    or 0.0
+                ),
+            }
+            for case in cases
+        ]
+        raise RuntimeError(
+            f"Tool/page activation p95 exceeded 50 ms: {p95_ms:.3f} ms; "
+            f"cases={timings!r}."
+        )
+    return {
+        "ok": True,
+        "actual_controls": True,
+        "case_count": len(cases),
+        "settlement_p95_ms": round(p95_ms, 3),
+        "threshold_ms": 50.0,
+        "cases": cases,
+    }
+
+
 def _exercise_actual_control_continuity(
     app: QApplication,
     mesh_editor_tab: object,
@@ -610,33 +640,7 @@ def _exercise_actual_control_continuity(
             raise RuntimeError(
                 f"The real {text} activation changed the resident viewport: {case!r}"
             )
-    ordered = sorted(transition_ms)
-    p95_index = max(0, min(len(ordered) - 1, int(len(ordered) * 0.95 + 0.999999) - 1))
-    p95_ms = ordered[p95_index]
-    if p95_ms > 50.0:
-        timings = [
-            {
-                "control": str(case.get("control_text", "") or ""),
-                "settled_ms": float(case.get("settled_ms", 0.0) or 0.0),
-                "dispatch_ms": float(
-                    dict(case.get("actual_control", {})).get("message_dispatch_ms", 0.0)
-                    or 0.0
-                ),
-            }
-            for case in cases
-        ]
-        raise RuntimeError(
-            f"Tool/page activation p95 exceeded 50 ms: {p95_ms:.3f} ms; "
-            f"cases={timings!r}."
-        )
-    return {
-        "ok": True,
-        "actual_controls": True,
-        "case_count": len(cases),
-        "settlement_p95_ms": round(p95_ms, 3),
-        "threshold_ms": 50.0,
-        "cases": cases,
-    }
+    return _control_transition_summary(cases, transition_ms)
 
 
 def _activate_solid_textured_control(
@@ -1486,6 +1490,127 @@ def _perform_actual_history_command(
     }
 
 
+def _exercise_resident_geometry_tools(
+    app, baseline, desktop_observations, first_grab, first_undo, form_hwnd, gates, helper_pid, mesh_editor_tab,
+    point, viewport_hwnd,
+):
+    resident_tools: dict[str, object] = {
+        "grab": {
+            "ok": True,
+            "tool": "Grab",
+            "mode": "grab",
+            "baseline": baseline,
+            "gesture": first_grab,
+            "undo": first_undo,
+            "gates": {
+                "transaction_count_one": first_grab.get(
+                    "resident_interaction_transaction_count", 0
+                )
+                == 1,
+                "commit_v2_ack_applied": str(
+                    first_grab.get("commit_v2_acknowledgement", {}).get("status", "")
+                    if isinstance(first_grab.get("commit_v2_acknowledgement"), Mapping)
+                    else ""
+                ).lower()
+                == "applied",
+                "geometry_changed": gates["first_grab_changed_geometry"],
+                "one_history_transaction": gates["first_grab_one_history_entry"],
+                "undo_restored_exact_baseline": gates[
+                    "first_undo_restored_exact_baseline"
+                ],
+                "undo_restored_history_cursor": gates[
+                    "first_undo_restored_history_cursor"
+                ],
+                "operator_idle": str(first_grab["operator"].get("state", "")).lower()
+                == "idle"
+                and str(first_undo["operator"].get("state", "")).lower() == "idle",
+                "native_backend": first_grab["input_backend"]
+                == "helper_ui_thread_resident_probe",
+                "no_mutation_echo": first_grab.get(
+                    "helper_originated_mutation_echo_count", 1
+                )
+                == 0,
+            },
+        }
+    }
+    for tool_text, mode in (
+        ("Move", "move"),
+        ("Smooth", "smooth"),
+        ("Inflate", "inflate"),
+        ("Pinch", "pinch"),
+    ):
+        tool_baseline = _mesh_geometry_snapshot(mesh_editor_tab)
+        gesture = _perform_actual_resident_tool(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            viewport_hwnd=viewport_hwnd,
+            helper_pid=helper_pid,
+            tool_text=tool_text,
+            mode=mode,
+            start=(point[0], point[1]),
+            desktop_observations=desktop_observations,
+        )
+        changed = dict(gesture["snapshot"])
+        undo = _perform_actual_history_command(
+            app,
+            mesh_editor_tab,
+            form_hwnd=form_hwnd,
+            helper_pid=helper_pid,
+            command_text="Undo",
+            desktop_observations=desktop_observations,
+        )
+        undone_tool = dict(undo["snapshot"])
+        gates_for_tool = {
+            "transaction_count_one": bool(
+                gesture.get("resident_interaction_transaction")
+            ),
+            "commit_v2_ack_applied": str(
+                gesture.get("commit_v2_acknowledgement", {}).get("status", "")
+                if isinstance(gesture.get("commit_v2_acknowledgement"), Mapping)
+                else ""
+            ).lower()
+            == "applied",
+            "geometry_changed": changed["sha256"] != tool_baseline["sha256"],
+            "one_history_transaction": changed["history_cursor"]
+            == tool_baseline["history_cursor"] + 1,
+            "undo_restored_exact_baseline": undone_tool["sha256"]
+            == tool_baseline["sha256"],
+            "undo_restored_history_cursor": undone_tool["history_cursor"]
+            == tool_baseline["history_cursor"],
+            "operator_idle": str(gesture["operator"].get("state", "")).lower()
+            == "idle"
+            and str(undo["operator"].get("state", "")).lower() == "idle",
+            "native_backend": gesture.get("input_backend")
+            == "helper_ui_thread_resident_probe",
+            "no_mutation_echo": int(
+                gesture.get("probe_acknowledgement", {}).get(
+                    "helper_originated_mutation_echo_count", 0
+                )
+                if isinstance(gesture.get("probe_acknowledgement"), Mapping)
+                else 1
+            )
+            == 0,
+        }
+        if not all(gates_for_tool.values()):
+            raise RuntimeError(
+                f"The actual {tool_text} resident interaction violated its "
+                f"transaction/history invariants: gates={gates_for_tool!r}, "
+                f"baseline={tool_baseline!r}, changed={changed!r}, "
+                f"undone={undone_tool!r}."
+            )
+        resident_tools[mode] = {
+            "ok": True,
+            "tool": tool_text,
+            "mode": mode,
+            "baseline": tool_baseline,
+            "gesture": gesture,
+            "undo": undo,
+            "gates": gates_for_tool,
+        }
+    return resident_tools
+
+
 def _exercise_actual_grab_undo_redo(
     app: QApplication,
     mesh_editor_tab: object,
@@ -1605,120 +1730,10 @@ def _exercise_actual_grab_undo_redo(
             f"restored={restored_baseline!r}."
         )
 
-    resident_tools: dict[str, object] = {
-        "grab": {
-            "ok": True,
-            "tool": "Grab",
-            "mode": "grab",
-            "baseline": baseline,
-            "gesture": first_grab,
-            "undo": first_undo,
-            "gates": {
-                "transaction_count_one": first_grab.get(
-                    "resident_interaction_transaction_count", 0
-                )
-                == 1,
-                "commit_v2_ack_applied": str(
-                    first_grab.get("commit_v2_acknowledgement", {}).get("status", "")
-                    if isinstance(first_grab.get("commit_v2_acknowledgement"), Mapping)
-                    else ""
-                ).lower()
-                == "applied",
-                "geometry_changed": gates["first_grab_changed_geometry"],
-                "one_history_transaction": gates["first_grab_one_history_entry"],
-                "undo_restored_exact_baseline": gates[
-                    "first_undo_restored_exact_baseline"
-                ],
-                "undo_restored_history_cursor": gates[
-                    "first_undo_restored_history_cursor"
-                ],
-                "operator_idle": str(first_grab["operator"].get("state", "")).lower()
-                == "idle"
-                and str(first_undo["operator"].get("state", "")).lower() == "idle",
-                "native_backend": first_grab["input_backend"]
-                == "helper_ui_thread_resident_probe",
-                "no_mutation_echo": first_grab.get(
-                    "helper_originated_mutation_echo_count", 1
-                )
-                == 0,
-            },
-        }
-    }
-    for tool_text, mode in (
-        ("Move", "move"),
-        ("Smooth", "smooth"),
-        ("Inflate", "inflate"),
-        ("Pinch", "pinch"),
-    ):
-        tool_baseline = _mesh_geometry_snapshot(mesh_editor_tab)
-        gesture = _perform_actual_resident_tool(
-            app,
-            mesh_editor_tab,
-            form_hwnd=form_hwnd,
-            viewport_hwnd=viewport_hwnd,
-            helper_pid=helper_pid,
-            tool_text=tool_text,
-            mode=mode,
-            start=(point[0], point[1]),
-            desktop_observations=desktop_observations,
-        )
-        changed = dict(gesture["snapshot"])
-        undo = _perform_actual_history_command(
-            app,
-            mesh_editor_tab,
-            form_hwnd=form_hwnd,
-            helper_pid=helper_pid,
-            command_text="Undo",
-            desktop_observations=desktop_observations,
-        )
-        undone_tool = dict(undo["snapshot"])
-        gates_for_tool = {
-            "transaction_count_one": bool(
-                gesture.get("resident_interaction_transaction")
-            ),
-            "commit_v2_ack_applied": str(
-                gesture.get("commit_v2_acknowledgement", {}).get("status", "")
-                if isinstance(gesture.get("commit_v2_acknowledgement"), Mapping)
-                else ""
-            ).lower()
-            == "applied",
-            "geometry_changed": changed["sha256"] != tool_baseline["sha256"],
-            "one_history_transaction": changed["history_cursor"]
-            == tool_baseline["history_cursor"] + 1,
-            "undo_restored_exact_baseline": undone_tool["sha256"]
-            == tool_baseline["sha256"],
-            "undo_restored_history_cursor": undone_tool["history_cursor"]
-            == tool_baseline["history_cursor"],
-            "operator_idle": str(gesture["operator"].get("state", "")).lower()
-            == "idle"
-            and str(undo["operator"].get("state", "")).lower() == "idle",
-            "native_backend": gesture.get("input_backend")
-            == "helper_ui_thread_resident_probe",
-            "no_mutation_echo": int(
-                gesture.get("probe_acknowledgement", {}).get(
-                    "helper_originated_mutation_echo_count", 0
-                )
-                if isinstance(gesture.get("probe_acknowledgement"), Mapping)
-                else 1
-            )
-            == 0,
-        }
-        if not all(gates_for_tool.values()):
-            raise RuntimeError(
-                f"The actual {tool_text} resident interaction violated its "
-                f"transaction/history invariants: gates={gates_for_tool!r}, "
-                f"baseline={tool_baseline!r}, changed={changed!r}, "
-                f"undone={undone_tool!r}."
-            )
-        resident_tools[mode] = {
-            "ok": True,
-            "tool": tool_text,
-            "mode": mode,
-            "baseline": tool_baseline,
-            "gesture": gesture,
-            "undo": undo,
-            "gates": gates_for_tool,
-        }
+    resident_tools = _exercise_resident_geometry_tools(
+        app, baseline, desktop_observations, first_grab, first_undo, form_hwnd, gates, helper_pid,
+        mesh_editor_tab, point, viewport_hwnd,
+    )
     return {
         "ok": True,
         "actual_controls": True,
@@ -1848,6 +1863,85 @@ def _raise_packaged_smoke_failure(
             f"{exc} Failure diagnostics could not be written: {write_exc}"
         ) from exc
     raise RuntimeError(f"{exc} Failure diagnostics: {failure_path}") from exc
+
+
+def _validated_resident_interactions(grab_history, selection):
+    select_attempt = next(
+        (
+            attempt
+            for attempt in reversed(tuple(selection.get("attempts", ()) or ()))
+            if isinstance(attempt, Mapping)
+            and attempt.get("selection_nonempty") is True
+        ),
+        None,
+    )
+    if not isinstance(select_attempt, Mapping):
+        raise RuntimeError("Packaged Select proof has no successful resident gesture evidence.")
+    select_gates = {
+        "transaction_count_one": int(
+            select_attempt.get("resident_interaction_transaction_count", 0) or 0
+        )
+        == 1,
+        "commit_v2_ack_applied": str(
+            select_attempt.get("commit_v2_acknowledgement", {}).get("status", "")
+            if isinstance(select_attempt.get("commit_v2_acknowledgement"), Mapping)
+            else ""
+        ).lower()
+        == "applied",
+        "operator_idle": str(
+            select_attempt.get("operator", {}).get("state", "")
+            if isinstance(select_attempt.get("operator"), Mapping)
+            else ""
+        ).lower()
+        == "idle",
+        "native_backend": select_attempt.get("input_backend")
+        == "helper_ui_thread_resident_probe",
+        "no_mutation_echo": int(
+            select_attempt.get("helper_originated_mutation_echo_count", 1) or 1
+        )
+        == 0,
+    }
+    if not all(select_gates.values()):
+        raise RuntimeError(
+            f"The actual Select resident interaction violated its transaction "
+            f"invariants: gates={select_gates!r}, attempt={select_attempt!r}."
+        )
+    resident_interactions = {
+        "select": {
+            "ok": True,
+            "tool": "Select",
+            "mode": "select_brush_vertex",
+            "gesture": dict(select_attempt),
+            "gates": select_gates,
+        },
+        **dict(grab_history.get("resident_tools", {}) or {}),
+    }
+    expected_resident_modes = (
+        "select",
+        "move",
+        "grab",
+        "smooth",
+        "inflate",
+        "pinch",
+    )
+    if any(
+        not isinstance(resident_interactions.get(mode), Mapping)
+        or resident_interactions[mode].get("ok") is not True
+        or not all(
+            bool(value)
+            for value in tuple(
+                resident_interactions[mode].get("gates", {}).values()
+                if isinstance(resident_interactions[mode].get("gates"), Mapping)
+                else ()
+            )
+        )
+        for mode in expected_resident_modes
+    ):
+        raise RuntimeError(
+            "Packaged resident interaction proof did not cover every required "
+            f"tool: {resident_interactions!r}"
+        )
+    return resident_interactions
 
 
 def verify_packaged_mesh_texture_smoke_target(
@@ -2058,81 +2152,7 @@ def verify_packaged_mesh_texture_smoke_target(
             selection=selection,
             desktop_observations=desktop_observations,
         )
-        select_attempt = next(
-            (
-                attempt
-                for attempt in reversed(tuple(selection.get("attempts", ()) or ()))
-                if isinstance(attempt, Mapping)
-                and attempt.get("selection_nonempty") is True
-            ),
-            None,
-        )
-        if not isinstance(select_attempt, Mapping):
-            raise RuntimeError("Packaged Select proof has no successful resident gesture evidence.")
-        select_gates = {
-            "transaction_count_one": int(
-                select_attempt.get("resident_interaction_transaction_count", 0) or 0
-            )
-            == 1,
-            "commit_v2_ack_applied": str(
-                select_attempt.get("commit_v2_acknowledgement", {}).get("status", "")
-                if isinstance(select_attempt.get("commit_v2_acknowledgement"), Mapping)
-                else ""
-            ).lower()
-            == "applied",
-            "operator_idle": str(
-                select_attempt.get("operator", {}).get("state", "")
-                if isinstance(select_attempt.get("operator"), Mapping)
-                else ""
-            ).lower()
-            == "idle",
-            "native_backend": select_attempt.get("input_backend")
-            == "helper_ui_thread_resident_probe",
-            "no_mutation_echo": int(
-                select_attempt.get("helper_originated_mutation_echo_count", 1) or 1
-            )
-            == 0,
-        }
-        if not all(select_gates.values()):
-            raise RuntimeError(
-                f"The actual Select resident interaction violated its transaction "
-                f"invariants: gates={select_gates!r}, attempt={select_attempt!r}."
-            )
-        resident_interactions = {
-            "select": {
-                "ok": True,
-                "tool": "Select",
-                "mode": "select_brush_vertex",
-                "gesture": dict(select_attempt),
-                "gates": select_gates,
-            },
-            **dict(grab_history.get("resident_tools", {}) or {}),
-        }
-        expected_resident_modes = (
-            "select",
-            "move",
-            "grab",
-            "smooth",
-            "inflate",
-            "pinch",
-        )
-        if any(
-            not isinstance(resident_interactions.get(mode), Mapping)
-            or resident_interactions[mode].get("ok") is not True
-            or not all(
-                bool(value)
-                for value in tuple(
-                    resident_interactions[mode].get("gates", {}).values()
-                    if isinstance(resident_interactions[mode].get("gates"), Mapping)
-                    else ()
-                )
-            )
-            for mode in expected_resident_modes
-        ):
-            raise RuntimeError(
-                "Packaged resident interaction proof did not cover every required "
-                f"tool: {resident_interactions!r}"
-            )
+        resident_interactions = _validated_resident_interactions(grab_history, selection)
         history_capture_path = output_root / "grab-redo-production-viewport.png"
         history_capture = capture_dotnet_viewport(capture_state, history_capture_path)
         if history_capture.get("ok") is not True:

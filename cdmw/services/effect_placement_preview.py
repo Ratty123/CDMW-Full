@@ -591,6 +591,38 @@ def anchor_radius_for(item_mesh: ParsedMesh) -> float:
     return max(0.015, min(0.06, longest / 25.0)) if longest > 0 else EFFECT_ANCHOR_RADIUS
 
 
+def _apply_placement_reference_materials(anchor, reference, item_mesh):
+    for submesh in tuple(anchor.submeshes):
+        material = str(getattr(submesh, "material", "") or "")
+        if material == EFFECT_ANCHOR_MATERIAL:
+            tint, roughness = ANCHOR_TINT, 0.6
+        elif material == EFFECT_REACH_MATERIAL:
+            tint, roughness = REACH_TINT, 0.6
+        elif material in EFFECT_AXIS_MATERIALS:
+            tint, roughness = EFFECT_AXIS_TINTS[EFFECT_AXIS_MATERIALS.index(material)], 0.6
+        else:
+            continue
+        submesh.preview_color = tuple(tint)
+        submesh.preview_double_sided = True
+        submesh.preview_native_material_overrides = {
+            "base_tint_strength": 1.0,
+            "texture_tint": tuple(tint),
+            "roughness": roughness,
+            "metalness": 0.0,
+            "double_sided": True,
+        }
+    for submesh in tuple(reference.submeshes)[len(item_mesh.submeshes):]:
+        submesh.preview_color = BODY_TINT
+        submesh.preview_double_sided = True
+        submesh.preview_native_material_overrides = {
+            "base_tint_strength": 1.0,
+            "texture_tint": BODY_TINT,
+            "roughness": 0.9,
+            "metalness": 0.0,
+            "double_sided": True,
+        }
+
+
 def build_effect_placement_package(
     item_mesh: ParsedMesh,
     box_min: Vec3,
@@ -664,35 +696,7 @@ def build_effect_placement_package(
 
     # Synthetic placement helpers carry explicit neutral/debug colours.  Item
     # submeshes retain their PAC/PAC_XML material graph unchanged.
-    for submesh in tuple(anchor.submeshes):
-        material = str(getattr(submesh, "material", "") or "")
-        if material == EFFECT_ANCHOR_MATERIAL:
-            tint, roughness = ANCHOR_TINT, 0.6
-        elif material == EFFECT_REACH_MATERIAL:
-            tint, roughness = REACH_TINT, 0.6
-        elif material in EFFECT_AXIS_MATERIALS:
-            tint, roughness = EFFECT_AXIS_TINTS[EFFECT_AXIS_MATERIALS.index(material)], 0.6
-        else:
-            continue
-        submesh.preview_color = tuple(tint)
-        submesh.preview_double_sided = True
-        submesh.preview_native_material_overrides = {
-            "base_tint_strength": 1.0,
-            "texture_tint": tuple(tint),
-            "roughness": roughness,
-            "metalness": 0.0,
-            "double_sided": True,
-        }
-    for submesh in tuple(reference.submeshes)[len(item_mesh.submeshes):]:
-        submesh.preview_color = BODY_TINT
-        submesh.preview_double_sided = True
-        submesh.preview_native_material_overrides = {
-            "base_tint_strength": 1.0,
-            "texture_tint": BODY_TINT,
-            "roughness": 0.9,
-            "metalness": 0.0,
-            "double_sided": True,
-        }
+    _apply_placement_reference_materials(anchor, reference, item_mesh)
 
     effect_payload = None
     effect_resources: dict[str, bytes] = {}

@@ -125,6 +125,19 @@ class OutputPanel(QGroupBox):
     overlay_migration_requested = Signal()
     overlay_removal_requested = Signal()
 
+    def _build_plan_review(self, content):
+        review = QGroupBox("2. What the plan will change")
+        review_layout = QVBoxLayout(review)
+        self.summary = QPlainTextEdit()
+        self.summary.setReadOnly(True)
+        self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
+        self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
+        self._summary_default_maximum = self.summary.maximumHeight()
+        self._summary_compact = None
+        review_layout.addWidget(self.summary)
+        content.addWidget(review, 1, 0)
+
+
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
         self._controller = controller
@@ -153,16 +166,7 @@ class OutputPanel(QGroupBox):
         build_layout.addWidget(self.plan_state, 1)
         content.addWidget(build, 0, 0)
 
-        review = QGroupBox("2. What the plan will change")
-        review_layout = QVBoxLayout(review)
-        self.summary = QPlainTextEdit()
-        self.summary.setReadOnly(True)
-        self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
-        self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
-        self._summary_default_maximum = self.summary.maximumHeight()
-        self._summary_compact = None
-        review_layout.addWidget(self.summary)
-        content.addWidget(review, 1, 0)
+        self._build_plan_review(content)
 
         write = QGroupBox("3. Write it")
         write_layout = QVBoxLayout(write)

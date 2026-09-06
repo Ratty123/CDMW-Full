@@ -78,6 +78,12 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Closing a Mesh Builder keeps its cancelled workers alive until their threads finish.** The closed dialog is deleted asynchronously, avoiding a crash during rapid close.
+
+- **New Item primary actions retain visible hover and pressed feedback across themes.** Their states now use the active semantic palette.
+
+- **Material capture evidence keeps overlapping local texture identifiers scoped to their owning component.** Multi-component captures no longer attribute earlier batches to the final component.
+
 - **Opening a template from Item Finder or the Builder avoids a duplicate catalogue search.** The handoff updates the search and selected item together, reducing the initial UI delay.
 
 - **New Item templates now stay in view on first selection.** Initial geometry uses the same layout as the textured preview, avoiding a sideways camera offset while texture upgrades preserve the current view.
@@ -123,6 +129,7 @@ The format is intentionally simple:
 - **Stats and gameplay perks are clearly marked experimental.** Stats uses compact rows and separate enhancement and shop-price cards, with columns filling the available space.
 - **Browse Archive remembers Load textures across models and restarts.** Texture preparation no longer clears the checkbox or briefly hides resident textures during progressive loading, and late results respect the current preference.
 - **Rust previews load external image textures and untextured archive base layers correctly.** Model Library converts JPEG, TGA, and WebP textures to temporary PNGs before native DDS encoding. Browse Archive accepts Preview Core's source-free base layer when no global texture is bound, including models textured only through detail layers, while retaining ownership validation for textured layers.
+- **Create New Item loads the newer StatusInfo and EquipTypeInfo archive layout.** The snapshot accepts their `.staticinfobody` / `.staticinfoheader` pairs alongside the legacy `.pabgb` / `.pabgh` layout, fixing the missing `statusinfo` pair startup error while preserving support for older archives.
 - **Mesh Editor preserves selection precision, authored normals, and resident viewport state.** Selection no longer submits geometry channels, and unchanged Rust float values retain the original source coordinates. Whole-part transforms preserve or correctly transform custom normals. State-only commands avoid geometry reloads; geometry updates reuse unchanged texture bindings and retain the Bones overlay toggle.
 - **Rust effect previews now render their particles correctly on D3D12.** A dedicated particle shader fixes missing camera bindings and incorrect GPU attribute offsets. Fire, smoke, lightning, sparks and other textured effects retain their colours, masks, animation and proportions; decoded debris meshes render as triangles. The preview respects initial velocity, speed limits, fading, zero-interval bursts and disabled emitters, and reuses its particle upload buffer. GPU verification now checks rendered pixels instead of pipeline creation alone. Engine-specific simulation and post-processing remain approximate.
 - **Rust Preview loading, placement, picking and capture preserve the resident scene consistently.** Failed uploads retain the previous model, superseded loads share one cancellable worker, and idle previews wait for input. Placement matches committed rotation/scale and cancels on Escape or focus loss; camera/gizmo preferences apply live, hidden parts stay unpickable, and Fit uses current visible bounds. Captures retain live transforms, material overrides, lighting and effects. Cache reuse validates owned resources, and failed or cancelled package builds clean up their staging files.

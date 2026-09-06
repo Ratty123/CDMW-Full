@@ -1156,6 +1156,36 @@ def _clear_dotnet_primary_base_bindings(target: object) -> None:
         )
 
 
+def _apply_native_material_surface_properties(target, batch):
+    setattr(target, "preview_alpha_mode", str(batch.get("alpha_mode", "") or ""))
+    setattr(target, "preview_double_sided", bool(batch.get("two_sided", batch.get("double_sided", False))))
+    setattr(target, "preview_normal_y_policy", str(batch.get("normal_y_policy", "") or ""))
+    setattr(target, "preview_texture_flip_vertical", bool(batch.get("texture_flip_vertical", False)))
+    base_color = _color3(batch.get("base_color"))
+    if base_color is not None:
+        setattr(target, "preview_color", base_color)
+    texture_tint = _color3(batch.get("texture_tint"))
+    if texture_tint is not None:
+        setattr(target, "preview_texture_tint", texture_tint)
+    try:
+        setattr(target, "preview_normal_texture_strength", float(batch.get("normal_strength", 0.0) or 0.0))
+    except (TypeError, ValueError, OverflowError):
+        pass
+
+
+def _apply_native_packed_material_descriptor(target, dds_textures):
+    material_descriptor = dds_textures.get("material")
+    if isinstance(material_descriptor, Mapping):
+        setattr(
+            target,
+            "preview_material_texture_subtype",
+            str(material_descriptor.get("semantic_subtype", "") or ""),
+        )
+        packed = _native_packed_channel_semantics(material_descriptor.get("packed_channels"))
+        if packed:
+            setattr(target, "preview_material_texture_packed_channels", packed)
+
+
 def apply_dotnet_native_material_batch_binding(target: object, batch: object) -> bool:
     """Apply one authoritative Native Preview Core material batch to a submesh.
 
@@ -1271,16 +1301,7 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     elif material_inputs:
         setattr(target, "preview_material_texture_inputs", material_inputs)
 
-    material_descriptor = dds_textures.get("material")
-    if isinstance(material_descriptor, Mapping):
-        setattr(
-            target,
-            "preview_material_texture_subtype",
-            str(material_descriptor.get("semantic_subtype", "") or ""),
-        )
-        packed = _native_packed_channel_semantics(material_descriptor.get("packed_channels"))
-        if packed:
-            setattr(target, "preview_material_texture_packed_channels", packed)
+    _apply_native_packed_material_descriptor(target, dds_textures)
 
     shader_family = str(
         batch.get("material_shader_family", "")
@@ -1290,20 +1311,7 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     ).strip()
     if shader_family:
         setattr(target, "preview_sidecar_shader_family", shader_family)
-    setattr(target, "preview_alpha_mode", str(batch.get("alpha_mode", "") or ""))
-    setattr(target, "preview_double_sided", bool(batch.get("two_sided", batch.get("double_sided", False))))
-    setattr(target, "preview_normal_y_policy", str(batch.get("normal_y_policy", "") or ""))
-    setattr(target, "preview_texture_flip_vertical", bool(batch.get("texture_flip_vertical", False)))
-    base_color = _color3(batch.get("base_color"))
-    if base_color is not None:
-        setattr(target, "preview_color", base_color)
-    texture_tint = _color3(batch.get("texture_tint"))
-    if texture_tint is not None:
-        setattr(target, "preview_texture_tint", texture_tint)
-    try:
-        setattr(target, "preview_normal_texture_strength", float(batch.get("normal_strength", 0.0) or 0.0))
-    except (TypeError, ValueError, OverflowError):
-        pass
+    _apply_native_material_surface_properties(target, batch)
 
     overrides = {
         str(key): copy.deepcopy(batch.get(key))

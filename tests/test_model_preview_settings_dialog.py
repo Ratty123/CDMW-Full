@@ -31,7 +31,7 @@ class _CapturingVorticeHostFrame(DotNetPreviewHostFrame):
         self.controller.remember_state = self._capture_state  # type: ignore[method-assign]
 
     def _capture_state(
-        self, key: str, event: str, payload: Mapping[str, object]
+        self, key: str, event: str, payload: Mapping[str, object], *, live_patch=None
     ) -> bool:
         self.commands.append({"key": key, "command": event, **dict(payload)})
         return True
@@ -137,7 +137,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertIn("Fit resets framing", dialog_text)
         self.assertIn("consumed directly by resident .NET pointer handling", dialog_text)
         self.assertIn("never edit mesh placement or export data", dialog_text)
-        self.assertIn(".NET/Vortice", dialog.invert_orbit_x_checkbox.toolTip())
+        self.assertIn("Rust Preview", dialog.invert_orbit_x_checkbox.toolTip())
         self.assertIn("horizontal resident-camera orbit", dialog.invert_orbit_x_checkbox.toolTip())
         self.assertIn("vertical resident-camera orbit", dialog.invert_orbit_y_checkbox.toolTip())
         self.assertIn("horizontal resident-camera pan", dialog.invert_pan_x_checkbox.toolTip())
@@ -185,7 +185,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             visible = {field for field, widget in widgets.items() if not widget.isHidden()}
             self.assertEqual(supported, visible, tab_name)
         self.assertIn("Archive Browser", dialog.intro_label.text())
-        self.assertIn(".NET/Vortice", dialog.intro_label.text())
+        self.assertIn("Rust Preview", dialog.intro_label.text())
         self.assertTrue(dialog.advanced_warning_label.isHidden())
         self.assertEqual("Reset Camera Input", dialog.reset_button.text())
 
@@ -259,7 +259,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             for field, widget in widgets.items():
                 label = dialog._form_field_label(widget)
                 if field in supported:
-                    self.assertIn(".NET/Vortice", widget.toolTip(), field)
+                    self.assertIn("Rust Preview", widget.toolTip(), field)
                     if label is not None:
                         self.assertFalse(label.isHidden(), field)
                 elif label is not None:
@@ -267,7 +267,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._general_tab)))
         self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._quality_tab)))
         self.assertIs(dialog.tabs.currentWidget(), dialog._controls_tab)
-        self.assertIn(".NET/Vortice", dialog.intro_label.text())
+        self.assertIn("Rust Preview", dialog.intro_label.text())
         self.assertTrue(dialog.advanced_warning_label.isHidden())
         self.assertIn("Each role pane keeps its own camera", dialog.controls_usage_hint_label.text())
         self.assertEqual("Reset Camera Input", dialog.reset_button.text())

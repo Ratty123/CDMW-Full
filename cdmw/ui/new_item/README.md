@@ -4,6 +4,12 @@ Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
+The archive snapshot reads StatusInfo and EquipTypeInfo from either their legacy
+`gamedata/binary__/client/bin/*.pabgb` / `*.pabgh` pairs or the newer
+`gamedata/binarystaticinfo__/bin/*.staticinfobody` / `*.staticinfoheader` pairs.
+A complete legacy pair takes precedence when both layouts exist; payloads and
+headers are never mixed between layouts. These two tables supply names only.
+
 `state.py` is the editable draft and the pure helpers (stat grid, spec from
 draft). `controller.py` keeps the public controller, signals, draft and snapshot
 state; `controller_preview_mixin.py`, `controller_model_mixin.py` and

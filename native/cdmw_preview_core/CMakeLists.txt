@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/protocol_json.cpp
+    src/owners/protocol_types.cpp
+    src/owners/protocol_jobs.cpp
     src/owners/archive_decode.cpp
     src/owners/archive_index.cpp
     src/owners/pamt_index_cache.cpp
@@ -16,15 +18,18 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/geometry_pat.cpp
     src/owners/material_semantics.cpp
     src/owners/material_graph.cpp
+    src/owners/material_graph_cache.cpp
     src/owners/material_resolution.cpp
     src/owners/material_layer_support.cpp
     src/owners/material_selection.cpp
+    src/owners/material_selection_cache.cpp
     src/owners/material_archive_lookup.cpp
     src/owners/material_binding_build.cpp
     src/owners/material_bindings.cpp
     src/owners/geometry_package.cpp
     src/owners/package_material_classification.cpp
     src/owners/package_material_layers.cpp
+    src/owners/package_material_tints.cpp
     src/owners/package_asset_report.cpp
     src/owners/package_writer_types.cpp
     src/owners/package_writer_selection.cpp
@@ -38,6 +43,8 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/mesh_rebuild_static.cpp
     src/owners/mesh_rebuild_dispatch.cpp
     src/owners/name_index_service.cpp
+    src/owners/material_parameter_self_tests.cpp
+    src/owners/material_surface_self_tests.cpp
     src/owners/command_dispatch.cpp
 )
 

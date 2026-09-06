@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QThread, QTimer
 from PySide6.QtWidgets import QDialog, QWidget
 
 from cdmw.models import ArchiveEntry
@@ -13,6 +13,23 @@ from cdmw.ui.archive_browser.static_replacement_alignment_setup_state import (
     alignment_builder_archive_preview_pause_message,
     alignment_builder_window_title,
 )
+
+
+def _delete_builder_when_workers_finish(dialog: QDialog) -> None:
+    """Retain the closed dialog until its child threads finish native teardown."""
+    try:
+        threads = dialog.findChildren(QThread)
+    except RuntimeError:
+        return
+    for thread in threads:
+        try:
+            finished = thread.wait(0)
+        except RuntimeError:
+            continue
+        if not finished:
+            QTimer.singleShot(10, lambda: _delete_builder_when_workers_finish(dialog))
+            return
+    dialog.deleteLater()
 
 
 class ArchiveMeshBuilderLifecycleMixin:
@@ -159,7 +176,7 @@ class ArchiveMeshBuilderLifecycleMixin:
         self._unregister_modeless_alignment_dialog(str(key or ""), dialog)
         try:
             dialog.hide()
-            dialog.deleteLater()
+            _delete_builder_when_workers_finish(dialog)
         except RuntimeError:
             pass
         return True

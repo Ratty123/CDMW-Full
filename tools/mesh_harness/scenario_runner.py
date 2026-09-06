@@ -52,6 +52,54 @@ def _apply_backend_gate(
     gated["ok"] = bool(gated.get("ok") and gated["backend_gate_ok"])
     return gated
 
+def _run_real_mesh_editor_scenario(output_dir, performance_request, metadata, game_root, scenario):
+    from tools.mesh_harness.real_dotnet import (
+        run_real_archive_mesh_editor_dotnet_edit_smoke,
+        run_real_archive_mesh_editor_dotnet_zoom_smoke,
+    )
+
+    performance_timeout = (
+        max(metadata.timeout_seconds, performance_request.duration_seconds + 60.0)
+        if performance_request is not None
+        else metadata.timeout_seconds
+    )
+    edit_proof = (
+        run_real_archive_mesh_editor_dotnet_edit_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+            timeout_seconds=performance_timeout,
+            performance_request=performance_request,
+        )
+        if performance_request is not None
+        else run_real_archive_mesh_editor_dotnet_edit_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+            timeout_seconds=metadata.timeout_seconds,
+        )
+    )
+    edit_result = _apply_backend_gate(
+        edit_proof,
+        expected_renderer_backend=metadata.expected_renderer_backend,
+        expected_edit_backend=metadata.expected_edit_backend,
+    )
+    zoom_result = _apply_backend_gate(
+        run_real_archive_mesh_editor_dotnet_zoom_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir / 'camera_zoom',
+            timeout_seconds=metadata.timeout_seconds,
+        ),
+        expected_renderer_backend=metadata.expected_renderer_backend,
+        expected_edit_backend=metadata.expected_edit_backend,
+    )
+    result = {
+        'scenario': scenario,
+        'ok': bool(edit_result.get('ok') and zoom_result.get('ok')),
+        'real_archive_mesh_editor_dotnet_edit': edit_result,
+        'real_archive_mesh_editor_dotnet_zoom': zoom_result,
+    }
+    return result
+
+
 def run_scenario(
     scenario: str,
     output_dir: Path,
@@ -144,50 +192,7 @@ def run_scenario(
             "real_archive_rust_preview": rust_proof,
         }
     elif scenario == _REAL_MESH_EDITOR_DOTNET_SCENARIO:
-        from tools.mesh_harness.real_dotnet import (
-            run_real_archive_mesh_editor_dotnet_edit_smoke,
-            run_real_archive_mesh_editor_dotnet_zoom_smoke,
-        )
-
-        performance_timeout = (
-            max(metadata.timeout_seconds, performance_request.duration_seconds + 60.0)
-            if performance_request is not None
-            else metadata.timeout_seconds
-        )
-        edit_proof = (
-            run_real_archive_mesh_editor_dotnet_edit_smoke(
-                Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
-                output_dir,
-                timeout_seconds=performance_timeout,
-                performance_request=performance_request,
-            )
-            if performance_request is not None
-            else run_real_archive_mesh_editor_dotnet_edit_smoke(
-                Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
-                output_dir,
-                timeout_seconds=metadata.timeout_seconds,
-            )
-        )
-        edit_result = _apply_backend_gate(
-            edit_proof,
-            expected_renderer_backend=metadata.expected_renderer_backend,
-            expected_edit_backend=metadata.expected_edit_backend,
-        )
-        zoom_result = _apply_backend_gate(
-            run_real_archive_mesh_editor_dotnet_zoom_smoke(
-                Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
-                output_dir / 'camera_zoom',
-                timeout_seconds=metadata.timeout_seconds,
-            ),
-            expected_renderer_backend=metadata.expected_renderer_backend,
-            expected_edit_backend=metadata.expected_edit_backend,
-        )
-        result = {
-            'scenario': scenario,
-            'ok': bool(edit_result.get('ok') and zoom_result.get('ok')),
-            'real_archive_mesh_editor_dotnet_edit': edit_result,
-            'real_archive_mesh_editor_dotnet_zoom': zoom_result,
-        }
+        result = _run_real_mesh_editor_scenario(output_dir, performance_request, metadata, game_root, scenario)
     elif scenario == _DOTNET_NATIVE_PARITY_SCENARIO:
         configured_paths = {"openimageio": Path(openimageio_path)} if openimageio_path is not None else None
         parity_result = run_mesh_dotnet_native_parity_report(

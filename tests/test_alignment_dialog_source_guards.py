@@ -1361,7 +1361,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("QTimer.singleShot(0, lambda options=static_options: _dispatch_alignment_accept(options))", source)
         self.assertIn("dialog.finished.connect(_modeless_alignment_dialog_finished)", source)
         self.assertIn("self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)", source)
-        self.assertIn("dialog.deleteLater()", source)
+        self.assertIn("_delete_builder_when_workers_finish(dialog)", source)
         self.assertIn("dialog.show()", source)
         self.assertIn("dialog.raise_()", source)
         self.assertIn("dialog.activateWindow()", source)

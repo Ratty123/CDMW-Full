@@ -132,11 +132,7 @@ uint32_t interaction_abi_close(
     }
 }
 
-uint32_t interaction_abi_sync(
-    const CdmwMeshInteractionSyncV1* request,
-    CdmwMeshInteractionResultV1* result
-) {
-    std::string message;
+static uint32_t validate_interaction_sync_request(const CdmwMeshInteractionSyncV1* request, CdmwMeshInteractionResultV1* result, std::string& message) {
     uint32_t status = mesh_interaction_abi_prepare_call(request, result, message);
     if (status != CDMW_MESH_INTERACTION_OK) return status;
     status = mesh_interaction_abi_validate_request(request, message);
@@ -211,6 +207,16 @@ uint32_t interaction_abi_sync(
             "viewport dimensions must be finite and positive"
         );
     }
+    return CDMW_MESH_INTERACTION_OK;
+}
+
+uint32_t interaction_abi_sync(
+    const CdmwMeshInteractionSyncV1* request,
+    CdmwMeshInteractionResultV1* result
+) {
+    std::string message;
+    uint32_t status = validate_interaction_sync_request(request, result, message);
+    if (status != CDMW_MESH_INTERACTION_OK) return status;
     std::shared_ptr<MeshInteractionAbiSession> runtime;
     {
         std::shared_lock<std::shared_mutex> registry_lock(g_mesh_interaction_abi_registry_mutex);

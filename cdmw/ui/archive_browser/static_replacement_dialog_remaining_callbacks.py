@@ -6,6 +6,7 @@ import traceback
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser import static_replacement_preview_materials as preview_materials
+from cdmw.ui.archive_browser.mesh_builder_lifecycle import _delete_builder_when_workers_finish
 from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     allow_python_mesh_history_snapshot_fallback,
     clear_mesh_history_snapshot_stack,
@@ -801,7 +802,7 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
                 on_cancel()
             except Exception as exc:
                 self.shell.set_status_message(_alignment_cancel_handler_failed_status_helper(exc), error=True)
-        dialog.deleteLater()
+        _delete_builder_when_workers_finish(dialog)
         if finished_route.should_show_embedded_empty_state:
             QTimer.singleShot(0, lambda: self.shell.mesh_editor_tab.show_empty_state(_alignment_builder_closed_empty_state_message_helper()))
 

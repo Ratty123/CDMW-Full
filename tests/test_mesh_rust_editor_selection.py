@@ -1539,7 +1539,7 @@ def test_launch_requests_a_full_rust_backtrace(tmp_path: Path) -> None:
             "cdmw.ui.mesh_editor.tab_rust_editor.resolve_rust_mesh_editor",
             return_value=resolution,
         ),
-        patch("cdmw.ui.mesh_editor.tab_rust_editor.QProcess", return_value=process),
+        patch("cdmw.ui.mesh_editor.tab_rust_process.QProcess", return_value=process),
     ):
         tab._launch_rust_editor_process(
             SimpleNamespace(manifest_path=tmp_path / "session.json")

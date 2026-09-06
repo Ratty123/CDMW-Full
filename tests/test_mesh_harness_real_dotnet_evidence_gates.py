@@ -189,7 +189,7 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
         "state.initial_part_selection_empty\n            and state.part_selection_remained_empty\n            and state.physical_select_gesture.get(\"ok\") is True\n            and state.viewport_mesh_selection_armed"
         in evidence_source
     )
-    assert "drive_viewport_selection(" in source
+    assert "_drive_projected_vertex_selection(" in source
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
     offscreen_capture = run.index("exercise_deterministic_offscreen_capture(")
     state_update = run.index("exercise_resident_material_update(")

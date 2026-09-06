@@ -75,6 +75,8 @@ def test_mesh_core_packaging_uses_profile_native_configuration() -> None:
         '_add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.dll", '
         '"native", required_release=True)'
     ) in spec_source
-    assert 'excluded_names={"cdmw-mesh-core.dll"}' in spec_source
+    # The retired renderer's payload tree is gone; only the native ABI copy
+    # remains, selected from the active native build configuration above.
+    assert 'native/cdmw_mesh_dotnet_editor/build/' not in spec_source
     assert '"native\\cdmw_mesh_core\\build\\$Configuration\\cdmw-mesh-core.dll"' in native_builder_source
     assert '"native\\cdmw_mesh_core\\build\\$Configuration\\cdmw-mesh-core.dll"' in package_builder_source

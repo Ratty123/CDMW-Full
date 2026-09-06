@@ -565,7 +565,7 @@ def test_mesh_editor_hides_old_context_until_atomic_resident_swap(tmp_path: Path
 
 
 def test_native_context_batches_remain_reference_only_by_contract() -> None:
-    protocol = Path("native/cdmw_preview_core/src/owners/protocol_json.cpp").read_text(encoding="utf-8")
+    protocol = Path("native/cdmw_preview_core/src/owners/protocol_jobs.cpp").read_text(encoding="utf-8")
     report = Path("native/cdmw_preview_core/src/owners/preview_report.cpp").read_text(encoding="utf-8")
     writer = Path("native/cdmw_preview_core/src/owners/package_writer_json.cpp").read_text(encoding="utf-8")
     reference = Path("cdmw/services/mesh_dotnet_reference_composite.py").read_text(encoding="utf-8")

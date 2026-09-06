@@ -4,6 +4,11 @@ Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
 
+Mesh Builder close cancels pending work and hides the dialog promptly. The
+lifecycle owner retains the closed dialog until every child thread has finished
+native teardown, then deletes it asynchronously. Partial construction failures
+use the same rule.
+
 The resident v2 catalogue is the listing authority. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may
 not clear or replace the current scene. Archive Browser publishes the path,

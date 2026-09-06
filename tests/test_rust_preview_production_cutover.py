@@ -305,7 +305,8 @@ def test_failed_preview_publication_removes_only_its_staging_directory(tmp_path:
         assert list(tmp_path.glob(".rust-preview-*/package/*.json"))
         raise RunCancelled("cancelled") if cancel else ValueError("injected failure")
 
-    monkeypatch.setattr(owner, "_mesh_channel_payload", fail_after_geometry)
+    from cdmw.services import mesh_rust_authoring
+    monkeypatch.setattr(mesh_rust_authoring, "_mesh_channel_payload", fail_after_geometry)
     with pytest.raises(RunCancelled if cancel else ValueError):
         build_rust_preview_package(_triangle(), output_package_dir=destination, include_material_resources=False)
     assert sorted(path.name for path in tmp_path.iterdir()) == ["keep.txt"]
@@ -571,9 +572,9 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     source, _geometry_bytes, _identity_bytes, _texture_bytes = (
         _write_schema8_preview_core_fixture(tmp_path)
     )
-    from cdmw.services import mesh_rust_preview_package
+    from cdmw.services import mesh_rust_authoring
 
-    original_texture_payloads = mesh_rust_preview_package._mesh_texture_payloads
+    original_texture_payloads = mesh_rust_authoring._mesh_texture_payloads
     synthesis_flags: list[bool] = []
 
     def recording_texture_payloads(*args: object, **kwargs: object):
@@ -581,7 +582,7 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
         return original_texture_payloads(*args, **kwargs)
 
     monkeypatch.setattr(
-        mesh_rust_preview_package,
+        mesh_rust_authoring,
         "_mesh_texture_payloads",
         recording_texture_payloads,
     )

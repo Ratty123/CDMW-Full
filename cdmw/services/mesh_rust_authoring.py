@@ -2996,6 +2996,89 @@ def _resolve_proven_rust_texture_entry(
     return _resolved_dds_path(source_path, declared_dds=True)
 
 
+def _resolve_material_input_archive_fallbacks(inputs, submesh, entries_by_basename, target_entry, stop_event, resolved_count):
+    if inputs:
+        updated_inputs: list[object] = []
+        inputs_changed = False
+        for item in inputs:
+            updated_item = item
+            if _material_input_dds_path(item) is None:
+                identity_values = tuple(
+                    getattr(item, attribute, "")
+                    for attribute in (
+                        "texture_name",
+                        "source_texture_path",
+                        "source_dds_path",
+                        "preview_texture_path",
+                    )
+                )
+                for candidate in _rust_material_input_exact_basenames(item):
+                    if stop_event is not None and stop_event.is_set():
+                        raise RustMeshCancellationError(
+                            "Rust Mesh texture preparation was cancelled"
+                        )
+                    matching_entries = _unambiguous_rust_texture_entries(
+                        candidate,
+                        entries_by_basename.get(candidate.casefold(), ()),
+                        target_entry=target_entry
+                        if isinstance(target_entry, ArchiveEntry)
+                        else None,
+                        exact_path_hints=_rust_exact_texture_path_hints(
+                            candidate,
+                            *identity_values,
+                        ),
+                    )
+                    if not matching_entries:
+                        continue
+                    try:
+                        resolved = _resolve_proven_rust_texture_entry(
+                            matching_entries[0],
+                            stop_event=stop_event,
+                        )
+                    except Exception:
+                        if stop_event is not None and stop_event.is_set():
+                            raise RustMeshCancellationError(
+                                "Rust Mesh texture preparation was cancelled"
+                            )
+                        continue
+                    if resolved is None:
+                        continue
+                    field_names = set(
+                        getattr(item, "__dataclass_fields__", {})
+                    )
+                    if (
+                        is_dataclass(item)
+                        and not isinstance(item, type)
+                        and "source_dds_path" in field_names
+                    ):
+                        updated_item = replace(
+                            item,
+                            source_dds_path=str(resolved),
+                        )
+                    else:
+                        try:
+                            updated_item = copy.deepcopy(item)
+                            setattr(
+                                updated_item,
+                                "source_dds_path",
+                                str(resolved),
+                            )
+                        except (AttributeError, TypeError, RuntimeError):
+                            updated_item = item
+                    if updated_item is not item:
+                        inputs_changed = True
+                        resolved_count += 1
+                    break
+            updated_inputs.append(updated_item)
+        if inputs_changed:
+            setattr(
+                submesh,
+                "preview_material_texture_inputs",
+                tuple(updated_inputs),
+            )
+    return resolved_count
+
+
 def _resolve_rust_archive_texture_fallbacks(
     mesh: ParsedMesh,
     context: _RustMeshPreviewMaterialContext | None,
@@ -3021,85 +3104,7 @@ def _resolve_rust_archive_texture_fallbacks(
             inputs = tuple(
                 getattr(submesh, "preview_material_texture_inputs", ()) or ()
             )
-            if inputs:
-                updated_inputs: list[object] = []
-                inputs_changed = False
-                for item in inputs:
-                    updated_item = item
-                    if _material_input_dds_path(item) is None:
-                        identity_values = tuple(
-                            getattr(item, attribute, "")
-                            for attribute in (
-                                "texture_name",
-                                "source_texture_path",
-                                "source_dds_path",
-                                "preview_texture_path",
-                            )
-                        )
-                        for candidate in _rust_material_input_exact_basenames(item):
-                            if stop_event is not None and stop_event.is_set():
-                                raise RustMeshCancellationError(
-                                    "Rust Mesh texture preparation was cancelled"
-                                )
-                            matching_entries = _unambiguous_rust_texture_entries(
-                                candidate,
-                                entries_by_basename.get(candidate.casefold(), ()),
-                                target_entry=target_entry
-                                if isinstance(target_entry, ArchiveEntry)
-                                else None,
-                                exact_path_hints=_rust_exact_texture_path_hints(
-                                    candidate,
-                                    *identity_values,
-                                ),
-                            )
-                            if not matching_entries:
-                                continue
-                            try:
-                                resolved = _resolve_proven_rust_texture_entry(
-                                    matching_entries[0],
-                                    stop_event=stop_event,
-                                )
-                            except Exception:
-                                if stop_event is not None and stop_event.is_set():
-                                    raise RustMeshCancellationError(
-                                        "Rust Mesh texture preparation was cancelled"
-                                    )
-                                continue
-                            if resolved is None:
-                                continue
-                            field_names = set(
-                                getattr(item, "__dataclass_fields__", {})
-                            )
-                            if (
-                                is_dataclass(item)
-                                and not isinstance(item, type)
-                                and "source_dds_path" in field_names
-                            ):
-                                updated_item = replace(
-                                    item,
-                                    source_dds_path=str(resolved),
-                                )
-                            else:
-                                try:
-                                    updated_item = copy.deepcopy(item)
-                                    setattr(
-                                        updated_item,
-                                        "source_dds_path",
-                                        str(resolved),
-                                    )
-                                except (AttributeError, TypeError, RuntimeError):
-                                    updated_item = item
-                            if updated_item is not item:
-                                inputs_changed = True
-                                resolved_count += 1
-                            break
-                    updated_inputs.append(updated_item)
-                if inputs_changed:
-                    setattr(
-                        submesh,
-                        "preview_material_texture_inputs",
-                        tuple(updated_inputs),
-                    )
+            resolved_count = _resolve_material_input_archive_fallbacks(inputs, submesh, entries_by_basename, target_entry, stop_event, resolved_count)
             texture_name = getattr(submesh, "texture", "")
             material_name = getattr(submesh, "material", "")
             has_exact_material_inputs = any(
@@ -4329,6 +4334,338 @@ def _rust_exact_direct_fallback_overrides(
     return overrides
 
 
+def _encode_generated_material_channel(
+    source, role, encode_channel, synthesis_root, lod_index, submesh_index, cancellation_event,
+    synthesis_state, encoded_cache, cache_key,
+):
+    encoded_dir = synthesis_root / "encoded"
+    encoded_dir.mkdir(exist_ok=True)
+    encoded = encoded_dir / (
+        f"lod-{lod_index:04d}-material-{submesh_index:04d}-{encode_channel}.dds"
+    )
+    try:
+        encode_options = {}
+        if role == "base_color" and source.suffix.casefold() == ".png":
+            encode_options = {"source_color_policy": "assume_srgb"}
+        elif role in _RUST_SYNTHESIZED_SCALAR_ROLES:
+            encode_options = {
+                "source_color_policy": "ignore_srgb_metadata"
+            }
+        _encode_rust_preview_dds(
+            source,
+            encoded,
+            encode_channel,
+            cancellation_event,
+            synthesis_state,
+            **encode_options,
+        )
+    except RunCancelled as exc:
+        raise RustMeshCancellationError(
+            "Rust Mesh texture preparation was cancelled"
+        ) from exc
+    except Exception as exc:
+        # Retain the direct DDS for this owner/channel when the
+        # authoritative generated image cannot be encoded.
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "generated_channel_encode_failed",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail=f"{encode_channel}: {type(exc).__name__}: {exc}",
+        )
+        return None
+    encoded_cache[cache_key] = encoded
+    return encoded
+
+
+def _apply_synthesized_material_roles(
+    lod_index, submesh_index, submeshes, protected_keys, skin_surface_contract, generated_channels,
+    resolved_channels, layered_normal_is_authoritative, runtime_skin_detail, synthesis_root, synthesis_state,
+    base_alpha_mode, expected_root_identity, stop_event, encoded_cache, cancellation_event, overrides,
+    applied_roles,
+):
+    for role, channel_candidates, encode_channel in _RUST_SYNTHESIZED_TEXTURE_ROLES:
+        override_key = (lod_index, submesh_index, role)
+        if override_key in protected_keys:
+            continue
+        if role in _RUST_SYNTHESIZED_SCALAR_ROLES and skin_surface_contract:
+            # SkinnedMeshSkin `_sp` is not an equipment surface map:
+            # R is subsurface response, G is direct roughness, and B is
+            # not metalness.  Keep the exact owner-bound packed DDS for
+            # Rust's dedicated skin path rather than replacing it with
+            # compiler-derived single-channel approximations.
+            continue
+        if (
+            role in _RUST_PACKED_SURFACE_COMPONENT_ROLES
+            and (lod_index, submesh_index, "material") in protected_keys
+        ):
+            # The shared material combiner already supplied exact packed G/B
+            # roughness/metalness for this owner.  Separate maps would
+            # override those baked channels in the Rust shader.
+            continue
+        source_channel = next(
+            (
+                channel
+                for channel in channel_candidates
+                if channel in generated_channels
+                and str(resolved_channels.get(channel, "") or "").strip()
+            ),
+            "",
+        )
+        direct_attributes = next(
+            (
+                attributes
+                for direct_role, attributes in _TEXTURE_RESOURCE_SPECS
+                if direct_role == role
+            ),
+            (),
+        )
+        direct_path = (
+            _first_texture_resource_dds_path(
+                submeshes[submesh_index],
+                role,
+                direct_attributes,
+            )
+            if direct_attributes
+            else None
+        )
+        generated_is_renderer_ready = bool(
+            source_channel
+            and (
+                role
+                in {
+                    "base_color",
+                    "roughness",
+                    "metalness",
+                    "occlusion",
+                    "specular",
+                    "height",
+                    "emissive",
+                }
+                or (
+                    role == "normal"
+                    and layered_normal_is_authoritative
+                    and not runtime_skin_detail
+                )
+            )
+        )
+        if direct_path is not None and not generated_is_renderer_ready:
+            # A conserved generated base/surface/emissive/height channel
+            # is the complete PAC material result and therefore outranks
+            # any individual dye, overlay, mask, or source-map ingredient.
+            # Normal only wins when the compiler explicitly proves it
+            # combined authored normal layers; runtime skin detail stays
+            # separate for Rust's dedicated skin path.
+            continue
+        if not source_channel:
+            continue
+        source = Path(
+            str(resolved_channels.get(source_channel, "") or "")
+        )
+        try:
+            source = source.resolve(strict=True)
+        except OSError:
+            _record_rust_material_synthesis_diagnostic(
+                synthesis_state,
+                "generated_channel_missing",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                detail=source_channel,
+            )
+            continue
+        if source != synthesis_root and synthesis_root not in source.parents:
+            _record_rust_material_synthesis_diagnostic(
+                synthesis_state,
+                "generated_channel_outside_owned_root",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                detail=source_channel,
+            )
+            continue
+        luminance_guard_metrics: dict[str, float] | None = None
+        if role == "base_color":
+            direct_base = _first_texture_resource_dds_path(
+                submeshes[submesh_index],
+                role,
+                _TEXTURE_RESOURCE_SPECS[0][1],
+            )
+            if direct_base is not None:
+                source, luminance_guard_metrics = (
+                    _guard_synthesized_base_against_direct(
+                        source,
+                        direct_base,
+                        synthesis_root,
+                        alpha_mode=base_alpha_mode,
+                        owner_submesh=submeshes[submesh_index],
+                        lod_index=lod_index,
+                        submesh_index=submesh_index,
+                        expected_root_identity=expected_root_identity,
+                        stop_event=stop_event,
+                    )
+                )
+        cache_key = (str(source), encode_channel)
+        encoded = encoded_cache.get(cache_key)
+        if encoded is None:
+            encoded = _encode_generated_material_channel(
+                source, role, encode_channel, synthesis_root, lod_index, submesh_index, cancellation_event,
+                synthesis_state, encoded_cache, cache_key,
+            )
+            if encoded is None:
+                continue
+        if override_key not in overrides:
+            synthesis_state.generated_binding_count += 1
+        overrides[override_key] = encoded
+        applied_roles.add(role)
+        if luminance_guard_metrics is not None:
+            _record_rust_material_luminance_guard(
+                synthesis_state,
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                **luminance_guard_metrics,
+            )
+
+
+def _validated_synthesized_material_row(row, lod_index, submesh_index, submeshes, synthesis_state, protected_keys, overrides):
+    if not isinstance(row, Mapping):
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_manifest_invalid",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="canonical material compiler returned an invalid submesh row",
+        )
+        _clear_rust_material_synthesis_results(synthesis_state)
+        return {}
+    synthesis = row.get("material_synthesis", {})
+    resolved_channels = row.get("resolved_channels", {})
+    if not isinstance(synthesis, Mapping) or not isinstance(
+        resolved_channels,
+        Mapping,
+    ):
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_manifest_invalid",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="canonical material compiler returned invalid channel metadata",
+        )
+        _clear_rust_material_synthesis_results(synthesis_state)
+        return {}
+    generated_value = synthesis.get("generated_channels", ())
+    if not isinstance(generated_value, Sequence) or isinstance(
+        generated_value,
+        (str, bytes),
+    ):
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_manifest_invalid",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="canonical material compiler returned an invalid generated-channel list",
+        )
+        _clear_rust_material_synthesis_results(synthesis_state)
+        return {}
+    generated_channels = {
+        str(value or "").strip().casefold()
+        for value in generated_value
+        if str(value or "").strip()
+    }
+    synthesis_notes_value = synthesis.get("notes", ())
+    synthesis_notes = (
+        {
+            str(value or "").strip().casefold()
+            for value in synthesis_notes_value
+            if str(value or "").strip()
+        }
+        if isinstance(synthesis_notes_value, Sequence)
+        and not isinstance(synthesis_notes_value, (str, bytes))
+        else set()
+    )
+    layered_normal_is_authoritative = any(
+        note.startswith("normal layers synthesized:")
+        for note in synthesis_notes
+    )
+    source_submesh = submeshes[submesh_index]
+    runtime_skin_detail = _rust_has_available_runtime_skin_detail(
+        source_submesh
+    )
+    skin_surface_contract = (
+        normalize_shader_family(row.get("shader_family", "")) == "skin"
+        or _rust_has_exact_skin_category_evidence(
+            source_submesh,
+            "skin",
+        )
+    )
+    if len(generated_channels) > 32:
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_manifest_invalid",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail="canonical material compiler exceeded the generated-channel limit",
+        )
+        _clear_rust_material_synthesis_results(synthesis_state)
+        return {}
+    conservation = row.get("binding_conservation", {})
+    cross_owner_bindings = (
+        conservation.get("cross_owner_bindings", ())
+        if isinstance(conservation, Mapping)
+        else ()
+    )
+    layer_as_base_bindings = (
+        conservation.get("layer_as_base_bindings", ())
+        if isinstance(conservation, Mapping)
+        else ()
+    )
+    owner_bindings_conserved = bool(
+        isinstance(conservation, Mapping)
+        and conservation.get("conserved") is True
+        and isinstance(cross_owner_bindings, Sequence)
+        and not isinstance(cross_owner_bindings, (str, bytes, bytearray))
+        and not cross_owner_bindings
+        and isinstance(layer_as_base_bindings, Sequence)
+        and not isinstance(layer_as_base_bindings, (str, bytes, bytearray))
+        and not layer_as_base_bindings
+    )
+    if generated_channels and not owner_bindings_conserved:
+        direct_fallbacks = _rust_exact_direct_fallback_overrides(
+            row,
+            source_submesh,
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            protected_keys=protected_keys,
+            applied_roles=set(),
+        )
+        for override_key, direct_path in direct_fallbacks.items():
+            overrides.setdefault(override_key, direct_path)
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_owner_conservation_failed",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail=(
+                "generated PAC channels were rejected because their exact material owner was not conserved"
+            ),
+        )
+        return None
+    failure_detail = synthesis.get("failure")
+    skipped_detail = synthesis.get("skipped")
+    if (
+        bool(synthesis.get("attempted", False))
+        and not bool(synthesis.get("succeeded", False))
+        and (failure_detail or skipped_detail)
+    ):
+        detail = failure_detail or skipped_detail
+        _record_rust_material_synthesis_diagnostic(
+            synthesis_state,
+            "compiler_fallback",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            detail=detail,
+        )
+    return resolved_channels, generated_channels, layered_normal_is_authoritative, source_submesh, runtime_skin_detail, skin_surface_contract
+
+
 def _mesh_synthesized_texture_overrides(
     mesh: ParsedMesh,
     synthesis_root: Path,
@@ -4422,143 +4759,10 @@ def _mesh_synthesized_texture_overrides(
             _clear_rust_material_synthesis_results(synthesis_state)
             return {}
         for submesh_index, row in enumerate(rows):
-            if not isinstance(row, Mapping):
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_manifest_invalid",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail="canonical material compiler returned an invalid submesh row",
-                )
-                _clear_rust_material_synthesis_results(synthesis_state)
-                return {}
-            synthesis = row.get("material_synthesis", {})
-            resolved_channels = row.get("resolved_channels", {})
-            if not isinstance(synthesis, Mapping) or not isinstance(
-                resolved_channels,
-                Mapping,
-            ):
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_manifest_invalid",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail="canonical material compiler returned invalid channel metadata",
-                )
-                _clear_rust_material_synthesis_results(synthesis_state)
-                return {}
-            generated_value = synthesis.get("generated_channels", ())
-            if not isinstance(generated_value, Sequence) or isinstance(
-                generated_value,
-                (str, bytes),
-            ):
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_manifest_invalid",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail="canonical material compiler returned an invalid generated-channel list",
-                )
-                _clear_rust_material_synthesis_results(synthesis_state)
-                return {}
-            generated_channels = {
-                str(value or "").strip().casefold()
-                for value in generated_value
-                if str(value or "").strip()
-            }
-            synthesis_notes_value = synthesis.get("notes", ())
-            synthesis_notes = (
-                {
-                    str(value or "").strip().casefold()
-                    for value in synthesis_notes_value
-                    if str(value or "").strip()
-                }
-                if isinstance(synthesis_notes_value, Sequence)
-                and not isinstance(synthesis_notes_value, (str, bytes))
-                else set()
-            )
-            layered_normal_is_authoritative = any(
-                note.startswith("normal layers synthesized:")
-                for note in synthesis_notes
-            )
-            source_submesh = submeshes[submesh_index]
-            runtime_skin_detail = _rust_has_available_runtime_skin_detail(
-                source_submesh
-            )
-            skin_surface_contract = (
-                normalize_shader_family(row.get("shader_family", "")) == "skin"
-                or _rust_has_exact_skin_category_evidence(
-                    source_submesh,
-                    "skin",
-                )
-            )
-            if len(generated_channels) > 32:
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_manifest_invalid",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail="canonical material compiler exceeded the generated-channel limit",
-                )
-                _clear_rust_material_synthesis_results(synthesis_state)
-                return {}
-            conservation = row.get("binding_conservation", {})
-            cross_owner_bindings = (
-                conservation.get("cross_owner_bindings", ())
-                if isinstance(conservation, Mapping)
-                else ()
-            )
-            layer_as_base_bindings = (
-                conservation.get("layer_as_base_bindings", ())
-                if isinstance(conservation, Mapping)
-                else ()
-            )
-            owner_bindings_conserved = bool(
-                isinstance(conservation, Mapping)
-                and conservation.get("conserved") is True
-                and isinstance(cross_owner_bindings, Sequence)
-                and not isinstance(cross_owner_bindings, (str, bytes, bytearray))
-                and not cross_owner_bindings
-                and isinstance(layer_as_base_bindings, Sequence)
-                and not isinstance(layer_as_base_bindings, (str, bytes, bytearray))
-                and not layer_as_base_bindings
-            )
-            if generated_channels and not owner_bindings_conserved:
-                direct_fallbacks = _rust_exact_direct_fallback_overrides(
-                    row,
-                    source_submesh,
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    protected_keys=protected_keys,
-                    applied_roles=set(),
-                )
-                for override_key, direct_path in direct_fallbacks.items():
-                    overrides.setdefault(override_key, direct_path)
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_owner_conservation_failed",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail=(
-                        "generated PAC channels were rejected because their exact material owner was not conserved"
-                    ),
-                )
+            row_state = _validated_synthesized_material_row(row, lod_index, submesh_index, submeshes, synthesis_state, protected_keys, overrides)
+            if row_state is None:
                 continue
-            failure_detail = synthesis.get("failure")
-            skipped_detail = synthesis.get("skipped")
-            if (
-                bool(synthesis.get("attempted", False))
-                and not bool(synthesis.get("succeeded", False))
-                and (failure_detail or skipped_detail)
-            ):
-                detail = failure_detail or skipped_detail
-                _record_rust_material_synthesis_diagnostic(
-                    synthesis_state,
-                    "compiler_fallback",
-                    lod_index=lod_index,
-                    submesh_index=submesh_index,
-                    detail=detail,
-                )
+            resolved_channels, generated_channels, layered_normal_is_authoritative, source_submesh, runtime_skin_detail, skin_surface_contract = row_state
             applied_roles: set[str] = set()
             base_presentation = _rust_generated_presentation_overrides(
                 row,
@@ -4567,176 +4771,7 @@ def _mesh_synthesized_texture_overrides(
             base_alpha_mode = str(
                 base_presentation.get("alpha_mode", "") or ""
             )
-            for role, channel_candidates, encode_channel in _RUST_SYNTHESIZED_TEXTURE_ROLES:
-                override_key = (lod_index, submesh_index, role)
-                if override_key in protected_keys:
-                    continue
-                if role in _RUST_SYNTHESIZED_SCALAR_ROLES and skin_surface_contract:
-                    # SkinnedMeshSkin `_sp` is not an equipment surface map:
-                    # R is subsurface response, G is direct roughness, and B is
-                    # not metalness.  Keep the exact owner-bound packed DDS for
-                    # Rust's dedicated skin path rather than replacing it with
-                    # compiler-derived single-channel approximations.
-                    continue
-                if (
-                    role in _RUST_PACKED_SURFACE_COMPONENT_ROLES
-                    and (lod_index, submesh_index, "material") in protected_keys
-                ):
-                    # The shared material combiner already supplied exact packed G/B
-                    # roughness/metalness for this owner.  Separate maps would
-                    # override those baked channels in the Rust shader.
-                    continue
-                source_channel = next(
-                    (
-                        channel
-                        for channel in channel_candidates
-                        if channel in generated_channels
-                        and str(resolved_channels.get(channel, "") or "").strip()
-                    ),
-                    "",
-                )
-                direct_attributes = next(
-                    (
-                        attributes
-                        for direct_role, attributes in _TEXTURE_RESOURCE_SPECS
-                        if direct_role == role
-                    ),
-                    (),
-                )
-                direct_path = (
-                    _first_texture_resource_dds_path(
-                        submeshes[submesh_index],
-                        role,
-                        direct_attributes,
-                    )
-                    if direct_attributes
-                    else None
-                )
-                generated_is_renderer_ready = bool(
-                    source_channel
-                    and (
-                        role
-                        in {
-                            "base_color",
-                            "roughness",
-                            "metalness",
-                            "occlusion",
-                            "specular",
-                            "height",
-                            "emissive",
-                        }
-                        or (
-                            role == "normal"
-                            and layered_normal_is_authoritative
-                            and not runtime_skin_detail
-                        )
-                    )
-                )
-                if direct_path is not None and not generated_is_renderer_ready:
-                    # A conserved generated base/surface/emissive/height channel
-                    # is the complete PAC material result and therefore outranks
-                    # any individual dye, overlay, mask, or source-map ingredient.
-                    # Normal only wins when the compiler explicitly proves it
-                    # combined authored normal layers; runtime skin detail stays
-                    # separate for Rust's dedicated skin path.
-                    continue
-                if not source_channel:
-                    continue
-                source = Path(
-                    str(resolved_channels.get(source_channel, "") or "")
-                )
-                try:
-                    source = source.resolve(strict=True)
-                except OSError:
-                    _record_rust_material_synthesis_diagnostic(
-                        synthesis_state,
-                        "generated_channel_missing",
-                        lod_index=lod_index,
-                        submesh_index=submesh_index,
-                        detail=source_channel,
-                    )
-                    continue
-                if source != synthesis_root and synthesis_root not in source.parents:
-                    _record_rust_material_synthesis_diagnostic(
-                        synthesis_state,
-                        "generated_channel_outside_owned_root",
-                        lod_index=lod_index,
-                        submesh_index=submesh_index,
-                        detail=source_channel,
-                    )
-                    continue
-                luminance_guard_metrics: dict[str, float] | None = None
-                if role == "base_color":
-                    direct_base = _first_texture_resource_dds_path(
-                        submeshes[submesh_index],
-                        role,
-                        _TEXTURE_RESOURCE_SPECS[0][1],
-                    )
-                    if direct_base is not None:
-                        source, luminance_guard_metrics = (
-                            _guard_synthesized_base_against_direct(
-                                source,
-                                direct_base,
-                                synthesis_root,
-                                alpha_mode=base_alpha_mode,
-                                owner_submesh=submeshes[submesh_index],
-                                lod_index=lod_index,
-                                submesh_index=submesh_index,
-                                expected_root_identity=expected_root_identity,
-                                stop_event=stop_event,
-                            )
-                        )
-                cache_key = (str(source), encode_channel)
-                encoded = encoded_cache.get(cache_key)
-                if encoded is None:
-                    encoded_dir = synthesis_root / "encoded"
-                    encoded_dir.mkdir(exist_ok=True)
-                    encoded = encoded_dir / (
-                        f"lod-{lod_index:04d}-material-{submesh_index:04d}-{encode_channel}.dds"
-                    )
-                    try:
-                        encode_options = {}
-                        if role == "base_color" and source.suffix.casefold() == ".png":
-                            encode_options = {"source_color_policy": "assume_srgb"}
-                        elif role in _RUST_SYNTHESIZED_SCALAR_ROLES:
-                            encode_options = {
-                                "source_color_policy": "ignore_srgb_metadata"
-                            }
-                        _encode_rust_preview_dds(
-                            source,
-                            encoded,
-                            encode_channel,
-                            cancellation_event,
-                            synthesis_state,
-                            **encode_options,
-                        )
-                    except RunCancelled as exc:
-                        raise RustMeshCancellationError(
-                            "Rust Mesh texture preparation was cancelled"
-                        ) from exc
-                    except Exception as exc:
-                        # Retain the direct DDS for this owner/channel when the
-                        # authoritative generated image cannot be encoded.
-                        _record_rust_material_synthesis_diagnostic(
-                            synthesis_state,
-                            "generated_channel_encode_failed",
-                            lod_index=lod_index,
-                            submesh_index=submesh_index,
-                            detail=f"{encode_channel}: {type(exc).__name__}: {exc}",
-                        )
-                        continue
-                    encoded_cache[cache_key] = encoded
-                if override_key not in overrides:
-                    synthesis_state.generated_binding_count += 1
-                overrides[override_key] = encoded
-                applied_roles.add(role)
-                if luminance_guard_metrics is not None:
-                    _record_rust_material_luminance_guard(
-                        synthesis_state,
-                        lod_index=lod_index,
-                        submesh_index=submesh_index,
-                        **luminance_guard_metrics,
-                    )
+            _apply_synthesized_material_roles(lod_index, submesh_index, submeshes, protected_keys, skin_surface_contract, generated_channels, resolved_channels, layered_normal_is_authoritative, runtime_skin_detail, synthesis_root, synthesis_state, base_alpha_mode, expected_root_identity, stop_event, encoded_cache, cancellation_event, overrides, applied_roles)
             direct_fallbacks = _rust_exact_direct_fallback_overrides(
                 row,
                 source_submesh,
@@ -4775,6 +4810,67 @@ def _mesh_material_synthesis_context(
         prefix="cdmw-rust-material-synthesis-",
         dir=root.parent,
     )
+
+
+def _publish_rust_texture_resources(root, bindings, sources, stop_event, expected_root_identity):
+    entry_count, aggregate_bytes = _validate_owned_session_tree(
+        root,
+        expected_root_identity,
+    )
+    initial_entry_count = entry_count
+    initial_aggregate_bytes = aggregate_bytes
+    file_references: dict[str, dict[str, object]] = {}
+    for file_index, path_text in enumerate(sorted(sources, key=str.casefold)):
+        _raise_if_texture_copy_cancelled(stop_event)
+        if entry_count + 1 > _SESSION_MAX_ENTRIES:
+            raise RustMeshProtocolError(
+                "Rust Mesh session contains too many owned entries"
+            )
+        reference = _atomic_copy_texture_payload(
+            root,
+            sources[path_text],
+            file_index,
+            expected_root_identity=expected_root_identity,
+            aggregate_bytes_before=aggregate_bytes,
+            stop_event=stop_event,
+        )
+        file_references[path_text] = reference
+        entry_count += 1
+        aggregate_bytes += int(reference["byte_length"])
+
+    final_entry_count, final_aggregate_bytes = _validate_owned_session_tree(
+        root,
+        expected_root_identity,
+    )
+    if (
+        final_entry_count != initial_entry_count + len(file_references)
+        or final_aggregate_bytes
+        != initial_aggregate_bytes
+        + sum(
+            int(reference["byte_length"])
+            for reference in file_references.values()
+        )
+    ):
+        raise RustMeshProtocolError(
+            "Rust Mesh session changed while texture payloads were being packaged"
+        )
+
+    resources: list[dict[str, object]] = []
+    for (path_text, role), ownership in sorted(
+        bindings.items(),
+        key=lambda item: (item[0][1], item[0][0].casefold()),
+    ):
+        resources.append(
+            {
+                "label": sources[path_text].name,
+                "role": role,
+                "file": dict(file_references[path_text]),
+                "material_indices_by_lod": [
+                    sorted(indices) for indices in ownership
+                ],
+            }
+        )
+    return resources
 
 
 def _mesh_texture_payloads(
@@ -4913,64 +5009,7 @@ def _mesh_texture_payloads(
                     ownership[lod_index].add(submesh_index)
                     resolved_roles.add(role)
 
-        entry_count, aggregate_bytes = _validate_owned_session_tree(
-            root,
-            expected_root_identity,
-        )
-        initial_entry_count = entry_count
-        initial_aggregate_bytes = aggregate_bytes
-        file_references: dict[str, dict[str, object]] = {}
-        for file_index, path_text in enumerate(sorted(sources, key=str.casefold)):
-            _raise_if_texture_copy_cancelled(stop_event)
-            if entry_count + 1 > _SESSION_MAX_ENTRIES:
-                raise RustMeshProtocolError(
-                    "Rust Mesh session contains too many owned entries"
-                )
-            reference = _atomic_copy_texture_payload(
-                root,
-                sources[path_text],
-                file_index,
-                expected_root_identity=expected_root_identity,
-                aggregate_bytes_before=aggregate_bytes,
-                stop_event=stop_event,
-            )
-            file_references[path_text] = reference
-            entry_count += 1
-            aggregate_bytes += int(reference["byte_length"])
-
-        final_entry_count, final_aggregate_bytes = _validate_owned_session_tree(
-            root,
-            expected_root_identity,
-        )
-        if (
-            final_entry_count != initial_entry_count + len(file_references)
-            or final_aggregate_bytes
-            != initial_aggregate_bytes
-            + sum(
-                int(reference["byte_length"])
-                for reference in file_references.values()
-            )
-        ):
-            raise RustMeshProtocolError(
-                "Rust Mesh session changed while texture payloads were being packaged"
-            )
-
-        resources: list[dict[str, object]] = []
-        for (path_text, role), ownership in sorted(
-            bindings.items(),
-            key=lambda item: (item[0][1], item[0][0].casefold()),
-        ):
-            resources.append(
-                {
-                    "label": sources[path_text].name,
-                    "role": role,
-                    "file": dict(file_references[path_text]),
-                    "material_indices_by_lod": [
-                        sorted(indices) for indices in ownership
-                    ],
-                }
-            )
-        return resources
+        return _publish_rust_texture_resources(root, bindings, sources, stop_event, expected_root_identity)
 
 
 @dataclass(frozen=True, slots=True)
@@ -5530,6 +5569,232 @@ def _rust_has_exact_skin_category_evidence(
     )
 
 
+def _rust_presentation_parameters(source, submeshes, material_index):
+    parameters = source.get("parameters", {})
+    if not isinstance(parameters, Mapping):
+        parameters = {}
+    raw_overrides = getattr(
+        submeshes[material_index],
+        "preview_native_material_overrides",
+        {},
+    )
+    factor_parameters = (
+        dict(raw_overrides) if isinstance(raw_overrides, Mapping) else {}
+    )
+    factor_parameters.update(parameters)
+    texture_tint = _rust_material_optional_color(source, "texture_tint")
+    if texture_tint is None:
+        texture_tint = _rust_material_optional_color(
+            factor_parameters,
+            "texture_tint",
+        )
+    base_tint_strength = _rust_material_optional_scalar(
+        source,
+        "base_tint_strength",
+        minimum=0.0,
+        maximum=1.0,
+    )
+    if base_tint_strength is None:
+        base_tint_strength = _rust_material_optional_scalar(
+            factor_parameters,
+            "base_tint_strength",
+            minimum=0.0,
+            maximum=1.0,
+        )
+    try:
+        material_slot_index = int(
+            source.get("material_slot_index", material_index)
+        )
+    except (TypeError, ValueError, OverflowError):
+        material_slot_index = material_index
+    material_slot_index = max(0, min(0xFFFF_FFFF, material_slot_index))
+    return factor_parameters, texture_tint, base_tint_strength, material_slot_index
+
+
+def _rust_presentation_surface_policy(source, submeshes, material_index):
+    category = str(
+        source.get("material_category", MATERIAL_CATEGORY_UNCLASSIFIED)
+        or MATERIAL_CATEGORY_UNCLASSIFIED
+    ).strip().casefold()
+    if not is_known_material_category(category):
+        category = MATERIAL_CATEGORY_UNCLASSIFIED
+    try:
+        category_confidence = float(
+            source.get("material_category_confidence", 0.35)
+        )
+    except (TypeError, ValueError, OverflowError):
+        category_confidence = 0.35
+    if not math.isfinite(category_confidence):
+        category_confidence = 0.35
+    category_confidence = max(0.0, min(1.0, category_confidence))
+    shader_family = str(source.get("shader_family", "generic") or "generic").strip()
+    if (
+        not shader_family
+        or len(shader_family) > 64
+        or any(character.isspace() and character not in {" "} for character in shader_family)
+    ):
+        shader_family = "generic"
+    if _rust_has_exact_skin_category_evidence(
+        submeshes[material_index],
+        shader_family,
+    ):
+        # The conserved PAC XML shader and owner-scoped input graph are
+        # stronger category evidence than the package's generic
+        # dielectric fallback.  This also keeps skin *_sp blue out of
+        # Rust's metalness path.
+        category = "skin"
+        category_confidence = max(category_confidence, 0.95)
+    normal_y_policy = str(
+        source.get("normal_y_policy", "preserve") or "preserve"
+    ).strip().casefold()
+    if normal_y_policy not in {"preserve", "invert_green_for_directx"}:
+        normal_y_policy = "preserve"
+    alpha_mode = str(source.get("alpha_mode", "opaque") or "opaque").strip().casefold()
+    if alpha_mode not in {"opaque", "cutout", "blend"}:
+        alpha_mode = "opaque"
+    return category, category_confidence, shader_family, normal_y_policy, alpha_mode
+
+
+def _append_rust_material_presentation(rows, source, fallback_index, submeshes, generated_overrides, lod_index):
+    if not isinstance(source, Mapping):
+        raise RustMeshProtocolError(
+            "CDMW material-state translator returned an invalid material row"
+        )
+    try:
+        material_index = int(source.get("submesh_index", fallback_index))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise RustMeshProtocolError(
+            "CDMW material-state translator returned an invalid material index"
+        ) from exc
+    if material_index < 0 or material_index >= len(submeshes):
+        raise RustMeshProtocolError(
+            "CDMW material-state translator returned an out-of-range material index"
+        )
+    canonical_override = (
+        generated_overrides.get((lod_index, material_index), {})
+        if generated_overrides is not None
+        else {}
+    )
+    if canonical_override:
+        source = {**dict(source), **dict(canonical_override)}
+    category, category_confidence, shader_family, normal_y_policy, alpha_mode = _rust_presentation_surface_policy(source, submeshes, material_index)
+    factor_parameters, texture_tint, base_tint_strength, material_slot_index = _rust_presentation_parameters(source, submeshes, material_index)
+    skin_detail_scale, skin_detail_opacity = _rust_skin_detail_factors(
+        submeshes[material_index]
+    )
+    authored_height_scale = _rust_exact_authored_height_scale(
+        submeshes[material_index]
+    )
+    authored_anisotropy = _rust_exact_authored_anisotropy(
+        submeshes[material_index]
+    )
+    surface_profile = _rust_surface_profile(
+        source.get("surface_profile"),
+        material_category=category,
+        category_confidence=category_confidence,
+    )
+    surface_profile = _rust_owner_scoped_surface_profile_anisotropy(
+        surface_profile,
+        authored_anisotropy,
+    )
+    profile_anisotropy = bool(
+        surface_profile
+        and surface_profile["fallback_applied"]["anisotropy"]
+        and surface_profile["fallbacks"]["anisotropy"] > 0.0
+    )
+    rows.append(
+        {
+            "lod_index": lod_index,
+            "material_index": material_index,
+            "material_slot_index": material_slot_index,
+            "material_category": category,
+            "category_code": material_category_code(category),
+            "category_confidence": category_confidence,
+            "surface_profile": surface_profile,
+            "shader_family": shader_family,
+            "normal_y_policy": normal_y_policy,
+            "normal_y_inverted": normal_y_policy
+            == "invert_green_for_directx",
+            "texture_flip_vertical": bool(
+                source.get(
+                    "texture_flip_vertical",
+                    getattr(
+                        submeshes[material_index],
+                        "preview_texture_flip_vertical",
+                        False,
+                    ),
+                )
+            ),
+            "alpha_mode": alpha_mode,
+            "gltf_metallic_roughness": factor_parameters.get("gltf_metallic_roughness") is True,
+            "opacity": _rust_material_optional_scalar(
+                factor_parameters,
+                "opacity",
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            "alpha_cutoff": _rust_material_optional_scalar(
+                source,
+                "alpha_cutoff",
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            "double_sided": bool(source.get("double_sided", False)),
+            "roughness": _rust_material_optional_scalar(
+                factor_parameters,
+                "roughness",
+                "roughness_hint",
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            "metalness": _rust_material_optional_scalar(
+                factor_parameters,
+                "metalness",
+                "metalness_hint",
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            "specular": _rust_material_optional_scalar(
+                factor_parameters,
+                "specular",
+                "specular_hint",
+                minimum=0.0,
+                maximum=1.0,
+            ),
+            "emissive_color": _rust_material_optional_color(
+                factor_parameters,
+                "emissive_color",
+            ),
+            "emissive_intensity": _rust_material_optional_scalar(
+                factor_parameters,
+                "emissive_intensity",
+                minimum=0.0,
+                maximum=32.0,
+            ),
+            "height_scale": (
+                authored_height_scale
+                if authored_height_scale is not None
+                else _rust_material_optional_scalar(
+                    factor_parameters,
+                    "height_scale",
+                    "height_amount",
+                    minimum=0.0,
+                    maximum=1.0,
+                )
+            ),
+            "texture_tint": texture_tint,
+            "base_tint_strength": base_tint_strength,
+            "hair_anisotropy": (
+                authored_anisotropy
+                if authored_anisotropy is not None
+                else shader_family.casefold() == "hair" or profile_anisotropy
+            ),
+            "skin_detail_scale": skin_detail_scale,
+            "skin_detail_opacity": skin_detail_opacity,
+        }
+    )
+
+
 def _mesh_material_presentations(
     mesh: ParsedMesh,
     *,
@@ -5574,219 +5839,7 @@ def _mesh_material_presentations(
                 raise RustMeshProtocolError(
                     "Rust Mesh material presentation exceeds the owned material-range limit"
                 )
-            if not isinstance(source, Mapping):
-                raise RustMeshProtocolError(
-                    "CDMW material-state translator returned an invalid material row"
-                )
-            try:
-                material_index = int(source.get("submesh_index", fallback_index))
-            except (TypeError, ValueError, OverflowError) as exc:
-                raise RustMeshProtocolError(
-                    "CDMW material-state translator returned an invalid material index"
-                ) from exc
-            if material_index < 0 or material_index >= len(submeshes):
-                raise RustMeshProtocolError(
-                    "CDMW material-state translator returned an out-of-range material index"
-                )
-            canonical_override = (
-                generated_overrides.get((lod_index, material_index), {})
-                if generated_overrides is not None
-                else {}
-            )
-            if canonical_override:
-                source = {**dict(source), **dict(canonical_override)}
-            category = str(
-                source.get("material_category", MATERIAL_CATEGORY_UNCLASSIFIED)
-                or MATERIAL_CATEGORY_UNCLASSIFIED
-            ).strip().casefold()
-            if not is_known_material_category(category):
-                category = MATERIAL_CATEGORY_UNCLASSIFIED
-            try:
-                category_confidence = float(
-                    source.get("material_category_confidence", 0.35)
-                )
-            except (TypeError, ValueError, OverflowError):
-                category_confidence = 0.35
-            if not math.isfinite(category_confidence):
-                category_confidence = 0.35
-            category_confidence = max(0.0, min(1.0, category_confidence))
-            shader_family = str(source.get("shader_family", "generic") or "generic").strip()
-            if (
-                not shader_family
-                or len(shader_family) > 64
-                or any(character.isspace() and character not in {" "} for character in shader_family)
-            ):
-                shader_family = "generic"
-            if _rust_has_exact_skin_category_evidence(
-                submeshes[material_index],
-                shader_family,
-            ):
-                # The conserved PAC XML shader and owner-scoped input graph are
-                # stronger category evidence than the package's generic
-                # dielectric fallback.  This also keeps skin *_sp blue out of
-                # Rust's metalness path.
-                category = "skin"
-                category_confidence = max(category_confidence, 0.95)
-            normal_y_policy = str(
-                source.get("normal_y_policy", "preserve") or "preserve"
-            ).strip().casefold()
-            if normal_y_policy not in {"preserve", "invert_green_for_directx"}:
-                normal_y_policy = "preserve"
-            alpha_mode = str(source.get("alpha_mode", "opaque") or "opaque").strip().casefold()
-            if alpha_mode not in {"opaque", "cutout", "blend"}:
-                alpha_mode = "opaque"
-            parameters = source.get("parameters", {})
-            if not isinstance(parameters, Mapping):
-                parameters = {}
-            raw_overrides = getattr(
-                submeshes[material_index],
-                "preview_native_material_overrides",
-                {},
-            )
-            factor_parameters = (
-                dict(raw_overrides) if isinstance(raw_overrides, Mapping) else {}
-            )
-            factor_parameters.update(parameters)
-            texture_tint = _rust_material_optional_color(source, "texture_tint")
-            if texture_tint is None:
-                texture_tint = _rust_material_optional_color(
-                    factor_parameters,
-                    "texture_tint",
-                )
-            base_tint_strength = _rust_material_optional_scalar(
-                source,
-                "base_tint_strength",
-                minimum=0.0,
-                maximum=1.0,
-            )
-            if base_tint_strength is None:
-                base_tint_strength = _rust_material_optional_scalar(
-                    factor_parameters,
-                    "base_tint_strength",
-                    minimum=0.0,
-                    maximum=1.0,
-                )
-            try:
-                material_slot_index = int(
-                    source.get("material_slot_index", material_index)
-                )
-            except (TypeError, ValueError, OverflowError):
-                material_slot_index = material_index
-            material_slot_index = max(0, min(0xFFFF_FFFF, material_slot_index))
-            skin_detail_scale, skin_detail_opacity = _rust_skin_detail_factors(
-                submeshes[material_index]
-            )
-            authored_height_scale = _rust_exact_authored_height_scale(
-                submeshes[material_index]
-            )
-            authored_anisotropy = _rust_exact_authored_anisotropy(
-                submeshes[material_index]
-            )
-            surface_profile = _rust_surface_profile(
-                source.get("surface_profile"),
-                material_category=category,
-                category_confidence=category_confidence,
-            )
-            surface_profile = _rust_owner_scoped_surface_profile_anisotropy(
-                surface_profile,
-                authored_anisotropy,
-            )
-            profile_anisotropy = bool(
-                surface_profile
-                and surface_profile["fallback_applied"]["anisotropy"]
-                and surface_profile["fallbacks"]["anisotropy"] > 0.0
-            )
-            rows.append(
-                {
-                    "lod_index": lod_index,
-                    "material_index": material_index,
-                    "material_slot_index": material_slot_index,
-                    "material_category": category,
-                    "category_code": material_category_code(category),
-                    "category_confidence": category_confidence,
-                    "surface_profile": surface_profile,
-                    "shader_family": shader_family,
-                    "normal_y_policy": normal_y_policy,
-                    "normal_y_inverted": normal_y_policy
-                    == "invert_green_for_directx",
-                    "texture_flip_vertical": bool(
-                        source.get(
-                            "texture_flip_vertical",
-                            getattr(
-                                submeshes[material_index],
-                                "preview_texture_flip_vertical",
-                                False,
-                            ),
-                        )
-                    ),
-                    "alpha_mode": alpha_mode,
-                    "gltf_metallic_roughness": factor_parameters.get("gltf_metallic_roughness") is True,
-                    "opacity": _rust_material_optional_scalar(
-                        factor_parameters,
-                        "opacity",
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "alpha_cutoff": _rust_material_optional_scalar(
-                        source,
-                        "alpha_cutoff",
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "double_sided": bool(source.get("double_sided", False)),
-                    "roughness": _rust_material_optional_scalar(
-                        factor_parameters,
-                        "roughness",
-                        "roughness_hint",
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "metalness": _rust_material_optional_scalar(
-                        factor_parameters,
-                        "metalness",
-                        "metalness_hint",
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "specular": _rust_material_optional_scalar(
-                        factor_parameters,
-                        "specular",
-                        "specular_hint",
-                        minimum=0.0,
-                        maximum=1.0,
-                    ),
-                    "emissive_color": _rust_material_optional_color(
-                        factor_parameters,
-                        "emissive_color",
-                    ),
-                    "emissive_intensity": _rust_material_optional_scalar(
-                        factor_parameters,
-                        "emissive_intensity",
-                        minimum=0.0,
-                        maximum=32.0,
-                    ),
-                    "height_scale": (
-                        authored_height_scale
-                        if authored_height_scale is not None
-                        else _rust_material_optional_scalar(
-                            factor_parameters,
-                            "height_scale",
-                            "height_amount",
-                            minimum=0.0,
-                            maximum=1.0,
-                        )
-                    ),
-                    "texture_tint": texture_tint,
-                    "base_tint_strength": base_tint_strength,
-                    "hair_anisotropy": (
-                        authored_anisotropy
-                        if authored_anisotropy is not None
-                        else shader_family.casefold() == "hair" or profile_anisotropy
-                    ),
-                    "skin_detail_scale": skin_detail_scale,
-                    "skin_detail_opacity": skin_detail_opacity,
-                }
-            )
+            _append_rust_material_presentation(rows, source, fallback_index, submeshes, generated_overrides, lod_index)
     return rows
 
 
@@ -6683,6 +6736,129 @@ class _MorphProfilePublication:
             )
 
 
+def _capture_shadow_session_seed(authoritative_service: MeshService, authoritative_session):
+    with authoritative_session.export_lock:
+        authoritative_view = authoritative_service._session_view_locked(
+            authoritative_session
+        )
+        shadow_mesh = authoritative_service._working_mesh_locked(
+            authoritative_session,
+            clone=True,
+        )
+        geometry_layer_seed = _geometry_layer_seed(authoritative_session)
+        rigging_seed = _rigging_seed(authoritative_session)
+        base_morph_session_revision = max(
+            0,
+            int(authoritative_session.morph_session_revision),
+        )
+        authoritative_morph_state = (
+            authoritative_service._capture_morph_session_state_locked(
+                authoritative_session
+            )
+        )
+    return (
+        authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
+        base_morph_session_revision, authoritative_morph_state,
+    )
+
+
+def _prepare_shadow_mesh_materials(
+    shadow_mesh: ParsedMesh,
+    preview_context: object,
+    texture_unavailable_reason: str,
+    stop_event: threading.Event | None,
+) -> tuple[int, str]:
+    preview_material_binding_count = 0
+    preview_model = getattr(preview_context, "preview_model", None)
+    if preview_model is not None:
+        preview_material_binding_count = copy_dotnet_preview_material_bindings(
+            shadow_mesh,
+            preview_model,
+        )
+        if preview_material_binding_count <= 0:
+            texture_unavailable_reason = (
+                texture_unavailable_reason
+                or "Resolved Archive Browser material context did not match any editable mesh parts."
+            )
+        else:
+            _rebased, package_reason = _rebase_rust_preview_texture_paths(
+                shadow_mesh,
+                getattr(preview_context, "material_package_path", ""),
+                stop_event=stop_event,
+            )
+            if package_reason:
+                texture_unavailable_reason = (
+                    texture_unavailable_reason or package_reason
+                )
+    archive_texture_count = _resolve_rust_archive_texture_fallbacks(
+        shadow_mesh,
+        preview_context,
+        stop_event=stop_event,
+    )
+    if archive_texture_count > 0:
+        preview_material_binding_count = max(
+            preview_material_binding_count,
+            count_dotnet_own_material_bindings(shadow_mesh),
+        )
+        texture_unavailable_reason = ""
+    else:
+        texture_unavailable_reason = (
+            concise_rust_texture_unavailable_reason(
+                texture_unavailable_reason
+            )
+            or texture_unavailable_reason
+        )
+    return preview_material_binding_count, texture_unavailable_reason
+
+
+def _configure_shadow_session_seed(
+    shadow_service: MeshService,
+    shadow_view,
+    geometry_layer_seed,
+    rigging_seed,
+    authoritative_morph_state,
+    authoritative_view,
+):
+    _install_shadow_geometry_layer_seed(
+        shadow_service,
+        shadow_view.session_id,
+        geometry_layer_seed,
+    )
+    _install_shadow_rigging_seed(
+        shadow_service,
+        shadow_view.session_id,
+        rigging_seed,
+    )
+    shadow_service.install_morph_session_state(
+        shadow_view.session_id,
+        authoritative_morph_state,
+    )
+    shadow_service.prime_morph_profile_cache(
+        shadow_view.session_id,
+        freeze=True,
+    )
+    shadow_view = shadow_service.configure_output_policy(
+        shadow_view.session_id,
+        authoritative_view.output_policy,
+        output_destination=authoritative_view.output_destination,
+    )
+    return shadow_view
+
+
+def _dispose_shadow_morph_seed(authoritative_service: MeshService, authoritative_morph_state):
+    try:
+        authoritative_service.dispose_morph_session_state(
+            authoritative_morph_state
+        )
+    except Exception:
+        try:
+            authoritative_service.defer_morph_session_state_disposal(
+                authoritative_morph_state
+            )
+        except Exception:
+            pass
+
+
 @dataclass(slots=True)
 class RustMeshAuthoringSession:
     authoritative_service: MeshService
@@ -6715,6 +6891,8 @@ class RustMeshAuthoringSession:
     _finish_accepted: bool = field(default=False, repr=False)
     _profile_tree_tainted: bool = field(default=False, repr=False)
 
+
+
     @classmethod
     def create(
         cls,
@@ -6742,72 +6920,18 @@ class RustMeshAuthoringSession:
             _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR,
             None,
         )
-        preview_material_binding_count = 0
         texture_unavailable_reason = str(
             getattr(preview_context, "unavailable_reason", "") or ""
         ).strip()
-        authoritative_morph_state = None
-        base_morph_session_revision = 0
-        with authoritative_session.export_lock:
-            authoritative_view = authoritative_service._session_view_locked(
-                authoritative_session
-            )
-            shadow_mesh = authoritative_service._working_mesh_locked(
-                authoritative_session,
-                clone=True,
-            )
-            geometry_layer_seed = _geometry_layer_seed(authoritative_session)
-            rigging_seed = _rigging_seed(authoritative_session)
-            base_morph_session_revision = max(
-                0,
-                int(authoritative_session.morph_session_revision),
-            )
-            authoritative_morph_state = (
-                authoritative_service._capture_morph_session_state_locked(
-                    authoritative_session
-                )
-            )
+        (
+            authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
+            base_morph_session_revision, authoritative_morph_state,
+        ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
         try:
             shadow_mesh.active_lod_index = authoritative_view.lod_index
-            preview_model = getattr(preview_context, "preview_model", None)
-            if preview_model is not None:
-                preview_material_binding_count = copy_dotnet_preview_material_bindings(
-                    shadow_mesh,
-                    preview_model,
-                )
-                if preview_material_binding_count <= 0:
-                    texture_unavailable_reason = (
-                        texture_unavailable_reason
-                        or "Resolved Archive Browser material context did not match any editable mesh parts."
-                    )
-                else:
-                    _rebased, package_reason = _rebase_rust_preview_texture_paths(
-                        shadow_mesh,
-                        getattr(preview_context, "material_package_path", ""),
-                        stop_event=stop_event,
-                    )
-                    if package_reason:
-                        texture_unavailable_reason = (
-                            texture_unavailable_reason or package_reason
-                        )
-            archive_texture_count = _resolve_rust_archive_texture_fallbacks(
-                shadow_mesh,
-                preview_context,
-                stop_event=stop_event,
+            preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
+                shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
             )
-            if archive_texture_count > 0:
-                preview_material_binding_count = max(
-                    preview_material_binding_count,
-                    count_dotnet_own_material_bindings(shadow_mesh),
-                )
-                texture_unavailable_reason = ""
-            else:
-                texture_unavailable_reason = (
-                    concise_rust_texture_unavailable_reason(
-                        texture_unavailable_reason
-                    )
-                    or texture_unavailable_reason
-                )
             if stop_event is not None and stop_event.is_set():
                 raise RustMeshCancellationError(
                     "Rust Mesh session preparation was cancelled"
@@ -6834,45 +6958,16 @@ class RustMeshAuthoringSession:
                 adopt_owned_mesh=True,
             )
         except Exception:
-            try:
-                authoritative_service.dispose_morph_session_state(
-                    authoritative_morph_state
-                )
-            except Exception:
-                try:
-                    authoritative_service.defer_morph_session_state_disposal(
-                        authoritative_morph_state
-                    )
-                except Exception:
-                    pass
+            _dispose_shadow_morph_seed(authoritative_service, authoritative_morph_state)
             try:
                 _cleanup_failed_session_root(session_root, root_identity)
             except Exception:
                 pass
             raise
         try:
-            _install_shadow_geometry_layer_seed(
-                shadow_service,
-                shadow_view.session_id,
-                geometry_layer_seed,
-            )
-            _install_shadow_rigging_seed(
-                shadow_service,
-                shadow_view.session_id,
-                rigging_seed,
-            )
-            shadow_service.install_morph_session_state(
-                shadow_view.session_id,
-                authoritative_morph_state,
-            )
-            shadow_service.prime_morph_profile_cache(
-                shadow_view.session_id,
-                freeze=True,
-            )
-            shadow_view = shadow_service.configure_output_policy(
-                shadow_view.session_id,
-                authoritative_view.output_policy,
-                output_destination=authoritative_view.output_destination,
+            shadow_view = _configure_shadow_session_seed(
+                shadow_service, shadow_view, geometry_layer_seed, rigging_seed,
+                authoritative_morph_state, authoritative_view,
             )
             instance = cls(
                 authoritative_service=authoritative_service,
@@ -6920,17 +7015,7 @@ class RustMeshAuthoringSession:
                 pass
             raise
         finally:
-            try:
-                authoritative_service.dispose_morph_session_state(
-                    authoritative_morph_state
-                )
-            except Exception:
-                try:
-                    authoritative_service.defer_morph_session_state_disposal(
-                        authoritative_morph_state
-                    )
-                except Exception:
-                    pass
+            _dispose_shadow_morph_seed(authoritative_service, authoritative_morph_state)
 
     def _require_open(self) -> None:
         if self.closed:
@@ -7653,6 +7738,53 @@ class RustMeshAuthoringSession:
                 session.revision += 1
             return int(session.revision)
 
+    def _apply_candidate_geometry(self, candidate, raw_submeshes, operations, active_lod_index):
+        changed = False
+        changed_submesh_indices: set[int] = set()
+        invalidated_tangents: tuple[int, ...] = ()
+        for submesh_index, (raw, target) in enumerate(zip(raw_submeshes, candidate.submeshes)):
+            if not isinstance(raw, Mapping):
+                raise RustMeshProtocolError("Rust Mesh candidate submesh is malformed")
+            positions = _finite_rows(raw.get("positions"), 3, "positions")
+            normals = _finite_rows(raw.get("normals"), 3, "normals")
+            uvs = _finite_rows(raw.get("uvs"), 2, "uvs")
+            indices = _integer_values(raw.get("indices"), "indices")
+            if len(positions) != len(target.vertices):
+                raise RustMeshProtocolError("Rust Mesh candidate changed vertex count outside CDMW topology")
+            if normals and len(normals) != len(positions):
+                raise RustMeshProtocolError("Rust Mesh candidate normal count does not match positions")
+            if uvs and len(uvs) != len(positions):
+                raise RustMeshProtocolError("Rust Mesh candidate UV count does not match positions")
+            if indices != _submesh_indices(target):
+                raise RustMeshProtocolError("Rust Mesh candidate changed topology outside CDMW topology")
+            channel_values = (
+                ("replace_positions_same_count", "vertices", positions),
+                ("replace_normals_same_count", "normals", normals),
+                ("replace_uv0_same_count", "uvs", uvs),
+            )
+            for operation_name, attribute, values in channel_values:
+                original = list(getattr(target, attribute, ()) or ())
+                if not values or original == values:
+                    continue
+                values = _preserve_unchanged_rust_channel(original, values)
+                if original == values:
+                    continue
+                setattr(target, attribute, values)
+                operations.append(
+                    {
+                        "operation": operation_name,
+                        "lod_index": active_lod_index,
+                        "submesh_index": submesh_index,
+                        "vertex_count": len(positions),
+                        "source": RUST_MESH_EDIT_BACKEND,
+                        "created_by": "CDMW Rust Edit Mesh",
+                    }
+                )
+                changed = True
+                changed_submesh_indices.add(submesh_index)
+        return changed, changed_submesh_indices, invalidated_tangents
+
+
     @_with_protocol_lock
     @_with_pinned_session_root
     def apply_candidate(self, request: Mapping[str, object]) -> dict[str, object]:
@@ -7698,49 +7830,11 @@ class RustMeshAuthoringSession:
         with shadow_session.export_lock:
             operations = list(tuple(shadow_session.edit_operations))
             shadow_object_transform = copy.deepcopy(shadow_session.object_transform)
-        changed = False
-        changed_submesh_indices: set[int] = set()
-        invalidated_tangents: tuple[int, ...] = ()
-        for submesh_index, (raw, target) in enumerate(zip(raw_submeshes, candidate.submeshes)):
-            if not isinstance(raw, Mapping):
-                raise RustMeshProtocolError("Rust Mesh candidate submesh is malformed")
-            positions = _finite_rows(raw.get("positions"), 3, "positions")
-            normals = _finite_rows(raw.get("normals"), 3, "normals")
-            uvs = _finite_rows(raw.get("uvs"), 2, "uvs")
-            indices = _integer_values(raw.get("indices"), "indices")
-            if len(positions) != len(target.vertices):
-                raise RustMeshProtocolError("Rust Mesh candidate changed vertex count outside CDMW topology")
-            if normals and len(normals) != len(positions):
-                raise RustMeshProtocolError("Rust Mesh candidate normal count does not match positions")
-            if uvs and len(uvs) != len(positions):
-                raise RustMeshProtocolError("Rust Mesh candidate UV count does not match positions")
-            if indices != _submesh_indices(target):
-                raise RustMeshProtocolError("Rust Mesh candidate changed topology outside CDMW topology")
-            channel_values = (
-                ("replace_positions_same_count", "vertices", positions),
-                ("replace_normals_same_count", "normals", normals),
-                ("replace_uv0_same_count", "uvs", uvs),
-            )
-            for operation_name, attribute, values in channel_values:
-                original = list(getattr(target, attribute, ()) or ())
-                if not values or original == values:
-                    continue
-                values = _preserve_unchanged_rust_channel(original, values)
-                if original == values:
-                    continue
-                setattr(target, attribute, values)
-                operations.append(
-                    {
-                        "operation": operation_name,
-                        "lod_index": active_lod_index,
-                        "submesh_index": submesh_index,
-                        "vertex_count": len(positions),
-                        "source": RUST_MESH_EDIT_BACKEND,
-                        "created_by": "CDMW Rust Edit Mesh",
-                    }
-                )
-                changed = True
-                changed_submesh_indices.add(submesh_index)
+        (
+            changed, changed_submesh_indices, invalidated_tangents,
+        ) = self._apply_candidate_geometry(
+            candidate, raw_submeshes, operations, active_lod_index,
+        )
         if changed:
             self._require_authoring_enabled("apply geometry edits")
             invalidated_tangents = _invalidate_tangents_after_edit(
@@ -7814,49 +7908,57 @@ class RustMeshAuthoringSession:
             }
         return state
 
-    @_with_protocol_lock
-    @_with_pinned_session_root
-    def run_command(
-        self,
-        request: Mapping[str, object],
-        *,
-        stop_event: threading.Event | None = None,
-    ) -> dict[str, object]:
-        self._require_open()
-        self.validate_message_identity(request)
-        self._require_shadow_revision(request)
-        self._raise_if_cancelled(stop_event)
-        _validate_owned_session_tree(self.root, self.root_identity)
-        self._require_acknowledged_profile_tree()
-        command = str(request.get("command", "") or "").strip().lower()
-        arguments = request.get("arguments")
-        args = dict(arguments) if isinstance(arguments, Mapping) else {}
-        shadow_session = self.shadow_service._session(self.shadow_session_id)
-        with shadow_session.export_lock:
-            before_revision = int(shadow_session.revision)
-            before_signature = self._shadow_protocol_signature_locked(
-                shadow_session
+    def _import_editable_package_command(self, args, stop_event):
+        raw_package_path = str(args.get("path", "") or "").strip()
+        if not raw_package_path:
+            raise RustMeshProtocolError("Editable package path is required")
+        package_path = Path(raw_package_path).expanduser()
+        mesh_path = _editable_package_mesh_path(package_path)
+        if mesh_path.suffix.lower() not in {".glb", ".obj"}:
+            raise RustMeshValidationError(
+                "Rust Edit Mesh can import editable GLB or OBJ packages only."
             )
-        result: object
-        if command not in {
-            "select",
-            "state",
-            "configure_output_policy",
-            "rig_select_bone",
-        }:
-            self._require_authoring_enabled(f"run {command or 'this command'}")
-        if command in {
-            "undo",
-            "redo",
-            "layer_delete",
-            "layer_paste",
-            "rig_adjust_weight",
-            "rig_normalize_weights",
-            "rig_transfer_weights",
-        } or command.startswith("morph_") or command.startswith("refit_"):
-            self._preflight_current_command_document(command)
+        self._raise_if_cancelled(stop_event)
+        imported_mesh = (
+            import_glb_with_sidecar(mesh_path)
+            if mesh_path.suffix.lower() == ".glb"
+            else import_obj(
+                str(mesh_path),
+                sidecar_path=_editable_package_sidecar_path(mesh_path),
+            )
+        )
+        self._raise_if_cancelled(stop_event)
+        imported_prepared = self.shadow_service.prepare_working_mesh_replacement(
+            self.shadow_session_id,
+            imported_mesh,
+        )
+        admitted_document_bytes = self._preflight_mesh_document_capacity(
+            imported_prepared.working_mesh
+        )
+        view = self.shadow_service.commit_prepared_working_mesh_replacement(
+            imported_prepared,
+        )
+        self.max_state_document_bytes = max(
+            self.max_state_document_bytes,
+            admitted_document_bytes,
+        )
+        validation = self.shadow_service.validate_export(self.shadow_session_id)
+        result = {
+            "session_id": view.session_id,
+            "mesh_revision": view.revision,
+            "validation": validation,
+        }
+        return result
+
+
+    def _undo_shadow_command(self):
+        result = self._run_history_command("undo")
+        return result
+
+
+    def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
         if command == "undo":
-            result = self._run_history_command("undo")
+            result = self.shadow_service.undo(self.shadow_session_id)
         elif command == "redo":
             result = self._run_history_command("redo")
         elif command == "select":
@@ -7931,45 +8033,7 @@ class RustMeshAuthoringSession:
                 stop_event=stop_event,
             )
         elif command == "import_editable_package":
-            raw_package_path = str(args.get("path", "") or "").strip()
-            if not raw_package_path:
-                raise RustMeshProtocolError("Editable package path is required")
-            package_path = Path(raw_package_path).expanduser()
-            mesh_path = _editable_package_mesh_path(package_path)
-            if mesh_path.suffix.lower() not in {".glb", ".obj"}:
-                raise RustMeshValidationError(
-                    "Rust Edit Mesh can import editable GLB or OBJ packages only."
-                )
-            self._raise_if_cancelled(stop_event)
-            imported_mesh = (
-                import_glb_with_sidecar(mesh_path)
-                if mesh_path.suffix.lower() == ".glb"
-                else import_obj(
-                    str(mesh_path),
-                    sidecar_path=_editable_package_sidecar_path(mesh_path),
-                )
-            )
-            self._raise_if_cancelled(stop_event)
-            imported_prepared = self.shadow_service.prepare_working_mesh_replacement(
-                self.shadow_session_id,
-                imported_mesh,
-            )
-            admitted_document_bytes = self._preflight_mesh_document_capacity(
-                imported_prepared.working_mesh
-            )
-            view = self.shadow_service.commit_prepared_working_mesh_replacement(
-                imported_prepared,
-            )
-            self.max_state_document_bytes = max(
-                self.max_state_document_bytes,
-                admitted_document_bytes,
-            )
-            validation = self.shadow_service.validate_export(self.shadow_session_id)
-            result = {
-                "session_id": view.session_id,
-                "mesh_revision": view.revision,
-                "validation": validation,
-            }
+            result = self._import_editable_package_command(args, stop_event)
         elif command == "layer_activate":
             result = self.shadow_service.activate_geometry_layer(
                 self.shadow_session_id,
@@ -8019,6 +8083,51 @@ class RustMeshAuthoringSession:
             result = {"status": "ok"}
         else:
             raise RustMeshProtocolError(f"Unsupported Rust Mesh command: {command or '(empty)'}")
+        return result
+
+
+    @_with_protocol_lock
+    @_with_pinned_session_root
+    def run_command(
+        self,
+        request: Mapping[str, object],
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> dict[str, object]:
+        self._require_open()
+        self.validate_message_identity(request)
+        self._require_shadow_revision(request)
+        self._raise_if_cancelled(stop_event)
+        _validate_owned_session_tree(self.root, self.root_identity)
+        self._require_acknowledged_profile_tree()
+        command = str(request.get("command", "") or "").strip().lower()
+        arguments = request.get("arguments")
+        args = dict(arguments) if isinstance(arguments, Mapping) else {}
+        shadow_session = self.shadow_service._session(self.shadow_session_id)
+        with shadow_session.export_lock:
+            before_revision = int(shadow_session.revision)
+            before_signature = self._shadow_protocol_signature_locked(
+                shadow_session
+            )
+        result: object
+        if command not in {
+            "select",
+            "state",
+            "configure_output_policy",
+            "rig_select_bone",
+        }:
+            self._require_authoring_enabled(f"run {command or 'this command'}")
+        if command in {
+            "undo",
+            "redo",
+            "layer_delete",
+            "layer_paste",
+            "rig_adjust_weight",
+            "rig_normalize_weights",
+            "rig_transfer_weights",
+        } or command.startswith("morph_") or command.startswith("refit_"):
+            self._preflight_current_command_document(command)
+        result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
         self._raise_if_cancelled(stop_event)
         after_revision = self._advance_shadow_protocol_revision(
             before_revision=before_revision,
@@ -8438,21 +8547,137 @@ class RustMeshAuthoringSession:
             )
         return target
 
-    @_with_protocol_lock
-    @_with_pinned_session_root
-    def finish(
-        self,
-        request: Mapping[str, object],
-        *,
-        stop_event: threading.Event | None = None,
-    ) -> dict[str, object]:
-        self._require_open()
-        self.validate_message_identity(request)
-        self._require_shadow_revision(request)
-        self._raise_if_cancelled(stop_event)
-        _validate_owned_session_tree(self.root, self.root_identity)
-        self._require_acknowledged_profile_tree()
-        self._require_authoring_enabled("finish this session")
+    def _complete_accepted_finish(
+        self, cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication,
+        exact_output_validation, free_edit_output_validation,
+    ):
+        with self._lifecycle_lock:
+            self._finish_accepted = True
+            self._commit_started = False
+        try:
+            self.authoritative_service.set_morph_profile_cache_frozen(
+                self.authoritative_session_id,
+                False,
+            )
+        except Exception as exc:
+            cleanup_warnings.append(str(exc))
+        if shadow_morph_state is not None:
+            try:
+                self.shadow_service.dispose_morph_session_state(
+                    shadow_morph_state
+                )
+            except Exception as exc:
+                try:
+                    self.shadow_service.defer_morph_session_state_disposal(
+                        shadow_morph_state
+                    )
+                except Exception as defer_exc:
+                    cleanup_warnings.append(
+                        "Morph runtime cleanup is pending: "
+                        f"{type(exc).__name__}: {exc}; defer failed: "
+                        f"{type(defer_exc).__name__}: {defer_exc}"
+                    )
+                else:
+                    cleanup_warnings.append(str(exc))
+        if morph_publication is not None:
+            try:
+                morph_publication.finalize()
+            except Exception as exc:
+                cleanup_warnings.append(
+                    f"Morph profile staging cleanup is pending: {exc}"
+                )
+        try:
+            shadow_cleanup_warning = self._dispose_shadow()
+        except Exception as exc:
+            self.closed = True
+            shadow_cleanup_warning = (
+                f"Rust shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
+            )
+        if shadow_cleanup_warning:
+            cleanup_warnings.append(shadow_cleanup_warning)
+        result = {
+            "status": "accepted",
+            "authoritative_revision": committed.revision,
+            "validation": validation_payload,
+            "renderer": RUST_MESH_RENDERER,
+            "edit_backend": RUST_MESH_EDIT_BACKEND,
+        }
+        if cleanup_warnings:
+            result["warnings"] = tuple(dict.fromkeys(cleanup_warnings))
+        if exact_output_validation is not None:
+            result["exact_output_validation"] = exact_output_validation
+        if free_edit_output_validation is not None:
+            result["free_edit_output_validation"] = free_edit_output_validation
+        return result
+
+
+    def _prepare_finish_profile_publication(self, prepared, output_policy, output_destination, output_destination_ready, stop_event):
+        shadow_morph_root = self.root / "mesh_slider_profiles"
+        with mesh_morph_profile_lock(shadow_morph_root):
+            shadow_morph_profile_state = _capture_owned_profile_tree(
+                shadow_morph_root
+            )
+        shadow_morph_fingerprint = shadow_morph_profile_state[2]
+        if shadow_morph_fingerprint != self.acknowledged_morph_profile_fingerprint:
+            raise RustMeshProtocolError(
+                "Rust Morph profiles changed outside an acknowledged CDMW command."
+            )
+        morph_publication: _MorphProfilePublication | None = None
+        morph_profile_previous_state: tuple[
+            bool,
+            tuple[tuple[str, bytes], ...],
+            str,
+        ] | None = None
+        if shadow_morph_fingerprint != self.morph_profile_base_fingerprint:
+            if self.authoritative_morph_root is None:
+                raise RustMeshValidationError(
+                    "Morph profile changes cannot be published because CDMW settings are unavailable."
+                )
+            with mesh_morph_profile_lock(self.authoritative_morph_root):
+                morph_profile_previous_state = _mesh_morph_profile_directory_state(
+                    self.authoritative_morph_root
+                )
+                if (
+                    morph_profile_previous_state[2]
+                    != self.morph_profile_base_fingerprint
+                ):
+                    raise RustMeshValidationError(
+                        "Morph profiles changed outside Rust Edit Mesh; Finish was rejected."
+                    )
+                morph_publication = _MorphProfilePublication(
+                    source=self.authoritative_morph_root,
+                    shadow=shadow_morph_root,
+                    expected_fingerprint=self.morph_profile_base_fingerprint,
+                    shadow_expected_fingerprint=shadow_morph_fingerprint,
+                )
+                morph_publication.prepare()
+        cleanup_warnings: list[str] = []
+        validation_payload = _json_safe(prepared.validation_report)
+        try:
+            self._raise_if_cancelled(stop_event)
+            if output_policy == MeshOutputPolicy.FREE_EDIT.value:
+                self._validate_free_edit_destination_at_finish(
+                    output_destination=output_destination,
+                    output_destination_ready=output_destination_ready,
+                )
+            with self._lifecycle_lock:
+                self._raise_if_cancelled(stop_event)
+                if self.closed:
+                    raise RustMeshCancellationError(
+                        "Rust Edit Mesh closed before authoritative publication."
+                    )
+                self._commit_started = True
+        except Exception:
+            if morph_publication is not None:
+                try:
+                    morph_publication.finalize()
+                except Exception:
+                    pass
+            raise
+        return morph_publication, morph_profile_previous_state, shadow_morph_profile_state, cleanup_warnings, validation_payload
+
+
+    def _prepare_finish_mesh(self, stop_event):
         authoritative_session = self.authoritative_service._session(
             self.authoritative_session_id
         )
@@ -8533,68 +8758,37 @@ class RustMeshAuthoringSession:
         blockers = _validation_blockers(prepared.validation_report)
         if blockers:
             raise RustMeshValidationError(blockers[0])
-        shadow_morph_root = self.root / "mesh_slider_profiles"
-        with mesh_morph_profile_lock(shadow_morph_root):
-            shadow_morph_profile_state = _capture_owned_profile_tree(
-                shadow_morph_root
-            )
-        shadow_morph_fingerprint = shadow_morph_profile_state[2]
-        if shadow_morph_fingerprint != self.acknowledged_morph_profile_fingerprint:
-            raise RustMeshProtocolError(
-                "Rust Morph profiles changed outside an acknowledged CDMW command."
-            )
-        morph_publication: _MorphProfilePublication | None = None
-        morph_profile_previous_state: tuple[
-            bool,
-            tuple[tuple[str, bytes], ...],
-            str,
-        ] | None = None
-        if shadow_morph_fingerprint != self.morph_profile_base_fingerprint:
-            if self.authoritative_morph_root is None:
-                raise RustMeshValidationError(
-                    "Morph profile changes cannot be published because CDMW settings are unavailable."
-                )
-            with mesh_morph_profile_lock(self.authoritative_morph_root):
-                morph_profile_previous_state = _mesh_morph_profile_directory_state(
-                    self.authoritative_morph_root
-                )
-                if (
-                    morph_profile_previous_state[2]
-                    != self.morph_profile_base_fingerprint
-                ):
-                    raise RustMeshValidationError(
-                        "Morph profiles changed outside Rust Edit Mesh; Finish was rejected."
-                    )
-                morph_publication = _MorphProfilePublication(
-                    source=self.authoritative_morph_root,
-                    shadow=shadow_morph_root,
-                    expected_fingerprint=self.morph_profile_base_fingerprint,
-                    shadow_expected_fingerprint=shadow_morph_fingerprint,
-                )
-                morph_publication.prepare()
-        cleanup_warnings: list[str] = []
-        validation_payload = _json_safe(prepared.validation_report)
-        try:
-            self._raise_if_cancelled(stop_event)
-            if output_policy == MeshOutputPolicy.FREE_EDIT.value:
-                self._validate_free_edit_destination_at_finish(
-                    output_destination=output_destination,
-                    output_destination_ready=output_destination_ready,
-                )
-            with self._lifecycle_lock:
-                self._raise_if_cancelled(stop_event)
-                if self.closed:
-                    raise RustMeshCancellationError(
-                        "Rust Edit Mesh closed before authoritative publication."
-                    )
-                self._commit_started = True
-        except Exception:
-            if morph_publication is not None:
-                try:
-                    morph_publication.finalize()
-                except Exception:
-                    pass
-            raise
+        return authoritative_session, prepared, geometry_layers, active_geometry_layer_id, geometry_layer_copy_counter, object_transform, output_policy, output_destination, output_destination_ready, exact_output_validation, free_edit_output_validation
+
+
+    @_with_protocol_lock
+    @_with_pinned_session_root
+    def finish(
+        self,
+        request: Mapping[str, object],
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> dict[str, object]:
+        self._require_open()
+        self.validate_message_identity(request)
+        self._require_shadow_revision(request)
+        self._raise_if_cancelled(stop_event)
+        _validate_owned_session_tree(self.root, self.root_identity)
+        self._require_acknowledged_profile_tree()
+        self._require_authoring_enabled("finish this session")
+        (
+            authoritative_session, prepared, geometry_layers, active_geometry_layer_id,
+            geometry_layer_copy_counter, object_transform, output_policy, output_destination,
+            output_destination_ready, exact_output_validation, free_edit_output_validation,
+        ) = self._prepare_finish_mesh(
+            stop_event,
+        )
+        (
+            morph_publication, morph_profile_previous_state, shadow_morph_profile_state, cleanup_warnings,
+            validation_payload,
+        ) = self._prepare_finish_profile_publication(
+            prepared, output_policy, output_destination, output_destination_ready, stop_event,
+        )
         shadow_morph_state = None
         rollback_error: Exception | None = None
         try:
@@ -8688,64 +8882,7 @@ class RustMeshAuthoringSession:
                     f"{type(rollback_error).__name__}: {rollback_error}"
                 ) from commit_error
             raise
-        with self._lifecycle_lock:
-            self._finish_accepted = True
-            self._commit_started = False
-        try:
-            self.authoritative_service.set_morph_profile_cache_frozen(
-                self.authoritative_session_id,
-                False,
-            )
-        except Exception as exc:
-            cleanup_warnings.append(str(exc))
-        if shadow_morph_state is not None:
-            try:
-                self.shadow_service.dispose_morph_session_state(
-                    shadow_morph_state
-                )
-            except Exception as exc:
-                try:
-                    self.shadow_service.defer_morph_session_state_disposal(
-                        shadow_morph_state
-                    )
-                except Exception as defer_exc:
-                    cleanup_warnings.append(
-                        "Morph runtime cleanup is pending: "
-                        f"{type(exc).__name__}: {exc}; defer failed: "
-                        f"{type(defer_exc).__name__}: {defer_exc}"
-                    )
-                else:
-                    cleanup_warnings.append(str(exc))
-        if morph_publication is not None:
-            try:
-                morph_publication.finalize()
-            except Exception as exc:
-                cleanup_warnings.append(
-                    f"Morph profile staging cleanup is pending: {exc}"
-                )
-        try:
-            shadow_cleanup_warning = self._dispose_shadow()
-        except Exception as exc:
-            self.closed = True
-            shadow_cleanup_warning = (
-                f"Rust shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
-            )
-        if shadow_cleanup_warning:
-            cleanup_warnings.append(shadow_cleanup_warning)
-        result = {
-            "status": "accepted",
-            "authoritative_revision": committed.revision,
-            "validation": validation_payload,
-            "renderer": RUST_MESH_RENDERER,
-            "edit_backend": RUST_MESH_EDIT_BACKEND,
-        }
-        if cleanup_warnings:
-            result["warnings"] = tuple(dict.fromkeys(cleanup_warnings))
-        if exact_output_validation is not None:
-            result["exact_output_validation"] = exact_output_validation
-        if free_edit_output_validation is not None:
-            result["free_edit_output_validation"] = free_edit_output_validation
-        return result
+        return self._complete_accepted_finish(cleanup_warnings, committed, validation_payload, shadow_morph_state, morph_publication, exact_output_validation, free_edit_output_validation)
 
     def cancel(self) -> None:
         if self.closed:

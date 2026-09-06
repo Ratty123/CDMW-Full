@@ -186,6 +186,98 @@ def assemble_equipment_material_capture(
         raise
 
 
+def _collect_shard_assets(assets_by_ordinal, end, expected_count, identity, manifest, plans, shard_root, start, state):
+    rows = _sequence(manifest.get("assets"))
+    if len(rows) != expected_count:
+        raise ValueError(f"Shard manifest does not enumerate every ordinal: {shard_root}")
+    actual_counts: dict[str, int] = {}
+    state_assets = _mapping(state.get("assets"))
+    expected_state_identities = {
+        str(plans[index]["identity"]) for index in range(start, end)
+    }
+    if set(state_assets) != expected_state_identities:
+        raise ValueError(
+            f"Shard state is not exactly its declared catalogue slice: {shard_root}"
+        )
+    for ordinal, raw_row in enumerate(rows):
+        row = _mapping(raw_row)
+        plan = plans[ordinal]
+        if (
+            int(row.get("ordinal", -1)) != ordinal
+            or row.get("asset_id") != plan.get("asset_id")
+            or row.get("identity") != plan.get("identity")
+        ):
+            raise ValueError(
+                f"Shard catalogue identity mismatch at ordinal {ordinal}: {shard_root}"
+            )
+        status = str(row.get("status", "") or "")
+        actual_counts[status] = actual_counts.get(status, 0) + 1
+        if not start <= ordinal < end:
+            if status != "missing" or row.get("report") or row.get("report_sha256"):
+                raise ValueError(
+                    f"Shard publishes outside its declared slice at ordinal {ordinal}: "
+                    f"{shard_root}"
+                )
+            continue
+        if ordinal in assets_by_ordinal:
+            raise ValueError(f"Duplicate captured ordinal across shards: {ordinal}")
+        if status not in _COMPLETE_STATUSES:
+            raise ValueError(
+                f"Shard ordinal {ordinal} is not complete ({status}): {shard_root}"
+            )
+        state_row = _mapping(state_assets.get(str(plan["identity"])))
+        if (
+            int(state_row.get("ordinal", -1)) != ordinal
+            or state_row.get("asset_id") != plan.get("asset_id")
+            or str(state_row.get("status", "") or "") not in _COMPLETE_STATUSES
+        ):
+            raise ValueError(f"Shard state row mismatch at ordinal {ordinal}")
+        asset_root = shard_root / "assets" / str(plan["asset_id"])
+        report_path = asset_root / "asset-report.json"
+        report_sha256 = str(row.get("report_sha256", "") or "")
+        if not report_sha256 or _sha256_file(report_path) != report_sha256:
+            raise ValueError(f"Shard report SHA mismatch at ordinal {ordinal}")
+        report = _valid_published_asset(
+            asset_root,
+            identity=str(plan["identity"]),
+            expected_binaries=_mapping(identity.get("capture_binaries")),
+            expected_census_identity=identity,
+        )
+        if report is None:
+            raise ValueError(f"Shard report is unreadable or invalid at ordinal {ordinal}")
+        if (
+            report.get("status") != status
+            or report.get("asset_id") != plan.get("asset_id")
+            or int(report.get("catalogue_ordinal", -1)) != ordinal
+        ):
+            raise ValueError(f"Shard report identity/status mismatch at ordinal {ordinal}")
+        if status in {"source_only_captured", "source_only_reviewed"}:
+            source_only_report = _read_object(
+                asset_root / "source-only-report.json", "source-only report"
+            )
+            if (
+                source_only_report.get("schema") != EQUIPMENT_SOURCE_ONLY_SCHEMA
+                or source_only_report.get("identity") != plan.get("identity")
+                or source_only_report.get("ok") is not True
+                or not _capture_identity_matches(
+                    _mapping(source_only_report.get("census_identity")), identity
+                )
+            ):
+                raise ValueError(
+                    f"Source-only report identity mismatch at ordinal {ordinal}"
+                )
+        assets_by_ordinal[ordinal] = {
+            "ordinal": ordinal,
+            "asset_id": plan["asset_id"],
+            "identity": plan["identity"],
+            "status": status,
+            "report_sha256": report_sha256,
+            "source_asset_root": str(asset_root),
+        }
+    if dict(_mapping(manifest.get("status_counts"))) != actual_counts:
+        raise ValueError(f"Shard status counts do not match its asset rows: {shard_root}")
+
+
 def _validate_capture_shards(
     shard_roots: Sequence[Path],
     *,
@@ -278,95 +370,7 @@ def _validate_capture_shards(
         end = int(capture_slice["end"])
         ranges.append((start, end, shard_root, manifest))
 
-        rows = _sequence(manifest.get("assets"))
-        if len(rows) != expected_count:
-            raise ValueError(f"Shard manifest does not enumerate every ordinal: {shard_root}")
-        actual_counts: dict[str, int] = {}
-        state_assets = _mapping(state.get("assets"))
-        expected_state_identities = {
-            str(plans[index]["identity"]) for index in range(start, end)
-        }
-        if set(state_assets) != expected_state_identities:
-            raise ValueError(
-                f"Shard state is not exactly its declared catalogue slice: {shard_root}"
-            )
-        for ordinal, raw_row in enumerate(rows):
-            row = _mapping(raw_row)
-            plan = plans[ordinal]
-            if (
-                int(row.get("ordinal", -1)) != ordinal
-                or row.get("asset_id") != plan.get("asset_id")
-                or row.get("identity") != plan.get("identity")
-            ):
-                raise ValueError(
-                    f"Shard catalogue identity mismatch at ordinal {ordinal}: {shard_root}"
-                )
-            status = str(row.get("status", "") or "")
-            actual_counts[status] = actual_counts.get(status, 0) + 1
-            if not start <= ordinal < end:
-                if status != "missing" or row.get("report") or row.get("report_sha256"):
-                    raise ValueError(
-                        f"Shard publishes outside its declared slice at ordinal {ordinal}: "
-                        f"{shard_root}"
-                    )
-                continue
-            if ordinal in assets_by_ordinal:
-                raise ValueError(f"Duplicate captured ordinal across shards: {ordinal}")
-            if status not in _COMPLETE_STATUSES:
-                raise ValueError(
-                    f"Shard ordinal {ordinal} is not complete ({status}): {shard_root}"
-                )
-            state_row = _mapping(state_assets.get(str(plan["identity"])))
-            if (
-                int(state_row.get("ordinal", -1)) != ordinal
-                or state_row.get("asset_id") != plan.get("asset_id")
-                or str(state_row.get("status", "") or "") not in _COMPLETE_STATUSES
-            ):
-                raise ValueError(f"Shard state row mismatch at ordinal {ordinal}")
-            asset_root = shard_root / "assets" / str(plan["asset_id"])
-            report_path = asset_root / "asset-report.json"
-            report_sha256 = str(row.get("report_sha256", "") or "")
-            if not report_sha256 or _sha256_file(report_path) != report_sha256:
-                raise ValueError(f"Shard report SHA mismatch at ordinal {ordinal}")
-            report = _valid_published_asset(
-                asset_root,
-                identity=str(plan["identity"]),
-                expected_binaries=_mapping(identity.get("capture_binaries")),
-                expected_census_identity=identity,
-            )
-            if report is None:
-                raise ValueError(f"Shard report is unreadable or invalid at ordinal {ordinal}")
-            if (
-                report.get("status") != status
-                or report.get("asset_id") != plan.get("asset_id")
-                or int(report.get("catalogue_ordinal", -1)) != ordinal
-            ):
-                raise ValueError(f"Shard report identity/status mismatch at ordinal {ordinal}")
-            if status in {"source_only_captured", "source_only_reviewed"}:
-                source_only_report = _read_object(
-                    asset_root / "source-only-report.json", "source-only report"
-                )
-                if (
-                    source_only_report.get("schema") != EQUIPMENT_SOURCE_ONLY_SCHEMA
-                    or source_only_report.get("identity") != plan.get("identity")
-                    or source_only_report.get("ok") is not True
-                    or not _capture_identity_matches(
-                        _mapping(source_only_report.get("census_identity")), identity
-                    )
-                ):
-                    raise ValueError(
-                        f"Source-only report identity mismatch at ordinal {ordinal}"
-                    )
-            assets_by_ordinal[ordinal] = {
-                "ordinal": ordinal,
-                "asset_id": plan["asset_id"],
-                "identity": plan["identity"],
-                "status": status,
-                "report_sha256": report_sha256,
-                "source_asset_root": str(asset_root),
-            }
-        if dict(_mapping(manifest.get("status_counts"))) != actual_counts:
-            raise ValueError(f"Shard status counts do not match its asset rows: {shard_root}")
+        _collect_shard_assets(assets_by_ordinal, end, expected_count, identity, manifest, plans, shard_root, start, state)
 
     ranges.sort(key=lambda row: (row[0], row[1], str(row[2]).casefold()))
     cursor = 0

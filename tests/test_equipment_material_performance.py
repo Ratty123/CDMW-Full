@@ -25,11 +25,7 @@ from tools.mesh_harness.equipment_material_performance import (
 )
 
 
-def test_summary_aggregates_exact_metrics_and_selects_deterministic_worst_cases(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _accept_audited_baseline_binaries(monkeypatch)
+def _write_equipment_performance_census(tmp_path):
     evidence = tmp_path / "evidence"
     census_identity = _census_identity()
     identities = [
@@ -127,6 +123,15 @@ def test_summary_aggregates_exact_metrics_and_selects_deterministic_worst_cases(
             "wall_ms": 1.0,
         },
     )
+    return evidence, identities, baseline, census_identity
+
+
+def test_summary_aggregates_exact_metrics_and_selects_deterministic_worst_cases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _accept_audited_baseline_binaries(monkeypatch)
+    evidence, identities, baseline, census_identity = _write_equipment_performance_census(tmp_path)
 
     summary = build_equipment_performance_summary(
         evidence,
@@ -966,95 +971,7 @@ def _repetition_payload(
     }
 
 
-def _baseline_repetition_payload(
-    target: dict[str, object],
-    *,
-    first: float,
-    full: float,
-    warm: float,
-    root: Path,
-) -> dict[str, object]:
-    provenance = {
-        "schema": "cdmw_equipment_material_performance_baseline_provenance_v1",
-        "base_revision": "a48f00ce47afa85439eaf17e6ab8bb90fb6bf5ff",
-        "base_short_revision": "a48f00ce",
-        "base_tree_clean": True,
-        "instrumentation": {
-            "purpose": (
-                "measure_pre_goal_a48f00ce_performance_without_material_semantic_changes"
-            ),
-            "schema": (
-                "cdmw_equipment_material_performance_baseline_instrumentation_v1"
-            ),
-            "patch_sha256": (
-                "3669f86b7690233603213b6711b3e936"
-                "ec9a743ec6f4d0813c1e42c860942a36"
-            ),
-            "modified_paths": [
-                "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
-                "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs",
-            ],
-        },
-        "capture_binaries": {
-            "uninstrumented_rust": {
-                "path": (
-                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
-                    "production-material-fidelity-20260902\\baseline-binaries\\"
-                    "a48f00ce-uninstrumented\\cdmw_mesh_lab.exe"
-                ),
-                "bytes": 13_359_104,
-                "sha256": (
-                    "8e7f83e8caa045f876efa63143367ee94"
-                    "c7f7bd9daf657ce36766f41cd88284e"
-                ),
-                "kind": "uninstrumented",
-            },
-            "uninstrumented_preview_core": {
-                "path": (
-                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
-                    "production-material-fidelity-20260902\\baseline-binaries\\"
-                    "a48f00ce-uninstrumented\\cdmw-preview-core.exe"
-                ),
-                "bytes": 1_499_136,
-                "sha256": (
-                    "32541c64f1d99808046159abf80e0edeb"
-                    "542b6ba5157d48814c349c96379a09e"
-                ),
-                "kind": "uninstrumented",
-            },
-            "instrumented_rust": {
-                "path": (
-                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
-                    "production-material-fidelity-20260902\\baseline-binaries\\"
-                    "a48f00ce-instrumented\\cdmw_mesh_lab.exe"
-                ),
-                "bytes": 13_447_680,
-                "sha256": (
-                    "a2a63c87896612e5989d9403ae108c9d0"
-                    "76470e41b0bb345a8a61050011edbd3"
-                ),
-                "kind": "instrumented",
-            },
-        },
-        "source_tree_sha256": (
-            "9be0ad2e46ab9eb590769eb666455a0c"
-            "74956722df2e43e6009846b2a423dbdd"
-        ),
-    }
-    provenance_sha256 = _canonical_sha256(provenance)
-    source_path = f"character/model/{target['identity']}"
-    session_id = f"baseline-{target['asset_id']}"
-    target_identity = {
-        "dimensions": [768, 768],
-        "fixed_full_model_views": list(
-            equipment_material_performance.FULL_MODEL_VIEWS
-        ),
-        "input_manifest_sha256": "d" * 64,
-        "process_generation": 1,
-        "renderer": "wgpu_d3d12_rust",
-        "session_id": session_id,
-        "source_path": source_path,
-    }
+def _baseline_process_factory(root, session_id, source_path, provenance_sha256):
     runtime_dds = {
         "schema": "cdmw_rust_runtime_dds_measurement_v1",
         "duplicate_binary_resource_count": 0,
@@ -1162,6 +1079,104 @@ def _baseline_repetition_payload(
             "stderr": "",
             "stdout": "",
         }
+    return process_envelope
+
+
+def _baseline_build_provenance():
+    provenance = {
+        "schema": "cdmw_equipment_material_performance_baseline_provenance_v1",
+        "base_revision": "a48f00ce47afa85439eaf17e6ab8bb90fb6bf5ff",
+        "base_short_revision": "a48f00ce",
+        "base_tree_clean": True,
+        "instrumentation": {
+            "purpose": (
+                "measure_pre_goal_a48f00ce_performance_without_material_semantic_changes"
+            ),
+            "schema": (
+                "cdmw_equipment_material_performance_baseline_instrumentation_v1"
+            ),
+            "patch_sha256": (
+                "3669f86b7690233603213b6711b3e936"
+                "ec9a743ec6f4d0813c1e42c860942a36"
+            ),
+            "modified_paths": [
+                "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/main.rs",
+                "tools/rust_mesh_lab/crates/cdmw_render_wgpu/src/lib.rs",
+            ],
+        },
+        "capture_binaries": {
+            "uninstrumented_rust": {
+                "path": (
+                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
+                    "production-material-fidelity-20260902\\baseline-binaries\\"
+                    "a48f00ce-uninstrumented\\cdmw_mesh_lab.exe"
+                ),
+                "bytes": 13_359_104,
+                "sha256": (
+                    "8e7f83e8caa045f876efa63143367ee94"
+                    "c7f7bd9daf657ce36766f41cd88284e"
+                ),
+                "kind": "uninstrumented",
+            },
+            "uninstrumented_preview_core": {
+                "path": (
+                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
+                    "production-material-fidelity-20260902\\baseline-binaries\\"
+                    "a48f00ce-uninstrumented\\cdmw-preview-core.exe"
+                ),
+                "bytes": 1_499_136,
+                "sha256": (
+                    "32541c64f1d99808046159abf80e0edeb"
+                    "542b6ba5157d48814c349c96379a09e"
+                ),
+                "kind": "uninstrumented",
+            },
+            "instrumented_rust": {
+                "path": (
+                    "C:\\Users\\Ratrider\\Documents\\CDMW Evidence\\"
+                    "production-material-fidelity-20260902\\baseline-binaries\\"
+                    "a48f00ce-instrumented\\cdmw_mesh_lab.exe"
+                ),
+                "bytes": 13_447_680,
+                "sha256": (
+                    "a2a63c87896612e5989d9403ae108c9d0"
+                    "76470e41b0bb345a8a61050011edbd3"
+                ),
+                "kind": "instrumented",
+            },
+        },
+        "source_tree_sha256": (
+            "9be0ad2e46ab9eb590769eb666455a0c"
+            "74956722df2e43e6009846b2a423dbdd"
+        ),
+    }
+    return provenance
+
+
+def _baseline_repetition_payload(
+    target: dict[str, object],
+    *,
+    first: float,
+    full: float,
+    warm: float,
+    root: Path,
+) -> dict[str, object]:
+    provenance = _baseline_build_provenance()
+    provenance_sha256 = _canonical_sha256(provenance)
+    source_path = f"character/model/{target['identity']}"
+    session_id = f"baseline-{target['asset_id']}"
+    target_identity = {
+        "dimensions": [768, 768],
+        "fixed_full_model_views": list(
+            equipment_material_performance.FULL_MODEL_VIEWS
+        ),
+        "input_manifest_sha256": "d" * 64,
+        "process_generation": 1,
+        "renderer": "wgpu_d3d12_rust",
+        "session_id": session_id,
+        "source_path": source_path,
+    }
+    process_envelope = _baseline_process_factory(root, session_id, source_path, provenance_sha256)
 
     cold_phase = _phase_timings(
         texture_resources_ready_ms=full,

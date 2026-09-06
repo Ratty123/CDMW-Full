@@ -3327,6 +3327,8 @@ fn resized_ui_frames_keep_projection_and_controls_inside_the_window() -> TestRes
         let rectangle = ui.application.viewport_rect.ok_or("viewport")?;
         assert!(Rect::from_min_size(Pos2::ZERO, size).contains_rect(rectangle));
         assert!(rectangle.width() > 0.0 && rectangle.height() > 0.0);
+        // Interaction builds the projection lazily for the current viewport.
+        assert!(ui.application.ensure_projection(rectangle));
         let camera = &ui.application.camera;
         let center = camera.project(camera.target(), rectangle).ok_or("center")?;
         let right = camera

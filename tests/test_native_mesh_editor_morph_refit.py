@@ -842,27 +842,31 @@ def test_refit_clearance_relief_pushes_a_stationary_garment_out_of_a_moving_driv
     assert signed_clearance == pytest.approx((2.0**0.5) * 0.01)
 
 
+def _seed_refit_snapshot_session(mesh, source_session):
+    _command(source_session, "morph_upload", _profile_payload(mesh))
+    _command(source_session, "morph_set_driver", {"submesh_indices": [0, 1]})
+    _command(source_session, "morph_bind", {"garment_submesh_indices": [2]})
+    _command(
+        source_session,
+        "morph_configure_refit",
+        {
+            "garment_submesh_indices": [2],
+            "enabled": True,
+            "intensity_percent": 125.0,
+            "mode": "rigid",
+            "clearance_percent": 1.0,
+        },
+    )
+    _change(source_session, 75.0, "end", "snapshot-source")
+
+
 def test_morph_runtime_snapshot_is_file_backed_exact_and_restores_without_recomposition() -> None:
     mesh = _driver_garment_mesh()
     source_session = _open(mesh)
     target_session = ""
     snapshot: dict[str, object] | None = None
     try:
-        _command(source_session, "morph_upload", _profile_payload(mesh))
-        _command(source_session, "morph_set_driver", {"submesh_indices": [0, 1]})
-        _command(source_session, "morph_bind", {"garment_submesh_indices": [2]})
-        _command(
-            source_session,
-            "morph_configure_refit",
-            {
-                "garment_submesh_indices": [2],
-                "enabled": True,
-                "intensity_percent": 125.0,
-                "mode": "rigid",
-                "clearance_percent": 1.0,
-            },
-        )
-        _change(source_session, 75.0, "end", "snapshot-source")
+        _seed_refit_snapshot_session(mesh, source_session)
         source_geometry = _snapshot(mesh, source_session)
         snapshot = mesh_native_core.create_native_mesh_editor_morph_runtime_snapshot(
             source_session,

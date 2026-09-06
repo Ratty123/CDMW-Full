@@ -44,7 +44,7 @@ def test_native_preview_job_captures_deduplicated_prefab_selection(tmp_path: Pat
 
 
 def test_native_core_prefab_geometry_and_sidecars_are_selection_gated() -> None:
-    protocol = Path("native/cdmw_preview_core/src/owners/protocol_json.cpp").read_text(encoding="utf-8")
+    protocol = Path("native/cdmw_preview_core/src/owners/protocol_jobs.cpp").read_text(encoding="utf-8")
     lookup = Path("native/cdmw_preview_core/src/owners/material_archive_lookup.cpp").read_text(encoding="utf-8")
     report = Path("native/cdmw_preview_core/src/owners/preview_report.cpp").read_text(encoding="utf-8")
 

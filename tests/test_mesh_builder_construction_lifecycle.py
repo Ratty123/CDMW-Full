@@ -1,19 +1,52 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+from PySide6.QtCore import QCoreApplication, QEvent, QThread
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QProgressDialog, QWidget
+from shiboken6 import isValid
 
-from cdmw.ui.archive_browser.mesh_builder_lifecycle import ArchiveMeshBuilderLifecycleMixin
+from cdmw.ui.archive_browser.mesh_builder_lifecycle import (
+    ArchiveMeshBuilderLifecycleMixin,
+    _delete_builder_when_workers_finish,
+)
 from cdmw.ui.archive_browser import static_replacement_dialog_prompt as prompt_owner
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
+
+
+def test_closed_builder_retains_running_threads_until_native_teardown() -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    class HeldWorker(QThread):
+        def run(self) -> None:
+            started.set()
+            release.wait(5.0)
+
+    dialog = QDialog()
+    thread = HeldWorker(dialog)
+    thread.start()
+    try:
+        assert started.wait(1.0)
+        _delete_builder_when_workers_finish(dialog)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert isValid(dialog) and isValid(thread)
+        assert not thread.wait(0)
+    finally:
+        release.set()
+        assert thread.wait(1_000)
+    QTest.qWait(25)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert not isValid(dialog)
 
 
 class _BuilderOwner(ArchiveMeshBuilderLifecycleMixin, QWidget):

@@ -56,7 +56,10 @@ session path for scripted callers. UI callers should use
 `MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
 service session creation in `MeshFileSessionLoadWorker`, then attaches the
 controller and already-loaded mesh on the UI thread.
-`tab_rust_editor.py` owns the only production editor route. The retired
+`tab_rust_editor.py` owns the only production editor route, with process startup,
+protocol handling, diagnostics, and shutdown in `tab_rust_process.py`.
+`tab_archive_material_context.py` owns correlated archive material requests;
+`tab_direct_output.py` owns the direct output actions. The retired
 `mesh_editor_backend` preference is ignored and no engine selector is built.
 Before loading a mesh, CDMW validates the bundled `cdmw_mesh_lab.exe`; a missing
 or incompatible package blocks the open with a visible reason and never falls

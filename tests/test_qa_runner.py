@@ -41,7 +41,10 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert "function Invoke-NativeHelperPreparation" in package_source
     assert "Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireReleaseHelpers" in package_source
     assert 'preview_protocol = "cdmw_rust_preview_protocol_v1"' in package_source
-    assert '"deterministic_offscreen_capture_v1"' in package_source
+    assert "Assert-RustMeshEditorControlContract -RustContract $contract" in package_source
+    assert "$contract.preview_contract.capabilities" in package_source
+    contract_source = (ROOT / "cdmw/services/mesh_rust_contract.py").read_text(encoding="utf-8")
+    assert '"deterministic_offscreen_capture_v1"' in contract_source
     assert "Invoke-DotNetMeshEditorBuild" not in package_source
     assert "d3d11_vortice_shader" not in package_source
     assert "[string]$PytestBaseTemp" in codex_source

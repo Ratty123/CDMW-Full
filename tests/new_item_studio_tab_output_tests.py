@@ -59,6 +59,36 @@ def _assert_template_panel_chrome_removed(case: unittest.TestCase, template) -> 
 
 
 class _TabOutputMixin:
+    def _exercise_item_store_placement(self, tab):
+        placement = tab.placement_panel
+        placement.swap.setChecked(True)
+        self.assertTrue(placement.choose_store("Store_Camp_Equipment"))
+        self.assertFalse(placement.choose_store("Store_Nowhere"), "the shop is a fixed list, not free text")
+        self.assertFalse(placement.store.isEditable())
+        self.assertIn("your camp (base)", placement.store.currentText())
+        self.assertIn("line(s)", placement.store.currentText())
+        self.assertEqual([placement.old_item.itemData(i) for i in range(placement.old_item.count())], ["Cigar_OneHandSword", "50001"])
+        placement.old_item.setCurrentIndex(0)
+        self.assertEqual(tab.controller.draft.placement_kind, PlacementKind.SWAP)
+        self.assertEqual(tab.controller.draft.old_item_name, "Cigar_OneHandSword")
+        self.assertIn("unlocked by", placement.old_item.itemText(0))
+        self.assertIn("sell freely", placement.requirement_note.text())
+        self.assertFalse(tab.controller.draft.keep_requirement)
+        placement.keep_requirement.setChecked(True)
+        self.assertTrue(tab.controller.draft.keep_requirement)
+        self.assertIn("Kept", placement.requirement_note.text())
+        placement.keep_requirement.setChecked(False)
+        self.assertTrue(placement.unlimited_stock.isChecked(), "unlimited stock is the default")
+        self.assertTrue(tab.controller.draft.unlimited_stock)
+        self.assertEqual(tab.controller.current_spec().placement.stock_count, UNLIMITED_STOCK)
+        placement.unlimited_stock.setChecked(False)
+        self.assertFalse(tab.controller.draft.unlimited_stock)
+        self.assertIsNone(tab.controller.current_spec().placement.stock_count)
+        placement.unlimited_stock.setChecked(True)
+        self.assertIn("2 group(s)", placement.template_groups.text())
+        return placement
+
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 
@@ -105,32 +135,7 @@ class _TabOutputMixin:
         self.assertIn("Added here: Critical rate", stats.carries.text())
         self.assertEqual(tab.controller.draft.extra_stat_keys, [1000007])
         # placement: swap the Cigar out of the camp store
-        placement = tab.placement_panel
-        placement.swap.setChecked(True)
-        self.assertTrue(placement.choose_store("Store_Camp_Equipment"))
-        self.assertFalse(placement.choose_store("Store_Nowhere"), "the shop is a fixed list, not free text")
-        self.assertFalse(placement.store.isEditable())
-        self.assertIn("your camp (base)", placement.store.currentText())
-        self.assertIn("line(s)", placement.store.currentText())
-        self.assertEqual([placement.old_item.itemData(i) for i in range(placement.old_item.count())], ["Cigar_OneHandSword", "50001"])
-        placement.old_item.setCurrentIndex(0)
-        self.assertEqual(tab.controller.draft.placement_kind, PlacementKind.SWAP)
-        self.assertEqual(tab.controller.draft.old_item_name, "Cigar_OneHandSword")
-        self.assertIn("unlocked by", placement.old_item.itemText(0))
-        self.assertIn("sell freely", placement.requirement_note.text())
-        self.assertFalse(tab.controller.draft.keep_requirement)
-        placement.keep_requirement.setChecked(True)
-        self.assertTrue(tab.controller.draft.keep_requirement)
-        self.assertIn("Kept", placement.requirement_note.text())
-        placement.keep_requirement.setChecked(False)
-        self.assertTrue(placement.unlimited_stock.isChecked(), "unlimited stock is the default")
-        self.assertTrue(tab.controller.draft.unlimited_stock)
-        self.assertEqual(tab.controller.current_spec().placement.stock_count, UNLIMITED_STOCK)
-        placement.unlimited_stock.setChecked(False)
-        self.assertFalse(tab.controller.draft.unlimited_stock)
-        self.assertIsNone(tab.controller.current_spec().placement.stock_count)
-        placement.unlimited_stock.setChecked(True)
-        self.assertIn("2 group(s)", placement.template_groups.text())
+        placement = self._exercise_item_store_placement(tab)
         # perks: the template's, then two chosen ones; and an effect from the shipped stems
         perks = tab.perks_panel
         self.assertIn("1 perk(s)", perks.template_perks.text())

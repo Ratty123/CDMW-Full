@@ -424,6 +424,36 @@ def _string_from(sources: Sequence[_Source], name: str) -> str:
     return ""
 
 
+def _emitter_texture_parameters(sources, sequence):
+    texture, mask, blend, ramp, temperature_brightness = "", "", "", (), None
+    packed_channels = None
+    texture_is_emissive = None
+    for source in sources:
+        material = _read_material(_first_child(source.node, "_effectMaterialData2"), source.layout)
+        if not texture and material.texture:
+            texture = material.texture
+            texture_is_emissive = material.texture_is_emissive
+        mask = mask or material.mask
+        if packed_channels is None:
+            packed_channels = material.packed_channels
+        blend = blend or material.blend
+        ramp = ramp or material.ramp
+        if temperature_brightness is None:
+            temperature_brightness = material.temperature_brightness
+    texture_is_mask = not texture and bool(mask)
+    texture = texture or mask
+    if "4pack" in texture.lower():
+        # These atlases pack four masks into each RGBA texel; the authored
+        # logical grid counts the four channels as a 2x2 subdivision.
+        sequence = (max(1, (sequence[0] + 1) // 2), max(1, (sequence[1] + 1) // 2))
+        packed_channels = True
+    uses_base_colour = texture_is_mask or texture_is_emissive is False
+    blend = blend or ("alpha" if uses_base_colour else "additive")
+    if temperature_brightness is None:
+        temperature_brightness = 1.0
+    return texture, blend, ramp, temperature_brightness, packed_channels, texture_is_mask, uses_base_colour, sequence
+
+
 def _emitter_preview(
     name: str,
     sources: Sequence[_Source],
@@ -491,32 +521,12 @@ def _emitter_preview(
         _read(sources, "_emitterDynamicData", "_velocityMax", (0.0, 0.0, 0.0), _vec3),
     )
 
-    texture, mask, blend, ramp, temperature_brightness = "", "", "", (), None
-    packed_channels = None
-    texture_is_emissive = None
-    for source in sources:
-        material = _read_material(_first_child(source.node, "_effectMaterialData2"), source.layout)
-        if not texture and material.texture:
-            texture = material.texture
-            texture_is_emissive = material.texture_is_emissive
-        mask = mask or material.mask
-        if packed_channels is None:
-            packed_channels = material.packed_channels
-        blend = blend or material.blend
-        ramp = ramp or material.ramp
-        if temperature_brightness is None:
-            temperature_brightness = material.temperature_brightness
-    texture_is_mask = not texture and bool(mask)
-    texture = texture or mask
-    if "4pack" in texture.lower():
-        # These atlases pack four masks into each RGBA texel; the authored
-        # logical grid counts the four channels as a 2x2 subdivision.
-        sequence = (max(1, (sequence[0] + 1) // 2), max(1, (sequence[1] + 1) // 2))
-        packed_channels = True
-    uses_base_colour = texture_is_mask or texture_is_emissive is False
-    blend = blend or ("alpha" if uses_base_colour else "additive")
-    if temperature_brightness is None:
-        temperature_brightness = 1.0
+    (
+        texture, blend, ramp, temperature_brightness, packed_channels, texture_is_mask, uses_base_colour,
+        sequence,
+    ) = _emitter_texture_parameters(
+        sources, sequence,
+    )
 
     mesh_name = _string_from(sources, "_spawnMeshSurfaceFileName")
     points = _sample_surface(mesh_name, meshes, SURFACE_POINTS) if mesh_name else ()

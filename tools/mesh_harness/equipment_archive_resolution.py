@@ -33,195 +33,56 @@ _PREFAB_PART_TOKEN = (
 )
 
 
-def resolve_live_equipment_catalogue(
-    catalogue: FrozenEquipmentCatalogue,
-    worker: AuditArchiveWorkerClient,
-    *,
-    progress: Callable[[int, int, str], None] | None = None,
-    prefab_reader: Callable[[Mapping[str, object]], Sequence[Mapping[str, object]]] | None = None,
-) -> Mapping[str, object]:
-    """Resolve every logical PAC and icon without changing the frozen selection."""
-
-    session = worker.session
-    if session is None:
-        raise RuntimeError("Equipment archive resolution requires an open worker session.")
-    logical_rows = tuple(catalogue.logical_models)
-    if len(logical_rows) != EQUIPMENT_AUDIT_LOGICAL_PAC_COUNT:
-        raise ValueError("Equipment archive resolution received an incomplete frozen catalogue.")
-    read_prefab = prefab_reader or _read_prefab_model_edges
-
-    logical_names = tuple(str(row["identity"]) for row in logical_rows)
-    source_stems_by_logical = _source_model_stems_by_logical(catalogue)
-    candidate_models_by_logical: dict[str, tuple[str, ...]] = {
-        name: (name,) for name in logical_names
-    }
-    candidate_prefabs_by_logical = {
-        name: tuple(
-            dict.fromkeys(
-                basename
-                for source_name in (name, *source_stems_by_logical.get(name, ()))
-                for basename in prefab_candidate_basenames(source_name)
-            )
-        )
-        for name in logical_names
-    }
-    candidate_basenames = tuple(
-        dict.fromkeys(
-            [
-                *logical_names,
-                *(
-                    basename
-                    for names in candidate_prefabs_by_logical.values()
-                    for basename in names
-                ),
-            ]
-        )
-    )
+def _resolve_catalogue_icons(catalogue, progress, worker):
+    icon_paths = tuple(str(row["identity"]) for row in catalogue.icons)
     if progress is not None:
-        progress(0, len(logical_rows), "Resolving logical PAC and prefab basenames")
-    initial_entries = worker.resolve_values(
-        "basenames",
-        candidate_basenames,
-        chunk_size=64,
-    )
-    initial_by_basename = _rows_by_basename(initial_entries)
-
-    unresolved_after_exact = tuple(
-        name
-        for name in logical_names
-        if not _matching_model_rows(
-            initial_by_basename,
-            candidate_models_by_logical[name],
-        )
-        and not _matching_prefab_rows(
-            initial_by_basename,
-            candidate_prefabs_by_logical[name],
-        )
-    )
-    fallback_models_by_logical = {
-        name: _fallback_model_basenames(name, source_stems_by_logical.get(name, ()))
-        for name in unresolved_after_exact
-    }
-    fallback_model_basenames = tuple(
-        dict.fromkeys(
-            basename
-            for names in fallback_models_by_logical.values()
-            for basename in names
-        )
-    )
-    fallback_model_entries = worker.resolve_values(
-        "basenames",
-        fallback_model_basenames,
-        chunk_size=64,
-    )
-    initial_entries = _dedupe_entries((*initial_entries, *fallback_model_entries))
-    initial_by_basename = _rows_by_basename(initial_entries)
-    for name, basenames in fallback_models_by_logical.items():
-        candidate_models_by_logical[name] = tuple(
-            dict.fromkeys((*candidate_models_by_logical[name], *basenames))
-        )
-
-    unresolved_after_model_alias = tuple(
-        name
-        for name in unresolved_after_exact
-        if not _matching_model_rows(
-            initial_by_basename,
-            candidate_models_by_logical[name],
-        )
-        and not _matching_prefab_rows(
-            initial_by_basename,
-            candidate_prefabs_by_logical[name],
-        )
-    )
-    fallback_prefabs_by_logical = {
-        name: _fallback_prefab_basenames(name, source_stems_by_logical.get(name, ()))
-        for name in unresolved_after_model_alias
-    }
-    fallback_prefab_basenames = tuple(
-        dict.fromkeys(
-            basename
-            for names in fallback_prefabs_by_logical.values()
-            for basename in names
-        )
-    )
-    fallback_prefab_entries = worker.resolve_values(
-        "basenames",
-        fallback_prefab_basenames,
-        chunk_size=64,
-    )
-    initial_entries = _dedupe_entries((*initial_entries, *fallback_prefab_entries))
-    initial_by_basename = _rows_by_basename(initial_entries)
-    for name, basenames in fallback_prefabs_by_logical.items():
-        candidate_prefabs_by_logical[name] = tuple(
-            dict.fromkeys((*candidate_prefabs_by_logical[name], *basenames))
-        )
-
-    relevant_prefabs: dict[tuple[object, ...], Mapping[str, object]] = {}
-    relevant_prefab_keys_by_logical: dict[str, tuple[tuple[object, ...], ...]] = {}
-    for logical_name in logical_names:
-        keys: list[tuple[object, ...]] = []
-        for basename in candidate_prefabs_by_logical[logical_name]:
-            for row in initial_by_basename.get(basename.casefold(), ()):
-                if str(row.get("extension", "") or "").casefold() != ".prefab":
-                    continue
-                key = _entry_identity(row)
-                relevant_prefabs[key] = row
-                keys.append(key)
-        relevant_prefab_keys_by_logical[logical_name] = tuple(dict.fromkeys(keys))
-
-    decoded_prefabs: dict[tuple[object, ...], tuple[Mapping[str, object], ...]] = {}
-    model_reference_paths: list[str] = []
-    prefab_errors: list[dict[str, object]] = []
-    total_prefabs = len(relevant_prefabs)
-    for index, (identity, prefab) in enumerate(
-        sorted(relevant_prefabs.items(), key=lambda item: _entry_sort_key(item[1])),
-        1,
-    ):
-        if progress is not None and (index == 1 or index % 25 == 0 or index == total_prefabs):
-            progress(index, total_prefabs, f"Decoding prefab relationships: {prefab.get('path', '')}")
-        try:
-            edges = tuple(dict(edge) for edge in read_prefab(prefab))
-        except Exception as exc:
-            edges = ()
-            prefab_errors.append(
-                {
-                    "path": str(prefab.get("path", "") or ""),
-                    "entry_identity": list(identity),
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
-            )
-        decoded_prefabs[identity] = edges
-        model_reference_paths.extend(
-            normalize_archive_path(edge.get("path"))
-            for edge in edges
-            if _model_extension(edge.get("path")) in EQUIPMENT_AUDIT_MODEL_EXTENSIONS
-        )
-
-    model_reference_paths = list(dict.fromkeys(path for path in model_reference_paths if path))
-    if progress is not None:
-        progress(0, len(model_reference_paths), "Resolving physical prefab model paths")
-    referenced_model_entries = worker.resolve_values(
-        "exact_paths",
-        model_reference_paths,
-        chunk_size=96,
-    )
-    referenced_by_path = _rows_by_path(referenced_model_entries)
-    unresolved_reference_basenames = tuple(
+        progress(0, len(icon_paths), "Resolving exact inventory-icon paths")
+    icon_entries = worker.resolve_values("exact_paths", icon_paths, chunk_size=96)
+    icons_by_path = _rows_by_path(icon_entries)
+    missing_icon_basenames = tuple(
         dict.fromkeys(
             PurePosixPath(path).name
-            for path in model_reference_paths
-            if normalized_archive_key(path) not in referenced_by_path
+            for path in icon_paths
+            if path.casefold() not in icons_by_path
         )
     )
-    fallback_model_entries = worker.resolve_values(
+    fallback_icon_entries = worker.resolve_values(
         "basenames",
-        unresolved_reference_basenames,
+        missing_icon_basenames,
         chunk_size=64,
     )
+    icons_by_basename = _rows_by_basename(fallback_icon_entries)
+    icon_resolutions: list[dict[str, object]] = []
+    for icon in catalogue.icons:
+        path = str(icon["identity"])
+        candidates = icons_by_path.get(path.casefold(), ())
+        resolution_kind = "exact_path"
+        if not candidates:
+            candidates = icons_by_basename.get(PurePosixPath(path).name.casefold(), ())
+            resolution_kind = "basename_fallback" if candidates else "unresolved"
+        active = _active_entries_by_path(
+            tuple(
+                row
+                for row in candidates
+                if str(row.get("extension", "") or "").casefold() == ".dds"
+            )
+        )
+        icon_resolutions.append(
+            {
+                "identity": path,
+                "declared_name": str(icon.get("declared_name", "") or ""),
+                "owners": list(icon.get("owners", ()) or ()),
+                "status": resolution_kind if active else "unresolved",
+                "entries": [dict(row) for row in active],
+            }
+        )
+    return icon_resolutions
 
-    all_model_entries = _dedupe_entries((*initial_entries, *referenced_model_entries, *fallback_model_entries))
-    model_by_path = _rows_by_path(all_model_entries)
-    model_by_basename = _rows_by_basename(all_model_entries)
+
+def _resolve_logical_model_rows(
+    candidate_models_by_logical, decoded_prefabs, initial_by_basename, logical_rows, model_by_basename,
+    model_by_path, progress, relevant_prefab_keys_by_logical, relevant_prefabs, source_stems_by_logical,
+):
     resolutions: list[dict[str, object]] = []
     for index, logical in enumerate(logical_rows, 1):
         logical_name = str(logical["identity"])
@@ -349,49 +210,214 @@ def resolve_live_equipment_catalogue(
                 "physical_components": serialized_components,
             }
         )
+    return resolutions
 
-    icon_paths = tuple(str(row["identity"]) for row in catalogue.icons)
-    if progress is not None:
-        progress(0, len(icon_paths), "Resolving exact inventory-icon paths")
-    icon_entries = worker.resolve_values("exact_paths", icon_paths, chunk_size=96)
-    icons_by_path = _rows_by_path(icon_entries)
-    missing_icon_basenames = tuple(
-        dict.fromkeys(
-            PurePosixPath(path).name
-            for path in icon_paths
-            if path.casefold() not in icons_by_path
-        )
-    )
-    fallback_icon_entries = worker.resolve_values(
-        "basenames",
-        missing_icon_basenames,
-        chunk_size=64,
-    )
-    icons_by_basename = _rows_by_basename(fallback_icon_entries)
-    icon_resolutions: list[dict[str, object]] = []
-    for icon in catalogue.icons:
-        path = str(icon["identity"])
-        candidates = icons_by_path.get(path.casefold(), ())
-        resolution_kind = "exact_path"
-        if not candidates:
-            candidates = icons_by_basename.get(PurePosixPath(path).name.casefold(), ())
-            resolution_kind = "basename_fallback" if candidates else "unresolved"
-        active = _active_entries_by_path(
-            tuple(
-                row
-                for row in candidates
-                if str(row.get("extension", "") or "").casefold() == ".dds"
+
+def _resolve_catalogue_model_candidates(catalogue, logical_names, logical_rows, progress, worker):
+    source_stems_by_logical = _source_model_stems_by_logical(catalogue)
+    candidate_models_by_logical: dict[str, tuple[str, ...]] = {
+        name: (name,) for name in logical_names
+    }
+    candidate_prefabs_by_logical = {
+        name: tuple(
+            dict.fromkeys(
+                basename
+                for source_name in (name, *source_stems_by_logical.get(name, ()))
+                for basename in prefab_candidate_basenames(source_name)
             )
         )
-        icon_resolutions.append(
-            {
-                "identity": path,
-                "declared_name": str(icon.get("declared_name", "") or ""),
-                "owners": list(icon.get("owners", ()) or ()),
-                "status": resolution_kind if active else "unresolved",
-                "entries": [dict(row) for row in active],
-            }
+        for name in logical_names
+    }
+    candidate_basenames = tuple(
+        dict.fromkeys(
+            [
+                *logical_names,
+                *(
+                    basename
+                    for names in candidate_prefabs_by_logical.values()
+                    for basename in names
+                ),
+            ]
         )
+    )
+    if progress is not None:
+        progress(0, len(logical_rows), "Resolving logical PAC and prefab basenames")
+    initial_entries = worker.resolve_values(
+        "basenames",
+        candidate_basenames,
+        chunk_size=64,
+    )
+    initial_by_basename = _rows_by_basename(initial_entries)
+
+    unresolved_after_exact = tuple(
+        name
+        for name in logical_names
+        if not _matching_model_rows(
+            initial_by_basename,
+            candidate_models_by_logical[name],
+        )
+        and not _matching_prefab_rows(
+            initial_by_basename,
+            candidate_prefabs_by_logical[name],
+        )
+    )
+    fallback_models_by_logical = {
+        name: _fallback_model_basenames(name, source_stems_by_logical.get(name, ()))
+        for name in unresolved_after_exact
+    }
+    fallback_model_basenames = tuple(
+        dict.fromkeys(
+            basename
+            for names in fallback_models_by_logical.values()
+            for basename in names
+        )
+    )
+    fallback_model_entries = worker.resolve_values(
+        "basenames",
+        fallback_model_basenames,
+        chunk_size=64,
+    )
+    initial_entries = _dedupe_entries((*initial_entries, *fallback_model_entries))
+    initial_by_basename = _rows_by_basename(initial_entries)
+    for name, basenames in fallback_models_by_logical.items():
+        candidate_models_by_logical[name] = tuple(
+            dict.fromkeys((*candidate_models_by_logical[name], *basenames))
+        )
+
+    unresolved_after_model_alias = tuple(
+        name
+        for name in unresolved_after_exact
+        if not _matching_model_rows(
+            initial_by_basename,
+            candidate_models_by_logical[name],
+        )
+        and not _matching_prefab_rows(
+            initial_by_basename,
+            candidate_prefabs_by_logical[name],
+        )
+    )
+    fallback_prefabs_by_logical = {
+        name: _fallback_prefab_basenames(name, source_stems_by_logical.get(name, ()))
+        for name in unresolved_after_model_alias
+    }
+    fallback_prefab_basenames = tuple(
+        dict.fromkeys(
+            basename
+            for names in fallback_prefabs_by_logical.values()
+            for basename in names
+        )
+    )
+    fallback_prefab_entries = worker.resolve_values(
+        "basenames",
+        fallback_prefab_basenames,
+        chunk_size=64,
+    )
+    initial_entries = _dedupe_entries((*initial_entries, *fallback_prefab_entries))
+    initial_by_basename = _rows_by_basename(initial_entries)
+    for name, basenames in fallback_prefabs_by_logical.items():
+        candidate_prefabs_by_logical[name] = tuple(
+            dict.fromkeys((*candidate_prefabs_by_logical[name], *basenames))
+        )
+    return candidate_models_by_logical, candidate_prefabs_by_logical, initial_entries, initial_by_basename, source_stems_by_logical
+
+
+def resolve_live_equipment_catalogue(
+    catalogue: FrozenEquipmentCatalogue,
+    worker: AuditArchiveWorkerClient,
+    *,
+    progress: Callable[[int, int, str], None] | None = None,
+    prefab_reader: Callable[[Mapping[str, object]], Sequence[Mapping[str, object]]] | None = None,
+) -> Mapping[str, object]:
+    """Resolve every logical PAC and icon without changing the frozen selection."""
+
+    session = worker.session
+    if session is None:
+        raise RuntimeError("Equipment archive resolution requires an open worker session.")
+    logical_rows = tuple(catalogue.logical_models)
+    if len(logical_rows) != EQUIPMENT_AUDIT_LOGICAL_PAC_COUNT:
+        raise ValueError("Equipment archive resolution received an incomplete frozen catalogue.")
+    read_prefab = prefab_reader or _read_prefab_model_edges
+
+    logical_names = tuple(str(row["identity"]) for row in logical_rows)
+    (
+        candidate_models_by_logical, candidate_prefabs_by_logical, initial_entries, initial_by_basename,
+        source_stems_by_logical,
+    ) = _resolve_catalogue_model_candidates(
+        catalogue, logical_names, logical_rows, progress, worker,
+    )
+
+    relevant_prefabs: dict[tuple[object, ...], Mapping[str, object]] = {}
+    relevant_prefab_keys_by_logical: dict[str, tuple[tuple[object, ...], ...]] = {}
+    for logical_name in logical_names:
+        keys: list[tuple[object, ...]] = []
+        for basename in candidate_prefabs_by_logical[logical_name]:
+            for row in initial_by_basename.get(basename.casefold(), ()):
+                if str(row.get("extension", "") or "").casefold() != ".prefab":
+                    continue
+                key = _entry_identity(row)
+                relevant_prefabs[key] = row
+                keys.append(key)
+        relevant_prefab_keys_by_logical[logical_name] = tuple(dict.fromkeys(keys))
+
+    decoded_prefabs: dict[tuple[object, ...], tuple[Mapping[str, object], ...]] = {}
+    model_reference_paths: list[str] = []
+    prefab_errors: list[dict[str, object]] = []
+    total_prefabs = len(relevant_prefabs)
+    for index, (identity, prefab) in enumerate(
+        sorted(relevant_prefabs.items(), key=lambda item: _entry_sort_key(item[1])),
+        1,
+    ):
+        if progress is not None and (index == 1 or index % 25 == 0 or index == total_prefabs):
+            progress(index, total_prefabs, f"Decoding prefab relationships: {prefab.get('path', '')}")
+        try:
+            edges = tuple(dict(edge) for edge in read_prefab(prefab))
+        except Exception as exc:
+            edges = ()
+            prefab_errors.append(
+                {
+                    "path": str(prefab.get("path", "") or ""),
+                    "entry_identity": list(identity),
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+        decoded_prefabs[identity] = edges
+        model_reference_paths.extend(
+            normalize_archive_path(edge.get("path"))
+            for edge in edges
+            if _model_extension(edge.get("path")) in EQUIPMENT_AUDIT_MODEL_EXTENSIONS
+        )
+
+    model_reference_paths = list(dict.fromkeys(path for path in model_reference_paths if path))
+    if progress is not None:
+        progress(0, len(model_reference_paths), "Resolving physical prefab model paths")
+    referenced_model_entries = worker.resolve_values(
+        "exact_paths",
+        model_reference_paths,
+        chunk_size=96,
+    )
+    referenced_by_path = _rows_by_path(referenced_model_entries)
+    unresolved_reference_basenames = tuple(
+        dict.fromkeys(
+            PurePosixPath(path).name
+            for path in model_reference_paths
+            if normalized_archive_key(path) not in referenced_by_path
+        )
+    )
+    fallback_model_entries = worker.resolve_values(
+        "basenames",
+        unresolved_reference_basenames,
+        chunk_size=64,
+    )
+
+    all_model_entries = _dedupe_entries((*initial_entries, *referenced_model_entries, *fallback_model_entries))
+    model_by_path = _rows_by_path(all_model_entries)
+    model_by_basename = _rows_by_basename(all_model_entries)
+    resolutions = _resolve_logical_model_rows(
+        candidate_models_by_logical, decoded_prefabs, initial_by_basename, logical_rows, model_by_basename,
+        model_by_path, progress, relevant_prefab_keys_by_logical, relevant_prefabs, source_stems_by_logical,
+    )
+
+    icon_resolutions = _resolve_catalogue_icons(catalogue, progress, worker)
 
     _propagate_same_record_aliases(resolutions)
     _classify_catalogue_source_only_rows(catalogue, resolutions)

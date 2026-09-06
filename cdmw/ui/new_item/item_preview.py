@@ -307,75 +307,10 @@ class _ProgressiveMaterialBuild:
         raise RuntimeError(str(error)) from error
 
 
-def build_item_preview_package(
-    source: Any,
-    *,
-    token: Hashable,
-    output_root: Path,
-    stop_event: threading.Event,
-    include_material_resources: bool = True,
-    render_settings: object | None = None,
-    cache_mode: str = "off",
-    fast_package_ready: Optional[Callable[[object], None]] = None,
-) -> Path:
-    """Build the viewport package for `source` off the UI thread and return its directory.
-    `source` is a `ModelPreviewData` (the archive or import preview decode, textures
-    resolved: it goes the Model Library's route and comes out textured), a bare
-    `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
-
-    archive_identity = f"new_item_preview:{token!r}"
-    normalized_cache_mode = str(cache_mode or "off").strip().lower()
-    cacheable_template = (
-        bool(include_material_resources)
-        and isinstance(token, tuple)
-        and bool(token)
-        and token[0] == "template"
-    )
-    if cacheable_template and normalized_cache_mode in {"balanced", "aggressive"}:
-        from cdmw.services.mesh_rust_preview_cache import (
-            lookup_rust_preview_package_from_model_identity as lookup_dotnet_preview_package_from_model_identity,
-        )
-
-        cached_package = lookup_dotnet_preview_package_from_model_identity(
-            cache_root=output_root,
-            archive_identity=archive_identity,
-            semantic_view_axis="auto",
-            cancelled=stop_event.is_set,
-        )
-        if cached_package is not None:
-            return Path(cached_package.package_dir)
-
-    item = source(stop_event) if callable(source) else source
-    if item is None:
-        raise ValueError("there is nothing to show")
-
-    def progressive_material_package(
-        build_quality: Callable[[str], object],
-        *,
-        needs_full_material_tier: bool = True,
-    ) -> object:
-        if bool(include_material_resources) and not needs_full_material_tier:
-            # Imported glTF/OBJ/DAE images are already the complete material
-            # authority. Publish that direct package once; a second nominal
-            # "full" package would contain the same result and reload the view.
-            return build_quality("direct")
-        if bool(include_material_resources) and fast_package_ready is not None:
-            try:
-                direct = build_quality("direct")
-                if stop_event.is_set():
-                    raise RunCancelled("Operation cancelled.")
-                fast_package_ready(direct)
-                if stop_event.is_set():
-                    raise RunCancelled("Operation cancelled.")
-            except RunCancelled:
-                raise
-            except Exception:
-                _LOGGER.warning(
-                    "new_item_direct_texture_tier_failed; continuing with full quality",
-                    exc_info=True,
-                )
-        return build_quality("full")
-
+def _build_item_source_package(
+    item, include_material_resources, render_settings, stop_event, output_root, normalized_cache_mode,
+    cache_mode, archive_identity, token, progressive_material_package, fast_package_ready,
+):
     if isinstance(item, PlacementScene):
         from cdmw.services.mesh_rust_preview_package import (
             build_rust_preview_package,
@@ -514,6 +449,82 @@ def build_item_preview_package(
             ),
             needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(item),
         )
+    return package
+
+
+def build_item_preview_package(
+    source: Any,
+    *,
+    token: Hashable,
+    output_root: Path,
+    stop_event: threading.Event,
+    include_material_resources: bool = True,
+    render_settings: object | None = None,
+    cache_mode: str = "off",
+    fast_package_ready: Optional[Callable[[object], None]] = None,
+) -> Path:
+    """Build the viewport package for `source` off the UI thread and return its directory.
+    `source` is a `ModelPreviewData` (the archive or import preview decode, textures
+    resolved: it goes the Model Library's route and comes out textured), a bare
+    `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
+
+    archive_identity = f"new_item_preview:{token!r}"
+    normalized_cache_mode = str(cache_mode or "off").strip().lower()
+    cacheable_template = (
+        bool(include_material_resources)
+        and isinstance(token, tuple)
+        and bool(token)
+        and token[0] == "template"
+    )
+    if cacheable_template and normalized_cache_mode in {"balanced", "aggressive"}:
+        from cdmw.services.mesh_rust_preview_cache import (
+            lookup_rust_preview_package_from_model_identity as lookup_dotnet_preview_package_from_model_identity,
+        )
+
+        cached_package = lookup_dotnet_preview_package_from_model_identity(
+            cache_root=output_root,
+            archive_identity=archive_identity,
+            semantic_view_axis="auto",
+            cancelled=stop_event.is_set,
+        )
+        if cached_package is not None:
+            return Path(cached_package.package_dir)
+
+    item = source(stop_event) if callable(source) else source
+    if item is None:
+        raise ValueError("there is nothing to show")
+
+    def progressive_material_package(
+        build_quality: Callable[[str], object],
+        *,
+        needs_full_material_tier: bool = True,
+    ) -> object:
+        if bool(include_material_resources) and not needs_full_material_tier:
+            # Imported glTF/OBJ/DAE images are already the complete material
+            # authority. Publish that direct package once; a second nominal
+            # "full" package would contain the same result and reload the view.
+            return build_quality("direct")
+        if bool(include_material_resources) and fast_package_ready is not None:
+            try:
+                direct = build_quality("direct")
+                if stop_event.is_set():
+                    raise RunCancelled("Operation cancelled.")
+                fast_package_ready(direct)
+                if stop_event.is_set():
+                    raise RunCancelled("Operation cancelled.")
+            except RunCancelled:
+                raise
+            except Exception:
+                _LOGGER.warning(
+                    "new_item_direct_texture_tier_failed; continuing with full quality",
+                    exc_info=True,
+                )
+        return build_quality("full")
+
+    package = _build_item_source_package(
+        item, include_material_resources, render_settings, stop_event, output_root, normalized_cache_mode,
+        cache_mode, archive_identity, token, progressive_material_package, fast_package_ready,
+    )
     return Path(package.package_dir)
 
 

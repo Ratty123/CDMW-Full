@@ -444,6 +444,33 @@ def build_equipment_capture_plans(
     return tuple(plans)
 
 
+def _initialize_capture_checkpoint(capture_slice, census_identity, resolution, resume, root, state_path):
+    if resume:
+        state = _load_capture_state(
+            state_path,
+            resolution,
+            expected_census_identity=census_identity,
+            expected_capture_slice=capture_slice,
+        )
+    else:
+        state = _new_capture_state(
+            resolution,
+            census_identity=census_identity,
+            capture_slice=capture_slice,
+        )
+        _write_capture_state(state_path, state)
+    atomic_write_text(
+        root / "capture-binaries.json",
+        _json_text(
+            {
+                "schema": EQUIPMENT_CAPTURE_BINARY_MANIFEST_SCHEMA,
+                **_capture_identity_stamp(census_identity),
+            }
+        ),
+    )
+    return state
+
+
 def run_equipment_material_capture(
     *,
     catalogue_path: Path | str,
@@ -498,29 +525,7 @@ def run_equipment_material_capture(
         capture_harness=capture_harness,
         capture_binaries=capture_binaries,
     )
-    if resume:
-        state = _load_capture_state(
-            state_path,
-            resolution,
-            expected_census_identity=census_identity,
-            expected_capture_slice=capture_slice,
-        )
-    else:
-        state = _new_capture_state(
-            resolution,
-            census_identity=census_identity,
-            capture_slice=capture_slice,
-        )
-        _write_capture_state(state_path, state)
-    atomic_write_text(
-        root / "capture-binaries.json",
-        _json_text(
-            {
-                "schema": EQUIPMENT_CAPTURE_BINARY_MANIFEST_SCHEMA,
-                **_capture_identity_stamp(census_identity),
-            }
-        ),
-    )
+    state = _initialize_capture_checkpoint(capture_slice, census_identity, resolution, resume, root, state_path)
     icon_cache: dict[str, dict[str, object]] = {}
     selected = plans[begin:end]
     if progress is not None:
@@ -737,6 +742,171 @@ def build_equipment_capture_manifest(
     }
 
 
+def _validated_capture_gates(
+    after_process, after_report, attempt, before_process, before_report, direct_package_build_ms,
+    full_package_build_ms, icon_evidence, native_gates, native_manifest, source_boards, texture_rows,
+):
+    all_gates = {
+        **native_gates,
+        "direct_capture": _capture_report_ok(before_report, full_model_only=True),
+        "full_capture": _capture_report_ok(after_report, full_model_only=False),
+        "all_logical_dds_edges_published": len(texture_rows)
+        == _safe_int(
+            _mapping(native_manifest.get("material_conservation")).get(
+                "resolved_texture_count"
+            ),
+            -1,
+        ),
+        "source_board_parameter_inventory_complete": len(
+            _sequence(source_boards.get("parameters"))
+        )
+        == _safe_int(
+            _mapping(native_manifest.get("material_conservation")).get(
+                "declared_parameter_count"
+            ),
+            -1,
+        ),
+        "source_board_graph_edges_complete": (
+            _graph_source_board_coverage_complete(source_boards)
+        ),
+        "source_board_visible_submeshes_complete": len(
+            _sequence(source_boards.get("boards"))
+        )
+        == len(_sequence(native_manifest.get("batches"))),
+        "source_dds_decoded": all(
+            not str(row.get("decode_error", ""))
+            for row in _sequence(source_boards.get("textures"))
+        ),
+        "owner_icons_resolved": bool(icon_evidence)
+        and all(row.get("ok") is True for row in icon_evidence),
+        "direct_dds_decode_upload_deduplicated": _report_dds_dedup_ok(before_report),
+        "full_dds_decode_upload_deduplicated": _report_dds_dedup_ok(after_report),
+        "performance_measurements_complete": all(
+            value > 0.0
+            for value in (
+                direct_package_build_ms,
+                full_package_build_ms,
+                _safe_float(before_process.get("process_wall_ms"), 0.0),
+                _safe_float(after_process.get("process_wall_ms"), 0.0),
+                _safe_float(before_process.get("peak_private_bytes"), 0.0),
+                _safe_float(after_process.get("peak_private_bytes"), 0.0),
+                _safe_float(before_process.get("peak_working_set_bytes"), 0.0),
+                _safe_float(after_process.get("peak_working_set_bytes"), 0.0),
+                _safe_float(
+                    _mapping(attempt.diagnostics).get("process_private_bytes"), 0.0
+                ),
+                _safe_float(
+                    _mapping(attempt.diagnostics).get("process_working_set_bytes"),
+                    0.0,
+                ),
+            )
+        )
+        and _capture_phase_timings_ok(before_report)
+        and _capture_phase_timings_ok(after_report),
+    }
+    if not all(all_gates.values()):
+        failed = [key for key, value in all_gates.items() if not value]
+        raise RuntimeError(f"Equipment capture gates failed: {', '.join(failed)}")
+    return all_gates
+
+
+def _renderable_capture_evidence(
+    after_process, after_report, after_root, attempt, before_process, before_report, before_root,
+    capture_binaries, composites, direct_manifest_copy, direct_package_build_ms, full_manifest_copy,
+    full_package_build_ms, icon_board, icon_evidence, native_gates, native_manifest, native_manifest_copy,
+    native_wall_ms, plan, portable_source_boards, source_board_manifest_path, source_boards, staging,
+    texture_rows,
+):
+    all_gates = _validated_capture_gates(
+        after_process, after_report, attempt, before_process, before_report, direct_package_build_ms,
+        full_package_build_ms, icon_evidence, native_gates, native_manifest, source_boards, texture_rows,
+    )
+    return {
+        "schema": EQUIPMENT_CAPTURE_SCHEMA,
+        "status": "captured",
+        "verdict": "UNREVIEWED",
+        "review_status": "pending_direct_visual_review",
+        "identity": plan["identity"],
+        "asset_id": plan["asset_id"],
+        "canonical_rhett": plan["identity"] == EQUIPMENT_AUDIT_RHETT_LOGICAL_PAC,
+        "resolution_status": plan["resolution_status"],
+        "owners": list(_sequence(plan.get("owners"))),
+        "owner_records": list(_sequence(plan.get("owner_records"))),
+        "physical_components": list(_sequence(plan.get("physical_components"))),
+        "enabled_prefab_component_paths": list(
+            _sequence(plan.get("enabled_prefab_component_paths"))
+        ),
+        "canonical_model_property_indices": dict(
+            _mapping(plan.get("canonical_model_property_indices"))
+        ),
+        "model_property_index_variants": list(
+            _sequence(plan.get("model_property_index_variants"))
+        ),
+        "prefab_edges": list(_sequence(plan.get("prefab_edges"))),
+        "renderer_path": "native_preview_core_to_direct_and_full_rust_to_wgpu_d3d12",
+        "python_material_synthesis_used": False,
+        "capture_binaries": dict(capture_binaries),
+        "preview_core": {
+            "backend": NATIVE_PREVIEW_CORE_BACKEND_ID,
+            "elapsed_ms": round(attempt.elapsed_ms, 3),
+            "wall_ms": native_wall_ms,
+            "diagnostics": dict(attempt.diagnostics),
+            "manifest": _file_evidence(native_manifest_copy, staging),
+        },
+        "rust_packages": {
+            "direct_manifest": _file_evidence(direct_manifest_copy, staging),
+            "full_manifest": _file_evidence(full_manifest_copy, staging),
+        },
+        "performance": {
+            "schema": "cdmw_equipment_material_performance_v1",
+            "preview_core": {
+                "elapsed_ms": round(attempt.elapsed_ms, 3),
+                "wall_ms": native_wall_ms,
+            },
+            "package_build": {
+                "direct_ms": direct_package_build_ms,
+                "full_ms": full_package_build_ms,
+            },
+            "render": {
+                "direct": {
+                    **before_process,
+                    "phase_timings": dict(
+                        _mapping(before_report.get("phase_timings"))
+                    ),
+                    "renderer_wall_ms": round(
+                        _safe_float(before_report.get("wall_ms"), 0.0), 3
+                    ),
+                },
+                "full": {
+                    **after_process,
+                    "phase_timings": dict(
+                        _mapping(after_report.get("phase_timings"))
+                    ),
+                    "renderer_wall_ms": round(
+                        _safe_float(after_report.get("wall_ms"), 0.0), 3
+                    ),
+                },
+            },
+            "resources": {
+                "logical_texture_edge_count": len(texture_rows),
+                "direct_source_dds": dict(_mapping(before_report.get("source_dds"))),
+                "full_source_dds": dict(_mapping(after_report.get("source_dds"))),
+                "direct_runtime_dds": dict(_mapping(before_report.get("runtime_dds"))),
+                "full_runtime_dds": dict(_mapping(after_report.get("runtime_dds"))),
+            },
+        },
+        "before_report": _file_evidence(before_root / "audit-report.json", staging),
+        "after_report": _file_evidence(after_root / "audit-report.json", staging),
+        "source_boards": portable_source_boards,
+        "source_board_manifest": _file_evidence(source_board_manifest_path, staging),
+        "logical_texture_edge_count": len(texture_rows),
+        "icons": icon_evidence,
+        "icon_board": _file_evidence(icon_board, staging),
+        "composites": composites,
+        "technical_gates": all_gates,
+    }
+
+
 def _capture_renderable_asset(
     plan: Mapping[str, object],
     staging: Path,
@@ -872,151 +1042,7 @@ def _capture_renderable_asset(
     portable_source_boards = _relativize_source_board_manifest(source_boards, staging)
     source_board_manifest_path = Path(str(source_boards["manifest_path"]))
     atomic_write_text(source_board_manifest_path, _json_text(portable_source_boards))
-    all_gates = {
-        **native_gates,
-        "direct_capture": _capture_report_ok(before_report, full_model_only=True),
-        "full_capture": _capture_report_ok(after_report, full_model_only=False),
-        "all_logical_dds_edges_published": len(texture_rows)
-        == _safe_int(
-            _mapping(native_manifest.get("material_conservation")).get(
-                "resolved_texture_count"
-            ),
-            -1,
-        ),
-        "source_board_parameter_inventory_complete": len(
-            _sequence(source_boards.get("parameters"))
-        )
-        == _safe_int(
-            _mapping(native_manifest.get("material_conservation")).get(
-                "declared_parameter_count"
-            ),
-            -1,
-        ),
-        "source_board_graph_edges_complete": (
-            _graph_source_board_coverage_complete(source_boards)
-        ),
-        "source_board_visible_submeshes_complete": len(
-            _sequence(source_boards.get("boards"))
-        )
-        == len(_sequence(native_manifest.get("batches"))),
-        "source_dds_decoded": all(
-            not str(row.get("decode_error", ""))
-            for row in _sequence(source_boards.get("textures"))
-        ),
-        "owner_icons_resolved": bool(icon_evidence)
-        and all(row.get("ok") is True for row in icon_evidence),
-        "direct_dds_decode_upload_deduplicated": _report_dds_dedup_ok(before_report),
-        "full_dds_decode_upload_deduplicated": _report_dds_dedup_ok(after_report),
-        "performance_measurements_complete": all(
-            value > 0.0
-            for value in (
-                direct_package_build_ms,
-                full_package_build_ms,
-                _safe_float(before_process.get("process_wall_ms"), 0.0),
-                _safe_float(after_process.get("process_wall_ms"), 0.0),
-                _safe_float(before_process.get("peak_private_bytes"), 0.0),
-                _safe_float(after_process.get("peak_private_bytes"), 0.0),
-                _safe_float(before_process.get("peak_working_set_bytes"), 0.0),
-                _safe_float(after_process.get("peak_working_set_bytes"), 0.0),
-                _safe_float(
-                    _mapping(attempt.diagnostics).get("process_private_bytes"), 0.0
-                ),
-                _safe_float(
-                    _mapping(attempt.diagnostics).get("process_working_set_bytes"),
-                    0.0,
-                ),
-            )
-        )
-        and _capture_phase_timings_ok(before_report)
-        and _capture_phase_timings_ok(after_report),
-    }
-    if not all(all_gates.values()):
-        failed = [key for key, value in all_gates.items() if not value]
-        raise RuntimeError(f"Equipment capture gates failed: {', '.join(failed)}")
-    return {
-        "schema": EQUIPMENT_CAPTURE_SCHEMA,
-        "status": "captured",
-        "verdict": "UNREVIEWED",
-        "review_status": "pending_direct_visual_review",
-        "identity": plan["identity"],
-        "asset_id": plan["asset_id"],
-        "canonical_rhett": plan["identity"] == EQUIPMENT_AUDIT_RHETT_LOGICAL_PAC,
-        "resolution_status": plan["resolution_status"],
-        "owners": list(_sequence(plan.get("owners"))),
-        "owner_records": list(_sequence(plan.get("owner_records"))),
-        "physical_components": list(_sequence(plan.get("physical_components"))),
-        "enabled_prefab_component_paths": list(
-            _sequence(plan.get("enabled_prefab_component_paths"))
-        ),
-        "canonical_model_property_indices": dict(
-            _mapping(plan.get("canonical_model_property_indices"))
-        ),
-        "model_property_index_variants": list(
-            _sequence(plan.get("model_property_index_variants"))
-        ),
-        "prefab_edges": list(_sequence(plan.get("prefab_edges"))),
-        "renderer_path": "native_preview_core_to_direct_and_full_rust_to_wgpu_d3d12",
-        "python_material_synthesis_used": False,
-        "capture_binaries": dict(capture_binaries),
-        "preview_core": {
-            "backend": NATIVE_PREVIEW_CORE_BACKEND_ID,
-            "elapsed_ms": round(attempt.elapsed_ms, 3),
-            "wall_ms": native_wall_ms,
-            "diagnostics": dict(attempt.diagnostics),
-            "manifest": _file_evidence(native_manifest_copy, staging),
-        },
-        "rust_packages": {
-            "direct_manifest": _file_evidence(direct_manifest_copy, staging),
-            "full_manifest": _file_evidence(full_manifest_copy, staging),
-        },
-        "performance": {
-            "schema": "cdmw_equipment_material_performance_v1",
-            "preview_core": {
-                "elapsed_ms": round(attempt.elapsed_ms, 3),
-                "wall_ms": native_wall_ms,
-            },
-            "package_build": {
-                "direct_ms": direct_package_build_ms,
-                "full_ms": full_package_build_ms,
-            },
-            "render": {
-                "direct": {
-                    **before_process,
-                    "phase_timings": dict(
-                        _mapping(before_report.get("phase_timings"))
-                    ),
-                    "renderer_wall_ms": round(
-                        _safe_float(before_report.get("wall_ms"), 0.0), 3
-                    ),
-                },
-                "full": {
-                    **after_process,
-                    "phase_timings": dict(
-                        _mapping(after_report.get("phase_timings"))
-                    ),
-                    "renderer_wall_ms": round(
-                        _safe_float(after_report.get("wall_ms"), 0.0), 3
-                    ),
-                },
-            },
-            "resources": {
-                "logical_texture_edge_count": len(texture_rows),
-                "direct_source_dds": dict(_mapping(before_report.get("source_dds"))),
-                "full_source_dds": dict(_mapping(after_report.get("source_dds"))),
-                "direct_runtime_dds": dict(_mapping(before_report.get("runtime_dds"))),
-                "full_runtime_dds": dict(_mapping(after_report.get("runtime_dds"))),
-            },
-        },
-        "before_report": _file_evidence(before_root / "audit-report.json", staging),
-        "after_report": _file_evidence(after_root / "audit-report.json", staging),
-        "source_boards": portable_source_boards,
-        "source_board_manifest": _file_evidence(source_board_manifest_path, staging),
-        "logical_texture_edge_count": len(texture_rows),
-        "icons": icon_evidence,
-        "icon_board": _file_evidence(icon_board, staging),
-        "composites": composites,
-        "technical_gates": all_gates,
-    }
+    return _renderable_capture_evidence(after_process, after_report, after_root, attempt, before_process, before_report, before_root, capture_binaries, composites, direct_manifest_copy, direct_package_build_ms, full_manifest_copy, full_package_build_ms, icon_board, icon_evidence, native_gates, native_manifest, native_manifest_copy, native_wall_ms, plan, portable_source_boards, source_board_manifest_path, source_boards, staging, texture_rows)
 
 
 def _capture_source_only_asset(
@@ -1532,60 +1558,96 @@ def _component_scoped_native_material_identity_complete(
     return True
 
 
-def _publish_material_source_evidence(
-    manifest: Mapping[str, object],
-    *,
-    source_cache_root: Path,
-) -> tuple[list[dict[str, object]], dict[str, object]]:
-    conservation = _mapping(manifest.get("material_conservation"))
-    parameters = [
-        dict(_mapping(row)) for row in _sequence(conservation.get("parameters"))
-    ]
-    parameter_identities: set[tuple[object, ...]] = set()
-    for parameter in parameters:
-        _require_component_parameter_identity(
-            parameter, label="Preview Core conservation parameter"
-        )
-        identity = _component_parameter_identity(parameter)
-        if identity in parameter_identities:
-            raise ValueError(
-                "Preview Core duplicated a component-scoped material parameter: "
-                f"{identity}"
-            )
-        parameter_identities.add(identity)
-    descriptors: dict[
-        tuple[str, str, int, str, str],
-        list[tuple[int, Mapping[str, object]]],
-    ] = {}
-    batches = [dict(_mapping(row)) for row in _sequence(manifest.get("batches"))]
+def _append_material_source_rows(batches, by_batch_owner, conservation, material_rows, parameters):
     for batch in batches:
-        batch_index = _safe_int(batch.get("index"), -1)
         batch_scope = _batch_component_scope_key(batch)
-        if not batch_scope:
-            raise ValueError(
-                f"Preview Core batch {batch_index} omitted component_scope_id."
-            )
-        material_inputs = _sequence(
-            _mapping(batch.get("dds_textures")).get("material_inputs")
+        batch_index = _safe_int(batch.get("index"), -1)
+        owners = by_batch_owner.get(batch_index, set())
+        material_parameters = [
+            row
+            for row in parameters
+            if _component_owner_identity(row) in owners
+        ]
+        component_scope_ids = sorted(
+            {
+                str(row.get("component_scope_id", "") or "")
+                for row in material_parameters
+                if str(row.get("component_scope_id", "") or "")
+            },
+            key=str.casefold,
         )
-        for raw_descriptor in material_inputs:
-            descriptor = _mapping(raw_descriptor)
-            _require_component_parameter_identity(
-                descriptor, label="Preview Core material input"
-            )
-            key = _component_texture_edge_identity(descriptor, descriptor=True)
-            if key[0] != batch_scope:
-                raise ValueError(
-                    "Preview Core material input crossed component scope: "
-                    f"batch={batch_scope}, input={key[0]}"
-                )
-            if not key[-1]:
-                raise ValueError(
-                    f"Preview Core material input omitted its declared path: {key}"
-                )
-            descriptors.setdefault(key, []).append((batch_index, descriptor))
-    texture_rows: list[dict[str, object]] = []
-    seen_keys: set[tuple[str, str, int, str, str]] = set()
+        owner_wrapper_item_ids = sorted(
+            {
+                str(row.get("owner_wrapper_item_id", "") or "")
+                for row in material_parameters
+                if str(row.get("owner_wrapper_item_id", "") or "")
+            },
+            key=str.casefold,
+        )
+        material_rows.append(
+            {
+                "submesh_index": batch_index,
+                "component_scope_id": batch_scope,
+                "material_name": str(batch.get("material_name", "") or ""),
+                "shader_family": str(
+                    _mapping(batch.get("native_material_hints")).get(
+                        "shader_family", ""
+                    )
+                    or ""
+                ),
+                "parameters": {
+                    "base_tint_color": list(_sequence(batch.get("base_color"))),
+                    "roughness": batch.get("roughness"),
+                    "metalness": batch.get("metalness"),
+                    "specular": batch.get("specular"),
+                    "height_scale": batch.get("height_scale"),
+                },
+                "pac_xml_parameters": material_parameters,
+                "color_parameters": [
+                    {
+                        "name": row.get("parameter_name"),
+                        "value": row.get("value"),
+                    }
+                    for row in material_parameters
+                    if str(row.get("parameter_kind", "")) == "color"
+                ],
+                "source_contract": {
+                    "schema": "cdmw_pac_material_graph_v4",
+                    "material_semantics_version": EXPECTED_MATERIAL_SEMANTICS_VERSION,
+                },
+                "binding_conservation": {
+                    "conserved": conservation.get("conserved") is True,
+                    "parameter_count": len(material_parameters),
+                    "logical_texture_edge_count": sum(
+                        str(row.get("parameter_kind", "")) == "texture"
+                        and bool(str(row.get("texture_path", "") or ""))
+                        for row in material_parameters
+                    ),
+                    "resolved_texture_edge_count": sum(
+                        str(row.get("parameter_kind", "")) == "texture"
+                        and bool(str(row.get("texture_path", "") or ""))
+                        and row.get("texture_resolved") is True
+                        for row in material_parameters
+                    ),
+                    "unresolved_texture_edge_count": sum(
+                        str(row.get("parameter_kind", "")) == "texture"
+                        and bool(str(row.get("texture_path", "") or ""))
+                        and row.get("texture_resolved") is not True
+                        for row in material_parameters
+                    ),
+                    "component_scope_ids": component_scope_ids,
+                    "owner_wrapper_item_ids": owner_wrapper_item_ids,
+                    "exact_owner_identity": bool(owners)
+                    and all(
+                        _component_owner_identity(row) in owners
+                        for row in material_parameters
+                    ),
+                },
+            }
+        )
+
+
+def _publish_parameter_texture_rows(descriptors, parameters, seen_keys, source_cache_root, texture_rows):
     for parameter in parameters:
         if (
             str(parameter.get("parameter_kind", "")) != "texture"
@@ -1687,6 +1749,63 @@ def _publish_material_source_evidence(
                 "texture_resolved": parameter.get("texture_resolved"),
             }
         )
+
+
+def _publish_material_source_evidence(
+    manifest: Mapping[str, object],
+    *,
+    source_cache_root: Path,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    conservation = _mapping(manifest.get("material_conservation"))
+    parameters = [
+        dict(_mapping(row)) for row in _sequence(conservation.get("parameters"))
+    ]
+    parameter_identities: set[tuple[object, ...]] = set()
+    for parameter in parameters:
+        _require_component_parameter_identity(
+            parameter, label="Preview Core conservation parameter"
+        )
+        identity = _component_parameter_identity(parameter)
+        if identity in parameter_identities:
+            raise ValueError(
+                "Preview Core duplicated a component-scoped material parameter: "
+                f"{identity}"
+            )
+        parameter_identities.add(identity)
+    descriptors: dict[
+        tuple[str, str, int, str, str],
+        list[tuple[int, Mapping[str, object]]],
+    ] = {}
+    batches = [dict(_mapping(row)) for row in _sequence(manifest.get("batches"))]
+    for batch in batches:
+        batch_index = _safe_int(batch.get("index"), -1)
+        batch_scope = _batch_component_scope_key(batch)
+        if not batch_scope:
+            raise ValueError(
+                f"Preview Core batch {batch_index} omitted component_scope_id."
+            )
+        material_inputs = _sequence(
+            _mapping(batch.get("dds_textures")).get("material_inputs")
+        )
+        for raw_descriptor in material_inputs:
+            descriptor = _mapping(raw_descriptor)
+            _require_component_parameter_identity(
+                descriptor, label="Preview Core material input"
+            )
+            key = _component_texture_edge_identity(descriptor, descriptor=True)
+            if key[0] != batch_scope:
+                raise ValueError(
+                    "Preview Core material input crossed component scope: "
+                    f"batch={batch_scope}, input={key[0]}"
+                )
+            if not key[-1]:
+                raise ValueError(
+                    f"Preview Core material input omitted its declared path: {key}"
+                )
+            descriptors.setdefault(key, []).append((batch_index, descriptor))
+    texture_rows: list[dict[str, object]] = []
+    seen_keys: set[tuple[str, str, int, str, str]] = set()
+    _publish_parameter_texture_rows(descriptors, parameters, seen_keys, source_cache_root, texture_rows)
     unmatched_descriptors = set(descriptors).difference(seen_keys)
     if unmatched_descriptors:
         first = min(unmatched_descriptors)
@@ -1746,91 +1865,7 @@ def _publish_material_source_evidence(
                 )
             )
     material_rows: list[dict[str, object]] = []
-    for batch in batches:
-        batch_index = _safe_int(batch.get("index"), -1)
-        owners = by_batch_owner.get(batch_index, set())
-        material_parameters = [
-            row
-            for row in parameters
-            if _component_owner_identity(row) in owners
-        ]
-        component_scope_ids = sorted(
-            {
-                str(row.get("component_scope_id", "") or "")
-                for row in material_parameters
-                if str(row.get("component_scope_id", "") or "")
-            },
-            key=str.casefold,
-        )
-        owner_wrapper_item_ids = sorted(
-            {
-                str(row.get("owner_wrapper_item_id", "") or "")
-                for row in material_parameters
-                if str(row.get("owner_wrapper_item_id", "") or "")
-            },
-            key=str.casefold,
-        )
-        material_rows.append(
-            {
-                "submesh_index": batch_index,
-                "component_scope_id": batch_scope,
-                "material_name": str(batch.get("material_name", "") or ""),
-                "shader_family": str(
-                    _mapping(batch.get("native_material_hints")).get(
-                        "shader_family", ""
-                    )
-                    or ""
-                ),
-                "parameters": {
-                    "base_tint_color": list(_sequence(batch.get("base_color"))),
-                    "roughness": batch.get("roughness"),
-                    "metalness": batch.get("metalness"),
-                    "specular": batch.get("specular"),
-                    "height_scale": batch.get("height_scale"),
-                },
-                "pac_xml_parameters": material_parameters,
-                "color_parameters": [
-                    {
-                        "name": row.get("parameter_name"),
-                        "value": row.get("value"),
-                    }
-                    for row in material_parameters
-                    if str(row.get("parameter_kind", "")) == "color"
-                ],
-                "source_contract": {
-                    "schema": "cdmw_pac_material_graph_v4",
-                    "material_semantics_version": EXPECTED_MATERIAL_SEMANTICS_VERSION,
-                },
-                "binding_conservation": {
-                    "conserved": conservation.get("conserved") is True,
-                    "parameter_count": len(material_parameters),
-                    "logical_texture_edge_count": sum(
-                        str(row.get("parameter_kind", "")) == "texture"
-                        and bool(str(row.get("texture_path", "") or ""))
-                        for row in material_parameters
-                    ),
-                    "resolved_texture_edge_count": sum(
-                        str(row.get("parameter_kind", "")) == "texture"
-                        and bool(str(row.get("texture_path", "") or ""))
-                        and row.get("texture_resolved") is True
-                        for row in material_parameters
-                    ),
-                    "unresolved_texture_edge_count": sum(
-                        str(row.get("parameter_kind", "")) == "texture"
-                        and bool(str(row.get("texture_path", "") or ""))
-                        and row.get("texture_resolved") is not True
-                        for row in material_parameters
-                    ),
-                    "component_scope_ids": component_scope_ids,
-                    "owner_wrapper_item_ids": owner_wrapper_item_ids,
-                    "exact_owner_identity": bool(owners)
-                    and all(
-                        _component_owner_identity(row) in owners
-                        for row in material_parameters
-                    ),
-                },
-            }
-        )
+    _append_material_source_rows(batches, by_batch_owner, conservation, material_rows, parameters)
     assigned_owners = (
         set().union(*by_batch_owner.values()) if by_batch_owner else set()
     )

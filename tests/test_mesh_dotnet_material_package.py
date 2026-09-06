@@ -1499,9 +1499,11 @@ def test_native_exact_pac_xml_inputs_restore_archive_identity_and_binding_semant
     assert height.binding_disposition == "recorded"
     assert height.source_kind == "crimson_height"
     explicit = by_transport["explicit.dds"]
-    assert explicit.binding_authority == "preserved_authority"
-    assert explicit.binding_disposition == "preserved_disposition"
-    assert explicit.source_kind == "preserved_source_kind"
+    # PAC declarations own semantics; stale native transport labels cannot
+    # override the exact sidecar's emissive binding.
+    assert explicit.binding_authority == "authoritative"
+    assert explicit.binding_disposition == "promoted"
+    assert explicit.source_kind == "crimson_emissive"
 
 
 def test_native_sidecar_hydration_rejects_unsafe_guessed_and_unowned_rows(

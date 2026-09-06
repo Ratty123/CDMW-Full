@@ -269,6 +269,30 @@ def _positive_tangent_z(x: float, y: float) -> float:
     return math.sqrt(max(0.0, 1.0 - (x * x) - (y * y)))
 
 
+def _prepare_normal_masks(mask_inputs, max_dimension, flip_vertical, unreadable_inputs, cancelled):
+    prepared_masks: dict[str, QImage] = {}
+    for role, item in mask_inputs.items():
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(
+            str(getattr(item, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if image.isNull():
+            unreadable_inputs.append(
+                "normal mask unreadable:"
+                + _texture_label(item.preview_texture_path, item.texture_name)
+            )
+            continue
+        prepared = _support_source_image(
+            image,
+            flip_vertical=flip_vertical,
+            max_dimension=max_dimension,
+        )
+        if not prepared.isNull():
+            prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+    return prepared_masks
+
+
 def _generate_synthesized_normal_map(
     normal_inputs: Sequence[PreviewMaterialTextureInput],
     mask_inputs: dict[str, PreviewMaterialTextureInput],
@@ -326,26 +350,7 @@ def _generate_synthesized_normal_map(
     if not prepared_normals:
         return "", 0.0, (), tuple(unreadable_inputs)
 
-    prepared_masks: dict[str, QImage] = {}
-    for role, item in mask_inputs.items():
-        _raise_if_material_combiner_cancelled(cancelled)
-        image = _image_reader(
-            str(getattr(item, "preview_texture_path", "") or ""),
-            max_dimension=max_dimension,
-        )
-        if image.isNull():
-            unreadable_inputs.append(
-                "normal mask unreadable:"
-                + _texture_label(item.preview_texture_path, item.texture_name)
-            )
-            continue
-        prepared = _support_source_image(
-            image,
-            flip_vertical=flip_vertical,
-            max_dimension=max_dimension,
-        )
-        if not prepared.isNull():
-            prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+    prepared_masks = _prepare_normal_masks(mask_inputs, max_dimension, flip_vertical, unreadable_inputs, cancelled)
 
     size_candidates = [
         image

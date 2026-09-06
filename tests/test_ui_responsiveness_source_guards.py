@@ -451,13 +451,13 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         filter_finalize_body = filter_worker_source[filter_finalize_start:]
 
         self.assertIn("self._render_archive_preview(entry)", selection_body)
-        self.assertIn("if self._startup_benchmark_enabled():", selection_body)
-        self.assertIn("or self._startup_benchmark_enabled()", filter_finalize_body)
+        self.assertIn("if self.shell._startup_benchmark_enabled():", selection_body)
+        self.assertIn("or self.shell._startup_benchmark_enabled()", filter_finalize_body)
         self.assertIn("self._show_archive_preview_loading_state(entry)", render_body)
         self.assertIn("preview_cache_snapshot = {", flush_body)
         self.assertIn("full_cache_key=cache_key", flush_body)
         self.assertIn("fast_cache_key=fast_cache_key", flush_body)
-        self.assertIn("emit_quick_preview=(", flush_body)
+        self.assertIn("emit_quick_preview=progressive_material_preview and fast_cache_key not in preview_cache_snapshot", flush_body)
         self.assertNotIn("self._get_cached_archive_preview_result(", flush_body)
         self.assertNotIn("self._get_durable_native_preview_package_result(", flush_body)
         self.assertNotIn("self._quick_archive_model_preview_result(", flush_body)

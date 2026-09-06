@@ -156,6 +156,324 @@ _SOURCE_REQUIRED_TECHNICAL_GATES = frozenset(
 )
 
 
+def _append_source_disposition_review(
+    asset_id, asset_root, assets, capture_binaries, census_identity, identity, report, root, row, source_tiles,
+    status,
+):
+    technical = _technical_evidence(
+        asset_root,
+        report,
+        capture_binaries=capture_binaries,
+        census_identity=census_identity,
+        source_only=True,
+    )
+    composites = _mapping(report.get("composites"))
+    contact_sheet = _verified_relative_file(
+        asset_root,
+        composites.get("contact_sheet"),
+        composites.get("contact_sheet_sha256"),
+        f"source-only comparison sheet {asset_id}",
+    )
+    comparison_sources = _verified_comparison_paths(
+        asset_root, composites, asset_id=asset_id
+    )
+    source_report = _verified_relative_file(
+        asset_root,
+        "source-only-report.json",
+        None,
+        f"source-only report {asset_id}",
+    )
+    source_report_payload = _read_object(
+        source_report, f"source-only report {asset_id}"
+    )
+    if (
+        source_report_payload.get("schema")
+        != "cdmw_equipment_source_only_capture_v1"
+        or source_report_payload.get("ok") is not True
+        or str(source_report_payload.get("identity", "") or "").casefold()
+        != identity.casefold()
+        or _mapping(source_report_payload.get("finding"))
+        != _mapping(report.get("source_only_finding"))
+        or (
+            census_identity
+            and _mapping(source_report_payload.get("census_identity"))
+            != census_identity
+        )
+    ):
+        raise ValueError(
+            f"Source-only resolution report is not coherent for {asset_id}."
+        )
+    icon_board = _verified_relative_file(
+        asset_root,
+        _mapping(report.get("icon_board")).get("path"),
+        _mapping(report.get("icon_board")).get("sha256"),
+        f"source-only icon board {asset_id}",
+    )
+    review_unit = f"source-disposition:{asset_id}"
+    outputs = [
+        _reviewed_output(root, source_report, label="source_resolution_report"),
+        _reviewed_output(root, icon_board, label="associated_icon_board"),
+        _reviewed_output(
+            root, contact_sheet, label="no_substitute_comparison_sheet"
+        ),
+    ]
+    outputs.extend(
+        _reviewed_output(root, path, label=f"no_substitute_pair:{view}")
+        for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
+    )
+    source_tiles.append(
+        {
+            "asset_id": asset_id,
+            "identity": identity,
+            "review_unit_id": review_unit,
+            "finding": dict(_mapping(report.get("source_only_finding"))),
+            "contact_sheet": _relative_to_root(contact_sheet, root),
+            "contact_sheet_sha256": _sha256_file(contact_sheet),
+            "icon_board": _relative_to_root(icon_board, root),
+            "icon_board_sha256": _sha256_file(icon_board),
+            "reviewed_outputs": outputs,
+            "reviewed_output_set_sha256": _canonical_json_sha256(outputs),
+            "_contact_sheet_path": contact_sheet,
+            "_icon_board_path": icon_board,
+        }
+    )
+    assets.append(
+        {
+            "ordinal": int(row["ordinal"]),
+            "asset_id": asset_id,
+            "identity": identity,
+            "source_only": True,
+            "capture_status": status,
+            "full_model_page": "",
+            "full_model_review_unit": "",
+            "source_disposition_page": "",
+            "source_disposition_review_unit": review_unit,
+            "material_regions": [],
+            "technical_evidence": technical,
+        }
+    )
+
+
+def _append_material_region_reviews(asset_id, asset_root, composites, graph_boards, identity, region_tiles, root, source_board_manifest):
+    region_rows = _mapping_rows(composites, "material_region_sheets")
+    source_board_rows = _mapping_rows(source_board_manifest, "boards")
+    visible_source_boards = {
+        int(source.get("submesh_index", -1)): source for source in source_board_rows
+    }
+    source_board_indices = [
+        int(source.get("submesh_index", -1)) for source in source_board_rows
+    ]
+    material_indices = [
+        int(region.get("material_index", -1)) for region in region_rows
+    ]
+    if (
+        not region_rows
+        or material_indices != sorted(set(material_indices))
+        or source_board_indices != sorted(set(source_board_indices))
+        or set(material_indices) != set(visible_source_boards)
+    ):
+        raise ValueError(
+            f"Material-region/source-board coverage is not exact for {asset_id}."
+        )
+    asset_regions: list[dict[str, object]] = []
+    for region in region_rows:
+        material_index = int(region["material_index"])
+        sheet = _verified_relative_file(
+            asset_root,
+            region.get("path"),
+            region.get("sha256"),
+            f"material region {asset_id}:{material_index}",
+        )
+        source = visible_source_boards[material_index]
+        source_board = _verified_relative_file(
+            asset_root,
+            source.get("path"),
+            source.get("sha256"),
+            f"source board {asset_id}:{material_index}",
+        )
+        if source_board in {path for _metadata, path in graph_boards}:
+            raise ValueError(
+                f"Graph source board is falsely associated with visible region "
+                f"{asset_id}:{material_index}."
+            )
+        if str(region.get("source_board_sha256", "") or "") != _sha256_file(
+            source_board
+        ):
+            raise ValueError(
+                f"Region/source-board hash link disagrees for {asset_id}:{material_index}."
+            )
+        tile = {
+            "asset_id": asset_id,
+            "identity": identity,
+            "material_index": material_index,
+            "review_unit_id": (f"material-region:{asset_id}:{material_index:04d}"),
+            "path": _relative_to_root(sheet, root),
+            "sha256": _sha256_file(sheet),
+            "source_board": _relative_to_root(source_board, root),
+            "source_board_sha256": _sha256_file(source_board),
+            "reviewed_outputs": [
+                _reviewed_output(root, sheet, label="material_region_sheet"),
+                _reviewed_output(
+                    root, source_board, label="pac_xml_dds_source_board"
+                ),
+            ],
+            "_source_path": sheet,
+        }
+        tile["reviewed_output_set_sha256"] = _canonical_json_sha256(
+            tile["reviewed_outputs"]
+        )
+        region_tiles.append(tile)
+        asset_regions.append(
+            {
+                key: value
+                for key, value in tile.items()
+                if not key.startswith("_") and key not in {"identity"}
+            }
+        )
+    return asset_regions
+
+
+def _append_rendered_asset_review(
+    asset_id, asset_root, assets, capture_binaries, census_identity, full_tiles, identity, region_tiles,
+    report, root, row, status,
+):
+    technical = _technical_evidence(
+        asset_root,
+        report,
+        capture_binaries=capture_binaries,
+        census_identity=census_identity,
+        source_only=False,
+    )
+    composites = _mapping(report.get("composites"))
+    contact_sheet = _verified_relative_file(
+        asset_root,
+        composites.get("contact_sheet"),
+        composites.get("contact_sheet_sha256"),
+        f"contact sheet {asset_id}",
+    )
+    comparison_sources = _verified_comparison_paths(
+        asset_root, composites, asset_id=asset_id
+    )
+    direct_sources = [
+        _verified_relative_file(
+            asset_root,
+            f"before/full-model/{view}.png",
+            None,
+            f"direct full-model {view} {asset_id}",
+        )
+        for view in FULL_MODEL_VIEWS
+    ]
+    full_sources = [
+        _verified_relative_file(
+            asset_root,
+            f"after/full-model/{view}.png",
+            None,
+            f"final full-model {view} {asset_id}",
+        )
+        for view in FULL_MODEL_VIEWS
+    ]
+    source_board_manifest = _mapping(report.get("source_boards"))
+    graph_boards = _verified_graph_boards(
+        asset_root,
+        root,
+        source_board_manifest,
+        asset_id=asset_id,
+    )
+    full_review_unit = f"whole-model:{asset_id}"
+    full_outputs = [
+        _reviewed_output(
+            root,
+            contact_sheet,
+            label="paired_contact_sheet",
+        )
+    ]
+    full_outputs.extend(
+        _reviewed_output(root, path, label=f"paired_comparison:{view}")
+        for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
+    )
+    full_outputs.extend(
+        _reviewed_output(
+            root,
+            path,
+            label=f"direct:{view}",
+        )
+        for view, path in zip(FULL_MODEL_VIEWS, direct_sources, strict=True)
+    )
+    full_outputs.extend(
+        _reviewed_output(
+            root,
+            path,
+            label=f"full:{view}",
+        )
+        for view, path in zip(FULL_MODEL_VIEWS, full_sources, strict=True)
+    )
+    full_outputs.extend(
+        _reviewed_output(
+            root,
+            path,
+            label=f"logical_graph_source_board:{metadata['graph_board_index']:03d}",
+        )
+        for metadata, path in graph_boards
+    )
+    full_tile = {
+        "asset_id": asset_id,
+        "identity": identity,
+        "review_unit_id": full_review_unit,
+        "contact_sheet": _relative_to_root(contact_sheet, root),
+        "contact_sheet_sha256": _sha256_file(contact_sheet),
+        "comparison_views": [
+            {
+                "view": view,
+                "path": _relative_to_root(path, root),
+                "sha256": _sha256_file(path),
+            }
+            for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
+        ],
+        "direct_views": [
+            {
+                "view": view,
+                "path": _relative_to_root(path, root),
+                "sha256": _sha256_file(path),
+            }
+            for view, path in zip(FULL_MODEL_VIEWS, direct_sources, strict=True)
+        ],
+        "final_views": [
+            {
+                "view": view,
+                "path": _relative_to_root(path, root),
+                "sha256": _sha256_file(path),
+            }
+            for view, path in zip(FULL_MODEL_VIEWS, full_sources, strict=True)
+        ],
+        "graph_boards": [metadata for metadata, _path in graph_boards],
+        "reviewed_outputs": full_outputs,
+        "reviewed_output_set_sha256": _canonical_json_sha256(full_outputs),
+        "material_region_count": 0,
+        "_direct_source_paths": direct_sources,
+        "_full_source_paths": full_sources,
+    }
+    asset_regions = _append_material_region_reviews(
+        asset_id, asset_root, composites, graph_boards, identity, region_tiles, root, source_board_manifest,
+    )
+    full_tile["material_region_count"] = len(asset_regions)
+    full_tiles.append(full_tile)
+    assets.append(
+        {
+            "ordinal": int(row["ordinal"]),
+            "asset_id": asset_id,
+            "identity": identity,
+            "source_only": False,
+            "capture_status": status,
+            "full_model_page": "",
+            "full_model_review_unit": full_review_unit,
+            "source_disposition_page": "",
+            "source_disposition_review_unit": "",
+            "material_regions": asset_regions,
+            "technical_evidence": technical,
+        }
+    )
+
+
 def build_equipment_review_index(
     evidence_root: Path | str,
     *,
@@ -204,310 +522,13 @@ def build_equipment_review_index(
             raise ValueError(f"Equipment review asset identity mismatch: {asset_id}")
         status = str(report.get("status", "") or "")
         if status in {"source_only_captured", "source_only_reviewed"}:
-            technical = _technical_evidence(
-                asset_root,
-                report,
-                capture_binaries=capture_binaries,
-                census_identity=census_identity,
-                source_only=True,
-            )
-            composites = _mapping(report.get("composites"))
-            contact_sheet = _verified_relative_file(
-                asset_root,
-                composites.get("contact_sheet"),
-                composites.get("contact_sheet_sha256"),
-                f"source-only comparison sheet {asset_id}",
-            )
-            comparison_sources = _verified_comparison_paths(
-                asset_root, composites, asset_id=asset_id
-            )
-            source_report = _verified_relative_file(
-                asset_root,
-                "source-only-report.json",
-                None,
-                f"source-only report {asset_id}",
-            )
-            source_report_payload = _read_object(
-                source_report, f"source-only report {asset_id}"
-            )
-            if (
-                source_report_payload.get("schema")
-                != "cdmw_equipment_source_only_capture_v1"
-                or source_report_payload.get("ok") is not True
-                or str(source_report_payload.get("identity", "") or "").casefold()
-                != identity.casefold()
-                or _mapping(source_report_payload.get("finding"))
-                != _mapping(report.get("source_only_finding"))
-                or (
-                    census_identity
-                    and _mapping(source_report_payload.get("census_identity"))
-                    != census_identity
-                )
-            ):
-                raise ValueError(
-                    f"Source-only resolution report is not coherent for {asset_id}."
-                )
-            icon_board = _verified_relative_file(
-                asset_root,
-                _mapping(report.get("icon_board")).get("path"),
-                _mapping(report.get("icon_board")).get("sha256"),
-                f"source-only icon board {asset_id}",
-            )
-            review_unit = f"source-disposition:{asset_id}"
-            outputs = [
-                _reviewed_output(root, source_report, label="source_resolution_report"),
-                _reviewed_output(root, icon_board, label="associated_icon_board"),
-                _reviewed_output(
-                    root, contact_sheet, label="no_substitute_comparison_sheet"
-                ),
-            ]
-            outputs.extend(
-                _reviewed_output(root, path, label=f"no_substitute_pair:{view}")
-                for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
-            )
-            source_tiles.append(
-                {
-                    "asset_id": asset_id,
-                    "identity": identity,
-                    "review_unit_id": review_unit,
-                    "finding": dict(_mapping(report.get("source_only_finding"))),
-                    "contact_sheet": _relative_to_root(contact_sheet, root),
-                    "contact_sheet_sha256": _sha256_file(contact_sheet),
-                    "icon_board": _relative_to_root(icon_board, root),
-                    "icon_board_sha256": _sha256_file(icon_board),
-                    "reviewed_outputs": outputs,
-                    "reviewed_output_set_sha256": _canonical_json_sha256(outputs),
-                    "_contact_sheet_path": contact_sheet,
-                    "_icon_board_path": icon_board,
-                }
-            )
-            assets.append(
-                {
-                    "ordinal": int(row["ordinal"]),
-                    "asset_id": asset_id,
-                    "identity": identity,
-                    "source_only": True,
-                    "capture_status": status,
-                    "full_model_page": "",
-                    "full_model_review_unit": "",
-                    "source_disposition_page": "",
-                    "source_disposition_review_unit": review_unit,
-                    "material_regions": [],
-                    "technical_evidence": technical,
-                }
-            )
+            _append_source_disposition_review(asset_id, asset_root, assets, capture_binaries, census_identity, identity, report, root, row, source_tiles, status)
             continue
         if status not in {"captured", "reviewed"}:
             raise ValueError(
                 f"Equipment asset is not ready for review: {asset_id}={status}"
             )
-        technical = _technical_evidence(
-            asset_root,
-            report,
-            capture_binaries=capture_binaries,
-            census_identity=census_identity,
-            source_only=False,
-        )
-        composites = _mapping(report.get("composites"))
-        contact_sheet = _verified_relative_file(
-            asset_root,
-            composites.get("contact_sheet"),
-            composites.get("contact_sheet_sha256"),
-            f"contact sheet {asset_id}",
-        )
-        comparison_sources = _verified_comparison_paths(
-            asset_root, composites, asset_id=asset_id
-        )
-        direct_sources = [
-            _verified_relative_file(
-                asset_root,
-                f"before/full-model/{view}.png",
-                None,
-                f"direct full-model {view} {asset_id}",
-            )
-            for view in FULL_MODEL_VIEWS
-        ]
-        full_sources = [
-            _verified_relative_file(
-                asset_root,
-                f"after/full-model/{view}.png",
-                None,
-                f"final full-model {view} {asset_id}",
-            )
-            for view in FULL_MODEL_VIEWS
-        ]
-        source_board_manifest = _mapping(report.get("source_boards"))
-        graph_boards = _verified_graph_boards(
-            asset_root,
-            root,
-            source_board_manifest,
-            asset_id=asset_id,
-        )
-        full_review_unit = f"whole-model:{asset_id}"
-        full_outputs = [
-            _reviewed_output(
-                root,
-                contact_sheet,
-                label="paired_contact_sheet",
-            )
-        ]
-        full_outputs.extend(
-            _reviewed_output(root, path, label=f"paired_comparison:{view}")
-            for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
-        )
-        full_outputs.extend(
-            _reviewed_output(
-                root,
-                path,
-                label=f"direct:{view}",
-            )
-            for view, path in zip(FULL_MODEL_VIEWS, direct_sources, strict=True)
-        )
-        full_outputs.extend(
-            _reviewed_output(
-                root,
-                path,
-                label=f"full:{view}",
-            )
-            for view, path in zip(FULL_MODEL_VIEWS, full_sources, strict=True)
-        )
-        full_outputs.extend(
-            _reviewed_output(
-                root,
-                path,
-                label=f"logical_graph_source_board:{metadata['graph_board_index']:03d}",
-            )
-            for metadata, path in graph_boards
-        )
-        full_tile = {
-            "asset_id": asset_id,
-            "identity": identity,
-            "review_unit_id": full_review_unit,
-            "contact_sheet": _relative_to_root(contact_sheet, root),
-            "contact_sheet_sha256": _sha256_file(contact_sheet),
-            "comparison_views": [
-                {
-                    "view": view,
-                    "path": _relative_to_root(path, root),
-                    "sha256": _sha256_file(path),
-                }
-                for view, path in zip(FULL_MODEL_VIEWS, comparison_sources, strict=True)
-            ],
-            "direct_views": [
-                {
-                    "view": view,
-                    "path": _relative_to_root(path, root),
-                    "sha256": _sha256_file(path),
-                }
-                for view, path in zip(FULL_MODEL_VIEWS, direct_sources, strict=True)
-            ],
-            "final_views": [
-                {
-                    "view": view,
-                    "path": _relative_to_root(path, root),
-                    "sha256": _sha256_file(path),
-                }
-                for view, path in zip(FULL_MODEL_VIEWS, full_sources, strict=True)
-            ],
-            "graph_boards": [metadata for metadata, _path in graph_boards],
-            "reviewed_outputs": full_outputs,
-            "reviewed_output_set_sha256": _canonical_json_sha256(full_outputs),
-            "material_region_count": 0,
-            "_direct_source_paths": direct_sources,
-            "_full_source_paths": full_sources,
-        }
-        region_rows = _mapping_rows(composites, "material_region_sheets")
-        source_board_rows = _mapping_rows(source_board_manifest, "boards")
-        visible_source_boards = {
-            int(source.get("submesh_index", -1)): source for source in source_board_rows
-        }
-        source_board_indices = [
-            int(source.get("submesh_index", -1)) for source in source_board_rows
-        ]
-        material_indices = [
-            int(region.get("material_index", -1)) for region in region_rows
-        ]
-        if (
-            not region_rows
-            or material_indices != sorted(set(material_indices))
-            or source_board_indices != sorted(set(source_board_indices))
-            or set(material_indices) != set(visible_source_boards)
-        ):
-            raise ValueError(
-                f"Material-region/source-board coverage is not exact for {asset_id}."
-            )
-        asset_regions: list[dict[str, object]] = []
-        for region in region_rows:
-            material_index = int(region["material_index"])
-            sheet = _verified_relative_file(
-                asset_root,
-                region.get("path"),
-                region.get("sha256"),
-                f"material region {asset_id}:{material_index}",
-            )
-            source = visible_source_boards[material_index]
-            source_board = _verified_relative_file(
-                asset_root,
-                source.get("path"),
-                source.get("sha256"),
-                f"source board {asset_id}:{material_index}",
-            )
-            if source_board in {path for _metadata, path in graph_boards}:
-                raise ValueError(
-                    f"Graph source board is falsely associated with visible region "
-                    f"{asset_id}:{material_index}."
-                )
-            if str(region.get("source_board_sha256", "") or "") != _sha256_file(
-                source_board
-            ):
-                raise ValueError(
-                    f"Region/source-board hash link disagrees for {asset_id}:{material_index}."
-                )
-            tile = {
-                "asset_id": asset_id,
-                "identity": identity,
-                "material_index": material_index,
-                "review_unit_id": (f"material-region:{asset_id}:{material_index:04d}"),
-                "path": _relative_to_root(sheet, root),
-                "sha256": _sha256_file(sheet),
-                "source_board": _relative_to_root(source_board, root),
-                "source_board_sha256": _sha256_file(source_board),
-                "reviewed_outputs": [
-                    _reviewed_output(root, sheet, label="material_region_sheet"),
-                    _reviewed_output(
-                        root, source_board, label="pac_xml_dds_source_board"
-                    ),
-                ],
-                "_source_path": sheet,
-            }
-            tile["reviewed_output_set_sha256"] = _canonical_json_sha256(
-                tile["reviewed_outputs"]
-            )
-            region_tiles.append(tile)
-            asset_regions.append(
-                {
-                    key: value
-                    for key, value in tile.items()
-                    if not key.startswith("_") and key not in {"identity"}
-                }
-            )
-        full_tile["material_region_count"] = len(asset_regions)
-        full_tiles.append(full_tile)
-        assets.append(
-            {
-                "ordinal": int(row["ordinal"]),
-                "asset_id": asset_id,
-                "identity": identity,
-                "source_only": False,
-                "capture_status": status,
-                "full_model_page": "",
-                "full_model_review_unit": full_review_unit,
-                "source_disposition_page": "",
-                "source_disposition_review_unit": "",
-                "material_regions": asset_regions,
-                "technical_evidence": technical,
-            }
-        )
+        _append_rendered_asset_review(asset_id, asset_root, assets, capture_binaries, census_identity, full_tiles, identity, region_tiles, report, root, row, status)
 
     atlas_root = root / "review" / "atlases"
     full_pages = _write_full_model_pages(
@@ -1750,6 +1771,79 @@ def _validated_limitation_evidence(
     return normalized
 
 
+def _derive_source_disposition_facts(equip_type_key, item_rows, item_type, normalized_facts, paths, slot_count, verdict):
+    if verdict == "EXCLUDED_CATALOGUE_DEFECT":
+        if item_type != 4_001 or equip_type_key != 0 or slot_count != 0:
+            raise ValueError(
+                "EXCLUDED_CATALOGUE_DEFECT requires parser-derived item_type 4001, "
+                "equip_type_key 0, and zero equipment slots."
+            )
+        normalized_facts["icon_only_false_positive"] = True
+    else:
+        if (
+            item_type != _AUTHORED_EMPTY_ITEM_TYPE
+            or equip_type_key != _AUTHORED_EMPTY_EQUIP_TYPE_KEY
+            or slot_count != 0
+        ):
+            raise ValueError(
+                "AUTHORED_EMPTY requires the parser-derived Fist item type, equip "
+                "key, and zero equipment slots."
+            )
+        string_rows = parse_stringinfo(
+            paths["stringinfo_payload"].read_bytes(),
+            paths["stringinfo_header"].read_bytes(),
+            name="equipment source disposition StringInfo",
+        )
+        strings = stringinfo_index(string_rows)
+        pappt = parse_pappt(
+            paths["active_part_prefab_table"].read_bytes(),
+            name="equipment source disposition active PAPPT",
+        )
+        selected_parts = {
+            item_id: find_part_stems(row, strings, pappt)
+            for item_id, (row, _raw_hash) in item_rows.items()
+        }
+        if any(
+            len(parts) != 1 or parts[0][1] != _AUTHORED_EMPTY_STEM
+            for parts in selected_parts.values()
+        ):
+            raise ValueError(
+                "AUTHORED_EMPTY owners do not uniquely select cd_t9999_empty "
+                "through parsed ItemInfo, StringInfo, and active PAPPT data."
+            )
+        selected_hashes = {parts[0][0] for parts in selected_parts.values()}
+        if len(selected_hashes) != 1:
+            raise ValueError("AUTHORED_EMPTY owner part hashes are not coherent.")
+        prefab_record = pappt.find(_AUTHORED_EMPTY_STEM)
+        if prefab_record is None:
+            raise ValueError("Active PAPPT has no cd_t9999_empty record.")
+        authoritative_prefab = normalize_archive_path(prefab_record.prefab_path)
+        if (
+            PurePosixPath(authoritative_prefab).name.casefold()
+            != f"{_AUTHORED_EMPTY_STEM}.prefab"
+        ):
+            raise ValueError("Active PAPPT resolved an unexpected empty prefab path.")
+        document = decode_prefab_binary(paths["authoritative_prefab"].read_bytes())
+        if document.walk_complete is not True:
+            raise ValueError(
+                "AUTHORED_EMPTY requires a complete authoritative prefab decode."
+            )
+        model_edge_count = _decoded_prefab_model_edge_count(document)
+        if model_edge_count != 0:
+            raise ValueError(
+                "AUTHORED_EMPTY authoritative prefab contains model geometry edges."
+            )
+        normalized_facts.update(
+            {
+                "authoritative_part_hash": int(next(iter(selected_hashes))),
+                "authoritative_part_stem": _AUTHORED_EMPTY_STEM,
+                "authoritative_prefab": authoritative_prefab,
+                "authoritative_prefab_selection": True,
+                "model_edge_count": model_edge_count,
+            }
+        )
+
+
 def _validated_source_disposition_evidence(
     root: Path,
     unit: Mapping[str, object],
@@ -1840,76 +1934,7 @@ def _validated_source_disposition_evidence(
         "equip_type_key": equip_type_key,
         "equipment_slot_count": slot_count,
     }
-    if verdict == "EXCLUDED_CATALOGUE_DEFECT":
-        if item_type != 4_001 or equip_type_key != 0 or slot_count != 0:
-            raise ValueError(
-                "EXCLUDED_CATALOGUE_DEFECT requires parser-derived item_type 4001, "
-                "equip_type_key 0, and zero equipment slots."
-            )
-        normalized_facts["icon_only_false_positive"] = True
-    else:
-        if (
-            item_type != _AUTHORED_EMPTY_ITEM_TYPE
-            or equip_type_key != _AUTHORED_EMPTY_EQUIP_TYPE_KEY
-            or slot_count != 0
-        ):
-            raise ValueError(
-                "AUTHORED_EMPTY requires the parser-derived Fist item type, equip "
-                "key, and zero equipment slots."
-            )
-        string_rows = parse_stringinfo(
-            paths["stringinfo_payload"].read_bytes(),
-            paths["stringinfo_header"].read_bytes(),
-            name="equipment source disposition StringInfo",
-        )
-        strings = stringinfo_index(string_rows)
-        pappt = parse_pappt(
-            paths["active_part_prefab_table"].read_bytes(),
-            name="equipment source disposition active PAPPT",
-        )
-        selected_parts = {
-            item_id: find_part_stems(row, strings, pappt)
-            for item_id, (row, _raw_hash) in item_rows.items()
-        }
-        if any(
-            len(parts) != 1 or parts[0][1] != _AUTHORED_EMPTY_STEM
-            for parts in selected_parts.values()
-        ):
-            raise ValueError(
-                "AUTHORED_EMPTY owners do not uniquely select cd_t9999_empty "
-                "through parsed ItemInfo, StringInfo, and active PAPPT data."
-            )
-        selected_hashes = {parts[0][0] for parts in selected_parts.values()}
-        if len(selected_hashes) != 1:
-            raise ValueError("AUTHORED_EMPTY owner part hashes are not coherent.")
-        prefab_record = pappt.find(_AUTHORED_EMPTY_STEM)
-        if prefab_record is None:
-            raise ValueError("Active PAPPT has no cd_t9999_empty record.")
-        authoritative_prefab = normalize_archive_path(prefab_record.prefab_path)
-        if (
-            PurePosixPath(authoritative_prefab).name.casefold()
-            != f"{_AUTHORED_EMPTY_STEM}.prefab"
-        ):
-            raise ValueError("Active PAPPT resolved an unexpected empty prefab path.")
-        document = decode_prefab_binary(paths["authoritative_prefab"].read_bytes())
-        if document.walk_complete is not True:
-            raise ValueError(
-                "AUTHORED_EMPTY requires a complete authoritative prefab decode."
-            )
-        model_edge_count = _decoded_prefab_model_edge_count(document)
-        if model_edge_count != 0:
-            raise ValueError(
-                "AUTHORED_EMPTY authoritative prefab contains model geometry edges."
-            )
-        normalized_facts.update(
-            {
-                "authoritative_part_hash": int(next(iter(selected_hashes))),
-                "authoritative_part_stem": _AUTHORED_EMPTY_STEM,
-                "authoritative_prefab": authoritative_prefab,
-                "authoritative_prefab_selection": True,
-                "model_edge_count": model_edge_count,
-            }
-        )
+    _derive_source_disposition_facts(equip_type_key, item_rows, item_type, normalized_facts, paths, slot_count, verdict)
     if dict(_mapping(evidence.get("source_facts"))) != normalized_facts:
         raise ValueError(
             "Source disposition facts must exactly match the parser-derived source "

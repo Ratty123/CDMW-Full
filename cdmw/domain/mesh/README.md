@@ -22,10 +22,12 @@ available to diagnostics.
 Editor live gestures. It always keeps first/final samples, removes points within
 the 2.5 px path tolerance, retains turns of at least 12 degrees and a slow-motion
 sample every 50 ms, then evicts the least important interior point at the
-configured hard limit. The UI packet owner applies the 256-sample / 64 KiB
-packet bounds and fixed segment queue; the resident C# form applies the same
-sample contract before lasso/toggle mouse-up and before writing a coalesced
-protocol path.
+configured hard limit. The compatibility UI packet owner applies the
+256-sample / 64 KiB packet bounds and fixed segment queue.
+
+`resident_mutation.py` owns pure shared-memory descriptor validation and
+protocol constants. UI and service compatibility imports expose this same
+contract without importing widget or native execution code into the domain.
 
 ## Output policy
 

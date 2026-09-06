@@ -33,7 +33,11 @@ confirmation, backup, rollback, or restore.
 `effect_binary.py` owns byte-complete `.pae` / `.paem` reflection decoding and
 offset-addressed values. `effect_edit.py` permits only fixed-size value changes
 and same-length reference renames. Approximate particle presentation belongs to
-the effect services and resident .NET host, not to these binary owners.
+the effect services and resident Rust host, not to these binary owners.
+
+`archive_model_texture_binding_selection.py` matches exact component/submesh
+identities and selects sidecar texture bindings. The semantics module preserves
+existing imports while keeping selection rules in this bounded owner.
 
 `archive_mesh_appearance.py` and `character_appearance_bundle.py` resolve
 read-only PABC/PAMT presentation and portable dependency bundles. Source archive

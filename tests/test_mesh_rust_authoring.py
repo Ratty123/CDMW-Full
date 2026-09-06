@@ -1244,6 +1244,101 @@ class RustMeshAuthoringTests(unittest.TestCase):
             finally:
                 session.cancel()
 
+    def _conserved_layered_material_fixture(self, temporary_root, direct_texture, compiler_roots):
+        preview_material = SimpleNamespace(
+            source_submesh_index=0,
+            material="layered_sword",
+            texture="sword_base",
+            preview_texture_dds_path="",
+            preview_normal_texture_dds_path=str(direct_texture),
+            preview_normal_y_policy="invert_green_for_directx",
+            preview_material_texture_inputs=(
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    parameter_name="_baseColorTexture",
+                    source_dds_path=str(direct_texture),
+                    preview_texture_path=str(direct_texture),
+                    semantic_type="albedo",
+                    semantic_subtype="base_color",
+                    shader_family="Standard_Ver2",
+                ),
+                PreviewMaterialTextureInput(
+                    slot_kind="material",
+                    parameter_name="_detailColorTexture",
+                    source_dds_path=str(direct_texture),
+                    preview_texture_path=str(direct_texture),
+                    semantic_type="color",
+                    semantic_subtype="detail_diffuse",
+                    shader_family="Standard_Ver2",
+                    layer_role="detail",
+                    layer_channel="g",
+                    visualized=True,
+                ),
+            ),
+        )
+
+        def compile_material(mesh, **kwargs):
+            package_dir = Path(kwargs["package_dir"])
+            compiler_roots.append(package_dir.parent)
+            rows: list[dict[str, object]] = []
+            for index, submesh in enumerate(tuple(mesh.submeshes)):
+                if tuple(
+                    getattr(submesh, "preview_material_texture_inputs", ()) or ()
+                ):
+                    generated = (
+                        package_dir
+                        / "material_synthesis"
+                        / f"submesh_{index:03d}"
+                        / "base.png"
+                    )
+                    generated.parent.mkdir(parents=True, exist_ok=True)
+                    generated.write_bytes(b"authoritative generated image")
+                    generated_normal = generated.with_name("normal.png")
+                    generated_normal.write_bytes(
+                        b"authoritative generated normal image"
+                    )
+                    rows.append(
+                        {
+                            "resolved_channels": {
+                                "base": str(generated),
+                                "albedo": str(generated),
+                                "diffuse": str(generated),
+                                "normal": str(generated_normal),
+                            },
+                            "normal_y_policy": "preserve",
+                            "alpha_mode": "cutout",
+                            "alpha_cutoff": 0.23,
+                            "double_sided": True,
+                            "binding_conservation": {
+                                "conserved": True,
+                                "cross_owner_bindings": [],
+                                "layer_as_base_bindings": [],
+                            },
+                            "material_synthesis": {
+                                "succeeded": True,
+                                "generated_channels": [
+                                    "base",
+                                    "albedo",
+                                    "diffuse",
+                                    "normal",
+                                ],
+                            },
+                        }
+                    )
+                else:
+                    rows.append(
+                        {
+                            "resolved_channels": {},
+                            "material_synthesis": {
+                                "succeeded": False,
+                                "generated_channels": [],
+                            },
+                        }
+                    )
+            return {"submeshes": rows}
+        return preview_material, compile_material
+
+
     def test_layered_material_prefers_owner_conserved_composite_base(
         self,
     ) -> None:
@@ -1258,97 +1353,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             }
             compiler_roots: list[Path] = []
 
-            preview_material = SimpleNamespace(
-                source_submesh_index=0,
-                material="layered_sword",
-                texture="sword_base",
-                preview_texture_dds_path="",
-                preview_normal_texture_dds_path=str(direct_texture),
-                preview_normal_y_policy="invert_green_for_directx",
-                preview_material_texture_inputs=(
-                    PreviewMaterialTextureInput(
-                        slot_kind="base",
-                        parameter_name="_baseColorTexture",
-                        source_dds_path=str(direct_texture),
-                        preview_texture_path=str(direct_texture),
-                        semantic_type="albedo",
-                        semantic_subtype="base_color",
-                        shader_family="Standard_Ver2",
-                    ),
-                    PreviewMaterialTextureInput(
-                        slot_kind="material",
-                        parameter_name="_detailColorTexture",
-                        source_dds_path=str(direct_texture),
-                        preview_texture_path=str(direct_texture),
-                        semantic_type="color",
-                        semantic_subtype="detail_diffuse",
-                        shader_family="Standard_Ver2",
-                        layer_role="detail",
-                        layer_channel="g",
-                        visualized=True,
-                    ),
-                ),
-            )
-
-            def compile_material(mesh, **kwargs):
-                package_dir = Path(kwargs["package_dir"])
-                compiler_roots.append(package_dir.parent)
-                rows: list[dict[str, object]] = []
-                for index, submesh in enumerate(tuple(mesh.submeshes)):
-                    if tuple(
-                        getattr(submesh, "preview_material_texture_inputs", ()) or ()
-                    ):
-                        generated = (
-                            package_dir
-                            / "material_synthesis"
-                            / f"submesh_{index:03d}"
-                            / "base.png"
-                        )
-                        generated.parent.mkdir(parents=True, exist_ok=True)
-                        generated.write_bytes(b"authoritative generated image")
-                        generated_normal = generated.with_name("normal.png")
-                        generated_normal.write_bytes(
-                            b"authoritative generated normal image"
-                        )
-                        rows.append(
-                            {
-                                "resolved_channels": {
-                                    "base": str(generated),
-                                    "albedo": str(generated),
-                                    "diffuse": str(generated),
-                                    "normal": str(generated_normal),
-                                },
-                                "normal_y_policy": "preserve",
-                                "alpha_mode": "cutout",
-                                "alpha_cutoff": 0.23,
-                                "double_sided": True,
-                                "binding_conservation": {
-                                    "conserved": True,
-                                    "cross_owner_bindings": [],
-                                    "layer_as_base_bindings": [],
-                                },
-                                "material_synthesis": {
-                                    "succeeded": True,
-                                    "generated_channels": [
-                                        "base",
-                                        "albedo",
-                                        "diffuse",
-                                        "normal",
-                                    ],
-                                },
-                            }
-                        )
-                    else:
-                        rows.append(
-                            {
-                                "resolved_channels": {},
-                                "material_synthesis": {
-                                    "succeeded": False,
-                                    "generated_channels": [],
-                                },
-                            }
-                        )
-                return {"submeshes": rows}
+            preview_material, compile_material = self._conserved_layered_material_fixture(temporary_root, direct_texture, compiler_roots)
 
             encoded_policies: dict[str, str] = {}
 

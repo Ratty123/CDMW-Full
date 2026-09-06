@@ -14,6 +14,7 @@ so the helper is moved rather than restarted.
 from __future__ import annotations
 
 import os
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -39,12 +40,14 @@ class _RecordingController:
         self.reembedded: list[int] = []
         self.visibility: list[bool] = []
         self.ui_localizer: object | None = None
+        self.process_id = os.getpid()
         # Every signal the host frame connects at construction.
         self.state_changed = _InertSignal()
         self.protocol_event = _InertSignal()
         self.view_state_changed = _InertSignal()
         self.part_pick_result = _InertSignal()
         self.capture_completed = _InertSignal()
+        self.renderer_ready = _InertSignal()
 
     def set_ui_localizer(self, localizer: object) -> None:
         self.ui_localizer = localizer
@@ -162,7 +165,11 @@ def test_the_helper_window_is_remembered_from_both_events() -> None:
             # The geometry sync is exercised separately; here the question is
             # only whether the handle is picked up off the event at all.
             frame._sync_embedded_child_geometry = lambda: None  # type: ignore[method-assign]
-            frame._handle_protocol_event({"event": event, "form_hwnd": 987654})
+            def report_owner(_hwnd, owner_pid):
+                owner_pid._obj.value = os.getpid()
+
+            with patch("ctypes.windll.user32.GetWindowThreadProcessId", side_effect=report_owner):
+                frame._handle_protocol_event({"event": event, "form_hwnd": 987654})
             assert frame._embedded_child_hwnd == 987654, (
                 f"{event} did not record the helper's window, so a resize has "
                 "nothing to move"
