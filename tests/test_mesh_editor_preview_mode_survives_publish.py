@@ -25,7 +25,7 @@ from PySide6.QtWidgets import QApplication
 
 pytestmark = pytest.mark.skip(
     reason=(
-        "The direct Vortice presentation republish path is retired; Rust display-mode "
+        "The direct Vortice presentation republish path is retired; display-mode "
         "persistence is covered by its compiled headless UI tests."
     )
 )

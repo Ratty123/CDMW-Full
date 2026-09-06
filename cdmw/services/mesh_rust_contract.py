@@ -228,15 +228,15 @@ def validate_rust_mesh_editor_package(
         return "cdmw_mesh_lab.exe was not found"
     manifest_path = executable.with_name(RUST_MESH_PROVENANCE_FILE)
     if not manifest_path.is_file():
-        return "Rust provenance manifest is missing"
+        return "provenance manifest is missing"
     try:
         if manifest_path.stat().st_size > 256 * 1024:
-            return "Rust provenance manifest is oversized"
+            return "provenance manifest is oversized"
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError, TypeError):
-        return "Rust provenance manifest is unreadable"
+        return "provenance manifest is unreadable"
     if not isinstance(payload, dict):
-        return "Rust provenance manifest is unreadable"
+        return "provenance manifest is unreadable"
     expected = {
         "schema": RUST_MESH_PROVENANCE_SCHEMA,
         "renderer": RUST_MESH_RENDERER,
@@ -251,53 +251,53 @@ def validate_rust_mesh_editor_package(
     }
     for key, value in expected.items():
         if str(payload.get(key, "") or "") != value:
-            return f"Rust provenance {key} does not match"
+            return f"provenance {key} does not match"
     if payload.get("locked_dependencies") is not True:
-        return "Rust helper was not built with locked dependencies"
+        return "helper was not built with locked dependencies"
     capabilities = payload.get("capabilities", ())
     if not isinstance(capabilities, list) or not set(RUST_MESH_REQUIRED_CAPABILITIES).issubset(
         {str(value or "") for value in capabilities}
     ):
-        return "Rust helper does not support embedded child windows"
+        return "helper does not support embedded child windows"
     preview_capabilities = payload.get("preview_capabilities", ())
     if not isinstance(preview_capabilities, list) or not set(
         RUST_PREVIEW_REQUIRED_CAPABILITIES
     ).issubset({str(value or "") for value in preview_capabilities}):
-        return "Rust helper does not support the complete Archive Preview contract"
+        return "helper does not support the complete Archive Preview contract"
     expected_hash = str(payload.get("executable_sha256", "") or "").strip().lower()
     if len(expected_hash) != 64:
-        return "Rust provenance executable hash is invalid"
+        return "provenance executable hash is invalid"
     digest = hashlib.sha256()
     try:
         with executable.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
     except OSError:
-        return "Rust executable could not be hashed"
+        return "executable could not be hashed"
     if digest.hexdigest().lower() != expected_hash:
-        return "Rust executable hash does not match its provenance manifest"
+        return "executable hash does not match its provenance manifest"
     contract_path = executable.with_name(RUST_MESH_CONTROL_CONTRACT_FILE)
     if not contract_path.is_file():
-        return "Rust control contract is missing"
+        return "control contract is missing"
     expected_contract_hash = str(payload.get("control_contract_sha256", "") or "").strip().lower()
     if len(expected_contract_hash) != 64:
-        return "Rust provenance control contract hash is invalid"
+        return "provenance control contract hash is invalid"
     contract_digest = hashlib.sha256()
     try:
         if contract_path.stat().st_size > 8 * 1024 * 1024:
-            return "Rust control contract is oversized"
+            return "control contract is oversized"
         with contract_path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 contract_digest.update(chunk)
         contract = json.loads(contract_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError, TypeError):
-        return "Rust control contract is unreadable"
+        return "control contract is unreadable"
     if contract_digest.hexdigest().lower() != expected_contract_hash:
-        return "Rust control contract hash does not match its provenance manifest"
+        return "control contract hash does not match its provenance manifest"
     if not isinstance(contract, dict) or contract.get("schema") != RUST_MESH_CONTROL_CONTRACT_SCHEMA:
-        return "Rust control contract schema does not match"
+        return "control contract schema does not match"
     if contract.get("ok") is not True:
-        return "Rust control contract did not pass"
+        return "control contract did not pass"
     return ""
 
 

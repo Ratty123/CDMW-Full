@@ -69,6 +69,7 @@ NAME_TAG = b"\x07\x70\x00\x00\x00"
 DESC_TAG = b"\x07\x71\x00\x00\x00"
 _ITEM_TYPE_GAP = 17
 _STAT_BLOCK_MARKER = 0x11
+_STAT_BLOCK_MARKERS = (0x11, 0x12)
 _MAX_LADDER_LEVELS = 40
 #: The socket list the reader accepts (`_read_u32_list(limit=8)`); the shipped rows carry at most 4.
 _MAX_SOCKET_ITEMS = 8
@@ -156,6 +157,8 @@ class ItemInfoRow:
     #: The two bytes after the 0x11 marker: the socket item count and the has-sockets
     #: flag (`03 01` on Wolf's Fang). The encoder derives them from the lists it writes.
     stat_block_flags: Tuple[int, int] = (0, 0)
+    #: Preserve the generation of this row, including when a table contains both.
+    stat_block_marker: Optional[int] = None
 
     @property
     def max_stack_count_offset(self) -> int:
@@ -318,8 +321,9 @@ def _read_stat_block(raw: bytes, offset: int, item_keys: Optional[Iterable[int]]
         return None
     if known is not None and any(item not in known for item, _count, _x in adds):
         return None
-    if cursor + 7 > limit or raw[cursor] != _STAT_BLOCK_MARKER:
+    if cursor + 7 > limit or raw[cursor] not in _STAT_BLOCK_MARKERS:
         return None
+    marker = raw[cursor]
     flags = (raw[cursor + 1], raw[cursor + 2])
     cursor += 3
     ladder_offset = cursor
@@ -342,7 +346,7 @@ def _read_stat_block(raw: bytes, offset: int, item_keys: Optional[Iterable[int]]
         # zeros, a 0x11 and more zeros: not evidence of anything, and rows have such runs
         return None
     return {
-        "offset": offset, "socket_items": socket_items, "adds": tuple(adds), "flags": flags,
+        "offset": offset, "socket_items": socket_items, "adds": tuple(adds), "flags": flags, "marker": marker,
         "ladder_offset": ladder_offset, "count": count, "levels": tuple(levels), "prices": price_list, "end": end,
     }
 
@@ -355,9 +359,10 @@ def _stat_block_candidates(raw: bytes, start: int) -> Iterable[int]:
     81 starts to check instead of scanning every offset with the full reader.
     """
 
-    marker_at = raw.find(bytes([_STAT_BLOCK_MARKER]), start)
     seen: set[int] = set()
-    while marker_at >= 0:
+    for marker_at in range(start, len(raw)):
+        if raw[marker_at] not in _STAT_BLOCK_MARKERS:
+            continue
         candidates = []
         for socket_count in range(0, 9):
             for material_count in range(0, 9):
@@ -375,7 +380,6 @@ def _stat_block_candidates(raw: bytes, start: int) -> Iterable[int]:
         # earliest candidate first.
         for candidate in sorted(candidates):
             yield candidate
-        marker_at = raw.find(bytes([_STAT_BLOCK_MARKER]), marker_at + 1)
 
 
 def _find_memo(raw: bytes, start: int) -> Optional[str]:
@@ -466,6 +470,7 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
         socket_items=block["socket_items"], add_socket_materials=block["adds"], stat_block_offset=block["offset"],
         enchant_levels=block["levels"], enchant_count=block["count"], price_list=block["prices"], stat_block_end=block["end"],
         stat_block_flags=tuple(block["flags"]),
+        stat_block_marker=block["marker"],
     )
 
 
@@ -671,7 +676,9 @@ def encode_stat_block(
     out += struct.pack("<I", len(slots))
     for item, count, extra in slots:
         out += struct.pack("<III", item, count, extra)
-    out += bytes([_STAT_BLOCK_MARKER, len(sockets), 1 if slots else 0])
+    if row.stat_block_marker not in _STAT_BLOCK_MARKERS:
+        raise ItemInfoRowError("the row's stat marker has not been decoded")
+    out += bytes([row.stat_block_marker, len(sockets), 1 if slots else 0])
     out += struct.pack("<I", len(ladder)) + b"".join(encode_enchant_level(level) for level in ladder)
     out += struct.pack("<I", len(prices)) + b"".join(_encode_price_entry(entry) for entry in prices)
     return bytes(out)

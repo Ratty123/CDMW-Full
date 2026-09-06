@@ -23,9 +23,10 @@ from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, d
 from cdmw.core.itemgroupinfo_table import ItemGroupRow, groups_containing, parse_item_group_table
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
+from cdmw.core.item_sources import ItemDataSources, active_item_source, resolve_item_data_sources
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
-from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, language_of_paloc_path, parse_paloc
+from cdmw.core.paloc_format import LocalizationEntry, LocalizationTable, parse_paloc
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
 from cdmw.core.storeinfo_table import StoreInfoError, StoreRow, parse_store_table
 from cdmw.core.stringinfo_table import parse_stringinfo, stringinfo_index
@@ -33,6 +34,7 @@ from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import NewItemContext, TemplateFacts, TemplateLevelFacts
 from cdmw.models import ArchiveEntry
+from cdmw.services.new_item_provenance import SourceTracker
 
 TABLE_DIR = "gamedata/binary__/client/bin"
 PALOC_DIR = "gamedata/stringtable/binary__"
@@ -61,6 +63,15 @@ class TablePair:
     payload: bytes
     header: bytes
 
+    @property
+    def descriptor(self) -> Mapping[str, object]:
+        import hashlib
+        return {"layout": "current" if self.payload_entry.path.endswith(".staticinfobody") else "legacy",
+                "payload_path": self.payload_entry.path, "header_path": self.header_entry.path,
+                "source_archive": str(self.payload_entry.pamt_path),
+                "payload_sha256": hashlib.sha256(self.payload).hexdigest(),
+                "header_sha256": hashlib.sha256(self.header).hexdigest()}
+
 
 @dataclass(slots=True)
 class NewItemSnapshot:
@@ -86,6 +97,12 @@ class NewItemSnapshot:
     paloc_entries: Mapping[str, ArchiveEntry]
     english: LocalizationTable
     model_stems: FrozenSet[str]
+    sources: Optional[ItemDataSources] = None
+    provenance: Optional[SourceTracker] = field(default=None, repr=False)
+    base_payloads: Mapping[str, bytes] = field(default_factory=dict, repr=False)
+    base_manifest: Mapping[str, object] = field(default_factory=dict, repr=False)
+    base_added_paths: FrozenSet[str] = frozenset()
+    _authoring_indexes: Dict[str, object] = field(default_factory=dict, repr=False)
     #: The texture registry beside the archives (`meta/0.pathc`), or None when the
     #: package root has none; a new icon needs a row in it to draw.
     pathc: Optional[PathcTable] = None
@@ -96,6 +113,7 @@ class NewItemSnapshot:
     _socket_users: Optional[Mapping[int, int]] = field(default=None, repr=False)
     _item_names: Optional[Mapping[int, str]] = field(default=None, repr=False)
     _item_display_names: Mapping[int, str] = field(default_factory=dict, repr=False)
+    _item_localized_names: Mapping[int, Tuple[str, ...]] = field(default_factory=dict, repr=False)
     #: template key -> the validation context built for it; see :func:`build_context`
     _contexts: Dict[int, NewItemContext] = field(default_factory=dict, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
@@ -103,6 +121,10 @@ class NewItemSnapshot:
     _index_maps: Optional[Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]] = field(default=None, repr=False)
 
     # ------------------------------------------------------------------ lookups
+
+    def source_files_changed(self) -> bool:
+        """Check on a worker before planning, including after a manager or Steam repair."""
+        return self.provenance is not None and self.provenance.files_changed()
 
     def entry(self, path: str) -> ArchiveEntry:
         key = str(path or "").replace("\\", "/").strip("/").lower()
@@ -260,6 +282,10 @@ class NewItemSnapshot:
 
         return self._item_display_names
 
+    def item_search_names(self) -> Mapping[int, Tuple[str, ...]]:
+        """All shipped translations, prepared on the snapshot worker."""
+        return self._item_localized_names
+
     def status_value_ranges(self) -> Mapping[int, Tuple[int, int, int, int]]:
         """`{status key: (entries, low, median, high)}` over shipped equipment rows.
 
@@ -324,21 +350,13 @@ def _default_reader(entry: ArchiveEntry) -> bytes:
     return read_archive_entry_data(entry)[0]
 
 
-def _table_pair(entries: Mapping[str, ArchiveEntry], read: ReadEntry, stem: str) -> TablePair:
-    paths = [(f"{TABLE_DIR}/{stem}.pabgb", f"{TABLE_DIR}/{stem}.pabgh")]
-    expected = f"{stem}.pabgb/.pabgh pair"
-    if stem in {"statusinfo", "equiptypeinfo"}:
-        # These read-only name tables also ship in the static-info directory with
-        # the same row layout. Select a complete pair; never combine layouts.
-        static_path = f"gamedata/binarystaticinfo__/bin/{stem}"
-        paths.append((f"{static_path}.staticinfobody", f"{static_path}.staticinfoheader"))
-        expected += f" or {stem}.staticinfobody/.staticinfoheader pair"
-    for payload_path, header_path in paths:
-        payload_entry = entries.get(payload_path)
-        header_entry = entries.get(header_path)
-        if payload_entry is not None and header_entry is not None:
-            return TablePair(payload_entry, header_entry, bytes(read(payload_entry)), bytes(read(header_entry)))
-    raise NewItemSnapshotError(f"the archives have no {expected}")
+def _table_pair(entries: Mapping[str, ArchiveEntry], read: ReadEntry, stem: str, *, sources: Optional[ItemDataSources] = None) -> TablePair:
+    selected = sources or resolve_item_data_sources(entries.values())
+    pair = selected.tables.get(stem)
+    if pair is None:
+        raise NewItemSnapshotError(f"the archives have no complete {stem} table pair for the selected item-data layout")
+    payload_entry, header_entry = pair
+    return TablePair(payload_entry, header_entry, bytes(read(payload_entry)), bytes(read(header_entry)))
 
 
 def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:
@@ -358,7 +376,23 @@ def _parse_names_by_key(pair: TablePair) -> Mapping[int, str]:
 def _entries_by_path(
     entries: Iterable[ArchiveEntry],
     published: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    sources: Optional[ItemDataSources] = None,
 ) -> Dict[str, ArchiveEntry]:
+    if sources is not None:
+        if published:
+            return {str(path): entry for path, candidates in published.items()
+                    if (entry := active_item_source(candidates, sources)) is not None}
+        from cdmw.domain.archives.filters import archive_entry_load_priority
+
+        indexed: Dict[str, ArchiveEntry] = {}
+        for entry in entries:
+            if not sources.accepts(entry):
+                continue
+            path = str(entry.path).replace("\\", "/").strip("/").lower()
+            previous = indexed.get(path)
+            if previous is None or archive_entry_load_priority(entry) > archive_entry_load_priority(previous):
+                indexed[path] = entry
+        return indexed
     if published:
         # Archive Browser already paid to normalize and group the complete listing.
         # Retain the first mounted answer, matching the original setdefault behavior.
@@ -378,6 +412,30 @@ def _log_progress(callback: Optional[Callable[[str], None]], message: str) -> No
         callback(message)
 
 
+
+def _localized_item_names(rows, paloc_entries, english, read, stop_event):
+    english_by_key = english.index()
+    item_display_names: Dict[int, str] = {}
+    for key, row in rows.items():
+        entry = english_by_key.get(row.name_key) if row.name_key else None
+        display_name = str(getattr(entry, "text", "") or "").strip()
+        if display_name:
+            item_display_names[int(key)] = display_name
+    del english_by_key
+    names_by_key: Dict[str, List[str]] = {}
+    wanted_keys = {row.name_key for row in rows.values() if row.name_key}
+    for language, entry in paloc_entries.items():
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
+        table = english if language == "eng" else parse_paloc(bytes(read(entry)), name=entry.path)
+        for localized in table.entries:
+            if localized.key in wanted_keys and localized.text.strip():
+                names = names_by_key.setdefault(localized.key, [])
+                if localized.text.strip() not in names:
+                    names.append(localized.text.strip())
+    item_localized_names = {key: tuple(names_by_key.get(row.name_key, ())) for key, row in rows.items()}
+
+    return item_display_names, item_localized_names
+
 def build_snapshot(
     entries: Iterable[ArchiveEntry],
     *,
@@ -390,14 +448,24 @@ def build_snapshot(
 ) -> NewItemSnapshot:
     """Read and parse every table a new item touches. Seconds of work; run it off the UI thread."""
 
-    read = read_entry or _default_reader
-    by_path = _entries_by_path(entries, entries_by_normalized_path)
+    provenance = SourceTracker(read_entry or _default_reader)
+    read = provenance.read
+    entries = tuple(entries)
+    try:
+        sources = resolve_item_data_sources(entries)
+    except ValueError as exc:
+        raise NewItemSnapshotError(str(exc)) from exc
+    by_path = _entries_by_path(entries, entries_by_normalized_path, sources)
     if not by_path:
         raise NewItemSnapshotError("no archive entries were given")
+    for entry in sources.tables.get("iteminfo", ())[:1]:
+        root = Path(entry.pamt_path).parent.parent
+        for relative in ("meta/0.papgt", "meta/0.paver", "meta/0.pathc"):
+            provenance.pin_file(root / relative)
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading ItemInfo...")
-    iteminfo = _table_pair(by_path, read, "iteminfo")
+    iteminfo = _table_pair(by_path, read, "iteminfo", sources=sources)
     table = parse_pabgh_table(iteminfo.header, payload=iteminfo.payload)
     spans = table.row_spans(len(iteminfo.payload))
     keys = {row.row_id for row, _s, _e in spans}
@@ -405,13 +473,13 @@ def build_snapshot(
     for row, start, end in spans:
         try:
             rows[row.row_id] = parse_iteminfo_row(iteminfo.payload[start:end], item_keys=keys)
-        except ItemInfoRowError:
-            continue
+        except ItemInfoRowError as exc:
+            raise NewItemSnapshotError(f"ItemInfo row {row.row_id} did not decode: {exc}") from exc
     keys_by_name = {row.string_key: key for key, row in rows.items()}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading StringInfo and the part-prefab table...")
-    stringinfo = _table_pair(by_path, read, "stringinfo")
+    stringinfo = _table_pair(by_path, read, "stringinfo", sources=sources)
     texts = stringinfo_index(parse_stringinfo(stringinfo.payload, stringinfo.header, name="stringinfo"))
     pappt_entry = by_path.get(PAPPT_PATH)
     if pappt_entry is None:
@@ -420,54 +488,37 @@ def build_snapshot(
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...")
-    storeinfo = _table_pair(by_path, read, "storeinfo")
+    storeinfo = _table_pair(by_path, read, "storeinfo", sources=sources)
     try:
-        stores = parse_store_table(storeinfo.payload, storeinfo.header)
+        stores = parse_store_table(storeinfo.payload, storeinfo.header, layout="current" if sources.static_layout else "legacy")
     except StoreInfoError as exc:
         raise NewItemSnapshotError(f"StoreInfo did not decode: {exc}") from exc
-    itemgroupinfo = _table_pair(by_path, read, "itemgroupinfo")
+    itemgroupinfo = _table_pair(by_path, read, "itemgroupinfo", sources=sources)
     item_groups = parse_item_group_table(itemgroupinfo.payload, itemgroupinfo.header)
-    statusinfo = _table_pair(by_path, read, "statusinfo")
+    statusinfo = _table_pair(by_path, read, "statusinfo", sources=sources)
     status_names = parse_status_names(statusinfo.payload, statusinfo.header)
-    equiptypeinfo = _table_pair(by_path, read, "equiptypeinfo")
+    equiptypeinfo = _table_pair(by_path, read, "equiptypeinfo", sources=sources)
     equip_type_names = _parse_names_by_key(equiptypeinfo)
     multichange: Optional[TablePair] = None
     multichange_rows: Dict[int, MultiChangeRow] = {}
-    if f"{TABLE_DIR}/multichangeinfo.pabgb" in by_path and f"{TABLE_DIR}/multichangeinfo.pabgh" in by_path:
-        multichange = _table_pair(by_path, read, "multichangeinfo")
+    if "multichangeinfo" in sources.tables:
+        multichange = _table_pair(by_path, read, "multichangeinfo", sources=sources)
         multichange_rows = {row.key: row for row in parse_multichange_table(multichange.payload, multichange.header)}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     _log_progress(on_log, "Reading the English localisation table...")
-    paloc_entries: Dict[str, ArchiveEntry] = {}
-    paloc_candidates = (
-        entries_by_extension.get(".paloc", ())
-        if entries_by_extension
-        else by_path.values()
-    )
-    for entry in paloc_candidates:
-        path = str(entry.path).replace("\\", "/").strip("/").lower()
-        if path.startswith(PALOC_DIR + "/") and path.endswith(".paloc"):
-            language = language_of_paloc_path(path)
-            if language:
-                paloc_entries[language] = entry
+    paloc_entries = dict(sources.localizations)
     english_entry = paloc_entries.get("eng")
     if english_entry is None:
         raise NewItemSnapshotError("the archives have no English localisation table")
     english = parse_paloc(bytes(read(english_entry)), name=english_entry.path)
-    english_by_key = english.index()
-    item_display_names: Dict[int, str] = {}
-    for key, row in rows.items():
-        entry = english_by_key.get(row.name_key) if row.name_key else None
-        display_name = str(getattr(entry, "text", "") or "").strip()
-        if display_name:
-            item_display_names[int(key)] = display_name
-    del english_by_key
+    item_display_names, item_localized_names = _localized_item_names(rows, paloc_entries, english, read, stop_event)
 
     model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else by_path.values()
     model_paths = (
         str(entry.path).replace("\\", "/").strip("/").lower()
         for entry in model_candidates
+        if sources.accepts(entry)
     )
     model_stems = frozenset(
         path[len(MODEL_ROOT):].rsplit("/", 1)[-1][:-4]
@@ -478,6 +529,7 @@ def build_snapshot(
     effect_paths = (
         str(entry.path).replace("\\", "/").strip("/").lower()
         for entry in effect_candidates
+        if sources.accepts(entry)
     )
     effect_stems = frozenset(
         path[len(EFFECT_DIR):-4]
@@ -513,17 +565,25 @@ def build_snapshot(
         paloc_entries=paloc_entries,
         english=english,
         model_stems=model_stems,
+        sources=sources,
+        provenance=provenance,
         pathc=pathc,
         effect_stems=effect_stems,
         _item_display_names=item_display_names,
+        _item_localized_names=item_localized_names,
         _index_maps=(entries_by_normalized_path, entries_by_basename)
-        if entries_by_normalized_path and entries_by_basename
+        if entries_by_normalized_path and entries_by_basename and not sources.obsolete_packages
         else None,
     )
     # Measure on the snapshot worker rather than the first time a stat is offered. Keep
     # the median implementation local: importing ``statistics`` after PySide starts was
     # most of this otherwise small cold path on current Python builds.
     snapshot.status_value_ranges()
+    paths = {entry.pamt_path for entry in entries} | {entry.paz_file for entry in entries}
+    root = Path(iteminfo.payload_entry.pamt_path).parent.parent
+    paths.update((root / "meta" / "0.papgt", pathc_path))
+    for path in paths:
+        provenance.pin_file(Path(path))
     _log_progress(on_log, f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
     return snapshot
 

@@ -58,7 +58,7 @@ def write_gui_startup_smoke_result(
             payload["rust_mesh_editor"] = {
                 "schema": "cdmw_packaged_rust_mesh_editor_v1",
                 "status": "unavailable",
-                "reason": f"Rust Mesh Editor packaged evidence failed: {type(exc).__name__}: {exc}",
+                "reason": f"Mesh Editor packaged evidence failed: {type(exc).__name__}: {exc}",
             }
     if evidence is not None:
         payload["evidence"] = dict(evidence)

@@ -1712,6 +1712,7 @@ struct GpuOverlayLines {
 }
 
 struct GpuEffectTexture {
+    srgb: bool,
     source_sha256: String,
     _texture: Arc<wgpu::Texture>,
     bind_group: wgpu::BindGroup,
@@ -3215,7 +3216,11 @@ impl WindowRenderer {
                     } else {
                         0.0
                     },
-                    0.0,
+                    if self.effect_textures[instance.texture_index].srgb {
+                        0.0
+                    } else {
+                        1.0
+                    },
                 ],
                 third_uv: instance.triangle_uvs.map(|uv| uv[2]).unwrap_or([0.0; 2]),
             })
@@ -6733,6 +6738,7 @@ fn effect_texture_binding(
         ],
     });
     GpuEffectTexture {
+        srgb: view_format.is_srgb(),
         source_sha256,
         _texture: texture,
         bind_group,

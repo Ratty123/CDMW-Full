@@ -108,6 +108,7 @@ KIND_POINTER = 0x0005
 #: By-value object collection. Recognised so it can be named, not yet read.
 KIND_OBJECT_COLLECTION = 0x0006
 KIND_COLLECTION = 0x0007
+KIND_STRING_COLLECTION = 0x000A
 
 POINTER_KINDS = frozenset({KIND_OBJECT, KIND_POINTER})
 INLINE_KINDS = frozenset({KIND_INLINE, KIND_ENUM, KIND_INLINE_12})
@@ -488,6 +489,8 @@ class _BlobCursor:
     __slots__ = (
         "blob", "base", "pos", "type_table", "used_types", "pointee_fields",
         "stopped_at", "collections", "wide_on_multiples", "_starts",
+        "plain_counts",
+        "revision",
     )
 
     def __init__(
@@ -496,6 +499,7 @@ class _BlobCursor:
         base: int,
         type_table: Sequence[PrefabType] = (),
         wide_on_multiples: bool = False,
+        revision: int = 14,
     ) -> None:
         self.blob = blob
         # See _read_collection_count: read a count that is a multiple of 256 as
@@ -503,6 +507,8 @@ class _BlobCursor:
         self.wide_on_multiples = wide_on_multiples
         self.base = base
         self.pos = 0
+        self.plain_counts = bool(type_table and type_table[0].type_name == "ParameterizedMotionSpace")
+        self.revision = revision
         self.type_table = tuple(type_table)
         # site -> offset of that pointee's trailing length field. The walk
         # reads and validates that field, so its position is known exactly;
@@ -656,6 +662,11 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     :func:`decode_prefab_binary` asks only as a retry it keeps if it comes out
     better.
     """
+    if cursor.plain_counts:
+        count = _motion_array_count(cursor)
+        if count > _MAX_COUNT:
+            raise PrefabBinaryError(f"motion collection count {count} exceeds {_MAX_COUNT}")
+        return count
     kind = cursor.take(1)[0]
     if cursor.pos + 4 > len(cursor.blob):
         raise PrefabBinaryError("truncated collection header")
@@ -685,6 +696,16 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     return count
 
 
+def _motion_array_count(cursor: _BlobCursor) -> int:
+    if cursor.revision >= 15:
+        kind = cursor.take(1)[0]
+        if kind == 1:
+            return 0
+        if kind != 0:
+            raise PrefabBinaryError(f"unsupported motion array header {kind}")
+    return cursor.u32()
+
+
 def _read_member(
     cursor: _BlobCursor,
     member: PrefabMember,
@@ -693,6 +714,28 @@ def _read_member(
     owner_type: str = "",
 ) -> None:
     flags = member.flags
+    if flags == KIND_ENUM and member.extra == 4:
+        recovered = cursor.text()
+        into.texts.append(recovered)
+        into.ordered.append((member.name, recovered))
+        return
+    if flags == KIND_STRING_COLLECTION:
+        count = _motion_array_count(cursor) if cursor.plain_counts else cursor.u32()
+        if count > _MAX_COUNT:
+            raise PrefabBinaryError(f"string array {member.name} has {count} elements")
+        for _ in range(count):
+            recovered = cursor.text()
+            into.texts.append(recovered)
+            into.ordered.append((member.name, recovered))
+        return
+    if flags == KIND_INLINE_12 and member.attr_flags & 0x1000:
+        count = _motion_array_count(cursor) if cursor.plain_counts else cursor.u32()
+        if count > _MAX_COUNT or member.value_size <= 0:
+            raise PrefabBinaryError(f"invalid numeric array {member.name}: {count} elements")
+        start = cursor.pos
+        raw = cursor.take(count * member.value_size)
+        into.numbers.append(PrefabNumber(member.name, member.type_name + "[]", raw, cursor.base + start))
+        return
     if flags in INLINE_KINDS:
         start = cursor.pos
         raw = cursor.take(member.value_size)
@@ -718,6 +761,11 @@ def _read_member(
         header_at = cursor.pos
         count = _read_collection_count(cursor)
         header_width = cursor.pos - header_at
+        if cursor.plain_counts and (count or cursor.revision < 15):
+            # Object-list serialization retains its reference header even when empty.
+            reference = cursor.take(13)
+            if reference[0] != 0:
+                raise PrefabBinaryError(f"invalid motion object-list reference on {member.name}")
         # Reserve the slot before reading the elements, so nested collections
         # land after their parent rather than before it. Ordering matters to a
         # caller resolving "which collection contains this offset".
@@ -740,7 +788,7 @@ def _read_member(
                 # The declared count outruns the data on files that are
                 # otherwise complete. When what is left is only the trailer
                 # run, the collection has ended rather than broken.
-                if cursor.closes_here(mark):
+                if not cursor.plain_counts and cursor.closes_here(mark):
                     cursor.pos = mark
                     break
                 raise
@@ -775,7 +823,7 @@ def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
     distinguish two components whose member counts both accommodate it.
     """
     base = cursor.pos
-    for skip in range(_MARKER_SEARCH):
+    for skip in range(1 if cursor.plain_counts else _MARKER_SEARCH):
         probe = base + skip
         if probe + 24 > len(cursor.blob):
             break
@@ -848,6 +896,8 @@ def _component_for(
             if used is not None:
                 used.add(named.type_name)
             return named, True
+    if cursor.plain_counts:
+        raise PrefabBinaryError(f"invalid stated motion component {type_index} for mask 0x{mask:x}")
     candidates = [item for item in components if highest <= len(item.members)]
     if not candidates:
         raise PrefabBinaryError(f"mask 0x{mask:04x} exceeds every candidate component")
@@ -900,10 +950,15 @@ def _walk_group(
         _walk_group(inner, components, sink, depth + 1)
 
     for index, member in enumerate(component.members):
-        if not (mask >> index) & 1:
+        if not (mask >> index) & 1 and not (cursor.plain_counts and member.attr_flags & 0x1000):
             continue
         selected.append(member.name)
         _read_member(cursor, member, collected, nested, component.type_name)
+    if cursor.plain_counts:
+        consumed = cursor.pos - owner_before - 12
+        declared = cursor.u32()
+        if declared != consumed:
+            raise PrefabBinaryError(f"motion object length {declared} != {consumed}")
     sink.insert(
         depth_index,
         PrefabObject(
@@ -929,14 +984,23 @@ def _walk_blob(
     components: Sequence[PrefabType],
     all_types: Sequence[PrefabType] = (),
     wide_on_multiples: bool = False,
+    revision: int = 14,
 ) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, "_BlobCursor"]:
     """Walk the heap. The cursor comes back too: it carries the pointee length
     fields, the stop offset and the collection spans, and returning it beats
     growing the tuple a field at a time."""
-    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples)
+    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples, revision)
     objects: list[PrefabObject] = []
-    cursor.take(2)
-    mask = int.from_bytes(cursor.take(6), "little")
+    if cursor.plain_counts:
+        width = cursor.u16()
+        if not 1 <= width <= 8:
+            raise PrefabBinaryError(f"invalid motion root mask width {width}")
+        mask = int.from_bytes(cursor.take(width), "little")
+        if cursor.u32() != 0:
+            raise PrefabBinaryError("motion root type is not the first declared type")
+    else:
+        cursor.take(2)
+        mask = int.from_bytes(cursor.take(6), "little")
     selected = tuple(
         member.name for index, member in enumerate(root.members) if (mask >> index) & 1
     )
@@ -947,7 +1011,7 @@ def _walk_blob(
 
     try:
         for index, member in enumerate(root.members):
-            if not (mask >> index) & 1:
+            if not (mask >> index) & 1 and not (cursor.plain_counts and member.attr_flags & 0x1000):
                 continue
             # Collections at the root read exactly as they do anywhere else, so
             # let _read_member own that in one place.
@@ -970,7 +1034,7 @@ def _walk_blob(
     # without knowing why. Anything that shrinks it is an improvement.
     #
     # A walk that consumed the blob exactly needs no tail at all.
-    if remaining and (cursor.closes_here(cursor.pos) or 5 <= remaining <= 6):
+    if remaining and not cursor.plain_counts and (cursor.closes_here(cursor.pos) or 5 <= remaining <= 6):
         cursor.pos += remaining
         remaining = 0
     if remaining:
@@ -1091,7 +1155,7 @@ def _decode_prefab(data: bytes, *, wide_on_multiples: bool = False) -> PrefabDoc
         and not item.is_nested_prefab
     ]
     selected, objects, complete, note, root_values, cursor = _walk_blob(
-        blob, header.blob_offset, root, tuple(components), header.types, wide_on_multiples
+        blob, header.blob_offset, root, tuple(components), header.types, wide_on_multiples, header.revision
     )
     pointers = tuple(
         PrefabPointer(

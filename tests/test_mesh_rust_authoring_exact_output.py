@@ -477,7 +477,7 @@ def test_authoritative_edit_during_exact_writer_cannot_be_overwritten(
         ),
         pytest.raises(
             RustMeshValidationError,
-            match="changed while Rust Edit Mesh was open",
+            match="changed while Edit Mesh was open",
         ),
     ):
         session.finish(_request(session, "finish_request", 2))

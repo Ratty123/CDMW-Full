@@ -305,7 +305,7 @@ class WorkspaceShellBuilderMixin:
             "MeshEditorRigSkeletonButton",
             "Skeleton",
             "select_edge",
-            "Open Skeleton panel and refresh the Rust Preview skeleton overlay metadata.",
+            "Open Skeleton panel and refresh the Preview skeleton overlay metadata.",
         )
         self.rig_skeleton_button.clicked.connect(self._request_skeleton_native_preview)
         layout.addWidget(self.rig_skeleton_button, row, 0)
@@ -410,7 +410,7 @@ class WorkspaceShellBuilderMixin:
         self.preview_controls_layout = controls
         self.native_preview_button = QPushButton("Mesh Editor", frame)
         self.native_preview_button.setObjectName("MeshEditorStandaloneNativePreviewButton")
-        self.native_preview_button.setToolTip("The production Mesh Editor is the embedded Rust surface.")
+        self.native_preview_button.setToolTip("The production Mesh Editor is the embedded surface.")
         self.native_preview_button.setMinimumHeight(28)
         self.native_preview_button.setVisible(False)
         self.native_preview_button.setEnabled(False)

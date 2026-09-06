@@ -82,7 +82,7 @@ def test_the_narrow_highlight_update_never_carried_a_camera() -> None:
 def _mounted_tab(name: str):
     pytest.skip(
         "The direct Vortice presentation-republish harness is not part of the "
-        "Rust-only production Mesh Editor; Rust owns its camera state locally."
+        "Rust-only production Mesh Editor; Preview owns its camera state locally."
     )
     app = QApplication.instance() or QApplication([])
     settings = QSettings("CDMWTests", name)

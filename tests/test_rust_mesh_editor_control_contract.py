@@ -77,7 +77,7 @@ def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> Non
         assert route_target
         assert integrated_row["rust_route"] == f"{route_kind}:{route_target}"
         assert integrated_row["rust_route"] != (
-            "Rust UiAction or typed CDMW shadow command"
+            "UiAction or typed CDMW shadow command"
         )
         assert integrated_row["rust_source_binding_verified"] is True
         assert integrated_row["rust_implemented"] is True

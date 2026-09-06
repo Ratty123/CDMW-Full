@@ -33,7 +33,7 @@ from .glossary import MATCH_LABEL, tip
 
 #: Bumped when a threshold in `carry` changes, so a cache built under the old scoring is
 #: rebuilt rather than quietly kept.
-_CACHE_VERSION = 3
+_CACHE_VERSION = 4
 
 
 class _CarryWorker(QObject):
@@ -42,11 +42,14 @@ class _CarryWorker(QObject):
     done = Signal(object, str)
     progress = Signal(int, int)
 
-    def __init__(self, model: str, clip_entries) -> None:
+    def __init__(self, model: str, clip_entries, *, source=None, files=()) -> None:
         super().__init__()
         self._model = model
         self._entries = list(clip_entries)
         self._stop = False
+        self._source = source
+        self._files = tuple(files)
+        self.errors = ()
 
     def stop(self) -> None:
         self._stop = True
@@ -60,7 +63,14 @@ class _CarryWorker(QObject):
         try:
             # A private session: measuring poses the rig hundreds of times, and sharing the
             # window's would fight the viewport for it.
-            session = PlacementSession.from_baseline(Baseline.load(), self._model)
+            if self._source is None:
+                session = PlacementSession.from_baseline(Baseline.load(), self._model)
+            else:
+                from .resolver import PlacementResolver
+                resolver = PlacementResolver()
+                resolver.add_files(dict(self._files))
+                session = PlacementSession(self._model, self._source._bind_hierarchy or self._source.hierarchy, resolver,
+                                           skeleton_path=self._source.skeleton_path)
         except Exception as error:  # noqa: BLE001 - report, never take the window down
             self.done.emit(None, str(error))
             return
@@ -68,17 +78,19 @@ class _CarryWorker(QObject):
         total = len(self._entries)
         index = carry.CarryIndex()
         names = carry.stow_positions(session)
+        errors = []
         for done, entry in enumerate(self._entries, start=1):
             if self._stop:
                 self.done.emit(None, "")
                 return
             try:
                 index.add(entry.name, carry.reach_of_clip(session, load_clip(read_clip(entry), "d"), names))
-            except Exception:  # noqa: BLE001 - one unreadable clip must not stop the sweep
-                pass
+            except Exception as error:  # one failed optional measurement leaves explicit incomplete coverage
+                errors.append(f'{entry.path}: {error}')
             if done % 25 == 0:
                 self.progress.emit(done, total)
-        self.done.emit(index, "")
+        self.errors = tuple(errors)
+        self.done.emit(index, '\n'.join(errors))
 
 
 class _SwapWorker(QObject):
@@ -112,8 +124,9 @@ class _SwapWorker(QObject):
                 return
             try:
                 out.append((target.path, read_clip(donor), donor.name))
-            except Exception:  # noqa: BLE001 - an unreadable clip is simply not swapped
-                pass
+            except Exception as error:  # noqa: BLE001 - publish no partial selection
+                self.done.emit(None, f"Could not read {donor.path}: {error}. Nothing was changed.")
+                return
             if done % 10 == 0:
                 self.progress.emit(done, total)
         self.done.emit(out, "")
@@ -354,7 +367,7 @@ class CarryPickerMixin:
             return None, f"{weapon_id} is not loaded for {session.model}"
         return self._resolve_unit(part_name, weapon=weapon)
 
-    def _replacements_for(self, unit, scope):
+    def _replacements_for(self, unit, scope, *, destination_socket=""):
         """Animation replacements for one equipment unit at one scope.
 
         Everything that decides the answer comes off `unit`, not off whatever the window has
@@ -368,48 +381,116 @@ class CarryPickerMixin:
             unit,
             self._clip_index.entries,
             scope,
-            destination_zone=carry.zone_of(getattr(unit, "in_socket", "") or ""),
+            destination_zone=carry.zone_of(destination_socket or getattr(unit, "in_socket", "") or ""),
+            reach_index=getattr(self, "_carry_index", None),
         )
 
     def _start_move(self, plan, *, play_after: bool = True, preview=None) -> str:
-        """Read the donor clips, then apply the whole move as one operation.
-
-        The reading is the slow half — 165 ms a clip, so the full restyle is over two minutes —
-        and it happens on a worker. Nothing is recorded until it finishes: the placement, the
-        child sockets and every clip replacement land together, so a read that fails cannot
-        leave a moved weapon with the old animations, and a cancel leaves the session untouched.
-
-        The chart is left alone. It names each clip as a length-prefixed full path, so
-        retargeting one needs a replacement of identical byte length and none of the 31
-        referenced hip draws has one. Overwriting the file behind the path has no such
-        constraint, and it is what the shipped mods do.
-        """
-
-        if self._edits is None or self._swap_thread is not None or plan is None:
+        from .background import LatestTask
+        if self._edits is None or plan is None:
             return ""
-        self._pending_move = plan
         self._play_after_swap = play_after
-        rows = list(plan.request.replacements)
-        if not rows:
-            self._apply_move_operation(plan, {})
-            return ""
-
-        pairs = [(row.target, row.donor) for row in rows]
-        # What the dialog settled, not what happens to sort first.
-        self._swap_preview = next(
-            ((t, d) for t, d in pairs if d is preview), self._preview_pair(pairs)
-        )
+        self._pending_move = plan
+        pairs = [(r.target, r.donor) for r in plan.request.replacements]
+        self._swap_preview = next(((a, b) for a, b in pairs if b is preview),
+                                  self._preview_pair(pairs) if pairs else None)
+        if getattr(self, "_move_task", None) is None:
+            self._move_task = LatestTask(self)
+            self._move_task.ready.connect(self._on_prepared_move_ready)
+            self._move_task.progress.connect(self._on_swap_progress)
         self._carry_swap.setEnabled(False)
-        self._swap_requested = len(pairs)
-        self.statusBar().showMessage(f"Reading {len(pairs)} animation(s)...")
-        self._swap_thread = QThread(self)
-        self._swap_worker = _SwapWorker(pairs)
-        self._swap_worker.moveToThread(self._swap_thread)
-        self._swap_thread.started.connect(self._swap_worker.run)
-        self._swap_worker.progress.connect(self._on_swap_progress)
-        self._swap_worker.done.connect(self._on_swap_ready)
-        self._swap_thread.start()
-        return f"reading {len(pairs)} animation(s)"
+        self._move_task.submit(self._move_preparation_work(plan))
+        self.statusBar().showMessage("Preparing complete operation…")
+        return "preparing complete operation"
+
+    def _on_prepared_move_ready(self, scene, error):
+        self._carry_swap.setEnabled(True)
+        if error or scene is None:
+            self._pending_move = None
+            self.statusBar().showMessage(f"Nothing was changed: {error or 'cancelled'}")
+            return
+        self._apply_move_operation(scene.prepared.plan, scene.prepared)
+
+    def _move_preparation_work(self, plan):
+        from copy import copy
+        from dataclasses import replace
+        from .corpus import game_root, package_signature
+        from .prepared_move import prepare_move, file_identity
+        from .move_preview import build_scene
+        from .armour import read_entry, read_armour
+        from .skinning import load_skinned
+        source = copy(self._session)
+        snapshot = self._edits.capture()
+        root = game_root()
+        baseline = self._baseline
+        entries = dict(getattr(self, "_weapon_mesh_entries", {}))
+        armour_index = getattr(self, "_armour_index", None)
+        body = tuple(getattr(self, "_skinned_meshes", ())) if getattr(self, "_skinned_cache_model", "") == source.model else ()
+        body_paths = tuple(self._base_body_paths(source.model)) if hasattr(self, "_base_body_paths") else ()
+        body_paths += tuple(sorted(p for p in getattr(self, "_armour_choice", {}).values() if p))
+        relationships = getattr(self, "_motion_relationships", None)
+        def read_asset(path):
+            if relationships is not None and path in relationships.entries:
+                return read_entry(relationships.entries[path])
+            if path in entries:
+                return read_entry(entries[path])
+            if path in baseline:
+                return baseline.read(path)
+            return read_armour(path, armour_index)
+        def work(cancelled, progress):
+            nonlocal relationships
+            root_identity = tuple(tuple(r) for r in package_signature(root))
+            if relationships is None or relationships.identity != root_identity:
+                from .relationships import inspect_install
+                relationships = inspect_install(root, cancelled=cancelled, progress=progress,
+                    required_paths=tuple(p for p, _ in snapshot.base))
+            selected_entries = tuple(e for r in plan.request.replacements for e in (r.target, r.donor))
+            def identity():
+                return tuple(sorted(set(tuple(tuple(r) for r in package_signature(root)) + file_identity(selected_entries))))
+            prepared = prepare_move(source, snapshot, plan, cancelled=cancelled, progress=progress,
+                                    identity=identity, relationships=relationships)
+            prepared = replace(prepared, source_root=str(root), root_identity=root_identity)
+            loaded = list(body)
+            if not loaded and source.has_skeleton:
+                parsed = (source._bind_hierarchy or source.hierarchy).parsed
+                for path in body_paths:
+                    if cancelled():
+                        raise RuntimeError("Preparation cancelled")
+                    try:
+                        mesh = load_skinned(read_asset(path), path, parsed)
+                        if mesh is not None:
+                            loaded.append(mesh)
+                    except (OSError, ValueError, RuntimeError, KeyError):
+                        continue  # build_scene exposes incomplete geometry as Unverified.
+            scene = build_scene(source, prepared, body=loaded, read_asset=read_asset, cancelled=cancelled,
+                                relationships=relationships)
+            from .compatibility import assess_scene
+            scene.prepared = assess_scene(scene, cancelled=cancelled, read_asset=read_asset)
+            from .prepared_move import Check
+            current_checks = []
+            for file in prepared.files:
+                if file.donor_path or not file.changed:
+                    continue
+                if cancelled():
+                    raise RuntimeError('Preparation cancelled')
+                original = dict(snapshot.base).get(file.path)
+                try:
+                    installed = read_asset(file.path)
+                    current_checks.append(Check('Installed placement source', 'Passed' if installed == original else 'Blocked',
+                        'Session baseline matches the active installation' if installed == original else
+                        'Session baseline differs from the active installation; reload current placement files before export', file.path))
+                except (ValueError, OSError, KeyError, RuntimeError) as error:
+                    current_checks.append(Check('Installed placement source', 'Blocked', str(error), file.path))
+            scene.prepared = replace(scene.prepared, checks=scene.prepared.checks + tuple(current_checks),
+                files=tuple(replace(f,checks=f.checks + tuple(c for c in current_checks if c.path==f.path)) for f in scene.prepared.files))
+            from .candidate_analysis import analyse_candidates
+            from .clips import read_clip
+            scene.candidates = analyse_candidates(scene, read=read_clip, cancelled=cancelled, progress=progress)
+            if identity() != prepared.source_identity:
+                raise RuntimeError("Source files changed while preparing geometry; refresh and prepare again")
+            return scene
+        return work
+
 
     @staticmethod
     def _preview_pair(pairs):
@@ -445,7 +526,7 @@ class CarryPickerMixin:
         plan = getattr(self, "_pending_move", None)
         if plan is None:
             return
-        if not payload:
+        if error or payload is None:
             self._pending_move = None
             self.statusBar().showMessage(
                 error or "Cancelled while reading the animations — nothing was changed"
@@ -468,7 +549,9 @@ class CarryPickerMixin:
         if session is None or edits is None:
             return
         try:
-            operation = apply_move(session, edits, plan, clip_bytes=clip_bytes)
+            from .prepared_move import PreparedMove
+            operation = (clip_bytes.apply(session, edits) if isinstance(clip_bytes, PreparedMove)
+                         else apply_move(session, edits, plan, clip_bytes=clip_bytes))
         except (MoveBlocked, EditError) as exc:
             self.statusBar().showMessage(f"Nothing was changed: {exc}")
             QMessageBox.warning(self, "The move was not applied", str(exc))
@@ -482,8 +565,8 @@ class CarryPickerMixin:
         applied = len(operation.replaced_clips())
         # A clip the worker could not read never reaches the payload. That used to vanish into
         # a success message, so a partly applied swap read as a whole one.
-        missing = requested - applied
-        note = f" ({missing} could not be read)" if missing > 0 else ""
+        unchanged = requested - applied
+        note = f" ({unchanged} identical selections excluded)" if unchanged > 0 else ""
         destination = plan.request.destination_socket
         diagnostic = self._orientation_diagnostic(destination) if plan.placement_changes else ""
         self.statusBar().showMessage(
@@ -513,28 +596,25 @@ class CarryPickerMixin:
         box.exec()
 
     def _stop_swap(self) -> None:
-        """Stop the reader, and only let go once it has actually stopped.
-
-        `wait()` returns whether the thread finished, and that result was being thrown
-        away — the references were cleared either way. A worker still inside `read_clip`
-        then had its parent-owned `QThread` collected underneath it, which Qt answers with
-        "QThread: Destroyed while thread is still running" and an abort. The worker checks
-        its stop flag between clips, so waiting is bounded by one clip read.
-        """
-
+        task = getattr(self, "_move_task", None)
+        if task is not None:
+            task.cancel()
         if self._swap_worker is not None:
             self._swap_worker.stop()
         thread = self._swap_thread
-        if thread is None:
-            return
-        thread.quit()
-        if not thread.wait(5000):
-            # Still busy. Keep the references alive so nothing is collected under it and
-            # try again on the next close; dropping them here is what crashes.
-            self.statusBar().showMessage("Still reading animations — finishing that first")
-            return
-        self._swap_thread = None
-        self._swap_worker = None
+        if thread is not None:
+            from .background import _retained, _release
+            worker = self._swap_worker
+            thread.setParent(None)
+            _retained.add(thread)
+            thread.quit()
+            thread.finished.connect(lambda: _release(thread))
+            thread.finished.connect(lambda: worker.deleteLater() if worker is not None else None)
+            if thread.wait(0):
+                _release(thread)
+            self._swap_thread = None
+            self._swap_worker = None
+
 
     def _show_swap_result(self, applied: int, written=None) -> None:
         """Play the animation the swap installed, on the rig, in its new placement.
@@ -551,7 +631,7 @@ class CarryPickerMixin:
         if written is not None and target.path not in written:
             self.statusBar().showMessage(
                 f"{applied} animation file(s) replaced, but {target.name} was not among "
-                f"them — it could not be read."
+                f"them — its selected payload was unchanged."
             )
             return
         binding = self._current_binding()
@@ -561,7 +641,7 @@ class CarryPickerMixin:
             f"the weapon hangs on {where}."
         )
         if getattr(self, "_play_after_swap", True):
-            self._play_clip_entry(donor)
+            self._play_clip_entry(donor, autoplay=True)
             # Loading only poses the first frame. Seeing whether a draw works means watching
             # it run, and run again — the motion is under a second long.
             self._playback_loop_box.setChecked(True)
@@ -586,7 +666,7 @@ class CarryPickerMixin:
         # and this button is in the header, reachable without ever going there. The dialog
         # builds its row list inside its constructor, so the index has to be *there*, not
         # merely started — otherwise it opens saying no animation has a counterpart.
-        self._ensure_clip_index(wait=True)
+        self._ensure_clip_index()
 
         unit, error = self._resolve_unit(self._selected_part or "")
         if unit is None:
@@ -611,9 +691,28 @@ class CarryPickerMixin:
             on_preview=self._preview_clip,
             on_preview_placement=self._preview_planned_placement,
             on_show_files=self._show_planned_files,
-            chart_lanes=self._chart_lane_index(),
+            chart_lanes=getattr(self, "_chart_lanes_cache", None) or {},
             earlier_operations=[op.operation_id for op in self._edits.operations()],
+            prepare_for=self._move_preparation_work,
+            weapons=session.weapons(),
+            unit_for_weapon=lambda part, weapon: self._resolve_unit(part, weapon=weapon),
         )
+        if getattr(self, "_clip_scan", None) is not None:
+            from PySide6.QtCore import QTimer
+            timer = QTimer(dialog)
+            timer.setInterval(100)
+            dialog._index_pending = True
+            dialog._check_summary.setText("Indexing animations… placement controls remain available")
+            dialog._preview_placement.setEnabled(False)
+            def update_index():
+                if getattr(self, "_clip_scan", None) is None:
+                    timer.stop()
+                    dialog._index_pending = False
+                    dialog._reload_clips()
+                    dialog._refresh()
+                    dialog._preview_placement.setEnabled(True)
+            timer.timeout.connect(update_index)
+            timer.start()
         # `QDialog.Accepted` is a class constant, not an instance attribute: reading it off
         # the instance raised, so nothing was applied and — under pythonw, with no console —
         # nothing was reported either. Pressing "Move it" appeared to do nothing at all.
@@ -626,31 +725,19 @@ class CarryPickerMixin:
         if chosen_part and chosen_part != self._selected_part:
             self._selected_part = chosen_part
             self._sync_part_box(chosen_part)
-        self._start_move(plan, play_after=dialog.play_after, preview=dialog.preview_clip())
+        prepared = dialog.prepared() if hasattr(dialog, "prepared") else None
+        if prepared is not None:
+            self._play_after_swap = dialog.play_after
+            pairs = [(r.target, r.donor) for r in plan.request.replacements]
+            self._swap_preview = self._preview_pair(pairs) if pairs else None
+            self._apply_move_operation(plan, prepared)
+        else:
+            self._start_move(plan, play_after=dialog.play_after, preview=dialog.preview_clip())
 
     def _preview_planned_placement(self, plan) -> None:
-        """Show a planned move in the viewport without recording it.
+        # All previews live in the workspace, against private resolver/pose state.
+        self.statusBar().showMessage("Use Prepare preview in the replacement workspace to compare Before and After")
 
-        Applied to a scratch operation and rolled straight back, so looking costs nothing: the
-        command list is exactly as it was afterwards, whatever the preview did.
-        """
-
-        from .move_operation import MoveBlocked, apply_move
-
-        session, edits = self._session, self._edits
-        if session is None or edits is None or plan is None:
-            return
-        try:
-            operation = apply_move(session, edits, plan, clip_bytes={})
-        except (MoveBlocked, EditError) as exc:
-            self.statusBar().showMessage(f"Cannot preview it: {exc}")
-            return
-        self._after_edit()
-        self.statusBar().showMessage(
-            f"Previewing {operation.describe()} — not recorded"
-        )
-        if edits.discard_operation(operation.operation_id):
-            self._after_edit()
 
     def _show_planned_files(self, plan) -> None:
         """The exact files a planned move would write, before it is accepted."""
@@ -663,13 +750,11 @@ class CarryPickerMixin:
         lines += sorted({file for file, _name in plan.new_sockets}) or ["  (none)"]
         clips = [row.target_path for row in plan.request.replacements]
         lines += ["", f"Animation files ({len(clips)})", "----------------"]
-        lines += clips[:60]
-        if len(clips) > 60:
-            lines.append(f"... and {len(clips) - 60} more")
+        lines += clips
         box = QMessageBox(self)
         box.setWindowTitle("Files this operation would write")
         box.setIcon(QMessageBox.Information)
-        box.setText("\n".join(lines[:80]))
+        box.setText(f"{len(clips)} animation files. Expand Details for the complete file list.")
         box.setDetailedText("\n".join(lines))
         box.exec()
 
@@ -807,10 +892,7 @@ class CarryPickerMixin:
 
         if entry is None:
             return
-        self._play_clip_entry(entry)
-        self._playback_loop_box.setChecked(True)
-        if self._playback.loaded and not self._playback.playing:
-            self._on_playback_toggle()
+        self._play_clip_entry(entry, autoplay=True)
 
 
     def _report_carry_match(self, zone: str, previous_zone: str = "") -> None:
@@ -895,6 +977,13 @@ class CarryPickerMixin:
         model = self._session.model if self._session else "unknown"
         return Path(work_root()) / f"carry-index-{model}.json"
 
+    def _carry_session_signature(self):
+        from hashlib import sha256
+        from .documents import is_socket_file, is_descriptor_file
+        edits = getattr(self, '_edits', None)
+        files = edits.current_files() if edits is not None else {}
+        return [(p,sha256(b).hexdigest()) for p,b in sorted(files.items()) if is_socket_file(p) or is_descriptor_file(p)]
+
     def _load_carry_cache(self) -> bool:
         path = self._carry_cache_file()
         try:
@@ -902,6 +991,11 @@ class CarryPickerMixin:
         except (OSError, ValueError):
             return False
         if raw.get("scoring") != _CACHE_VERSION:
+            return False
+        from .corpus import game_root, package_signature
+        if raw.get("source_identity") != package_signature(game_root()):
+            return False
+        if raw.get('session_signature') != [list(r) for r in self._carry_session_signature()]:
             return False
         index = carry.CarryIndex.from_json(raw.get("index"))
         if not len(index):
@@ -917,7 +1011,9 @@ class CarryPickerMixin:
             path = self._carry_cache_file()
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
-                json.dumps({"scoring": _CACHE_VERSION, "index": self._carry_index.to_json()}),
+                json.dumps({"scoring": _CACHE_VERSION, "index": self._carry_index.to_json(),
+                            "source_identity": getattr(self, "_carry_source_identity", None),
+                            "session_signature": getattr(self, '_carry_signature', None)}),
                 encoding="utf-8",
             )
         except OSError:
@@ -937,9 +1033,15 @@ class CarryPickerMixin:
         # The index is built when the clip tab is first opened, and this button can be
         # pressed without ever going there. Read in the same turn, so it has to be built
         # rather than merely started, or the first press always reports nothing to measure.
-        self._ensure_clip_index(wait=True)
+        self._ensure_clip_index()
+        if not self.clip_index_ready:
+            self._when_clips_ready('carry-analysis', lambda: self._start_carry_index(explicit=explicit))
+            return
 
         model = self._session.model
+        from .corpus import game_root, package_signature
+        self._carry_source_identity = package_signature(game_root())
+        self._carry_signature = self._carry_session_signature()
         entries = [
             entry
             for entry in self._clip_index.entries
@@ -952,7 +1054,8 @@ class CarryPickerMixin:
         self._carry_match.setEnabled(False)
         self._carry_status.setText(f"measuring 0/{len(entries)}...")
         self._carry_thread = QThread(self)
-        self._carry_worker = _CarryWorker(model, entries)
+        from copy import copy
+        self._carry_worker = _CarryWorker(model, entries, source=copy(self._session), files=tuple(self._edits.current_files().items()))
         self._carry_worker.moveToThread(self._carry_thread)
         self._carry_thread.started.connect(self._carry_worker.run)
         self._carry_worker.progress.connect(self._on_carry_progress)
@@ -963,14 +1066,23 @@ class CarryPickerMixin:
         self._carry_status.setText(f"measuring {done}/{total}...")
 
     def _on_carry_index_ready(self, index, error: str) -> None:
+        from .corpus import game_root, package_signature
+        if getattr(self, "_carry_source_identity", None) != package_signature(game_root()):
+            index, error = None, "Installation changed during carry analysis; refresh required"
+        if getattr(self, '_carry_signature', None) != self._carry_session_signature():
+            index, error = None, 'Placement changed during carry analysis; prepare again'
         self._stop_carry_index()
         self._carry_match.setEnabled(True)
         if index is None:
             self._carry_status.setText(error or "measuring cancelled")
             return
         self._carry_index = index
-        self._save_carry_cache()
+        if not error:
+            self._save_carry_cache()
         self._refresh_carry_status()
+        if error:
+            self._carry_status.setText(f'Draw analysis incomplete: {len(error.splitlines())} unreadable clips')
+            self._carry_status.setToolTip(error)
         socket = str(self._carry_box.currentData() or "")
         if socket:
             self._offer_carry_clips(socket)
@@ -979,7 +1091,12 @@ class CarryPickerMixin:
         if self._carry_worker is not None:
             self._carry_worker.stop()
         if self._carry_thread is not None:
-            self._carry_thread.quit()
-            self._carry_thread.wait(3000)
+            from .background import _retained, _release
+            thread = self._carry_thread
+            thread.setParent(None)
+            thread._worker_reference = self._carry_worker
+            _retained.add(thread)
+            thread.finished.connect(lambda: _release(thread))
+            thread.quit()
             self._carry_thread = None
             self._carry_worker = None

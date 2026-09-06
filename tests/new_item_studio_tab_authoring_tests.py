@@ -172,8 +172,9 @@ class _TabAuthoringMixin:
             return True
 
         controller = SimpleNamespace(
-            model_import=SimpleNamespace(usage=nullcontext, label="Sword"),
+            model_import=SimpleNamespace(usage=nullcontext, label="Sword", bake=object()),
             template_entries=lambda: (SimpleNamespace(basename="sword.pac"),),
+            template_primary_entry=lambda: SimpleNamespace(basename="sword.pac"), _active_variant=None,
             model_placement=object(), snapshot=SimpleNamespace(archive_index_maps=archive_maps),
             _run=defer, import_dependency_context=Mock(side_effect=AssertionError("The unused family scan must not run")),
         )
@@ -239,7 +240,7 @@ class _TabAuthoringMixin:
         tab.identity_panel.display_name.setText("Wolf's Fang")
         self.assertTrue(tab.identity_panel.issues_ok.isVisibleTo(tab.identity_panel))
         # the placement note is amber while nothing sells the item
-        self.assertIn("Not sold anywhere", tab.placement_panel.requirement_note.plain_text())
+        self.assertIn("No current shop placement", tab.placement_panel.requirement_note.plain_text())
         tab.close()
         tab.deleteLater()
 
@@ -804,6 +805,7 @@ class _TabAuthoringMixin:
             self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
             self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
             self.assertIs(panel.preview.parentWidget(), panel.preview_group)
+            self.assertLess(panel.preview_layout.indexOf(panel.variants), panel.preview_layout.indexOf(panel.preview))
             self.assertEqual(panel.preview_group.height(), panel.workspace_splitter.height())
             self.assertGreaterEqual(panel.preview.height(), 300)
             self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.workspace_splitter.rect().bottom())

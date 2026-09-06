@@ -455,7 +455,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             )
 
         material_preview_host.controller.state_changed.connect(
-            lambda _state, message: preview_status_label.setText(str(message or "Rust Preview"))
+            lambda _state, message: preview_status_label.setText(str(message or "Preview"))
         )
 
         def _launch_material_preview_package(
@@ -480,12 +480,12 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 material_preview_packages.append(package_dir)
             if not material_preview_host.load_package(package_dir, reset_view=bool(reset_view)):
                 preview_status_label.setText(
-                    "Rust Preview material preview rejected the canonical package."
+                    "Preview material preview rejected the canonical package."
                 )
                 return False
             material_preview_host.set_render_tuning(_material_value_preview_render_settings())
             preview_status_label.setText(
-                f"{str(summary or '').strip()} | resident Rust Preview package requested".strip(" |")
+                f"{str(summary or '').strip()} | resident Preview package requested".strip(" |")
             )
             return True
 

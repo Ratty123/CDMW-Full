@@ -783,7 +783,7 @@ class PlacementStudioWindow(
         model = session.model if session is not None else ""
         return any(
             path in self._baseline or path in entries
-            for path in weapon_mesh_paths(weapon.weapon_id, model)
+            for path in ([weapon.mesh_path] if getattr(weapon, 'mesh_path', '') else weapon_mesh_paths(weapon.weapon_id, model))
         )
 
     def _archive_bytes(self, path: str) -> bytes:
@@ -922,7 +922,7 @@ class PlacementStudioWindow(
                 None,
             )
         if weapon is not None and binding is not None:
-            path = weapon_mesh_path(weapon.weapon_id, session.model)
+            path = getattr(weapon, 'mesh_path', '') or weapon_mesh_path(weapon.weapon_id, session.model)
             if path in self._baseline or path in getattr(self, "_weapon_mesh_entries", {}):
                 # Decoding this per frame cost ~32 ms and dominated playback. The geometry
                 # is fixed; only the matrix that places it changes.

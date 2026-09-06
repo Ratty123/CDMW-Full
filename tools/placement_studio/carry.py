@@ -428,11 +428,13 @@ def reach_of_clip(session, clip, candidates: Optional[Sequence[str]] = None) -> 
     if not names or clip is None or session is None:
         return Reach("", float("inf"), 0.0)
 
-    frames = max(1, int(getattr(clip, "frame_count", 1)))
-    step = max(1, frames // SAMPLES)
+    from tools.paa_motion.timing import timeline_end
+    from tools.paa_motion.format import MotionClip
+    frames = timeline_end(clip) if isinstance(clip, MotionClip) else max(0, clip.frame_count - 1)
     # (hand, socket) -> the distance between them at every sampled frame.
     series: Dict[Tuple[str, str], List[float]] = {}
-    for frame in range(0, frames, step):
+    for index in range(SAMPLES + 1):
+        frame = frames * index / SAMPLES
         session.apply_pose(clip, float(frame))
         placed = {p.name: p.world_position for p in session.placed_sockets()}
         for bone in (session.hierarchy or ()):

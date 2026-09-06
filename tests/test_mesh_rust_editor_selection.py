@@ -268,7 +268,7 @@ def test_start_revalidates_instead_of_trusting_the_selector_cache(tmp_path: Path
         ),
         patch(
             "cdmw.ui.mesh_editor.tab_rust_editor.validate_rust_mesh_editor_package",
-            return_value="Rust provenance protocol does not match",
+            return_value="provenance protocol does not match",
         ),
     ):
         tab._start_rust_editor_requested(object())
@@ -926,7 +926,7 @@ def test_process_launch_revalidates_provenance_after_shadow_preparation(
         ),
         patch(
             "cdmw.ui.mesh_editor.tab_rust_editor.validate_rust_mesh_editor_package",
-            return_value="Rust provenance renderer does not match",
+            return_value="provenance renderer does not match",
         ),
     ):
         tab._launch_rust_editor_process(
@@ -1866,7 +1866,7 @@ def test_dispose_worker_reports_identity_mismatch_and_finishes(
     worker.run()
 
     assert completed == []
-    assert errors == ["Refusing to clean a replaced Rust Mesh session directory"]
+    assert errors == ["Refusing to clean a replaced Mesh session directory"]
     assert finished == [True]
     assert (mismatched_root / "other.json").read_text(encoding="utf-8") == "other"
     assert not list(owned_root.glob(".rust-mesh-dispose-*"))

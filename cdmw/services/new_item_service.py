@@ -196,6 +196,8 @@ class NewItemService:
         *,
         model: object | None = None,
         scene: object | None = None,
+        variant_models: Optional[Mapping[tuple, object]] = None,
+        variant_scenes: Optional[Mapping[tuple, object]] = None,
         icon: Optional[NewItemIcon] = None,
         icon_source_path: Optional[Path] = None,
         reserved_keys: Iterable[int] = (),
@@ -215,6 +217,23 @@ class NewItemService:
         """
 
         raise_if_cancelled(stop_event, "New item plan cancelled.")
+        if model is not None and spec.variants is None and snapshot.sources and snapshot.sources.static_layout:
+            from cdmw.domain.new_item.authoring import VariantAppearance
+            from cdmw.services.new_item_variants import variant_bindings
+            family = snapshot.family(spec.template_key)
+            primary = next(((part,path) for part,path in variant_bindings(family)
+                            if PurePosixPath(path).stem.casefold()==family.model_stem.casefold()),None)
+            if primary is None:
+                raise NewItemPlanError("The primary variant's exact model binding is unavailable.")
+            part,path = primary
+            glow = spec.glow
+            appearance = VariantAppearance(part.prefab_path,path,custom_model=True,
+                material_route=spec.material_route.value,keep_template_physics=spec.keep_template_physics,
+                glow_parts=glow.parts if glow else (),glow_color=glow.color if glow else (1.0,1.0,1.0),
+                glow_intensity=glow.intensity if glow else 4.0)
+            spec = replace(spec,variants=(appearance,))
+        if snapshot.provenance:
+            snapshot.provenance.capture().validate(stop_event)
         issues = self.validate(spec, snapshot)
         if has_errors(issues):
             raise NewItemPlanError("; ".join(issue.message for issue in issues if issue.is_error), issues)
@@ -223,18 +242,35 @@ class NewItemService:
         if has_errors(more):
             raise NewItemPlanError("; ".join(issue.message for issue in more if issue.is_error), more)
         files: Optional[ModelFiles] = None
-        if isinstance(model, ModelFiles):
+        if allocated.variants is not None:
+            # Each builder result must be interpreted against its own target.
+            # Running the legacy conversion here would apply the primary rig twice.
+            pass
+        elif isinstance(model, ModelFiles):
             files = model
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
             files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, on_log=on_log)
         built = icon
+        prepared_variants = {}
+        if allocated.variants is not None:
+            from cdmw.services.new_item_variants import prepare_variant_models
+            supplied = dict(variant_models or {})
+            scenes = dict(variant_scenes or {})
+            if model is not None and variant_models is None:
+                family = snapshot.family(allocated.template_key)
+                primary = next((choice for choice in allocated.variants if choice.custom_model and choice.model_path.rsplit("/",1)[-1].casefold()==family.model_stem.casefold()+".pac"), None)
+                if primary is not None and primary.identity not in supplied:
+                    supplied[primary.identity] = model
+                    if scene is not None:
+                        scenes[primary.identity] = scene
+            prepared_variants = prepare_variant_models(allocated,snapshot,supplied,scenes,on_log=on_log,stop_event=stop_event)
         if allocated.icon is IconSource.GENERATED and built is None:
             if icon_source_path is None:
                 raise NewItemPlanError("the spec asks for a generated icon; give an icon or an image to build one from")
             built = self.build_icon(allocated, snapshot, icon_source_path, on_log=on_log, stop_event=stop_event)
-        return build_plan(allocated, snapshot, model=files, icon=built, issues=tuple(issues) + tuple(more), on_log=on_log, stop_event=stop_event)
+        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=on_log, stop_event=stop_event)
 
     # ------------------------------------------------------------------ writing
 
@@ -252,6 +288,10 @@ class NewItemService:
         """Write the plan as a loose mod under `package_root`, in one manager's layout."""
 
         from cdmw.core.mod_package import finalize_mod_package_export
+        import json
+
+        if plan.source_revision is not None:
+            plan.source_revision.validate(stop_event)
 
         profile = LOOSE_EXPORT_PROFILES.get(str(manager or "").upper())
         if profile is None and options is None:
@@ -259,6 +299,7 @@ class NewItemService:
         root = Path(package_root).expanduser().resolve()
 
         def write(staging: Path) -> NewItemExportResult:
+            (staging / "new-item.json").write_text(json.dumps(dict(plan.manifest), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             if str((profile or {}).get("structure") or "") == "archive_group" and options is None:
                 return self._export_archive_group(
                     plan,
@@ -309,7 +350,10 @@ class NewItemService:
                 metadata_files=metadata,
             )
 
-        return _publish_package_atomically(root, write, stop_event=stop_event)
+        return _publish_package_atomically(
+            root, write, stop_event=stop_event,
+            before_publish=(lambda: plan.source_revision.validate(stop_event)) if plan.source_revision is not None else None,
+        )
 
     def _export_archive_group(
         self,
@@ -379,6 +423,8 @@ class NewItemService:
             raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
         if not plan.patches and not plan.additions:
             raise NewItemInstallRefused("The plan changes nothing.")
+        if plan.source_revision is not None:
+            plan.source_revision.validate(stop_event)
         mutation_plan = mutation_service.prepare_patch(
             plan.patches,
             additions=plan.additions,
@@ -395,6 +441,7 @@ class NewItemService:
         *,
         mutation_service,
         confirmed: bool = False,
+        directory_name: Optional[str] = None,
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
         game_running: Optional[Callable[[], bool]] = None,
@@ -416,6 +463,8 @@ class NewItemService:
             raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
         if not plan.patches and not plan.additions:
             raise NewItemInstallRefused("The plan changes nothing.")
+        if plan.source_revision is not None:
+            plan.source_revision.validate(stop_event)
         if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
             raise NewItemInstallRefused("The archive mutation service is not available in this window.")
         package_root = _package_root_of(plan)
@@ -431,6 +480,7 @@ class NewItemService:
             plan.patches,
             plan.additions,
             package_root=package_root,
+            directory_name=directory_name,
             meta_files=[(write.path, write.payload_data) for write in plan.meta_files],
             backup=backup,
             restore_backup=restore,
@@ -446,6 +496,7 @@ def _publish_package_atomically(
     writer: Callable[[Path], NewItemExportResult],
     *,
     stop_event: Optional[threading.Event] = None,
+    before_publish: Optional[Callable[[], None]] = None,
 ) -> NewItemExportResult:
     """Build beside the destination, then publish with a rollback rename."""
 
@@ -466,6 +517,8 @@ def _publish_package_atomically(
         raise_if_cancelled(stop_event, "New item export cancelled.")
         result = writer(staging)
         raise_if_cancelled(stop_event, "New item export cancelled.")
+        if before_publish is not None:
+            before_publish()
         atomic_publish_directory(staging, root)
         return replace(result, package_root=root)
     finally:

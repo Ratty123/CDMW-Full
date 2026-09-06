@@ -152,11 +152,14 @@ workspace, true weight paint, posed skeleton deformation, normal-direction or
 edge extrusion, sculpt symmetry, and full layered/dye material composition
 remain open rather than being presented as functional controls.
 
-Archive PAC sessions resolve a proven matching PAB automatically from the same
-archive index before attaching it to the shadow service. The Rust window does
-not offer a misleading manual PAB picker: Rig & Skin Weights explains the exact
-PAC LOD0, palette, source-map, and record-layout requirements when automatic
-resolution cannot establish write-safe ownership.
+Archive PAC sessions resolve a matching PAB automatically from the same archive
+index, using the original PAC's bone references as well as descriptor and family
+matches, before attaching it to the shadow service. The PAB is a separate skeleton
+dependency; the PAC's vertex weights alone do not contain the named bone hierarchy.
+The Rust window has no manual PAB picker. Rig & Skin Weights reports the actual
+automatic-resolution failure (including missing dependencies, ambiguous matches,
+and invalid or empty skeletons) and keeps weight editing disabled until the exact
+PAC LOD0, palette, source-map, and record-layout requirements are satisfied.
 
 The integrated Rust viewport reuses Archive Browser's complete resolved
 PAC/PAC_XML material model together with the native material package for the

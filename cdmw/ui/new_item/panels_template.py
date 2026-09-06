@@ -8,6 +8,7 @@ from PySide6.QtCore import QEvent, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QComboBox,
     QGroupBox,
     QHeaderView,
     QHBoxLayout,
@@ -55,9 +56,16 @@ class TemplatePanel(QGroupBox):
         self.filter_edit.textChanged.connect(self._refresh_matches)
         row.addWidget(self.filter_edit, 1)
         selection_layout.addLayout(row)
+        self.category = QComboBox()
+        self.category.setToolTip("Filter by the game's equipment category or an explicit equipment subcategory. All equipment includes equipment outside those groups.")
+        self.category.currentIndexChanged.connect(self._refresh_matches)
+        selection_layout.addWidget(self.category)
+        self.compatibility = QLabel()
+        self.compatibility.setWordWrap(True)
+        selection_layout.addWidget(self.compatibility)
         self.matches = QTreeWidget()
-        self.matches.setColumnCount(4)
-        self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type"])
+        self.matches.setColumnCount(5)
+        self.matches.setHeaderLabels(["Internal name:", "Item Name", "Key", "Type", "Authoring"])
         self.matches.setRootIsDecorated(False)
         self.matches.setUniformRowHeights(True)
         self.matches.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -118,6 +126,34 @@ class TemplatePanel(QGroupBox):
         self._preview = None
         controller.snapshot_ready.connect(self._refresh_matches)
         controller.template_changed.connect(self._show_template)
+        controller.snapshot_ready.connect(self._refresh_categories)
+        self._refresh_categories()
+
+    def _refresh_categories(self):
+        snapshot = self._controller.snapshot
+        with QSignalBlocker(self.category):
+            prior = self.category.currentData()
+            self.category.clear()
+            groups = snapshot.item_groups if snapshot else ()
+            equipment = next((g for g in groups if g.name == "ItemGroup_Category_Equipment"), None)
+            if equipment:
+                self.category.addItem("Game equipment", equipment.key)
+            self.category.addItem("All equipment", None)
+            for group in groups:
+                if group.name.startswith("ItemGroup_SubCategory_Equip_"):
+                    self.category.addItem(group.name.removeprefix("ItemGroup_SubCategory_Equip_"), group.key)
+            if prior is not None and self.category.findData(prior) >= 0:
+                self.category.setCurrentIndex(self.category.findData(prior))
+        if snapshot:
+            descriptor = snapshot.iteminfo.descriptor
+            self.compatibility.setText(f"{descriptor['layout'].capitalize()} item tables · {len(snapshot.rows):,} items · {len(snapshot.languages)} languages")
+            details = [f"{name}: {pair.payload_entry.path}\n{pair.payload_entry.pamt_path}" for name, pair in (
+                ("ItemInfo", snapshot.iteminfo), ("StoreInfo", snapshot.storeinfo), ("StringInfo", snapshot.stringinfo))]
+            if snapshot.sources and snapshot.sources.obsolete_packages:
+                details.append("Excluded legacy packages (preserved for rebuilding):\n" + "\n".join(sorted(snapshot.sources.obsolete_packages)))
+                self.compatibility.setText(self.compatibility.text() + " · Legacy mods excluded")
+            self.compatibility.setToolTip("\n\n".join(details))
+        self._refresh_matches()
 
     def mount_preview(self, preview: QWidget) -> None:
         """Keep the one resident item viewport under the selected template."""
@@ -133,6 +169,18 @@ class TemplatePanel(QGroupBox):
         try:
             self.matches.clear()
             self._match_options = self._controller.template_options(self.filter_edit.text(), limit=None)
+            group_key = self.category.currentData()
+            if group_key is not None and self._controller.snapshot:
+                groups = {g.key: g for g in self._controller.snapshot.item_groups}
+                members, visited, pending = set(), set(), [group_key]
+                while pending:
+                    key = pending.pop()
+                    if key in visited or key not in groups:
+                        continue
+                    visited.add(key)
+                    members.update(groups[key].members)
+                    pending.extend(groups[key].subgroups)
+                self._match_options = [option for option in self._match_options if option[0] in members]
             self._sort_match_options()
             self._append_match_rows(preferred_key=self._controller.draft.template_key)
         finally:
@@ -142,8 +190,18 @@ class TemplatePanel(QGroupBox):
         start = self.matches.topLevelItemCount()
         end = min(start + count, len(self._match_options))
         for key, internal_name, item_name, equip in self._match_options[start:end]:
-            item = QTreeWidgetItem([internal_name, item_name, str(key), equip])
+            item = QTreeWidgetItem([internal_name, item_name or "-", str(key), equip, self._capability_label(key)])
+            if not item_name:
+                item.setToolTip(1, "No localized item name. The internal identifier is shown separately.")
             item.setData(0, Qt.UserRole, key)
+            snapshot = self._controller.snapshot
+            if snapshot:
+                row = snapshot.rows[key]
+                if row.enchant_levels:
+                    item.setToolTip(3, f"Stats · Prices · Sockets · Inherent bonuses\n{snapshot.iteminfo.payload_entry.pamt_path}")
+                else:
+                    item.setToolTip(3, self._capability_label(key) + "\n" + str(snapshot.iteminfo.payload_entry.pamt_path))
+                item.setToolTip(4, item.toolTip(3))
             self.matches.addTopLevelItem(item)
             if key == preferred_key:
                 self.matches.setCurrentItem(item)
@@ -168,13 +226,20 @@ class TemplatePanel(QGroupBox):
 
         def sort_key(option: tuple[int, str, str, str]):
             key, internal_name, item_name, equip = option
-            values = (internal_name.casefold(), item_name.casefold(), int(key), equip.casefold())
+            values = (internal_name.casefold(), item_name.casefold(), int(key), equip.casefold(), self._capability_label(key).casefold())
             return values[column], internal_name.casefold(), int(key)
 
         self._match_options.sort(
             key=sort_key,
             reverse=self._sort_order == Qt.SortOrder.DescendingOrder,
         )
+
+    def _capability_label(self, key):
+        snapshot = self._controller.snapshot
+        row = snapshot.rows.get(key) if snapshot else None
+        if row is None or row.stat_block_offset is None:
+            return "Unsupported"
+        return "Stats" if row.enchant_levels else "Prices / sockets"
 
     def _sort_matches_by_column(self, column: int) -> None:
         if self._syncing or not 0 <= int(column) < self.matches.columnCount():
@@ -228,9 +293,10 @@ class TemplatePanel(QGroupBox):
             if not self._column_widths_initialized:
                 key_width = max(80, round(available * 0.11))
                 type_width = max(110, round(available * 0.17))
-                name_width = max(200, available - key_width - type_width)
+                capability_width = max(90, round(available * 0.12))
+                name_width = max(120, available - key_width - type_width - capability_width)
                 internal_width = round(name_width * 0.56)
-                widths = (internal_width, name_width - internal_width, key_width, type_width)
+                widths = (internal_width, name_width - internal_width, key_width, type_width, capability_width)
                 for column, width in enumerate(widths):
                     header.resizeSection(column, width)
                 self._column_widths_initialized = True
@@ -325,6 +391,8 @@ class TemplatePanel(QGroupBox):
     def prefill(self, template_key: int) -> None:
         self._pick_timer.stop()
         self._pending_key = None
+        with QSignalBlocker(self.category):
+            self.category.setCurrentIndex(self.category.findData(None))
         with QSignalBlocker(self.filter_edit):
             self.filter_edit.setText(str(template_key))
         self._controller.set_template(template_key)

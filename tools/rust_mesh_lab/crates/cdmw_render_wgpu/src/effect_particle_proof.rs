@@ -48,12 +48,10 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         usage: wgpu::BufferUsages::VERTEX,
     });
     let sampler = create_effect_sampler(device);
-    let render = |instance: GpuEffectBillboardInstance,
-                  texels: [u8; 16]|
+    let render_dds = |instance: GpuEffectBillboardInstance,
+                      dds: &[u8]|
      -> Result<Vec<u8>, RenderError> {
-        let mut dds = cdmw_texture::synthetic::rgba8_checker_dds();
-        dds[148..164].copy_from_slice(&texels);
-        let uploaded = upload_dds_texture(device, queue, &dds, TextureRole::BaseColor)?;
+        let uploaded = upload_dds_texture(device, queue, dds, TextureRole::BaseColor)?;
         let textures = [effect_texture_binding(
             device,
             &effect_layout,
@@ -62,6 +60,8 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
             uploaded.view_format,
             uploaded.source_sha256,
         )];
+        let mut instance = instance;
+        instance.sprite_options[3] = if textures[0].srgb { 0.0 } else { 1.0 };
         let buffer = Arc::new(
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("effect pixel proof instance"),
@@ -144,6 +144,11 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
         queue.submit([encoder.finish()]);
         read_headless_pixels(device, &readback, SIZE, SIZE)
     };
+    let render = |instance, texels: [u8; 16]| {
+        let mut dds = cdmw_texture::synthetic::rgba8_checker_dds();
+        dds[148..164].copy_from_slice(&texels);
+        render_dds(instance, &dds)
+    };
     let base = GpuEffectBillboardInstance {
         center: [0., 0., 0.],
         axis_right: [0.5, 0., 0.],
@@ -181,6 +186,28 @@ pub(super) fn verify(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), R
     require(
         (480..=544).contains(&visible(&red)),
         "particle axes or size changed",
+    )?;
+    let mut bc4 = cdmw_texture::synthetic::rgba8_checker_dds();
+    bc4.resize(156, 0);
+    for (offset, value) in [(12, 4_u32), (16, 4), (20, 8), (128, 80)] {
+        bc4[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bc4[148..].copy_from_slice(&[128, 0, 0, 0, 0, 0, 0, 0]);
+    let intensity = render_dds(
+        GpuEffectBillboardInstance {
+            sprite_options: [0., 0., 0., 0.],
+            ..base
+        },
+        &bc4,
+    )?;
+    require(
+        (165..=175).contains(&center(&intensity)[0])
+            && center(&intensity)[1] < 5
+            && center(&intensity)[2] < 5,
+        &format!(
+            "BC4 particle mask must preserve linear half-intensity and authored colour: {:?}",
+            center(&intensity)
+        ),
     )?;
     require(
         visible(&render(

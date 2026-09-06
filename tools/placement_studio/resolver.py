@@ -104,6 +104,9 @@ class WeaponSocketFile:
     model: str
     category: str
     sockets: Mapping[str, Socket]
+    mesh_path: str = ""
+    prefab_path: str = ""
+    shrink_tag: str = ""
 
     @property
     def is_case(self) -> bool:

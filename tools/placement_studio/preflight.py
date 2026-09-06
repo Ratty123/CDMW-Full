@@ -623,6 +623,35 @@ def run_preflight(
         selected, units, changed, shared_socket_users, errors, warnings
     )
     _check_defined_routes(isolated, selected, errors)
+    for operation in selected:
+        if not operation.preparation_json:
+            continue  # Legacy operations have no preparation claim to verify.
+        from .prepared_move import digest
+        try:
+            evidence = json.loads(operation.preparation_json)
+            if evidence.get("version") != 1:
+                raise ValueError("Unknown preparation evidence version")
+            expected = {f["target"]: f["sha256"] for f in evidence["files"] if f["changed"]}
+            actual = {p: digest(b) for p, b in session.preview_for_operations([operation.operation_id]).items()}
+            if expected != actual:
+                errors.append(Finding("preparation_mismatch", "The operation payload differs from its reviewed preparation",
+                                      operation.operation_id))
+            if any(c["status"] == "Blocked" for c in evidence["checks"]):
+                errors.append(Finding("preparation_blocked", "The operation contains blocked preparation checks",
+                                      operation.operation_id))
+            for path, size, stamp in evidence.get("source_identity", ()):
+                try:
+                    stat = Path(path).stat()
+                    current = (stat.st_size, stat.st_mtime_ns)
+                except OSError:
+                    current = None
+                if current != (size, stamp):
+                    errors.append(Finding("preparation_source_changed", "Preparation source changed; refresh and prepare the operation again: " + path,
+                                          operation.operation_id))
+                    break
+        except (ValueError, KeyError, TypeError):
+            errors.append(Finding("preparation_invalid", "The operation preparation record is invalid",
+                                  operation.operation_id))
 
     replacement_rows = list(replacements)
     _add_replacement_warnings(changed, replacement_rows, warnings)
@@ -748,6 +777,7 @@ def operation_manifest(
                 "replaced_clips": list(op.replaced_clips()),
                 "orientation_reviewed": op.orientation_reviewed,
                 "warnings_accepted": list(op.warnings_accepted),
+                "preparation": json.loads(op.preparation_json) if op.preparation_json else {"status": "Unverified"},
             }
             for op in operations
         ],

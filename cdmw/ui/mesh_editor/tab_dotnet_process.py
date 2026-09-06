@@ -26,7 +26,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
     def _launch_standalone_dotnet_editor_package(self, package: RustPreviewPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
-            message = "Mesh Rust Preview helper executable is missing."
+            message = "Mesh Preview helper executable is missing."
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_start_failed",
                 embedded=bool(self.standalone_dotnet_target_embedded),
@@ -47,7 +47,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         )
         controller = getattr(host, "controller", None)
         if controller is None:
-            self._set_dotnet_status("Mesh Editor Rust Preview host is unavailable.", error=True)
+            self._set_dotnet_status("Mesh Editor Preview host is unavailable.", error=True)
             return False
         self._wire_shared_dotnet_controller(host)
         target = self._dotnet_target_controller()
@@ -101,7 +101,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         except (AttributeError, RuntimeError):
             pass
         if not host.load_package(package, reset_view=self.standalone_dotnet_editor_process is None):
-            self._set_dotnet_status("Mesh Editor Rust Preview host rejected the authoring package.", error=True)
+            self._set_dotnet_status("Mesh Editor Preview host rejected the authoring package.", error=True)
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             return False
@@ -119,7 +119,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         )
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("launching", active=False)
-        self._set_dotnet_status("Loading Mesh Editor in the resident Rust Preview viewport...")
+        self._set_dotnet_status("Loading Mesh Editor in the resident Preview viewport...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         return True
     def _confirm_dotnet_process_started(self, process: _tab.QProcess) -> bool:
@@ -196,7 +196,7 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         detail = self._dotnet_process_diagnostics(process)
         payload = self._dotnet_process_event_payload(process, qprocess_error=qprocess_error)
         self._record_mesh_dotnet_event("mesh_dotnet_process_error", **payload)
-        text = f"Rust Mesh Editor process error: {detail}"
+        text = f"Mesh Editor process error: {detail}"
         if self.standalone_dotnet_target_embedded:
             if closing:
                 try:

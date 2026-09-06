@@ -214,7 +214,7 @@ class ArchivePreviewD3D11PartsMixin:
                     if prefab_component and not source_indices
                     else model_path
                 )
-                or "Rust Preview preview component"
+                or "Preview component"
             )
             action.setStatusTip(model_path or "")
             action.setData(list(source_indices))

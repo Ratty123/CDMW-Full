@@ -182,7 +182,7 @@ def alignment_d3d11_loaded_status_route(
     pipeline_detail = ""
     if quality == "fast_geometry":
         pipeline_stage = "fast_geometry"
-        pipeline_detail = "first visible Rust Preview geometry ready"
+        pipeline_detail = "first visible Preview geometry ready"
     elif quality == "archive_parity":
         pipeline_stage = "archive_parity_ready"
         pipeline_detail = "full material preview ready"
@@ -275,7 +275,7 @@ def alignment_d3d11_loading_status_route(
     preview_loaded: bool,
     loading_stuck: bool,
 ) -> AlignmentD3D11LoadingStatusRoute:
-    message = str(payload.get("message", "") or "Loading Rust Preview alignment preview...")
+    message = str(payload.get("message", "") or "Loading Preview alignment preview...")
     try:
         percent = int(round(float(payload.get("percent", 0) or 0)))
     except (TypeError, ValueError, OverflowError):

@@ -55,6 +55,19 @@ def plan_task(*args, **kwargs):
 class NewItemTaskControllerMixin:
     # ------------------------------------------------------------------ tasks
 
+    def start_authoring_index(self, kind: str) -> bool:
+        from cdmw.workers.new_item_authoring_index import authoring_index_task
+        snapshot = self.snapshot
+        if snapshot is None:
+            return False
+        def done(result):
+            if self.snapshot is snapshot:
+                self.authoring_index_ready.emit(kind, result)
+        def failed(message):
+            if self.snapshot is snapshot:
+                self.authoring_index_failed.emit(kind, message)
+        return self._run("authoring-index", authoring_index_task(kind, snapshot), done, failed)
+
     def start_snapshot(
         self,
         entries: Iterable[ArchiveEntry],
@@ -190,16 +203,24 @@ class NewItemTaskControllerMixin:
             if not icon_source.exists():
                 self.plan_failed.emit(f"The icon source {icon_source} does not exist.", ())
                 return False
+        variant_models, variant_scenes, source_owners = self.variant_plan_inputs()
+        variant_arguments = {} if self.draft.variants is None else {"variant_models":variant_models,"variant_scenes":variant_scenes}
         task = plan_task(
             spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
-            mod_base_folder=self.mod_base_folder, read_entry=self._read_entry,
+            mod_base_folder=self.mod_base_folder, read_entry=self._read_entry, **variant_arguments,
         )
 
         def done(result: object) -> None:
             if revision != self._draft_revision:
                 return
             if isinstance(result, NewItemPlan):
+                if result.refreshed_snapshot is not None:
+                    self.snapshot = result.refreshed_snapshot
+                    self._character_references.clear()
+                    self._held_character = ()
+                    self._material_parts = ()
+                    self._effect_target_compatibility_cache.clear()
                 self.plan = result
                 self._plan_revision = revision
                 self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
@@ -217,7 +238,7 @@ class NewItemTaskControllerMixin:
                     shown = f"No image in {icon_source} matched the new item closely enough; pick a file instead."
                 self.plan_failed.emit(shown, ())
 
-        return self._run("plan", task, done, failed)
+        return self._run("plan", task, done, failed, source_owners=source_owners)
 
     def start_export(self, package_root: Path, manager: str) -> bool:
         if not self.has_current_plan:
@@ -233,13 +254,13 @@ class NewItemTaskControllerMixin:
         task = install_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
         return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
-    def start_install_overlay(self, mutation_service) -> bool:
+    def start_install_overlay(self, mutation_service, *, directory_name: Optional[str] = None) -> bool:
         """Install the plan as its own archive directory instead of into the shipped ones."""
 
         if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
-        task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
+        task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True, directory_name=directory_name)
         return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def start_overlay_migration(self, mutation_service, package_root) -> bool:
@@ -262,12 +283,22 @@ class NewItemTaskControllerMixin:
         on_error: Callable[[str], None],
         *,
         task_accepts_progress: bool = False,
+        source_owners: tuple = (),
     ) -> bool:
         if self._shutdown_requested:
             return False
         if self.busy:
             self.status_message.emit(f"Still busy with the previous step ({self._lane}); wait for it to finish.", True)
             return False
+        leases = []
+        for source in {id(value):value for value in source_owners}.values():
+            lease = source.acquire_usage()
+            if lease is None:
+                for acquired in leases:
+                    acquired.release()
+                on_error("An imported model was retired before this operation could start.")
+                return False
+            leases.append(lease)
         if self._synchronous:
             try:
                 if task_accepts_progress:
@@ -283,6 +314,9 @@ class NewItemTaskControllerMixin:
             except (NewItemPlanError, NewItemSnapshotError, NewItemInstallRefused, ValueError, RuntimeError, OSError) as exc:
                 on_error(str(exc))
                 return True
+            finally:
+                for lease in leases:
+                    lease.release()
             on_done(result)
             return True
         worker = UtilityWorker(
@@ -293,6 +327,7 @@ class NewItemTaskControllerMixin:
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker, self._lane = thread, worker, lane
+        self._task_source_leases = leases
         self._on_done, self._on_error = on_done, on_error
         self.busy_changed.emit(True)
         worker.log_message.connect(self.log_message.emit)
@@ -384,6 +419,9 @@ class NewItemTaskControllerMixin:
         self._lane = ""
         self._on_done = None
         self._on_error = None
+        for lease in self._task_source_leases:
+            lease.release()
+        self._task_source_leases = []
         if worker is not None:
             worker.deleteLater()
         if thread is not None:
@@ -405,6 +443,7 @@ class NewItemTaskControllerMixin:
 
     def request_shutdown(self) -> None:
         self._shutdown_requested = True
+        self.retire_variant_sources()
         worker = self._worker
         if worker is not None:
             worker.stop()

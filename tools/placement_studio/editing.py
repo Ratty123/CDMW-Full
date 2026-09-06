@@ -136,6 +136,36 @@ class EditSession:
 
     # ── base access ─────────────────────────────────────────────────
 
+    def capture(self):
+        """Immutable inputs for preparation; never send live XML documents to a worker."""
+        from .prepared_move import EditSnapshot
+        if self._active is not None:
+            raise EditError("Finish the current edit before preparing a replacement")
+        return EditSnapshot(tuple(self._base.items()), tuple(self._replaced_base.items()),
+                            tuple(self._commands[:self._cursor]),
+                            tuple(self._operation_records.items()))
+
+    @classmethod
+    def from_snapshot(cls, snapshot):
+        isolated = cls(dict(snapshot.base))
+        isolated._replaced_base = dict(snapshot.originals)
+        isolated._commands = list(snapshot.commands)
+        isolated._cursor = len(isolated._commands)
+        isolated._operation_records = dict(snapshot.records)
+        # Rolled-back/discarded operations leave gaps. Counting records can reuse an
+        # existing ID and make its earlier commands part of the new operation.
+        numbers = (int(operation_id.split("-", 2)[1])
+                   for operation_id, _ in snapshot.records
+                   if operation_id.startswith("op-")
+                   and operation_id.split("-", 2)[1].isdigit())
+        isolated._operation_counter = itertools.count(max(numbers, default=0) + 1)
+        isolated._replay()
+        return isolated
+
+    def current_files(self) -> Dict[str, bytes]:
+        """A complete byte view, including earlier edits, for a private preview session."""
+        return {**self._base, **self._replaced_base, **self.preview()}
+
     @property
     def paths(self) -> List[str]:
         return sorted(self._base)
@@ -292,6 +322,7 @@ class EditSession:
             warnings_accepted=handle.warnings_accepted,
             orientation_sources=handle.orientation_sources,
             orientation_reviewed=handle.orientation_reviewed,
+            preparation_json=handle.preparation_json,
         )
         handle._closed = True
         self._active = None

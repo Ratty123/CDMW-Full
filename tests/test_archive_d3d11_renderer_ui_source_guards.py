@@ -71,9 +71,9 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         labels = _read("cdmw/ui/model_preview_native.py")
 
         self.assertIn('ARCHIVE_RENDERER_D3D11 = "d3d11_native"', dialog)
-        self.assertIn('addItem("Rust Preview", self.ARCHIVE_RENDERER_D3D11)', dialog)
-        self.assertIn("Rust Preview is the only Archive Browser model-preview path.", dialog)
-        self.assertIn('ARCHIVE_MODEL_RENDERER_D3D11: "Rust Preview"', labels)
+        self.assertIn('addItem("Preview", self.ARCHIVE_RENDERER_D3D11)', dialog)
+        self.assertIn("Preview is the only Archive Browser model-preview path.", dialog)
+        self.assertIn('ARCHIVE_MODEL_RENDERER_D3D11: "Preview"', labels)
         self.assertNotIn("Native D3D11", dialog)
 
     def test_canonical_package_worker_does_not_invoke_legacy_writer(self) -> None:

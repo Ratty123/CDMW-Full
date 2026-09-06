@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Mapping, Optional, Tuple
+from cdmw.domain.new_item.authoring import SocketSlot, LevelBonuses, RecipeOverride, RewardAcquisition, VariantAppearance
 
 
 class ModelSource(str, Enum):
@@ -66,6 +67,7 @@ class SheathedModel(str, Enum):
 
 
 class ItemGroupsChoice(str, Enum):
+    ORDINARY = "ordinary"
     #: Join every item group the template is in.
     TEMPLATE = "template"
     #: Join exactly the listed group keys.
@@ -75,9 +77,10 @@ class ItemGroupsChoice(str, Enum):
 class EnhancementRows(str, Enum):
     """Which `multichangeinfo` transition rows the item enhances through."""
 
-    #: Share the template's rows (they name the template; the in-game-verified spike's form).
+    #: Inherit the template's recipe values. Current-format connections receive
+    #: owned item/output references; the legacy format retains shared rows.
     TEMPLATE = "template"
-    #: Clone the template's own transition rows under new keys that name the new item (unproven in game).
+    #: Request owned transitions explicitly, including on the legacy format.
     OWN = "own"
 
 
@@ -135,6 +138,7 @@ class Placement:
     #: How many the shop has: None keeps the line's own count (1 on most equipment
     #: lines: sold once, then "0 in stock"), :data:`UNLIMITED_STOCK` never runs out.
     stock_count: Optional[int] = None
+    stock_index: Optional[int] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,12 +223,18 @@ class NewItemSpec:
     price_edits: Tuple[PriceEdit, ...] = ()
     max_stack_count: Optional[int] = None
     placement: Placement = field(default_factory=Placement)
+    shop_placements: Optional[Tuple[Placement, ...]] = None
     item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
     explicit_item_groups: Tuple[int, ...] = ()
     enhancement: EnhancementRows = EnhancementRows.TEMPLATE
     #: The Abyss Gear items embedded by default (the tooltip's perk lines), as item keys;
     #: None keeps the template's. The shipped rows carry up to four.
     socket_items: Optional[Tuple[int, ...]] = None
+    socket_slots: Optional[Tuple["SocketSlot", ...]] = None
+    equipment_bonuses: Optional[Tuple["LevelBonuses", ...]] = None
+    recipes: Optional[Tuple[RecipeOverride, ...]] = None
+    reward_acquisitions: Optional[Tuple[RewardAcquisition, ...]] = None
+    variants: Optional[Tuple[VariantAppearance, ...]] = None
     #: A persistent visual on the item: an effect reference such as
     #: `fx_cc_firesweapon_a__fire1.level.effect` (`effect/binary__/releasebin/<stem>.pae`),
     #: grafted into the item's own prefabs as an `EffectComponent`. None for none. Any
@@ -253,7 +263,7 @@ class NewItemSpec:
     def needs_own_family(self) -> bool:
         """The item gets prefabs, mesh and side files of its own under its stem."""
 
-        return self.model_source is ModelSource.IMPORTED or self.effect is not None
+        return self.model_source is ModelSource.IMPORTED or self.effect is not None or bool(self.variants)
 
     @property
     def needs_new_stem(self) -> bool:

@@ -231,7 +231,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         perks.own_perks.setChecked(True)
         self.assertTrue(perks.perk_results.isVisibleTo(perks))
         self.assertFalse(perks.catalogue.isVisibleTo(perks), "the legacy combo is data-only")
-        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks (experimental)", "Effects"])
+        self.assertEqual([perks.tabs.tabText(index) for index in range(perks.tabs.count())], ["Perks (experimental)", "Effects", "Available sockets", "Inherent bonuses"])
         self.assertIs(perks.tabs.currentWidget(), perks.perks_page, "customizing perks reveals the Perks tab")
         perks.tabs.setCurrentWidget(perks.effects_page)
         self.assertFalse(perks._legacy_intro.isVisibleTo(perks), "the retired page intro does not float over the tabs")
@@ -472,10 +472,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             panel.preview_group.layout().indexOf(panel.preview_holder),
             panel.preview_group.layout().indexOf(panel.preview_note),
         )
-        self.assertEqual(panel.matches.columnCount(), 4)
+        self.assertEqual(panel.matches.columnCount(), 5)
         self.assertEqual(
             [panel.matches.headerItem().text(column) for column in range(panel.matches.columnCount())],
-            ["Internal name:", "Item Name", "Key", "Type"],
+            ["Internal name:", "Item Name", "Key", "Type", "Authoring"],
         )
         for column in range(panel.matches.columnCount()):
             self.assertEqual(panel.matches.header().sectionResizeMode(column), QHeaderView.ResizeMode.Interactive)

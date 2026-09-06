@@ -252,17 +252,11 @@ class VanillaStoreTests(unittest.TestCase):
         from tools.placement_studio import corpus
         from cdmw.core.archive_extraction import read_archive_entry_data
 
-        if not corpus.game_root().is_dir():
-            self.skipTest("needs the installed game")
-        wanted = {"gamedata/binary__/client/bin/storeinfo.pabgb", "gamedata/binary__/client/bin/storeinfo.pabgh"}
-        found = {}
-        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
-            path = corpus.normalize_game_path(entry.path)
-            if path in wanted:
-                found[path.rsplit(".", 1)[-1]] = read_archive_entry_data(entry)[0]
-        if len(found) != 2:
-            self.skipTest("storeinfo not found in the archives")
-        rows = parse_store_table(found["pabgb"], found["pabgh"])
+        from tools.new_item_corpus import read_table
+        pair = read_table("storeinfo")
+        found = {"pabgb": pair.payload, "pabgh": pair.header}
+        layout = pair.descriptor["layout"]
+        rows = parse_store_table(found["pabgb"], found["pabgh"], layout=layout)
         self.assertGreater(len(rows), 400)
         entries = 0
         for row in rows:
@@ -283,7 +277,7 @@ class VanillaStoreTests(unittest.TestCase):
         self.assertEqual(len(swapped.raw), len(black_market.raw))
         grown = insert_stock_entry(by_name["Store_Camp_Equipment"], CLONE)
         payload, header = apply_store_row(found["pabgb"], found["pabgh"], grown)
-        again = store_index(parse_store_table(payload, header))
+        again = store_index(parse_store_table(payload, header, layout=layout))
         self.assertEqual(again["Store_Camp_Equipment"].entries_for(CLONE)[0].stock_index, 112)
         self.assertEqual(again["Store_Pai_BlackMarket"].raw, black_market.raw)
 

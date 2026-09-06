@@ -243,7 +243,7 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(harness.started, [])
         self.assertIn("not a descriptor row", harness._status.message)
 
-    def test_the_swap_waits_for_the_clip_index_rather_than_only_starting_it(self) -> None:
+    def test_the_workspace_starts_clip_index_without_blocking(self) -> None:
         """The dialog builds its donor rows inside its constructor.
 
         With the index merely started, the pair generator runs against an empty one and the
@@ -255,7 +255,7 @@ class HandlerTests(unittest.TestCase):
         harness = _Harness()
         _open(harness, _plan_for(harness, "Pelvis_R_Socket"))
         self.assertTrue(harness.asked_for_clip_index)
-        self.assertTrue(harness.waited_for_clip_index)
+        self.assertFalse(harness.waited_for_clip_index)
 
     def test_cancelling_changes_nothing(self) -> None:
         harness = _Harness()
@@ -317,9 +317,26 @@ class OneOperationTests(unittest.TestCase):
         self.assertGreater(len(rows), 1)
         # One clip read, the rest unreadable. That used to vanish into a success message, so a
         # partly applied swap read as a whole one.
-        harness._apply_move_operation(plan, {rows[0].target_path: b"donor bytes"})
-        self.assertIn("could not be read", harness._status.message)
-        self.assertIn(f"{len(rows) - 1} could not be read", harness._status.message)
+        before = harness._edits.preview()
+        with unittest.mock.patch("PySide6.QtWidgets.QMessageBox.warning"):
+            harness._apply_move_operation(plan, {rows[0].target_path: b"donor bytes"})
+        self.assertIn("missing", harness._status.message)
+        self.assertEqual(harness._edits.preview(), before)
+        self.assertEqual(harness._edits.operations(), [])
+        self.assertEqual(harness.reported, [])
+
+    def test_worker_never_publishes_a_partial_selection(self) -> None:
+        harness = _Harness()
+        rows = _plan_for(harness, "Pelvis_R_Socket").request.replacements
+        worker = window_carry._SwapWorker([(r.target, r.donor) for r in rows])
+        results = []
+        worker.done.connect(lambda data, error: results.append((data, error)))
+        with unittest.mock.patch("tools.placement_studio.clips.read_clip",
+                                 side_effect=[b"first", OSError("unreadable")]):
+            worker.run()
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0][0])
+        self.assertIn("unreadable", results[0][1])
 
     def test_a_blocked_plan_records_nothing(self) -> None:
         harness = _Harness()

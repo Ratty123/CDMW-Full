@@ -396,7 +396,7 @@ def test_native_graph_full_rust_pixels_match_python_material_oracle(
     if not NATIVE_PREVIEW_CORE.is_file():
         pytest.skip("Release Native Preview Core helper is unavailable")
     if not RUST_PREVIEW.is_file():
-        pytest.skip("Release Rust Preview helper is unavailable")
+        pytest.skip("Release Preview helper is unavailable")
 
     # The compiled native owner/parameter/channel self-test is the source-side
     # guard; the pixel comparison below is the independent composition guard.

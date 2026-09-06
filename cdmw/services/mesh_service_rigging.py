@@ -66,6 +66,11 @@ def _with_session_export_lock(method):
 
 class MeshRiggingServiceMixin:
     @_with_session_export_lock
+    def set_skeleton_resolution_reason(self, session_id: str, reason: str) -> None:
+        """Retain an automatic attachment diagnostic for the editor session."""
+        self._session(session_id).skeleton_resolution_reason = str(reason or "").strip()
+
+    @_with_session_export_lock
     def skeleton_summary(
         self,
         session_id: str,
@@ -119,6 +124,7 @@ class MeshRiggingServiceMixin:
         session = self._session(session_id)
         _require_clean_python_skeleton_state(session)
         session.skeleton = skeleton
+        session.skeleton_resolution_reason = ""
         session.skeleton_source = str(source_path or getattr(skeleton, "path", "") or "")
         session.skeleton_descriptor_source = str(skeleton_descriptor_source or "")
         session.skeleton_variation_source = str(skeleton_variation_source or "")

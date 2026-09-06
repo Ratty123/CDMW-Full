@@ -687,6 +687,9 @@ class RemoteArchiveFinderDialog(QDialog):
         if not item_ids:
             QMessageBox.information(self, self.windowTitle(), "Select at least one catalogue row first.")
             return
+        row = self._rows.get(item_ids[0])
+        if row is None or not (row.pac_files or row.model_stems or row.icon_paths):
+            return
         label = self._rows[item_ids[0]].display_name if len(item_ids) == 1 else f"{len(item_ids):,} selected items"
         self._start_scope(
             ItemCatalogScopeRequest(
@@ -880,8 +883,10 @@ class RemoteArchiveFinderDialog(QDialog):
         self._previous_button.setEnabled(not busy and self._page_start > 0)
         self._next_button.setEnabled(not busy and self._page_start + self._page_size < self._total_matches)
         has_selection = bool(self._selected_item_ids())
-        self._exact_button.setEnabled(not busy and has_selection)
-        self._related_button.setEnabled(not busy and has_selection)
+        row = self._selected_row()
+        has_assets = row is not None and bool(row.pac_files or row.model_stems or row.icon_paths)
+        self._exact_button.setEnabled(not busy and has_assets)
+        self._related_button.setEnabled(not busy and has_assets)
         self._clone_button.setEnabled(has_selection and callable(getattr(self._window, "open_new_item_studio", None)))
 
     def _clone_selected_as_new_item(self) -> None:

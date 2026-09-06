@@ -33,7 +33,7 @@ def atomic_preview_publication(builder):
             result = builder(*args, **{**kwargs, "output_package_dir": package_dir})
             cancelled = kwargs.get("cancelled")
             if cancelled is not None and cancelled():
-                raise RunCancelled("Rust preview package preparation cancelled.")
+                raise RunCancelled("preview package preparation cancelled.")
             # Windows rename refuses an existing destination. Never overwrite a
             # resident/cached package, including a concurrent publisher's output.
             published = replace(
@@ -58,21 +58,21 @@ def validate_preview_files(package_dir: Path, payload: dict) -> None:
 
     root = package_dir.resolve(strict=True)
     if not str(payload.get("session_id", "")).strip() or int(payload.get("process_generation", 0)) <= 0:
-        raise ValueError("Rust preview session identity is missing")
+        raise ValueError("preview session identity is missing")
     policy = payload.get("output_policy")
     if not isinstance(policy, dict) or policy.get("policy") != "read_only_preview" or policy.get("archive_writes") is not False:
-        raise ValueError("Rust preview output policy must be read-only")
+        raise ValueError("preview output policy must be read-only")
     reference_fields = {"path", "data_type", "count", "byte_length", "sha256", "content_type"}
     for name in ("document", "channels"):
         value = payload.get(name)
         if not isinstance(value, dict) or not reference_fields <= value.keys():
-            raise ValueError(f"Rust preview {name} reference is missing")
+            raise ValueError(f"preview {name} reference is missing")
 
     for group in ("textures", "effect_textures"):
         for texture in payload.get(group, ()):
             value = texture.get("file") if isinstance(texture, dict) else None
             if not isinstance(value, dict) or not reference_fields <= value.keys():
-                raise ValueError(f"Rust preview {group} file reference is missing")
+                raise ValueError(f"preview {group} file reference is missing")
 
     verified = {}
 
@@ -83,35 +83,35 @@ def validate_preview_files(package_dir: Path, payload: dict) -> None:
         elif isinstance(value, dict):
             if "path" in value and {"byte_length", "data_type", "content_type"}.intersection(value):
                 if not reference_fields <= value.keys():
-                    raise ValueError("Rust preview resource reference is incomplete")
+                    raise ValueError("preview resource reference is incomplete")
                 if not isinstance(value["count"], int) or isinstance(value["count"], bool) or value["count"] < 0:
-                    raise ValueError("Rust preview resource count is invalid")
+                    raise ValueError("preview resource count is invalid")
                 name = str(value["path"])
                 relative = PurePosixPath(name.replace("\\", "/"))
                 if not name or relative.is_absolute() or any(part in {"..", "."} or ":" in part for part in relative.parts):
-                    raise ValueError("Rust preview resource path is not contained")
+                    raise ValueError("preview resource path is not contained")
                 candidate = (root / Path(*relative.parts)).resolve(strict=True)
                 candidate.relative_to(root)
                 size = int(value["byte_length"])
                 digest = str(value["sha256"]).upper()
                 identity = (size, digest)
                 if size < 0 or size > 512 * 1024 * 1024 or candidate.stat().st_size != size:
-                    raise ValueError("Rust preview resource size does not match")
+                    raise ValueError("preview resource size does not match")
                 if candidate in verified:
                     if verified[candidate] != identity:
-                        raise ValueError("Rust preview resource has conflicting identities")
+                        raise ValueError("preview resource has conflicting identities")
                     return
                 with candidate.open("rb") as stream:
                     actual = hashlib.file_digest(stream, "sha256").hexdigest().upper()
                 if len(digest) != 64 or actual != digest:
-                    raise ValueError("Rust preview resource SHA-256 does not match")
+                    raise ValueError("preview resource SHA-256 does not match")
                 verified[candidate] = identity
                 if value.get("content_type") == "application/json":
                     # Geometry/channels JSON may contain additional references.
                     with candidate.open(encoding="utf-8") as stream:
                         nested = json.load(stream)
                     if not isinstance(nested, dict):
-                        raise ValueError("Rust preview JSON resource is not an object")
+                        raise ValueError("preview JSON resource is not an object")
                     visit(nested)
             else:
                 for item in value.values():

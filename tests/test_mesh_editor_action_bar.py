@@ -4134,7 +4134,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual(0, workspace.log_list.count())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
-        self.assertIn("Slow Rust preview frame: 33.40 ms", workspace.log_list.item(0).text())
+        self.assertIn("Slow preview frame: 33.40 ms", workspace.log_list.item(0).text())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
         app.processEvents()
@@ -4558,7 +4558,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    @unittest.skip("Rust latest-wins reopen coverage replaces the Vortice handoff path.")
+    @unittest.skip("latest-wins reopen coverage replaces the Vortice handoff path.")
     def test_mesh_editor_tab_loads_a_second_mesh_into_a_released_resident_helper(self) -> None:
         """A second mesh must open in a Mesh Editor that already showed one.
 
@@ -4892,7 +4892,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab._poll_standalone_native_preview_status()
 
             self.assertEqual("Uploading geometry", tab.standalone_status_label.text())
-            self.assertEqual(("Rust preview: Uploading geometry", False), messages[-1])
+            self.assertEqual(("preview: Uploading geometry", False), messages[-1])
 
             status_file.write_text(
                 json.dumps(
@@ -4908,8 +4908,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             )
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual("Rust preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
-            self.assertEqual(("Rust preview loaded.", False), messages[-1])
+            self.assertEqual("preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
+            self.assertEqual(("preview loaded.", False), messages[-1])
             self.assertEqual("loaded", tab.standalone_native_last_status_payload["event"])
             perf = tab.standalone_workspace.findChild(QLabel, "MeshEditorNativePerformanceStatus")
             panel = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorPerformancePanel")
@@ -4927,8 +4927,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             status_file.write_text(json.dumps({"event": "error", "message": "device lost"}), encoding="utf-8")
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual("Rust preview error: device lost", tab.standalone_status_label.text())
-            self.assertEqual(("Rust preview error: device lost", True), messages[-1])
+            self.assertEqual("preview error: device lost", tab.standalone_status_label.text())
+            self.assertEqual(("preview error: device lost", True), messages[-1])
             self.assertEqual("FPS: -- | Frame: -- ms", perf.text())
         app.processEvents()
         tab.deleteLater()
@@ -4961,7 +4961,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    @unittest.skip("Bundled Rust preflight replaces the retired native/Vortice availability path.")
+    @unittest.skip("Bundled preflight replaces the retired native/Vortice availability path.")
     def test_mesh_editor_tab_reports_native_editor_unavailable_and_disables_native_tools(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeUnavailable"))

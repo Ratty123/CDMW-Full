@@ -142,6 +142,9 @@ class IsolationTests(unittest.TestCase):
                 "cdmw.core.archive_extraction",
                 "cdmw.core.archive_format",
                 "cdmw.core.mod_package",
+                # Active archive precedence and explicit equipment/blendspace records.
+                "cdmw.core.papgt_format",
+                "cdmw.core.prefab_binary",
                 # Rig-behaviour formats the Studio reads and writes. Core-level and
                 # UI-free, so they keep the isolation this guard exists to protect.
                 "cdmw.core.papr_format",

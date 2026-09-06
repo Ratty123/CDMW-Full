@@ -641,7 +641,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("build_hkx_editable_geometry_json", source)
         self.assertIn("build_hkx_converter_corpus_json", source)
         self.assertIn("build_hkx_converter_corpus_csv", source)
-        self.assertIn("Native Rust preflight", source)
+        self.assertIn("Native preflight", source)
         self.assertIn("native_fast_scan", source)
         self.assertIn("representative_real_hkx_corpus_plan", source)
         self.assertIn("Representative real HKX corpus", source)

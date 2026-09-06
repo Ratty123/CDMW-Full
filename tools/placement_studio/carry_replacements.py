@@ -36,7 +36,7 @@ def _target_entries(entries, unit, scope: "AnimationScope"):
     return out
 
 
-def rank_donors(target_name: str, candidates):
+def rank_donors(target_name: str, candidates, *, destination_zone="", reach_index=None):
     """The nearest stand-in, not merely the first one alphabetically.
 
     Signature matching ignores the stance and take numbers so a clip with no exact twin still
@@ -46,9 +46,15 @@ def rank_donors(target_name: str, candidates):
 
     wanted = counterpart_names(target_name)
     rank = {name: position for position, name in enumerate(wanted)}
+    def measured(entry):
+        reach = reach_index.reach(entry.name) if reach_index is not None else None
+        if reach is None or not reach.confident or not destination_zone:
+            return (1, float("inf"))
+        return (0 if reach.zone == destination_zone else 2, reach.distance)
     return sorted(
         candidates,
         key=lambda entry: (
+            measured(entry),
             rank.get(str(getattr(entry, "name", "")), len(rank)),
             str(getattr(entry, "name", "")),
         ),
@@ -61,6 +67,7 @@ def swappable_pairs(
     scope: Optional["AnimationScope"] = None,
     *,
     destination_zone: str = "",
+    reach_index=None,
 ) -> Tuple[AnimationReplacement, ...]:
     """Target/donor pairs for one equipment unit, at one scope.
 
@@ -126,7 +133,7 @@ def swappable_pairs(
             candidates = elsewhere.get(motion) if motion else None
         if not candidates:
             continue
-        ranked = rank_donors(name, candidates)
+        ranked = rank_donors(name, candidates, destination_zone=destination_zone, reach_index=reach_index)
         chosen = ranked[0]
         donor_name = str(getattr(chosen, "name", "") or "")
         out.append(

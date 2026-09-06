@@ -286,6 +286,8 @@ def package_signature(root: Optional[Path] = None) -> List[list]:
 
     base = Path(root) if root is not None else game_root()
     paths = set(discover_pamt_files(base))
+    if (base / "meta/0.papgt").exists():
+        paths.add(base / "meta/0.papgt")
     try:
         paths |= set(base.rglob("*.paz"))
     except OSError:

@@ -198,7 +198,7 @@ def normalize_rust_preview_material_quality(value: object) -> str:
 
     quality = str(value or "full").strip().casefold()
     if quality not in _RUST_PREVIEW_MATERIAL_QUALITIES:
-        raise ValueError(f"Unsupported Rust preview material quality: {quality}")
+        raise ValueError(f"Unsupported preview material quality: {quality}")
     return quality
 
 
@@ -338,7 +338,7 @@ def _part_identities(mesh: ParsedMesh) -> list[dict[str, object]]:
 
 def _cancelled(cancelled: Callable[[], bool] | None) -> None:
     if cancelled is not None and cancelled():
-        raise RunCancelled("Rust preview package preparation cancelled.")
+        raise RunCancelled("preview package preparation cancelled.")
 
 
 def _preview_core_int(value: object, fallback: int = 0) -> int:
@@ -1158,25 +1158,25 @@ def _validated_preview_core_source(preview_core_package_dir, source_manifest):
     raw_batches = manifest.get("batches")
     raw_material_conservation = manifest.get("material_conservation")
     if source_schema < _PREVIEW_CORE_SCHEMA_MINIMUM:
-        raise ValueError("Direct Rust preview requires Preview Core schema 8 or newer.")
+        raise ValueError("Direct preview requires Preview Core schema 8 or newer.")
     if (
         material_graph_version != _PREVIEW_CORE_MATERIAL_GRAPH_VERSION
         or material_semantics_version != _PREVIEW_CORE_MATERIAL_SEMANTICS_VERSION
     ):
         raise ValueError(
-            "Direct Rust preview requires Preview Core material graph v4 and semantics v10."
+            "Direct preview requires Preview Core material graph v4 and semantics v10."
         )
     if (
         not isinstance(raw_material_conservation, Mapping)
         or raw_material_conservation.get("conserved") is not True
     ):
         raise ValueError(
-            "Direct Rust preview requires a conserved Preview Core material graph."
+            "Direct preview requires a conserved Preview Core material graph."
         )
     if center is None or abs(scale) <= 1.0e-12:
         raise ValueError("Preview Core normalization is invalid.")
     if source_format not in {"pac", "pam", "pamlod"}:
-        raise ValueError("Preview Core source format is not supported by Rust Preview.")
+        raise ValueError("Preview Core source format is not supported by Preview.")
     if (
         not isinstance(raw_batches, Sequence)
         or isinstance(raw_batches, (str, bytes, bytearray))
@@ -1505,13 +1505,13 @@ def build_rust_preview_package(
     quality = normalize_rust_preview_material_quality(material_quality)
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
-        raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
+        raise ValueError(f"Unsupported preview interaction profile: {profile}")
     mode = str(
         interaction_mode
         or ("mesh_edit" if profile == "static_replacement" else "preview")
     ).strip().lower()
     if mode not in {"preview", "placement", "mesh_edit"}:
-        raise ValueError(f"Unsupported Rust preview interaction mode: {mode}")
+        raise ValueError(f"Unsupported preview interaction mode: {mode}")
     _cancelled(cancelled)
     root = (
         Path(output_root)
@@ -1619,10 +1619,10 @@ def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
         package_dir = package_dir.parent
     manifest_path = package_dir / "manifest.json"
     if manifest_path.stat().st_size > 16 * 1024 * 1024:
-        raise ValueError("Rust preview manifest exceeds its size limit")
+        raise ValueError("preview manifest exceeds its size limit")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError("Rust preview manifest is not an object")
+        raise ValueError("preview manifest is not an object")
     expected = {
         "schema": RUST_PREVIEW_PACKAGE,
         "protocol": RUST_PREVIEW_PROTOCOL,
@@ -1631,7 +1631,7 @@ def _read_preview_manifest(path: Path | str) -> tuple[Path, dict]:
     }
     for key, value in expected.items():
         if str(payload.get(key, "") or "") != value:
-            raise ValueError(f"Rust preview manifest {key} does not match")
+            raise ValueError(f"preview manifest {key} does not match")
     return package_dir, payload
 
 

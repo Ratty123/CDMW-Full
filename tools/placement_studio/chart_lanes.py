@@ -56,7 +56,7 @@ SITUATIONS: Tuple[Tuple[str, str], ...] = (
     ("interactive", "Interacting"),
 )
 
-_CACHE_VERSION = 1
+_CACHE_VERSION = 2
 
 
 def situation_of_chart(chart_name: str) -> str:
@@ -110,19 +110,23 @@ def build(game_root, model: str, *, should_stop=None) -> Dict[str, str]:
 def load(game_root, model: str, *, should_stop=None) -> Dict[str, str]:
     """The cached index, building it once if there is none."""
 
+    from .corpus import package_signature
+    identity = package_signature(Path(game_root))
     path = _cache_file(model)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        if raw.get("version") == _CACHE_VERSION and raw.get("lanes"):
+        if raw.get("version") == _CACHE_VERSION and raw.get("lanes") and raw.get("source_identity") == identity:
             return dict(raw["lanes"])
     except (OSError, ValueError):
         pass
     lanes = build(game_root, model, should_stop=should_stop)
+    if (should_stop and should_stop()) or package_signature(Path(game_root)) != identity:
+        raise RuntimeError("Chart inspection cancelled or installation changed; refresh required")
     if lanes:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(
-                json.dumps({"version": _CACHE_VERSION, "lanes": lanes}), encoding="utf-8"
+                json.dumps({"version": _CACHE_VERSION, "lanes": lanes, "source_identity": identity}), encoding="utf-8"
             )
         except OSError:
             pass

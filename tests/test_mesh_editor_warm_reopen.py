@@ -19,7 +19,7 @@ from tests.test_mesh_editor_action_bar import (
 
 pytestmark = pytest.mark.skip(
     reason=(
-        "The direct Vortice warm-helper reuse policy is retired; Rust close/reopen "
+        "The direct Vortice warm-helper reuse policy is retired; close/reopen "
         "uses a fresh shadow and owned process generation."
     )
 )

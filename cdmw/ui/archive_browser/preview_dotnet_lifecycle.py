@@ -237,7 +237,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             self.current_archive_preview_result = pending_result
             self._refresh_archive_preview_details_text()
             self.shell.set_status_message(
-                "Textures loaded in the resident Rust Preview preview."
+                "Textures loaded in the resident Preview."
                 if show_textures
                 else "Textures prepared; geometry remains untextured."
             )
@@ -435,7 +435,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             error=True,
         )
         self._set_archive_isolated_renderer_debug(
-            f"Rust Preview: presentation update rejected: {reason}"
+            f"Preview: presentation update rejected: {reason}"
         )
 
     def _start_archive_native_preview_prefetch(self) -> None:

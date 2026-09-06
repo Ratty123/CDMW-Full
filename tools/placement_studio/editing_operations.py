@@ -219,6 +219,8 @@ class EditOperation:
     #: Set once the user has looked at the orientation in the viewport and said it is right.
     #: A borrowed or hand-authored aim must not be packaged without it.
     orientation_reviewed: bool = False
+    #: Additive, immutable evidence for exact preparation; empty on legacy operations.
+    preparation_json: str = ""
 
     @property
     def empty(self) -> bool:
@@ -309,7 +311,7 @@ class OperationHandle:
     """
 
     __slots__ = ("_session", "operation_id", "scope", "label", "_mark", "_order", "_closed",
-                 "_warnings", "_orientation_sources", "_orientation_reviewed")
+                 "_warnings", "_orientation_sources", "_orientation_reviewed", "preparation_json")
 
     def __init__(self, session: "EditSession", operation_id: str, scope: OperationScope,
                  *, label: str = "", mark: int = 0) -> None:
@@ -323,6 +325,7 @@ class OperationHandle:
         self._warnings: List[str] = []
         self._orientation_sources: Dict[str, str] = {}
         self._orientation_reviewed = False
+        self.preparation_json = ""
 
     # ── recording ───────────────────────────────────────────────────
 

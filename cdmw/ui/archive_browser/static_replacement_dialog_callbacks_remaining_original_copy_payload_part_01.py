@@ -122,10 +122,10 @@ def _remaining_original_copy_payload_step_004(_state):
             if callable(replacer):
                 replacer((int(source_index),))
                 return
-            _state.self.shell.set_status_message('Rust Preview copied-source preview commands are unavailable; preview is stale. Retry Rust Preview to resync.', error=True)
+            _state.self.shell.set_status_message('Preview copied-source preview commands are unavailable; preview is stale. Retry Preview to resync.', error=True)
             return
         if _state._copied_original_mesh_edit_active():
-            _state.self.shell.set_status_message('Active Mesh Editor copied-source preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.', error=True)
+            _state.self.shell.set_status_message('Active Mesh Editor copied-source preview requires Preview refresh; Python preview rebuild fallback is disabled.', error=True)
             return
         _state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)
         _state._queue_static_preview_rebuild()

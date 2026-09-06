@@ -110,7 +110,7 @@ class PlacementSession:
 
     __slots__ = ("model", "hierarchy", "_resolver", "_body_sockets", "_placed", "_weapon",
                  "warnings", "_bind_hierarchy", "_usage_cache", "pose_matrices",
-                 "skeleton_path")
+                 "skeleton_path", "_equipment_models", "_equipment_model_errors")
 
     def __init__(
         self,
@@ -128,6 +128,8 @@ class PlacementSession:
         #: per-rig files that sit beside the skeleton (`.papr`, and the pose-modifier
         #: descriptor's keys) are keyed on the rig, not on the variant.
         self.skeleton_path = skeleton_path
+        self._equipment_models = ()
+        self._equipment_model_errors = ()
         self._resolver = resolver
         self._body_sockets: Dict[str, Socket] = resolver.body_sockets(model)
         self._weapon: Optional[WeaponSocketFile] = None
@@ -210,7 +212,8 @@ class PlacementSession:
         return self._weapon
 
     def weapons(self) -> List[WeaponSocketFile]:
-        return self._resolver.weapons(model=self.model)
+        from .equipment_assets import model_variants
+        return model_variants(self._resolver.weapons(model=self.model), getattr(self, '_equipment_models', ()))
 
     def select_weapon(self, weapon: Optional[WeaponSocketFile]) -> None:
         """Choose the item whose child sockets apply. Child sockets are per weapon model."""
@@ -529,6 +532,9 @@ class PlacementSession:
             in_child_socket=primary.in_child_socket,
             out_socket=primary.out_socket,
             out_child_socket=primary.out_child_socket,
+            mesh_path=getattr(asset, 'mesh_path', ''),
+            prefab_path=getattr(asset, 'prefab_path', ''),
+            shrink_tag=getattr(asset, 'shrink_tag', ''),
         )
 
     def child_socket_users(self, socket_name: str) -> Tuple[str, ...]:

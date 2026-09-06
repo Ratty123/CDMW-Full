@@ -55,7 +55,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import MAX_SHIPPED_SOCKET_SLOTS, ValidationIssue
 from cdmw.domain.new_item.spec import UNLIMITED_STOCK, EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
-from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
+from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError, TablePair
 from cdmw.services.new_item_effect_targets import inspect_effect_targets, is_sheathed_family_part
 
 
@@ -96,6 +96,9 @@ class NewItemPlan:
     #: Loose index files beside the archives to rewrite on install (`meta/0.pathc` with
     #: the new textures registered). Not part of a loose mod: the managers build it.
     meta_files: Tuple[MetaFileWrite, ...] = ()
+    # Worker handoff only; never part of the mod manifest or exported package.
+    refreshed_snapshot: Optional[NewItemSnapshot] = field(default=None, repr=False, compare=False)
+    source_revision: object = field(default=None, repr=False, compare=False)
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
@@ -132,6 +135,10 @@ class _Planner:
     icon_string: str = ""
     icon_hash: int = 0
     enhancement_map: Dict[int, int] = field(default_factory=dict)
+    recipe_keys: Optional[Tuple[int, ...]] = None
+    recipe_source_keys: Optional[Tuple[int, ...]] = None
+    variant_models: Mapping[tuple, ModelFiles] = field(default_factory=dict)
+    variant_plan: object = None
     #: What the graft names: the shipped effect, or the clone with the item's look.
     effect_reference: str = ""
 
@@ -164,8 +171,15 @@ class _Planner:
         return self.spec.needs_own_family
 
     def patch(self, entry: ArchiveEntry, payload: bytes, what: str) -> None:
+        # A table has one final payload even when multiple authoring operations edit it.
+        self.patches[:] = [request for request in self.patches if request.entry.path.lower() != entry.path.lower()]
         self.patches.append(ArchivePatchRequest(entry=entry, payload_data=bytes(payload)))
         self.summary.append(what)
+
+    def table_data(self, pair: TablePair) -> Tuple[bytes, bytes]:
+        changed = {request.entry.path.lower(): request.payload_data for request in self.patches}
+        return (bytes(changed.get(pair.payload_entry.path.lower(), pair.payload)),
+                bytes(changed.get(pair.header_entry.path.lower(), pair.header)))
 
     def add(self, template_entry: ArchiveEntry, path: str, payload: bytes, what: str) -> None:
         if self.snapshot.has_entry(path):
@@ -178,13 +192,15 @@ class _Planner:
     def owned_stem_map(self) -> Mapping[str, str]:
         """old part stem -> new part stem for the template's owned prefabs."""
 
+        if self.variant_plan is not None:
+            return self.variant_plan.stem_map
         return {part.stem: self.family.rename_stem(part.stem, self.new_stem) for part in self.family.owned_parts if part.record is not None}
 
     @property
     def owns_sheathed_parts(self) -> bool:
         """The item gets sheathed (`_IN`) parts of its own drawing the imported mesh."""
 
-        return self.spec.model_source is ModelSource.IMPORTED and self.spec.sheathed_model is SheathedModel.OWN_MODEL
+        return self.variant_plan is None and self.spec.model_source is ModelSource.IMPORTED and self.spec.sheathed_model is SheathedModel.OWN_MODEL
 
     def sheathed_parts(self) -> Tuple[FamilyPart, ...]:
         """The template's borrowed `_IN` parts (the sheathed look), with a readable record and mesh."""
@@ -244,6 +260,10 @@ class _Planner:
         self.patch(pair.header_entry, header, "StringInfo directory")
 
     def plan_part_prefabs(self) -> None:
+        if self.variant_plan is not None:
+            from cdmw.services.new_item_variants import plan_variant_records
+            plan_variant_records(self)
+            return
         if not self.clones_model:
             return
         mapping = self.owned_stem_map()
@@ -259,9 +279,14 @@ class _Planner:
         self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
 
     def plan_enhancements(self) -> None:
-        """Clone the template's own transition rows for the new item, when the spec asks for it."""
+        """Preserve inherited progression with owned references on current tables."""
 
         self.manifest["enhancement_rows"] = None
+        current = self.snapshot.sources and self.snapshot.sources.static_layout
+        if self.spec.recipes is not None or (current and (self.snapshot.multichange_rows or self.spec.enhancement is EnhancementRows.OWN)):
+            from cdmw.services.new_item_recipes import plan_recipes
+            self.recipe_keys = plan_recipes(self)
+            return
         if self.spec.enhancement is not EnhancementRows.OWN:
             return
         pair = self.snapshot.multichange
@@ -300,8 +325,13 @@ class _Planner:
             replace_hashes=hashes or None,
         )
         row_bytes = self._apply_row_edits(row_bytes)
+        if self.recipe_keys is not None:
+            from cdmw.services.new_item_recipes import replace_recipe_references
+            cloned = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(self.spec.item_key)})
+            row_bytes = replace_recipe_references(cloned, self.snapshot.multichange_rows, self.recipe_keys,
+                                                 source_keys=self.recipe_source_keys)
         pair = self.snapshot.iteminfo
-        payload, header = append_table_rows(pair.payload, pair.header, [row_bytes])
+        payload, header = append_table_rows(*self.table_data(pair), [row_bytes])
         self.manifest["iteminfo"] = {
             "template_key": template.key, "template_name": template.string_key,
             "item_key": int(self.spec.item_key), "internal_name": self.spec.internal_name,
@@ -322,7 +352,7 @@ class _Planner:
         sockets = None if spec.socket_items is None else tuple(int(item) for item in spec.socket_items)
         if sockets is not None and sockets == tuple(row.socket_items):
             sockets = None
-        if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits) and sockets is None:
+        if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits) and sockets is None and spec.socket_slots is None and spec.equipment_bonuses is None:
             return row_bytes
         if row.stat_block_offset is None:
             raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited")
@@ -349,8 +379,21 @@ class _Planner:
         prices = row.price_list
         for edit in spec.price_edits:
             prices = price_list_with(prices, int(edit.item_key), int(edit.price))
-        slots = None
-        if sockets is not None and len(sockets) > len(row.add_socket_materials):
+        if spec.equipment_bonuses is not None:
+            from cdmw.services.new_item_equipment_bonuses import apply_equipment_bonuses, load_equipment_bonuses
+            index = load_equipment_bonuses(self.snapshot, stop_event=self.stop_event) if spec.equipment_bonuses else None
+            levels = apply_equipment_bonuses(levels, spec.equipment_bonuses, index)
+            self.manifest["equipment_bonuses"] = [{"level": level.level, "bonuses": [
+                {"buff_key": key, "parameter": value} for key, value in zip(level.equip_buffs, level.equip_buff_extras)]} for level in levels]
+            self.summary.append(f"Inherent bonuses: {sum(len(level.equip_buffs) for level in levels)} selections across {len(levels)} enhancement levels")
+        slots = None if spec.socket_slots is None else tuple(slot.record() for slot in spec.socket_slots)
+        if slots is not None:
+            selected = row.socket_items if sockets is None else sockets
+            if len(selected) > len(slots):
+                raise NewItemPlanError("The selected perks need more slots. Increase capacity or explicitly remove perks.")
+            if any(key not in self.snapshot.rows for key, _amount, _extra in slots):
+                raise NewItemPlanError("A socket unlock material is not an item in the active tables.")
+        if slots is None and sockets is not None and len(sockets) > len(row.add_socket_materials):
             # a row uses at most as many socket items as it has slots (`_addSocketMaterialList`)
             slots = socket_slots_for(row, len(sockets))
         rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices, socket_items=sockets, add_socket_materials=slots)
@@ -358,7 +401,9 @@ class _Planner:
         if again.stat_block_offset is None or again.enchant_count != len(levels) or (sockets is not None and again.socket_items != sockets):
             raise NewItemPlanError("the rebuilt stat block did not parse back the way it was written")
         if slots is not None:
-            self.summary.append(f"socket slots: grown from {len(row.add_socket_materials)} to {len(slots)} so every socket item has a slot")
+            if spec.socket_slots is None:
+                self.summary.append(f"socket slots: grown from {len(row.add_socket_materials)} to {len(slots)} so every socket item has a slot")
+            self.summary.append(f"socket slots: {len(slots)}; unlock costs: {', '.join(f'{amount} × item {key}' for key, amount, _extra in slots) or 'none'}")
             self.manifest["socket_slots"] = [list(item) for item in slots]
             if len(slots) > MAX_SHIPPED_SOCKET_SLOTS:
                 self.warnings.append(
@@ -424,6 +469,9 @@ class _Planner:
             groups = [g for g in self.snapshot.item_groups if g.key in wanted]
         else:
             groups = list(groups_containing(self.snapshot.item_groups, template_key))
+            if self.spec.item_groups is ItemGroupsChoice.ORDINARY:
+                from cdmw.domain.new_item.groups import ordinary_group
+                groups = [group for group in groups if ordinary_group(group)]
         if not groups:
             self.manifest["item_groups"] = []
             return
@@ -439,41 +487,20 @@ class _Planner:
         self.patch(pair.header_entry, header, "ItemGroupInfo directory")
 
     def plan_store(self) -> None:
-        placement = self.spec.placement
-        if placement.kind is PlacementKind.NONE:
-            self.manifest["store"] = None
-            return
-        store = self.snapshot.store(placement.store_name)
-        if placement.kind is PlacementKind.SWAP:
-            old_key = self.snapshot.keys_by_name.get(placement.old_item_name)
-            if old_key is None:
-                raise NewItemPlanError(f"there is no item named {placement.old_item_name}")
-            updated = swap_stock_item(store, old_key, int(self.spec.item_key), keep_requirement=placement.keep_requirement, count=placement.stock_count)
-            what = f"StoreInfo: {store.name} sells {self.spec.internal_name} instead of {placement.old_item_name}"
-            required = next((e.requirement_item_key for e in store.entries_for(old_key) if e.requirement_item_key is not None), None)
-        else:
-            updated = insert_stock_entry(store, int(self.spec.item_key), keep_requirement=placement.keep_requirement, count=placement.stock_count)
-            what = f"StoreInfo: {store.name} gains a stock entry for {self.spec.internal_name}"
-            required = store.buyable_entries[-1].requirement_item_key if store.buyable_entries else None
-        if required is not None:
-            unlock = self.snapshot.rows.get(required)
-            unlock_name = unlock.string_key if unlock is not None else str(required)
-            if placement.keep_requirement:
-                self.warnings.append(f"The shop line keeps its unlock requirement: the buyer needs the knowledge of {unlock_name} before it sells (the shop shows \"Knowledge\" until then).")
-            else:
-                what += f" (its unlock requirement, the knowledge of {unlock_name}, dropped so it sells freely)"
-        if placement.stock_count is not None:
-            what += " (unlimited stock)" if placement.stock_count == UNLIMITED_STOCK else f" ({placement.stock_count} in stock)"
-        if placement.price is not None:
-            self.warnings.append("StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so the placement price was not written. Use a buy-price edit.")
+        from cdmw.services.new_item_shops import plan_shops
         pair = self.snapshot.storeinfo
-        payload, header = apply_store_row(pair.payload, pair.header, updated)
-        self.manifest["store"] = {
-            "name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None,
-            "requirement_kept": bool(placement.keep_requirement), "stock_count": placement.stock_count,
-        }
-        self.patch(pair.payload_entry, payload, what)
-        self.patch(pair.header_entry, header, "StoreInfo directory")
+        payload, header, summaries, warnings, placements = plan_shops(self.spec, self.snapshot, *self.table_data(pair))
+        self.manifest["store"] = placements[0] if len(placements) == 1 else None
+        self.manifest["stores"] = placements
+        if placements:
+            self.patch(pair.payload_entry, payload, "StoreInfo: selected shop placements")
+            self.patch(pair.header_entry, header, "StoreInfo directory")
+            self.summary.extend(summaries)
+            self.warnings.extend(warnings)
+
+    def plan_acquisition(self) -> None:
+        from cdmw.services.new_item_reward_acquisition import plan_reward_acquisition
+        plan_reward_acquisition(self)
 
     def plan_names(self) -> None:
         template = self.template
@@ -505,6 +532,10 @@ class _Planner:
         self.manifest["localisation"] = written
 
     def plan_model_files(self) -> None:
+        if self.variant_plan is not None:
+            from cdmw.services.new_item_variants import plan_variant_files
+            plan_variant_files(self)
+            return
         if not self.clones_model:
             self.manifest["model_files"] = []
             self.manifest["effect"] = None
@@ -829,6 +860,7 @@ def build_plan(
     snapshot: NewItemSnapshot,
     *,
     model: Optional[ModelFiles] = None,
+    variant_models: Optional[Mapping[tuple, ModelFiles]] = None,
     icon: Optional[NewItemIcon] = None,
     issues: Sequence[ValidationIssue] = (),
     on_log: Optional[Callable[[str], None]] = None,
@@ -842,6 +874,9 @@ def build_plan(
     if spec.needs_new_stem and not spec.stem:
         raise NewItemPlanError("the spec needs a stem and none is allocated")
     planner = _Planner(spec=spec, snapshot=snapshot, model=model, icon=icon, on_log=on_log, stop_event=stop_event)
+    from cdmw.services.new_item_variants import prepare_variant_plan
+    planner.variant_models = dict(variant_models or {})
+    planner.variant_plan = prepare_variant_plan(planner)
     planner.manifest.update({
         "template_key": int(spec.template_key),
         "item_key": int(spec.item_key),
@@ -853,7 +888,7 @@ def build_plan(
     try:
         for step, label in (
             (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_enhancements, "enhancement rows"),
-            (planner.plan_item_row, "item row"),
+            (planner.plan_acquisition, "reward acquisition"), (planner.plan_item_row, "item row"),
             (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
             (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
         ):
@@ -862,9 +897,35 @@ def build_plan(
             step()
     except NewItemSnapshotError as exc:
         raise NewItemPlanError(str(exc)) from exc
-    loose: Dict[str, bytes] = {request.entry.path.replace("\\", "/"): bytes(request.payload_data) for request in planner.patches}
+    loose: Dict[str, bytes] = dict(snapshot.base_payloads)
+    loose.update({request.entry.path.replace("\\", "/"): bytes(request.payload_data) for request in planner.patches})
     for request in planner.additions:
         loose[request.path] = bytes(request.payload_data)
+    planned = {request.entry.path.lower() for request in planner.patches} | {request.path.lower() for request in planner.additions}
+    for path, data in snapshot.base_payloads.items():
+        if path.lower() in planned:
+            continue
+        if path.lower() in snapshot.base_added_paths:
+            planner.additions.append(ArchiveAddRequest.from_template(snapshot.entry(path), path, data))
+        elif snapshot.has_entry(path):
+            planner.patch(snapshot.entry(path), data, f"Preserve base payload: {path}")
+        else:
+            planner.add(snapshot.iteminfo.payload_entry, path, data, f"Preserve added base payload: {path}")
+    revision = snapshot.provenance.capture() if snapshot.provenance else None
+    planner.manifest["sources"] = revision.manifest() if revision else []
+    planner.manifest["tables"] = {name: pair.descriptor for name, pair in (
+        ("iteminfo", snapshot.iteminfo), ("stringinfo", snapshot.stringinfo),
+        ("storeinfo", snapshot.storeinfo), ("itemgroupinfo", snapshot.itemgroupinfo),
+        ("multichangeinfo", snapshot.multichange)) if pair is not None}
+    for index in snapshot._authoring_indexes.values():
+        for name,pair in getattr(index,"pairs",{}).items():
+            planner.manifest["tables"][name] = pair.descriptor
+        if getattr(index,"pair",None) is not None:
+            planner.manifest["tables"]["partprefabdyeslotinfo"] = index.pair.descriptor
+    planner.manifest["generation"] = "current" if snapshot.sources and snapshot.sources.static_layout else "legacy"
+    planner.manifest["previous_items"] = list(snapshot.base_manifest.get("previous_items", ()))
+    if snapshot.base_manifest.get("item_key"):
+        planner.manifest["previous_items"].append(dict(snapshot.base_manifest, previous_items=[]))
     return NewItemPlan(
         spec=spec,
         patches=tuple(planner.patches),
@@ -876,6 +937,7 @@ def build_plan(
         manifest=dict(planner.manifest),
         issues=tuple(issues),
         meta_files=tuple(planner.meta_files),
+        source_revision=revision,
     )
 
 

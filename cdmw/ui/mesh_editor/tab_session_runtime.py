@@ -152,7 +152,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 material_source_identity=material_source_identity,
             )
             self.status_message_requested.emit(
-                "Mesh Editor will open the requested mesh after the current Rust Finish has stopped safely.",
+                "Mesh Editor will open the requested mesh after the current Finish has stopped safely.",
                 False,
             )
             return None
@@ -317,6 +317,10 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.standalone_controller = _tab.MeshEditorController(mesh_service=result.service)
         self.standalone_source_skeleton = result.source_skeleton
         self.standalone_archive_material_preview_model = self.archive_session_load_material_model
+        result.service.set_skeleton_resolution_reason(
+            result.view.session_id,
+            result.skeleton_resolution_reason if result.source_skeleton is None else "",
+        )
         view = self.standalone_controller.attach_session(result.view.session_id)
         self._show_standalone_session(view, mesh=result.mesh, target_entry=entry)
         self._restore_cached_mesh_character_context(entry)
@@ -467,7 +471,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 raise RuntimeError(f"Mesh Editor cannot open: {preflight_reason}")
         if self.close_standalone_session() is False:
             raise RuntimeError(
-                "The current Rust Finish must stop before another mesh session can open."
+                "The current Finish must stop before another mesh session can open."
             )
         self.standalone_compare_mode = "edited"
         self.standalone_controller = _tab.MeshEditorController()
@@ -499,7 +503,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 raise RuntimeError(f"Mesh Editor cannot open: {preflight_reason}")
         if self.close_standalone_session() is False:
             raise RuntimeError(
-                "The current Rust Finish must stop before another mesh file can open."
+                "The current Finish must stop before another mesh file can open."
             )
         self.standalone_compare_mode = "edited"
         mesh_service = _tab.MeshService()
@@ -544,7 +548,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 return None
         if self.close_standalone_session() is False:
             self.status_message_requested.emit(
-                "The mesh file can open after the current Rust Finish has stopped safely.",
+                "The mesh file can open after the current Finish has stopped safely.",
                 False,
             )
             return None
@@ -804,7 +808,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         try:
             payload_text = Path(status_file).read_text(encoding="utf-8")
         except OSError as exc:
-            self.standalone_status_label.setText(f"Rust Preview status read failed: {exc}")
+            self.standalone_status_label.setText(f"Preview status read failed: {exc}")
             return
         if signature == self.standalone_native_status_signature and payload_text == self.standalone_native_status_payload_text:
             return
@@ -813,7 +817,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         try:
             payload = json.loads(payload_text)
         except ValueError as exc:
-            self.standalone_status_label.setText(f"Rust Preview status parse failed: {exc}")
+            self.standalone_status_label.setText(f"Preview status parse failed: {exc}")
             return
         if not isinstance(payload, dict):
             return
@@ -832,16 +836,16 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             vertex_count = int(payload.get("vertex_count", 0) or 0)
             self._request_standalone_native_part_picking(False)
             self.standalone_status_label.setText(
-                f"Rust preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
+                f"preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
             )
-            self.status_message_requested.emit("Rust preview loaded.", False)
+            self.status_message_requested.emit("preview loaded.", False)
         elif event == "loading":
-            message = str(payload.get("message", "") or "Loading Rust preview...")
+            message = str(payload.get("message", "") or "Loading preview...")
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: loading Rust Preview host", available=False)
+                updater("Part pick: loading Preview host", available=False)
             self.standalone_status_label.setText(message)
-            self.status_message_requested.emit(f"Rust preview: {message}", False)
+            self.status_message_requested.emit(f"preview: {message}", False)
         elif event == "error":
             release_package = getattr(
                 self.standalone_native_host or getattr(self, "standalone_native_host_frame", None),
@@ -854,13 +858,13 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             self._request_standalone_native_part_picking(False)
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: unavailable, Rust Preview renderer error", available=False)
-            self.standalone_status_label.setText(f"Rust preview error: {message}")
-            self.status_message_requested.emit(f"Rust preview error: {message}", True)
+                updater("Part pick: unavailable, Preview renderer error", available=False)
+            self.standalone_status_label.setText(f"preview error: {message}")
+            self.status_message_requested.emit(f"preview error: {message}", True)
         elif event == "closed":
             self._request_standalone_native_part_picking(False)
-            self.standalone_status_label.setText("Rust preview closed.")
-            self.status_message_requested.emit("Rust preview closed.", False)
+            self.standalone_status_label.setText("preview closed.")
+            self.status_message_requested.emit("preview closed.", False)
     def _set_standalone_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
         updater = getattr(self.standalone_workspace, "set_native_performance_status", None)
         if callable(updater):
@@ -931,7 +935,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         if self.has_active_standalone_session():
             last_event = str(self.standalone_native_last_status_payload.get("event", "") or "").strip().lower()
             if last_event not in {"error", "closed"}:
-                message = "Rust preview stopped unexpectedly; retrying while this editor remains visible."
+                message = "preview stopped unexpectedly; retrying while this editor remains visible."
                 self.standalone_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
                 return
@@ -939,9 +943,9 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
     def _handle_standalone_native_preview_error(self, process: _tab.QProcess) -> None:
         if self.standalone_native_process is not process:
             return
-        self.standalone_status_label.setText("Rust preview process error; retry scheduled.")
+        self.standalone_status_label.setText("preview process error; retry scheduled.")
         self._set_standalone_native_performance_status(None)
         self._request_standalone_native_part_picking(False)
         updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
         if callable(updater):
-            updater("Part pick: unavailable, Rust Preview process error", available=False)
+            updater("Part pick: unavailable, Preview process error", available=False)

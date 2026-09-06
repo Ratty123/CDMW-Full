@@ -151,7 +151,7 @@ class MeshArchiveSessionLoadWorker(QObject):
             )
             source_skeleton: object | None = None
             skeleton_source_path = ""
-            skeleton_resolution_reason = ""
+            skeleton_resolution_reason = "No archive dependency index was available to find the matching PAB skeleton."
             if self.archive_entries_by_normalized_path or self.archive_entries_by_basename:
                 payload_cache: dict[tuple[str, str, int, int], bytes] = {}
 
@@ -176,6 +176,7 @@ class MeshArchiveSessionLoadWorker(QObject):
                         self.entry,
                         archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
                         archive_entries_by_basename=self.archive_entries_by_basename,
+                        pac_data=payload,
                         read_entry_data=read_dependency,
                     )
                     skeleton_resolution_reason = str(
@@ -194,6 +195,8 @@ class MeshArchiveSessionLoadWorker(QObject):
                             read_dependency(skeleton_entry),
                             skeleton_source_path,
                         )
+                        if not getattr(source_skeleton, "bones", ()):
+                            raise ValueError(f"PAB contains no parsed bones: {skeleton_source_path}")
                         service.attach_skeleton(
                             view.session_id,
                             source_skeleton,

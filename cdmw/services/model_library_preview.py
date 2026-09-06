@@ -500,7 +500,7 @@ def prepare_model_library_inline_preview(
                 lookup_ms=lookup_ms,
             )
             if cached_result is not None:
-                progress("Loaded a validated durable Rust Preview package.")
+                progress("Loaded a validated durable Preview package.")
                 return cached_result
     raise_if_cancelled(stop_event)
     progress(f"Reading model file: {resolved_import_path}")
@@ -553,7 +553,7 @@ def prepare_model_library_inline_preview(
     )
     raise_if_cancelled(stop_event)
     package_started = time.perf_counter()
-    progress("Writing canonical Rust Preview package...")
+    progress("Writing canonical Preview package...")
     material_channel_summary = model_library_preview_material_channel_summary(prepared_preview)
     audit = getattr(scene_result, "external_audit", None)
     quality_reduction_payload = (

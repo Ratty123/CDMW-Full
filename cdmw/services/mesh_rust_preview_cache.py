@@ -82,7 +82,7 @@ def _cancelled(callback: Callable[[], bool] | None) -> bool:
 
 def _check_cancelled(callback: Callable[[], bool] | None) -> None:
     if _cancelled(callback):
-        raise RunCancelled("Rust preview package preparation cancelled.")
+        raise RunCancelled("preview package preparation cancelled.")
 
 
 def _safe_int(value: object, fallback: int = 0) -> int:
@@ -509,7 +509,7 @@ def build_or_lookup_rust_preview_package_with_builder(
                 target_bytes=max(0, int(target_bytes)),
             )
             if hit is None:
-                raise RuntimeError("Rust preview package cache publication failed.")
+                raise RuntimeError("preview package cache publication failed.")
             return rust_preview_package_from_path(hit.package_dir)
         finally:
             release_dotnet_preview_package_staging_dir(staging, cleanup=True)
@@ -631,7 +631,7 @@ class _PreviewCorePackageRequest:
                 target_bytes=self.target_bytes,
             )
             if hit is None:
-                raise RuntimeError("Rust preview cache publication failed.")
+                raise RuntimeError("preview cache publication failed.")
             return rust_preview_package_from_path(hit.package_dir)
         finally:
             release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
@@ -738,7 +738,7 @@ def build_or_lookup_rust_preview_package(
         raise ValueError("Preview-core package manifest is missing or invalid.")
     quality = normalize_rust_preview_material_quality(material_quality)
     if quality != "full" and fast_package_ready is not None:
-        raise ValueError("A direct Rust preview package cannot request another fast tier.")
+        raise ValueError("A direct preview package cannot request another fast tier.")
     started = time.perf_counter()
     request = _PreviewCorePackageRequest(
         source_package=source_package,
@@ -860,7 +860,7 @@ class _ModelPreviewPackageRequest:
                 target_bytes=self.target_bytes,
             )
             if hit is None:
-                raise RuntimeError("Rust preview package cache publication failed.")
+                raise RuntimeError("preview package cache publication failed.")
             return rust_preview_package_from_path(hit.package_dir)
         finally:
             release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
@@ -956,10 +956,10 @@ def build_or_lookup_rust_preview_package_from_model(
 
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
-        raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
+        raise ValueError(f"Unsupported preview interaction profile: {profile}")
     quality = normalize_rust_preview_material_quality(material_quality)
     if quality != "full" and fast_package_ready is not None:
-        raise ValueError("A direct Rust preview package cannot request another fast tier.")
+        raise ValueError("A direct preview package cannot request another fast tier.")
     request = _ModelPreviewPackageRequest(
         model=model,
         cache_root=Path(cache_root),
@@ -1045,7 +1045,7 @@ def lookup_rust_preview_package_hit_from_model_identity(
     _check_cancelled(cancelled)
     profile = str(interaction_profile or "read_only").strip().lower()
     if profile not in {"read_only", "static_replacement"}:
-        raise ValueError(f"Unsupported Rust preview interaction profile: {profile}")
+        raise ValueError(f"Unsupported preview interaction profile: {profile}")
     quality = normalize_rust_preview_material_quality(material_quality)
     identity = _material_quality_identity(str(archive_identity or ""), quality)
     cache_key = rust_preview_package_cache_key(

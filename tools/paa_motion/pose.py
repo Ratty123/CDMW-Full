@@ -128,11 +128,21 @@ class Transform:
 
 
 def sample_delta(clip: MotionClip, name_hash: int, frame: float) -> Transform | None:
-    """The clip's delta for one bone, or None when the clip does not animate it."""
+    """Sample the public 30 Hz timeline, independently of the stored key clock."""
+
+    from .format import FPS
+    return sample_delta_seconds(clip, name_hash, frame / FPS)
+
+
+def sample_delta_seconds(clip: MotionClip, name_hash: int, seconds: float) -> Transform | None:
+    """The clip's delta for one bone at elapsed seconds."""
+
+    from .timing import key_position
 
     track = clip.track_for(name_hash)
     if track is None or not track.animated:
         return None
+    frame = key_position(clip, track, seconds)
     return Transform(
         translation=_lerp_vector(track.translation, frame, (0.0, 0.0, 0.0)),
         rotation=_slerp_quat(track.rotation, frame),

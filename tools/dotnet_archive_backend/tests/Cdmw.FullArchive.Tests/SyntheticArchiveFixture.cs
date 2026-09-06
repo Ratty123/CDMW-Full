@@ -140,7 +140,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
     public static async Task<SyntheticArchiveFixture> CreateNameIndexAsync()
     {
         const uint exactModelHash = 0x1D586E71;
-        const uint relatedModelHash = 0xA1B2C3D4;
+        const uint relatedModelHash = 0xC4FFA63D;
         const string localizationId = "12345678";
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-names-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -159,8 +159,8 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             root,
             "0008",
             [
-                ("gamecommon/item/iteminfo.pabgb", itemInfo),
-                ("gamecommon/item/stringinfo.pabgb", stringInfo),
+                ("gamedata/binary__/client/bin/iteminfo.pabgb", itemInfo),
+                ("gamedata/binary__/client/bin/stringinfo.pabgb", stringInfo),
             ]).ConfigureAwait(false);
         await BuildPackageAsync(
             root,
@@ -177,7 +177,98 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         await BuildPackageAsync(
             root,
             "0020",
-            [("localization/localizationstring_eng.pabgb", localization)]).ConfigureAwait(false);
+            [("gamedata/stringtable/binary__/localizationstring_eng.paloc", localization)]).ConfigureAwait(false);
+        return fixture;
+    }
+
+    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync()
+    {
+        var fixture = await CreateNameIndexAsync().ConfigureAwait(false);
+        const string tableRoot = "gamedata/binarystaticinfo__/bin/";
+        const string locRoot = "gamedata/stringtable/binary__/";
+        const uint prefabHash = 0xC4FFA63D; // cd_marni_laser_hel_0001
+        byte[] Row(uint id, string name, string key, bool linked)
+        {
+            using var output = new MemoryStream();
+            WriteUInt32(output, id);
+            WriteUInt32(output, (uint)name.Length);
+            output.Write(Encoding.ASCII.GetBytes(name));
+            output.WriteByte(0);
+            WriteUInt32(output, 1);
+            WriteUInt32(output, 0);
+            output.Write([7, 0x70, 0, 0, 0]);
+            WriteUInt32(output, id);
+            WriteUInt32(output, (uint)key.Length);
+            output.Write(Encoding.ASCII.GetBytes(key));
+            output.Write(new byte[64]); // current rows do not require the old prefab-list marker
+            if (linked) WriteUInt32(output, prefabHash);
+            return output.ToArray();
+        }
+        var rows = new[]
+        {
+            Row(1234, "Current_Cloth_Helm", "12345678", true),
+            Row(1235, "Another_Cloth_Helm", "12345679", true),
+            Row(1236, "LightSaber_TwoHandSword", "12345680", false),
+        };
+        using var body = new MemoryStream();
+        using var header = new MemoryStream();
+        WriteUInt16(header, (ushort)rows.Length);
+        for (var index = 0; index < rows.Length; index++)
+        {
+            WriteUInt32(header, (uint)(1234 + index));
+            WriteUInt32(header, (uint)body.Length);
+            body.Write(rows[index]);
+        }
+        using var strings = new MemoryStream();
+        WriteUInt32(strings, prefabHash);
+        strings.Write(new byte[5]);
+        WriteUInt32(strings, 23);
+        strings.Write(Encoding.ASCII.GetBytes("cd_marni_laser_hel_0001"));
+        using var stringHeader = new MemoryStream();
+        WriteUInt16(stringHeader, 1);
+        WriteUInt32(stringHeader, prefabHash);
+        WriteUInt32(stringHeader, 0);
+        var tables = new (string Path, byte[] Bytes)[]
+        {
+            (tableRoot + "iteminfo.staticinfobody", body.ToArray()),
+            (tableRoot + "iteminfo.staticinfoheader", header.ToArray()),
+            (tableRoot + "stringinfo.staticinfobody", strings.ToArray()),
+            (tableRoot + "stringinfo.staticinfoheader", stringHeader.ToArray()),
+        };
+        File.Delete(Path.Combine(fixture.Root, "0008", "0.pamt"));
+        File.Delete(Path.Combine(fixture.Root, "0008", "0.paz"));
+        await BuildPackageAsync(fixture.Root, "0008", tables).ConfigureAwait(false);
+        foreach (var (package, name) in new[] { ("0036", "Current Blade"), ("0038", "Shadowed Blade") })
+        {
+            await BuildPackageAsync(fixture.Root, package, tables.Concat(new[]
+            {
+                (locRoot + "eng/item.paloc", BuildLocalization("12345678", name).Concat(BuildLocalization("12345679", "Blade")).ToArray()),
+                (locRoot + "ara/item.paloc", BuildLocalization("12345678", "سيف الاختبار")),
+            }).ToArray()).ConfigureAwait(false);
+        }
+        await BuildPackageAsync(fixture.Root, "0037", new[]
+        {
+            ("gamedata/binary__/client/bin/iteminfo.pabgb", rows[0]),
+            (locRoot + "localizationstring_eng.paloc", BuildLocalization("12345678", "Obsolete Blade")),
+        }).ConfigureAwait(false);
+        var mounts = new[] { "0036", "0038", "0037", "0008", "0009", "0020" };
+        using var mountBody = new MemoryStream();
+        for (var index = 0; index < mounts.Length; index++)
+        {
+            WriteUInt32(mountBody, 0x7FFF00);
+            WriteUInt32(mountBody, (uint)(index * 5));
+            WriteUInt32(mountBody, 0);
+        }
+        WriteUInt32(mountBody, (uint)(mounts.Length * 5));
+        foreach (var name in mounts) mountBody.Write(Encoding.ASCII.GetBytes(name + "\0"));
+        var mountBytes = mountBody.ToArray();
+        // Independently calculated PA checksum for the six fixture mount records above.
+        const uint checksum = 0x44147A70;
+        using var papgt = new MemoryStream();
+        WriteUInt32(papgt, 0); WriteUInt32(papgt, checksum); WriteUInt32(papgt, (uint)mounts.Length);
+        papgt.Write(mountBytes);
+        Directory.CreateDirectory(Path.Combine(fixture.Root, "meta"));
+        await File.WriteAllBytesAsync(Path.Combine(fixture.Root, "meta", "0.papgt"), papgt.ToArray()).ConfigureAwait(false);
         return fixture;
     }
 
@@ -423,8 +514,8 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         output.WriteByte(0x0F);
         output.WriteByte(0);
         output.WriteByte(0);
-        WriteUInt32(output, 1);
-        WriteUInt32(output, 1);
+        WriteUInt32(output, 2);
+        WriteUInt32(output, 2);
         WriteUInt32(output, exactModelHash);
         WriteUInt32(output, relatedModelHash);
         output.Write(new byte[32]);

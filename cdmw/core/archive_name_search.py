@@ -233,7 +233,7 @@ def parse_archive_search_query(filter_text: str) -> ArchiveSearchQuery:
 
 
 def _archive_search_tokens(text: object) -> Tuple[str, ...]:
-    return tuple(re.findall(r"[a-z0-9]+", str(text or "").casefold()))
+    return tuple(re.findall(r"[^\W_]+", str(text or "").casefold()))
 
 
 def _archive_search_token_prefix_match(haystack: object, needle: object) -> bool:
@@ -1161,6 +1161,15 @@ def _archive_entry_package_group(entry: ArchiveEntry) -> str:
         return ""
 
 
+def _archive_item_mount_signature(package_root: Path) -> str:
+    path = _archive_base_dir(package_root) / "meta" / "0.papgt"
+    if not path.is_file():
+        return ""
+    if path.stat().st_size > 1024 * 1024:
+        raise ValueError(f"Archive mount table is unexpectedly large: {path}")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def archive_item_index_dependency_signature(
     package_root: Path,
     entries: Sequence[ArchiveEntry],
@@ -1200,22 +1209,6 @@ def archive_item_index_dependency_signature(
             int(getattr(entry, "paz_index", 0)),
         )
 
-    localization_table_names = (
-        "localizationstring_kor",
-        "localizationstring_eng",
-        "localizationstring_jpn",
-        "localizationstring_rus",
-        "localizationstring_tur",
-        "localizationstring_spa-es",
-        "localizationstring_spa-mx",
-        "localizationstring_fre",
-        "localizationstring_ger",
-        "localizationstring_ita",
-        "localizationstring_pol",
-        "localizationstring_por-br",
-        "localizationstring_zho-tw",
-        "localizationstring_zho-cn",
-    )
     icon_prefixes = ("itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_")
     for index, entry in enumerate(entries):
         if index % 4096 == 0:
@@ -1223,12 +1216,12 @@ def archive_item_index_dependency_signature(
         lower_path = str(getattr(entry, "path", "") or "").replace("\\", "/").lower()
         basename = os.path.basename(lower_path)
         stem = os.path.splitext(basename)[0]
-        group = _archive_entry_package_group(entry)
-        wants_localization = group == "0020" and any(table_name in lower_path for table_name in localization_table_names)
-        wants_iteminfo = group == "0008" and "iteminfo.pabgb" in lower_path
-        wants_stringinfo = group == "0008" and basename == "stringinfo.pabgb"
-        wants_part_prefab_dye_slot = group == "0008" and basename == "partprefabdyeslotinfo.pabgb"
-        wants_material_match = group == "0008" and basename == "materialmatchinfo.pabgb"
+        wants_localization = lower_path.endswith("/item.paloc") or "localizationstring_" in basename
+        table_stem = basename.split(".", 1)[0]
+        wants_iteminfo = table_stem in {"iteminfo", "equiptypeinfo"}
+        wants_stringinfo = table_stem == "stringinfo"
+        wants_part_prefab_dye_slot = table_stem == "partprefabdyeslotinfo"
+        wants_material_match = table_stem == "materialmatchinfo"
         wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
         wants_item_icon = lower_path.endswith(".dds") and (
             "itemicon" in lower_path
@@ -1245,7 +1238,8 @@ def archive_item_index_dependency_signature(
         ):
             selected_signatures.append(entry_signature(entry))
     payload = {
-        "format": 1,
+        "format": 2,
+        "mount_order": _archive_item_mount_signature(package_root),
         "dependency_count": len(selected_signatures),
         "dependencies": selected_signatures,
     }

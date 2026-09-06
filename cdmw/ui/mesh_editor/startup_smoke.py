@@ -101,7 +101,7 @@ def _verify_mesh_editor_asset_rust_startup_smoke(mesh_editor_tab: object) -> Non
     service = getattr(controller, "mesh_service", None)
     session_id = str(getattr(controller, "active_session_id", "") or "")
     if service is None or not session_id:
-        raise RuntimeError("Mesh Editor startup smoke failed: Rust smoke has no active service session.")
+        raise RuntimeError("Mesh Editor startup smoke failed: smoke has no active service session.")
 
     from cdmw.services.mesh_rust_contract import (
         resolve_rust_mesh_editor,
@@ -126,13 +126,13 @@ def _verify_mesh_editor_asset_rust_startup_smoke(mesh_editor_tab: object) -> Non
         )
         if result.returncode != 0 or not contract_path.is_file():
             raise RuntimeError(
-                f"Mesh Editor startup smoke failed: Rust helper exited {result.returncode}."
+                f"Mesh Editor startup smoke failed: helper exited {result.returncode}."
             )
         contract = json.loads(contract_path.read_text(encoding="utf-8"))
         preview = contract.get("preview_contract", {}) if isinstance(contract, dict) else {}
         if preview.get("ok") is not True or preview.get("viewport_only") is not True:
             raise RuntimeError(
-                "Mesh Editor startup smoke failed: Rust Archive Preview contract is unavailable."
+                "Mesh Editor startup smoke failed: Preview contract is unavailable."
             )
     return
 

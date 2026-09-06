@@ -24,6 +24,17 @@ logical prefab ahead of shared physical siblings, allowing the background previe
 decode its per-model `_modelPropertyIndex`; variant-aware package keys prevent two items that
 share a PAC from reusing each other's material set.
 
+Item names use the active ItemInfo row directory and item localization domain. Current
+`binarystaticinfo__` body/header pairs and per-language `item.paloc` files take precedence
+over obsolete legacy tables, with `meta/0.papgt` mount order selecting active overlays.
+StringInfo keys are joined to archived prefabs before decoding their actual PAC paths.
+Browse Archives displays `Shared asset (N names)` for multiple distinct names while its
+tooltip and search retain the complete set. Item Finder retains rows without model links;
+generated names are identified in its evidence, and asset actions require asset links.
+English is the display language; Item Finder and New Item search all discovered item languages, and
+missing English is not silently substituted from another language. New Item uses the
+same source selection and name lookup; its separate Item Name cell shows `-` when missing.
+
 Textured model requests publish a cache-isolated direct-DDS Rust package as soon
 as Preview Core finishes, then promote the same resident scene to the full
 PAC/PAC_XML material package without resetting its camera. Rust manifest texture

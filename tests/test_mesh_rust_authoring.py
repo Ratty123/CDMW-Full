@@ -83,7 +83,7 @@ def _prepared_dds_entry(
         paz_index=0,
         prepared_path=prepared,
         prepared_sha256=hashlib.sha256(payload).hexdigest(),
-        prepared_note="owned Rust texture fixture",
+        prepared_note="owned texture fixture",
     )
 
 
@@ -6520,7 +6520,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             )
             view = authoritative.session_view("authoritative-rust-test")
             self.assertEqual(1, view.undo_count)
-            self.assertEqual("Rust Edit Session", view.history_entries[-1].label)
+            self.assertEqual("Edit Session", view.history_entries[-1].label)
             with self.assertRaises(KeyError):
                 session.shadow_service.session_view(session.shadow_session_id)
 
@@ -6749,7 +6749,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 rename = _request(session, "command_request", 2)
                 rename.update(
                     command="layer_rename",
-                    arguments={"layer_id": "detail", "name": "Rust Detail"},
+                    arguments={"layer_id": "detail", "name": "Detail"},
                 )
                 session.run_command(rename)
                 transaction = _request(session, "transaction_request", 3)
@@ -6764,7 +6764,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 self.assertEqual("accepted", result["status"])
                 committed_session = authoritative._session(view.session_id)
                 self.assertEqual(
-                    ("Base mesh", "Rust Detail"),
+                    ("Base mesh", "Detail"),
                     tuple(layer.name for layer in committed_session.geometry_layers),
                 )
                 self.assertEqual(
@@ -6781,7 +6781,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 )
                 authoritative.redo(view.session_id)
                 self.assertEqual(
-                    ("Base mesh", "Rust Detail"),
+                    ("Base mesh", "Detail"),
                     tuple(
                         layer.name
                         for layer in authoritative._session(view.session_id).geometry_layers
@@ -6936,7 +6936,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             shadow_session = session.shadow_service._session(session.shadow_session_id)
             shadow_session.geometry_layers = (
                 _MeshGeometryLayer("base", "Base mesh", (0,), visible=True, base=True),
-                _MeshGeometryLayer("detail", "Rust Detail", (), visible=True),
+                _MeshGeometryLayer("detail", "Detail", (), visible=True),
             )
 
             authoritative.rename_geometry_layer(
@@ -6947,7 +6947,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RustMeshValidationError,
-                "geometry layers changed while Rust Edit Mesh",
+                "geometry layers changed while Edit Mesh",
             ):
                 session.finish(_request(session, "finish_request", 1))
 
@@ -6974,7 +6974,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             shadow_session = session.shadow_service._session(session.shadow_session_id)
             shadow_session.geometry_layers = (
                 _MeshGeometryLayer("base", "Base mesh", (0,), visible=True, base=True),
-                _MeshGeometryLayer("detail", "Rust Detail", (), visible=True),
+                _MeshGeometryLayer("detail", "Detail", (), visible=True),
             )
             original_prepare = authoritative.prepare_working_mesh_replacement
 
@@ -7040,7 +7040,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             newer.submeshes[0].vertices[0] = (0.25, 0.0, 0.0)
             authoritative.replace_working_mesh("authoritative-rust-test", newer)
 
-            with self.assertRaisesRegex(RustMeshValidationError, "changed while Rust Edit Mesh"):
+            with self.assertRaisesRegex(RustMeshValidationError, "changed while Edit Mesh"):
                 session.finish(_request(session, "finish_request", 1))
 
             self.assertEqual(
@@ -7230,7 +7230,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RustMeshProtocolError,
-                "Unexpected Rust Mesh session entry",
+                "Unexpected Mesh session entry",
             ):
                 session.apply_candidate(request)
 

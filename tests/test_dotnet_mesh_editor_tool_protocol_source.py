@@ -121,7 +121,7 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     real_input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(encoding="utf-8")
 
     assert "real-archive-rust-preview-smoke" in source
-    assert "Running no-window real PAC Rust Archive Preview proof" in source
+    assert "Running no-window real PAC Preview proof" in source
     assert "real-archive-mesh-editor-dotnet-edit-smoke" not in source
     assert "--capture-cdmw-preview-session" in rust_proof_source
     assert '"desktop_automation_used": False' in rust_proof_source

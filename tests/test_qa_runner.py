@@ -36,7 +36,7 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert "CDMW_GUI_STARTUP_SMOKE_RESULT" in source
     assert '"post_construction"' in source
     assert '"-BuildProfile", "release", "-NativeHelpersOnly"' in source
-    assert "Production Rust preview and Mesh Editor build with offscreen GPU smoke" in source
+    assert "Production preview and Mesh Editor build with offscreen GPU smoke" in source
     assert ') $scriptDir $BuildTimeoutSeconds' in source
     assert "function Invoke-NativeHelperPreparation" in package_source
     assert "Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireReleaseHelpers" in package_source
@@ -88,7 +88,7 @@ def test_native_helper_only_describe_keeps_packaging_out_of_the_gate() -> None:
 
     assert result.returncode == 0, f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert "rebuild Release helpers" in result.stdout
-    assert "Rust Mesh Editor/Archive Preview" in result.stdout
+    assert "Mesh Editor/Archive Preview" in result.stdout
     assert "contract/provenance checks" in result.stdout
     assert "Vortice" not in result.stdout
     assert "Starting PyInstaller" not in result.stdout

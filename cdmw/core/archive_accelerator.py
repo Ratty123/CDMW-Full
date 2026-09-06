@@ -18,7 +18,7 @@ from cdmw.core.archive_filtering import (
 )
 from cdmw.core.archive_preview_support import prepare_archive_browser_state
 from cdmw.core.archive_scan_cache import load_or_update_archive_scan_shards
-from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled
+from cdmw.core.common import hidden_subprocess_kwargs, raise_if_cancelled, run_process_with_cancellation
 from cdmw.models import ArchiveEntry
 
 
@@ -386,18 +386,15 @@ def checksum_files_native(
             encoding="utf-8",
         )
         try:
-            completed = subprocess.run(
+            returncode, _stdout, _stderr = run_process_with_cancellation(
                 [str(binary), "checksum-job", str(job_path), str(report_path), *_native_diagnostic_args()],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=max(1.0, float(timeout_seconds)),
-                check=False,
-                **hidden_subprocess_kwargs(),
+                stop_event=stop_event,
+                timeout_seconds=max(1.0, float(timeout_seconds)),
             )
         except (OSError, subprocess.SubprocessError, ValueError):
             return None
         raise_if_cancelled(stop_event)
-        if completed.returncode != 0 or not report_path.is_file():
+        if returncode != 0 or not report_path.is_file():
             return None
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))

@@ -320,7 +320,7 @@ class ArchiveReferencePreviewMixin:
             package_dir = Path(package_text)
             if not preview_d3d11_host.load_package(package_dir, reset_view=True):
                 _append_reference_d3d11_status(
-                    "Rust Preview reference preview rejected the canonical package."
+                    "Preview reference preview rejected the canonical package."
                 )
                 preview_stack.setCurrentWidget(preview_info_edit)
                 _update_reference_preview_text_tools_visibility()
@@ -631,8 +631,8 @@ class ArchiveReferencePreviewMixin:
                     diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
                     notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
                     native_detail_lines = [
-                        "Preview Core decoded the referenced model for Rust Preview.",
-                        "Rust Preview package source: canonical Preview Core decode",
+                        "Preview Core decoded the referenced model for Preview.",
+                        "Preview package source: canonical Preview Core decode",
                         native_line,
                     ]
                     if notes:
@@ -641,7 +641,7 @@ class ArchiveReferencePreviewMixin:
                     return ArchivePreviewResult(
                         status="ok",
                         title=resolved_entry.basename,
-                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | Rust Preview preview package",
+                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | Preview package",
                         detail_text=detail_text,
                         preview_model=None,
                         asset_family_graph=build_archive_asset_family_graph(resolved_entry, ()),
@@ -656,7 +656,7 @@ class ArchiveReferencePreviewMixin:
                     detail_text="\n".join(
                         part
                         for part in (
-                            "Preview Core did not generate a canonical Rust Preview package.",
+                            "Preview Core did not generate a canonical Preview package.",
                             "The legacy renderer is not used as a fallback.",
                             native_line,
                             f"Native failure reason: {native_attempt.fallback_reason}",

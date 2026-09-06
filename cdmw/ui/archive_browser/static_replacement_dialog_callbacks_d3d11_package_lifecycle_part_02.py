@@ -304,7 +304,7 @@ def _d3d11_package_lifecycle_step_055(_state):
         )
         if not accepted:
             _state.alignment_d3d11_state['active_package'] = previous_package
-            _state._set_alignment_d3d11_loading(False, 'Rust Preview rejected the prepared package.')
+            _state._set_alignment_d3d11_loading(False, 'Preview rejected the prepared package.')
             _state._cleanup_alignment_d3d11_package(package_dir)
             return
         _state.alignment_d3d11_preview_host.set_display_mode(
@@ -318,7 +318,7 @@ def _d3d11_package_lifecycle_step_055(_state):
         _state.alignment_d3d11_state['preview_loaded'] = True
         _state._set_alignment_d3d11_progress(
             100,
-            'Rust Preview preview package accepted.',
+            'Preview package accepted.',
             request_id=int(request_id or 0),
             stage='dotnet_resident_load',
             detail=f'reason={package_metadata.rebuild_reason}',
@@ -333,7 +333,7 @@ def _d3d11_package_lifecycle_step_056(_state):
         timeout_route = _state._alignment_d3d11_start_timeout_route_helper(dialog_live=_state._alignment_dialog_widgets_live(), status_matches=_state.alignment_d3d11_state.get('status_file') == expected_status, process_active=isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning, status_file_exists=expected_status.is_file())
         if not timeout_route.should_report_timeout:
             return
-        _state._set_alignment_d3d11_progress(82, 'Starting Rust Preview renderer.', stage='native_start_timeout', detail='Rust Preview startup timeout waiting for status.')
+        _state._set_alignment_d3d11_progress(82, 'Starting Preview renderer.', stage='native_start_timeout', detail='Preview startup timeout waiting for status.')
         startup_timeout_presentation = _state._alignment_d3d11_startup_timeout_performance_helper()
         _state._set_preview_performance_status_if_ready(startup_timeout_presentation.summary, details=startup_timeout_presentation.details)
     _state._check_alignment_d3d11_start_timeout = _check_alignment_d3d11_start_timeout

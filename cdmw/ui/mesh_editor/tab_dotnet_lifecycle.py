@@ -468,7 +468,7 @@ class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
             blockers.append(f"Expected renderer {RUST_MESH_RENDERER}; received {backend or '<missing>'}")
         edit_backend = status_payload.get("edit_backend")
         if edit_backend is not None and edit_backend not in {RUST_PREVIEW_BACKEND, RUST_MESH_EDIT_BACKEND}:
-            blockers.append("Unexpected Rust editing backend")
+            blockers.append("Unexpected editing backend")
         return tuple(blockers)
     def _handle_dotnet_renderer_status(
         self,

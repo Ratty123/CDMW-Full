@@ -21,10 +21,14 @@ between siblings to save space. A fresh table does not have to: a record whose p
 from __future__ import annotations
 
 import struct
+import tempfile
+import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from cdmw.core.archive_format import calculate_pa_checksum, hashlittle
+from cdmw.core.common import raise_if_cancelled
 
 __all__ = [
     "OverlayArchive",
@@ -115,6 +119,7 @@ def build_overlay_archive(
     files: Sequence[OverlayFile],
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> OverlayArchive:
     """`files` as one archive directory: the PAMT and the PAZ, ready to write side by side.
 
@@ -153,6 +158,7 @@ def build_overlay_archive(
     file_records: List[Tuple[str, int, int, int, int, int]] = []
     entries: List[Tuple[str, int, int, int]] = []
     for folder in sorted(every_folder):
+        raise_if_cancelled(stop_event)
         items = sorted(by_folder.get(folder, ()), key=lambda item: item.path.rpartition("/")[2].encode("utf-8"))
         start = len(file_records)
         for item in items:
@@ -177,7 +183,9 @@ def build_overlay_archive(
 
     out = bytearray()
     out += struct.pack("<III", 0, 1, PAMT_CONSTANT)
-    out += struct.pack("<III", 0, calculate_pa_checksum(bytes(paz)), len(paz))
+    if on_log is not None:
+        on_log(f"Verifying overlay payload ({len(paz):,} bytes)...")
+    out += struct.pack("<III", 0, _payload_checksum(paz, stop_event=stop_event), len(paz))
     out += struct.pack("<I", len(dir_block)) + dir_block
     out += struct.pack("<I", len(name_block)) + name_block
     out += struct.pack("<I", len(folder_records))
@@ -191,3 +199,21 @@ def build_overlay_archive(
     if on_log is not None:
         on_log(f"Overlay archive: {len(file_records)} file(s) in {len(folder_records)} folder(s), {len(paz):,} bytes of payload.")
     return OverlayArchive(pamt_bytes=bytes(out), paz_bytes=bytes(paz), pamt_checksum=checksum, entries=tuple(entries))
+
+
+def _payload_checksum(payload: bytearray, *, stop_event: Optional[threading.Event]) -> int:
+    """Keep large PA checksum loops out of the UI's Python interpreter."""
+
+    raise_if_cancelled(stop_event)
+    if len(payload) <= 64 * 1024:
+        return calculate_pa_checksum(payload)
+    from cdmw.core.archive_accelerator import checksum_files_native
+
+    with tempfile.TemporaryDirectory(prefix="cdmw_overlay_checksum_") as temporary:
+        path = Path(temporary) / "0.paz"
+        path.write_bytes(payload)
+        result = checksum_files_native([path], stop_event=stop_event)
+        raise_if_cancelled(stop_event)
+        if result is None:
+            raise RuntimeError("The archive checksum helper is unavailable. Repair the app installation and retry building the mod.")
+        return result[path][0]

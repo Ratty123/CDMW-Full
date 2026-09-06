@@ -240,6 +240,7 @@ class NewItemPreviewControllerMixin:
         in the template's own item frame; it never changes the model or build output."""
 
         include_character = bool(include_character)
+        variant_binding = self._active_variant or ()
         character_lock = threading.Lock()
         character_cache: list = []
 
@@ -249,7 +250,8 @@ class NewItemPreviewControllerMixin:
             with character_lock:
                 if character_cache:
                     return character_cache[0]
-                held = self.character_holding_the_item(stop_event=stop_event)
+                held = (self.character_holding_the_item(stop_event=stop_event, variant_binding=variant_binding)
+                        if variant_binding else self.character_holding_the_item(stop_event=stop_event))
                 mesh = getattr(held, "mesh", None)
                 rotation = tuple(getattr(held, "item_rotation", ()) or ())
                 if mesh is not None and len(rotation) == 9:
@@ -533,7 +535,7 @@ class NewItemPreviewControllerMixin:
             self.log_message.emit(said)
         return reference
 
-    def character_holding_the_item(self, *, rig_model: str = "", stop_event=None):
+    def character_holding_the_item(self, *, rig_model: str = "", stop_event=None, variant_binding=None):
         """The character wearing or holding the current template's item, or None.
 
         Wearables stay in the matching rig's bind frame. For weapons, the frame the item
@@ -549,7 +551,9 @@ class NewItemPreviewControllerMixin:
             return None
         requested_rig = str(rig_model or "").replace("\\", "/").strip("/").lower()
         requested_rig = requested_rig.rsplit("/", 1)[-1] if requested_rig else ""
-        if self._held_character and self._held_character[:2] == (template, requested_rig):
+        selected = self._active_variant if variant_binding is None else variant_binding
+        context = (requested_rig,selected) if selected else requested_rig
+        if self._held_character and self._held_character[:2] == (template, context):
             return self._held_character[2]
         from cdmw.services.effect_character_reference import held_character_from_snapshot
 
@@ -560,6 +564,9 @@ class NewItemPreviewControllerMixin:
                 family = snapshot.family(int(template))
                 prefabs = tuple(part.prefab_path for part in family.parts if part.prefab_path)
                 folder = str(family.model_folder or "")
+                if selected:
+                    prefabs = (selected[0],)
+                    folder = selected[1].removeprefix("character/model/").rsplit("/",1)[0]
             except Exception as exc:  # noqa: BLE001 - the convention frame stands in
                 self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
         reference = self.character_reference(
@@ -577,7 +584,7 @@ class NewItemPreviewControllerMixin:
         )
         if said:
             self.log_message.emit(said)
-        self._held_character = (template, requested_rig, held)
+        self._held_character = (template, context, held)
         return held
 
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:
@@ -676,6 +683,14 @@ class NewItemPreviewControllerMixin:
 
         if self.draft.template_key is None:
             return ()
+        if self._active_variant is not None and self.snapshot is not None:
+            family = self.snapshot.family(self.draft.template_key)
+            prefab,path = self._active_variant
+            part = next((value for value in family.parts if value.prefab_path.casefold()==prefab),None)
+            if part is None:
+                return ()
+            paths = (path,*(value for value in part.pac_paths if value.casefold()!=path))
+            return tuple(self.snapshot.entry(value) for value in paths if self.snapshot.has_entry(value))
         return self.template_entries_for(self.draft.template_key)
 
     def template_primary_entry(self, template_key: Optional[int] = None) -> Optional[ArchiveEntry]:
@@ -687,6 +702,8 @@ class NewItemPreviewControllerMixin:
         entries = self.template_entries() if key == self.draft.template_key else self.template_entries_for(key)
         if not entries:
             return None
+        if self._active_variant is not None and key == self.draft.template_key:
+            return self.snapshot.entry(self._active_variant[1])
         try:
             stem = self.snapshot.family(key).model_stem.casefold()
         except Exception:  # noqa: BLE001
@@ -702,6 +719,8 @@ class NewItemPreviewControllerMixin:
         key = self.draft.template_key if template_key is None else int(template_key)
         if self.snapshot is None or key is None:
             return ()
+        if self._active_variant is not None and key == self.draft.template_key:
+            return (self.snapshot.entry(self._active_variant[0]),)
         try:
             family = self.snapshot.family(key)
         except Exception:  # noqa: BLE001

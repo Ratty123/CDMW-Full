@@ -721,7 +721,7 @@ class PackageFrameTests(unittest.TestCase):
         self.assertIn(
             f"{CHARACTER_SUBMESH_PREFIX}body",
             tints,
-            "the character reached the canonical Rust material rows",
+            "the character reached the canonical material rows",
         )
         self.assertEqual(tints[f"{CHARACTER_SUBMESH_PREFIX}body"], tuple(BODY_TINT))
         self.assertEqual(tints["steel"], (), "the item's canonical material is not rewritten")

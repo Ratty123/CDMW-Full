@@ -198,7 +198,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         update_start = tab_source.index("def _apply_standalone_native_update(")
         update_body = tab_source[update_start: tab_source.index("def _refresh_standalone_preview", update_start)]
         self.assertIn("if _native_update_has_payload(update) or self._standalone_native_preview_update_active():", update_body)
-        self.assertIn('Rust preview update failed; preview is stale.', update_body)
+        self.assertIn('preview update failed; preview is stale.', update_body)
         self.assertIn("self.status_message_requested.emit(message, True)", update_body)
         self.assertLess(
             update_body.index("host = self.standalone_native_host"),
@@ -2100,7 +2100,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if live_mesh_edit and _state._mesh_edit_tab_active():", refresh_body)
         self.assertIn("mesh_edit_static_preview_refresh_blocked", refresh_body)
         self.assertIn(
-            "Active Mesh Editor static preview refresh requires Rust Preview; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor static preview refresh requires Preview; Python preview rebuild fallback is disabled.",
             refresh_body,
         )
         self.assertLess(
@@ -2175,7 +2175,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("consume(build_native_mesh_preview_vertex_update_groups(mesh, missing))", generated_live_body)
         flush_body = _function_source(source, "_flush_mesh_edit_live_vertex_updates")
         self.assertIn('"mesh_edit_live_vertex_update_empty"', flush_body)
-        self.assertIn("Rust Preview mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
+        self.assertIn("Preview mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
         self.assertLess(
             flush_body.index("if not groups:"),
             flush_body.index('sender = getattr('),
@@ -2185,9 +2185,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body,
         )
         self.assertIn('"mesh_edit_live_preview_deferred"', update_body)
-        self.assertIn("Rust Preview mesh edit commands are unavailable; preview is stale.", update_body)
+        self.assertIn("Preview mesh edit commands are unavailable; preview is stale.", update_body)
         self.assertIn("if _state._mesh_edit_tab_active():", update_body)
-        self.assertIn("Active Mesh Editor live preview requires Rust Preview", update_body)
+        self.assertIn("Active Mesh Editor live preview requires Preview", update_body)
         self.assertIn('"mesh_edit_live_preview_rebuild_blocked"', update_body)
         self.assertIn("def _native_screen_payload(", source)
         self.assertIn("_LEGACY_SCREEN_CAMERA_FIELDS", source)
@@ -2487,7 +2487,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         commit_working_body = _function_source(source, "_mesh_edit_commit_working_mesh")
         refresh_preview_body = _function_source(source, "_mesh_edit_refresh_replacement_preview_model")
-        self.assertIn("Active Mesh Editor preview refresh requires Rust Preview", refresh_preview_body)
+        self.assertIn("Active Mesh Editor preview refresh requires Preview", refresh_preview_body)
         self.assertLess(
             refresh_preview_body.index("and _state._mesh_edit_tab_active()"),
             refresh_preview_body.index("_state.parsed_mesh_to_preview_model("),
@@ -2502,7 +2502,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             commit_working_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", commit_working_body)
-        self.assertIn("Active Mesh Editor commit requires Rust Preview refresh", commit_working_body)
+        self.assertIn("Active Mesh Editor commit requires Preview refresh", commit_working_body)
         active_no_d3d_commit_start = commit_working_body.index("elif _state._mesh_edit_tab_active():")
         active_no_d3d_commit_body = commit_working_body[
             active_no_d3d_commit_start:commit_working_body.index("else:", active_no_d3d_commit_start)
@@ -3846,7 +3846,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("replace_all=replace_all", helper_body)
         self.assertIn("_source_part_current_preview_indices()", helper_body)
         self.assertIn("if _state._source_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source-part preview requires a Rust Preview refresh; software preview fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source-part preview requires a Preview refresh; software preview fallback is disabled.", helper_body)
         self.assertIn("_set_source_parts_preview_rebuild_pending(reason)", helper_body)
         self.assertIn("_queue_static_preview_rebuild()", helper_body)
         self.assertLess(
@@ -3978,7 +3978,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer((int(source_index),))", helper_body)
         self.assertIn("if _state._copied_original_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor copied-source preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor copied-source preview requires Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(
             helper_body.index("replacer((int(source_index),))"),
@@ -4015,7 +4015,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer(source_indices)", helper_body)
         self.assertIn("if _state._selected_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source enable preview requires Rust Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source enable preview requires Preview refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._set_source_parts_preview_rebuild_pending(_state._source_part_include_exclude_pending_reason_helper())", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(

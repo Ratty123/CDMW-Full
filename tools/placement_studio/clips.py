@@ -61,10 +61,19 @@ def rig_of(game_path: str) -> str:
     whichever rig defines its bones.
     """
 
-    parts = game_path.replace("\\", "/").split("/")
+    parts = game_path.replace("\\", "/").lower().split("/")
+    if parts[:3] == ["character", "motion", "motion_lod__"]:
+        del parts[2]
     if len(parts) > 4 and parts[0] == "character" and parts[1] == "motion":
         return f"{parts[2]}/{parts[3]}"
     return ""
+
+
+def companion_path(path: str) -> str:
+    path = path.replace("\\", "/").lower()
+    if path.endswith("_lod.paa"):
+        return path.replace("/motion_lod__/", "/").removesuffix("_lod.paa") + ".paa"
+    return path.replace("character/motion/", "character/motion/motion_lod__/", 1).removesuffix(".paa") + "_lod.paa"
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,15 +90,35 @@ class ClipEntry:
     def name(self) -> str:
         return self.path.rsplit("/", 1)[-1][:-4]
 
+    @property
+    def facial(self) -> bool:
+        return any(part in self.path.lower() for part in ("/99_autofacial/", "/99_arfacial/"))
+
+    @property
+    def additive(self) -> bool:
+        return "add" in self.name.lower().split("_")
+
+    @property
+    def equipment(self) -> bool:
+        return "/weapon/" in self.path.lower() or "_at_" in self.name.lower()
+
+    @property
+    def story(self) -> bool:
+        return any(folder in self.path.lower() for folder in ("/00_mon/", "/02_mission/"))
+
 
 class ClipIndex:
     """Every clip found, queryable without touching the archives again."""
 
-    __slots__ = ("_entries", "_rigs")
+    __slots__ = ("_entries", "_rigs", "_paths")
 
     def __init__(self, entries: Iterable[ClipEntry] = ()) -> None:
-        self._entries: tuple[ClipEntry, ...] = tuple(entries)
+        unique = {}
+        for entry in entries:
+            unique.setdefault(entry.path.replace("\\", "/").lower(), entry)
+        self._entries: tuple[ClipEntry, ...] = tuple(unique.values())
         self._rigs = tuple(sorted({entry.rig for entry in self._entries if entry.rig}))
+        self._paths = None
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -101,6 +130,18 @@ class ClipIndex:
     def rigs(self) -> tuple[str, ...]:
         return self._rigs
 
+    def find(self, path: str) -> Optional[ClipEntry]:
+        if self._paths is None:
+            self._paths = {entry.path.replace("\\", "/").lower(): entry for entry in self._entries}
+        return self._paths.get(path.replace("\\", "/").lower())
+
+    def companion(self, entry: ClipEntry) -> Optional[ClipEntry]:
+        path = entry.path.replace("\\", "/").lower()
+        if entry.is_lod:
+            return self.find(path.replace("/motion_lod__/", "/").removesuffix("_lod.paa") + ".paa")
+        lod = path.removesuffix(".paa") + "_lod.paa"
+        return self.find(lod.replace("character/motion/", "character/motion/motion_lod__/", 1)) or self.find(lod)
+
     def filter(
         self,
         *,
@@ -108,6 +149,10 @@ class ClipIndex:
         category: str = ANY,
         text: str = "",
         include_lod: bool = False,
+        include_facial: bool = True,
+        include_additive: bool = True,
+        include_equipment: bool = True,
+        include_story: bool = True,
         limit: Optional[int] = None,
     ) -> tuple[List[ClipEntry], int]:
         """Matching clips, capped at `limit`, plus the total that matched.
@@ -121,6 +166,14 @@ class ClipIndex:
         total = 0
         for entry in self._entries:
             if not include_lod and entry.is_lod:
+                continue
+            if not include_facial and entry.facial:
+                continue
+            if not include_additive and entry.additive:
+                continue
+            if not include_equipment and entry.equipment:
+                continue
+            if not include_story and entry.story:
                 continue
             if rig != ANY and entry.rig != rig:
                 continue
@@ -172,10 +225,15 @@ def scan_archives(
     from .corpus import _iter_archive_entries, normalize_game_path
 
     root = Path(game_root)
+    from .corpus import package_signature
+    signature_before = package_signature(root)
     if cache:
         cached = _read_cache(root)
         if cached is not None:
-            yield from _decode_cache(cached, should_stop=should_stop)
+            for done, total, index in _decode_cache(cached, should_stop=should_stop):
+                if index is not None and package_signature(root) != signature_before:
+                    raise RuntimeError("Installation changed while loading the clip index")
+                yield done, total, index
             return
 
     from .corpus import package_signature
@@ -189,11 +247,13 @@ def scan_archives(
     # long enough for the game's launcher to patch underneath it; signing the result
     # afterwards would stamp a body built from the old packages with the new install's key
     # and every later launch would accept it.
-    signature_before = package_signature(root) if cache else []
     failures: List[Path] = []
-    for package, archive_entry in _iter_archive_entries(
-        root, on_error=lambda pamt, _error: failures.append(pamt)
-    ):
+    if (root / "meta/0.papgt").exists():
+        from .relationships import active_entries
+        iterator = active_entries(root, cancelled=should_stop or (lambda: False))
+    else:
+        iterator = _iter_archive_entries(root, on_error=lambda pamt, _error: failures.append(pamt))
+    for package, archive_entry in iterator:
         if should_stop is not None and should_stop():
             return
         if package != seen_package:
@@ -207,6 +267,8 @@ def scan_archives(
             since_yield = 0
             yield (done, total, None)
     index = ClipIndex(entries)
+    if package_signature(root) != signature_before:
+        raise RuntimeError("Installation changed while scanning clips; refresh required")
     if (
         cache
         and (should_stop is None or not should_stop())
@@ -221,7 +283,7 @@ def scan_archives(
 # ── on-disk cache ────────────────────────────────────────────────────
 #
 # Bump when the stored shape changes, so a stale file is ignored rather than misread.
-_CACHE_VERSION = 1
+_CACHE_VERSION = 3
 
 #: Entries rebuilt between yields on the cached path. ~7 ms of work, a frame's budget.
 #: Reading the file itself is one 250 ms block before the first yield — zlib, a `split` over

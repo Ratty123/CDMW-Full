@@ -27,7 +27,11 @@ Brand-new archive content is split by format owner. `archive_entry_addition.py`
 adds validated PAMT/PAZ entries; `archive_overlay.py` and `papgt_format.py` build
 and mount isolated archive groups; the ItemInfo, StringInfo, StoreInfo,
 ItemGroupInfo, MultiChangeInfo, PATHC and PAPPT modules decode and rewrite only
-their proven fields. They return plans and bytes, never bypass service-owned
+their proven fields. Current recipe, item-reward, ItemUse and dye records have
+bounded codecs in `item_recipe_table.py`, `item_reward_table.py`,
+`item_use_reward.py` and `partprefab_dye_table.py`. Recipe connections are identified
+by `item_recipe_links.py` using decoded inputs and outputs; ambiguous boundaries
+remain unsupported. These modules return plans and bytes, never bypass service-owned
 confirmation, backup, rollback, or restore.
 
 `effect_binary.py` owns byte-complete `.pae` / `.paem` reflection decoding and

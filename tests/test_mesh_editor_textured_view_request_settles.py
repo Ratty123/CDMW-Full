@@ -20,7 +20,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytestmark = pytest.mark.skip(
     reason=(
-        "The direct Vortice textured-view acknowledgement bridge is retired; Rust "
+        "The direct Vortice textured-view acknowledgement bridge is retired; "
         "owns texture readiness and honest fallback state in its session package."
     )
 )

@@ -90,7 +90,7 @@ def _cube(radius: float) -> tuple[list[tuple[float, float, float]], list[int]]:
     return corners, [index for face in faces for index in face]
 
 
-def _channel_samples(bone, track, channel: str):
+def _channel_samples(bone, track, channel: str, *, rate: float = FPS):
     """Bake one channel at its own key frames.
 
     Each channel composes against a constant part of the bind pose — rotation against
@@ -107,7 +107,7 @@ def _channel_samples(bone, track, channel: str):
     out: list[tuple[float, object]] = []
     for frame, _values in keys:
         delta = sample_delta_channel(track, channel, float(frame))
-        out.append((frame / FPS, getattr(compose(bind, delta), channel)))
+        out.append((frame / rate, getattr(compose(bind, delta), channel)))
     return out
 
 
@@ -159,7 +159,8 @@ def build_gltf(skeleton, clip: MotionClip, *, name: str = "motion", show_joints:
             continue
         times_cache: dict[tuple, int] = {}
         for channel, kind in (("translation", "VEC3"), ("rotation", "VEC4"), ("scale", "VEC3")):
-            samples = _channel_samples(bone, track, channel)
+            from .timing import track_rate
+            samples = _channel_samples(bone, track, channel, rate=track_rate(clip, track))
             if not samples:
                 continue
             times = tuple(time for time, _value in samples)

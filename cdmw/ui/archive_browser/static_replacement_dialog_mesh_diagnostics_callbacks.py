@@ -171,7 +171,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "selected_source", _selected_source_index)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "highlighted_sources", _highlighted_source_indices)
         lines.append("")
-        lines.append("Embedded Rust Preview state")
+        lines.append("Embedded Preview state")
         current_dotnet_state = _embedded_dotnet_runtime_state()
         lines.append(json.dumps(current_dotnet_state, indent=2, sort_keys=True, default=str)[:16000])
         lines.append("")
@@ -201,7 +201,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         )
         lines.append(json.dumps(resolver_diagnostics, indent=2, sort_keys=True, default=str)[:24000])
         lines.append("")
-        lines.append("Rust Preview package state")
+        lines.append("Preview package state")
         for key in (
             "request_id",
             "preview_loaded",
@@ -297,7 +297,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         lines.append("Active package manifest")
         lines.extend(_mesh_editor_diagnostics_manifest_lines(current_d3d11_state.get("active_package")))
         lines.append("")
-        lines.append("Latest Rust Preview protocol event")
+        lines.append("Latest Preview protocol event")
         controller = getattr(alignment_d3d11_preview_host, "controller", None)
         latest_event = getattr(controller, "last_event", {}) if controller is not None else {}
         lines.append(json.dumps(dict(latest_event or {}), indent=2, sort_keys=True, default=str)[:12000])

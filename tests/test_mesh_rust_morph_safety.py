@@ -126,7 +126,7 @@ def test_shadow_profile_copy_rejects_source_change_during_capture(
         ),
         pytest.raises(
             RustMeshValidationError,
-            match="changed while the Rust shadow session was being created",
+            match="changed while the shadow session was being created",
         ),
     ):
         rust_authoring_module._copy_shadow_morph_profiles(
@@ -182,7 +182,7 @@ def test_finish_rejects_runtime_only_authoritative_morph_restore_by_morph_revisi
         )
         with pytest.raises(
             RustMeshValidationError,
-            match="Morph & Refit state changed while Rust Edit Mesh was open",
+            match="Morph & Refit state changed while Edit Mesh was open",
         ):
             rust_session.finish(_request(rust_session, "finish_request", 1))
 

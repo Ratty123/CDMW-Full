@@ -844,11 +844,11 @@ class MeshEditorTabShellMixin(
         if str(state) == "ready":
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("ready", active=True)
-            self._set_dotnet_status("Mesh Editor Rust Preview viewport ready.")
+            self._set_dotnet_status("Mesh Editor Preview viewport ready.")
         elif str(state) == "error":
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status(str(message or "Rust Preview viewport failed."), error=True)
+            self._set_dotnet_status(str(message or "Preview viewport failed."), error=True)
         elif str(state) == "package_error":
             has_resident_scene = bool(getattr(controller, "applied_package_path", ""))
             if self.standalone_dotnet_target_embedded:
@@ -859,9 +859,9 @@ class MeshEditorTabShellMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason="package_error",
-                status_text=str(message or "Rust Preview package update failed."),
+                status_text=str(message or "Preview package update failed."),
             )
-            self._set_dotnet_status(str(message or "Rust Preview package update failed."), error=True)
+            self._set_dotnet_status(str(message or "Preview package update failed."), error=True)
 
     def _rehydrate_shared_dotnet_controller(self, controller: object) -> bool:
         if controller is not self._active_shared_dotnet_controller():

@@ -2765,11 +2765,11 @@ def _inspect_pac_binary_layout(data: bytes, filename: str) -> MeshBinaryLayout:
 def pac_bone_palette_candidates(
     data: bytes,
     *,
-    search_limit: int = 4096,
+    search_limit: int | None = None,
     minimum_entries: int = 8,
     maximum_entries: int = 512,
 ) -> tuple[tuple[int, ...], ...]:
-    """Bone-hash palette tables near the start of a PAC, longest first.
+    """Bone-hash palette tables in PAC metadata, longest first.
 
     A skinned PAC carries its own bone palette: a u16 count followed by that
     many u32 ``.pab`` bone-name hashes. Every one of a vertex's six influence
@@ -2785,13 +2785,23 @@ def pac_bone_palette_candidates(
     would silently mis-name bones.
     """
 
+    search_start = 16
+    if search_limit is None:
+        # Current garments can carry more than 60 KB of metadata before their
+        # palette. Use the declared metadata boundary, never a geometry scan.
+        sections = _parse_par_sections(data) if len(data) >= 80 and data[:4] == PAR_MAGIC else ()
+        metadata = next((section for section in sections if section["index"] == 0), None)
+        search_limit = metadata["offset"] + metadata["size"] if metadata else 4096
+        if metadata:
+            search_start = metadata["offset"]
+            search_limit = min(search_limit, *(section["offset"] for section in sections if section["index"] != 0), len(data))
     found: list[tuple[int, tuple[int, ...]]] = []
     limit = min(int(search_limit), max(0, len(data) - 6))
-    for offset in range(16, limit):
+    for offset in range(search_start, limit):
         count = struct.unpack_from("<H", data, offset)[0]
         if not minimum_entries <= count <= maximum_entries:
             continue
-        if offset + 2 + count * 4 > len(data):
+        if offset + 2 + count * 4 > min(int(search_limit), len(data)):
             continue
         values = struct.unpack_from(f"<{count}I", data, offset + 2)
         # Real hashes are large and unique; counts and offsets are neither.

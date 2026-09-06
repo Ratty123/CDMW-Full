@@ -36,14 +36,14 @@ class PyInstallerTempCleanupTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         error_text = "".join(str(call.args[0]) for call in stderr.write.call_args_list if call.args)
         self.assertIn("Legacy isolated renderer hosts were removed", error_text)
-        self.assertIn("resident Rust Archive Preview renderer", error_text)
+        self.assertIn("resident Preview renderer", error_text)
 
     def test_legacy_qtquick3d_module_is_not_imported(self) -> None:
         source = Path("cdmw/app/bootstrap.py").read_text(encoding="utf-8")
 
         self.assertNotIn("qtquick3d_isolated_host", source)
         self.assertIn("Legacy isolated renderer hosts were removed", source)
-        self.assertIn("Rust Archive Preview renderer", source)
+        self.assertIn("Preview renderer", source)
 
     def test_startup_maintenance_scheduler_runs_cleanup_asynchronously(self) -> None:
         with (

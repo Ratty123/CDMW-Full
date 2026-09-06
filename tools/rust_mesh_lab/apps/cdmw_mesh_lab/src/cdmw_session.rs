@@ -48,15 +48,15 @@ const MAX_PREVIEW_CORE_MATERIAL_LAYERS: usize = 64;
 
 #[derive(Debug, Error)]
 pub enum SessionError {
-    #[error("CDMW Rust session manifest is invalid: {0}")]
+    #[error("CDMW session manifest is invalid: {0}")]
     InvalidManifest(String),
-    #[error("CDMW Rust session payload is invalid: {0}")]
+    #[error("CDMW session payload is invalid: {0}")]
     InvalidPayload(String),
-    #[error("CDMW Rust session protocol failed: {0}")]
+    #[error("CDMW session protocol failed: {0}")]
     Protocol(String),
-    #[error("CDMW Rust session IO failed: {0}")]
+    #[error("CDMW session IO failed: {0}")]
     Io(#[from] std::io::Error),
-    #[error("CDMW Rust session JSON failed: {0}")]
+    #[error("CDMW session JSON failed: {0}")]
     Json(#[from] serde_json::Error),
 }
 

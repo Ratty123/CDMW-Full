@@ -84,7 +84,7 @@ class DotNetPreviewSessionLocalizationMixin:
             ) = self._localization_payload_values()
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             self._fail_current_process(
-                f"Rust Preview localization payload was rejected by the host: {exc}",
+                f"Preview localization payload was rejected by the host: {exc}",
                 static_failure=True,
             )
             return False
@@ -111,7 +111,7 @@ class DotNetPreviewSessionLocalizationMixin:
         ).encode("utf-8")
         if len(encoded) > DOTNET_PROTOCOL_LINE_LIMIT:
             self._fail_current_process(
-                "Rust Preview localization payload exceeded the protocol line limit.",
+                "Preview localization payload exceeded the protocol line limit.",
                 static_failure=True,
             )
             return False
@@ -159,7 +159,7 @@ class DotNetPreviewSessionLocalizationMixin:
         if status != "applied":
             detail = str(payload.get("reason", "") or status or "rejected")
             self._fail_current_process(
-                f"Rust Preview localization acknowledgement was rejected: {detail}",
+                f"Preview localization acknowledgement was rejected: {detail}",
                 static_failure=True,
             )
             return

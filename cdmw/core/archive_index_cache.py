@@ -25,6 +25,7 @@ from cdmw.core.archive_name_search import (
     _write_archive_name_search_shard_caches,
     _write_native_name_search_index_binary,
     archive_item_index_dependency_signature,
+    _archive_item_mount_signature,
 )
 from cdmw.core.archive_scan_cache import (
     _ARCHIVE_BASIC_INDEX_CACHE_MAGIC,
@@ -67,7 +68,7 @@ def format_byte_size(value: int) -> str:
     return owner(value)
 
 
-_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {12}
+_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {_ARCHIVE_DERIVED_INDEX_CACHE_VERSION}
 
 def _row_ids_as_tuple(value: object) -> Tuple[int, ...]:
     compacted = compact_archive_row_ids(value)
@@ -676,6 +677,7 @@ def save_archive_derived_index_cache(
         "entry_metadata_signature_format": _ARCHIVE_ENTRY_METADATA_SIGNATURE_FORMAT,
         "entry_metadata_signature": normalized_entry_metadata_signature,
         "item_index_dependency_signature": normalized_dependency_signature,
+        "item_mount_signature": _archive_item_mount_signature(package_root),
         "item_search_aliases": dict(item_search_aliases or {}),
         "item_display_names": dict(item_display_names or {}),
         "item_exact_display_names": dict(item_exact_display_names or {}),
@@ -790,6 +792,10 @@ def load_archive_derived_index_cache(
                 cache_path.unlink()
             except OSError:
                 pass
+            return None
+        if data.get("item_mount_signature", "") != _archive_item_mount_signature(package_root):
+            if on_log is not None:
+                on_log("Archive search cache is out of date: archive mount order changed.")
             return None
         if not table_catalog_cache_metadata_matches(data.get("table_catalog")):
             if on_log is not None:

@@ -127,34 +127,56 @@ Crimson Desert 2.00.00 layouts byte-for-byte.
 
 ## Placement & Animations
 
-Where a weapon hangs, which socket it routes to, and which clip plays when it is
-drawn are all editable, and none of it requires decoding a Havok tagfile. Four
-mechanisms cover everything the hand-built, in-game-verified mods do: socket
-transform edits and descriptor routing edits in XML, same-length socket-name
-retargets inside `.paac`, and whole-file substitution of `.paa` and
-`.motionblending` payloads that already exist elsewhere in the game.
+The replacement workspace keeps equipment, linked parts, destination, animation
+selection, comparison and checks together. Each proposed file has an inspectable
+target/donor mapping, Full/LOD variant, shared references and status. Manual donor
+choices survive refreshes while valid. Select **Prepare preview** to resolve the
+complete payload set before applying one operation; unreadable donors, invalid
+payloads, conflicts and stale preparation block the operation without changing
+the session.
 
-The safety model is the operation vocabulary rather than a validation pass bolted
-on afterwards: unsafe operations are not expressible. The editor emits socket
-translate/rotate within configured bounds, routing changes to sockets that
-already exist, descriptor alias pairs that must stay byte-identical, length-
-preserving `.paac` retargets, and verified payload substitution. It refuses, with
-an explanation and never a silent fallback, any binary write that changes file
-length, PAAC graph structure edits, `ItemInfo`/`EquipSlot`/prefab-tree edits, a
-socket name that does not already exist in the target's socket set, and authoring
-new `.paa` keyframe data.
+**Before** includes earlier session edits. **After** uses a private copy with the
+proposed operation. Both share camera, playback clock and controls; shorter tracks
+hold their endpoint until that shared clock loops. The full selected animation set
+is available for inspection. Export consumes the same
+prepared effective files, excludes byte-identical selections and retains mappings,
+hashes, companion decisions and check evidence in the compatible package manifest.
+Older packages without this evidence display as unchecked.
 
-That envelope is not asserted, it is measured. A ground-truth harness derives an
-operation list from each known-good mod and replays it against a pinned vanilla
-baseline: 20 of 20 mods express as 6,416 operations, 15 of 15 vanilla-based mods
-reproduce byte-identically, and composing the 1H and 2H operation lists yields
-the combined mod. `.paac` strings are length-prefixed (`<len+1><ASCII><NUL>`),
-verified 30 of 30 across the corpus, which is what makes a same-length retarget
-provably safe rather than folklore.
+Checks distinguish **Passed**, **Warning**, **Unverified** and **Blocked**. Packed
+skeletal and root-motion channels use separate validated clocks; declared duration
+controls seeking and looping. Installed animation sets, matching tables, explicit
+defaults, Full/LOD companions, prefab socket bindings and reverse references guide
+selection. Gameplay browsing starts with the selected rig; facial, additive, LOD,
+equipment and NPC/story clips have separate filters. Attachment inspection includes
+draw/stow clips associated through decoded part events, even when the attachment's
+animation set uses a suffix or default mapping.
 
-Open it from the **Placement & Animations** tab, or standalone with
-`python scripts/placement_studio.py`. Its focused tests use repository fixtures
-and do not need a game install.
+Supported attachment bindings reconstruct their own bone palette and bind pose.
+Bow variants can identify unused leaf tracks through a validated mesh sharing their
+animation set; witness paths and hashes are retained without borrowing its transforms.
+Supported 1D/2D/3D blendspaces use stored triangulation and split planes, phase marks,
+parameter scaling, parameter smoothing and weight smoothing. Controls expose raw
+parameters, contributing clips, playback rate and **Restart blend** for spaces that
+hold their initial weights. Stored character scale is distinct from playback rate.
+
+**Chart events** applies decoded, unconditional draw/sheath socket handoffs at their
+stored times. The initial Held/Stowed state remains a manual choice. Conflicting or
+conditional timelines, unresolved sockets and unsupported events retain manual
+inspection with an **Unverified** explanation. Before/After uses the target's charts;
+copying an animation does not silently import the donor's event graph. Sources,
+action indices and timestamps are available in the check details.
+
+Destination measurements and actual skeleton proportions inform donor suitability
+without certifying contact or engine retargeting. Automatic actor inputs, inherited
+blend weights, runtime action conditions, some chart layouts and physics-generated
+attachment palettes remain **Unverified**. Preview does not simulate engine IK or
+physics. Structurally valid exports can retain these uncertainties; in-game behavior
+requires a separate game test. The workflow does not write installed archives.
+
+Open the **Placement & Animations** tab, or run
+`python scripts/placement_studio.py`. Focused tests use repository fixtures;
+installed-game inspection and visible validation are separate evidence.
 
 ---
 

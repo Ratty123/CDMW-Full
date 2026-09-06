@@ -688,7 +688,7 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
     assert controller._prewarm_package.runtime_output_external is True  # noqa: SLF001
     assert not any(
         payload.get("event") == "capture_request" for payload in process.writes
-    ), "the Rust child reports renderer readiness directly; prewarm needs no synthetic capture"
+    ), "the Preview child reports renderer readiness directly; prewarm needs no synthetic capture"
     assert controller._prewarm_capture_request_id == 0  # noqa: SLF001
     assert controller.process is process
     assert controller._prewarm_package.package_dir == warmup.package_dir  # noqa: SLF001

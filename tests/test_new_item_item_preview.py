@@ -1176,12 +1176,12 @@ class ItemPreviewFrameTests(unittest.TestCase):
         statuses = []
         frame.status_changed.connect(statuses.append)
 
-        frame._host_state("package_error", "Rust Preview package load failed: missing texture")
+        frame._host_state("package_error", "Preview package load failed: missing texture")
 
         self.assertEqual(
             statuses[-1],
             "Fast textures remain visible; full textures failed to load: "
-            "Rust Preview package load failed: missing texture",
+            "Preview package load failed: missing texture",
         )
         self.assertFalse(frame._full_texture_upgrade_from_fast)
         frame.shutdown()

@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytestmark = pytest.mark.skip(
     reason=(
         "The resident Vortice Mesh Editor material UI is retired; Archive Preview "
-        "and the Rust material handoff have separate production coverage."
+        "and the material handoff have separate production coverage."
     )
 )
 

@@ -26,7 +26,7 @@ LANGUAGE_LABELS = {
     "eng": "English", "kor": "Korean", "jpn": "Japanese", "rus": "Russian", "tur": "Turkish",
     "spa-es": "Spanish (Spain)", "spa-mx": "Spanish (Latin America)", "fre": "French", "ger": "German",
     "ita": "Italian", "pol": "Polish", "por-br": "Portuguese (Brazil)", "zho-tw": "Chinese (Traditional)",
-    "zho-cn": "Chinese (Simplified)",
+    "zho-cn": "Chinese (Simplified)", "ara": "Arabic",
 }
 
 
@@ -108,7 +108,7 @@ class IdentityPanel(QGroupBox):
         self.display_name.textChanged.connect(self._store_display_name)
         names_layout.addRow("Name:", self.display_name)
         self.description = QPlainTextEdit()
-        self.description.setPlaceholderText("Description shown in game; empty keeps the template's description in this language")
+        self.description.setPlaceholderText("Item description; unspecified languages use English when provided")
         self.description.setMinimumHeight(72)
         self.description.setMaximumHeight(120)
         self.description.textChanged.connect(self._store_description)

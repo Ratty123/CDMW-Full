@@ -10,8 +10,8 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 4;
-    private const int NativeCatalogSchemaVersion = 1;
+    private const int CacheSchemaVersion = 5;
+    private const int NativeCatalogSchemaVersion = 2;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
     private static readonly JsonSerializerOptions CacheJsonOptions = new()
@@ -19,16 +19,6 @@ public sealed class ArchiveItemCatalogBuildService(
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = false,
     };
-    private static readonly (string Language, string TableName)[] LocalizationTables =
-    [
-        ("kor", "localizationstring_kor"), ("eng", "localizationstring_eng"),
-        ("jpn", "localizationstring_jpn"), ("rus", "localizationstring_rus"),
-        ("tur", "localizationstring_tur"), ("spa-es", "localizationstring_spa-es"),
-        ("spa-mx", "localizationstring_spa-mx"), ("fre", "localizationstring_fre"),
-        ("ger", "localizationstring_ger"), ("ita", "localizationstring_ita"),
-        ("pol", "localizationstring_pol"), ("por-br", "localizationstring_por-br"),
-        ("zho-tw", "localizationstring_zho-tw"), ("zho-cn", "localizationstring_zho-cn"),
-    ];
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _buildGates = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<BuildNameIndexResult> BuildAsync(
@@ -50,7 +40,10 @@ public sealed class ArchiveItemCatalogBuildService(
             {
                 return Result(session, active, usedCache: true);
             }
-            var cachePath = Path.Combine(session.GenerationPath, "item-catalog-v4.json");
+            var mountPath = Path.Combine(session.PackageRoot, "meta", "0.papgt");
+            var mountSignature = File.Exists(mountPath)
+                ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(mountPath))) : "unmounted";
+            var cachePath = Path.Combine(session.GenerationPath, $"item-catalog-v5-{mountSignature}.json");
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
             {
@@ -80,7 +73,7 @@ public sealed class ArchiveItemCatalogBuildService(
                         UsedCache: false,
                         ExactNameCount: 0,
                         RelatedNameCount: 0,
-                        Warning: "ItemInfo was not found in package 0008, so the item catalogue is empty.");
+                        Warning: "No supported ItemInfo table was found, so the item catalogue is empty.");
                 }
                 await ExtractSourcesAsync(sources, payloadRoot, publishProgress, cancellationToken).ConfigureAwait(false);
                 var reportPath = Path.Combine(workRoot, "item-index.json");
@@ -95,6 +88,7 @@ public sealed class ArchiveItemCatalogBuildService(
                         session,
                         native,
                         parsed,
+                        sources,
                         publishProgress,
                         cancellationToken),
                     CancellationToken.None).ConfigureAwait(false);
@@ -129,14 +123,15 @@ public sealed class ArchiveItemCatalogBuildService(
             ItemCount: catalog.Count);
     }
 
-    private static async Task<NameIndexSources> WriteEntriesAndFindSourcesAsync(
+    private static async Task<ArchiveItemSources> WriteEntriesAndFindSourcesAsync(
         ArchiveSession session,
         string entriesPath,
         Func<ProgressUpdate, Task>? publishProgress,
         CancellationToken cancellationToken)
     {
-        var sources = new NameIndexSources();
+        var sources = new ArchiveItemSources(session.PackageRoot);
         var total = session.Index.EntryCount;
+        var candidates = new List<ArchiveEntryDto>();
         await using var stream = new FileStream(entriesPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 1024 * 1024, leaveOpen: false) { NewLine = "\n" };
         for (long entryId = 0; entryId < total; entryId++)
@@ -150,8 +145,19 @@ public sealed class ArchiveItemCatalogBuildService(
                 }
             }
             var entry = session.ReadEntry(entryId);
-            FindSource(sources, entry);
-            writer.Write(entryId); writer.Write('\t');
+            sources.Offer(entry);
+            if (entry.Extension is ".prefab" or ".pac" or ".pact"
+                || (entry.Extension == ".dds" && entry.Path.Contains("icon", StringComparison.OrdinalIgnoreCase)))
+                candidates.Add(entry);
+        }
+        sources.Finish();
+        foreach (var entry in candidates.Where(sources.Accepts)
+                     .GroupBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group.MaxBy(sources.Order)!))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.Extension == ".pac") sources.ExistingPacNames.Add(Path.GetFileName(entry.Path));
+            writer.Write(entry.EntryId); writer.Write('\t');
             writer.Write(CleanTsv(entry.Path)); writer.Write('\t');
             writer.Write(CleanTsv(entry.SourcePamt)); writer.Write('\t');
             writer.Write(CleanTsv(entry.PazFile)); writer.Write('\t');
@@ -165,36 +171,18 @@ public sealed class ArchiveItemCatalogBuildService(
         return sources;
     }
 
-    private static void FindSource(NameIndexSources sources, ArchiveEntryDto entry)
-    {
-        var lowerPath = entry.Path.Replace('\\', '/').ToLowerInvariant();
-        var basename = Path.GetFileName(lowerPath);
-        var packageGroup = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt))?.ToLowerInvariant() ?? string.Empty;
-        if (packageGroup == "0008")
-        {
-            if (sources.ItemInfo is null && lowerPath.Contains("iteminfo.pabgb", StringComparison.Ordinal)) sources.ItemInfo = entry;
-            else if (sources.StringInfo is null && basename == "stringinfo.pabgb") sources.StringInfo = entry;
-            else if (sources.PartPrefabDyeSlotInfo is null && basename == "partprefabdyeslotinfo.pabgb") sources.PartPrefabDyeSlotInfo = entry;
-        }
-        if (packageGroup != "0020" || !lowerPath.Contains("localizationstring_", StringComparison.Ordinal)) return;
-        foreach (var (language, tableName) in LocalizationTables)
-        {
-            if (!sources.Localizations.ContainsKey(language) && lowerPath.Contains(tableName, StringComparison.Ordinal))
-            {
-                sources.Localizations[language] = entry;
-                break;
-            }
-        }
-    }
-
     private async Task ExtractSourcesAsync(
-        NameIndexSources sources,
+        ArchiveItemSources sources,
         string payloadRoot,
         Func<ProgressUpdate, Task>? publishProgress,
         CancellationToken cancellationToken)
     {
         var payloads = new List<(string Name, ArchiveEntryDto Entry)> { ("iteminfo.bin", sources.ItemInfo!) };
         if (sources.StringInfo is not null) payloads.Add(("stringinfo.bin", sources.StringInfo));
+        if (sources.ItemInfoHeader is not null) payloads.Add(("iteminfo_header.bin", sources.ItemInfoHeader));
+        if (sources.StringInfoHeader is not null) payloads.Add(("stringinfo_header.bin", sources.StringInfoHeader));
+        if (sources.EquipTypeInfo is not null) payloads.Add(("equiptypeinfo.bin", sources.EquipTypeInfo));
+        if (sources.EquipTypeInfoHeader is not null) payloads.Add(("equiptypeinfo_header.bin", sources.EquipTypeInfoHeader));
         if (sources.PartPrefabDyeSlotInfo is not null) payloads.Add(("partprefabdyeslotinfo.bin", sources.PartPrefabDyeSlotInfo));
         payloads.AddRange(sources.Localizations.Select(pair => ($"loc_{pair.Key}.bin", pair.Value)));
         for (var index = 0; index < payloads.Count; index++)
@@ -264,8 +252,8 @@ public sealed class ArchiveItemCatalogBuildService(
         {
             throw new InvalidDataException(root.TryGetProperty("message", out var message) ? message.GetString() : "The native item catalogue report is invalid.");
         }
-        if (root.TryGetProperty("catalog_schema", out var schemaValue)
-            && (!schemaValue.TryGetInt32(out var schema) || schema != NativeCatalogSchemaVersion))
+        if (!root.TryGetProperty("catalog_schema", out var schemaValue)
+            || !schemaValue.TryGetInt32(out var schema) || schema != NativeCatalogSchemaVersion)
         {
             throw new InvalidDataException($"The native item catalogue schema is not supported; expected {NativeCatalogSchemaVersion}.");
         }
@@ -301,16 +289,22 @@ public sealed class ArchiveItemCatalogBuildService(
         return result;
     }
 
+    private static IEnumerable<string> DirectPrefabStems(ArchiveItemCatalogRecord item) =>
+        item.ModelStems.Concat(item.PacFiles)
+            .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
+            .Where(stem => item.PrefabHashes.Contains(ArchiveNameIndexBuilder.ModelNameHash(stem)));
+
     private static CatalogueBuildState EnrichPrefabDependencies(
         ArchiveSession session,
         NativeArchiveCore native,
         CatalogueBuildState state,
+        ArchiveItemSources sources,
         Func<ProgressUpdate, Task>? progress,
         CancellationToken cancellationToken)
     {
         var items = state.ItemCatalog.Items;
         var candidates = items
-            .SelectMany(static item => item.ModelStems.Concat(item.PacFiles))
+            .SelectMany(DirectPrefabStems)
             .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
             .Where(static value => value.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -319,8 +313,9 @@ public sealed class ArchiveItemCatalogBuildService(
             native,
             candidates,
             cancellationToken,
-            progress);
-        if (dependencies.Values.All(static paths => paths.Length == 0)) return state;
+            progress,
+            exactStems: true,
+            sources: sources);
 
         var exact = state.NameIndex.ExactNames.ToDictionary(
             static pair => pair.Key,
@@ -334,8 +329,7 @@ public sealed class ArchiveItemCatalogBuildService(
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var itemCandidates = item.ModelStems
-                .Concat(item.PacFiles)
+            var itemCandidates = DirectPrefabStems(item)
                 .Select(ArchiveNameIndexBuilder.NormalizeModelStem)
                 .Where(static value => value.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -348,7 +342,7 @@ public sealed class ArchiveItemCatalogBuildService(
                 ArchiveNameIndexBuilder.AddDisplayName(
                     exact,
                     ArchiveNameIndexBuilder.NormalizeModelStem(modelPath),
-                    item.DisplayName);
+                    item.Evidence.Contains("generated friendly name", StringComparison.Ordinal) ? "" : item.DisplayName);
             }
             enriched.Add(item with
             {
@@ -360,7 +354,7 @@ public sealed class ArchiveItemCatalogBuildService(
                 PacFiles = modelPaths
                     .Select(static path => Path.GetFileName(path) ?? string.Empty)
                     .Concat(item.PacFiles)
-                    .Where(static value => value.Length > 0)
+                    .Where(sources.ExistingPacNames.Contains)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray(),
             });
@@ -503,14 +497,6 @@ public sealed class ArchiveItemCatalogBuildService(
             if (resolved.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && Directory.Exists(resolved)) Directory.Delete(resolved, recursive: true);
         }
         catch { }
-    }
-
-    private sealed class NameIndexSources
-    {
-        public ArchiveEntryDto? ItemInfo { get; set; }
-        public ArchiveEntryDto? StringInfo { get; set; }
-        public ArchiveEntryDto? PartPrefabDyeSlotInfo { get; set; }
-        public Dictionary<string, ArchiveEntryDto> Localizations { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed record NameIndexCachePayload(

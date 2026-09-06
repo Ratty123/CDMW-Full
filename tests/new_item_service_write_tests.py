@@ -320,6 +320,45 @@ class _WriteTestsMixin:
         plan = plan_task(spec, self.snapshot, service=self.service)(lambda _m: None, None)
         self.assertEqual(plan.spec.item_key, 1990000)
 
+    def test_removed_overlay_is_refreshed_before_a_snapshot_or_plan_uses_it(self) -> None:
+        from cdmw.services.archive_overlay_install import restore_last_overlay_install
+        from cdmw.workers.new_item_workers import list_archive_entries
+
+        mutations = ArchiveMutationService()
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            installed = self.service.install_overlay(self._plan(), mutation_service=mutations, confirmed=True)
+        stale_entries = list_archive_entries(self.root, lambda _m: None, None)
+        stale = self.service.build_snapshot(stale_entries, read_entry=_read)
+        self.assertEqual(Path(stale.iteminfo.payload_entry.pamt_path).parent.name, installed.directory.name)
+        restore_last_overlay_install(
+            installed.receipt_path, confirmed=True,
+            restore_backup=lambda path: mutations.restore_backup(path, confirmed=True),
+            game_running=lambda: False,
+        )
+        self.assertTrue(stale.source_files_changed())
+        logs = []
+        spec = NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Refreshed_OneHandSword", display_names={"eng": "Refreshed"})
+        plan = plan_task(spec, stale, service=self.service)(logs.append, None)
+        self.assertIsNotNone(plan.refreshed_snapshot)
+        self.assertTrue(all(Path(request.entry.pamt_path).parent.name == "0009" for request in plan.patches))
+        self.assertTrue(any("Refreshing" in message for message in logs))
+        current = snapshot_task(
+            stale_entries, service=self.service, read_entry=_read, package_root=self.root,
+            entries_by_normalized_path={path: [entry] for path, entry in stale.entries.items()},
+        )(logs.append, None)
+        self.assertEqual(Path(current.iteminfo.payload_entry.pamt_path).parent.name, "0009")
+
+    def test_rewritten_archive_refresh_uses_fresh_source_tracking(self) -> None:
+        import os
+
+        path = Path(self.snapshot.iteminfo.payload_entry.pamt_path)
+        stamp = path.stat()
+        os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000))
+        spec = NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Refreshed_OneHandSword", display_names={"eng": "Refreshed"})
+        plan = plan_task(spec, self.snapshot, service=self.service)(lambda _m: None, None)
+        self.assertIsNotNone(plan.refreshed_snapshot)
+        self.assertFalse(plan.refreshed_snapshot.source_files_changed())
+
 class _TextureRegistryTestsMixin:
     """New `.dds` files are registered in `meta/0.pathc`, written and backed up with the install."""
 

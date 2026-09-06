@@ -362,6 +362,9 @@ class EquipmentUnit:
     in_child_socket: str = ""
     out_socket: str = ""
     out_child_socket: str = ""
+    mesh_path: str = ""
+    prefab_path: str = ""
+    shrink_tag: str = ""
 
     @property
     def unit_id(self) -> str:

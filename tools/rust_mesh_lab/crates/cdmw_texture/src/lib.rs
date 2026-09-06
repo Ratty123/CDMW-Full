@@ -748,13 +748,10 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
             | DdsFormat::Bgra8Srgb
     );
     let color_space = match role {
-        TextureRole::BaseColor => ColorSpace::Srgb,
-        // Crimson uses the emissive slot for both authored RGB colour and
-        // single-channel intensity masks. BC4/R8 have no sRGB sampling view;
-        // treating an intensity mask as colour also changes the authored
-        // response. Keep those formats linear and let the material's emissive
-        // colour supply the hue in the shader.
-        TextureRole::Emissive
+        // Colour slots also carry scalar particle/emissive masks. These have
+        // no sRGB view; sample their intensity linearly and keep the authored
+        // material or particle colour responsible for the hue.
+        TextureRole::BaseColor | TextureRole::Emissive
             if matches!(
                 format,
                 DdsFormat::Bc4Unorm | DdsFormat::Bc4Snorm | DdsFormat::R8Unorm
@@ -762,7 +759,7 @@ pub fn inspect_dds(bytes: &[u8], role: TextureRole) -> Result<DdsMetadata, Textu
         {
             ColorSpace::Linear
         }
-        TextureRole::Emissive => ColorSpace::Srgb,
+        TextureRole::BaseColor | TextureRole::Emissive => ColorSpace::Srgb,
         TextureRole::Normal
         | TextureRole::Material
         | TextureRole::Roughness
@@ -1487,10 +1484,15 @@ mod tests {
     }
 
     #[test]
-    fn single_channel_emissive_mask_is_linear_intensity_data() -> Result<(), TextureError> {
-        let metadata = inspect_dds(&dds_dx10(80), TextureRole::Emissive)?;
-        assert_eq!(metadata.format, DdsFormat::Bc4Unorm);
-        assert_eq!(metadata.color_space, ColorSpace::Linear);
+    fn single_channel_colour_slots_are_linear_intensity_data() -> Result<(), TextureError> {
+        for role in [TextureRole::BaseColor, TextureRole::Emissive] {
+            for dxgi in [80, 81, 61] {
+                let metadata = inspect_dds(&dds_dx10(dxgi), role)?;
+                assert_eq!(metadata.color_space, ColorSpace::Linear);
+            }
+            let metadata = inspect_dds(&dds_dx10(99), role)?;
+            assert_eq!(metadata.color_space, ColorSpace::Srgb);
+        }
         Ok(())
     }
 

@@ -83,7 +83,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
                 prepared,
                 geometry_layers=(
                     _MeshGeometryLayer("base", "Base mesh", (0,), visible=True, base=True),
-                    _MeshGeometryLayer("detail", "Rust Detail", (1,), visible=True),
+                    _MeshGeometryLayer("detail", "Detail", (1,), visible=True),
                 ),
                 expected_geometry_layer_revision=expected_layer_revision,
             )
@@ -240,7 +240,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         committed = service.commit_prepared_working_mesh_replacement(
             prepared,
             history_action="rust_edit_session",
-            history_label="Rust Edit Session",
+            history_label="Edit Session",
             require_reversible_history=True,
         )
 
@@ -248,7 +248,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         self.assertFalse(
             any(snapshot.native_editor_history for snapshot in session.undo_stack)
         )
-        self.assertEqual("Rust Edit Session", session.undo_stack[-1].history_label)
+        self.assertEqual("Edit Session", session.undo_stack[-1].history_label)
         self.assertTrue(service.undo(view.session_id).ok)
         self.assertEqual(
             (0.0, 0.0, 0.0),
@@ -399,7 +399,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         imported = _quad_mesh()
         imported.submeshes[0].vertices[0] = (0.5, 0.0, 0.0)
         prepared = service.prepare_working_mesh_replacement(view.session_id, imported)
-        layer = _MeshGeometryLayer("rust-layer", "Rust Layer", (0,), visible=True)
+        layer = _MeshGeometryLayer("rust-layer", "Layer", (0,), visible=True)
         original_session = service._session(view.session_id)
         original_session.output_destination = "original-" + ("o" * 2048) + ".pac"
         original_layers = original_session.geometry_layers
@@ -421,7 +421,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
             service.commit_prepared_working_mesh_replacement(
                 prepared,
                 history_action="rust_edit_session",
-                history_label="Rust Edit Session",
+                history_label="Edit Session",
                 geometry_layers=(layer,),
                 geometry_layer_copy_counter=object(),
                 output_policy="free_edit",
@@ -441,7 +441,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         committed = service.commit_prepared_working_mesh_replacement(
             prepared,
             history_action="rust_edit_session",
-            history_label="Rust Edit Session",
+            history_label="Edit Session",
             geometry_layers=(layer,),
             active_geometry_layer_id="rust-layer",
             geometry_layer_copy_counter=3,
@@ -460,7 +460,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
         self.assertEqual(rust_destination, session.output_destination)
         self.assertTrue(session.output_destination_ready)
         self.assertEqual(rust_transform, session.object_transform)
-        self.assertEqual("Rust Edit Session", committed.history_entries[-1].label)
+        self.assertEqual("Edit Session", committed.history_entries[-1].label)
 
         rust_marker = session.undo_stack[-1]
         marker_without_destination = replace(
@@ -500,7 +500,7 @@ class MeshServicePreparedReplacementTests(unittest.TestCase):
             (0.5, 0.0, 0.0),
             service.working_mesh(view.session_id, clone=False).submeshes[0].vertices[0],
         )
-        self.assertEqual("Rust Edit Session", service.session_view(view.session_id).history_entries[-1].label)
+        self.assertEqual("Edit Session", service.session_view(view.session_id).history_entries[-1].label)
 
 
 if __name__ == "__main__":

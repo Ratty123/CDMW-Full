@@ -4,6 +4,15 @@ Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
+Before planning, the worker checks the snapshot's archive/index revisions and
+refreshes changed sources, including overlays removed by a mod manager or Steam
+verification. The draft remains intact. Overlay output defaults to Auto; the
+optional folder number selects a free four-digit group. Both disk folders and
+PAPGT reservations are respected, including optional game archives absent on disk.
+A stale ownership marker cannot take over a mount record replaced by a game update.
+Large overlay payload checksums use the existing cancellable native helper so
+building a mod does not occupy the UI's Python interpreter.
+
 The archive snapshot reads StatusInfo and EquipTypeInfo from either their legacy
 `gamedata/binary__/client/bin/*.pabgb` / `*.pabgh` pairs or the newer
 `gamedata/binarystaticinfo__/bin/*.staticinfobody` / `*.staticinfoheader` pairs.
@@ -30,7 +39,7 @@ worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
-The Template panel searches internal IDs, English item names, equipment types and
+The Template panel searches internal IDs, every available localized item name, equipment types and
 item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
 Its result table separates the internal name, English item name, numeric key and equipment
 type into four labelled columns. Column edges are session-resizable, clicking a heading
@@ -310,3 +319,128 @@ Related tests: `tests/test_new_item_studio_tab.py`,
 `tests/test_new_item_effect_proof.py`. The explicitly invoked real-corpus gate is
 `tools/new_item_effect_proof.py report`; it keeps evidence under system temp and is not
 part of an ordinary automated check.
+
+## Current game tables and extended authoring
+
+The seven workflow steps support the current `binarystaticinfo__/bin` tables as
+well as legacy `binary__/client/bin` tables. Current complete table pairs take
+precedence as a generation; missing halves and parse errors cannot fall through
+to an old mod. An unreadable archive index stops authoring rather than exposing
+an incomplete catalogue. ItemInfo preserves its actual `0x11` or `0x12` stat marker.
+Current StoreInfo retains the additional stock condition bytes and all opaque
+fields. Every writable shape must round-trip without changes first.
+
+Item text uses the current per-language `item.paloc` files, including Arabic,
+or the legacy monolithic localization tables. Unspecified text falls back to
+English using the existing derived keys. Arabic is an item-text option, not an
+additional workbench UI language.
+
+Template searches initially use the game's equipment category, with **All
+equipment** and explicit subcategories available. A handoff reveals its requested
+item regardless of the active filter. Ordinary category/equipment group memberships
+are the default for new drafts; quest, special and collection memberships require
+an explicit selection or **Advanced: inherit all template groups**.
+The sortable **Authoring** column distinguishes templates with enhancement stats,
+decoded prices/sockets and unsupported stat boundaries. Source archives remain in
+the row tooltip and generation status.
+
+**Perks & Effects** separates embedded perks, available socket capacity and
+unlock costs, inherent bonuses, and visual effects. Bonus presets come from
+shipped equipment. Parameters are the validated BuffInfo levels, without invented
+percentage conversions. Bonus overrides can apply to one enhancement level or all
+levels. Omitted overrides inherit; empty overrides clear. Reducing socket capacity
+never silently removes perks. Normal limits remain four embedded perks and five
+slots, with the existing eight-entry experimental limit visibly separate.
+
+**Stats & Prices** also contains enhancement/crafting recipe authoring. A selected
+recipe is copied with owned DropSet outputs and reconnected to the new item.
+On the current generation, inheriting recipes automatically creates those owned
+connections while preserving costs and requirements, even when the recipe editor
+is never opened. The legacy format retains its explicit ownership choice.
+Customizing one transition also creates owned copies of the remaining inherited
+transitions, preserving their quantities and levels while reconnecting their item
+references. Otherwise the game can report maximum refinement at an intermediate
+level. An unsupported inherited transition blocks this operation before export.
+Inputs, quantities, enhancement levels, tool and knowledge requirements can be
+edited; item key zero in an ingredient means the new item. Source flags and
+presentation/localization references remain unchanged, including elemental-status
+requirements and variable-length refinement descriptions. Both primary and
+additional output lists receive owned copies. Output quantity ranges are editable;
+customizing another field preserves inherited ranges and zero-filled material
+placeholders. The ingredient/output tables size to their rows, keep names readable
+and leave recipe actions visible at compact workspace sizes. Unrelated crafting
+presets stay editable while an output is selected.
+Recipe connections require a unique list associated with the template through its
+decoded inputs or outputs; an unrelated list containing recipe-looking keys is not
+an editing boundary. Ingredient quantities are separate from item
+purchase prices. Clearing connections removes the inherited recipe list.
+
+**Distribution** saves multiple Add/Replace shop routes, including exact stock
+indices when the same item appears more than once. Quantity and known unlock
+requirements are separate controls. Existing item-use/container reward routes
+clone both the reward definition and its ItemUse record, reconnecting only the
+selected item consumer. Quantity ranges and raw weights are editable; weights are
+not labelled probabilities because roll policy varies. Unrelated consumers keep
+their original definitions. Supported conditional item entries preserve their four
+stored condition/tag references, sub-weights and use conditions. Tooltips list the
+actual indexed consumers and retained references; unknown condition scopes are not
+offered as editable gameplay semantics.
+
+**Model & Placement** identifies each variant by its exact prefab/model binding.
+Imports, material routes, glow, placement and camera are retained independently.
+Selected variants own their resources; unselected variants retain the template.
+Variant allocation also reserves StringInfo and dye hashes, including orphaned
+dye records carried by a compatible mod base.
+Companion meshes are preserved, and held/sheathed bindings are individually visible.
+On the current format, the legacy single-model service argument adapts to the
+primary binding. Rigid attachments must retain their single slot. Skinned imports
+require a resolved target skeleton and matching bone palette; an unresolved or
+ambiguous rig is blocked rather than borrowed from another character.
+Palette discovery follows the declared PAC metadata boundary, including palettes
+beyond the former 4 KB scan window, and excludes the geometry sections.
+
+**Dye assignments** copies exact shipped material/property wiring and supports
+explicit RGB channel-to-slot mappings. Imported renamed parts require an explicit
+mask fitted to their UVs. No fuzzy name matching or inferred shader flags are used.
+Material preview and export call the same preparation function. The preview is a
+material inspection; it does not simulate a chosen in-game pigment or prove dye
+station behavior. Mask revisions form part of the preview identity and immutable
+worker request. A replaced mask invalidates cached previews and export plans;
+changing it during preparation is rejected.
+
+Optional bonus, recipe, dye and reward indexes load in the bounded worker lane.
+Requests capture their variant and source state. Source leases cover all selected
+imports until the worker thread exits. The resident viewport remains present while
+its replacement is prepared. Output reviews variants, records, acquisition routes,
+table provenance and changed files. Plans are tied to their draft revision and
+source payload/file fingerprints, checked again before atomic publication.
+
+Compatible mod bases carry every prior item and added dependency forward. Table
+operations accumulate before encoding so recipes, rewards and multiple variants
+cannot overwrite earlier additions. Mixed-generation bases are rejected with
+affected paths/items and preserved for rebuilding; automatic migration is absent.
+
+### Verification boundary
+
+The September 2026 corpus check round-trips all 18,576 recipes, 13,045 item reward
+sets (including 26 conditional sets), 166 ItemUse reward-reference records and all
+1,626 dye records. The 1,699 other reward definitions include non-item and mixed
+result variants; they remain unsupported for item reward editing. Nonempty
+condition/elemental-material arrays not present in this recipe corpus remain
+guarded. The 83 ItemInfo rows with empty-shaped but unproven stat boundaries remain
+unsupported, rather than being treated as empty editable blocks. Templates without
+a proven recipe-list boundary cannot receive new recipe connections.
+The sampled `cd_phm_00_lb_0002.pac` garment now resolves its 40-entry palette against
+`phm_01.pab`; a rebuilt garment passes target-rig validation. Existing item-use
+containers are the supported reward consumer path. Generic world-object/quest
+consumer rewiring and new world placement are not supported.
+
+Synthetic fixtures cover edited round trips, ownership, empty/inherited overrides,
+exact duplicate-shop selection, multiple imports, cancellation/leases and second-item
+base preservation. The optional live-corpus tests fail on missing required tables.
+Licensed payloads and local reports belong outside tracked fixtures. File-level,
+headless and material-preview evidence do not close gameplay acceptance: bonuses,
+unlock costs, recipes, dyes, animation/variant appearance and acquisition still need
+recorded obtain/equip/use observations and restoration using a reviewed temporary
+package. Installation/restoration continue through `ArchiveMutationService` with
+the exact mutation confirmation and recovery checks.

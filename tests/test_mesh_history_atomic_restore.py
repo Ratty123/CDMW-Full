@@ -35,7 +35,7 @@ def _history_marker_for_current_mesh(service: MeshService, session_id: str):
     marker = mesh_service_module._snapshot(session)
     marker.morph_session_state = _MeshMorphSessionState(present=False)
     marker.history_action = "rust_edit_session"
-    marker.history_label = "Rust Edit Session"
+    marker.history_label = "Edit Session"
     return marker
 
 
@@ -84,7 +84,7 @@ def test_failed_profile_restore_rolls_back_full_mesh_session_checkpoint(tmp_path
     current_mesh.submeshes[0].vertices[0] = (0.75, 0.0, 0.0)
     current_layer = _MeshGeometryLayer(
         "base",
-        "Rust Result",
+        "Result",
         (0,),
         visible=False,
         base=True,
@@ -115,10 +115,10 @@ def test_failed_profile_restore_rolls_back_full_mesh_session_checkpoint(tmp_path
     session.native_history_undo_count = 2
     session.native_history_redo_count = 3
     session.native_history_retained_bytes = 4096
-    profile_path.write_bytes(b'{"name":"Rust Result"}')
+    profile_path.write_bytes(b'{"name":"Result"}')
     marker.morph_profile_expected_fingerprint = _mesh_morph_profile_state_fingerprint(
         True,
-        (("definitions/profile.json", b'{"name":"Rust Result"}'),),
+        (("definitions/profile.json", b'{"name":"Result"}'),),
     )
     marker.retained_bytes = _history_snapshot_retained_bytes(marker)
     session.undo_stack.append(marker)
@@ -163,7 +163,7 @@ def test_failed_profile_restore_rolls_back_full_mesh_session_checkpoint(tmp_path
         assert restored.output_policy == "free_edit_rebuild"
         assert restored.output_destination == "rust-result"
         assert restored.output_destination_ready is True
-        assert profile_path.read_bytes() == b'{"name":"Rust Result"}'
+        assert profile_path.read_bytes() == b'{"name":"Result"}'
         assert (
             restored.revision,
             restored.selection_revision,

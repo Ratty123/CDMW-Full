@@ -188,7 +188,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self.open_new_item_studio(model_path=Path(import_path_text))", source)
         self.assertIn("self._preview_model_library_mesh", source)
         self.assertIn("self.textures._handle_model_library_item_icon_generated", source)
-        self.assertIn("Rust Preview rejected the prepared package", source)
+        self.assertIn("Preview rejected the prepared package", source)
         self.assertIn('"model_library"', source)
         self.assertNotIn("SketchfabLibraryTab", source)
         self.assertNotIn("Connect Sketchfab", source)
@@ -402,7 +402,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('QPushButton("Preview")', source)
         self.assertIn('QCheckBox("Auto preview local selection")', source)
         self.assertIn("Automatically previews local selections in the Model Library preview panel", source)
-        self.assertIn("Rust Preview", source)
+        self.assertIn("Preview", source)
         self.assertIn("Preview In Archive Browser", source)
         self.assertNotIn("Import Local Model", source)
         self.assertIn("Generate Icon", source)
@@ -461,7 +461,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             "self._pending_icon_generation_request_id = self._inline_preview_request_id + 1",
             source,
         )
-        self.assertIn('summary or "Rust Model Library preview ready."', source)
+        self.assertIn('summary or "Model Library preview ready."', source)
         self.assertNotIn("write_isolated_d3d11_preview_package", source)
         self.assertNotIn("def _inline_preview_material_channel_summary", source)
         self.assertIn("channels: {material_channel_summary}", source)

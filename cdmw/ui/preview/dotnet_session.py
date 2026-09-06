@@ -566,7 +566,7 @@ class RustPreviewSessionController(
             self._invalid_retry_package_path = str(package)
             self._invalid_retry_status_path = str(status_path or "")
             self._invalid_retry_reset_view = bool(reset_view)
-            detail = f"Rust preview package is invalid: {exc}"
+            detail = f"preview package is invalid: {exc}"
             self.package_failed.emit(str(package), self._package_generation, detail)
             self._set_state("package_error", detail)
             return False
@@ -582,7 +582,7 @@ class RustPreviewSessionController(
         if self.profile is DotNetPreviewProfile.AUTHORING:
             if scene_session_id and not self.set_authoritative_session_id(scene_session_id):
                 detail = (
-                    "Rust authoring package belongs to a different active edit session. "
+                    "authoring package belongs to a different active edit session. "
                     "Close the current editor before opening another mesh."
                 )
                 self.package_failed.emit(str(resolved.package_dir), self._package_generation, detail)
@@ -637,7 +637,7 @@ class RustPreviewSessionController(
             and self._package_key(previous_desired) != self._package_key(self._applied_package_path)
         ):
             self._release_package_lease(previous_desired)
-        self._set_state("preparing", "Rust Preview is preparing the selected model…")
+        self._set_state("preparing", "Preview is preparing the selected model…")
         if self._visible:
             if (
                 self._launch_is_prewarm
@@ -736,7 +736,7 @@ class RustPreviewSessionController(
         self._pending_package_generation = 0
         self._deactivate_for_replacement()
         self._release_package_leases()
-        self._set_state("empty", "Select a model to open Rust Preview.")
+        self._set_state("empty", "Select a model to open Preview.")
         return True
 
     def reembed(self, parent_hwnd: int) -> bool:
@@ -771,7 +771,7 @@ class RustPreviewSessionController(
             self._activation_retry_count = 0
             self._send_json({"event": "deactivate_request"})
             self._active = False
-            self._set_state("inactive", "Rust Preview paused while hidden.")
+            self._set_state("inactive", "Preview paused while hidden.")
             return
         if (
             self._launch_is_prewarm
@@ -788,9 +788,9 @@ class RustPreviewSessionController(
             if not self._request_resident_package_load():
                 self._await_resident_gates_for_package_load()
         if self._desired_package is None:
-            self._set_state("empty", "Select a model to open Rust Preview.")
+            self._set_state("empty", "Select a model to open Preview.")
             return
-        self._set_state("resuming", "Rust Preview is resuming…")
+        self._set_state("resuming", "Preview is resuming…")
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
             return
@@ -1017,7 +1017,7 @@ class RustPreviewSessionController(
         self._launch_is_prewarm = False
         if process is None:
             self._cleanup_preview_runtime_outputs()
-        self._set_state("closed", "Rust Preview closed.")
+        self._set_state("closed", "Preview closed.")
 
     def _launch_if_needed(self) -> None:
         package = self._desired_package or self._prewarm_package
@@ -1035,7 +1035,7 @@ class RustPreviewSessionController(
         blocker = validate_rust_mesh_editor_package(resolution)
         if blocker:
             self._schedule_retry(
-                "Rust Preview helper was not executed: " + blocker,
+                "Preview helper was not executed: " + blocker,
                 static_failure=True,
             )
             return
@@ -1048,7 +1048,7 @@ class RustPreviewSessionController(
                 str(parent_hwnd),
             ]
         except (OSError, TypeError, ValueError) as exc:
-            self._schedule_retry(f"Could not configure Rust Preview: {exc}", static_failure=False)
+            self._schedule_retry(f"Could not configure Preview: {exc}", static_failure=False)
             return
 
         process = self._process_factory(self)
@@ -1099,15 +1099,15 @@ class RustPreviewSessionController(
             if self._process is process:
                 self._process = None
             stop_qprocess_async(process)
-            self._schedule_retry(f"Rust Preview launch failed: {exc}", static_failure=False)
+            self._schedule_retry(f"Preview launch failed: {exc}", static_failure=False)
             return
         self._arm_ready_watchdog()
-        self._set_state("launching", "Rust Preview is starting…")
+        self._set_state("launching", "Preview is starting…")
 
     def _process_started(self, process: object, generation: int) -> None:
         if not self._is_current_process(process, generation):
             return
-        self._set_state("connecting", "Rust Preview is connecting…")
+        self._set_state("connecting", "Preview is connecting…")
 
     def _process_finished(self, process: object, generation: int, exit_code: int, exit_status: object) -> None:
         if not self._is_current_process(process, generation):
@@ -1143,7 +1143,7 @@ class RustPreviewSessionController(
             details = self._stderr_tail.strip() or self._stdout_tail.strip()
             suffix = f" ({details[-400:]})" if details else ""
             self._schedule_retry(
-                f"Rust Preview exited with code {exit_code}{suffix}",
+                f"Preview exited with code {exit_code}{suffix}",
                 static_failure=False,
             )
 
@@ -1155,7 +1155,7 @@ class RustPreviewSessionController(
         except (AttributeError, RuntimeError):
             detail = str(error)
         if not qprocess_is_running(process):
-            self._fail_current_process(f"Rust Preview process error: {detail}", static_failure=False)
+            self._fail_current_process(f"Preview process error: {detail}", static_failure=False)
 
     def _read_stdout(self, process: object, generation: int) -> None:
         if not self._is_current_process(process, generation):
@@ -1169,12 +1169,12 @@ class RustPreviewSessionController(
         self._stdout_tail = append_bounded_text(self._stdout_tail, chunk.decode("utf-8", errors="replace"))
         self._stdout_buffer += chunk
         if len(self._stdout_buffer) > DOTNET_PROTOCOL_BUFFER_LIMIT:
-            self._fail_current_process("Rust Preview protocol buffer exceeded its safety limit.", static_failure=False)
+            self._fail_current_process("Preview protocol buffer exceeded its safety limit.", static_failure=False)
             return
         while b"\n" in self._stdout_buffer:
             raw_line, self._stdout_buffer = self._stdout_buffer.split(b"\n", 1)
             if len(raw_line) > DOTNET_PROTOCOL_LINE_LIMIT:
-                self._fail_current_process("Rust Preview protocol line exceeded its safety limit.", static_failure=False)
+                self._fail_current_process("Preview protocol line exceeded its safety limit.", static_failure=False)
                 return
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
@@ -1295,7 +1295,7 @@ class RustPreviewSessionController(
             self._activation_retry_count = 0
             self._active = True
             self._retry_attempt = 0
-            self._set_state("ready", "Rust Preview")
+            self._set_state("ready", "Preview")
         elif event == "deactivated":
             self._active = False
             if self._visible and self._applied_package_path:
@@ -1311,7 +1311,7 @@ class RustPreviewSessionController(
 
     def _handle_protocol_ready(self, payload: Mapping[str, object]) -> None:
         if str(payload.get("profile", "") or "").strip().lower() != "preview":
-            self._fail_current_process("Rust helper started with the wrong runtime profile.", static_failure=True)
+            self._fail_current_process("helper started with the wrong runtime profile.", static_failure=True)
             return
         if (
             str(payload.get("protocol", "") or "") != RUST_PREVIEW_PROTOCOL
@@ -1319,7 +1319,7 @@ class RustPreviewSessionController(
             or str(payload.get("edit_backend", "") or "") != RUST_PREVIEW_BACKEND
         ):
             self._fail_current_process(
-                "Rust Preview protocol, renderer, or backend did not match the packaged contract.",
+                "Preview protocol, renderer, or backend did not match the packaged contract.",
                 static_failure=True,
             )
             return
@@ -1329,7 +1329,7 @@ class RustPreviewSessionController(
         missing = set(self._required_protocol_capabilities()) - self._capabilities
         if missing:
             self._fail_current_process(
-                "Rust Preview is missing required capabilities: " + ", ".join(sorted(missing)),
+                "Preview is missing required capabilities: " + ", ".join(sorted(missing)),
                 static_failure=True,
             )
             return
@@ -1347,13 +1347,13 @@ class RustPreviewSessionController(
             }
         )
         if not sent:
-            self._fail_current_process("Could not establish the Rust preview session.", static_failure=False)
+            self._fail_current_process("Could not establish the preview session.", static_failure=False)
 
     def _handle_renderer_ready(self, payload: Mapping[str, object]) -> bool:
         if self._renderer_ready:
             return False
         if str(payload.get("profile", "") or "").strip().lower() != "preview":
-            self._fail_current_process("Rust renderer reported the wrong profile.", static_failure=True)
+            self._fail_current_process("Preview renderer reported the wrong profile.", static_failure=True)
             return False
         if (
             str(payload.get("protocol", "") or "") != RUST_PREVIEW_PROTOCOL
@@ -1363,7 +1363,7 @@ class RustPreviewSessionController(
             or int(payload.get("embedded_parent_hwnd", 0) or 0) != self._safe_host_hwnd()
         ):
             self._fail_current_process(
-                "Rust Preview renderer identity or embedded window did not match.",
+                "Preview renderer identity or embedded window did not match.",
                 static_failure=False,
             )
             return False
@@ -1391,7 +1391,7 @@ class RustPreviewSessionController(
                     self._await_resident_gates_for_package_load()
             else:
                 self._ready_timer.stop()
-                self._set_state("prewarmed", "Rust Preview is ready for a model.")
+                self._set_state("prewarmed", "Preview is ready for a model.")
             return
         if not (
             self._protocol_ready
@@ -1407,7 +1407,7 @@ class RustPreviewSessionController(
             else:
                 self._send_json({"event": "deactivate_request"})
                 self._active = False
-                self._set_state("prewarmed", "Rust Preview is ready for a model.")
+                self._set_state("prewarmed", "Preview is ready for a model.")
             return
         if (
             self._launch_package_generation != self._package_generation
@@ -1459,7 +1459,7 @@ class RustPreviewSessionController(
             self._pending_package_generation = generation
             self._interaction_deferred_package_generation = 0
             self._package_timer.start(_PACKAGE_TIMEOUT_MS)
-            self._set_state("preparing", "Rust Preview is loading the selected model…")
+            self._set_state("preparing", "Preview is loading the selected model…")
         return sent
 
     def _handle_package_progress(self, payload: Mapping[str, object]) -> None:
@@ -1583,7 +1583,7 @@ class RustPreviewSessionController(
         self._activation_waiting_for_material_sync = False
         self._activation_material_sync_generation = 0
         self._activation_timer.start(_READY_TIMEOUT_MS)
-        self._set_state("resuming", "Rust Preview is resuming…")
+        self._set_state("resuming", "Preview is resuming…")
         return True
 
     def _remember_resident_material_signature(self, payload: Mapping[str, object]) -> None:
@@ -1666,7 +1666,7 @@ class RustPreviewSessionController(
         """
 
         self._arm_ready_watchdog()
-        self._set_state("preparing", "Rust Preview is preparing the selected model…")
+        self._set_state("preparing", "Preview is preparing the selected model…")
 
     def _deactivate_for_replacement(self) -> None:
         if self._process is not None and qprocess_is_running(self._process):
@@ -1681,7 +1681,7 @@ class RustPreviewSessionController(
         if request_id == self._prewarm_capture_request_id:
             self._clear_prewarm_capture()
             if str(payload.get("status", "") or "").strip().lower() == "captured":
-                self._set_state("prewarmed", "Rust Preview is GPU-warmed and ready for a model.")
+                self._set_state("prewarmed", "Preview is GPU-warmed and ready for a model.")
             self.capture_completed.emit(dict(payload))
             return
         paths = self._pending_captures.pop(request_id, None)
@@ -1784,7 +1784,7 @@ class RustPreviewSessionController(
                 "timer_active": False,
             }
         )
-        self._fail_current_process("Rust Preview did not become ready in time.", static_failure=False)
+        self._fail_current_process("Preview did not become ready in time.", static_failure=False)
 
     def _handle_activation_timeout(self) -> None:
         if self._pending_activation is None or not self._visible:
@@ -1799,7 +1799,7 @@ class RustPreviewSessionController(
             self._activation_material_sync_generation = 0
             self._pending_activation = None
             self._fail_current_process(
-                "Rust Preview material synchronization did not finish in time.",
+                "Preview material synchronization did not finish in time.",
                 static_failure=False,
             )
             return
@@ -1809,7 +1809,7 @@ class RustPreviewSessionController(
                 return
         self._pending_activation = None
         self._fail_current_process(
-            "Rust Preview did not reactivate in time.",
+            "Preview did not reactivate in time.",
             static_failure=False,
         )
 
@@ -1829,7 +1829,7 @@ class RustPreviewSessionController(
         self.package_failed.emit(self.desired_package_path, self._package_generation, detail)
         self._set_state(
             "package_error",
-            f"Rust Preview package load failed: {detail} The current model was kept; retry when ready.",
+            f"Preview package load failed: {detail} The current model was kept; retry when ready.",
         )
 
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
@@ -1859,7 +1859,7 @@ class RustPreviewSessionController(
         self._schedule_retry(reason, static_failure=static_failure)
 
     def _schedule_retry(self, reason: str, *, static_failure: bool) -> None:
-        self._retry_reason = str(reason or "Rust Preview is unavailable.")
+        self._retry_reason = str(reason or "Preview is unavailable.")
         if self._desired_package is None and self._prewarm_package is not None:
             prewarm_path = str(self._prewarm_package.package_dir)
             self._prewarm_package = None

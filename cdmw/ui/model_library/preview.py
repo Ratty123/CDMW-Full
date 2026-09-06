@@ -112,7 +112,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             package_dir,
             reset_view=previous_package is None,
         ):
-            self._set_inline_preview_status("Rust Preview rejected the prepared package.", error=True)
+            self._set_inline_preview_status("Preview rejected the prepared package.", error=True)
             self._cleanup_inline_d3d11_packages(include_active=True)
             return False
         self.inline_d3d11_preview_host.set_render_tuning(render_settings)
@@ -133,19 +133,19 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             # Keep the prepared-model summary the load already published; the
             # host reports ready afterwards and would otherwise erase it.
             summary = str(getattr(self, "_inline_preview_summary_status", "") or "")
-            self._set_inline_preview_status(summary or "Rust Model Library preview ready.")
+            self._set_inline_preview_status(summary or "Model Library preview ready.")
             self._record_model_library_preview_event("model_library_dotnet_ready")
             if int(self._pending_icon_generation_request_id) == int(self._inline_preview_request_id):
                 self._pending_icon_generation_request_id = 0
                 QTimer.singleShot(180, self._capture_inline_preview_icon)
         elif str(state) == "error":
-            self._set_inline_preview_status(str(message or "Rust Preview failed."), error=True)
+            self._set_inline_preview_status(str(message or "Preview failed."), error=True)
             self._record_model_library_preview_event(
                 "model_library_dotnet_error",
                 message=str(message or ""),
             )
         elif str(state) not in {"empty", "inactive", "closed"}:
-            self._set_inline_preview_status(str(message or "Rust Preview"))
+            self._set_inline_preview_status(str(message or "Preview"))
 
     def _stop_inline_d3d11_process(
         self,
@@ -285,7 +285,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             if int(result.get("request_id", -1)) != int(self._inline_preview_request_id):
                 return
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
-            renderer_note = " | renderer: Rust Preview"
+            renderer_note = " | renderer: Preview"
             loaded_renderer_backend = active_renderer or RUST_MESH_RENDERER
             rust_preview_started = False
             if active_renderer == RUST_MESH_RENDERER and str(result.get("rust_preview_package_path", "") or "").strip():
@@ -305,12 +305,12 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
                     rust_preview_started = True
                     loaded_renderer_backend = RUST_MESH_RENDERER
-                    renderer_note = f" | renderer: Rust Preview package ({float(result.get('rust_package_ms', 0.0) or 0.0):.1f} ms)"
+                    renderer_note = f" | renderer: Preview package ({float(result.get('rust_package_ms', 0.0) or 0.0):.1f} ms)"
                 else:
-                    self._set_inline_preview_status("Rust Preview failed to load.", error=True)
+                    self._set_inline_preview_status("Preview failed to load.", error=True)
                     return
             else:
-                self._set_inline_preview_status("Canonical Rust Preview preview package was not built; no legacy fallback is available.", error=True)
+                self._set_inline_preview_status("Canonical Preview package was not built; no legacy fallback is available.", error=True)
                 return
             resolved_import_path = Path(str(result.get("import_path", "") or source_path))
             self._invalidate_prepared_row_source(payload)
@@ -441,7 +441,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         preview_host = getattr(self, "inline_d3d11_preview_host", None)
         dotnet_capture = preview_host is not None and self.inline_preview_stack.currentWidget() is preview_host
         if not dotnet_capture:
-            self._set_inline_preview_status("The Rust Preview preview is not render-ready yet.", error=True)
+            self._set_inline_preview_status("The Preview is not render-ready yet.", error=True)
             return
         capture_path = (
             Path(tempfile.gettempdir())
@@ -455,9 +455,9 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         )
         if preview_host is None or not preview_host.capture_replacement_icon(capture_path):
             self._pending_dotnet_icon_capture = None
-            self._set_inline_preview_status("Icon capture failed: Rust Preview rejected the capture request.", error=True)
+            self._set_inline_preview_status("Icon capture failed: Preview rejected the capture request.", error=True)
             return
-        self._set_inline_preview_status("Capturing deterministic Rust Preview preview icon...")
+        self._set_inline_preview_status("Capturing deterministic Preview icon...")
 
     def _handle_inline_dotnet_capture_completed(self, result: object) -> None:
         pending = self._pending_dotnet_icon_capture
@@ -474,7 +474,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if image.isNull() or image.width() <= 0 or image.height() <= 0:
             message = str(result.get("message", "") or "") if isinstance(result, dict) else ""
             self._set_inline_preview_status(
-                f"Icon capture failed: {message or 'Rust Preview preview framebuffer is empty.'}",
+                f"Icon capture failed: {message or 'Preview framebuffer is empty.'}",
                 error=True,
             )
             return

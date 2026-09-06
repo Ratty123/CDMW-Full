@@ -764,7 +764,7 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
 
     def test_material_sidecar_native_preview_status_text(self) -> None:
         self.assertEqual(
-            "Rust Preview material preview loaded: 2 batch(es), 1,234 vertices, first frame 16.5 ms, texture failures: none.",
+            "Preview material preview loaded: 2 batch(es), 1,234 vertices, first frame 16.5 ms, texture failures: none.",
             material_sidecar_native_loaded_status(
                 batch_count=2,
                 vertex_count=1234,
@@ -783,31 +783,31 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
         )
         self.assertEqual("summary\nmessage", material_sidecar_preview_payload_status("summary", "message"))
         self.assertEqual("message", material_sidecar_preview_payload_status("", "message"))
-        self.assertEqual("Rust Preview material preview failed.", material_sidecar_native_error_status())
+        self.assertEqual("Preview material preview failed.", material_sidecar_native_error_status())
         self.assertEqual("custom", material_sidecar_native_error_status("custom"))
         self.assertEqual(
-            "Rust Preview material preview package validation failed: a; b",
+            "Preview material preview package validation failed: a; b",
             material_sidecar_package_validation_failed_status(("a", "b")),
         )
         self.assertEqual(
-            "summary\nReloading Rust Preview material preview...",
+            "summary\nReloading Preview material preview...",
             material_sidecar_reloading_native_preview_status("summary"),
         )
         self.assertEqual(
-            "Rust Preview material preview could not start: boom",
+            "Preview material preview could not start: boom",
             material_sidecar_native_preview_start_failed_status("boom"),
         )
         self.assertEqual(
-            "Rust Preview material preview stderr: tail",
+            "Preview material preview stderr: tail",
             material_sidecar_native_preview_stderr_status("tail"),
         )
         self.assertEqual(
-            "Rust Preview material preview process error: bad",
+            "Preview material preview process error: bad",
             material_sidecar_native_preview_process_error_status("bad"),
         )
-        self.assertEqual("Rust Preview material preview exited with code 2.", material_sidecar_native_preview_exited_status(2))
+        self.assertEqual("Preview material preview exited with code 2.", material_sidecar_native_preview_exited_status(2))
         self.assertEqual(
-            "summary\nStarting Rust Preview material preview...",
+            "summary\nStarting Preview material preview...",
             material_sidecar_starting_native_preview_status("summary"),
         )
 
@@ -834,7 +834,7 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
         self.assertEqual("No model preview available for this material sidecar.", material_sidecar_no_model_preview_status())
         self.assertEqual("Building material preview for armor.pac_xml...", material_sidecar_preview_task_status("armor.pac_xml"))
         self.assertIn(
-            "reused active Archive Browser Rust Preview package",
+            "reused active Archive Browser Preview package",
             material_sidecar_reused_package_summary(),
         )
         self.assertEqual(

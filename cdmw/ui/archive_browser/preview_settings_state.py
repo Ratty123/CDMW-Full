@@ -73,13 +73,13 @@ def model_preview_settings_status(settings: ModelPreviewRenderSettings) -> tuple
     ]
     checked_text = ", ".join(checked_disables) if checked_disables else "None"
     status = (
-        f"3D Preview: Rust Preview {view_label} | "
+        f"3D Preview: Preview {view_label} | "
         f"ON: Textures {'yes' if settings.use_textures_by_default else 'no'}, "
         f"Support-map shading {'yes' if settings.high_quality_by_default else 'no'} | "
         f"Checked disables: {checked_text}"
     )
     detail_lines = [
-        f"Rust Preview view: {view_label}",
+        f"Preview view: {view_label}",
         f"Load textures automatically after geometry: {'enabled' if settings.use_textures_by_default else 'disabled'}",
         f"Support-map preview shading: {'enabled' if settings.high_quality_by_default else 'disabled'}",
         f"Alpha handling: {alpha_label}",

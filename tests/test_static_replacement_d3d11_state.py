@@ -263,7 +263,7 @@ def test_alignment_d3d11_resources_waiting_details_include_host_and_progress() -
         active_package="pkg",
     )
 
-    assert "Rust Preview uploaded package resources" in detail
+    assert "Preview uploaded package resources" in detail
     assert "elapsed=7.2s" in detail
     assert "last_progress=45%" in detail
     assert "last_stage=package" in detail
@@ -302,7 +302,7 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         active_package="pkg",
     )
 
-    assert stale.startswith("Rust Preview stayed alive but did not report a fresh rendered frame.")
+    assert stale.startswith("Preview stayed alive but did not report a fresh rendered frame.")
     assert "elapsed=6.0s" in stale
     assert "last_progress=80%" in stale
     assert "last_stage=native_start" in stale
@@ -318,7 +318,7 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
     )
 
     cleared = alignment_d3d11_loading_cleared_performance("loading watchdog")
-    assert cleared.summary == "Rust Preview loading state cleared."
+    assert cleared.summary == "Preview loading state cleared."
     assert cleared.details == "reason=loading watchdog"
 
     ready = alignment_d3d11_watchdog_ready_performance(
@@ -326,11 +326,11 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         reason="loading watchdog",
         active_package="pkg",
     )
-    assert ready.summary == "Rust Preview ready - Archive Preview parity - loaded before watchdog"
+    assert ready.summary == "Preview ready - Archive Preview parity - loaded before watchdog"
     assert ready.details == "reason=loading watchdog\nactive_package=pkg"
 
     waiting = alignment_d3d11_resources_waiting_performance("waiting details")
-    assert waiting.summary == "Rust Preview resources loaded; waiting for visible preview panel."
+    assert waiting.summary == "Preview resources loaded; waiting for visible preview panel."
     assert waiting.details == "waiting details"
 
     restart = alignment_d3d11_restart_performance(
@@ -338,14 +338,14 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         stale_details=stale,
         restart_count=1,
     )
-    assert restart.summary == "Rust Preview reload restarted - Archive Preview parity"
+    assert restart.summary == "Preview reload restarted - Archive Preview parity"
     assert "restart=2/2" in restart.details
 
     failed = alignment_d3d11_failed_performance(
         quality_label="Archive Preview parity",
         stale_details=stale,
     )
-    assert failed.summary == "Rust Preview reload failed - Archive Preview parity"
+    assert failed.summary == "Preview reload failed - Archive Preview parity"
     assert "no package-loaded acknowledgement arrived before the watchdog" in failed.details
 
 
@@ -377,7 +377,7 @@ def test_alignment_d3d11_loaded_timing_presentation_formats_summary_and_details(
     assert presentation.native_load_ms == 6.75
     assert presentation.texture_text == "diffuse:2 roughness:1"
     assert presentation.summary == (
-        "Rust Preview loaded - Archive Preview parity - FPS 222.2 - frame 4.50 ms - "
+        "Preview loaded - Archive Preview parity - FPS 222.2 - frame 4.50 ms - "
         "archive_parity package - reason material - cache hit - renderer 7 ms - textures diffuse:2 roughness:1"
     )
     assert "cache=hit" in presentation.details
@@ -399,7 +399,7 @@ def test_alignment_d3d11_cached_reuse_and_loading_performance_text() -> None:
         rebuild_reason="texture_uv",
     )
 
-    assert reuse.summary == "Rust Preview cached preview package - Fast geometry - reason texture_uv"
+    assert reuse.summary == "Preview cached preview package - Fast geometry - reason texture_uv"
     assert "cache=hit" in reuse.details
     assert "reason=texture_uv" in reuse.details
     assert "prepare 3.2 ms" in reuse.details
@@ -408,7 +408,7 @@ def test_alignment_d3d11_cached_reuse_and_loading_performance_text() -> None:
 
     loading = alignment_d3d11_cached_loading_performance("material")
 
-    assert loading.summary == "Rust Preview cached preview package loading - reason material"
+    assert loading.summary == "Preview cached preview package loading - reason material"
     assert loading.details == "cache=hit\nreason=material"
 
 
@@ -468,7 +468,7 @@ def test_alignment_d3d11_package_preparing_performance_text() -> None:
         rebuild_reason="geometry",
     )
 
-    assert presentation.summary == "Rust Preview package preparing - Archive Preview parity - cache miss"
+    assert presentation.summary == "Preview package preparing - Archive Preview parity - cache miss"
     assert "cache=miss" in presentation.details
     assert "reason=geometry" in presentation.details
     assert "Full material parity runs in a background worker" in presentation.details
@@ -487,7 +487,7 @@ def test_alignment_d3d11_reload_and_starting_performance_text() -> None:
     )
 
     assert reload_presentation.summary == (
-        "Rust Preview reload queued - Material refresh - material_refresh package - "
+        "Preview reload queued - Material refresh - material_refresh package - "
         "reason material - cache hit - prepare 12 ms, package 34 ms"
     )
     assert "cache=hit" in reload_presentation.details
@@ -503,7 +503,7 @@ def test_alignment_d3d11_reload_and_starting_performance_text() -> None:
     )
 
     assert starting.summary == (
-        "Starting Rust Preview - Archive Preview parity - archive_parity package - "
+        "Starting Preview - Archive Preview parity - archive_parity package - "
         "reason geometry - cache hit - prepare 12 ms, package 34 ms"
     )
     assert starting.details == "cache=hit\nreason=geometry"
@@ -514,46 +514,46 @@ def test_alignment_d3d11_startup_and_error_performance_text() -> None:
         rebuild_reason="geometry",
         host_detail="window_not_visible",
     )
-    assert pending.summary == "Rust Preview host pending layout before renderer start."
+    assert pending.summary == "Preview host pending layout before renderer start."
     assert pending.details == "reason=geometry\nhost=window_not_visible"
 
     unavailable = alignment_d3d11_unavailable_performance()
-    assert unavailable.summary == "Rust Preview unavailable."
-    assert "Rust Preview is required for live alignment preview." in unavailable.details
+    assert unavailable.summary == "Preview unavailable."
+    assert "Preview is required for live alignment preview." in unavailable.details
     assert "Defender quarantines" in unavailable.details
 
     startup_timeout = alignment_d3d11_startup_timeout_performance()
-    assert startup_timeout.summary == "Rust Preview startup timeout."
-    assert "Rust Preview startup timeout waiting for status." in startup_timeout.details
+    assert startup_timeout.summary == "Preview startup timeout."
+    assert "Preview startup timeout waiting for status." in startup_timeout.details
     assert "Defender quarantines" in startup_timeout.details
 
     package_failed = alignment_d3d11_package_failed_performance("bad package")
-    assert package_failed.summary == "Rust Preview package failed."
+    assert package_failed.summary == "Preview package failed."
     assert package_failed.details == "bad package"
 
     live_mode = alignment_d3d11_live_display_mode_performance("overlay")
-    assert live_mode.summary == "Rust Preview display mode changed live: overlay"
+    assert live_mode.summary == "Preview display mode changed live: overlay"
     assert live_mode.details == "cache=live-command reason=display_mode"
 
     selection = alignment_d3d11_selection_highlight_performance()
     assert selection.summary == "Selection highlight updated."
     assert (
         selection.details
-        == "Selection changes use live Rust Preview highlight commands and do not rebuild the preview package."
+        == "Selection changes use live Preview highlight commands and do not rebuild the preview package."
     )
 
 
 def test_alignment_d3d11_live_status_performance_text() -> None:
     settings_rebuild = alignment_d3d11_render_settings_rebuild_performance()
-    assert settings_rebuild.summary == "Rust Preview preview package rebuild queued for texture settings."
+    assert settings_rebuild.summary == "Preview package rebuild queued for texture settings."
     assert settings_rebuild.details == "cache=material_dirty reason=render_settings"
 
     tuning = alignment_d3d11_render_tuning_live_performance()
-    assert tuning.summary == "Rust Preview render tuning applied without rebuilding preview package."
+    assert tuning.summary == "Preview render tuning applied without rebuilding preview package."
     assert tuning.details == "cache=live-command reason=render_tuning"
 
     flip_v = alignment_d3d11_texture_flip_v_live_performance()
-    assert flip_v.summary == "Rust Preview texture Flip V applied without rebuilding preview package."
+    assert flip_v.summary == "Preview texture Flip V applied without rebuilding preview package."
     assert flip_v.details == ""
 
     dropped_detail = alignment_d3d11_stale_package_dropped_detail(
@@ -562,7 +562,7 @@ def test_alignment_d3d11_live_status_performance_text() -> None:
         active_preview_alive=True,
     )
     assert dropped_detail == (
-        "Stale Rust Preview package dropped before display.\n"
+        "Stale Preview package dropped before display.\n"
         "reason=stale_drag\n"
         "request_id=12\n"
         "active_preview_alive=True"
@@ -572,22 +572,22 @@ def test_alignment_d3d11_live_status_performance_text() -> None:
         request_id=12,
         active_preview_alive=True,
     )
-    assert dropped.summary == "Dropped stale Rust Preview preview package; rebuilding current preview."
+    assert dropped.summary == "Dropped stale Preview package; rebuilding current preview."
     assert dropped.details == "reason=stale_drag\nrequest_id=12\nactive_preview_alive=True"
 
     renderer_error = alignment_d3d11_renderer_error_performance("renderer crashed")
-    assert renderer_error.summary == "Rust Preview renderer error."
+    assert renderer_error.summary == "Preview renderer error."
     assert renderer_error.details == "renderer crashed"
 
     queued = alignment_d3d11_package_queued_performance(
         quality_label="Archive Preview parity",
         refresh_elapsed_ms=14.6,
     )
-    assert queued.summary == "Rust Preview package queued - Archive Preview parity - refresh 15 ms"
+    assert queued.summary == "Preview package queued - Archive Preview parity - refresh 15 ms"
     assert queued.details == ""
 
     failed = alignment_d3d11_alignment_preview_failed_performance("preview crashed")
-    assert failed.summary == "Rust Preview alignment preview failed."
+    assert failed.summary == "Preview alignment preview failed."
     assert failed.details == "preview crashed"
 
 
@@ -614,7 +614,7 @@ def test_alignment_d3d11_reload_progress_details_stay_in_presentation_state() ->
         rebuild_reason="texture_uv",
         host_detail="old host",
     )
-    assert restart.summary == "Rust Preview host not reusable; restarting."
+    assert restart.summary == "Preview host not reusable; restarting."
     assert restart.details == "reason=texture_uv\nhost=old host"
 
 
@@ -976,7 +976,7 @@ def test_alignment_d3d11_resources_and_loading_status_routes_normalize_payloads(
         loading_stuck=True,
     )
     assert stuck.action == "clear_stuck"
-    assert stuck.message == "Loading Rust Preview alignment preview..."
+    assert stuck.message == "Loading Preview alignment preview..."
 
     progress = alignment_d3d11_loading_status_route(
         {"message": "Uploading", "percent": 0, "stage": "textures"},
@@ -2354,7 +2354,7 @@ def test_alignment_d3d11_host_ready_state_reports_first_blocking_reason() -> Non
         parent_hwnd=5,
         child_hwnd=0,
         require_child=True,
-    ).detail == "Rust Preview preview child HWND is unavailable"
+    ).detail == "Preview child HWND is unavailable"
     ready = alignment_d3d11_host_ready_state(
         dialog_live=True,
         host_visible=True,

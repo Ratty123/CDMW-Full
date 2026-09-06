@@ -532,7 +532,7 @@ class ArchivePreviewWorkerMixin:
             rebuild_text = "Cached preview package expired; rebuilding preview package..."
             self.archive_preview_meta_label.setText("Rebuilding preview package...")
             self._set_archive_preview_health_message(
-                "Rebuilding Rust Preview preview package...",
+                "Rebuilding Preview package...",
                 visible=bool(entry),
             )
             self._set_archive_preview_base_detail_text(

@@ -370,7 +370,7 @@ class MeshEditorDotNetLaunchMixin:
         try:
             return bool(finalize(str(reason or "dotnet_import")))
         except Exception as exc:
-            self.status_message_requested.emit(f"Rust Mesh Editor embedded preview finalize failed: {exc}", True)
+            self.status_message_requested.emit(f"Mesh Editor embedded preview finalize failed: {exc}", True)
             return False
     def _complete_embedded_dotnet_exit(self, reason: str, *, final_state: str = "closed") -> bool:
         if not self.standalone_dotnet_target_embedded:

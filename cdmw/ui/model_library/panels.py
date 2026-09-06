@@ -614,7 +614,7 @@ def build_preview_panel(tab: object) -> QWidget:
     orientation_controls_layout.addStretch(1)
     preview_layout.addLayout(orientation_controls_layout)
     tab.inline_preview_status_label = QLabel(
-        "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared Rust Preview renderer."
+        "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared Preview renderer."
     )
     tab.inline_preview_status_label.setObjectName("HintLabel")
     tab.inline_preview_status_label.setWordWrap(False)

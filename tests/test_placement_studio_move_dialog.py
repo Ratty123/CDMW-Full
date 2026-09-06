@@ -118,7 +118,7 @@ def _set_scope(dialog: MoveWeaponDialog, kind: str) -> None:
 
 
 def _rows(dialog: MoveWeaponDialog):
-    return dialog._rows
+    return dialog._file_model.rows
 
 
 class LabellingTests(unittest.TestCase):
@@ -138,7 +138,7 @@ class LabellingTests(unittest.TestCase):
 
     def test_the_dialog_states_whose_left_and_right(self) -> None:
         dialog = _Bench().dialog()
-        page = dialog._pages.widget(1)
+        page = dialog._placement_controls
         labels = [
             child.text() for child in page.findChildren(type(dialog._zone_label))
         ]
@@ -208,7 +208,7 @@ class ThreeStateTests(unittest.TestCase):
             dialog._states.horizontalHeaderItem(column).text() for column in range(4)
         ]
         self.assertEqual(
-            headers, ["Field", "Vanilla", "Pending before this operation", "Proposed"]
+            headers, ["Field", "Installed", "Current session", "After"]
         )
         row = next(
             index
@@ -325,25 +325,25 @@ class AnimationScopeTests(unittest.TestCase):
 
     def test_the_list_follows_the_scope_both_ways(self) -> None:
         dialog = _Bench().dialog()
-        draws = sum(len(m) for _i, m, _c in _rows(dialog))
+        draws = len(_rows(dialog))
         _set_scope(dialog, carry.SCOPE_FULL_BODY)
-        everything = sum(len(m) for _i, m, _c in _rows(dialog))
+        everything = len(_rows(dialog))
         self.assertGreater(everything, draws)
         _set_scope(dialog, carry.SCOPE_DRAW_STOW)
-        self.assertEqual(sum(len(m) for _i, m, _c in _rows(dialog)), draws)
+        self.assertEqual(len(_rows(dialog)), draws)
 
     def test_placement_only_empties_the_list(self) -> None:
         dialog = _Bench().dialog()
         _set_scope(dialog, carry.SCOPE_PLACEMENT_ONLY)
         self.assertEqual(_rows(dialog), [])
-        self.assertIn("placement only", dialog._count_label.text())
+        self.assertIn("0 of 0", dialog._count_label.text())
 
     def test_full_body_needs_its_confirmation(self) -> None:
         dialog = _Bench().dialog()
         _set_destination(dialog, "Pelvis_R_Socket")
         dialog._orientation_reviewed.setChecked(True)
         _set_scope(dialog, carry.SCOPE_FULL_BODY)
-        self.assertTrue(dialog._advanced_confirm.isVisible() or True)
+        self.assertFalse(dialog._advanced_confirm.isHidden())
         self.assertTrue(dialog.plan().blocked)
         dialog._advanced_confirm.setChecked(True)
         self.assertFalse(dialog.plan().blocked)
@@ -366,19 +366,19 @@ class AnimationScopeTests(unittest.TestCase):
         _set_destination(dialog, "Pelvis_R_Socket")
         self.assertEqual(dialog.scope().kind, carry.SCOPE_DRAW_STOW)
 
-    def test_moving_within_a_zone_recommends_placement_only(self) -> None:
+    def test_destination_change_preserves_the_selected_scope(self) -> None:
         bench = _Bench()
         dialog = bench.dialog()
         # Start from a hip carry so the destination is the same zone.
         dialog._part_box.setCurrentIndex(dialog._part_box.findData("CD_MainWeapon_Sword_R"))
         _set_destination(dialog, "Pelvis_R_Socket")
-        self.assertEqual(dialog.scope().kind, carry.SCOPE_PLACEMENT_ONLY)
+        self.assertEqual(dialog.scope().kind, carry.SCOPE_DRAW_STOW)
 
     def test_unticking_a_row_reduces_the_chosen_set(self) -> None:
         dialog = _Bench().dialog()
         before = len(dialog.chosen_replacements())
         self.assertTrue(before)
-        _rows(dialog)[0][0].setCheckState(0, Qt.Unchecked)
+        dialog._file_model.setData(dialog._file_model.index(0, 0), Qt.Unchecked, Qt.CheckStateRole)
         self.assertLess(len(dialog.chosen_replacements()), before)
 
     def test_select_none_then_all_round_trips(self) -> None:
@@ -435,17 +435,16 @@ class ItemChangeTests(unittest.TestCase):
 
 class ActionLabelTests(unittest.TestCase):
     def _reviewed(self, dialog: MoveWeaponDialog) -> MoveWeaponDialog:
-        dialog._pages.setCurrentIndex(PAGE_REVIEW)
         return dialog
 
     def test_review_comes_before_the_action(self) -> None:
         dialog = _Bench().dialog()
         _set_destination(dialog, "Pelvis_R_Socket")
         dialog._orientation_reviewed.setChecked(True)
-        self.assertEqual(dialog._accept.text(), REVIEW_FIRST_LABEL)
-        dialog._accept.click()
-        self.assertEqual(dialog._pages.currentIndex(), PAGE_REVIEW)
-        self.assertNotEqual(dialog._accept.text(), REVIEW_FIRST_LABEL)
+        self.assertFalse(dialog._accept.isEnabled())
+        dialog._on_accept_clicked()
+        self.assertEqual(dialog.result(), 0)
+        self.assertIsNone(dialog.prepared())
 
     def test_a_move_with_animations_says_both(self) -> None:
         dialog = _Bench().dialog()
@@ -492,7 +491,6 @@ class ActionLabelTests(unittest.TestCase):
 
 class ReviewPageTests(unittest.TestCase):
     def _reviewed(self, dialog: MoveWeaponDialog) -> str:
-        dialog._pages.setCurrentIndex(PAGE_REVIEW)
         return dialog._review_view.toPlainText()
 
     def test_the_review_states_every_scope_fact(self) -> None:
@@ -509,7 +507,7 @@ class ReviewPageTests(unittest.TestCase):
             "Borrowed-character clips",
             "Mounted clips",
             "Earlier operations",
-            "Files that would change",
+            "Proposed animation mappings",
         ):
             self.assertIn(expected, text)
 
@@ -526,19 +524,19 @@ class ReviewPageTests(unittest.TestCase):
         dialog = bench.dialog()
         _set_destination(dialog, "Pelvis_R_Socket")
         dialog._orientation_reviewed.setChecked(True)
-        dialog._pages.setCurrentIndex(PAGE_REVIEW)
         dialog._show_files.click()
-        self.assertEqual(len(bench.file_lists), 1)
-        self.assertIs(bench.file_lists[0], dialog.plan())
+        self.assertFalse(dialog._review_view.isHidden())
+        self.assertIn(dialog.plan().unit.primary_part, dialog._review_view.toPlainText())
 
-    def test_watch_plays_the_donor_the_row_would_be_given(self) -> None:
+    def test_watch_requests_a_private_preparation(self) -> None:
         bench = _Bench()
         dialog = bench.dialog()
-        dialog._pages.setCurrentIndex(PAGE_ANIMATIONS)
-        item, members, _choice = _rows(dialog)[0]
-        dialog._clip_list.setCurrentItem(item)
+        row = _rows(dialog)[0]
+        dialog._file_table.setCurrentIndex(dialog._file_proxy.mapFromSource(dialog._file_model.index(0, 1)))
         dialog._watch_selected()
-        self.assertEqual(bench.previewed[-1].name, members[0].donor.name)
+        self.assertEqual(bench.previewed, [])
+        self.assertEqual(dialog._pending_watch, row.target_path)
+        self.assertIn("Preparation unavailable", dialog._check_summary.text())
 
     def test_reset_puts_every_control_back(self) -> None:
         dialog = _Bench().dialog()
@@ -573,7 +571,6 @@ class RequestTests(unittest.TestCase):
         dialog = bench.dialog()
         _set_destination(dialog, "Pelvis_R_Socket")
         _set_scope(dialog, carry.SCOPE_FULL_BODY)
-        dialog._pages.setCurrentIndex(PAGE_REVIEW)
         self.assertEqual(bench.edits.modified_paths(), [])
         self.assertEqual(bench.edits.operations(), [])
 

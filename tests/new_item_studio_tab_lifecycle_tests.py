@@ -576,7 +576,7 @@ class _TabLifecycleMixin:
         self.assertEqual(panel.matches.topLevelItemCount(), 1)
         self.assertEqual(
             [panel.matches.topLevelItem(0).text(column) for column in range(panel.matches.columnCount())],
-            ["Ziane_OneHandSword", "Wolf's Fang", "1001295", "OneHandSword"],
+            ["Ziane_OneHandSword", "Wolf's Fang", "1001295", "OneHandSword", "Stats"],
         )
         self.assertEqual(
             [key for key, _internal, _item_name, _equip in tab.controller.template_options('"wolf\'s fang" OR cigar')],
@@ -626,6 +626,9 @@ class _TabLifecycleMixin:
             return options if limit is None else options[:limit]
 
         tab.controller.template_options = template_options  # type: ignore[method-assign]
+        # Every result includes capabilities derived from its actual ItemInfo row.
+        template = tab.controller.snapshot.rows[TEMPLATE]
+        tab.controller.snapshot.rows.update({key: replace(template,key=key,string_key=internal) for key,internal,_label,_equip in options})
 
         panel.filter_edit.clear()
         panel._refresh_matches()

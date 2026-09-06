@@ -113,7 +113,8 @@ class ValidateSpecTests(unittest.TestCase):
         issues = validate_spec(_spec(display_names={"eng": "x", "ger": ""}))
         self.assertIn("names.empty", _codes(issues))
         self.assertFalse(has_errors(issues), "an empty non-English name is a warning, not an error")
-        self.assertEqual(len(LOCALIZATION_LANGUAGES), 14)
+        self.assertEqual(len(LOCALIZATION_LANGUAGES), 15)
+        self.assertIn("ara", LOCALIZATION_LANGUAGES)
 
     def test_edit_ranges_and_duplicates(self) -> None:
         self.assertIn("stat.level", _codes(validate_spec(_spec(stat_edits=(StatEdit(-1, DDD, 1),)))))
@@ -136,7 +137,7 @@ class ValidateSpecTests(unittest.TestCase):
         self.assertFalse(has_errors(insert))
         self.assertIn("placement.price_ignored", _codes(validate_spec(_spec(placement=Placement(PlacementKind.INSERT, "Store", price=5)))))
         self.assertIn("placement.price", _codes(validate_spec(_spec(placement=Placement(PlacementKind.INSERT, "Store", price=-1)))))
-        self.assertIn("item_groups.empty", _codes(validate_spec(_spec(item_groups=ItemGroupsChoice.EXPLICIT))))
+        self.assertNotIn("item_groups.empty", _codes(validate_spec(_spec(item_groups=ItemGroupsChoice.EXPLICIT))))
         ignored = validate_spec(_spec(explicit_item_groups=(1,)))
         self.assertIn("item_groups.ignored", _codes(ignored))
         self.assertFalse(has_errors(ignored))

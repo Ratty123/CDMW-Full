@@ -123,6 +123,15 @@ class InspectionResult:
             lines += [f"  {item}" for item in self.mismatches]
         else:
             lines += ["", f"{MANIFEST_NAME} matches the files."]
+        if self.manifest is not None:
+            prepared = [op.get("preparation", {}) for op in self.manifest.get("operations", ())]
+            lines += ["", "In-game behavior: Unverified"]
+            if not prepared or any(not p.get("files") for p in prepared):
+                lines.append("Preparation evidence: Unverified (legacy or unchecked operation)")
+            else:
+                for item in prepared:
+                    lines += [f"{check['name']}: {check['status']} — {check['detail']}"
+                              for check in item.get("checks", ()) if check.get("status") != "Passed"]
         return "\n".join(lines)
 
 
@@ -295,8 +304,15 @@ def compare(contents: PackageContents, manifest: Mapping[str, object]) -> Tuple[
 def inspect(root: Path, baseline=None) -> InspectionResult:
     contents = read_contents(root, baseline)
     manifest = read_manifest(root)
-    mismatches = compare(contents, manifest) if manifest is not None else ()
-    return InspectionResult(contents, manifest, mismatches)
+    mismatches = list(compare(contents, manifest)) if manifest is not None else []
+    if manifest is not None and "payload_sha256" in manifest:
+        from .prepared_move import digest
+        expected = manifest["payload_sha256"]
+        actual = {_game_path_of(Path(root), p): digest(p.read_bytes())
+                  for p in Path(root).rglob("*") if p.is_file() and p.name not in METADATA_NAMES}
+        if expected != actual:
+            mismatches.append("Payload hashes differ from the exported manifest")
+    return InspectionResult(contents, manifest, tuple(mismatches))
 
 
 def cmd_inspect_package(args) -> int:

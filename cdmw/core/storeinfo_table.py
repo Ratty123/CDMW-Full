@@ -82,6 +82,9 @@ class StockEntry:
     order_records: Tuple[bytes, ...]
     offset: int = -1
     end: int = -1
+    #: Current StockData carries eight additional bytes before its order list.
+    #: Their semantics are not established; edits must retain them verbatim.
+    condition_data: bytes = b""
 
     @property
     def is_sellable(self) -> bool:
@@ -142,6 +145,8 @@ def encode_stock_entry(entry: StockEntry) -> bytes:
         raise StoreInfoError(f"the option block is {_OPTION} bytes")
     if any(len(record) != _ORDER_RECORD for record in entry.order_records):
         raise StoreInfoError(f"order-count records are {_ORDER_RECORD} bytes")
+    if len(entry.condition_data) not in (0, 8):
+        raise StoreInfoError("stock condition data must be empty (legacy) or eight bytes (current)")
     out = bytearray()
     out += struct.pack("<H", _u16(entry.store_key, "store key"))
     out += struct.pack("<QQ", _u64(entry.min_price_percent, "min price percent"), _u64(entry.max_price_percent, "max price percent"))
@@ -156,6 +161,7 @@ def encode_stock_entry(entry: StockEntry) -> bytes:
         out += b"\x00"
     else:
         out += b"\x01" + bytes(entry.option_block)
+    out += entry.condition_data
     out += struct.pack("<I", len(entry.order_records))
     for record in entry.order_records:
         out += bytes(record)
@@ -176,6 +182,7 @@ class StoreRow:
     entries: Tuple[StockEntry, ...]
     tail: bytes
     head_offset: int
+    layout: str = "legacy"
 
     @property
     def buyable_entries(self) -> Tuple[StockEntry, ...]:
@@ -217,16 +224,16 @@ def _u64(value: int, what: str) -> int:
     return value
 
 
-def _entry_length(raw: bytes, offset: int) -> Optional[int]:
+def _entry_length(raw: bytes, offset: int, extra_size: int = 0) -> Optional[int]:
     """The byte length of the entry at `offset`, or None if the shape fails."""
 
     if offset + _FIXED > len(raw):
         return None
     flag = raw[offset + _OPTION_FLAG]
     if flag == 0:
-        fixed = _FIXED
+        fixed = _FIXED + extra_size
     elif flag == 1:
-        fixed = _FIXED + _OPTION
+        fixed = _FIXED + _OPTION + extra_size
     else:
         return None
     if offset + fixed > len(raw):
@@ -238,7 +245,7 @@ def _entry_length(raw: bytes, offset: int) -> Optional[int]:
     return length if offset + length <= len(raw) else None
 
 
-def _looks_like_first_entry(raw: bytes, offset: int, key: int) -> bool:
+def _looks_like_first_entry(raw: bytes, offset: int, key: int, extra_size: int = 0) -> bool:
     if offset + _FIXED > len(raw):
         return False
     if struct.unpack_from("<H", raw, offset)[0] != key:
@@ -247,12 +254,12 @@ def _looks_like_first_entry(raw: bytes, offset: int, key: int) -> bool:
         return False
     if struct.unpack_from("<I", raw, offset + 0x1A)[0] != 0:
         return False
-    if _entry_length(raw, offset) is None:
+    if _entry_length(raw, offset, extra_size) is None:
         return False
     return raw[offset - 5] in _KNOWN_STORE_TYPES and struct.unpack_from("<I", raw, offset - 4)[0] >= 1
 
 
-def _parse_entry(raw: bytes, offset: int, length: int) -> StockEntry:
+def _parse_entry(raw: bytes, offset: int, length: int, extra_size: int = 0) -> StockEntry:
     store_key = struct.unpack_from("<H", raw, offset)[0]
     min_pct, max_pct = struct.unpack_from("<QQ", raw, offset + 2)
     count, threshold = struct.unpack_from("<Ii", raw, offset + 0x12)
@@ -266,6 +273,8 @@ def _parse_entry(raw: bytes, offset: int, length: int) -> StockEntry:
     if raw[offset + _OPTION_FLAG] == 1:
         option = bytes(raw[pos:pos + _OPTION])
         pos += _OPTION
+    condition_data = bytes(raw[pos:pos + extra_size])
+    pos += extra_size
     records_count = struct.unpack_from("<I", raw, pos)[0]
     pos += 4
     records = tuple(bytes(raw[pos + i * _ORDER_RECORD:pos + (i + 1) * _ORDER_RECORD]) for i in range(records_count))
@@ -274,6 +283,7 @@ def _parse_entry(raw: bytes, offset: int, length: int) -> StockEntry:
         threshold=threshold, stock_index=stock_index, order_index=order_index,
         important_save_index=save_index, flags=flags, item_key=item, drop_bytes=drop,
         after_bytes=after, option_block=option, order_records=records, offset=offset, end=offset + length,
+        condition_data=condition_data,
     )
 
 
@@ -295,9 +305,12 @@ def _find_empty_head(raw: bytes, name_end: int) -> Optional[int]:
     return None
 
 
-def parse_store_row(raw: bytes, *, key: Optional[int] = None) -> StoreRow:
+def parse_store_row(raw: bytes, *, key: Optional[int] = None, layout: str = "legacy") -> StoreRow:
     """Decode one store row. `key` cross-checks the row's own u16 key when given."""
 
+    if layout not in ("legacy", "current"):
+        raise StoreInfoError(f"unsupported StoreInfo layout {layout!r}")
+    extra_size = 8 if layout == "current" else 0
     data = bytes(raw)
     if len(data) < 6:
         raise StoreInfoError("row is too short for a key and a name length")
@@ -312,7 +325,7 @@ def parse_store_row(raw: bytes, *, key: Optional[int] = None) -> StoreRow:
 
     head = None
     for offset in range(name_end + _HEAD, len(data) - _FIXED + 1):
-        if _looks_like_first_entry(data, offset, row_key):
+        if _looks_like_first_entry(data, offset, row_key, extra_size):
             head = offset - _HEAD
             break
     if head is None:
@@ -328,10 +341,10 @@ def parse_store_row(raw: bytes, *, key: Optional[int] = None) -> StoreRow:
     entries = []
     pos = head + _HEAD
     for index in range(total):
-        length = _entry_length(data, pos)
+        length = _entry_length(data, pos, extra_size)
         if length is None:
             raise StoreInfoError(f"store {name!r} ({row_key}): stock entry {index} at 0x{pos:X} does not read")
-        entry = _parse_entry(data, pos, length)
+        entry = _parse_entry(data, pos, length, extra_size)
         if entry.store_key != row_key:
             raise StoreInfoError(f"store {name!r} ({row_key}): entry {index} names store {entry.store_key}")
         if entry.item_key != struct.unpack_from("<I", data, pos + _ITEM_B)[0]:
@@ -341,7 +354,7 @@ def parse_store_row(raw: bytes, *, key: Optional[int] = None) -> StoreRow:
     return StoreRow(
         raw=data, key=row_key, name=name, prefix=data[:head], buyable_count=buyable,
         sellable_count=sellable, store_type=store_type, entries=tuple(entries),
-        tail=data[pos:], head_offset=head,
+        tail=data[pos:], head_offset=head, layout=layout,
     )
 
 
@@ -353,6 +366,8 @@ def encode_store_row(row: StoreRow) -> bytes:
     out += bytes([row.store_type])
     out += struct.pack("<I", len(row.entries))
     for entry in row.entries:
+        if len(entry.condition_data) != (8 if row.layout == "current" else 0):
+            raise StoreInfoError("stock entry and store use different layouts")
         out += encode_stock_entry(entry)
     out += row.tail
     return bytes(out)
@@ -469,11 +484,14 @@ def remove_stock_entry(row: StoreRow, item_key: int) -> StoreRow:
     return _renumbered(row, [entry for entry in row.entries if entry.item_key != int(item_key)])
 
 
-def parse_store_table(payload: bytes, header: bytes) -> Tuple[StoreRow, ...]:
+def parse_store_table(payload: bytes, header: bytes, *, layout: str = "legacy") -> Tuple[StoreRow, ...]:
     """Every row of `storeinfo.pabgb`, in payload order."""
 
     table = parse_pabgh_table(header, payload=payload)
-    return tuple(parse_store_row(payload[start:end], key=row.row_id) for row, start, end in table.row_spans(len(payload)))
+    rows = tuple(parse_store_row(payload[start:end], key=row.row_id, layout=layout) for row, start, end in table.row_spans(len(payload)))
+    if any(encode_store_row(row) != row.raw for row in rows):
+        raise StoreInfoError("StoreInfo does not round-trip in the selected layout")
+    return rows
 
 
 def store_index(rows: Iterable[StoreRow]) -> Mapping[str, StoreRow]:

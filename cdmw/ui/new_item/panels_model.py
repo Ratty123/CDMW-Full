@@ -121,7 +121,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller = controller
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 6, 8, 6)
-        outer.setSpacing(6)
+        outer.setSpacing(4)
         self.setToolTip("Choose or import the model, place it, tune its appearance, and choose the inventory icon.")
         self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self.workspace_splitter.setObjectName("new_item_model_workspace_splitter")
@@ -142,7 +142,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.model_icon_content = QWidget(self.model_icon_scroll)
         model_icon_content_layout = QVBoxLayout(self.model_icon_content)
         model_icon_content_layout.setContentsMargins(0, 0, 0, 0)
-        model_icon_content_layout.setSpacing(6)
+        model_icon_content_layout.setSpacing(2)
         self.model_icon_scroll.setWidget(self.model_icon_content)
         model_icon_column_layout.addWidget(self.model_icon_scroll, 1)
 
@@ -201,6 +201,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.icon_group = icon
 
         model_icon_content_layout.addWidget(self.model_group)
+        from cdmw.ui.new_item.dye_editor import DyeEditor
+        self.dyes = DyeEditor(controller,self)
+        model_icon_content_layout.addWidget(self.dyes)
         model_icon_content_layout.addStretch(1)
         model_icon_column_layout.addWidget(self.icon_group)
         placement_column_layout.addWidget(self.placement_group)
@@ -212,6 +215,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         for index, factor in enumerate((5, 4, 7)):
             self.workspace_splitter.setStretchFactor(index, factor)
         self.workspace_splitter.setSizes((620, 520, 880))
+        from cdmw.ui.new_item.variant_selector import VariantSelector
+        self.variants = VariantSelector(controller,self)
+        self.preview_layout.insertWidget(0,self.variants)
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
@@ -485,7 +491,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_layout = QVBoxLayout(model)
         model_layout.setContentsMargins(8, 4, 8, 6)
         model_layout.setSpacing(4)
-        self.keep_model = QRadioButton("Keep the template's model (no new model files)")
+        self.keep_model = QRadioButton("Keep template model")
+        self.keep_model.setToolTip("Retain this binding's template appearance.")
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
         model_layout.addWidget(self.keep_model)
@@ -495,6 +502,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         model_layout.addWidget(self.import_model)
         row = QHBoxLayout()
+        row.setContentsMargins(0,0,0,0)
         self.import_button = QPushButton("Import a model file...")
         self.import_button.setToolTip(
             "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model "
@@ -574,7 +582,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.plain_pbr.toggled.connect(self._material_route_changed)
         model_layout.addWidget(self.plain_pbr)
-        self.own_sheath = QCheckBox("Use imported model when sheathed or holstered")
+        self.own_sheath = QCheckBox("Use import for sheathed model")
         self.own_sheath.setChecked(True)
         self.own_sheath.setToolTip(
             "Shown only when the template exposes an alternate _IN visual part. On: that borrowed record is cloned under the "
@@ -597,7 +605,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         """Move the shared resident viewport back into Model & Placement."""
 
         if self.preview.parentWidget() is not self.preview_group:
-            self.preview_layout.insertWidget(0, self.preview, 1)
+            self.preview_layout.insertWidget(self.preview_layout.indexOf(self.variants) + 1, self.preview, 1)
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft
@@ -614,6 +622,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         has_sheathed_variant = self._controller.template_has_sheathed_variant()
         self.own_sheath.setVisible(not keep and has_sheathed_variant)
         self.own_sheath.setEnabled(not keep and has_sheathed_variant)
+        if self._controller.snapshot and self._controller.snapshot.sources and self._controller.snapshot.sources.static_layout:
+            self.own_sheath.setVisible(False)
+            self.own_sheath.setEnabled(False)
         self.clear_button.setVisible(self._controller.model_import is not None)
         has_source = self._controller.model_import is not None
         has_import = has_source or self._controller.model_result is not None

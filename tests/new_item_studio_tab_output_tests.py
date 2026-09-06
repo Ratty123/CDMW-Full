@@ -11,7 +11,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -268,6 +268,7 @@ class _TabOutputMixin:
         tab.prefill_template(TEMPLATE)
         tab.identity_panel.internal_name.setText("Ziane_Overlay_OneHandSword")
         tab.identity_panel.display_name.setText("Wolf's Fang (Overlay)")
+        tab.output_panel.overlay_directory.setText("0100")
         tab.output_panel.build_button.click()
         self.assertIsNotNone(tab.controller.plan)
         shipped = {path: path.read_bytes() for path in sorted(self.root.glob("0009/*.paz"))}
@@ -285,7 +286,7 @@ class _TabOutputMixin:
         for path, before in shipped.items():
             self.assertEqual(path.read_bytes(), before, f"{path.name} was rewritten by an overlay install")
         mounted = parse_papgt((self.root / "meta" / "0.papgt").read_bytes())
-        self.assertNotEqual(mounted[0].name, "0009", "the overlay is mounted ahead of the shipped directory")
+        self.assertEqual(mounted[0].name, "0100", "the chosen overlay is mounted ahead of the shipped directory")
         overlay = self.root / mounted[0].name
         self.assertTrue((overlay / "0.pamt").is_file() and (overlay / "0.paz").is_file())
         tab.close()
@@ -479,7 +480,7 @@ class _TabOutputMixin:
         from cdmw.ui.new_item.model_import import ModelImportSource
 
         controller = NewItemStudioController(synchronous=True)
-        controller.snapshot = object()
+        controller.snapshot = SimpleNamespace(sources=None)
         controller.draft.template_key = 7
         errors: list[str] = []
         controller.model_import_failed.connect(errors.append)
@@ -502,12 +503,34 @@ class _TabOutputMixin:
         finally:
             controller.deleteLater()
 
+    def test_cancelled_template_fit_cleans_the_unpublished_import(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        controller = NewItemStudioController(synchronous=True)
+        controller.snapshot = SimpleNamespace(sources=None)
+        controller.draft.template_key = 7
+        source = ModelImportSource(Path("helmet.dae"), Path("helmet.dae"), None, None, None)
+        template_build = Mock(side_effect=RunCancelled("Template fitting cancelled"))
+        try:
+            with patch.object(controller, "_template_geometry_build", return_value=("template", template_build)), patch.object(
+                controller, "_template_uses_weapon_fit", return_value=False,
+            ), patch("cdmw.ui.new_item.controller.load_model_import_source", return_value=source), patch.object(
+                ModelImportSource, "cleanup", autospec=True,
+            ) as cleanup:
+                controller.start_model_import(Path("helmet.dae"))
+                self.assertIsNone(controller.model_import)
+                cleanup.assert_called_once_with(source)
+        finally:
+            controller.deleteLater()
+
     def test_cancelled_import_does_not_start_the_initial_geometry_bake(self) -> None:
         from cdmw.ui.new_item.controller import NewItemStudioController
         from cdmw.ui.new_item.model_import import ModelImportSource
 
         controller = NewItemStudioController(synchronous=True)
-        controller.snapshot = object()
+        controller.snapshot = SimpleNamespace(sources=None)
         controller.draft.template_key = 7
         stop = threading.Event()
         source = ModelImportSource(
@@ -566,7 +589,7 @@ class _TabOutputMixin:
             centroid=(0.0, 0.0, 0.0),
         )
         controller = NewItemStudioController(synchronous=False)
-        controller.snapshot = object()
+        controller.snapshot = SimpleNamespace(sources=None)
         controller.draft.template_key = 7
         heartbeats: list[float] = []
         fit_threads: list[QThread] = []

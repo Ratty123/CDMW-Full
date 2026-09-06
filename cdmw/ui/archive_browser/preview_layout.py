@@ -145,7 +145,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_reset_overrides_button.setVisible(False)
         self.archive_model_preview_settings_button = QPushButton("Preview Settings")
         self.archive_model_preview_settings_button.setToolTip(
-            "Open Rust Preview camera input settings for orbit, pan, and inversion."
+            "Open Preview camera input settings for orbit, pan, and inversion."
         )
         self.archive_model_preview_settings_button.setMinimumWidth(142)
         self.archive_model_preview_settings_button.setMaximumWidth(180)
@@ -597,7 +597,7 @@ class ArchivePreviewLayoutMixin:
             self._handle_archive_renderer_protocol_event
         )
         QTimer.singleShot(750, self._prewarm_archive_dotnet_preview)
-        self.archive_d3d11_preview_status_label = QLabel("Rust Preview")
+        self.archive_d3d11_preview_status_label = QLabel("Preview")
         self.archive_d3d11_preview_status_label.setObjectName("HintLabel")
         self.archive_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
         self.archive_d3d11_preview_status_label.setVisible(False)

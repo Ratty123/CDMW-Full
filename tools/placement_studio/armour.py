@@ -53,6 +53,8 @@ FACE_SLOT = "head"
 #: only Kliff's, so Damian was being shown another character's charts and the socket list that
 #: reads them came out empty. Carried as a slot so the existing cache round-trips them.
 CHART_SLOT = "chart"
+WEAPON_PREFAB_SLOT = "weapon_prefab"
+_WEAPON_PREFAB = re.compile(r"^character/bin__/prefab/1_pc/(\d+_[^/]+)/weapon/.+\.prefab$")
 _CHART = re.compile(r"^actionchart/.+/1_pc/([^/]+)/([^/]+)\.paac$")
 # Weapon *socket* files, which are what make a weapon placeable rather than merely drawable.
 _WEAPON_SOCKETS = re.compile(
@@ -151,11 +153,16 @@ def index_wearables(game_root, *, should_stop=None, cache: bool = True):
     happens once per game install rather than once per launch.
     """
 
+    signature = _cache_signature(game_root)
     if cache:
         cached = _read_index_cache(game_root)
         if cached is not None:
+            if signature != _cache_signature(game_root):
+                raise ValueError('Installation changed while reading wearable index')
             return cached
     result = _scan_wearables(game_root, should_stop=should_stop)
+    if signature != _cache_signature(game_root):
+        raise ValueError('Installation changed during wearable indexing')
     if cache and (should_stop is None or not should_stop()):
         _write_index_cache(game_root, result)
     return result
@@ -169,10 +176,24 @@ def _scan_wearables(game_root, *, should_stop=None):
     pieces: List[ArmourPiece] = []
     sockets: Dict[str, object] = {}
     meshes: Dict[str, object] = {}
-    for _package, entry in _iter_archive_entries(Path(game_root)):
+    if (Path(game_root) / 'meta/0.papgt').exists():
+        from .relationships import active_entries
+        entries = active_entries(game_root, cancelled=should_stop or (lambda: False))
+    else:
+        entries = _iter_archive_entries(Path(game_root))
+    seen = set()
+    for _package, entry in entries:
         if should_stop is not None and should_stop():
             return ArmourIndex(), {}, {}
         path = normalize_game_path(entry.path)
+        if path in seen:
+            continue
+        seen.add(path)
+        prefab = _WEAPON_PREFAB.match(path)
+        if prefab:
+            number, name = prefab.group(1).split('_', 1)
+            pieces.append(ArmourPiece(path, WEAPON_PREFAB_SLOT, f'{int(number)}_{name}', entry))
+            continue
         match = _ARMOUR.match(path)
         if match:
             pieces.append(
@@ -204,7 +225,7 @@ def _scan_wearables(game_root, *, should_stop=None):
 # Bump when the shape below changes, so a stale file is ignored rather than misread.
 # 2: the bare body and the head joined the index, so a v1 file has no anatomy in it.
 # 3: action charts joined it, so a v2 file has none of Damian's.
-_CACHE_VERSION = 3
+_CACHE_VERSION = 4
 
 
 def _cache_file(game_root) -> Path:

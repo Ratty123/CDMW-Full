@@ -48,6 +48,7 @@ SECTION_LABELS: Mapping[str, str] = {
     "FishingRod": "Fishing rod bend",
     "BoneAim": "A single bone aimed at a target",
     "Harness": "Harness and tack on ridden animals",
+    "ScreenSpaceIK": "Screen-space IK settings — preview simulation unverified",
 }
 
 #: Sections worth showing first: the ones a character mod is most likely to want.
@@ -186,7 +187,8 @@ def read_from_archives(game_root: Optional[Path] = None) -> bytes:
     from cdmw.core.archive_extraction import read_archive_entry_data
 
     root = Path(game_root) if game_root is not None else corpus.game_root()
-    for _package, entry in corpus._iter_archive_entries(root):
+    from .relationships import active_entries
+    for _package, entry in active_entries(root):
         if corpus.normalize_game_path(entry.path) == GAME_PATH:
             data, _decompressed, _note = read_archive_entry_data(entry)
             return data

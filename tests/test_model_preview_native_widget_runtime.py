@@ -215,7 +215,7 @@ class NativePreviewWidgetRuntimeTests(unittest.TestCase):
             app.processEvents()
 
             details = widget.debug_details_text()
-            self.assertIn("Rust Preview preview data ready", details)
+            self.assertIn("Preview data ready", details)
             payload = build_native_preview_payloads(prepared)[0]
             self.assertFalse(payload.texture_flip_vertical)
             prepared_path = Path(QUrl(payload.texture_source).toLocalFile())

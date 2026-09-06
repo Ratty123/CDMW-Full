@@ -77,12 +77,12 @@ def source_parts_preview_rebuild_pending_presentation(reason: str) -> SourcePart
     return SourcePartsPendingPresentation(
         apply_button_enabled=False,
         label_text=(
-            f"Applied: {reason_text}. Rebuilding preview; old Rust Preview geometry may remain visible until reload finishes."
+            f"Applied: {reason_text}. Rebuilding preview; old Preview geometry may remain visible until reload finishes."
         ),
         label_visible=True,
         performance_summary="Source-part changes applied. Rebuilding preview package.",
         performance_details=(
-            f"{reason_text}\nOld Rust Preview geometry may remain visible until reload finishes."
+            f"{reason_text}\nOld Preview geometry may remain visible until reload finishes."
         ),
     )
 

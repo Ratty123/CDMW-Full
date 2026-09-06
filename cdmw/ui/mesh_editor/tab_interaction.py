@@ -214,12 +214,12 @@ class MeshEditorInteractionMixin:
             )
             native_update = controller.native_update_for_result(result)
         except Exception as exc:
-            self.standalone_status_label.setText(f"Rust Preview mesh selection failed: {exc}")
-            self.status_message_requested.emit(f"Rust Preview mesh selection failed: {exc}", True)
+            self.standalone_status_label.setText(f"Preview mesh selection failed: {exc}")
+            self.status_message_requested.emit(f"Preview mesh selection failed: {exc}", True)
             return False
         if not result.ok:
             diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
-            self.standalone_status_label.setText(f"Rust Preview mesh selection failed{': ' + diagnostic if diagnostic else ''}.")
+            self.standalone_status_label.setText(f"Preview mesh selection failed{': ' + diagnostic if diagnostic else ''}.")
             return False
         self.standalone_last_action_result = result
         self.standalone_last_action_metrics = {
@@ -229,12 +229,12 @@ class MeshEditorInteractionMixin:
             return False
         if context_request:
             if float(dict(result.metrics).get("editor_select_source_pick_count", 0.0) or 0.0) <= 0.0:
-                self.standalone_status_label.setText("Rust Preview mesh context hit no source part.")
+                self.standalone_status_label.setText("Preview mesh context hit no source part.")
                 return False
             view = controller.session_view()
             source_indices = tuple(int(index) for index in view.selection.source_indices)
             if not source_indices:
-                self.standalone_status_label.setText("Rust Preview mesh context hit no source part.")
+                self.standalone_status_label.setText("Preview mesh context hit no source part.")
                 return False
             try:
                 context_x = int(payload.get("context_x", 0) or 0)
@@ -250,9 +250,9 @@ class MeshEditorInteractionMixin:
                     position,
                 ),
             )
-            self.standalone_status_label.setText("Rust Preview mesh context opened.")
+            self.standalone_status_label.setText("Preview mesh context opened.")
             return True
-        self.standalone_status_label.setText("Rust Preview mesh selection updated.")
+        self.standalone_status_label.setText("Preview mesh selection updated.")
         return True
     def _apply_standalone_native_mesh_edit_stroke(self, payload: object, phase: str) -> bool:
         controller = self.standalone_controller
@@ -345,16 +345,16 @@ class MeshEditorInteractionMixin:
                     self.current_undo_count += 1
                     self.current_redo_count = 0
                     QTimer.singleShot(0, self._sync_state)
-                self.standalone_status_label.setText(f"Rust Preview mesh edit stroke {phase}.")
+                self.standalone_status_label.setText(f"Preview mesh edit stroke {phase}.")
             else:
-                self.standalone_status_label.setText("Rust Preview mesh edit stroke updating.")
+                self.standalone_status_label.setText("Preview mesh edit stroke updating.")
         elif phase in {"end", "cancel"}:
             if phase == "end" and stroke_changed:
                 self.current_selection_mode = controller.active_selection_mode
                 self.current_undo_count += 1
                 self.current_redo_count = 0
                 QTimer.singleShot(0, self._sync_state)
-            self.standalone_status_label.setText(f"Rust Preview mesh edit stroke {phase}.")
+            self.standalone_status_label.setText(f"Preview mesh edit stroke {phase}.")
     def _handle_standalone_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure):
             return
@@ -368,7 +368,7 @@ class MeshEditorInteractionMixin:
             self.standalone_native_mesh_edit_stroke_changed = False
         if failure.cancelled:
             return
-        message = f"Rust Preview mesh edit stroke failed: {failure.message}"
+        message = f"Preview mesh edit stroke failed: {failure.message}"
         self.standalone_status_label.setText(message)
         self.status_message_requested.emit(message, True)
     def _standalone_native_sculpt_stroke_command(

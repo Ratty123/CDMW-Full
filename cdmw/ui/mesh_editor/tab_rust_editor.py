@@ -154,7 +154,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         reason = validate_rust_mesh_editor_package(resolution)
         signature_after = rust_mesh_editor_file_signature(resolution)
         if signature_before != signature_after:
-            reason = "Rust executable package changed while it was being validated"
+            reason = "executable package changed while it was being validated"
         return executable_text, signature_after, reason
 
     def _rust_open_preflight_reason(self) -> str:

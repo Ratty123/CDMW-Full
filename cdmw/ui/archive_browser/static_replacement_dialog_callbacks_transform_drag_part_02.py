@@ -7,7 +7,7 @@ def _transform_drag_step_044(_state):
         delta = (float(dx), float(dy), float(dz))
         part_source_indices = _state._alignment_d3d11_drag_part_source_indices_helper(_state.alignment_d3d11_drag_transaction)
         if part_source_indices:
-            if _state._active_mesh_edit_part_adjustment_mutation_blocked('Rust Preview transform'):
+            if _state._active_mesh_edit_part_adjustment_mutation_blocked('Preview transform'):
                 return
             update_state = _state._alignment_d3d11_drag_transform_update_state_helper(part_source_indices=part_source_indices, delta_xyz=delta, value_index=1, part_transform_values={int(source_index): _state._alignment_d3d11_base_part_transform(source_index) for source_index in part_source_indices})
             for source_index, new_rotation in dict(update_state['part_values']).items():
@@ -66,7 +66,7 @@ def _transform_drag_step_046a(_state):
         delta = (float(dx), float(dy), float(dz))
         part_source_indices = _state._alignment_d3d11_drag_part_source_indices_helper(_state.alignment_d3d11_drag_transaction)
         if part_source_indices:
-            if _state._active_mesh_edit_part_adjustment_mutation_blocked('Rust Preview transform'):
+            if _state._active_mesh_edit_part_adjustment_mutation_blocked('Preview transform'):
                 return
             update_state = _state._alignment_d3d11_drag_transform_update_state_helper(part_source_indices=part_source_indices, delta_xyz=delta, value_index=2, part_transform_values={int(source_index): _state._alignment_d3d11_base_part_transform(source_index) for source_index in part_source_indices})
             for source_index, new_scale in dict(update_state['part_values']).items():

@@ -503,7 +503,7 @@ class ModelLibraryCommandsMixin:
                     preview_after=False,
                 )
             )
-            preview_action = menu.addAction("Rust Preview This")
+            preview_action = menu.addAction("Preview This")
             preview_action.setEnabled(mirror_url_ready or bool(payload.get("import_path")))
             preview_action.triggered.connect(self.preview_selected_model)
             urls_action = menu.addAction("Show File URLs for This")

@@ -26,7 +26,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytestmark = pytest.mark.skip(
     reason=(
-        "The direct Vortice imported-material publication bridge is retired; Rust "
+        "The direct Vortice imported-material publication bridge is retired; "
         "receives ownership-bound material inputs in the authoring package."
     )
 )

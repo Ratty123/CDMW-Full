@@ -11,7 +11,9 @@ from __future__ import annotations
 import struct
 import tempfile
 import unittest
+import threading
 from pathlib import Path
+from unittest.mock import patch
 
 import lz4.block as lz4_block
 
@@ -46,6 +48,42 @@ def _files() -> list[OverlayFile]:
 
 
 class OverlayArchiveTests(unittest.TestCase):
+    def test_large_payload_checksum_uses_the_existing_native_helper(self) -> None:
+        payload = b"overlay" * 10_000
+        calls = []
+        stop = threading.Event()
+
+        def checksum(paths, *, stop_event):
+            self.assertIs(stop_event, stop)
+            self.assertEqual(len(paths), 1)
+            data = paths[0].read_bytes()
+            self.assertEqual(data[:len(payload)], payload)
+            calls.append(paths[0])
+            return {paths[0]: (calculate_pa_checksum(data), len(data))}
+
+        with patch("cdmw.core.archive_accelerator.checksum_files_native", checksum):
+            built = build_overlay_archive([OverlayFile("model/test.pac", payload, len(payload))], stop_event=stop)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(calls[0].exists())
+        self.assertEqual(parse_pamt_document(built.pamt_bytes).paz_records[0][1], calculate_pa_checksum(built.paz_bytes))
+
+    def test_large_payload_does_not_fall_back_to_a_blocking_python_checksum(self) -> None:
+        with patch("cdmw.core.archive_accelerator.checksum_files_native", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "checksum helper is unavailable"):
+                build_overlay_archive([OverlayFile("test.pac", b"x" * 70_000, 70_000)])
+
+    def test_cancelled_checksum_stops_before_publication(self) -> None:
+        from cdmw.core.common import RunCancelled
+        stop = threading.Event()
+
+        def checksum(*_args, **_kwargs):
+            stop.set()
+            raise RunCancelled("cancelled")
+
+        with patch("cdmw.core.archive_accelerator.checksum_files_native", checksum):
+            with self.assertRaises(RunCancelled):
+                build_overlay_archive([OverlayFile("test.pac", b"x" * 70_000, 70_000)], stop_event=stop)
+
     def test_the_built_table_is_the_one_this_repository_reads(self) -> None:
         built = build_overlay_archive(_files())
         document = parse_pamt_document(built.pamt_bytes, name="overlay")

@@ -51,6 +51,22 @@ class ClassificationTests(unittest.TestCase):
 
 
 class RigTests(unittest.TestCase):
+    def test_lod_directory_keeps_real_rig_and_links_both_variants(self) -> None:
+        full = _PHW + "body.paa"
+        lod = "character/motion/motion_lod__/1_pc/2_phw/body_lod.paa"
+        index = _index(full, lod)
+        self.assertEqual(rig_of(lod), "1_pc/2_phw")
+        self.assertEqual(index.filter(rig="1_pc/2_phw", include_lod=True)[1], 2)
+        self.assertEqual(index.companion(index.find(full)).path, lod)
+        self.assertEqual(index.companion(index.find(lod)).path, full)
+
+    def test_gameplay_facets_do_not_hide_body_clips(self) -> None:
+        index = _index(_PHM + "body.paa", _PHM + "99_autofacial/face.paa",
+                       _PHM + "aim_add.paa", _PHM + "weapon/bow/idle_at_bow_00.paa")
+        found, total = index.filter(include_facial=False, include_additive=False, include_equipment=False)
+        self.assertEqual([entry.name for entry in found], ["body"])
+        self.assertEqual(total, 1)
+
     def test_rig_comes_from_the_motion_path(self) -> None:
         self.assertEqual(rig_of(_PHM + "clip.paa"), "1_pc/1_phm")
         self.assertEqual(rig_of("character/motion/2_mon/cd_m0001_00_bear/clip.paa"), "2_mon/cd_m0001_00_bear")

@@ -990,20 +990,14 @@ class EditPanelMixin:
         if session is None or self._edits is None:
             return
         weapon_id = session.weapon.weapon_id if session.weapon else ""
-        overrides = self._edits.preview()
-        if not overrides:
-            rebuilt = PlacementSession.from_baseline(self._baseline, session.model)
-        else:
-            from .resolver import PlacementResolver
-
-            resolver = PlacementResolver()
-            for path in self._baseline.paths():
-                from .documents import is_descriptor_file, is_socket_file
-
-                if not (is_socket_file(path) or is_descriptor_file(path)):
-                    continue
-                resolver.add_files({path: overrides.get(path, self._baseline.read(path))})
-            rebuilt = PlacementSession(session.model, session.hierarchy, resolver)
+        from .resolver import PlacementResolver
+        resolver = PlacementResolver()
+        resolver.add_files(self._edits.current_files())
+        rebuilt = PlacementSession(session.model, session.hierarchy, resolver, skeleton_path=session.skeleton_path)
+        rebuilt._bind_hierarchy = session._bind_hierarchy
+        rebuilt.pose_matrices = session.pose_matrices
+        rebuilt._equipment_models = session._equipment_models
+        rebuilt._equipment_model_errors = session._equipment_model_errors
         for weapon in rebuilt.weapons():
             if weapon.weapon_id == weapon_id:
                 rebuilt.select_weapon(weapon)

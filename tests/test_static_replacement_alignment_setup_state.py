@@ -26,7 +26,7 @@ def test_alignment_builder_window_title_preserves_default_title() -> None:
         "Mesh Replacement Builder is already open for this target/source pair."
     )
     assert alignment_builder_closed_empty_state_message() == (
-        "Mesh Replacement Builder closed. Choose a workflow to reopen the live Rust Preview."
+        "Mesh Replacement Builder closed. Choose a workflow to reopen the live Preview."
     )
     assert alignment_builder_archive_preview_pause_message() == (
         "Preview is paused while Mesh Replacement is open. Refresh to update anyway."

@@ -106,6 +106,8 @@ public sealed class ArchiveItemCatalog
                 source.PrefabHashes.Count > 0 ? "prefab link" : "",
                 modelStems.Length > 0 ? "model link" : "",
                 iconPaths.Length > 0 ? "inventory icon" : "",
+                string.IsNullOrWhiteSpace(source.DisplayName) || source.Evidence.Contains("generated friendly name", StringComparison.Ordinal)
+                    ? "generated friendly name" : "localized display name",
             }.Where(static value => value.Length > 0));
         return source with
         {
@@ -362,6 +364,7 @@ public sealed class ArchiveItemCatalog
 
     private static string FriendlyName(string value)
     {
+        value = System.Text.RegularExpressions.Regex.Replace(value, "(?<=[a-z])(?=[A-Z])", " ");
         var builder = new StringBuilder(value.Length);
         var previousWasSeparator = true;
         foreach (var character in value)

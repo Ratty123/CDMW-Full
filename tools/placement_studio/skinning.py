@@ -1,65 +1,16 @@
-"""Skin `.pac` character geometry to the animated skeleton.
+"""Skin decoded PAC geometry using its resolved palette and PAB bind matrices.
 
-A `.pac` vertex carries four bone influences and four `u8` weights; each submesh holds a
-`source_bone_palette` mapping those influence slots onto skeleton bone indices. With the
-`.pab`'s inverse bind matrices that is everything needed to deform the body and its armour
-with the pose, so the meshes move with the animation instead of standing frozen at bind
-while the skeleton walks out of them.
+The validated path keeps all positive decoded influences (up to eight), including
+palette slot zero. It verifies every weighted index and reconstructs the bind
+mesh before exposing ``binding_exact`` and ``influences_exact``. Attachments
+require their own validated embedded hierarchy; the character rig is not a
+substitute for an unresolved equipment binding.
 
-The maths is the standard linear blend, in the row-vector convention the rest of the studio
-uses:
+Older two-influence and geometric fallback paths remain usable for inspection.
+They carry explicit approximate flags and cannot establish verified contact.
+Deformation uses the Studio row-vector convention:
 
-    v' = sum_i  w_i * ( v * inverse_bind[b_i] * world[b_i] )
-
-NumPy does the per-vertex work; a pure-Python loop over ~30,000 vertices per frame is not a
-viable option at playback rates.
-
-**Only the primary influence is usable, but the slot table is read, not derived.**
-
-`mesh_parser` documents that a PAC vertex's four influence slots are not four bone indices:
-only slot 0 decodes, and bytes 21-23 are a packed field. Reading all four is what made the
-index space look 253 wide with nonsense bones attached — the primary slot alone tops out at
-74 on the body meshes, and every value lands on an anatomically sensible bone.
-
-This file used to claim the slot table was absent and had to be recovered from geometry, by
-clustering the vertices a slot drives and matching the cluster to the nearest bone. That was
-wrong, and the earlier scan that seemed to prove it only looked at the first 4 KB. Searched
-whole, **every** mesh carries a palette of `.pab` bone-name hashes that resolves against the
-rig exactly: 189 bones in Kliff's body, 206 in Damian's, 77 in a coat, 20 in a boot — and in
-each file exactly one of the thousands of byte runs that merely *look* like a palette resolves
-completely, so there is nothing to guess between.
-
-The guess held up only while the body was a coat and a pair of trousers. A whole anatomy has
-fifteen bones inside a hand, and nearest-centroid pairs fingers with the wrong knuckles: the
-mesh tore itself apart the moment a pose moved. `derive_bone_map` survives as the fallback for
-a file whose palette will not resolve, guarded by `MAX_DRIFT` — but note that drift is *its*
-metric, which it minimises by construction, so it is not applied to an exact palette.
-
-**The heaviest two of the six influences are used, so joints bend rather than crease.**
-
-The skin used to be rigid — one bone per vertex — and it looked it: an elbow's vertices snapped
-to either the upper arm or the forearm with nothing between them, so every joint tore open
-instead of bending. A vertex carries six influences, descending and summing to 255, and the
-parser decodes every one; this takes the first two.
-
-An earlier version read the second bone out of byte 24 of the vertex record, and measured that
-byte as landing inside the palette 99.3% of the time. It was a coincidence of the real layout:
-the slots are two u32 of three 10-bit fields, so byte 24 is the low eight bits of influence 3's
-slot, and the second influence's index straddles bytes 21 and 22 where no byte could reach it.
-Reading the decoded pair instead halves the distance between the two bones — median 0.076 m
-against 0.15 m, with 89% inside 20 cm against 74% — which is what a correct second bone should
-look like. A two-bone blend is still not the game's six-bone one, so tight creases remain
-shallower here than in game.
-
-A blend is only taken between bones that are near each other; see `_neighbouring`. Without any
-gate the far pairs stretch their triangles into slivers, which showed up as fresh tearing across
-a coat's shoulder. Gating on the *hierarchy* alone was the opposite error — it kept only 15.8%
-of the vertices the file offers a second bone for, so joints stayed nearly as stiff as before.
-On the corrected reading the gate now admits 90.9% of the pairs offered, against the roughly
-80% it passed when the second bone was a misread byte.
-
-The second bone keeps its true share of 255 rather than being renormalised against the primary;
-`_second_influence` records what that measured.
+    v' = sum_i w_i * (v * inverse_bind[b_i] * world[b_i])
 """
 
 from __future__ import annotations
@@ -95,6 +46,8 @@ class SkinnedMesh:
     bones: np.ndarray
     weights: np.ndarray
     source_path: str = ""
+    binding_exact: bool = False
+    influences_exact: bool = False
 
     @property
     def vertex_count(self) -> int:
@@ -302,6 +255,19 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
     parsed = parse_mesh(data, name)
     if not parsed.submeshes or not parsed.has_bones:
         return None
+    # The current PAC parser resolves up to eight weighted influences. Use them
+    # intact when every weighted slot resolves and the bind pose reconstructs.
+    # Existing approximate geometry remains available with explicit flags otherwise.
+    try:
+        palette = _resolved_palette(data, skeleton)
+    except (ValueError, IndexError):
+        palette = ()
+    if palette:
+        from .attachment_binding import exact_skin, BindingError
+        try:
+            return exact_skin(parsed, skeleton, palette, path)
+        except BindingError:
+            pass
 
     rest: List[tuple] = []
     faces: List[tuple] = []
@@ -358,6 +324,7 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
             (1.0 - share, share, np.zeros_like(share), np.zeros_like(share)), axis=1
         ),
         source_path=path,
+        binding_exact=exact,
     )
     # The drift guard exists to catch the *guess* going wrong. A hash-resolved palette is not a
     # guess, and it scores worse by construction — `derive_bone_map` picks whichever bone is

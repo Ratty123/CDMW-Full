@@ -111,7 +111,7 @@ def export_archive_overlay_package(
         target = _safe_overlay_package_output_path(root, str(relative))
         prepared_metadata.append((target, target.relative_to(root).as_posix(), bytes(payload)))
 
-    built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log)
+    built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log, stop_event=stop_event)
     raise_if_cancelled(stop_event, "Overlay package export cancelled before publishing.")
     directory.mkdir(parents=True, exist_ok=True)
     atomic_write_bytes(directory / "0.paz", built.paz_bytes)

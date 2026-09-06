@@ -554,7 +554,7 @@ class ArchivePreviewSettingsMixin:
         self._clear_archive_preview_cache(clear_native_packages=True)
         self.shell.append_archive_log(
             f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
-            "plus durable Rust Preview preview packages and PAC XML profile index."
+            "plus durable Preview packages and PAC XML profile index."
         )
         self.shell.set_status_message("Archive preview cache cleared.")
 
@@ -563,7 +563,7 @@ class ArchivePreviewSettingsMixin:
             if self.archive_d3d11_preview_host.reset_tool_pbd_cloth_preview():
                 self.shell.set_status_message("Reset tool-side PBD physics preview.")
             return
-        self.shell.set_status_message("Tool-side PBD physics reset is available when the Rust Preview preview is running.")
+        self.shell.set_status_message("Tool-side PBD physics reset is available when the Preview is running.")
 
     def _handle_archive_renderer_backend_changed(self, backend: str) -> None:
         normalized = ARCHIVE_MODEL_RENDERER_D3D11
@@ -593,7 +593,7 @@ class ArchivePreviewSettingsMixin:
             None if result is None else getattr(result, "preview_model", None)
         )
         self.shell.set_status_message(
-            "Archive model renderer set to Rust Preview."
+            "Archive model renderer set to Preview."
         )
         self.shell.schedule_settings_save()
 
@@ -707,9 +707,9 @@ class ArchivePreviewSettingsMixin:
             self._schedule_current_model_preview_asset_refresh()
         elif d3d11_backend_active and change_flags.d3d11_render_tuning_changed:
             if self.archive_d3d11_preview_host.set_render_tuning(preview_settings):
-                self.shell.set_status_message("Updated Rust Preview render tuning.")
+                self.shell.set_status_message("Updated Preview render tuning.")
             else:
-                self.shell.set_status_message("Reloading Rust Preview preview to apply render settings.")
+                self.shell.set_status_message("Reloading Preview to apply render settings.")
                 self._refresh_current_model_preview_assets()
         elif change_flags.support_slot_settings_changed:
             self._schedule_current_model_preview_asset_refresh()
@@ -759,7 +759,7 @@ class ArchivePreviewSettingsMixin:
                 # previous mode already wrote.  Packages in use stay pinned.
                 clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
             self.shell.append_archive_log(
-                f"Rust Preview preview package cache mode set to {performance_settings.native_preview_cache_mode}."
+                f"Preview package cache mode set to {performance_settings.native_preview_cache_mode}."
             )
         if (
             not performance_settings.enable_sidecar_indexing

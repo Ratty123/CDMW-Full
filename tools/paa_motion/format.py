@@ -12,7 +12,7 @@ stores next to each bone name.
     if flags & FRAMES:   2 x { f32 scale[3]; f32 rot[4]; f32 pos[3] }
     if flags & UNIT:     f32 unit_scale                          ~0.9722, the rig hip height
     if flags & SKELETON: u8 len; ascii skeleton_path
-    f32 duration                                                 seconds; == last_frame / 30
+    f32 duration                                                 seconds, including held poses
     u16 skeletal_bones  u16 root_bones  ...filler...  u32 key_bytes
     (skeletal_bones + root_bones) x:
         u32 bone_name_hash
@@ -31,8 +31,9 @@ Track values are deltas from the skeleton's bind pose, expressed in the bone's o
 axes, not absolute local transforms: an unrotated bone keys the identity quaternion even
 where its bind rotation is not identity. `pose.py` is what composes them.
 
-Frames are integers at a fixed 30 fps and are sparse — a keyframe reducer drops frames a
-linear interpolation would have reproduced, so the gaps are meaningful.
+Standard keys are sparse integer indices at 30 Hz. Packed skeletal keys use a separate
+clock (the validated table-lead-5 profile uses 5 Hz); standard root keys remain at 30 Hz.
+`timing.py` converts clocks for playback without changing the indices retained here.
 
 Roughly half the shipped clips set `FLAG_PACKED` and quantise their skeletal records to
 signed bytes with `u8` frame indices; `_read_packed_channel` covers that. Their trailing

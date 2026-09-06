@@ -190,7 +190,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
         intro = QLabel(
-            "This editor uses the shared out-of-process Rust Preview. "
+            "This editor uses the shared out-of-process Preview. "
             "Pick a recovered attach point, review the socket chain, optionally drag/tune offset/rotation, then build the same loose package copy plan."
         )
         intro.setObjectName("HintLabel")
@@ -286,7 +286,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         placement_d3d11_host.setMinimumSize(QSize(520, 360))
         placement_d3d11_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         d3d11_layout.addWidget(placement_d3d11_host, 1)
-        placement_d3d11_status = QLabel("Rust Preview placement preview is available.")
+        placement_d3d11_status = QLabel("Preview placement preview is available.")
         placement_d3d11_status.setObjectName("HintLabel")
         placement_d3d11_status.setWordWrap(True)
         d3d11_layout.addWidget(placement_d3d11_status)
@@ -295,7 +295,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         preview_layout.addWidget(preview_stack, 1)
         preview_button_row = QHBoxLayout()
         preview_button_row.addStretch(1)
-        reload_d3d11_button = QPushButton("Reload Rust Preview")
+        reload_d3d11_button = QPushButton("Reload Preview")
         reload_d3d11_button.setEnabled(True)
         preview_button_row.addWidget(reload_d3d11_button)
         preview_layout.addLayout(preview_button_row)
@@ -424,7 +424,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             return bool(placement_d3d11_available and not bool(d3d11_state.get("closed")))
 
         def _placement_d3d11_hard_error(message: str) -> None:
-            detail = str(message or "Rust Preview placement preview failed.").strip()
+            detail = str(message or "Preview placement preview failed.").strip()
             if "No fallback preview renderer is available." not in detail:
                 detail = f"{detail} No fallback preview renderer is available."
             placement_d3d11_status.setText(detail)
@@ -493,7 +493,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             d3d11_state["active_package"] = package_dir
             d3d11_state["preview_loaded"] = False
             preview_stack.setCurrentWidget(d3d11_page)
-            placement_d3d11_status.setText("Loading Rust Preview placement preview...")
+            placement_d3d11_status.setText("Loading Preview placement preview...")
             if placement_d3d11_host.load_package(package_dir, reset_view=previous_package is None):
                 placement_d3d11_host.set_display_mode("overlay")
                 placement_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
@@ -501,7 +501,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                     _placement_d3d11_cleanup_package(previous_package, delay_ms=5000)
             else:
                 d3d11_state["active_package"] = previous_package
-                _placement_d3d11_hard_error("Rust Preview rejected the placement package.")
+                _placement_d3d11_hard_error("Preview rejected the placement package.")
                 _placement_d3d11_cleanup_package(package_dir)
 
         def _handle_placement_dotnet_state(state: str, message: str) -> None:
@@ -519,12 +519,12 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                     rotation_degrees_per_pixel=0.35,
                 )
                 _placement_d3d11_sync_fast_transform()
-                placement_d3d11_status.setText("Rust Preview placement preview loaded. Drag selected placement mesh to adjust offset; use rotation drag for rotation.")
+                placement_d3d11_status.setText("Preview placement preview loaded. Drag selected placement mesh to adjust offset; use rotation drag for rotation.")
             elif str(state) == "error":
                 d3d11_state["preview_loaded"] = False
                 _placement_d3d11_hard_error(message)
             else:
-                placement_d3d11_status.setText(str(message or "Rust Preview"))
+                placement_d3d11_status.setText(str(message or "Preview"))
 
         def _handle_placement_d3d11_package_ready(request_id: int, package_dir_object: object, prepare_ms: float, package_ms: float) -> None:
             try:
@@ -534,13 +534,13 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 _placement_d3d11_cleanup_package(package_dir)
                 return
-            placement_d3d11_status.setText(f"Rust Preview package ready: prepare {prepare_ms:.0f} ms, package {package_ms:.0f} ms.")
+            placement_d3d11_status.setText(f"Preview package ready: prepare {prepare_ms:.0f} ms, package {package_ms:.0f} ms.")
             _placement_d3d11_start_process(package_dir)
 
         def _handle_placement_d3d11_package_error(request_id: int, message: str) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
-            _placement_d3d11_hard_error(f"Rust Preview package failed: {message}")
+            _placement_d3d11_hard_error(f"Preview package failed: {message}")
 
         def _cleanup_placement_d3d11_package_refs() -> None:
             d3d11_state["package_thread"] = None
@@ -556,7 +556,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
                 d3d11_state["pending"] = True
                 _placement_d3d11_stop_worker()
-                placement_d3d11_status.setText("Queued latest Rust Preview placement preview...")
+                placement_d3d11_status.setText("Queued latest Preview placement preview...")
                 return
             d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
             request_id = int(d3d11_state["request_id"])
@@ -588,7 +588,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             thread.finished.connect(_cleanup_placement_d3d11_package_refs)
             d3d11_state["package_worker"] = worker
             d3d11_state["package_thread"] = thread
-            placement_d3d11_status.setText("Preparing Rust Preview placement preview package...")
+            placement_d3d11_status.setText("Preparing Preview placement preview package...")
             thread.start()
 
         def _start_placement_d3d11_model_load() -> None:
@@ -638,21 +638,21 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             thread.finished.connect(_cleanup_placement_d3d11_model_refs)
             d3d11_state["model_worker"] = worker
             d3d11_state["model_thread"] = thread
-            placement_d3d11_status.setText("Loading target/source models for Rust Preview placement preview...")
+            placement_d3d11_status.setText("Loading target/source models for Preview placement preview...")
             thread.start()
 
         def _handle_placement_d3d11_models_loaded(request_id: int, payload: object) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
             if not isinstance(payload, Mapping) or not isinstance(payload.get("target"), ArchivePreviewResult):
-                placement_d3d11_status.setText("Rust Preview placement model load returned an unexpected payload.")
+                placement_d3d11_status.setText("Preview placement model load returned an unexpected payload.")
                 return
             target_preview = payload.get("target")
             donor_preview = payload.get("donor") if isinstance(payload.get("donor"), ArchivePreviewResult) else None
             target_model = getattr(target_preview, "preview_model", None)
             donor_model = getattr(donor_preview, "preview_model", None) if donor_preview is not None else None
             if not isinstance(target_model, ModelPreviewData):
-                placement_d3d11_status.setText("Rust Preview placement preview has no renderable target model.")
+                placement_d3d11_status.setText("Preview placement preview has no renderable target model.")
                 return
             self._attach_archive_model_preview_images(target_model)
             if isinstance(donor_model, ModelPreviewData):
@@ -664,7 +664,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         def _handle_placement_d3d11_models_error(request_id: int, message: str) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
-            _placement_d3d11_hard_error(f"Rust Preview placement model load failed: {message}")
+            _placement_d3d11_hard_error(f"Preview placement model load failed: {message}")
 
         def _cleanup_placement_d3d11_model_refs() -> None:
             d3d11_state["model_thread"] = None
@@ -681,7 +681,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 return
             preview_model, editable_indices = _placement_d3d11_build_preview_model()
             if not isinstance(preview_model, ModelPreviewData):
-                placement_d3d11_status.setText("Rust Preview placement preview could not build a renderable model.")
+                placement_d3d11_status.setText("Preview placement preview could not build a renderable model.")
                 return
             _start_placement_d3d11_package_worker(preview_model, editable_indices)
 
@@ -953,7 +953,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             diagnostics = [
                 f"Target: {target_entry.path}",
                 f"Placement source: {donor_entry.path if isinstance(donor_entry, ArchiveEntry) else 'none'}",
-                f"Safe editor: Rust Preview-only socket selection.",
+                f"Safe editor: Preview-only socket selection.",
                 f"Selected attach point: {getattr(selected_evidence, 'character_socket_name', '') or 'source default'}",
                 f"Selected pivot socket: {selected_socket_name or '-'}",
                 f"Manual offset: {_format_value(_visual_offset())}",

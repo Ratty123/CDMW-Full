@@ -113,7 +113,7 @@ def alignment_preview_control_text() -> dict[str, str]:
         ),
         "part_pick": "Part Pick",
         "part_pick_tooltip": (
-            "In the Rust Preview preview, hover highlights source parts and right-click opens the selected part menu."
+            "In the Preview, hover highlights source parts and right-click opens the selected part menu."
         ),
         "mesh_view_label": "Mesh view",
         "mesh_view_tooltip": (
@@ -121,7 +121,7 @@ def alignment_preview_control_text() -> dict[str, str]:
             "These are the same modes as Edit Mesh > Viewport; Faces + Wire is the readable default."
         ),
         "dotnet_view_tooltip": (
-            "Rust Preview view mode for the resident Original and Replacement preview panes. "
+            "Preview view mode for the resident Original and Replacement preview panes. "
             "Only renderer-backed modes are listed."
         ),
         "dotnet_view_label": "Preview mode",
@@ -129,8 +129,8 @@ def alignment_preview_control_text() -> dict[str, str]:
         "use_global": "Use Global",
         "use_global_tooltip": "Reset the alignment render controls to the current global 3D preview settings.",
         "camera_label": "Camera",
-        "d3d11_waiting_status": "Rust Preview alignment preview is waiting for the resident renderer.",
-        "d3d11_renderer_error": "Rust Preview renderer error.",
+        "d3d11_waiting_status": "Preview alignment preview is waiting for the resident renderer.",
+        "d3d11_renderer_error": "Preview renderer error.",
         "d3d11_unavailable_status": "Preview host is unavailable.",
         "d3d11_closed_status": "Preview closed.",
     }
@@ -168,10 +168,10 @@ def alignment_preview_render_control_text() -> dict[str, str]:
 def alignment_preview_help_presentation(*, d3d11_active: bool) -> PreviewHelpPresentation:
     if d3d11_active:
         return PreviewHelpPresentation(
-            text="Resident Rust Preview alignment preview.",
-            tooltip="Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through the resident Rust Preview renderer.",
+            text="Resident Preview alignment preview.",
+            tooltip="Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through the resident Preview renderer.",
             settings_tooltip=(
-                "Open 3D preview settings supported by the Rust Preview renderer, including lighting, support maps, "
+                "Open 3D preview settings supported by the Preview renderer, including lighting, support maps, "
                 "depth, shine, and resolution."
             ),
         )

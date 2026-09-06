@@ -114,19 +114,30 @@ def prepare_overlay_install(
         raise FileNotFoundError(f"Could not find the archive mount list at {papgt_path}.")
     raise_if_cancelled(stop_event, "Overlay preparation cancelled before it started.")
     papgt_before = papgt_path.read_bytes()
-    mounted_before = tuple(item.name for item in parse_papgt(papgt_before))
+    mounted_records = parse_papgt(papgt_before)
+    mounted_before = tuple(item.name for item in mounted_records)
     mounted = set(mounted_before)
     existing = next(
         (
             item
-            for item in sorted(mounted)
+            for item in mounted_before
             if str(item).isdigit() and int(item) >= OVERLAY_DIRECTORY_FIRST
             and is_cdmw_overlay_directory(root / str(item))
         ),
         None,
     )
     name = directory_name or overlay_directory_name(root, existing=existing)
+    if not (name.isascii() and name.isdigit() and len(name) == 4 and OVERLAY_DIRECTORY_FIRST <= int(name) <= 9999):
+        raise ValueError("Overlay folder must be a number from 0036 to 9999.")
     directory = root / name
+    mounted_record = next((item for item in mounted_records if item.name == name), None)
+    if mounted_record is not None:
+        if not is_cdmw_overlay_directory(directory):
+            raise ValueError(f"Archive directory {name} is reserved by the game's mount list and cannot be used as an overlay.")
+        with (directory / "0.pamt").open("rb") as stream:
+            checksum = int.from_bytes(stream.read(4), "little")
+        if mounted_record.flags != PAPGT_DEFAULT_FLAGS or mounted_record.pamt_checksum != checksum:
+            raise ValueError(f"Overlay {name} no longer matches the game's mount list. Restore or remove the old overlay and verify the game files before installing again.")
     if directory.exists() and not is_cdmw_overlay_directory(directory):
         raise ValueError(f"Archive directory {name} is not owned by CDMW and will not be reused.")
     carried = _existing_overlay_files(directory)
@@ -168,7 +179,7 @@ def prepare_overlay_install(
         )
     if not requested_paths:
         raise ValueError("An overlay install needs at least one requested file.")
-    built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log)
+    built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log, stop_event=stop_event)
     papgt_after = papgt_with_directory(
         papgt_before,
         name,
@@ -464,12 +475,15 @@ def is_cdmw_overlay_directory(directory: Path) -> bool:
 
 def overlay_directory_name(package_root: Path, *, existing: Optional[str] = None) -> str:
     """The directory the workbench's overlay lives in: the one it already mounted, else the
-    first four-digit name at or after 0036 that no directory on disk uses."""
+    first free four-digit name not reserved on disk or in the game's mount list."""
 
     root = Path(package_root)
     if existing and is_cdmw_overlay_directory(root / existing):
         return existing
     used = {child.name for child in root.iterdir() if child.is_dir()}
+    mount_list = root / "meta" / "0.papgt"
+    if mount_list.is_file():
+        used.update(item.name for item in parse_papgt(mount_list.read_bytes()))
     for number in range(OVERLAY_DIRECTORY_FIRST, 10000):
         name = f"{number:04d}"
         if name not in used:

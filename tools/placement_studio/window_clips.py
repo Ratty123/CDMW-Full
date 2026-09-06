@@ -96,6 +96,17 @@ class ClipBrowserMixin:
         switches.addStretch(1)
         layout.addLayout(switches)
 
+        facets = QHBoxLayout()
+        self._clip_facets = {}
+        for key, label in (("facial", "Facial"), ("additive", "Additive"), ("equipment", "Equipment"), ("story", "NPC / story")):
+            box = QCheckBox(label)
+            box.setToolTip(f"Include {label.lower()} animation clips")
+            box.toggled.connect(self._refresh_clip_list)
+            self._clip_facets[key] = box
+            facets.addWidget(box)
+        facets.addStretch(1)
+        layout.addLayout(facets)
+
         # The scan gets a row to itself. Sharing one with the two checkboxes fitted the pane at
         # full width and not in the lane it actually lives in — `Only draws for this spot` lost
         # its last word and the button read `ind which draws fit (~30s`. Qt answers a row it
@@ -265,6 +276,7 @@ class ClipBrowserMixin:
             self._clip_status.setText(f"{reason} — showing the pinned baseline only")
         else:
             self._clip_status.setText(reason)
+        self._deliver_clip_requests()
 
     def _on_clip_index_ready(self, index) -> None:
         """The scan finished. Failure never arrives here — the stepper falls back itself."""
@@ -273,6 +285,27 @@ class ClipBrowserMixin:
         self._clip_index = index
         self._populate_clip_rigs()
         self._refresh_clip_list()
+
+        self._deliver_clip_requests()
+
+    def _when_clips_ready(self, key, action):
+        """Queue the latest immutable request per consumer without draining the index."""
+        self._ensure_clip_index()
+        if self.clip_index_ready:
+            action()
+            return
+        pending = getattr(self, '_clip_ready_requests', None)
+        if pending is None:
+            pending = self._clip_ready_requests = {}
+        pending[key] = (self._session, action)
+        self.statusBar().showMessage('Indexing animations; the latest selection will open when ready')
+
+    def _deliver_clip_requests(self):
+        requests = getattr(self, '_clip_ready_requests', {})
+        self._clip_ready_requests = {}
+        for session, action in requests.values():
+            if session is self._session:
+                action()
 
     def _populate_clip_rigs(self) -> None:
         """Default to the rig this session actually loaded — that is what will play."""
@@ -313,6 +346,7 @@ class ClipBrowserMixin:
             category=self._clip_category_box.currentData() or ANY,
             text=self._clip_search.text(),
             include_lod=self._clip_lod_box.isChecked(),
+            **{f"include_{key}": box.isChecked() for key, box in self._clip_facets.items()},
             limit=None if wanted else _LIST_LIMIT,
         )
         if wanted is not None:
@@ -347,18 +381,33 @@ class ClipBrowserMixin:
             return
         self._play_clip_entry(item.data(Qt.UserRole))
 
-    def _play_clip_entry(self, entry) -> None:
+    def _play_clip_entry(self, entry, *, autoplay: bool = False) -> None:
         """Load and pose one indexed clip. Shared by the browser and the socket-clip pane."""
 
         if self._session is None or not self._session.has_skeleton:
             self.statusBar().showMessage("Load a character model before a motion clip.")
             return
-        try:
-            clip = load_clip(read_clip(entry), entry.name)
-        except (PlaybackError, ValueError, OSError) as error:
-            self.statusBar().showMessage(f"Could not load {entry.name}: {error}")
-            return
+        from .background import LatestTask
+        if getattr(self, "_clip_task", None) is None:
+            self._clip_task = LatestTask(self)
+            self._clip_task.ready.connect(self._clip_prepared)
+        session = self._session
+        def work(cancelled, _progress):
+            data = read_clip(entry)
+            if cancelled():
+                return None
+            return session, entry, load_clip(data, entry.name), autoplay
+        self.statusBar().showMessage(f"Preparing {entry.name}…")
+        self._clip_task.submit(work)
 
+    def _clip_prepared(self, result, error):
+        if error or result is None:
+            if error:
+                self.statusBar().showMessage(f"Clip preparation failed: {error}")
+            return
+        session, entry, clip, autoplay = result
+        if self._session is not session:
+            return
         matched = coverage(self._session.hierarchy, clip)
         if matched <= 0.0:
             self.statusBar().showMessage(
@@ -381,6 +430,9 @@ class ClipBrowserMixin:
             note += "  — authored for another character, so the pose will not read as human"
         self.statusBar().showMessage(f"Loaded {entry.name}{note}")
         self._apply_playback_frame()
+        if autoplay:
+            self._playback_loop_box.setChecked(True)
+            self._on_playback_toggle()
 
     def _stop_clip_index(self) -> None:
         """A running table scan must not outlive the window."""
@@ -398,10 +450,14 @@ class ClipBrowserMixin:
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         """Stop the playhead and the indexer before the widgets they touch go away."""
 
+        self._clip_ready_requests = {}
         timer = getattr(self, "_playback_timer", None)
         if timer is not None:
             timer.stop()
         self._stop_clip_index()
+        task = getattr(self, "_clip_task", None)
+        if task is not None:
+            task.shutdown()
         for name in ("_stop_armour_index", "_stop_carry_index", "_stop_swap"):
             stop = getattr(self, name, None)
             if stop is not None:

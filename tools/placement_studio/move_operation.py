@@ -471,6 +471,8 @@ def apply_move(
     plan: MovePlan,
     *,
     clip_bytes: Optional[Mapping[str, bytes]] = None,
+    originals: Optional[Mapping[str, bytes]] = None,
+    preparation_json: str = "",
     label: str = "",
 ) -> EditOperation:
     """Apply the whole plan as one operation, or leave the session exactly as it was.
@@ -486,6 +488,18 @@ def apply_move(
     if not plan.changes_anything:
         raise MoveBlocked("Nothing would change, so there is no operation to record")
 
+    selected = [row.target_path for row in plan.request.replacements]
+    if len(set(selected)) != len(selected):
+        raise MoveBlocked("A target animation was selected more than once")
+    payloads = dict(clip_bytes or {})
+    missing = set(selected) - payloads.keys()
+    extra = payloads.keys() - set(selected)
+    if missing or extra:
+        raise MoveBlocked("Animation preparation does not match the selection: "
+                          + "; ".join(filter(None, (
+                              "missing " + ", ".join(sorted(missing)) if missing else "",
+                              "unexpected " + ", ".join(sorted(extra)) if extra else ""))))
+
     unit = plan.unit
     scope = plan.scope_for()
     handle = edits.begin_operation(
@@ -493,6 +507,7 @@ def apply_move(
         label=label or _default_label(plan),
     )
     try:
+        handle.preparation_json = preparation_json
         for warning in plan.confirmations:
             handle.accept_warning(warning)
         handle.mark_orientation_reviewed(plan.request.orientation_reviewed)
@@ -525,13 +540,12 @@ def apply_move(
                 handle.record_orientation(route.proposed_child, route.template.source)
 
         for row in plan.request.replacements:
-            data = (clip_bytes or {}).get(row.target_path)
-            if data is None:
-                continue
+            data = payloads[row.target_path]
             handle.replace_clip(
                 row.target_path,
                 data,
                 source=str(getattr(row.donor, "name", "") or ""),
+                original=(originals or {}).get(row.target_path),
             )
     except Exception:
         handle.rollback()

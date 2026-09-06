@@ -21,6 +21,7 @@ from cdmw.domain.archives.catalogue import (
     archive_durable_identity_key,
 )
 from cdmw.ui.archive_browser.model import ARCHIVE_BROWSER_COLUMNS, ArchiveBrowserRowPayload
+from cdmw.domain.archives.item_names import compact_item_name
 
 
 REMOTE_ENTRY_DTO_ROLE = int(Qt.UserRole) + 10
@@ -672,7 +673,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
     role = _remote_type_display(entry)
     columns = (
         display_name,
-        entry.item_name or "-",
+        compact_item_name(entry.item_name) or "-",
         role,
         _format_bytes(entry.original_size),
         compression,

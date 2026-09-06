@@ -24,7 +24,7 @@ def test_resident_preview_reveals_rust_host_after_ready_state() -> None:
     Owner()._handle_inline_dotnet_state("ready", "ready")
 
     stack.setCurrentWidget.assert_called_once_with(host)
-    set_status.assert_called_once_with("Rust Model Library preview ready.")
+    set_status.assert_called_once_with("Model Library preview ready.")
     record_event.assert_called_once_with("model_library_dotnet_ready")
 
 

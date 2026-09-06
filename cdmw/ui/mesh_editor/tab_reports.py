@@ -625,7 +625,7 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         return target
     def _start_standalone_native_preview_requested(self) -> None:
         if not self.has_active_standalone_session():
-            self.status_message_requested.emit("Open a mesh session before starting Rust Preview.", True)
+            self.status_message_requested.emit("Open a mesh session before starting Preview.", True)
             return
         if self.start_standalone_native_preview_async():
-            self.status_message_requested.emit("Rust preview package preparation started.", False)
+            self.status_message_requested.emit("preview package preparation started.", False)

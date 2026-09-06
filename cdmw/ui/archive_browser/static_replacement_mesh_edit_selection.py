@@ -441,7 +441,7 @@ def _mesh_edit_selection_changed(_state, _callbacks, payload: object) -> None:
             # Legacy preview-panel screen selections have no other native
             # route; this stays their authority.
             if not _callbacks._mesh_edit_apply_native_screen_selection(payload, screen_payload):
-                _state.mesh_edit_status_label.setText("Rust Preview mesh selection failed.")
+                _state.mesh_edit_status_label.setText("Preview mesh selection failed.")
                 _callbacks._refresh_mesh_edit_controls()
                 return
             native_screen_selection = True

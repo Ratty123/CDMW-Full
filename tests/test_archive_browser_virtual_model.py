@@ -578,8 +578,8 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn('self.archive_preview_cache_last_miss_reason = "dotnet_package_expired"', cached_body)
         self.assertNotIn("def _get_durable_native_preview_package_result", source)
         self.assertIn("Cached preview package expired; rebuilding preview package...", flush_body)
-        self.assertIn('Rebuilding Rust Preview preview package', flush_body)
-        self.assertIn('Rust Preview package validation failed', invalid_body)
+        self.assertIn('Rebuilding Preview package', flush_body)
+        self.assertIn('Preview package validation failed', invalid_body)
         self.assertIn("self._set_archive_preview_base_detail_text", invalid_body)
         self.assertIn("self.shell.set_status_message(message, error=True)", invalid_body)
         self.assertIn("self.archive_d3d11_preview_host.load_package(", result_source)
@@ -694,7 +694,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("archive_preview_cache_limit_mode_combo", source)
         self.assertIn("Balanced 64 (recommended)", source)
         self.assertIn("High 128", source)
-        self.assertIn('Rust Preview disk cache', source)
+        self.assertIn('Preview disk cache', source)
         # The remembered-preview count only works through durable packages, so
         # the disk cache being Off has to disable it rather than lie about it.
         self.assertIn("preview_cache_available", source)

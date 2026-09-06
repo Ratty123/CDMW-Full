@@ -29,7 +29,7 @@ from tests.test_mesh_editor_action_bar import (
 def _mounted_tab(name: str):
     pytest.skip(
         "The direct Vortice controller harness was retired when the production "
-        "Mesh Editor moved to the correlated Rust shadow-session lifecycle."
+        "Mesh Editor moved to the correlated shadow-session lifecycle."
     )
     app = QApplication.instance() or QApplication([])
     settings = QSettings("CDMWTests", name)

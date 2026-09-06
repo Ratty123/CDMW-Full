@@ -46,6 +46,7 @@ from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotErro
 from cdmw.ui.new_item.controller_model_mixin import NewItemModelControllerMixin
 from cdmw.ui.new_item.controller_preview_mixin import NewItemPreviewControllerMixin
 from cdmw.ui.new_item.controller_task_mixin import NewItemTaskControllerMixin
+from cdmw.ui.new_item.controller_variant_mixin import NewItemVariantControllerMixin
 from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceControllerMixin
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
@@ -54,6 +55,7 @@ from cdmw.workers.new_item_workers import export_task, install_overlay_task, ins
 from cdmw.workers.utility_workers import UtilityWorker
 
 class NewItemStudioController(
+    NewItemVariantControllerMixin,
     NewItemPreviewControllerMixin,
     NewItemModelControllerMixin,
     NewItemTaskControllerMixin,
@@ -89,6 +91,10 @@ class NewItemStudioController(
     effect_catalogue_failed = Signal(str)
     effect_changed = Signal(object)
     preview_lighting_changed = Signal(str)
+    authoring_index_ready = Signal(str, object)
+    authoring_index_failed = Signal(str, str)
+    variant_about_to_change = Signal(object)
+    variant_changed = Signal(object)
 
     def __init__(
         self,
@@ -125,6 +131,9 @@ class NewItemStudioController(
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
         self.model_placement: ModelPlacement = ModelPlacement()
+        self._active_variant = None
+        self._variant_states = {}
+        self._task_source_leases = []
         self.preview_lighting_preset = "neutral_studio"
         #: the template's decoded preview (textures resolved), kept for the current template so
         #: a re-fit or an import does not decode it again (the worker fills it)
@@ -177,6 +186,7 @@ class NewItemStudioController(
         self._draft_revision += 1
         self._plan_revision = -1
         self.plan = None
+        self._sync_variant_state()
         self.plan_invalidated.emit()
 
     def set_preview_lighting_preset(self, preset: object) -> None:
@@ -201,9 +211,10 @@ class NewItemStudioController(
         raw_needle = str(text or "").strip().casefold()
         query = parse_archive_search_query(text)
         display_names = self.snapshot.item_display_names()
+        localized_names = self.snapshot.item_search_names()
         ranked: List[Tuple[int, str, int, str, str, str]] = []
 
-        def term_matches(term, name_fields: Tuple[str, str], all_fields: Tuple[str, str, str, str]) -> bool:
+        def term_matches(term, name_fields: Tuple[str, ...], all_fields: Tuple[str, ...]) -> bool:
             fields = name_fields if term.field == "name" else all_fields if term.field == "any" else ()
             value = str(term.value or "").casefold()
             return any(
@@ -220,7 +231,7 @@ class NewItemStudioController(
 
             internal_name = str(row.string_key or "")
             display_name = str(display_names.get(int(key), "") or "")
-            name_fields = (internal_name, display_name)
+            name_fields = (internal_name, display_name, *localized_names.get(int(key), ()))
             all_fields = (*name_fields, equip, str(key))
 
             if not query.is_empty and not any(
@@ -234,7 +245,7 @@ class NewItemStudioController(
             ):
                 continue
 
-            exact_values = {str(key), internal_name.casefold(), display_name.casefold()}
+            exact_values = {str(key), *(value.casefold() for value in name_fields)}
             rank = 0 if raw_needle and raw_needle in exact_values else 1
             ranked.append((rank, internal_name.casefold(), int(key), internal_name, display_name, equip))
 
@@ -539,6 +550,7 @@ class NewItemStudioController(
 
 
     def current_spec(self) -> NewItemSpec:
+        self._sync_variant_state()
         return spec_from_draft(self.draft, self.stat_grid())
 
     def validate(self) -> Tuple[ValidationIssue, ...]:
@@ -547,7 +559,8 @@ class NewItemStudioController(
         try:
             spec = self.current_spec()
         except ValueError:
-            return ()
+            return tuple(ValidationIssue(code="authoring.invalid",field=field,message=message)
+                         for field,message in self.draft.authoring_errors.items())
         issues = tuple(self.service.validate(spec, self.snapshot))
         if self.model_import is not None and self.model_result is None:
             issues += (ValidationIssue(
@@ -555,4 +568,8 @@ class NewItemStudioController(
                 field="model",
                 message=f"{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
             ),)
+        for identity,state in self._variant_states.items():
+            if state.appearance.custom_model and state.result is None and identity != self.current_variant_identity():
+                issues += (ValidationIssue(code="variant_placement_not_applied",field="model",
+                    message=f"Apply the imported placement for {state.appearance.model_path} in step 3."),)
         return issues

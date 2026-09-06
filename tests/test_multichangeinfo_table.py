@@ -99,19 +99,10 @@ class VanillaMultiChangeTests(unittest.TestCase):
         from cdmw.core.archive_extraction import read_archive_entry_data
         from cdmw.core.structured_binary_editor import parse_pabgh_table
 
-        if not corpus.game_root().is_dir():
-            self.skipTest("needs the installed game")
-        wanted = {
-            "gamedata/binary__/client/bin/multichangeinfo.pabgb", "gamedata/binary__/client/bin/multichangeinfo.pabgh",
-            "gamedata/binary__/client/bin/iteminfo.pabgb", "gamedata/binary__/client/bin/iteminfo.pabgh",
-        }
-        found = {}
-        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
-            path = corpus.normalize_game_path(entry.path)
-            if path in wanted:
-                found[path.rsplit("/", 1)[-1]] = read_archive_entry_data(entry)[0]
-        if len(found) != 4:
-            self.skipTest("tables not found")
+        from tools.new_item_corpus import read_table
+        recipes,items_pair=read_table("multichangeinfo"),read_table("iteminfo")
+        found={"multichangeinfo.pabgb":recipes.payload,"multichangeinfo.pabgh":recipes.header,
+               "iteminfo.pabgb":items_pair.payload,"iteminfo.pabgh":items_pair.header}
         rows = {r.key: r for r in parse_multichange_table(found["multichangeinfo.pabgb"], found["multichangeinfo.pabgh"])}
         self.assertGreater(len(rows), 18000)
         spans = parse_pabgh_table(found["iteminfo.pabgh"], payload=found["iteminfo.pabgb"]).row_spans(len(found["iteminfo.pabgb"]))

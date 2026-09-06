@@ -75,6 +75,7 @@ class NewItemModelControllerMixin:
         if template_key is not None and (self.snapshot is None or template_key not in self.snapshot.rows):
             self.status_message.emit(f"Item {template_key} is not in the snapshot.", True)
             return
+        self.reset_variants()
         self.draft = with_template(self.draft, template_key)
         self.invalidate_plan()
         self.model_result = None
@@ -164,6 +165,11 @@ class NewItemModelControllerMixin:
             self.status_message.emit("Choose a template first; the model is placed over its mesh.", True)
             return False
 
+        if self._active_variant is None and self.snapshot.sources and self.snapshot.sources.static_layout:
+            primary = self.primary_variant_identity()
+            if primary is not None:
+                self.select_variant(primary)
+
         # read on the UI thread, used on the worker: the Blender the reader chose, or ""
         blender = blender_for_fbx()
 
@@ -181,6 +187,7 @@ class NewItemModelControllerMixin:
 
         import_snapshot = self.snapshot
         import_template_key = int(self.draft.template_key)
+        import_variant = self._active_variant
         template_geometry = self._template_geometry_build()
         template_build = template_geometry[1] if template_geometry is not None else None
         match_grip = self._template_uses_weapon_fit()
@@ -192,46 +199,47 @@ class NewItemModelControllerMixin:
 
             report(f"Reading {chosen.name}...")
             result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
-            template_mesh = None
-            if template_build is not None:
-                try:
-                    template_mesh = template_build(stop_event)
-                except RunCancelled:
-                    raise
-                except Exception:  # noqa: BLE001 - an unreadable template preserves the identity-fit fallback
-                    template_mesh = None
-            template_analysis = analyze_mesh_geometry(template_mesh)
-            result.fit_template_bounds = template_analysis.bounds
-            result.fit_template_centroid = template_analysis.centroid
-            result.fit_template_frame = template_analysis.principal_frame
-            result.fit_match_grip = bool(match_grip)
-            result.set_bake(
-                fitted_placement(
-                    result.bounds,
-                    result.fit_template_bounds,
-                    source_centroid=result.centroid,
-                    template_centroid=result.fit_template_centroid,
-                    match_grip=result.fit_match_grip,
-                    source_frame=result.principal_frame,
-                    template_frame=result.fit_template_frame,
+            try:
+                raise_if_cancelled(stop_event, "Model import cancelled before template fitting.")
+                template_mesh = None
+                if template_build is not None:
+                    try:
+                        template_mesh = template_build(stop_event)
+                    except RunCancelled:
+                        raise
+                    except Exception:  # noqa: BLE001 - an unreadable template preserves the identity-fit fallback
+                        template_mesh = None
+                template_analysis = analyze_mesh_geometry(template_mesh)
+                result.fit_template_bounds = template_analysis.bounds
+                result.fit_template_centroid = template_analysis.centroid
+                result.fit_template_frame = template_analysis.principal_frame
+                result.fit_match_grip = bool(match_grip)
+                result.set_bake(
+                    fitted_placement(
+                        result.bounds,
+                        result.fit_template_bounds,
+                        source_centroid=result.centroid,
+                        template_centroid=result.fit_template_centroid,
+                        match_grip=result.fit_match_grip,
+                        source_frame=result.principal_frame,
+                        template_frame=result.fit_template_frame,
+                    )
                 )
-            )
-            if not stop_event.is_set():
-                # The UI reads fitted bounds as soon as this result is published.
-                # Materialize that mesh here so the first read is a cache lookup.
-                try:
+                if not stop_event.is_set():
+                    # The UI reads fitted bounds as soon as this result is published.
+                    # Materialize that mesh here so the first read is a cache lookup.
                     result.baked_scene_mesh()
-                except Exception:
-                    result.cleanup()
-                    raise
-            progress(1, 1, "Model source ready")
-            return result
+                progress(1, 1, "Model source ready")
+                return result
+            except BaseException:
+                result.cleanup()
+                raise
 
         def done(result: object) -> None:
             if not isinstance(result, ModelImportSource):
                 self.status_message.emit("The model import finished with an unexpected result.", True)
                 return
-            if self.snapshot is not import_snapshot or self.draft.template_key != import_template_key:
+            if self.snapshot is not import_snapshot or self.draft.template_key != import_template_key or self._active_variant != import_variant:
                 self._cleanup_model_source(result)
                 return
             previous = self.model_import
@@ -291,9 +299,11 @@ class NewItemModelControllerMixin:
         if source is None or not entries:
             self.status_message.emit("Import a model first; there is nothing to place.", True)
             return False
-        entry = entries[0]
+        entry = self.template_primary_entry()
         placement = self.model_placement
         snapshot = self.snapshot
+        variant = self._active_variant
+        source_bake = source.bake
 
         def task(log, progress, stop_event):
             with source.usage():
@@ -311,13 +321,18 @@ class NewItemModelControllerMixin:
                 )
 
         def done(result: object) -> None:
+            if self.snapshot is not snapshot or self.model_import is not source or self._active_variant != variant or self.model_placement != placement or source.bake != source_bake:
+                cleanup = getattr(result,"cleanup",None)
+                if callable(cleanup):
+                    cleanup()
+                return
             source.applied = (source.bake, placement)
             self.set_imported_model(entry, result, source.scene)
 
         def failed(message: str) -> None:
             self.status_message.emit(f"The placement could not be built: {message}", True)
 
-        return self._run("model_apply", task, done, failed, task_accepts_progress=True)
+        return self._run("model_apply", task, done, failed, task_accepts_progress=True, source_owners=(source,))
 
     def start_model_part_edit_apply(
         self,
@@ -337,6 +352,7 @@ class NewItemModelControllerMixin:
             self.status_message.emit("Open this imported model in Mesh Editor first.", True)
             return False
         session_id = str(expected_session_id or "")
+        variant, snapshot = self._active_variant, self.snapshot
         scene = copy.copy(source.scene)
         model_path = Path(source.model_path)
 
@@ -361,7 +377,7 @@ class NewItemModelControllerMixin:
                 return after.revision, prepared
 
         def done(result: object) -> None:
-            if source is not self.model_import:
+            if source is not self.model_import or variant != self._active_variant or snapshot is not self.snapshot:
                 return
             try:
                 revision, prepared = result  # type: ignore[misc]
@@ -400,7 +416,7 @@ class NewItemModelControllerMixin:
             self.status_message.emit(said, True)
             self.model_part_edit_failed.emit(said)
 
-        return self._run("model_part_edit", task, done, failed)
+        return self._run("model_part_edit", task, done, failed, source_owners=(source,))
 
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""

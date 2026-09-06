@@ -13,10 +13,12 @@ bind pose is the one frame where a bad placement is least likely to show.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Optional
 
 from tools.paa_motion.format import FPS, MotionClip, PaaFormatError, parse_paa
 from tools.paa_motion.pose import world_matrices
+from tools.paa_motion.timing import duration_seconds, timeline_end, validate_timing
 
 from .skeleton import BoneHierarchy, BoneNode
 
@@ -27,7 +29,9 @@ class PlaybackError(RuntimeError):
 
 def load_clip(data: bytes, name: str = "") -> MotionClip:
     try:
-        return parse_paa(data, name=name)
+        clip = parse_paa(data, name=name)
+        validate_timing(clip)
+        return clip
     except PaaFormatError as error:
         raise PlaybackError(str(error)) from error
 
@@ -112,7 +116,7 @@ class Playback:
 
     @property
     def last_frame(self) -> int:
-        return self.clip.last_frame if self.clip else 0
+        return math.ceil(timeline_end(self.clip) - 1e-5) if self.clip else 0
 
     @property
     def seconds(self) -> float:
@@ -120,9 +124,10 @@ class Playback:
 
     @property
     def duration(self) -> float:
-        return self.clip.duration if self.clip else 0.0
+        return duration_seconds(self.clip) if self.clip else 0.0
 
     def load(self, clip: MotionClip, label: str) -> None:
+        validate_timing(clip)
         self.clip = clip
         self.label = label
         self.frame = 0.0
@@ -135,22 +140,24 @@ class Playback:
         self.playing = False
 
     def seek(self, frame: float) -> None:
-        self.frame = max(0.0, min(float(frame), float(self.last_frame)))
+        self.frame = max(0.0, min(float(frame), self.duration * FPS))
 
     def advance(self, seconds: float) -> bool:
         """Step the playhead. Returns False when a non-looping clip has reached its end."""
 
         if not self.loaded or not self.playing:
             return True
-        if self.last_frame <= 0:
-            return True
-        self.frame += seconds * FPS * self.speed
-        if self.frame < self.last_frame:
+        end = self.duration * FPS
+        if end <= 0:
+            self.playing = False
+            return False
+        self.frame += max(0.0, seconds) * FPS * self.speed
+        if self.frame < end:
             return True
         if self.looping:
-            self.frame %= float(self.last_frame)
+            self.frame %= end
             return True
-        self.frame = float(self.last_frame)
+        self.frame = end
         self.playing = False
         return False
 

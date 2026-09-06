@@ -596,7 +596,7 @@ class ArchiveBinarySidecarActionsMixin:
                 native_scan = result.get("native_fast_scan")
                 if isinstance(native_scan, Mapping):
                     native_summary = (
-                        "\n\nNative Rust preflight: "
+                        "\n\nNative preflight: "
                         f"{native_scan.get('ok_count') or 0}/{native_scan.get('file_count') or 0} parsed, "
                         f"{native_scan.get('total_item_records') or 0} ITEM record(s), "
                         f"{native_scan.get('total_physics_tuning_slots') or 0} tuning slot(s)."

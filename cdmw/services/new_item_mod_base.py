@@ -42,6 +42,10 @@ MOD_BASE_TABLE_PATHS: tuple = (
     "gamedata/binary__/client/bin/itemgroupinfo.pabgh",
     "gamedata/binary__/client/bin/storeinfo.pabgb",
     "gamedata/binary__/client/bin/storeinfo.pabgh",
+) + tuple(
+    f"gamedata/binarystaticinfo__/bin/{stem}.{extension}"
+    for stem in ("iteminfo", "stringinfo", "itemgroupinfo", "storeinfo")
+    for extension in ("staticinfobody", "staticinfoheader")
 )
 
 
@@ -157,3 +161,60 @@ def describe_mod_folder(folder: Path, *, item_keys: Optional[Sequence[int]] = No
         return f"{Path(folder).name} holds {len(payloads)} file(s), but none of the tables a new item is built from."
     counted = f", {len(item_keys)} item(s) in its table" if item_keys else ""
     return f"{Path(folder).name} already holds a mod: {len(payloads)} file(s), {len(tables)} table file(s){counted}."
+
+
+def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_log=None, stop_event=None):
+    """Validate the generation, then load every carried dependency into the new base."""
+    import json
+    from dataclasses import replace
+    from cdmw.core.item_sources import LEGACY_TABLE_ROOT, STATIC_TABLE_ROOT
+    from cdmw.core.structured_binary_editor import parse_pabgh_table
+    from cdmw.core.iteminfo_row import parse_iteminfo_row
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    payloads = mod_folder_payloads(folder, stop_event=stop_event)
+    if not payloads:
+        return snapshot
+    current = bool(snapshot.sources and snapshot.sources.static_layout)
+    rejected_root = LEGACY_TABLE_ROOT if current else STATIC_TABLE_ROOT
+    rejected = sorted(path for path in payloads if path.startswith(rejected_root + "/"))
+    if rejected:
+        suffixes = (".pabgb", ".pabgh") if current else (".staticinfobody", ".staticinfoheader")
+        paths = [f"{rejected_root}/iteminfo{suffix}" for suffix in suffixes]
+        affected = []
+        if all(path in payloads for path in paths):
+            body, head = (payloads[path].read_bytes() for path in paths)
+            table = parse_pabgh_table(head, payload=body)
+            affected = [f"{row.row_id}: {parse_iteminfo_row(body[start:end]).string_key}"
+                        for row, start, end in table.row_spans(len(body)) if row.row_id not in snapshot.rows]
+        raise ValueError(
+            f"Incompatible mod base {folder}: {'legacy' if current else 'current'} item tables cannot extend the active "
+            f"{'current' if current else 'legacy'} generation. Rebuild the affected items; the folder is preserved. "
+            f"Items: {', '.join(affected) or 'see the base ItemInfo table'}. Paths: {', '.join(rejected)}")
+    body_suffix, head_suffix = ((".staticinfobody", ".staticinfoheader") if current else (".pabgb", ".pabgh"))
+    for path in payloads:
+        for suffix, other in ((body_suffix, head_suffix), (head_suffix, body_suffix)):
+            if path.endswith(suffix) and path[:-len(suffix)] + other not in payloads:
+                raise ValueError(f"Incomplete table pair in mod base: {path}")
+    entries = dict(snapshot.entries)
+    added = set()
+    for path, payload in payloads.items():
+        raise_if_cancelled(stop_event, "New item plan cancelled.")
+        if path.startswith("meta/"):
+            continue
+        if path not in entries:
+            entries[path] = replace(payload.entry or snapshot.iteminfo.payload_entry, path=path)
+            added.add(path)
+    reader = read_entry_over_mod_folder(read_entry, payloads)
+    base = service.build_snapshot(tuple(entries.values()), read_entry=reader, on_log=on_log, stop_event=stop_event)
+    for path in (folder, *folder.rglob("*")):
+        raise_if_cancelled(stop_event, "New item plan cancelled.")
+        base.provenance.pin_file(path)
+    base.base_payloads = {path: base.payload(path) for path in payloads if not path.startswith("meta/")}
+    base.base_added_paths = frozenset(added)
+    manifest = folder / "new-item.json"
+    if manifest.is_file():
+        if manifest.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError(f"New Item manifest is too large: {manifest}")
+        base.base_manifest = json.loads(manifest.read_text(encoding="utf-8"))
+    return base

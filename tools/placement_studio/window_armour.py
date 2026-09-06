@@ -99,19 +99,16 @@ class ArmourPickerMixin:
         if not Path(root).is_dir():
             self._armour_status.setText("No game install — armour unavailable")
             return
-        self._armour_thread = QThread(self)
-        self._armour_worker = _ArmourWorker(root)
-        self._armour_worker.moveToThread(self._armour_thread)
-        self._armour_thread.started.connect(self._armour_worker.run)
-        self._armour_worker.done.connect(self._on_armour_index_ready)
-        self._armour_thread.start()
+        from .background import LatestTask
+        self._armour_task = LatestTask(self)
+        self._armour_task.ready.connect(self._armour_result)
+        self._armour_task.submit(lambda cancelled, _progress: index_wearables(root, should_stop=cancelled))
+
+    def _armour_result(self, result, error):
+        index, sockets, meshes = result if result is not None else (None,None,None)
+        self._on_armour_index_ready(index,sockets,meshes,error)
 
     def _on_armour_index_ready(self, index, sockets, meshes, error: str) -> None:
-        if self._armour_thread is not None:
-            self._armour_thread.quit()
-            self._armour_thread.wait(2000)
-            self._armour_thread = None
-            self._armour_worker = None
         if index is None:
             self._armour_status.setText(error or "Armour indexing cancelled")
             return
@@ -204,7 +201,39 @@ class ArmourPickerMixin:
     def _iter_archive_content(self, *, weapons: bool):
         if weapons:
             yield from self._iter_archive_weapons()
+            yield from self._iter_weapon_models()
         yield from self._iter_archive_charts()
+
+    def _iter_weapon_models(self):
+        from .armour import WEAPON_PREFAB_SLOT, cached_content, store_content
+        from .corpus import game_root, package_signature
+        from .equipment_assets import prefab_models
+        session = self._session
+        if session is None:
+            return
+        root = game_root()
+        signature = package_signature(root)
+        cached = cached_content(session.model, 'weapon-prefabs', root)
+        payloads, models, errors = {}, [], []
+        for i, piece in enumerate(self._armour_index.pieces(session.model, WEAPON_PREFAB_SLOT)):
+            try:
+                data = cached[piece.path] if cached is not None and piece.path in cached else read_entry(piece.source)
+                payloads[piece.path] = data
+                models.extend(m for m in prefab_models(data, piece.path) if m.mesh in self._weapon_mesh_entries)
+            except (OSError, ValueError, RuntimeError, KeyError) as error:
+                errors.append(f'{piece.path}: {error}')
+            if i % self._ARCHIVE_LOAD_SLICE == 0:
+                yield
+        if signature != package_signature(root) or self._session is not session:
+            self._armour_status.setText('Equipment relationships changed; refresh required')
+            return
+        session._equipment_models = tuple(models)
+        session._equipment_model_errors = tuple(errors)
+        self._populate_weapons()
+        if errors:
+            self._armour_status.setToolTip('\n'.join(errors))
+        if payloads and not errors and cached is None:
+            store_content(session.model, 'weapon-prefabs', payloads, root, signature=signature)
 
     def _step_archive_content_load(self) -> None:
         """Advance the read by one slice. Runs on the UI thread, briefly, many times."""
@@ -254,6 +283,9 @@ class ArmourPickerMixin:
             for path, data in cached.items():
                 try:
                     session.add_socket_file(path, data)
+                    edits = getattr(self, '_edits', None)
+                    if edits is not None:
+                        edits.add_base_files({path:data})
                     added += 1
                 except Exception:  # noqa: BLE001 - as below, a bad file is skipped
                     continue
@@ -274,6 +306,9 @@ class ArmourPickerMixin:
             try:
                 data = read_entry(entry)
                 session.add_socket_file(path, data)
+                edits = getattr(self, '_edits', None)
+                if edits is not None:
+                    edits.add_base_files({path:data})
                 extracted[path] = data
                 added += 1
             except Exception:  # noqa: BLE001 - a file that will not parse is simply skipped
@@ -360,10 +395,20 @@ class ArmourPickerMixin:
 
     def _stop_armour_index(self) -> None:
         self._stop_archive_content_load()
+        task = getattr(self, '_armour_task', None)
+        if task is not None:
+            task.shutdown()
         if self._armour_worker is not None:
             self._armour_worker.stop()
         if self._armour_thread is not None:
-            self._armour_thread.quit()
-            self._armour_thread.wait(3000)
+            from .background import _retained, _release
+            thread = self._armour_thread
+            thread.setParent(None)
+            thread._worker_reference = self._armour_worker
+            _retained.add(thread)
+            thread.finished.connect(lambda: _release(thread))
+            thread.quit()
+            if thread.wait(0):
+                _release(thread)
             self._armour_thread = None
             self._armour_worker = None

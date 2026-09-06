@@ -364,8 +364,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             str(note) for note in tuple(diagnostics.get("character_appearance_notes", ()) or ()) if str(note).strip()
         )
         detail_lines = [
-            "Loaded a validated durable Rust Preview preview package.",
-            "Rust Preview package source: canonical derived cache",
+            "Loaded a validated durable Preview package.",
+            "Preview package source: canonical derived cache",
             f"Package: {dotnet_hit.package_dir}",
             "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
         ]
@@ -411,7 +411,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             metadata_summary=f"{build_archive_entry_metadata_summary(self.entry)} | cached preview package",
             detail_text="\n".join(
                 (
-                    "Loaded a validated durable Rust Preview preview package.",
+                    "Loaded a validated durable Preview package.",
                     f"Package: {package.package_dir}",
                     "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
                 )
@@ -657,7 +657,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                         preview_model=None,
                         prepared_preview_model=None,
                         preferred_view="details",
-                        warning_badge="Rust Preview package unavailable",
+                        warning_badge="Preview package unavailable",
                         warning_text="The canonical preview cache root is unavailable.",
                     )
                 else:
@@ -708,11 +708,11 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                             preview_model=None,
                             prepared_preview_model=None,
                             preferred_view="details",
-                            warning_badge="Rust Preview package failed",
+                            warning_badge="Preview package failed",
                             warning_text=str(exc),
                             detail_text=(
                                 f"{str(getattr(payload, 'detail_text', '') or '').rstrip()}\n\n"
-                                f"Canonical Rust Preview package generation failed: {exc}"
+                                f"Canonical Preview package generation failed: {exc}"
                             ).strip(),
                         )
         timings["prepared_model_s"] = max(0.0, float(time.perf_counter() - prepared_model_started_at))

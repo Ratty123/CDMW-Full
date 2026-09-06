@@ -47,7 +47,7 @@ def test_rejected_presentation_update_is_reported_with_its_reason() -> None:
         )
     ]
     assert harness.debug == [
-        "Rust Preview: presentation update rejected: stale_process_generation"
+        "Preview: presentation update rejected: stale_process_generation"
     ]
     assert harness._archive_presentation_rejection_reason == "stale_process_generation"
 

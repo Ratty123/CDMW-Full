@@ -144,13 +144,13 @@ def packaged_rust_mesh_editor_resolution_snapshot() -> dict[str, object]:
 
     reason = validate_rust_mesh_editor_package(resolution)
     if not bool(getattr(sys, "frozen", False)):
-        reason = reason or "Rust Mesh Editor proof was not collected from a frozen application"
+        reason = reason or "Mesh Editor proof was not collected from a frozen application"
     elif resolution.source != "frozen":
-        reason = reason or "Rust Mesh Editor did not resolve from the frozen bundle"
+        reason = reason or "Mesh Editor did not resolve from the frozen bundle"
     elif executable_relative != PACKAGED_RUST_MESH_EDITOR_RELATIVE_PATH:
-        reason = reason or "Rust Mesh Editor resolved from an unexpected bundle path"
+        reason = reason or "Mesh Editor resolved from an unexpected bundle path"
     elif manifest_relative != PACKAGED_RUST_MESH_EDITOR_MANIFEST_RELATIVE_PATH:
-        reason = reason or "Rust Mesh Editor provenance resolved from an unexpected bundle path"
+        reason = reason or "Mesh Editor provenance resolved from an unexpected bundle path"
 
     executable_sha256 = ""
     manifest_sha256 = ""
@@ -164,7 +164,7 @@ def packaged_rust_mesh_editor_resolution_snapshot() -> dict[str, object]:
             if isinstance(loaded, dict):
                 provenance = loaded
     except (OSError, UnicodeError, ValueError, TypeError) as exc:
-        reason = reason or f"Rust Mesh Editor packaged evidence could not be read: {exc}"
+        reason = reason or f"Mesh Editor packaged evidence could not be read: {exc}"
 
     return {
         "schema": PACKAGED_RUST_MESH_EDITOR_PROOF_SCHEMA,

@@ -410,7 +410,7 @@ class MeshWorkingReplacementServiceMixin:
                 history_limit = max(0, int(self.max_history_bytes or 0))
                 if history_snapshot.retained_bytes > history_limit:
                     raise RuntimeError(
-                        "Rust Edit Session cannot be committed because its reversible history "
+                        "Edit Session cannot be committed because its reversible history "
                         "snapshot exceeds the configured history memory limit."
                     )
                 after_snapshot = _MeshHistorySnapshot(
@@ -476,7 +476,7 @@ class MeshWorkingReplacementServiceMixin:
                 )
                 if after_retained_bytes > history_limit:
                     raise RuntimeError(
-                        "Rust Edit Session cannot be committed because its result cannot fit "
+                        "Edit Session cannot be committed because its result cannot fit "
                         "the configured reversible history memory limit."
                     )
         except Exception:
@@ -605,7 +605,7 @@ class MeshWorkingReplacementServiceMixin:
                     snapshot is history_snapshot for snapshot in next_undo
                 ):
                     raise RuntimeError(
-                        "Rust Edit Session cannot be committed because its reversible history "
+                        "Edit Session cannot be committed because its reversible history "
                         "entry would be evicted immediately."
                     )
             except Exception:

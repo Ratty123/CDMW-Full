@@ -124,7 +124,7 @@ fn main() -> Result<()> {
         )?;
         event_loop
             .run_app(&mut application)
-            .context("Rust Archive Preview event loop failed")?;
+            .context("Preview event loop failed")?;
         return Ok(());
     }
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
     let mut application = if let Some(manifest_path) = options.cdmw_session {
         let (bridge, document) = CdmwBridge::open(&manifest_path).with_context(|| {
             format!(
-                "failed to open CDMW Rust session {}",
+                "failed to open CDMW session {}",
                 manifest_path.display()
             )
         })?;
@@ -142,7 +142,7 @@ fn main() -> Result<()> {
     };
     event_loop
         .run_app(&mut application)
-        .context("Rust Mesh Lab event loop failed")?;
+        .context("Mesh Editor event loop failed")?;
     Ok(())
 }
 
@@ -675,7 +675,7 @@ fn capture_cdmw_session(
     };
     let mut package = loaded.with_context(|| {
         format!(
-            "failed to load CDMW Rust capture package {}",
+            "failed to load CDMW capture package {}",
             manifest_path.display()
         )
     })?;
@@ -741,7 +741,7 @@ fn capture_cdmw_session(
             layer_mask: None,
         },
     ))
-    .context("CDMW Rust material capture failed")?;
+    .context("CDMW material capture failed")?;
     let owners = report
         .owner_coverage
         .iter()
@@ -816,7 +816,7 @@ fn capture_cdmw_session(
     })?;
     let paths = publication.publish()?;
     eprintln!(
-        "CDMW Rust material capture wrote {} and {}",
+        "CDMW material capture wrote {} and {}",
         paths.textured.display(),
         paths.report.display()
     );
@@ -866,7 +866,7 @@ fn capture_cdmw_audit_session(
     };
     let mut package = loaded.with_context(|| {
         format!(
-            "failed to load CDMW Rust audit package {}",
+            "failed to load CDMW audit package {}",
             manifest_path.display()
         )
     })?;
@@ -896,7 +896,7 @@ fn capture_cdmw_audit_session(
         .copied()
         .collect::<BTreeSet<_>>();
     if material_indices.is_empty() {
-        bail!("CDMW Rust audit package has no material-owned triangles");
+        bail!("CDMW audit package has no material-owned triangles");
     }
     let base_camera = material_audit_base_camera(&snapshot);
     let textures = package.take_textures();
@@ -1010,7 +1010,7 @@ fn capture_cdmw_audit_session(
         &factor_uploads,
         &requests,
     ))
-    .context("CDMW Rust material audit capture failed")?;
+    .context("CDMW material audit capture failed")?;
     let physical_uploads_conserved = reports
         .iter()
         .all(|report| u64::from(report.dds_textures_uploaded) == expected_physical_upload_count);
@@ -1043,7 +1043,7 @@ fn capture_cdmw_audit_session(
         .collect::<Vec<_>>();
     let manifest_bytes = fs::read(manifest_path).with_context(|| {
         format!(
-            "failed to hash CDMW Rust audit manifest {}",
+            "failed to hash CDMW audit manifest {}",
             manifest_path.display()
         )
     })?;
@@ -1061,7 +1061,7 @@ fn capture_cdmw_audit_session(
         .unwrap_or(Value::Null);
     let first_report = reports
         .first()
-        .context("CDMW Rust material audit produced no capture reports")?;
+        .context("CDMW material audit produced no capture reports")?;
     let renderer_device_ready_ms = renderer_start_offset_ms + first_report.renderer_device_ready_ms;
     let texture_resources_ready_ms =
         renderer_start_offset_ms + first_report.texture_resources_ready_ms;
@@ -1129,7 +1129,7 @@ fn capture_cdmw_audit_session(
         )
     })?;
     eprintln!(
-        "CDMW Rust material audit wrote {} captures to {}",
+        "CDMW material audit wrote {} captures to {}",
         requests.len(),
         output_root.display()
     );
@@ -2170,9 +2170,9 @@ impl LabApplication {
             cdmw_host_connected: false,
             cdmw_orbit_mode: false,
             cdmw_rail_page: None,
-            cdmw_layer_name: "Rust Layer".to_owned(),
-            cdmw_morph_profile_name: "Rust Morph Profile".to_owned(),
-            cdmw_morph_definition_label: "Rust Morph".to_owned(),
+            cdmw_layer_name: "Layer".to_owned(),
+            cdmw_morph_profile_name: "Morph Profile".to_owned(),
+            cdmw_morph_definition_label: "Morph".to_owned(),
             cdmw_morph_definition_edit_id: String::new(),
             cdmw_morph_replace_selection_on_edit: false,
             cdmw_morph_rule: "volume".to_owned(),
@@ -2181,7 +2181,7 @@ impl LabApplication {
             cdmw_morph_feather: 2,
             cdmw_morph_falloff: "smooth".to_owned(),
             cdmw_morph_mirror_mode: "off".to_owned(),
-            cdmw_morph_preset_name: "Rust Preset".to_owned(),
+            cdmw_morph_preset_name: "Preset".to_owned(),
             cdmw_refit_enabled: true,
             cdmw_refit_intensity: 100.0,
             cdmw_refit_mode: "surface".to_owned(),
@@ -2466,7 +2466,7 @@ impl LabApplication {
                 });
                 self.status = format!("Recording {label} in the isolated CDMW shadow history…");
             }
-            Err(error) => self.status = format!("Could not queue Rust edit transaction: {error}"),
+            Err(error) => self.status = format!("Could not queue edit transaction: {error}"),
         }
     }
 
@@ -2601,7 +2601,7 @@ impl LabApplication {
             HostEvent::Hello | HostEvent::Ready => {
                 self.cdmw_host_connected = true;
                 self.status =
-                    "CDMW connected · Rust edits remain isolated until Finish Edit Mesh".to_owned();
+                    "CDMW connected · edits remain isolated until Finish Edit Mesh".to_owned();
             }
             HostEvent::StateSnapshot(state) => {
                 if self.cdmw_busy() {
@@ -2630,7 +2630,7 @@ impl LabApplication {
             HostEvent::Fatal(message) => {
                 self.status = format!("CDMW protocol failure: {message}");
                 if let Some(bridge) = &mut self.cdmw_bridge {
-                    let _ = bridge.cancel("Rust protocol failure");
+                    let _ = bridge.cancel("protocol failure");
                 }
                 self.cdmw_exit_requested = true;
             }
@@ -3070,7 +3070,7 @@ impl LabApplication {
             }
         }
         if changed && let Some(window) = &self.window {
-            window.set_title(format!("CDMW Rust Mesh Lab — {}", self.status).as_str());
+            window.set_title(format!("CDMW Mesh Editor — {}", self.status).as_str());
         }
         changed
     }
@@ -3444,7 +3444,7 @@ impl LabApplication {
         let mut actions = Vec::new();
         egui::Panel::top("notice").show(root_ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new("CDMW Rust Mesh Lab").strong());
+                ui.label(RichText::new("CDMW Mesh Editor").strong());
                 ui.separator();
                 ui.label("Unofficial local diagnostic tool. Source game files are opened read-only; edits affect only the in-memory working copy.");
             });
@@ -6235,7 +6235,7 @@ impl ApplicationHandler for LabApplication {
             .with_title(if self.cdmw_mode() {
                 "CDMW — Mesh Editor"
             } else {
-                "CDMW Rust Mesh Lab"
+                "CDMW Mesh Editor"
             })
             .with_inner_size(winit::dpi::LogicalSize::new(1440.0, 900.0));
         if let Some(parent_hwnd) = self.embedded_parent_hwnd {

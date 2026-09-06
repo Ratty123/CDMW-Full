@@ -263,9 +263,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         QLabel(alignment_preview_control_text["mesh_view_label"])
     )
     preview_controls_row.addWidget(preview_mesh_view_combo)
-    mesh_dotnet_experiment_button = QPushButton("Rust", preview_panel)
+    mesh_dotnet_experiment_button = QPushButton("Mesh Editor", preview_panel)
     mesh_dotnet_experiment_button.setObjectName("MeshAlignmentDotNetExperimentButton")
-    mesh_dotnet_experiment_button.setToolTip("Diagnostics-only Rust preview launch; Edit Mesh opens Rust automatically when available.")
+    mesh_dotnet_experiment_button.setToolTip("Diagnostics-only preview launch; Edit Mesh opens the editor automatically when available.")
     mesh_dotnet_experiment_button.setMinimumWidth(0)
     mesh_dotnet_experiment_button.setMaximumWidth(64)
     mesh_dotnet_experiment_button.setEnabled(False)
@@ -689,14 +689,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _nudge_alignment_camera = alignment_d3d11_loading_callbacks._nudge_alignment_camera
     def _handle_alignment_dotnet_state(state: str, message: str) -> None:
         alignment_d3d11_state["process"] = alignment_d3d11_preview_host.controller.process
-        alignment_d3d11_preview_status_label.setText(str(message or "Rust Preview"))
+        alignment_d3d11_preview_status_label.setText(str(message or "Preview"))
         if str(state) == "ready":
             alignment_d3d11_state["preview_loaded"] = True
             alignment_d3d11_state["resources_loaded"] = True
-            _set_alignment_d3d11_progress(100, "Rust Preview ready.", active=False)
+            _set_alignment_d3d11_progress(100, "Preview ready.", active=False)
         elif str(state) == "error":
             alignment_d3d11_state["preview_loaded"] = False
-            _set_alignment_d3d11_loading(False, str(message or "Rust Preview failed."))
+            _set_alignment_d3d11_loading(False, str(message or "Preview failed."))
     alignment_d3d11_preview_host.controller.state_changed.connect(_handle_alignment_dotnet_state)
     camera_front_button.clicked.connect(lambda _checked=False: _set_alignment_camera(0.0, 0.0))
     camera_left_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-90.0, 0.0))

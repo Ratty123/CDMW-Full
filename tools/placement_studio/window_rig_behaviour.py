@@ -96,6 +96,9 @@ class RigBehaviourMixin:
         self._behaviour_header = QLabel(_NOT_LOADED)
         self._behaviour_header.setWordWrap(True)
         outer.addWidget(self._behaviour_header)
+        simulation = QLabel("Stored rig settings · IK, physics and pose modifiers are not simulated in this preview")
+        simulation.setWordWrap(True)
+        outer.addWidget(simulation)
 
         self._behaviour_disabled = QLabel("")
         self._behaviour_disabled.setObjectName("WarningBadge")

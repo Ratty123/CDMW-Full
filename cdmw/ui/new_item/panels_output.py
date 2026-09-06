@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIntValidator
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.services.new_item_planning import NewItemPlan
+from cdmw.services.archive_overlay_install import OVERLAY_DIRECTORY_FIRST
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
@@ -212,6 +214,16 @@ class OutputPanel(QGroupBox):
         self.install_button.setToolTip("Confirmed first, backed up, restorable. Refused while the game is running.")
         self.install_button.clicked.connect(self.install_requested.emit)
         install.addWidget(self.install_button)
+        install.addWidget(QLabel("Overlay folder"))
+        self.overlay_directory = QLineEdit()
+        self.overlay_directory.setPlaceholderText("Auto")
+        self.overlay_directory.setMaxLength(4)
+        self.overlay_directory.setMaximumWidth(90)
+        self.overlay_directory.setValidator(QIntValidator(OVERLAY_DIRECTORY_FIRST, 9999, self))
+        self.overlay_directory.setToolTip(
+            "Auto reuses CDMW's overlay or finds a free number. Game and other mod-manager folders are reserved."
+        )
+        install.addWidget(self.overlay_directory)
         self.install_overlay_button = QPushButton("Install as an overlay...")
         self.install_overlay_button.setToolTip(
             "Write the item into an archive directory of its own and name that directory first in the game's mount "
@@ -366,6 +378,8 @@ class OutputPanel(QGroupBox):
             lines.append(f"Model stem: {plan.spec.stem}")
         lines.append("")
         lines.extend(plan.summary_lines)
+        from cdmw.services.new_item_review import authoring_review_lines
+        lines.extend(authoring_review_lines(plan))
         if plan.warnings:
             lines.append("")
             lines.append("Warnings:")
@@ -420,6 +434,7 @@ class OutputPanel(QGroupBox):
         self.export_button.setEnabled(has_plan and not busy)
         self.install_button.setEnabled(has_plan and not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
+        self.overlay_directory.setEnabled(not busy)
         self.overlay_migration_button.setEnabled(not busy)
         self.overlay_removal_button.setEnabled(not busy)
 

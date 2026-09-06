@@ -24,6 +24,7 @@ internal static class FullArchiveTestRunner
             ("exact_path_lookup_follows_index_order", ExactPathLookupFollowsIndexOrderAsync),
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
+            ("current_item_names_and_mount_order", CurrentItemNamesAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
             ("item_catalogue_lite_category_parity", ItemCatalogueLiteCategoryParityAsync),
             ("texture_usage_classification", TextureUsageClassificationAsync),
@@ -1271,6 +1272,38 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
         }
+    }
+
+    private static async Task CurrentItemNamesAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateCurrentItemNamesAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("current-names-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            using var sessions = new ArchiveSessionManager(native, new ArchiveCacheStore(cacheRoot));
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var builder = new ArchiveItemCatalogBuildService(sessions, native);
+            var built = await builder.BuildAsync(new BuildNameIndexRequest(handle.SessionId), null, CancellationToken.None).ConfigureAwait(false);
+            Require(built.Available && built.ItemCount == 3, "current row directory lost an item without models");
+            var service = new ArchiveItemCatalogService(sessions, builder);
+            var translated = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "سيف الاختبار"), null, CancellationToken.None).ConfigureAwait(false);
+            Require(translated.Items.Count == 1 && translated.Items[0].DisplayName == "Current Blade",
+                "mount order or split localization was ignored");
+            Require(translated.Items[0].PacFiles.SequenceEqual(new[] { "cd_shared_armor_0002.pac" }),
+                "Item Finder exposed a guessed PAC filename that does not exist in the archives");
+            var missing = await service.SearchAsync(new ItemCatalogSearchRequest(handle.SessionId, "1236"), null, CancellationToken.None).ConfigureAwait(false);
+            Require(missing.Items.Count == 1 && missing.Items[0].DisplayName == "Light Saber Two Hand Sword"
+                && missing.Items[0].Evidence.Contains("generated friendly name"), "missing localization was not identified");
+            var session = sessions.GetRequired(handle.SessionId);
+            var model = session.Index.FindEntriesByPath("character/model/cd_shared_armor_0002.pac").Single();
+            var names = session.ReadEntry(model.EntryId).ExactName.Split(" / ");
+            Require(names.Contains("Current Blade") && names.Contains("Blade") && names.Length == 2,
+                "the current prefab join lost a distinct shared name or used an obsolete overlay");
+            var again = await builder.BuildAsync(new BuildNameIndexRequest(handle.SessionId), null, CancellationToken.None).ConfigureAwait(false);
+            Require(again.UsedCache && again.ItemCount == 3, "current item catalogue was not reusable");
+        }
+        finally { DeleteDirectory(cacheRoot); }
     }
 
     private static async Task ArchiveNameIndexAsync()

@@ -30,12 +30,13 @@ from cdmw.domain.new_item.spec import (
     ItemGroupsChoice,
     ModelSource,
     NewItemSpec,
+    Placement,
     PlacementKind,
 )
 
-#: The 14 shipped `.paloc` tables, by the language code in their file names.
+#: Supported game-item languages (independent of the workbench's UI languages).
 LOCALIZATION_LANGUAGES: Tuple[str, ...] = (
-    "eng", "kor", "jpn", "rus", "tur", "spa-es", "spa-mx", "fre", "ger", "ita", "pol", "por-br", "zho-tw", "zho-cn",
+    "eng", "kor", "jpn", "rus", "tur", "spa-es", "spa-mx", "fre", "ger", "ita", "pol", "por-br", "zho-tw", "zho-cn", "ara",
 )
 REQUIRED_LANGUAGE = "eng"
 
@@ -244,23 +245,26 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         elif len(spec.socket_items) > MAX_SHIPPED_SOCKET_ITEMS:
             issues.append(_issue("sockets.unproven", "socket_items", f"No shipped item carries more than {MAX_SHIPPED_SOCKET_ITEMS} socket items; more is unproven in game.", "warning"))
 
-    placement = spec.placement
-    if placement.kind is PlacementKind.NONE:
-        issues.append(_issue("placement.none", "placement", "No shop placement: the item will exist but nothing in the game hands it out.", "warning"))
-    else:
-        if not str(placement.store_name or "").strip():
-            issues.append(_issue("placement.store_missing", "placement", "Choose a store."))
-        if placement.kind is PlacementKind.SWAP and not str(placement.old_item_name or "").strip():
-            issues.append(_issue("placement.old_item_missing", "placement", "Choose which stock entry the new item replaces."))
-        if placement.price is not None and not 0 <= int(placement.price) <= _U32_MAX:
-            issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
-        if placement.kind is PlacementKind.INSERT and placement.price is not None:
-            issues.append(_issue("placement.price_ignored", "placement", "StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so this price is not written.", "warning"))
-        if placement.stock_count is not None and not 1 <= int(placement.stock_count) <= _U32_MAX:
-            issues.append(_issue("placement.stock_count", "placement", "A stock count is 1 or more (0xFFFFFFFF for unlimited)."))
+    from cdmw.domain.new_item.authoring_rules import validate_authoring
+    issues.extend(validate_authoring(spec))
 
-    if spec.item_groups is ItemGroupsChoice.EXPLICIT and not spec.explicit_item_groups:
-        issues.append(_issue("item_groups.empty", "item_groups", "Explicit item groups were chosen but none were listed."))
+    placements = (spec.placement,) if spec.shop_placements is None else spec.shop_placements
+    for placement in placements or (Placement(),):
+        if placement.kind is PlacementKind.NONE and not (spec.recipes or spec.reward_acquisitions):
+            issues.append(_issue("placement.none", "placement", "No shop placement: the item will exist but nothing in the game hands it out.", "warning"))
+        elif placement.kind is not PlacementKind.NONE:
+            if not str(placement.store_name or "").strip():
+                issues.append(_issue("placement.store_missing", "placement", "Choose a store."))
+            if placement.kind is PlacementKind.SWAP and not str(placement.old_item_name or "").strip():
+                issues.append(_issue("placement.old_item_missing", "placement", "Choose which stock entry the new item replaces."))
+            if placement.price is not None and not 0 <= int(placement.price) <= _U32_MAX:
+                issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
+            if placement.kind is PlacementKind.INSERT and placement.price is not None:
+                issues.append(_issue("placement.price_ignored", "placement", "StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so this price is not written.", "warning"))
+            if placement.stock_count is not None and not 1 <= int(placement.stock_count) <= _U32_MAX:
+                issues.append(_issue("placement.stock_count", "placement", "A stock count is 1 or more (0xFFFFFFFF for unlimited)."))
+
+    # An explicit empty set intentionally clears inherited group memberships.
     if spec.item_groups is ItemGroupsChoice.TEMPLATE and spec.explicit_item_groups:
         issues.append(_issue("item_groups.ignored", "item_groups", "The listed item groups are ignored while the template's groups are selected.", "warning"))
 
@@ -352,6 +356,15 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
             "No shop price is set. Add one before placing the item in a shop.",
             "warning",
         ))
+    if spec.socket_slots is not None:
+        selected = template.socket_items if spec.socket_items is None else spec.socket_items
+        if len(selected) > len(spec.socket_slots):
+            issues.append(_issue("slots.capacity", "socket_slots", "The selected perks need more slots. Increase capacity or explicitly remove perks."))
+        if not template.has_stat_block:
+            issues.append(_issue("slots.no_stat_block", "socket_slots", "The template's socket boundary has not been decoded."))
+        if any(slot.material_key not in context.item_keys for slot in spec.socket_slots):
+            issues.append(_issue("slots.unknown_material", "socket_slots", "A socket unlock material is missing from the active item table."))
+
     if spec.socket_items is not None:
         if not template.has_stat_block:
             issues.append(_issue("sockets.no_stat_block", "socket_items", f"{template.internal_name}'s stat block did not decode, so its socket items cannot be replaced."))
@@ -364,17 +377,18 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
             if odd:
                 issues.append(_issue("sockets.not_gear", "socket_items", f"Not Abyss Gear socket items (nothing shipped embeds them): {', '.join(str(k) for k in odd)}.", "warning"))
 
-    placement = spec.placement
-    if placement.kind is not PlacementKind.NONE:
-        store = str(placement.store_name or "")
-        if context.store_names and store not in context.store_names:
-            issues.append(_issue("placement.store_unknown", "placement", f"There is no store named {store}."))
-        elif placement.kind is PlacementKind.SWAP:
-            stock = context.store_stock_names.get(store)
-            if stock is not None and str(placement.old_item_name or "") not in stock:
-                issues.append(_issue("placement.old_item_not_in_store", "placement", f"{store} does not stock {placement.old_item_name}."))
-        elif placement.kind is PlacementKind.INSERT and not context.store_insert_supported:
-            issues.append(_issue("placement.insert_unsupported", "placement", "Adding a stock entry is not available in this build; swap an existing entry instead."))
+    placements = (spec.placement,) if spec.shop_placements is None else spec.shop_placements
+    for placement in placements or (Placement(),):
+        if placement.kind is not PlacementKind.NONE:
+            store = str(placement.store_name or "")
+            if context.store_names and store not in context.store_names:
+                issues.append(_issue("placement.store_unknown", "placement", f"There is no store named {store}."))
+            elif placement.kind is PlacementKind.SWAP:
+                stock = context.store_stock_names.get(store)
+                if stock is not None and str(placement.old_item_name or "") not in stock:
+                    issues.append(_issue("placement.old_item_not_in_store", "placement", f"{store} does not stock {placement.old_item_name}."))
+            elif placement.kind is PlacementKind.INSERT and not context.store_insert_supported:
+                issues.append(_issue("placement.insert_unsupported", "placement", "Adding a stock entry is not available in this build; swap an existing entry instead."))
 
     if spec.item_groups is ItemGroupsChoice.EXPLICIT and context.item_group_keys:
         unknown = [key for key in spec.explicit_item_groups if key not in context.item_group_keys]

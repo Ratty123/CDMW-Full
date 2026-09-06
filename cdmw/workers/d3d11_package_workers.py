@@ -443,14 +443,14 @@ class AlignmentD3D11PackageWorker(QObject):
                 self.request_id,
                 max(0, int(current)),
                 max(1, int(total)),
-                str(message or "Preparing Rust Preview preview package..."),
+                str(message or "Preparing Preview package..."),
             )
 
         def _emit_package_progress(current: int, total: int, message: str) -> None:
             total = max(1, int(total))
             current = max(0, min(total, int(current)))
             percent = 40 + int(round((float(current) / float(total)) * 40.0))
-            _emit_progress(percent, 100, message or "Writing Rust Preview preview package...")
+            _emit_progress(percent, 100, message or "Writing Preview package...")
 
         try:
             if self.stop_event.is_set():
@@ -483,7 +483,7 @@ class AlignmentD3D11PackageWorker(QObject):
                 return
             _emit_progress(40, 100, "Preparing preview - model buffers ready.")
             package_started = time.perf_counter()
-            _emit_package_progress(1, 2, "Writing canonical Rust Preview preview package...")
+            _emit_package_progress(1, 2, "Writing canonical Preview package...")
             rust_package = build_or_lookup_rust_preview_package_from_model(
                 prepared_model,
                 cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
@@ -506,7 +506,7 @@ class AlignmentD3D11PackageWorker(QObject):
                 ),
             )
             package_dir = rust_package.package_dir
-            _emit_package_progress(2, 2, "Rust Preview preview package ready.")
+            _emit_package_progress(2, 2, "Preview package ready.")
             package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
             if not self.stop_event.is_set():
                 _emit_progress(80, 100, "Preparing preview - package ready.")

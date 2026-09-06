@@ -1280,6 +1280,31 @@ std::map<std::uint32_t, std::string> parse_equiptypeinfo(
     return types;
 }
 
+// Exact StringInfo keys whose values are present as archived prefab stems.
+std::map<std::uint32_t, std::string> parse_prefab_stringinfo(
+    const std::vector<char>& data, const std::vector<char>& header, const std::vector<Entry>& entries
+) {
+    std::set<std::string> stems;
+    for (const auto& entry : entries) {
+        if (extension_for(entry.path) == ".prefab") stems.insert(lower_copy(stem_for_path(entry.path)));
+    }
+    std::vector<PabghDirectoryRow> rows;
+    if (!resolve_pabgh_directory(header, data, rows)) throw std::runtime_error("StringInfo row directory is invalid");
+    std::map<std::uint32_t, std::string> result;
+    for (size_t index = 0; index < rows.size(); ++index) {
+        const size_t start = rows[index].offset;
+        const size_t end = index + 1 < rows.size() ? rows[index + 1].offset : data.size();
+        if (start + 13 > end || end > data.size()) continue;
+        const auto length = read_u32(data, start + 9);
+        if (length != end - start - 13) continue;
+        const std::string text(data.begin() + start + 13, data.begin() + end);
+        if (!std::all_of(data.begin() + start + 4, data.begin() + start + 9, [](char value) { return value == 0; })) continue;
+        if (read_u32(data, start) == hashlittle_bytes(text, 0xC5EDE) && stems.count(lower_copy(text)))
+            result[read_u32(data, start)] = lower_copy(text);
+    }
+    return result;
+}
+
 // Read item rows using the `.pabgh` row directory for exact boundaries. Recall
 // is the row count, where the marker scan below recovers 4,142 of 6,508.
 std::vector<NativeItemRecord> parse_iteminfo_rows(
@@ -1288,7 +1313,8 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
     const std::map<std::string, std::map<std::string, std::string>>& loc_tables,
     const std::map<std::uint32_t, std::string>& icon_hashes,
     const std::map<std::uint32_t, std::string>& equip_types,
-    bool& resolved
+    bool& resolved,
+    const std::map<std::uint32_t, std::string>* prefab_names = nullptr
 ) {
     std::vector<NativeItemRecord> items;
     std::vector<PabghDirectoryRow> rows;
@@ -1327,9 +1353,6 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
                 auto found = eng_table->second.find(name_key);
                 if (found != eng_table->second.end()) record.display_name = found->second;
             }
-            if (record.display_name.empty() && !record.localized_names.empty()) {
-                record.display_name = record.localized_names.front();
-            }
         }
         if (!description_key.empty()) {
             auto eng_table = loc_tables.find("eng");
@@ -1364,6 +1387,14 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
             }
             scan = list_end;
         }
+        if (prefab_names != nullptr) {
+            record.prefab_hashes.clear();
+            seen_prefab_hashes.clear();
+            for (size_t cursor = row_start + 8 + record.internal_name.size(); cursor + 4 <= row_end; ++cursor) {
+                const auto value = read_u32(data, cursor);
+                if (prefab_names->count(value) && seen_prefab_hashes.insert(value).second) record.prefab_hashes.push_back(value);
+            }
+        }
         if (!icon_hashes.empty()) {
             for (size_t cursor = row_start; cursor + 4 <= row_end; ++cursor) {
                 const std::uint32_t value = read_u32(data, cursor);
@@ -1374,10 +1405,20 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
                 }
             }
         }
-        // An equip type is reported only when the row names exactly one. Two
-        // candidates means the field position is not established for this row,
-        // and a guess would be indistinguishable from a fact downstream.
-        if (!equip_types.empty()) {
+        bool equip_field = false;
+        for (size_t cursor = row_start; cursor + 13 <= row_end; ++cursor) {
+            if (static_cast<unsigned char>(data[cursor]) != 7 || static_cast<unsigned char>(data[cursor + 1]) != 0x70
+                || data[cursor + 2] || data[cursor + 3] || data[cursor + 4]) continue;
+            const auto length = read_u32(data, cursor + 9);
+            const size_t end = cursor + 13 + length;
+            if (length > 0 && length <= 64 && end + 8 <= row_end && read_u32(data, end) == 0) {
+                auto found = equip_types.find(read_u32(data, end + 4));
+                if (found != equip_types.end()) record.equip_type = found->second;
+                equip_field = true;
+            }
+            break;
+        }
+        if (!equip_field && !equip_types.empty()) {
             std::vector<std::string> candidates;
             for (size_t cursor = row_start; cursor + 4 <= row_end && candidates.size() < 2; ++cursor) {
                 auto found = equip_types.find(read_u32(data, cursor));
@@ -1453,7 +1494,6 @@ std::vector<NativeItemRecord> parse_iteminfo_bin(
                 auto found = eng_table->second.find(loc_id);
                 if (found != eng_table->second.end()) record.display_name = found->second;
             }
-            if (record.display_name.empty() && !record.localized_names.empty()) record.display_name = record.localized_names.front();
         }
 
         const size_t search_end = std::min(next_pos, pos + 800);
@@ -1593,7 +1633,7 @@ std::map<std::uint32_t, std::string> build_model_hash_table(const std::vector<En
     for (const Entry& entry : entries) {
         const std::string lower_path = lower_copy(slash_copy(entry.path));
         const std::string ext = extension_for(lower_path);
-        if (package_group_for(entry) != "0009" || !(ext == ".prefab" || ext == ".pac" || ext == ".pact")) continue;
+        if (!(ext == ".prefab" || ext == ".pac" || ext == ".pact")) continue;
         const std::string base = stem_for_path(lower_path);
         for (const std::string& candidate_base : model_candidate_bases(base)) {
             for (const std::string& suffix : suffixes) {
@@ -1647,11 +1687,14 @@ int run_item_index_job(
     try {
         std::vector<Entry> entries = read_entries_tsv(entries_path);
         std::map<std::string, std::map<std::string, std::string>> loc_tables;
-        for (const std::string& lang : {"kor","eng","jpn","rus","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn"}) {
+        for (const std::string& lang : {"kor","eng","jpn","rus","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn","ara"}) {
             std::vector<char> data = read_binary_if_exists(work_dir / ("loc_" + lang + ".bin"));
             if (!data.empty()) loc_tables[lang] = parse_localization_bin(data);
         }
         const auto icon_hashes = parse_stringinfo_hashes(read_binary_if_exists(work_dir / "stringinfo.bin"));
+        const auto string_header = read_binary_if_exists(work_dir / "stringinfo_header.bin");
+        const auto prefab_names = string_header.empty() ? std::map<std::uint32_t, std::string>()
+            : parse_prefab_stringinfo(read_binary_if_exists(work_dir / "stringinfo.bin"), string_header, entries);
         const auto iteminfo_data = read_binary_if_exists(work_dir / "iteminfo.bin");
         const auto iteminfo_header = read_binary_if_exists(work_dir / "iteminfo_header.bin");
         const auto equip_types = parse_equiptypeinfo(
@@ -1661,7 +1704,7 @@ int run_item_index_job(
         bool row_directory_resolved = false;
         auto items = iteminfo_header.empty()
             ? std::vector<NativeItemRecord>()
-            : parse_iteminfo_rows(iteminfo_data, iteminfo_header, loc_tables, icon_hashes, equip_types, row_directory_resolved);
+            : parse_iteminfo_rows(iteminfo_data, iteminfo_header, loc_tables, icon_hashes, equip_types, row_directory_resolved, string_header.empty() ? nullptr : &prefab_names);
         if (!row_directory_resolved) {
             // No `.pabgh` companion, or it did not describe this payload. The
             // marker scan finds fewer rows, so say which one produced the report.
@@ -1679,7 +1722,8 @@ int run_item_index_job(
             if (key.empty() || value.empty()) return;
             auto found = rows.find(key);
             if (found == rows.end()) rows[key] = value;
-            else if (found->second.find(value) == std::string::npos) found->second += " / " + value;
+            else if ((" / " + found->second + " / ").find(" / " + value + " / ") == std::string::npos)
+                found->second += " / " + value;
         };
         auto add_alias = [](std::map<std::string, std::string>& rows, const std::string& key, const std::string& value) {
             if (key.empty() || value.empty()) return;
@@ -1693,10 +1737,15 @@ int run_item_index_job(
             std::vector<std::string> exact_models;
             std::vector<std::string> related_models = item.model_stems;
             for (std::uint32_t hash : item.prefab_hashes) {
-                auto found = hash_table.find(hash);
-                if (found != hash_table.end()) add_unique(exact_models, found->second);
+                auto actual = prefab_names.find(hash);
+                if (actual != prefab_names.end()) add_unique(exact_models, actual->second);
+                else {
+                    auto found = hash_table.find(hash);
+                    if (found != hash_table.end()) add_unique(exact_models, found->second);
+                }
             }
             for (const std::string& resolved : exact_models) {
+                add_unique(item.model_stems, resolved);
                 for (const std::string& key : model_candidate_bases(resolved)) {
                     auto icons = icon_index.find(key);
                     if (icons != icon_index.end()) for (const std::string& icon : icons->second) add_unique(item.icon_paths, icon);
@@ -1735,12 +1784,12 @@ int run_item_index_job(
                 for (const std::string& tag : item.material_tags) material_terms += " " + tag;
                 for (const std::string& model : item.pac_files) add_alias(aliases, strip_model_variant_suffix(stem_for_path(model)), material_terms);
             }
-            if (!item.pac_files.empty() || !item.model_stems.empty()) linked_items.push_back(std::move(item));
+            linked_items.push_back(std::move(item));
         }
 
         std::ostringstream out;
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
-            << ",\"catalog_schema\":1,\"items\":[";
+            << ",\"catalog_schema\":2,\"items\":[";
         for (size_t i = 0; include_items && i < linked_items.size(); ++i) {
             const auto& item = linked_items[i];
             if (i) out << ",";

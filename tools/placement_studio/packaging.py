@@ -531,6 +531,8 @@ def build_for_operations(
     plan = isolated.to_plan(metadata.name or "operation")
     selected = [op for op in session.operations() if op.operation_id in set(wanted)]
     manifest = operation_manifest(selected, verdict.summary, units=units)
+    from .prepared_move import digest
+    manifest["payload_sha256"] = {path: digest(data) for path, data in sorted(files.items())}
 
     results = build_all(
         plan,

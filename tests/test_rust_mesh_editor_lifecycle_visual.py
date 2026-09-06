@@ -35,7 +35,7 @@ class _Settings:
 
 def _release_helper() -> Path:
     if os.name != "nt":
-        pytest.skip("the Rust Edit Mesh lifecycle helper is Windows-only")
+        pytest.skip("the Edit Mesh lifecycle helper is Windows-only")
     candidates = (
         _ROOT / "tools" / "rust_mesh_lab" / "target" / "release" / "cdmw_mesh_lab.exe",
         _ROOT
@@ -197,14 +197,14 @@ def _run_one_lifecycle(
         while not {"hello", "ready"}.issubset(observed):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise AssertionError("Rust helper handshake timed out")
+                raise AssertionError("helper handshake timed out")
             try:
                 message = messages.get(timeout=remaining)
             except queue.Empty as exc:
-                raise AssertionError("Rust helper handshake timed out") from exc
+                raise AssertionError("helper handshake timed out") from exc
             if message is None:
                 raise AssertionError(
-                    "Rust helper closed before ready:\n" + "\n".join(stderr_lines[-20:])
+                    "helper closed before ready:\n" + "\n".join(stderr_lines[-20:])
                 )
             assert isinstance(message, dict), f"non-JSON helper stdout: {message!r}"
             assert message.get("protocol") == RUST_MESH_EDITOR_PROTOCOL
@@ -223,7 +223,7 @@ def _run_one_lifecycle(
 
         assert process.poll() is None
         time.sleep(0.25)
-        assert process.poll() is None, "Rust helper did not remain alive after ready"
+        assert process.poll() is None, "helper did not remain alive after ready"
         _write_host_message(
             process,
             session,
@@ -232,7 +232,7 @@ def _run_one_lifecycle(
             extra={"reason": "lifecycle regression complete"},
         )
         exit_code = process.wait(timeout=_EXIT_TIMEOUT_SECONDS)
-        assert exit_code == 0, "Rust helper cancel failed:\n" + "\n".join(
+        assert exit_code == 0, "helper cancel failed:\n" + "\n".join(
             stderr_lines[-20:]
         )
         return tuple(observed)

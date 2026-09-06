@@ -172,7 +172,7 @@ impl PreviewBridge {
                         Ok(0) => break,
                         Ok(_) if line.len() > MAX_CONTROL_LINE_BYTES => {
                             let _ = incoming_tx.try_send(Incoming::Error(
-                                "Rust Preview protocol line exceeded its safety limit".to_owned(),
+                                "Preview protocol line exceeded its safety limit".to_owned(),
                             ));
                             break;
                         }
@@ -180,21 +180,21 @@ impl PreviewBridge {
                             Ok(value) => {
                                 if incoming_tx.try_send(Incoming::Message(value)).is_err() {
                                     let _ = incoming_tx.try_send(Incoming::Error(
-                                        "Rust Preview protocol queue is full".to_owned(),
+                                        "Preview protocol queue is full".to_owned(),
                                     ));
                                 }
                                 let _ = proxy.send_event(());
                             }
                             Err(error) => {
                                 let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                    "Rust Preview received invalid JSON: {error}"
+                                    "Preview received invalid JSON: {error}"
                                 )));
                                 let _ = proxy.send_event(());
                             }
                         },
                         Err(error) => {
                             let _ = incoming_tx.try_send(Incoming::Error(format!(
-                                "Rust Preview input failed: {error}"
+                                "Preview input failed: {error}"
                             )));
                             break;
                         }
@@ -203,7 +203,7 @@ impl PreviewBridge {
                 let _ = incoming_tx.send(Incoming::Closed);
                 let _ = proxy.send_event(());
             })
-            .expect("Rust Preview input thread");
+            .expect("Preview input thread");
         thread::Builder::new()
             .name("cdmw-rust-preview-output".to_owned())
             .spawn(move || {
@@ -218,7 +218,7 @@ impl PreviewBridge {
                     }
                 }
             })
-            .expect("Rust Preview output thread");
+            .expect("Preview output thread");
         Self {
             incoming,
             outbound,
@@ -384,10 +384,10 @@ pub struct PreviewApplication {
 impl PreviewApplication {
     pub fn open(manifest_path: &Path, parent_hwnd: u64, proxy: EventLoopProxy<()>) -> Result<Self> {
         let mut package = LoadedCdmwSessionPackage::load_preview(manifest_path)
-            .context("failed to load the initial Rust Preview package")?;
+            .context("failed to load the initial Preview package")?;
         let document = package.document().clone();
         let mesh = WorkingMesh::from_document_lod(&document, package.source_lod_index())
-            .context("Rust Preview document could not create its requested LOD")?;
+            .context("Preview document could not create its requested LOD")?;
         let snapshot = mesh.draw_snapshot();
         let geometry = PreviewGeometry::from_mesh(&mesh);
         let textures = package.take_textures();
@@ -2407,7 +2407,7 @@ impl ApplicationHandler for PreviewApplication {
         }
         let attributes = match cdmw_win32_embed::with_parent_window(
             WindowAttributes::default()
-                .with_title("CDMW — Rust Preview")
+                .with_title("CDMW — Preview")
                 .with_decorations(false)
                 .with_visible(false),
             self.parent_hwnd,

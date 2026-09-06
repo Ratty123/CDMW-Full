@@ -458,7 +458,7 @@ def _flush_mesh_edit_live_vertex_updates(_state, _callbacks, ) -> None:
                 source_indices=pending_source_indices,
             )
             _callbacks._mesh_edit_mark_native_preview_stale(
-                "Rust Preview mesh edit preview produced no vertex update payload; preview is stale. Retry Rust Preview to resync.",
+                "Preview mesh edit preview produced no vertex update payload; preview is stale. Retry Preview to resync.",
                 source_indices=pending_source_indices,
             )
             return
@@ -481,7 +481,7 @@ def _flush_mesh_edit_live_vertex_updates(_state, _callbacks, ) -> None:
         if source_indices and _callbacks._mesh_edit_replace_live_triangles(source_indices):
             return
         _callbacks._mesh_edit_mark_native_preview_stale(
-            "Rust Preview mesh edit preview update failed; preview is stale. Retry Rust Preview to resync.",
+            "Preview mesh edit preview update failed; preview is stale. Retry Preview to resync.",
             source_indices=source_indices,
             group_count=len(groups),
         )

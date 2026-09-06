@@ -883,12 +883,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("active_package_quality", source)
         self.assertIn("mesh_edit_raw_preview_active", source)
         self.assertIn("source_face_limit", source)
-        self.assertIn('Embedded Rust Preview state', source)
+        self.assertIn('Embedded Preview state', source)
         self.assertIn("active_preview_backend", source)
         self.assertIn("_mesh_editor_embedded_runtime_diagnostics", source)
         self.assertIn("manifest flags: two_sided_batches=", diagnostics_source)
         self.assertIn("manifest material inputs: ", diagnostics_source)
-        self.assertIn("Latest Rust Preview protocol event", source)
+        self.assertIn("Latest Preview protocol event", source)
         self.assertIn("diagnostics_copy_button.clicked.connect", source)
         self.assertIn("_queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)", source)
 
@@ -1263,7 +1263,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         controller_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
         worker_source = (ROOT / "cdmw" / "workers" / "d3d11_package_workers.py").read_text(encoding="utf-8")
-        self.assertIn('("Rust Preview", "d3d11")', source)
+        self.assertIn('("Preview", "d3d11")', source)
         self.assertIn("RustPreviewHostFrame(", source)
         self.assertIn("profile=DotNetPreviewProfile.AUTHORING", source)
         self.assertIn('setObjectName("AlignmentDotNetVorticePreviewHost")', source)
@@ -3062,7 +3062,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             self.assertIn(f"def {function_name}", package_source)
         self.assertIn("def _alignment_d3d11_live_frame_available", loading_source)
         self.assertIn("Reused active cached package", package_source)
-        self.assertIn("Starting Rust Preview renderer.", package_source)
+        self.assertIn("Starting Preview renderer.", package_source)
         self.assertIn("Preview ready.", package_source)
 
         clear_loading_block = _nested_function_source(
@@ -3076,7 +3076,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_queue_latest_alignment_d3d11_rebuild_for_stale_reload", loading_source)
         self.assertIn("Preview reload restarted.", d3d11_watchdog_source)
         self.assertIn("_state._alignment_d3d11_restart_performance_helper(", loading_source)
-        self.assertIn("Rust Preview reload restarted", d3d11_presentation_source)
+        self.assertIn("Preview reload restarted", d3d11_presentation_source)
         self.assertNotIn("Preview stale/no fresh frame.", loading_source)
         loading_stuck_block = _nested_function_source(loading_source, "_alignment_d3d11_loading_stuck")
         self.assertIn("queued_model", loading_stuck_block)
@@ -4590,7 +4590,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"preview_rebuild_pending": False', source_parts_state_source)
         self.assertIn("def _set_source_parts_preview_rebuild_pending(reason: str) -> None:", source)
         self.assertIn(
-            'old Rust Preview geometry may remain visible until reload finishes',
+            'old Preview geometry may remain visible until reload finishes',
             source_parts_state_source,
         )
         self.assertIn("_clear_source_parts_preview_rebuild_pending()", source)
@@ -4963,7 +4963,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('if _state._d3d11_preview_active():', queue_source)
         self.assertIn("_sync_highlight_sets()", queue_source)
         self.assertIn("_alignment_d3d11_selection_highlight_performance_helper()", queue_source)
-        self.assertIn('Selection changes use live Rust Preview highlight commands', d3d11_presentation_source)
+        self.assertIn('Selection changes use live Preview highlight commands', d3d11_presentation_source)
         self.assertIn("_queue_static_preview_refresh()", queue_source)
         self.assertLess(
             queue_source.index("_alignment_d3d11_selection_highlight_performance_helper()"),

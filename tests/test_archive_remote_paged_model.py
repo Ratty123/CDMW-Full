@@ -141,6 +141,17 @@ def test_remote_model_merges_exact_and_inferred_names_with_confidence_tooltips()
     assert "not proof" in str(model.data(model.index(1, 1), Qt.ToolTipRole))
 
 
+def test_shared_name_display_retains_complete_tooltip_and_entry_names() -> None:
+    _app()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    model.publish_query(_handle(total=1), view_mode=ArchiveViewMode.FLAT, prime=False)
+    row = replace(_entry(0), known_name="Blade / Long Blade", exact_name="Blade / Long Blade")
+    assert model.accept_page(ArchivePage("session-a", "query-a", 4, 1, 0, (row,)))
+    assert model.data(model.index(0, 1), Qt.DisplayRole) == "Shared asset (2 names)"
+    assert "Blade / Long Blade" in model.data(model.index(0, 1), Qt.ToolTipRole)
+    assert row.item_name == "Blade / Long Blade"
+
+
 def test_remote_page_cache_is_lru_bounded_below_ten_thousand_entries() -> None:
     _app()
     model = RemoteArchiveBrowserModel(page_size=512, page_cache_limit=99)

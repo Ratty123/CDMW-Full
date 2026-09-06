@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+from cdmw.domain.new_item.authoring import (
+    SocketSlot, LevelBonuses, RecipeOverride, RewardAcquisition, VariantAppearance,
+)
 
 from cdmw.domain.new_item.spec import (
     BuyPriceEdit,
@@ -198,13 +201,22 @@ class NewItemDraft:
     #: The shop line never runs out (default); off keeps the line's own count, which is
     #: 1 on most equipment lines: sold once, then "0 in stock".
     unlimited_stock: bool = True
-    item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
+    stock_count: Optional[int] = None
+    stock_index: Optional[int] = None
+    shop_placements: Optional[Tuple[Placement, ...]] = None
+    item_groups: ItemGroupsChoice = ItemGroupsChoice.ORDINARY
     explicit_item_groups: Tuple[int, ...] = ()
     manager: str = "CDUMM"
     export_root: str = ""
     own_enhancement_rows: bool = False
     #: The perks (Abyss Gear socket items) the item carries; None keeps the template's.
     socket_items: Optional[List[int]] = None
+    socket_slots: Optional[Tuple[SocketSlot, ...]] = None
+    equipment_bonuses: Optional[Tuple[LevelBonuses, ...]] = None
+    recipes: Optional[Tuple["RecipeOverride", ...]] = None
+    reward_acquisitions: Optional[Tuple["RewardAcquisition", ...]] = None
+    authoring_errors: Dict[str, str] = field(default_factory=dict)
+    variants: Optional[Tuple["VariantAppearance", ...]] = None
     #: A shipped visual-effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
     effect_stem: str = ""
     #: the grafted effect's uniform scale, offset (x, y, z, metres in the item's axes)
@@ -229,6 +241,12 @@ class NewItemDraft:
         self.stem = ""
         self.item_key = None
         self.socket_items = None
+        self.socket_slots = None
+        self.equipment_bonuses = None
+        self.recipes = None
+        self.reward_acquisitions = None
+        self.authoring_errors.clear()
+        self.variants = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +349,8 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
 
     if draft.template_key is None:
         raise ValueError("Choose a template item first.")
+    if draft.authoring_errors:
+        raise ValueError("; ".join(draft.authoring_errors.values()))
     stats, buy_prices = stat_edits_from_grid(draft, grid) if grid is not None else ((), ())
     price_edits = tuple(
         PriceEdit(item_key=int(key), price=int(value))
@@ -342,7 +362,8 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         store_name=draft.store_name if draft.placement_kind is not PlacementKind.NONE else "",
         old_item_name=draft.old_item_name if draft.placement_kind is PlacementKind.SWAP else "",
         keep_requirement=bool(draft.keep_requirement),
-        stock_count=UNLIMITED_STOCK if draft.unlimited_stock else None,
+        stock_count=UNLIMITED_STOCK if draft.unlimited_stock else draft.stock_count,
+        stock_index=draft.stock_index if draft.placement_kind is PlacementKind.SWAP else None,
     )
     return NewItemSpec(
         template_key=int(draft.template_key),
@@ -362,10 +383,16 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         price_edits=price_edits,
         max_stack_count=draft.max_stack_count,
         placement=placement,
+        shop_placements=draft.shop_placements,
         item_groups=draft.item_groups,
         explicit_item_groups=tuple(draft.explicit_item_groups),
         enhancement=EnhancementRows.OWN if draft.own_enhancement_rows else EnhancementRows.TEMPLATE,
         socket_items=None if draft.socket_items is None else tuple(int(item) for item in draft.socket_items),
+        socket_slots=draft.socket_slots,
+        equipment_bonuses=draft.equipment_bonuses,
+        recipes=draft.recipes,
+        reward_acquisitions=draft.reward_acquisitions,
+        variants=draft.variants,
         effect=effect_reference(draft.effect_stem),
         effect_scale=float(draft.effect_scale),
         effect_offset=tuple(float(v) for v in draft.effect_offset),

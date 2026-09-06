@@ -69,7 +69,7 @@ def _rust_category_codes() -> dict[str, int]:
     start = source.index("fn material_category_code")
     body = source[start : source.index("\n}", start)]
     pairs = re.findall(r'"([a-z]+)"\s*=>\s*Some\(([0-9]+)\)', body)
-    assert pairs, "could not parse any category mapping out of the Rust source"
+    assert pairs, "could not parse any category mapping out of the source"
     return {name: int(code) for name, code in pairs}
 
 

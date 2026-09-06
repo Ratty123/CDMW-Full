@@ -79,7 +79,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         return 3
     if code.startswith("template.") or field == "template_key":
         return 0
-    if code.startswith("model") or field == "model":
+    if code.startswith(("model", "variant")) or field in {"model", "variants", "dyes"}:
         return 2
     if code.startswith(("stat.", "buy_price.", "price.", "max_stack.", "enhancement.")) or field in {
         "stat_edits",
@@ -87,6 +87,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         "price_edits",
         "max_stack_count",
         "enhancement",
+        "recipes",
     }:
         return 3
     if code.startswith(("effect.", "socket")) or field in {
@@ -96,9 +97,11 @@ def _workflow_step_for_issue(issue: object) -> int:
         "effect_rotation_degrees",
         "effect_look",
         "socket_items",
+        "socket_slots",
+        "equipment_bonuses",
     }:
         return 4
-    if code.startswith(("placement.", "item_groups.")) or field in {"placement", "item_groups"}:
+    if code.startswith(("placement.", "item_groups.", "rewards.")) or field in {"placement", "item_groups", "reward_acquisitions"}:
         return 5
     return 1
 
@@ -376,6 +379,7 @@ class NewItemStudioTab(QWidget):
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
         self.placement_panel.set_copper_price_requested.connect(self.stats_panel.set_copper_price)
+        self.placement_panel.recipes_requested.connect(lambda: (self.show_step(3), self.stats_panel.views.setCurrentIndex(1)))
         self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
         controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self._reread_after_install))
@@ -880,6 +884,11 @@ class NewItemStudioTab(QWidget):
         plan = self.controller.plan
         if plan is None:
             return
+        chosen = self.output_panel.overlay_directory.text().strip()
+        if chosen and not self.output_panel.overlay_directory.hasAcceptableInput():
+            QMessageBox.warning(self, "Overlay folder", "Enter an archive folder number from 0036 to 9999, or leave it blank for Auto.")
+            return
+        directory_name = f"{int(chosen):04d}" if chosen else None
         services = getattr(getattr(self._window, "app_context", None), "services", None)
         mutations = getattr(services, "require_archive_mutations", None)
         if not callable(mutations):
@@ -889,7 +898,7 @@ class NewItemStudioTab(QWidget):
         more = f"\n- ... {len(plan.touched_paths) - 14} more" if len(plan.touched_paths) > 14 else ""
         confirmation = QMessageBox.question(
             self,
-            "Install as an overlay",
+            f"Install as an overlay: {directory_name or 'Auto'}",
             (
                 f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) as an archive directory of its own?\n\n"
                 f"{len(plan.patches) + len(plan.additions)} file(s) go into the new directory:\n{touched}{more}\n\n"
@@ -901,7 +910,7 @@ class NewItemStudioTab(QWidget):
         )
         if confirmation != QMessageBox.Yes:
             return
-        self.controller.start_install_overlay(mutations())
+        self.controller.start_install_overlay(mutations(), directory_name=directory_name)
 
     def _overlay_services(self, title: str):
         """The mutation service (for the backup) and the package root, or None with a word."""

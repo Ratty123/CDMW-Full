@@ -32,11 +32,11 @@ def _remove_owned_session_root(
     owned = Path(os.path.abspath(os.fspath(owned_root))).resolve(strict=True)
     candidate = Path(os.path.abspath(os.fspath(session_root)))
     if candidate.parent != owned or not candidate.name.startswith("session-"):
-        raise RuntimeError("Refusing to clean a Rust Mesh directory not owned by CDMW")
+        raise RuntimeError("Refusing to clean a Mesh directory not owned by CDMW")
     if not os.path.lexists(candidate):
         return
     if expected_identity is None:
-        raise RuntimeError("Refusing to clean a Rust Mesh directory without its identity")
+        raise RuntimeError("Refusing to clean a Mesh directory without its identity")
     quarantine = owned / f".rust-mesh-dispose-{uuid4().hex}"
     os.replace(candidate, quarantine)
     try:
@@ -54,7 +54,7 @@ def _remove_owned_session_root(
         if quarantined_identity != tuple(expected_identity):
             if not os.path.lexists(candidate):
                 os.replace(quarantine, candidate)
-            raise RuntimeError("Refusing to clean a replaced Rust Mesh session directory")
+            raise RuntimeError("Refusing to clean a replaced Mesh session directory")
         shutil.rmtree(quarantine)
     except Exception:
         if os.path.lexists(quarantine) and not os.path.lexists(candidate):
@@ -225,7 +225,7 @@ class MeshRustProtocolWorker(QObject):
                 payload = {"status": "cancelled"}
                 result_name = "cancel"
             else:
-                raise ValueError(f"Unsupported Rust Mesh protocol event: {event_name or '(empty)'}")
+                raise ValueError(f"Unsupported Mesh protocol event: {event_name or '(empty)'}")
             if self._stop_event.is_set() and not finish_accepted:
                 return
             response = {

@@ -199,26 +199,26 @@ class RustMeshEditorHostFrame(QFrame):
         if parent_hwnd <= 0 or self._launch_parent_hwnd <= 0:
             return False, "CDMW did not create a native Mesh Editor host window"
         if int(embedded_parent_hwnd) != int(self._launch_parent_hwnd):
-            return False, "Rust reported a stale or mismatched embedded parent window"
+            return False, "Preview reported a stale or mismatched embedded parent window"
         if int(child_hwnd) <= 0 or int(process_id) <= 0:
-            return False, "Rust did not report a valid child window or process"
+            return False, "Preview did not report a valid child window or process"
         try:
             user32 = _windows_api()
             child = wintypes.HWND(int(child_hwnd))
             if not user32.IsWindow(child):
-                return False, "Rust reported a window that no longer exists"
+                return False, "Preview reported a window that no longer exists"
             owner = wintypes.DWORD()
             user32.GetWindowThreadProcessId(child, ctypes.byref(owner))
             if int(owner.value) != int(process_id):
-                return False, "Rust child window is not owned by the launched process"
+                return False, "Preview child window is not owned by the launched process"
             self._child_hwnd = int(child_hwnd)
             self._child_process_id = int(process_id)
             if not self._reparent_child():
                 self.detach_child_window()
-                return False, "Rust child window could not be attached to CDMW"
+                return False, "Preview child window could not be attached to CDMW"
         except (AttributeError, OSError, TypeError, ValueError) as exc:
             self.detach_child_window()
-            return False, f"Rust child-window validation failed: {exc}"
+            return False, f"Preview child-window validation failed: {exc}"
         self.show_editor()
         return True, ""
 

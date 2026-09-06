@@ -1332,7 +1332,7 @@ def prime_rust_mesh_preview_context(
     """Attach Archive Browser material evidence for the isolated shadow clone."""
 
     if authoritative_controller is None:
-        raise RustMeshAuthoringError("CDMW has no controller for Rust texture context")
+        raise RustMeshAuthoringError("CDMW has no controller for texture context")
     preview_model_snapshot = _snapshot_rust_preview_model(preview_model)
     binding_count = (
         count_dotnet_own_material_bindings(preview_model_snapshot)
@@ -1413,11 +1413,11 @@ def _is_reparse_point(path: Path) -> bool:
 def _require_owned_path(path: Path, root: Path) -> None:
     if path.is_symlink() or _is_reparse_point(path):
         raise RustMeshProtocolError(
-            f"Rust Mesh session contains a link or reparse point: {path.name}"
+            f"Mesh session contains a link or reparse point: {path.name}"
         )
     resolved = path.resolve(strict=True)
     if resolved != root and root not in resolved.parents:
-        raise RustMeshProtocolError("Rust Mesh session entry escaped its owned directory")
+        raise RustMeshProtocolError("Mesh session entry escaped its owned directory")
 
 
 def _validate_owned_profile_tree(root: Path) -> tuple[int, int]:
@@ -1432,29 +1432,29 @@ def _validate_owned_profile_tree(root: Path) -> tuple[int, int]:
             entry_count += 1
             if entry_count > _PROFILE_MAX_ENTRIES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles contain too many entries"
+                    "Mesh morph profiles contain too many entries"
                 )
             _require_owned_path(item, owned_root)
             if item.is_dir():
                 if depth >= _PROFILE_MAX_DEPTH:
                     raise RustMeshProtocolError(
-                        "Rust Mesh morph profiles exceed the directory-depth limit"
+                        "Mesh morph profiles exceed the directory-depth limit"
                     )
                 stack.append((item, depth + 1))
                 continue
             if not item.is_file() or item.suffix != ".json":
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles contain an unexpected entry"
+                    "Mesh morph profiles contain an unexpected entry"
                 )
             length = item.stat().st_size
             if length > _PROFILE_MAX_FILE_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profile file exceeds the 8 MiB limit"
+                    "Mesh morph profile file exceeds the 8 MiB limit"
                 )
             total_bytes += length
             if total_bytes > _PROFILE_MAX_TOTAL_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles exceed the 64 MiB session limit"
+                    "Mesh morph profiles exceed the 64 MiB session limit"
                 )
     return entry_count, total_bytes
 
@@ -1479,7 +1479,7 @@ def _capture_owned_profile_tree(
         digest.update(b"missing")
         return False, (), digest.hexdigest().upper()
     if not root.is_dir():
-        raise RustMeshProtocolError("Rust Mesh morph profile root is not a directory")
+        raise RustMeshProtocolError("Mesh morph profile root is not a directory")
     owned_root = root.resolve(strict=True)
     _require_owned_path(root, owned_root)
     root_stat = root.stat()
@@ -1493,24 +1493,24 @@ def _capture_owned_profile_tree(
             entry_count += 1
             if entry_count > _PROFILE_MAX_ENTRIES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles contain too many entries"
+                    "Mesh morph profiles contain too many entries"
                 )
             _require_owned_path(item, owned_root)
             if item.is_dir():
                 if depth >= _PROFILE_MAX_DEPTH:
                     raise RustMeshProtocolError(
-                        "Rust Mesh morph profiles exceed the directory-depth limit"
+                        "Mesh morph profiles exceed the directory-depth limit"
                     )
                 stack.append((item, depth + 1))
                 continue
             if not item.is_file() or item.suffix != ".json":
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles contain an unexpected entry"
+                    "Mesh morph profiles contain an unexpected entry"
                 )
             declared_length = item.stat().st_size
             if declared_length > _PROFILE_MAX_FILE_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profile file exceeds the 8 MiB limit"
+                    "Mesh morph profile file exceeds the 8 MiB limit"
                 )
             declared_stat = item.stat()
             with item.open("rb") as stream:
@@ -1521,7 +1521,7 @@ def _capture_owned_profile_tree(
                     or int(opened_stat.st_size) != declared_length
                 ):
                     raise RustMeshProtocolError(
-                        "Rust Mesh morph profile changed before it could be read"
+                        "Mesh morph profile changed before it could be read"
                     )
                 data = stream.read(_PROFILE_MAX_FILE_BYTES + 1)
                 final_stat = os.fstat(stream.fileno())
@@ -1535,12 +1535,12 @@ def _capture_owned_profile_tree(
                 or int(current_stat.st_ino) != int(declared_stat.st_ino)
             ):
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profile changed or exceeded the 8 MiB limit"
+                    "Mesh morph profile changed or exceeded the 8 MiB limit"
                 )
             total_bytes += len(data)
             if total_bytes > _PROFILE_MAX_TOTAL_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh morph profiles exceed the 64 MiB session limit"
+                    "Mesh morph profiles exceed the 64 MiB session limit"
                 )
             captured.append((item.relative_to(root).as_posix(), data))
     current_root_stat = root.stat()
@@ -1551,7 +1551,7 @@ def _capture_owned_profile_tree(
         or int(current_root_stat.st_ino) != int(root_stat.st_ino)
     ):
         raise RustMeshProtocolError(
-            "Rust Mesh morph profile root changed while it was being read"
+            "Mesh morph profile root changed while it was being read"
         )
     files = tuple(sorted(captured, key=lambda item: item[0].casefold()))
     return True, files, _profile_files_fingerprint(files)
@@ -1566,7 +1566,7 @@ def _write_owned_profile_tree(
         parts = tuple(Path(relative).parts)
         if not parts or any(part in {"", ".", ".."} for part in parts):
             raise RustMeshProtocolError(
-                "Rust Mesh morph profile snapshot contains an unsafe path"
+                "Mesh morph profile snapshot contains an unsafe path"
             )
         target = destination.joinpath(*parts)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -1583,29 +1583,29 @@ def _validate_owned_generated_tree(root: Path, session_root: Path) -> tuple[int,
             entry_count += 1
             if entry_count > _GENERATED_MAX_ENTRIES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh layer history contains too many generated entries"
+                    "Mesh layer history contains too many generated entries"
                 )
             _require_owned_path(item, session_root)
             if item.is_dir():
                 if depth >= _GENERATED_MAX_DEPTH:
                     raise RustMeshProtocolError(
-                        "Rust Mesh layer history exceeds the directory-depth limit"
+                        "Mesh layer history exceeds the directory-depth limit"
                     )
                 stack.append((item, depth + 1))
                 continue
             if not item.is_file():
                 raise RustMeshProtocolError(
-                    "Rust Mesh layer history contains an unexpected entry"
+                    "Mesh layer history contains an unexpected entry"
                 )
             length = item.stat().st_size
             if length > _GENERATED_MAX_FILE_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh layer history file exceeds the 64 MiB limit"
+                    "Mesh layer history file exceeds the 64 MiB limit"
                 )
             total_bytes += length
             if total_bytes > _GENERATED_MAX_TOTAL_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh layer history exceeds the 512 MiB session limit"
+                    "Mesh layer history exceeds the 512 MiB session limit"
                 )
     return entry_count, total_bytes
 
@@ -1617,17 +1617,17 @@ def _session_root_identity(
     path = Path(os.path.abspath(os.fspath(root)))
     if not path.exists() or path.is_symlink() or _is_reparse_point(path):
         raise RustMeshProtocolError(
-            "Rust Mesh session root is missing, replaced, or redirected"
+            "Mesh session root is missing, replaced, or redirected"
         )
     if not path.is_dir():
-        raise RustMeshProtocolError("Rust Mesh session root is not a directory")
+        raise RustMeshProtocolError("Mesh session root is not a directory")
     resolved = path.resolve(strict=True)
     if resolved != path:
-        raise RustMeshProtocolError("Rust Mesh session root changed canonical location")
+        raise RustMeshProtocolError("Mesh session root changed canonical location")
     root_stat = path.stat()
     identity = (int(root_stat.st_dev), int(root_stat.st_ino))
     if expected is not None and identity != tuple(expected):
-        raise RustMeshProtocolError("Rust Mesh session root was replaced")
+        raise RustMeshProtocolError("Mesh session root was replaced")
     return identity
 
 
@@ -1664,7 +1664,7 @@ def _pinned_session_root(
         )
         if handle == wintypes.HANDLE(-1).value:
             raise RustMeshProtocolError(
-                "Rust Mesh session root could not be pinned for a safe operation"
+                "Mesh session root could not be pinned for a safe operation"
             )
     try:
         _session_root_identity(root, expected_identity)
@@ -1710,7 +1710,7 @@ def _cleanup_failed_session_root(
             if not root.exists():
                 os.replace(quarantine, root)
             raise RustMeshProtocolError(
-                "Refusing to clean a replaced Rust Mesh session directory"
+                "Refusing to clean a replaced Mesh session directory"
             )
         shutil.rmtree(quarantine)
     except Exception:
@@ -1757,11 +1757,11 @@ def _validate_owned_session_tree(
             entry_count += child_entries
             total_bytes += child_bytes
             continue
-        raise RustMeshProtocolError(f"Unexpected Rust Mesh session entry: {name}")
+        raise RustMeshProtocolError(f"Unexpected Mesh session entry: {name}")
     if entry_count > _SESSION_MAX_ENTRIES:
-        raise RustMeshProtocolError("Rust Mesh session contains too many owned entries")
+        raise RustMeshProtocolError("Mesh session contains too many owned entries")
     if total_bytes > _SESSION_MAX_TOTAL_BYTES:
-        raise RustMeshProtocolError("Rust Mesh session exceeds the 768 MiB aggregate limit")
+        raise RustMeshProtocolError("Mesh session exceeds the 768 MiB aggregate limit")
     _session_root_identity(root, expected_root_identity)
     return entry_count, total_bytes
 
@@ -1863,19 +1863,19 @@ def _atomic_write_payload(
     expected_root_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
     if Path(name).name != name or not name.lower().endswith(".json"):
-        raise ValueError("Rust Mesh payload names must be simple JSON filenames")
+        raise ValueError("Mesh payload names must be simple JSON filenames")
     data = _canonical_json_bytes(payload)
     if len(data) > RUST_MESH_MAX_PAYLOAD_BYTES:
-        raise RustMeshProtocolError("Rust Mesh payload exceeds the 512 MiB session limit")
+        raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
     entry_count, total_bytes = _projected_state_payload_usage(
         root,
         len(data),
         expected_root_identity=expected_root_identity,
     )
     if entry_count > _SESSION_MAX_ENTRIES:
-        raise RustMeshProtocolError("Rust Mesh session contains too many owned entries")
+        raise RustMeshProtocolError("Mesh session contains too many owned entries")
     if total_bytes > _SESSION_MAX_TOTAL_BYTES:
-        raise RustMeshProtocolError("Rust Mesh session exceeds the 768 MiB aggregate limit")
+        raise RustMeshProtocolError("Mesh session exceeds the 768 MiB aggregate limit")
     destination = root / name
     temporary = root / f".{name}.{uuid4().hex}.tmp"
     try:
@@ -1904,19 +1904,19 @@ def _atomic_write_state_payload(
     expected_root_identity: tuple[int, int] | None = None,
 ) -> dict[str, object]:
     if _STATE_FILE_RE.fullmatch(name) is None:
-        raise ValueError("Rust Mesh state payload name is invalid")
+        raise ValueError("Mesh state payload name is invalid")
     data = _canonical_json_bytes(payload)
     if len(data) > RUST_MESH_MAX_PAYLOAD_BYTES:
-        raise RustMeshProtocolError("Rust Mesh payload exceeds the 512 MiB session limit")
+        raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
     entry_count, total_bytes = _projected_state_payload_usage(
         root,
         len(data),
         expected_root_identity=expected_root_identity,
     )
     if entry_count > _SESSION_MAX_ENTRIES:
-        raise RustMeshProtocolError("Rust Mesh session contains too many owned entries")
+        raise RustMeshProtocolError("Mesh session contains too many owned entries")
     if total_bytes > _SESSION_MAX_TOTAL_BYTES:
-        raise RustMeshProtocolError("Rust Mesh session exceeds the 768 MiB aggregate limit")
+        raise RustMeshProtocolError("Mesh session exceeds the 768 MiB aggregate limit")
 
     destination = root / name
     temporary = root / f".{name}.{uuid4().hex}.tmp"
@@ -1958,7 +1958,7 @@ def read_owned_payload_reference(
         int(resolved_root_stat.st_ino),
     )
     if resolved_root_identity != pinned_identity:
-        raise RustMeshProtocolError("Rust Mesh session root changed while opening a payload")
+        raise RustMeshProtocolError("Mesh session root changed while opening a payload")
     relative_text = str(reference.get("path", "") or "").strip()
     relative = Path(relative_text)
     if (
@@ -1968,34 +1968,34 @@ def read_owned_payload_reference(
         or relative.name != relative_text
         or relative.suffix.lower() != ".json"
     ):
-        raise RustMeshProtocolError("Rust Mesh payload path must be one owned JSON filename")
+        raise RustMeshProtocolError("Mesh payload path must be one owned JSON filename")
     if candidate_only and _CANDIDATE_FILE_RE.fullmatch(relative.name) is None:
-        raise RustMeshProtocolError("Rust Mesh candidate filename is not session-owned")
+        raise RustMeshProtocolError("Mesh candidate filename is not session-owned")
     candidate = (owned_root / relative).resolve(strict=True)
     if candidate.parent != owned_root or not candidate.is_file():
-        raise RustMeshProtocolError("Rust Mesh payload escaped its owned session directory")
+        raise RustMeshProtocolError("Mesh payload escaped its owned session directory")
     _require_owned_path(candidate, owned_root)
     candidate_stat = candidate.stat()
     try:
         declared_size = int(reference.get("byte_length", -1))
     except (TypeError, ValueError, OverflowError) as exc:
-        raise RustMeshProtocolError("Rust Mesh payload byte length is invalid") from exc
+        raise RustMeshProtocolError("Mesh payload byte length is invalid") from exc
     if declared_size < 0 or declared_size != candidate_stat.st_size:
-        raise RustMeshProtocolError("Rust Mesh payload byte length does not match")
+        raise RustMeshProtocolError("Mesh payload byte length does not match")
     if candidate_stat.st_size > RUST_MESH_MAX_PAYLOAD_BYTES:
-        raise RustMeshProtocolError("Rust Mesh payload exceeds the 512 MiB session limit")
+        raise RustMeshProtocolError("Mesh payload exceeds the 512 MiB session limit")
     data_type = str(reference.get("data_type", "") or "").strip()
     content_type = str(reference.get("content_type", "") or "").strip().lower()
     try:
         declared_count = int(reference.get("count", -1))
     except (TypeError, ValueError, OverflowError) as exc:
-        raise RustMeshProtocolError("Rust Mesh payload element count is invalid") from exc
+        raise RustMeshProtocolError("Mesh payload element count is invalid") from exc
     if not data_type or declared_count < 0:
-        raise RustMeshProtocolError("Rust Mesh payload type or element count is missing")
+        raise RustMeshProtocolError("Mesh payload type or element count is missing")
     if content_type != "application/json":
-        raise RustMeshProtocolError("Rust Mesh payload content type must be application/json")
+        raise RustMeshProtocolError("Mesh payload content type must be application/json")
     if candidate_only and data_type != "mesh_candidate_json":
-        raise RustMeshProtocolError("Rust Mesh candidate data type does not match")
+        raise RustMeshProtocolError("Mesh candidate data type does not match")
     with candidate.open("rb") as stream:
         opened_stat = os.fstat(stream.fileno())
         if (
@@ -2003,11 +2003,11 @@ def read_owned_payload_reference(
             or int(opened_stat.st_ino) != int(candidate_stat.st_ino)
             or int(opened_stat.st_size) != declared_size
         ):
-            raise RustMeshProtocolError("Rust Mesh payload changed before it could be read")
+            raise RustMeshProtocolError("Mesh payload changed before it could be read")
         data = stream.read(declared_size + 1)
         final_stat = os.fstat(stream.fileno())
     if len(data) != declared_size or int(final_stat.st_size) != declared_size:
-        raise RustMeshProtocolError("Rust Mesh payload changed while it was being read")
+        raise RustMeshProtocolError("Mesh payload changed while it was being read")
     _session_root_identity(root_path, expected_root_identity)
     current_stat = candidate.stat()
     if (
@@ -2015,20 +2015,20 @@ def read_owned_payload_reference(
         or int(current_stat.st_ino) != int(candidate_stat.st_ino)
         or int(current_stat.st_size) != declared_size
     ):
-        raise RustMeshProtocolError("Rust Mesh payload was replaced while it was being read")
+        raise RustMeshProtocolError("Mesh payload was replaced while it was being read")
     declared_hash = str(reference.get("sha256", "") or "").strip().upper()
     if len(declared_hash) != 64 or declared_hash != _sha256_bytes(data):
-        raise RustMeshProtocolError("Rust Mesh payload SHA-256 does not match")
+        raise RustMeshProtocolError("Mesh payload SHA-256 does not match")
     try:
         payload = json.loads(data.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
-        raise RustMeshProtocolError("Rust Mesh payload is not valid UTF-8 JSON") from exc
+        raise RustMeshProtocolError("Mesh payload is not valid UTF-8 JSON") from exc
     if not isinstance(payload, dict):
-        raise RustMeshProtocolError("Rust Mesh payload root must be an object")
+        raise RustMeshProtocolError("Mesh payload root must be an object")
     if candidate_only:
         raw_submeshes = payload.get("submeshes")
         if not isinstance(raw_submeshes, list) or declared_count != len(raw_submeshes):
-            raise RustMeshProtocolError("Rust Mesh candidate element count does not match")
+            raise RustMeshProtocolError("Mesh candidate element count does not match")
     return payload
 
 
@@ -2061,7 +2061,7 @@ def _mesh_format(mesh: ParsedMesh) -> str:
     value = str(mesh.format or "").strip().lower()
     if value not in {"pac", "pam", "pamlod"}:
         raise RustMeshValidationError(
-            f"Rust Edit Mesh requires PAC, PAM, or PAMLOD input; received {value or 'unknown'}."
+            f"Edit Mesh requires PAC, PAM, or PAMLOD input; received {value or 'unknown'}."
         )
     return value
 
@@ -2206,19 +2206,19 @@ def _resolved_dds_path(value: object, *, declared_dds: bool = False) -> Path | N
     size = resolved.stat().st_size
     if size <= 0 or size > _TEXTURE_MAX_FILE_BYTES:
         raise RustMeshProtocolError(
-            f"Rust Mesh texture payload is outside the 512 MiB file limit: {resolved.name}"
+            f"Mesh texture payload is outside the 512 MiB file limit: {resolved.name}"
         )
     try:
         with resolved.open("rb") as stream:
             signature = stream.read(4)
     except OSError as exc:
         raise RustMeshProtocolError(
-            f"Rust Mesh could not read resolved texture {resolved.name}: {exc}"
+            f"Mesh could not read resolved texture {resolved.name}: {exc}"
         ) from exc
     if signature != b"DDS ":
         if declared_dds or resolved.suffix.casefold() == ".dds":
             raise RustMeshProtocolError(
-                f"Rust Mesh resolved texture is not a DDS payload: {resolved.name}"
+                f"Mesh resolved texture is not a DDS payload: {resolved.name}"
             )
         return None
     return resolved
@@ -2268,7 +2268,7 @@ def _rust_material_package_presentation_overrides(
         payload = json.loads(payload_bytes)
     except RunCancelled as exc:
         raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
+            "Mesh texture preparation was cancelled"
         ) from exc
     except (OSError, UnicodeError, ValueError, TypeError):
         return {}
@@ -2428,7 +2428,7 @@ def _rust_material_package_declared_texture_paths(
     ):
         return frozenset()
     if stop_event is not None and stop_event.is_set():
-        raise RustMeshCancellationError("Rust Mesh texture preparation was cancelled")
+        raise RustMeshCancellationError("Mesh texture preparation was cancelled")
     try:
         with manifest_path.open("rb") as stream:
             manifest_bytes = stream.read(
@@ -2443,7 +2443,7 @@ def _rust_material_package_declared_texture_paths(
     except (UnicodeError, ValueError):
         return frozenset()
     if stop_event is not None and stop_event.is_set():
-        raise RustMeshCancellationError("Rust Mesh texture preparation was cancelled")
+        raise RustMeshCancellationError("Mesh texture preparation was cancelled")
     if not isinstance(payload, Mapping):
         return frozenset()
     batches = payload.get("batches")
@@ -2509,7 +2509,7 @@ def _rust_material_package_declared_texture_paths(
     for batch in batches:
         if stop_event is not None and stop_event.is_set():
             raise RustMeshCancellationError(
-                "Rust Mesh texture preparation was cancelled"
+                "Mesh texture preparation was cancelled"
             )
         if not isinstance(batch, Mapping):
             continue
@@ -2556,7 +2556,7 @@ def _rust_material_package_owned_texture_aliases(
         payload = json.loads(payload_bytes)
     except RunCancelled as exc:
         raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
+            "Mesh texture preparation was cancelled"
         ) from exc
     except (OSError, UnicodeError, ValueError, TypeError):
         return MappingProxyType({})
@@ -2576,7 +2576,7 @@ def _rust_material_package_owned_texture_aliases(
     for resource in resources:
         if stop_event is not None and stop_event.is_set():
             raise RustMeshCancellationError(
-                "Rust Mesh texture preparation was cancelled"
+                "Mesh texture preparation was cancelled"
             )
         if not isinstance(resource, Mapping):
             continue
@@ -2623,7 +2623,7 @@ def _rust_material_package_owned_texture_aliases(
                 while chunk := stream.read(1024 * 1024):
                     if stop_event is not None and stop_event.is_set():
                         raise RustMeshCancellationError(
-                            "Rust Mesh texture preparation was cancelled"
+                            "Mesh texture preparation was cancelled"
                         )
                     digest.update(chunk)
         except RustMeshCancellationError:
@@ -3015,7 +3015,7 @@ def _resolve_material_input_archive_fallbacks(inputs, submesh, entries_by_basena
                 for candidate in _rust_material_input_exact_basenames(item):
                     if stop_event is not None and stop_event.is_set():
                         raise RustMeshCancellationError(
-                            "Rust Mesh texture preparation was cancelled"
+                            "Mesh texture preparation was cancelled"
                         )
                     matching_entries = _unambiguous_rust_texture_entries(
                         candidate,
@@ -3038,7 +3038,7 @@ def _resolve_material_input_archive_fallbacks(inputs, submesh, entries_by_basena
                     except Exception:
                         if stop_event is not None and stop_event.is_set():
                             raise RustMeshCancellationError(
-                                "Rust Mesh texture preparation was cancelled"
+                                "Mesh texture preparation was cancelled"
                             )
                         continue
                     if resolved is None:
@@ -3136,7 +3136,7 @@ def _resolve_rust_archive_texture_fallbacks(
                 for candidate in candidates:
                     if stop_event is not None and stop_event.is_set():
                         raise RustMeshCancellationError(
-                            "Rust Mesh texture preparation was cancelled"
+                            "Mesh texture preparation was cancelled"
                         )
                     matching_entries = _unambiguous_rust_texture_entries(
                         candidate,
@@ -3161,7 +3161,7 @@ def _resolve_rust_archive_texture_fallbacks(
                     except Exception:
                         if stop_event is not None and stop_event.is_set():
                             raise RustMeshCancellationError(
-                                "Rust Mesh texture preparation was cancelled"
+                                "Mesh texture preparation was cancelled"
                             )
                         continue
                     if resolved is None:
@@ -3535,7 +3535,7 @@ def _raise_if_texture_copy_cancelled(
     stop_event: threading.Event | None,
 ) -> None:
     if stop_event is not None and stop_event.is_set():
-        raise RustMeshCancellationError("Rust Mesh texture preparation was cancelled")
+        raise RustMeshCancellationError("Mesh texture preparation was cancelled")
 
 
 def _bounded_luminance_image(path: Path, stop_event: threading.Event | None):
@@ -4033,7 +4033,7 @@ def _guard_synthesized_base_against_direct(
         return (guarded_target, metrics) if metrics is not None else (generated_source, None)
     except RunCancelled as exc:
         raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
+            "Mesh texture preparation was cancelled"
         ) from exc
     except RustMeshCancellationError:
         raise
@@ -4058,16 +4058,16 @@ def _atomic_copy_texture_payload(
         source_size = source.stat().st_size
     except OSError as exc:
         raise RustMeshProtocolError(
-            f"Rust Mesh could not inspect resolved texture {source.name}: {exc}"
+            f"Mesh could not inspect resolved texture {source.name}: {exc}"
         ) from exc
     if source_size <= 0 or source_size > _TEXTURE_MAX_FILE_BYTES:
         raise RustMeshProtocolError(
-            f"Rust Mesh texture payload is outside the 512 MiB file limit: {source.name}"
+            f"Mesh texture payload is outside the 512 MiB file limit: {source.name}"
         )
     aggregate_bytes_before = max(0, int(aggregate_bytes_before))
     if aggregate_bytes_before + source_size > _SESSION_MAX_TOTAL_BYTES:
         raise RustMeshProtocolError(
-            "Rust Mesh texture payload exceeds the 768 MiB aggregate limit"
+            "Mesh texture payload exceeds the 768 MiB aggregate limit"
         )
     _raise_if_texture_copy_cancelled(stop_event)
     temporary = root / f".texture-{file_index:04d}-{uuid4().hex}.tmp"
@@ -4085,14 +4085,14 @@ def _atomic_copy_texture_payload(
                 next_byte_length = byte_length + len(chunk)
                 if next_byte_length > _TEXTURE_MAX_FILE_BYTES:
                     raise RustMeshProtocolError(
-                        f"Rust Mesh texture payload exceeds 512 MiB: {source.name}"
+                        f"Mesh texture payload exceeds 512 MiB: {source.name}"
                     )
                 if (
                     aggregate_bytes_before + next_byte_length
                     > _SESSION_MAX_TOTAL_BYTES
                 ):
                     raise RustMeshProtocolError(
-                        "Rust Mesh texture payload exceeds the 768 MiB aggregate limit"
+                        "Mesh texture payload exceeds the 768 MiB aggregate limit"
                     )
                 digest.update(chunk)
                 output_stream.write(chunk)
@@ -4112,7 +4112,7 @@ def _atomic_copy_texture_payload(
         )
         if source_identity_before != source_identity_after or byte_length != source_after.st_size:
             raise RustMeshProtocolError(
-                f"Rust Mesh texture changed while it was being packaged: {source.name}"
+                f"Mesh texture changed while it was being packaged: {source.name}"
             )
         sha256 = digest.hexdigest().upper()
         name = f"texture-{file_index:04d}-{sha256[:12].lower()}.dds"
@@ -4180,29 +4180,29 @@ def _validate_rust_material_synthesis_tree(
             entry_count += 1
             if entry_count > _SESSION_MAX_ENTRIES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh material synthesis contains too many entries"
+                    "Mesh material synthesis contains too many entries"
                 )
             _require_owned_path(item, owned_root)
             if item.is_dir():
                 if depth >= _GENERATED_MAX_DEPTH:
                     raise RustMeshProtocolError(
-                        "Rust Mesh material synthesis exceeds the directory-depth limit"
+                        "Mesh material synthesis exceeds the directory-depth limit"
                     )
                 stack.append((item, depth + 1))
                 continue
             if not item.is_file():
                 raise RustMeshProtocolError(
-                    "Rust Mesh material synthesis contains an unexpected entry"
+                    "Mesh material synthesis contains an unexpected entry"
                 )
             length = item.stat().st_size
             if length <= 0 or length > _TEXTURE_MAX_FILE_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh material synthesis contains a file outside the 512 MiB limit"
+                    "Mesh material synthesis contains a file outside the 512 MiB limit"
                 )
             total_bytes += length
             if total_bytes > _SESSION_MAX_TOTAL_BYTES:
                 raise RustMeshProtocolError(
-                    "Rust Mesh material synthesis exceeds the 768 MiB aggregate limit"
+                    "Mesh material synthesis exceeds the 768 MiB aggregate limit"
                 )
     _session_root_identity(root, expected_root_identity)
 
@@ -4361,7 +4361,7 @@ def _encode_generated_material_channel(
         )
     except RunCancelled as exc:
         raise RustMeshCancellationError(
-            "Rust Mesh texture preparation was cancelled"
+            "Mesh texture preparation was cancelled"
         ) from exc
     except Exception as exc:
         # Retain the direct DDS for this owner/channel when the
@@ -4729,7 +4729,7 @@ def _mesh_synthesized_texture_overrides(
             )
         except RunCancelled as exc:
             raise RustMeshCancellationError(
-                "Rust Mesh texture preparation was cancelled"
+                "Mesh texture preparation was cancelled"
             ) from exc
         except Exception as exc:
             # Material synthesis is preview enhancement.  A compiler failure
@@ -4824,7 +4824,7 @@ def _publish_rust_texture_resources(root, bindings, sources, stop_event, expecte
         _raise_if_texture_copy_cancelled(stop_event)
         if entry_count + 1 > _SESSION_MAX_ENTRIES:
             raise RustMeshProtocolError(
-                "Rust Mesh session contains too many owned entries"
+                "Mesh session contains too many owned entries"
             )
         reference = _atomic_copy_texture_payload(
             root,
@@ -4852,7 +4852,7 @@ def _publish_rust_texture_resources(root, bindings, sources, stop_event, expecte
         )
     ):
         raise RustMeshProtocolError(
-            "Rust Mesh session changed while texture payloads were being packaged"
+            "Mesh session changed while texture payloads were being packaged"
         )
 
     resources: list[dict[str, object]] = []
@@ -5837,7 +5837,7 @@ def _mesh_material_presentations(
         for fallback_index, source in enumerate(material_rows):
             if len(rows) >= maximum_rows:
                 raise RustMeshProtocolError(
-                    "Rust Mesh material presentation exceeds the owned material-range limit"
+                    "Mesh material presentation exceeds the owned material-range limit"
                 )
             _append_rust_material_presentation(rows, source, fallback_index, submeshes, generated_overrides, lod_index)
     return rows
@@ -5872,7 +5872,7 @@ def _require_argument_keys(
     unexpected = sorted(str(key) for key in args if str(key) not in allowed)
     if unexpected:
         raise RustMeshProtocolError(
-            f"Rust Mesh {command} received unsupported arguments: {', '.join(unexpected)}"
+            f"Mesh {command} received unsupported arguments: {', '.join(unexpected)}"
         )
 
 
@@ -5882,27 +5882,27 @@ def _require_explicit_selection(
     payload: object,
 ) -> MeshEditSelection:
     if not isinstance(payload, Mapping):
-        raise RustMeshProtocolError("Rust Mesh command requires an explicit selection object")
+        raise RustMeshProtocolError("Mesh command requires an explicit selection object")
     selection = _selection_from_payload(payload)
     mesh = service.working_mesh(session_id, clone=False)
     if _prune_selection_to_mesh(mesh, selection) != selection:
         raise RustMeshProtocolError(
-            "Rust Mesh command selection contains invalid mesh elements"
+            "Mesh command selection contains invalid mesh elements"
         )
     return selection
 
 
 def _finite_command_float(value: object, name: str) -> float:
     if isinstance(value, bool):
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be a finite number")
+        raise RustMeshProtocolError(f"Mesh {name} must be a finite number")
     try:
         result = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError) as exc:
         raise RustMeshProtocolError(
-            f"Rust Mesh {name} must be a finite number"
+            f"Mesh {name} must be a finite number"
         ) from exc
     if not math.isfinite(result):
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be a finite number")
+        raise RustMeshProtocolError(f"Mesh {name} must be a finite number")
     return result
 
 
@@ -5914,15 +5914,15 @@ def _command_truthy(value: object) -> bool:
 
 def _strict_command_index(value: object, name: str) -> int:
     if isinstance(value, bool):
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be an integer")
+        raise RustMeshProtocolError(f"Mesh {name} must be an integer")
     try:
         result = int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError) as exc:
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be an integer") from exc
+        raise RustMeshProtocolError(f"Mesh {name} must be an integer") from exc
     if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be an integer")
+        raise RustMeshProtocolError(f"Mesh {name} must be an integer")
     if isinstance(value, str) and str(result) != value.strip():
-        raise RustMeshProtocolError(f"Rust Mesh {name} must be an integer")
+        raise RustMeshProtocolError(f"Mesh {name} must be an integer")
     return result
 
 
@@ -5986,7 +5986,11 @@ def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
     skeleton = getattr(session, "skeleton", None)
     bones = tuple(getattr(skeleton, "bones", ()) or ())
     if not bones:
-        return _RustSkinWeightCapability(False, "Attach the matching parsed PAB skeleton before editing weights.")
+        reason = _bounded_text(getattr(session, "skeleton_resolution_reason", "")).strip()
+        return _RustSkinWeightCapability(
+            False,
+            reason or "No matching PAB skeleton was attached automatically. Open this PAC from Archive Browser with its skeleton dependencies available.",
+        )
     palette = tuple(resolve_pac_bone_palette(original_data, skeleton))
     if not palette:
         return _RustSkinWeightCapability(
@@ -6284,6 +6288,9 @@ def _rigging_seed(session: object) -> dict[str, object]:
     return {
         "skeleton": copy.deepcopy(getattr(session, "skeleton", None)),
         "skeleton_source": str(getattr(session, "skeleton_source", "") or ""),
+        "skeleton_resolution_reason": str(
+            getattr(session, "skeleton_resolution_reason", "") or ""
+        ),
         "skeleton_descriptor_source": str(
             getattr(session, "skeleton_descriptor_source", "") or ""
         ),
@@ -6400,7 +6407,7 @@ def _copy_shadow_morph_profiles(
             if destination.is_dir():
                 shutil.rmtree(destination)
             raise RustMeshValidationError(
-                "Morph profiles changed while the Rust shadow session was being created."
+                "Morph profiles changed while the shadow session was being created."
             )
     return source, base_fingerprint
 
@@ -6447,7 +6454,7 @@ class _MorphProfilePublication:
             or _directory_fingerprint(path) != fingerprint
         ):
             raise RustMeshValidationError(
-                "Rust Morph profile cleanup found a replaced directory and left it untouched."
+                "Morph profile cleanup found a replaced directory and left it untouched."
             )
         shutil.rmtree(path)
 
@@ -6465,18 +6472,18 @@ class _MorphProfilePublication:
         current_existed = os.path.lexists(self.source)
         if current_existed != self.source_existed:
             raise RustMeshValidationError(
-                "Morph profiles changed outside Rust Edit Mesh; Finish was rejected."
+                "Morph profiles changed outside Edit Mesh; Finish was rejected."
             )
         if current_existed and (
             self.source_identity is None
             or _mesh_history_directory_identity(self.source) != self.source_identity
         ):
             raise RustMeshValidationError(
-                "Morph profile storage was replaced outside Rust Edit Mesh; Finish was rejected."
+                "Morph profile storage was replaced outside Edit Mesh; Finish was rejected."
             )
         if _directory_fingerprint(self.source) != self.expected_fingerprint:
             raise RustMeshValidationError(
-                "Morph profiles changed outside Rust Edit Mesh; Finish was rejected."
+                "Morph profiles changed outside Edit Mesh; Finish was rejected."
             )
 
     def _require_staging_state(self, *, phase: str) -> None:
@@ -6490,7 +6497,7 @@ class _MorphProfilePublication:
             != self.staging_expected_fingerprint
         ):
             raise RustMeshValidationError(
-                f"Rust Morph profile staging changed {phase}; Finish was rejected."
+                f"Morph profile staging changed {phase}; Finish was rejected."
             )
 
     def prepare(self) -> None:
@@ -6499,7 +6506,7 @@ class _MorphProfilePublication:
         )
         if _shadow_fingerprint != self.shadow_expected_fingerprint:
             raise RustMeshValidationError(
-                "Rust Morph profiles changed outside an acknowledged command; Finish was rejected."
+                "Morph profiles changed outside an acknowledged command; Finish was rejected."
             )
         parent = self.source.parent
         parent.mkdir(parents=True, exist_ok=True)
@@ -6537,7 +6544,7 @@ class _MorphProfilePublication:
             or self.staging_identity is None
             or self.parent_identity is None
         ):
-            raise RuntimeError("Rust morph profile publication was not prepared")
+            raise RuntimeError("morph profile publication was not prepared")
         parent = self.source.parent
         with _pinned_mesh_history_parent(parent) as parent_identity:
             self._require_prepared_parent(parent, parent_identity)
@@ -6556,7 +6563,7 @@ class _MorphProfilePublication:
                         != self.backup_identity
                     ):
                         raise RustMeshValidationError(
-                            "Rust Morph profile backup identity changed during publication."
+                            "Morph profile backup identity changed during publication."
                         )
                 self._require_prepared_parent(parent, parent_identity)
                 self._require_staging_state(phase="during publication")
@@ -6570,7 +6577,7 @@ class _MorphProfilePublication:
                     != self.staging_expected_fingerprint
                 ):
                     raise RustMeshValidationError(
-                        "Rust Morph profile publication changed before validation; Finish was rejected."
+                        "Morph profile publication changed before validation; Finish was rejected."
                     )
                 self._require_prepared_parent(parent, parent_identity)
             except Exception:
@@ -6590,7 +6597,7 @@ class _MorphProfilePublication:
                                 != self.rejected_identity
                             ):
                                 raise RustMeshValidationError(
-                                    "Rust Morph profile rejection quarantine identity changed."
+                                    "Morph profile rejection quarantine identity changed."
                                 )
                             self.rejected_fingerprint = _directory_fingerprint(
                                 self.rejected
@@ -6600,7 +6607,7 @@ class _MorphProfilePublication:
                 if self.backup is not None and os.path.lexists(self.backup):
                     if os.path.lexists(self.source):
                         raise RustMeshValidationError(
-                            "Rust Morph profile rollback found a replacement at the publication target."
+                            "Morph profile rollback found a replacement at the publication target."
                         )
                     if (
                         self.backup_identity is None
@@ -6610,7 +6617,7 @@ class _MorphProfilePublication:
                         != self.expected_fingerprint
                     ):
                         raise RustMeshValidationError(
-                            "Rust Morph profile backup changed before rollback."
+                            "Morph profile backup changed before rollback."
                         )
                     os.replace(self.backup, self.source)
                     if (
@@ -6620,7 +6627,7 @@ class _MorphProfilePublication:
                         != self.expected_fingerprint
                     ):
                         raise RustMeshValidationError(
-                            "Rust Morph profile rollback validation failed."
+                            "Morph profile rollback validation failed."
                         )
                 try:
                     self._remove_exact_tree(
@@ -6635,7 +6642,7 @@ class _MorphProfilePublication:
 
     def rollback(self) -> None:
         if self.parent_identity is None:
-            raise RuntimeError("Rust morph profile publication was not prepared")
+            raise RuntimeError("morph profile publication was not prepared")
         parent = self.source.parent
         with _pinned_mesh_history_parent(parent) as parent_identity:
             self._require_prepared_parent(parent, parent_identity)
@@ -6649,7 +6656,7 @@ class _MorphProfilePublication:
                     != self.published_fingerprint
                 ):
                     raise RustMeshValidationError(
-                        "Morph profiles changed after Rust publication; automatic rollback was rejected."
+                        "Morph profiles changed after publication; automatic rollback was rejected."
                     )
                 self.rejected = parent / (
                     f".{self.source.name}.rust-rejected-{uuid4().hex}"
@@ -6664,7 +6671,7 @@ class _MorphProfilePublication:
                         != self.rejected_identity
                     ):
                         raise RustMeshValidationError(
-                            "Rust Morph profile rollback quarantine identity changed."
+                            "Morph profile rollback quarantine identity changed."
                         )
                 except Exception as exc:
                     # The published entry has already left the authoritative
@@ -6676,7 +6683,7 @@ class _MorphProfilePublication:
             if self.backup is not None and os.path.lexists(self.backup):
                 if os.path.lexists(self.source):
                     raise RustMeshValidationError(
-                        "Rust Morph profile rollback target was unexpectedly replaced."
+                        "Morph profile rollback target was unexpectedly replaced."
                     )
                 if (
                     self.backup_identity is None
@@ -6686,7 +6693,7 @@ class _MorphProfilePublication:
                     != self.expected_fingerprint
                 ):
                     raise RustMeshValidationError(
-                        "Rust Morph profile backup changed before rollback."
+                        "Morph profile backup changed before rollback."
                     )
                 os.replace(self.backup, self.source)
                 if (
@@ -6696,7 +6703,7 @@ class _MorphProfilePublication:
                     != self.expected_fingerprint
                 ):
                     raise RustMeshValidationError(
-                        "Rust Morph profile rollback validation failed."
+                        "Morph profile rollback validation failed."
                     )
             self._require_prepared_parent(parent, parent_identity)
             if quarantine_error is not None:
@@ -6904,7 +6911,7 @@ class RustMeshAuthoringSession:
         stop_event: threading.Event | None = None,
     ) -> "RustMeshAuthoringSession":
         if stop_event is not None and stop_event.is_set():
-            raise RustMeshCancellationError("Rust Mesh session preparation was cancelled")
+            raise RustMeshCancellationError("Mesh session preparation was cancelled")
         session_root = Path(root).resolve()
         session_root.mkdir(parents=True, exist_ok=False)
         root_identity = _session_root_identity(session_root)
@@ -6934,7 +6941,7 @@ class RustMeshAuthoringSession:
             )
             if stop_event is not None and stop_event.is_set():
                 raise RustMeshCancellationError(
-                    "Rust Mesh session preparation was cancelled"
+                    "Mesh session preparation was cancelled"
                 )
             _detach_shadow_layer_project(shadow_mesh, session_root)
             (
@@ -7019,7 +7026,7 @@ class RustMeshAuthoringSession:
 
     def _require_open(self) -> None:
         if self.closed:
-            raise RustMeshProtocolError("Rust Mesh authoring session is closed")
+            raise RustMeshProtocolError("Mesh authoring session is closed")
 
     def request_cancel(self) -> bool:
         """Linearize Cancel ahead of Finish when publication has not started.
@@ -7041,7 +7048,7 @@ class RustMeshAuthoringSession:
     ) -> None:
         if self._cancel_event.is_set() or (stop_event is not None and stop_event.is_set()):
             raise RustMeshCancellationError(
-                "Rust Edit Mesh Finish was cancelled before authoritative publication."
+                "Edit Mesh Finish was cancelled before authoritative publication."
             )
 
     def _require_authoring_enabled(self, operation: str) -> None:
@@ -7050,7 +7057,7 @@ class RustMeshAuthoringSession:
             return
         reason = str(view.output_policy_reason or "").strip()
         raise RustMeshValidationError(
-            reason or f"Rust Edit Mesh cannot {operation} under the current output policy."
+            reason or f"Edit Mesh cannot {operation} under the current output policy."
         )
 
     @_with_pinned_session_root
@@ -7096,7 +7103,7 @@ class RustMeshAuthoringSession:
         )
         if projected_length > RUST_MESH_MAX_PAYLOAD_BYTES:
             raise RustMeshProtocolError(
-                "Rust Mesh command would exceed the 512 MiB state payload limit"
+                "Mesh command would exceed the 512 MiB state payload limit"
             )
         entry_count, total_bytes = _projected_state_payload_usage(
             self.root,
@@ -7104,10 +7111,10 @@ class RustMeshAuthoringSession:
             expected_root_identity=self.root_identity,
         )
         if entry_count > _SESSION_MAX_ENTRIES:
-            raise RustMeshProtocolError("Rust Mesh session contains too many owned entries")
+            raise RustMeshProtocolError("Mesh session contains too many owned entries")
         if total_bytes > _SESSION_MAX_TOTAL_BYTES:
             raise RustMeshProtocolError(
-                "Rust Mesh command would exceed the 768 MiB aggregate limit"
+                "Mesh command would exceed the 768 MiB aggregate limit"
             )
         return data_length
 
@@ -7191,7 +7198,7 @@ class RustMeshAuthoringSession:
             if str(part).strip()
         )
         raise RustMeshValidationError(
-            reason or f"Rust Edit Mesh cannot run {action} under the current output policy."
+            reason or f"Edit Mesh cannot run {action} under the current output policy."
         )
 
     def _mesh_action_command(self, args: Mapping[str, object]) -> MeshEditCommand:
@@ -7200,16 +7207,16 @@ class RustMeshAuthoringSession:
         allowed_params = _HOST_MESH_ACTION_PARAMS.get(action)
         if allowed_params is None:
             raise RustMeshProtocolError(
-                f"Unsupported Rust Mesh authoring action: {action or '(empty)'}"
+                f"Unsupported Mesh authoring action: {action or '(empty)'}"
             )
         raw_params = args.get("params", {})
         if not isinstance(raw_params, Mapping):
-            raise RustMeshProtocolError("Rust Mesh authoring action params must be an object")
+            raise RustMeshProtocolError("Mesh authoring action params must be an object")
         params = {str(key): value for key, value in raw_params.items()}
         unexpected_params = sorted(set(params) - allowed_params)
         if unexpected_params:
             raise RustMeshProtocolError(
-                "Rust Mesh authoring action received unsupported params: "
+                "Mesh authoring action received unsupported params: "
                 + ", ".join(unexpected_params)
             )
         selection = _require_explicit_selection(
@@ -7224,11 +7231,11 @@ class RustMeshAuthoringSession:
                 params["source_mesh"] = copy.deepcopy(session.base_mesh)
         label_value = args.get("label", "")
         if label_value is not None and not isinstance(label_value, str):
-            raise RustMeshProtocolError("Rust Mesh authoring action label must be text")
+            raise RustMeshProtocolError("Mesh authoring action label must be text")
         label = str(label_value or "").strip()
         if len(label) > 128:
             raise RustMeshProtocolError(
-                "Rust Mesh authoring action label exceeds the 128-character limit"
+                "Mesh authoring action label exceeds the 128-character limit"
             )
         return MeshEditCommand(
             action,
@@ -7246,16 +7253,16 @@ class RustMeshAuthoringSession:
         allowed_params = _HOST_TOPOLOGY_ACTION_PARAMS.get(action)
         if allowed_params is None:
             raise RustMeshProtocolError(
-                f"Unsupported Rust Mesh topology command: {action or '(empty)'}"
+                f"Unsupported Mesh topology command: {action or '(empty)'}"
             )
         raw_params = args.get("params", {})
         if not isinstance(raw_params, Mapping):
-            raise RustMeshProtocolError("Rust Mesh topology params must be an object")
+            raise RustMeshProtocolError("Mesh topology params must be an object")
         params = {str(key): value for key, value in raw_params.items()}
         unexpected_params = sorted(set(params) - allowed_params)
         if unexpected_params:
             raise RustMeshProtocolError(
-                "Rust Mesh topology command received unsupported params: "
+                "Mesh topology command received unsupported params: "
                 + ", ".join(unexpected_params)
             )
         selection = _require_explicit_selection(
@@ -7284,11 +7291,11 @@ class RustMeshAuthoringSession:
         self._require_mesh_action_policy(action, params)
         label_value = args.get("label", "")
         if label_value is not None and not isinstance(label_value, str):
-            raise RustMeshProtocolError("Rust Mesh topology label must be text")
+            raise RustMeshProtocolError("Mesh topology label must be text")
         label = str(label_value or "").strip()
         if len(label) > 128:
             raise RustMeshProtocolError(
-                "Rust Mesh topology label exceeds the 128-character limit"
+                "Mesh topology label exceeds the 128-character limit"
             )
         return MeshEditCommand(
             action,
@@ -7448,7 +7455,7 @@ class RustMeshAuthoringSession:
                             "submesh_index": submesh_index,
                             "vertex_count": len(submesh.vertices or ()),
                             "source": RUST_MESH_EDIT_BACKEND,
-                            "created_by": "CDMW Rust Edit Mesh",
+                            "created_by": "CDMW Edit Mesh",
                             "metadata": {
                                 "contract": "cdmw_exact_pac_skin_weights_v1",
                                 "layout": PAC_SKIN_WEIGHT_LAYOUT,
@@ -7582,25 +7589,25 @@ class RustMeshAuthoringSession:
 
     def validate_message_identity(self, payload: Mapping[str, object]) -> None:
         if str(payload.get("protocol", "") or "") != RUST_MESH_EDITOR_PROTOCOL:
-            raise RustMeshProtocolError("Rust Mesh protocol version does not match")
+            raise RustMeshProtocolError("Mesh protocol version does not match")
         if str(payload.get("session_id", "") or "") != self.session_id:
-            raise RustMeshProtocolError("Rust Mesh session id does not match")
+            raise RustMeshProtocolError("Mesh session id does not match")
         try:
             generation = int(payload.get("process_generation", 0))
         except (TypeError, ValueError, OverflowError) as exc:
-            raise RustMeshProtocolError("Rust Mesh process generation is invalid") from exc
+            raise RustMeshProtocolError("Mesh process generation is invalid") from exc
         if generation != self.process_generation:
-            raise RustMeshProtocolError("Rust Mesh process generation is stale")
+            raise RustMeshProtocolError("Mesh process generation is stale")
 
     def _require_shadow_revision(self, payload: Mapping[str, object]) -> int:
         try:
             expected = int(payload.get("base_revision", -1))
         except (TypeError, ValueError, OverflowError) as exc:
-            raise RustMeshProtocolError("Rust Mesh base revision is invalid") from exc
+            raise RustMeshProtocolError("Mesh base revision is invalid") from exc
         current = self.shadow_service.session_view(self.shadow_session_id).revision
         if expected != current:
             raise RustMeshProtocolError(
-                f"Rust Mesh request is stale: expected shadow revision {current}, received {expected}."
+                f"Mesh request is stale: expected shadow revision {current}, received {expected}."
             )
         return current
 
@@ -7616,7 +7623,7 @@ class RustMeshAuthoringSession:
                 session.revision += 1
                 self._profile_tree_tainted = True
         raise RustMeshProtocolError(
-            "Rust Morph profiles changed outside an acknowledged CDMW command."
+            "Morph profiles changed outside an acknowledged CDMW command."
         )
 
     @_with_protocol_lock
@@ -7636,7 +7643,7 @@ class RustMeshAuthoringSession:
         morph_payload = _json_safe(morph_state)
         if len(_canonical_json_bytes(morph_payload)) > _MORPH_STATE_MAX_BYTES:
             raise RustMeshProtocolError(
-                "Rust Mesh Morph state exceeds the 16 MiB inline protocol limit"
+                "Mesh Morph state exceeds the 16 MiB inline protocol limit"
             )
         state: dict[str, object] = {
             "session_id": self.session_id,
@@ -7744,19 +7751,19 @@ class RustMeshAuthoringSession:
         invalidated_tangents: tuple[int, ...] = ()
         for submesh_index, (raw, target) in enumerate(zip(raw_submeshes, candidate.submeshes)):
             if not isinstance(raw, Mapping):
-                raise RustMeshProtocolError("Rust Mesh candidate submesh is malformed")
+                raise RustMeshProtocolError("Mesh candidate submesh is malformed")
             positions = _finite_rows(raw.get("positions"), 3, "positions")
             normals = _finite_rows(raw.get("normals"), 3, "normals")
             uvs = _finite_rows(raw.get("uvs"), 2, "uvs")
             indices = _integer_values(raw.get("indices"), "indices")
             if len(positions) != len(target.vertices):
-                raise RustMeshProtocolError("Rust Mesh candidate changed vertex count outside CDMW topology")
+                raise RustMeshProtocolError("Mesh candidate changed vertex count outside CDMW topology")
             if normals and len(normals) != len(positions):
-                raise RustMeshProtocolError("Rust Mesh candidate normal count does not match positions")
+                raise RustMeshProtocolError("Mesh candidate normal count does not match positions")
             if uvs and len(uvs) != len(positions):
-                raise RustMeshProtocolError("Rust Mesh candidate UV count does not match positions")
+                raise RustMeshProtocolError("Mesh candidate UV count does not match positions")
             if indices != _submesh_indices(target):
-                raise RustMeshProtocolError("Rust Mesh candidate changed topology outside CDMW topology")
+                raise RustMeshProtocolError("Mesh candidate changed topology outside CDMW topology")
             channel_values = (
                 ("replace_positions_same_count", "vertices", positions),
                 ("replace_normals_same_count", "normals", normals),
@@ -7777,7 +7784,7 @@ class RustMeshAuthoringSession:
                         "submesh_index": submesh_index,
                         "vertex_count": len(positions),
                         "source": RUST_MESH_EDIT_BACKEND,
-                        "created_by": "CDMW Rust Edit Mesh",
+                        "created_by": "CDMW Edit Mesh",
                     }
                 )
                 changed = True
@@ -7801,7 +7808,7 @@ class RustMeshAuthoringSession:
             )
         reference = request.get("candidate")
         if not isinstance(reference, Mapping):
-            raise RustMeshProtocolError("Rust Mesh transaction omitted its candidate reference")
+            raise RustMeshProtocolError("Mesh transaction omitted its candidate reference")
         try:
             payload = read_owned_payload_reference(
                 self.root,
@@ -7816,9 +7823,9 @@ class RustMeshAuthoringSession:
                 expected_root_identity=self.root_identity,
             )
         if str(payload.get("schema", "") or "") != RUST_MESH_CANDIDATE:
-            raise RustMeshProtocolError("Rust Mesh candidate schema does not match")
+            raise RustMeshProtocolError("Mesh candidate schema does not match")
         if str(payload.get("session_id", "") or "") != self.session_id:
-            raise RustMeshProtocolError("Rust Mesh candidate belongs to another session")
+            raise RustMeshProtocolError("Mesh candidate belongs to another session")
         candidate = self.shadow_service.working_mesh(self.shadow_session_id, clone=True)
         active_lod_index = self.shadow_service.session_view(
             self.shadow_session_id
@@ -7826,7 +7833,7 @@ class RustMeshAuthoringSession:
         selection = _selection_from_payload(payload.get("selection"))
         raw_submeshes = payload.get("submeshes")
         if not isinstance(raw_submeshes, list) or len(raw_submeshes) != len(candidate.submeshes):
-            raise RustMeshProtocolError("Rust Mesh candidate submesh count changed outside CDMW topology")
+            raise RustMeshProtocolError("Mesh candidate submesh count changed outside CDMW topology")
         with shadow_session.export_lock:
             operations = list(tuple(shadow_session.edit_operations))
             shadow_object_transform = copy.deepcopy(shadow_session.object_transform)
@@ -7868,13 +7875,13 @@ class RustMeshAuthoringSession:
             )
             if pruned_selection != selection:
                 raise RustMeshProtocolError(
-                    "Rust Mesh transaction selection contains invalid mesh elements"
+                    "Mesh transaction selection contains invalid mesh elements"
                 )
             prepared = replace(prepared, selection=selection)
             self.shadow_service.commit_prepared_working_mesh_replacement(
                 prepared,
                 history_action="rust_transaction",
-                history_label=str(request.get("label", "") or "Rust Edit Gesture"),
+                history_label=str(request.get("label", "") or "Edit Gesture"),
                 object_transform=shadow_object_transform,
             )
             self.max_state_document_bytes = max(
@@ -7916,7 +7923,7 @@ class RustMeshAuthoringSession:
         mesh_path = _editable_package_mesh_path(package_path)
         if mesh_path.suffix.lower() not in {".glb", ".obj"}:
             raise RustMeshValidationError(
-                "Rust Edit Mesh can import editable GLB or OBJ packages only."
+                "Edit Mesh can import editable GLB or OBJ packages only."
             )
         self._raise_if_cancelled(stop_event)
         imported_mesh = (
@@ -8082,7 +8089,7 @@ class RustMeshAuthoringSession:
         elif command == "state":
             result = {"status": "ok"}
         else:
-            raise RustMeshProtocolError(f"Unsupported Rust Mesh command: {command or '(empty)'}")
+            raise RustMeshProtocolError(f"Unsupported Mesh command: {command or '(empty)'}")
         return result
 
 
@@ -8208,7 +8215,7 @@ class RustMeshAuthoringSession:
                 ]
                 if session.revision == before_revision or not new_undo:
                     raise RuntimeError(
-                        "Rust Morph profile limits were exceeded and the shadow transaction "
+                        "Morph profile limits were exceeded and the shadow transaction "
                         "could not be rolled back safely."
                     ) from validation_error
                 service.undo(self.shadow_session_id)
@@ -8233,17 +8240,17 @@ class RustMeshAuthoringSession:
                     restored_fingerprint = _directory_fingerprint(profile_root)
                 except Exception as rollback_error:
                     raise RuntimeError(
-                        "Rust Morph profile limits were exceeded and rollback validation failed."
+                        "Morph profile limits were exceeded and rollback validation failed."
                     ) from rollback_error
                 if restored_fingerprint != before_fingerprint:
                     raise RuntimeError(
-                        "Rust Morph profile limits were exceeded and rollback did not restore "
+                        "Morph profile limits were exceeded and rollback did not restore "
                         "the prior shadow profile tree."
                     ) from validation_error
                 raise validation_error
             if after_fingerprint != _directory_fingerprint(profile_root):
                 raise RustMeshValidationError(
-                    "Rust Morph profiles changed while the command result was being finalized."
+                    "Morph profiles changed while the command result was being finalized."
                 )
             self.acknowledged_morph_profile_fingerprint = after_fingerprint
             self._profile_tree_tainted = False
@@ -8298,7 +8305,7 @@ class RustMeshAuthoringSession:
                                 )
                         except Exception as rollback_error:
                             raise RuntimeError(
-                                "Rust Morph definition creation failed and its runtime rollback also failed."
+                                "Morph definition creation failed and its runtime rollback also failed."
                             ) from rollback_error
                         if not native_activation_accepted:
                             raise command_error
@@ -8384,7 +8391,7 @@ class RustMeshAuthoringSession:
             return service.reset_morph(session_id)
         if command == "morph_bake":
             return service.bake_morph(session_id)
-        raise RustMeshProtocolError(f"Unsupported Rust Mesh morph command: {command}")
+        raise RustMeshProtocolError(f"Unsupported Mesh morph command: {command}")
 
     def _validate_exact_output_writer(
         self,
@@ -8411,7 +8418,7 @@ class RustMeshAuthoringSession:
         except Exception as exc:
             self._raise_if_cancelled(stop_event)
             raise RustMeshValidationError(
-                f"Exact game-asset writer rejected Rust Edit Mesh Finish: {exc}"
+                f"Exact game-asset writer rejected Edit Mesh Finish: {exc}"
             ) from exc
         self._raise_if_cancelled(stop_event)
 
@@ -8502,7 +8509,7 @@ class RustMeshAuthoringSession:
         except Exception as exc:
             self._raise_if_cancelled(stop_event)
             raise RustMeshValidationError(
-                f"Free Edit writer rejected Rust Edit Mesh Finish: {exc}"
+                f"Free Edit writer rejected Edit Mesh Finish: {exc}"
             ) from exc
         self._raise_if_cancelled(stop_event)
         return validation
@@ -8591,7 +8598,7 @@ class RustMeshAuthoringSession:
         except Exception as exc:
             self.closed = True
             shadow_cleanup_warning = (
-                f"Rust shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
+                f"shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
             )
         if shadow_cleanup_warning:
             cleanup_warnings.append(shadow_cleanup_warning)
@@ -8620,7 +8627,7 @@ class RustMeshAuthoringSession:
         shadow_morph_fingerprint = shadow_morph_profile_state[2]
         if shadow_morph_fingerprint != self.acknowledged_morph_profile_fingerprint:
             raise RustMeshProtocolError(
-                "Rust Morph profiles changed outside an acknowledged CDMW command."
+                "Morph profiles changed outside an acknowledged CDMW command."
             )
         morph_publication: _MorphProfilePublication | None = None
         morph_profile_previous_state: tuple[
@@ -8642,7 +8649,7 @@ class RustMeshAuthoringSession:
                     != self.morph_profile_base_fingerprint
                 ):
                     raise RustMeshValidationError(
-                        "Morph profiles changed outside Rust Edit Mesh; Finish was rejected."
+                        "Morph profiles changed outside Edit Mesh; Finish was rejected."
                     )
                 morph_publication = _MorphProfilePublication(
                     source=self.authoritative_morph_root,
@@ -8664,7 +8671,7 @@ class RustMeshAuthoringSession:
                 self._raise_if_cancelled(stop_event)
                 if self.closed:
                     raise RustMeshCancellationError(
-                        "Rust Edit Mesh closed before authoritative publication."
+                        "Edit Mesh closed before authoritative publication."
                     )
                 self._commit_started = True
         except Exception:
@@ -8684,14 +8691,14 @@ class RustMeshAuthoringSession:
         with authoritative_session.export_lock:
             if authoritative_session.revision != self.base_revision:
                 raise RustMeshValidationError(
-                    "The CDMW mesh changed while Rust Edit Mesh was open; Finish was rejected."
+                    "The CDMW mesh changed while Edit Mesh was open; Finish was rejected."
                 )
             if (
                 authoritative_session.geometry_layer_revision
                 != self.base_geometry_layer_revision
             ):
                 raise RustMeshValidationError(
-                    "The CDMW geometry layers changed while Rust Edit Mesh was open; "
+                    "The CDMW geometry layers changed while Edit Mesh was open; "
                     "Finish was rejected."
                 )
             if (
@@ -8699,7 +8706,7 @@ class RustMeshAuthoringSession:
                 != self.base_morph_session_revision
             ):
                 raise RustMeshValidationError(
-                    "The CDMW Morph & Refit state changed while Rust Edit Mesh was open; "
+                    "The CDMW Morph & Refit state changed while Edit Mesh was open; "
                     "Finish was rejected."
                 )
         shadow_view = self.shadow_service.session_view(self.shadow_session_id)
@@ -8752,7 +8759,7 @@ class RustMeshAuthoringSession:
         )
         if prepared.expected_revision != self.base_revision:
             raise RustMeshValidationError(
-                "The CDMW mesh changed while Rust Edit Mesh was open; Finish was rejected."
+                "The CDMW mesh changed while Edit Mesh was open; Finish was rejected."
             )
         self._raise_if_cancelled(stop_event)
         blockers = _validation_blockers(prepared.validation_report)
@@ -8809,7 +8816,7 @@ class RustMeshAuthoringSession:
                         committed = self.authoritative_service.commit_prepared_working_mesh_replacement(
                             prepared,
                             history_action="rust_edit_session",
-                            history_label="Rust Edit Session",
+                            history_label="Edit Session",
                             geometry_layers=geometry_layers,
                             active_geometry_layer_id=active_geometry_layer_id,
                             geometry_layer_copy_counter=geometry_layer_copy_counter,
@@ -8878,7 +8885,7 @@ class RustMeshAuthoringSession:
                     self._commit_started = False
             if rollback_error is not None:
                 raise RuntimeError(
-                    "Rust Edit Mesh Finish was rejected and Morph profile rollback also failed: "
+                    "Edit Mesh Finish was rejected and Morph profile rollback also failed: "
                     f"{type(rollback_error).__name__}: {rollback_error}"
                 ) from commit_error
             raise
@@ -8901,7 +8908,7 @@ class RustMeshAuthoringSession:
                 force_without_saving=True,
             )
         except Exception as exc:  # semantic Finish/Cancel already owns the outcome
-            warning = f"Rust shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
+            warning = f"shadow-session cleanup is pending: {type(exc).__name__}: {exc}"
         finally:
             self.closed = True
         return warning
@@ -8923,7 +8930,7 @@ def _preserve_unchanged_rust_channel(
     try:
         for before, after in zip(original, candidate):
             if len(before) != len(after):
-                raise RustMeshProtocolError("Rust Mesh channel row width changed")
+                raise RustMeshProtocolError("Mesh channel row width changed")
             if before == after:
                 restored.append(before)
             else:
@@ -8936,7 +8943,7 @@ def _preserve_unchanged_rust_channel(
                     )
                 )
     except (OverflowError, struct.error) as exc:
-        raise RustMeshProtocolError("Rust Mesh channel exceeds finite f32 range") from exc
+        raise RustMeshProtocolError("Mesh channel exceeds finite f32 range") from exc
     return restored
 
 
@@ -8944,36 +8951,36 @@ def _finite_rows(value: object, width: int, label: str) -> list[tuple[float, ...
     if value is None:
         return []
     if not isinstance(value, list):
-        raise RustMeshProtocolError(f"Rust Mesh candidate {label} must be an array")
+        raise RustMeshProtocolError(f"Mesh candidate {label} must be an array")
     rows: list[tuple[float, ...]] = []
     for raw in value:
         if not isinstance(raw, list) or len(raw) != width:
             raise RustMeshProtocolError(
-                f"Rust Mesh candidate {label} rows must contain {width} values"
+                f"Mesh candidate {label} rows must contain {width} values"
             )
         try:
             row = tuple(float(item) for item in raw)
         except (TypeError, ValueError, OverflowError) as exc:
-            raise RustMeshProtocolError(f"Rust Mesh candidate {label} is not numeric") from exc
+            raise RustMeshProtocolError(f"Mesh candidate {label} is not numeric") from exc
         if any(not math.isfinite(item) for item in row):
-            raise RustMeshProtocolError(f"Rust Mesh candidate {label} contains non-finite values")
+            raise RustMeshProtocolError(f"Mesh candidate {label} contains non-finite values")
         rows.append(row)
     return rows
 
 
 def _integer_values(value: object, label: str) -> list[int]:
     if not isinstance(value, list):
-        raise RustMeshProtocolError(f"Rust Mesh candidate {label} must be an array")
+        raise RustMeshProtocolError(f"Mesh candidate {label} must be an array")
     result: list[int] = []
     for raw in value:
         if isinstance(raw, bool):
-            raise RustMeshProtocolError(f"Rust Mesh candidate {label} contains a boolean")
+            raise RustMeshProtocolError(f"Mesh candidate {label} contains a boolean")
         try:
             integer = int(raw)
         except (TypeError, ValueError, OverflowError) as exc:
-            raise RustMeshProtocolError(f"Rust Mesh candidate {label} is not integral") from exc
+            raise RustMeshProtocolError(f"Mesh candidate {label} is not integral") from exc
         if integer < 0 or integer != raw:
-            raise RustMeshProtocolError(f"Rust Mesh candidate {label} contains an invalid index")
+            raise RustMeshProtocolError(f"Mesh candidate {label} contains an invalid index")
         result.append(integer)
     return result
 

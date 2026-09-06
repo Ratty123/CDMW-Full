@@ -160,7 +160,7 @@ class RustPreviewHostFrame(DotNetPreviewHostLifecycleMixin, DotNetPreviewHostPro
         status_layout = QVBoxLayout(self._status_panel)
         status_layout.setContentsMargins(18, 18, 18, 18)
         status_layout.addStretch(1)
-        self._status_label = QLabel("Select a model to open Rust Preview.", self._status_panel)
+        self._status_label = QLabel("Select a model to open Preview.", self._status_panel)
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         status_layout.addWidget(self._status_label)

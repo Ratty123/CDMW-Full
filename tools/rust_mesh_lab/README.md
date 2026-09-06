@@ -1,5 +1,11 @@
 # CDMW Rust Mesh Lab
 
+Product labels use Preview and Mesh Editor, with neutral Layer, Morph Profile,
+Morph and Preset defaults. Internal renderer and protocol identities remain unchanged.
+Particle BC4/R8 masks use linear sampling; RGB mask coverage is converted back from
+sRGB only when the uploaded view actually uses sRGB. The synthetic particle pixel
+check covers BC4 half-intensity and authored colour alongside the existing RGBA cases.
+
 `cdmw_mesh_lab.exe` has two deliberately separate modes. The default standalone
 **Rust Mesh Lab** is a Windows-first diagnostic application for testing the
 native Rust archive, mesh, editing, and `wgpu` architecture. In CDMW-managed

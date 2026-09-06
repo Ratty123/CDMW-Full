@@ -63,7 +63,7 @@ struct EffectParticleOut {
     @location(0) uv: vec2<f32>,
     @location(1) colour: vec4<f32>,
     @location(2) @interpolate(flat) uv_rect: vec4<f32>,
-    @location(3) @interpolate(flat) sprite_options: vec2<f32>,
+    @location(3) @interpolate(flat) sprite_options: vec3<f32>,
 };
 
 @vertex
@@ -84,7 +84,7 @@ fn vs_effect_particle(
     out.uv = uv;
     out.colour = colour;
     out.uv_rect = uv_rect;
-    out.sprite_options = sprite_options.xy;
+    out.sprite_options = sprite_options.xyw;
     if sprite_options.z > 0.5 {
         // Quad vertices 0,1,2 become triangle vertices 0,1,2. The fourth
         // vertex coincides with vertex 2, so the second triangle is degenerate.
@@ -113,9 +113,12 @@ fn fs_effect_particle(input: EffectParticleOut) -> @location(0) vec4<f32> {
     var sprite = mix(textureSample(effect_sprite, effect_sampler, origin + local_uv),
         textureSample(effect_sprite, effect_sampler, next_origin + local_uv), input.sprite_options.y);
     if input.sprite_options.x >= 0.0 {
-        // DDS colour uploads use sRGB views. Mask channels are linear coverage:
-        // undo the view conversion for RGB; alpha was never converted.
-        let masks = vec4<f32>(linear_to_srgb(sprite.rgb), sprite.a);
+        // Only colour views applied an sRGB conversion. Scalar BC4/R8 masks
+        // already contain linear coverage, as does the alpha channel.
+        var masks = sprite;
+        if input.sprite_options.z < 0.5 {
+            masks = vec4<f32>(linear_to_srgb(sprite.rgb), sprite.a);
+        }
         sprite = vec4<f32>(1.0, 1.0, 1.0, masks[u32(input.sprite_options.x)]);
     }
     let rgb = max(sprite.rgb * input.colour.rgb, vec3<f32>(0.0));

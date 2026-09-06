@@ -19,6 +19,8 @@ from cdmw.core.archive_model_references import (
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.paloc_format import parse_paloc
+from cdmw.core.item_sources import resolve_item_data_sources
+from cdmw.core.item_prefab_names import archive_prefab_names as _archive_prefab_names
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.core.table_catalog import (
     TableEvidenceRecord,
@@ -115,6 +117,7 @@ class _ArchiveItemIndexSources:
     equiptypeinfo_entry: Optional[ArchiveEntry] = None
     equiptypeinfo_header_entry: Optional[ArchiveEntry] = None
     stringinfo_entry: Optional[ArchiveEntry] = None
+    stringinfo_header_entry: Optional[ArchiveEntry] = None
     part_prefab_dye_slot_entry: Optional[ArchiveEntry] = None
     material_match_entry: Optional[ArchiveEntry] = None
     model_entries: List[ArchiveEntry] = field(default_factory=list)
@@ -153,23 +156,6 @@ _MODEL_HASH_SUFFIXES = (
 )
 _MODEL_TRAILING_LETTER_VARIANT_RE = re.compile(r"(?<=\d)[a-z]$", re.IGNORECASE)
 _MODEL_NUMBERED_FAMILY_VARIANT_RE = re.compile(r"_(?:index|sub)\d{2}$", re.IGNORECASE)
-_LOCALIZATION_TABLES = (
-    ("kor", "localizationstring_kor"),
-    ("eng", "localizationstring_eng"),
-    ("jpn", "localizationstring_jpn"),
-    ("rus", "localizationstring_rus"),
-    ("tur", "localizationstring_tur"),
-    ("spa-es", "localizationstring_spa-es"),
-    ("spa-mx", "localizationstring_spa-mx"),
-    ("fre", "localizationstring_fre"),
-    ("ger", "localizationstring_ger"),
-    ("ita", "localizationstring_ita"),
-    ("pol", "localizationstring_pol"),
-    ("por-br", "localizationstring_por-br"),
-    ("zho-tw", "localizationstring_zho-tw"),
-    ("zho-cn", "localizationstring_zho-cn"),
-)
-_LOCALIZATION_TABLE_BY_NAME = {table_name: language_code for language_code, table_name in _LOCALIZATION_TABLES}
 _ITEM_ICON_STEM_PREFIXES = (
     "itemicon_prefab_",
     "itemicon_",
@@ -348,62 +334,41 @@ def _collect_archive_item_index_sources(
     stop_event: Optional[threading.Event] = None,
 ) -> _ArchiveItemIndexSources:
     sources = _ArchiveItemIndexSources()
+    selected = resolve_item_data_sources(entries)
+    sources.localization_entries = dict(selected.localizations)
+    for stem, body_field, header_field in (
+        ("iteminfo", "iteminfo_entry", "iteminfo_header_entry"),
+        ("equiptypeinfo", "equiptypeinfo_entry", "equiptypeinfo_header_entry"),
+        ("stringinfo", "stringinfo_entry", "stringinfo_header_entry"),
+        ("partprefabdyeslotinfo", "part_prefab_dye_slot_entry", None),
+        ("materialmatchinfo", "material_match_entry", None),
+    ):
+        pair = selected.tables.get(stem)
+        if pair:
+            setattr(sources, body_field, pair[0])
+            if header_field:
+                setattr(sources, header_field, pair[1])
+    models: Dict[str, ArchiveEntry] = {}
+    icons: Dict[str, ArchiveEntry] = {}
     for index, entry in enumerate(entries):
         if index % 4096 == 0:
             raise_if_cancelled(stop_event)
-        lower_path = entry.path.lower()
+        lower_path = entry.path.replace("\\", "/").lower()
         basename = os.path.basename(lower_path)
         stem = os.path.splitext(basename)[0]
-        wants_localization = "localizationstring_" in lower_path
-        wants_iteminfo = "iteminfo.pabgb" in lower_path
-        wants_iteminfo_header = "iteminfo.pabgh" in lower_path
-        wants_equiptypeinfo = basename == "equiptypeinfo.pabgb"
-        wants_equiptypeinfo_header = basename == "equiptypeinfo.pabgh"
-        wants_stringinfo = basename == "stringinfo.pabgb"
-        wants_part_prefab_dye_slot = basename == "partprefabdyeslotinfo.pabgb"
-        wants_material_match = basename == "materialmatchinfo.pabgb"
         wants_model_hash = lower_path.endswith((".prefab", ".pac", ".pact"))
         wants_item_icon = lower_path.endswith(".dds") and (
             "itemicon" in lower_path
             or any(stem.startswith(prefix) for prefix in _ITEM_ICON_STEM_PREFIXES)
         )
-        if not (
-            wants_localization
-            or wants_iteminfo
-            or wants_iteminfo_header
-            or wants_equiptypeinfo
-            or wants_equiptypeinfo_header
-            or wants_stringinfo
-            or wants_part_prefab_dye_slot
-            or wants_material_match
-            or wants_model_hash
-            or wants_item_icon
-        ):
+        if not (wants_model_hash or wants_item_icon) or not selected.accepts(entry):
             continue
-        group = _entry_package_group(entry)
-        if wants_localization and group == "0020":
-            for table_name, language_code in _LOCALIZATION_TABLE_BY_NAME.items():
-                if table_name in lower_path:
-                    sources.localization_entries.setdefault(language_code, entry)
-                    break
-        elif wants_iteminfo and group == "0008" and sources.iteminfo_entry is None:
-            sources.iteminfo_entry = entry
-        elif wants_iteminfo_header and group == "0008" and sources.iteminfo_header_entry is None:
-            sources.iteminfo_header_entry = entry
-        elif wants_equiptypeinfo and group == "0008" and sources.equiptypeinfo_entry is None:
-            sources.equiptypeinfo_entry = entry
-        elif wants_equiptypeinfo_header and group == "0008" and sources.equiptypeinfo_header_entry is None:
-            sources.equiptypeinfo_header_entry = entry
-        elif wants_stringinfo and group == "0008" and sources.stringinfo_entry is None:
-            sources.stringinfo_entry = entry
-        elif wants_part_prefab_dye_slot and group == "0008" and sources.part_prefab_dye_slot_entry is None:
-            sources.part_prefab_dye_slot_entry = entry
-        elif wants_material_match and group == "0008" and sources.material_match_entry is None:
-            sources.material_match_entry = entry
-        elif wants_model_hash and group == "0009":
-            sources.model_entries.append(entry)
-        elif wants_item_icon:
-            sources.icon_entries.append(entry)
+        target = models if wants_model_hash else icons
+        previous = target.get(lower_path)
+        if previous is None or selected.priority(entry) > selected.priority(previous):
+            target[lower_path] = entry
+    sources.model_entries = list(models.values())
+    sources.icon_entries = list(icons.values())
     return sources
 
 
@@ -434,10 +399,11 @@ def parse_archive_localization_strings(
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, str]:
-    loc_entry = _find_archive_entry(entries, "0020", table_name)
+    language = str(table_name).removeprefix("localizationstring_").removesuffix(".paloc")
+    loc_entry = resolve_item_data_sources(entries).localizations.get(language)
     if loc_entry is None:
         if on_log is not None:
-            on_log(f"Item-name search: {table_name} was not found in package 0020.")
+            on_log(f"Item-name search: no active item localization table for {language}.")
         return {}
 
     return _parse_archive_localization_entry(loc_entry, stop_event=stop_event)
@@ -450,29 +416,18 @@ def _parse_archive_localization_tables_from_sources(
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, Dict[str, str]]:
     loc_tables: Dict[str, Dict[str, str]] = {}
-    missing_tables: List[str] = []
-    for language_code, table_name in _LOCALIZATION_TABLES:
+    for language_code, loc_entry in sources.localization_entries.items():
         raise_if_cancelled(stop_event)
-        loc_entry = sources.localization_entries.get(language_code)
-        if loc_entry is None:
-            missing_tables.append(table_name)
-            continue
         try:
             table = _parse_archive_localization_entry(loc_entry, stop_event=stop_event)
         except RunCancelled:
             raise
         except Exception as exc:
             if on_log is not None:
-                on_log(f"Item-name search: skipped {table_name}: {exc}")
+                on_log(f"Item-name search: skipped {language_code}: {exc}")
             continue
         if table:
             loc_tables[language_code] = table
-    if missing_tables and on_log is not None:
-        on_log(
-            "Item-name search: "
-            f"{len(missing_tables):,} localization table(s) not found in package 0020: "
-            f"{', '.join(missing_tables)}."
-        )
     return loc_tables
 
 
@@ -863,8 +818,6 @@ def _parse_archive_iteminfo_data_by_marker(
         display_name = ""
         if loc_id:
             display_name = str(loc_tables.get("eng", {}).get(loc_id, "") or "").strip()
-            if not display_name and localized_names:
-                display_name = localized_names[0]
 
         prefab_hashes: List[int] = []
         seen_prefab_hashes: set[int] = set()
@@ -990,6 +943,12 @@ def _iteminfo_row_equip_type(row: bytes, equip_type_names: Mapping[int, str]) ->
     a guess would be indistinguishable from a fact once it reaches the UI.
     """
 
+    at = row.find(_ITEMINFO_NAME_KEY_TAG)
+    if at >= 0 and at + 13 <= len(row):
+        length = struct.unpack_from("<I", row, at + 9)[0]
+        end = at + 13 + length
+        if 0 < length <= 64 and end + 8 <= len(row) and row[end:end + 4] == b"\0" * 4:
+            return equip_type_names.get(struct.unpack_from("<I", row, end + 4)[0], "")
     candidates: List[str] = []
     for offset in range(0, max(0, len(row) - 3)):
         name = equip_type_names.get(struct.unpack_from("<I", row, offset)[0])
@@ -1007,6 +966,7 @@ def _parse_archive_iteminfo_rows(
     *,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
     equip_type_names: Optional[Mapping[int, str]] = None,
+    prefab_names: Optional[Mapping[int, str]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
     """Read item rows using the `.pabgh` row directory for exact boundaries.
@@ -1042,8 +1002,6 @@ def _parse_archive_iteminfo_rows(
         display_name = ""
         if name_key:
             display_name = str(loc_tables.get("eng", {}).get(name_key, "") or "").strip()
-            if not display_name and localized_names:
-                display_name = localized_names[0]
         description = ""
         if description_key:
             description = str(loc_tables.get("eng", {}).get(description_key, "") or "").strip()
@@ -1073,6 +1031,13 @@ def _parse_archive_iteminfo_rows(
             scan = list_end
 
         model_stems: List[str] = []
+        if prefab_names is not None:
+            # Current rows include transforms before each list. Join only actual
+            # StringInfo keys that also name archived prefabs; never small integers.
+            prefab_hashes = list(dict.fromkeys(
+                value for scan in range(8 + len(name), max(8 + len(name), len(row_bytes) - 3))
+                if (value := struct.unpack_from("<I", row_bytes, scan)[0]) in prefab_names
+            ))
         if icon_model_hashes:
             for scan in range(0, max(0, len(row_bytes) - 3)):
                 value = struct.unpack_from("<I", row_bytes, scan)[0]
@@ -1140,6 +1105,7 @@ def _parse_archive_iteminfo_entry(
     header_entry: Optional[ArchiveEntry] = None,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
     equip_type_names: Optional[Mapping[int, str]] = None,
+    prefab_names: Optional[Mapping[int, str]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
@@ -1156,6 +1122,7 @@ def _parse_archive_iteminfo_entry(
                 loc_tables,
                 icon_model_hashes=icon_model_hashes,
                 equip_type_names=equip_type_names,
+                prefab_names=prefab_names,
                 stop_event=stop_event,
             )
         except RunCancelled:
@@ -1186,16 +1153,17 @@ def parse_archive_iteminfo(
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
-    item_entry = _find_archive_entry(entries, "0008", "iteminfo.pabgb")
+    sources = _collect_archive_item_index_sources(entries, stop_event=stop_event)
+    item_entry = sources.iteminfo_entry
     if item_entry is None:
         if on_log is not None:
-            on_log("Item-name search: iteminfo.pabgb was not found in package 0008.")
+            on_log("Item-name search: no complete ItemInfo table was found.")
         return []
 
     return _parse_archive_iteminfo_entry(
         item_entry,
         loc_tables,
-        header_entry=_find_archive_entry(entries, "0008", "iteminfo.pabgh"),
+        header_entry=sources.iteminfo_header_entry,
         on_log=on_log,
         stop_event=stop_event,
     )
@@ -1247,7 +1215,7 @@ def _catalog_internal_base(internal_name: str) -> str:
 
 
 def _friendly_internal_item_name(internal_name: str) -> str:
-    text = _catalog_internal_base(internal_name)
+    text = _INTERNAL_VARIANT_SUFFIX_RE.sub("", str(internal_name or "")).strip("_")
     text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", str(text or ""))
     text = re.sub(r"[_\-]+", " ", text)
     text = re.sub(r"\b(?:item|abyssreward|reward|equip|equipment)\b", " ", text, flags=re.IGNORECASE)
@@ -1922,18 +1890,18 @@ def _build_archive_item_search_index_from_records(
             f"linked {len(items_with_models):,} item(s) to model asset(s); "
             f"{exact_count:,} exact name key(s), {related_count:,} related/inferred name key(s)."
         )
-        catalog_count = len(_build_archive_asset_catalog_entries(items_with_models))
+        catalog_count = len(_build_archive_asset_catalog_entries(items))
         if catalog_count:
             on_log(f"Item-name search: built {catalog_count:,} deduped asset catalog row(s).")
 
     return ArchiveItemSearchIndex(
-        items=items_with_models,
+        items=list(items),
         pac_to_items=pac_to_items,
         model_base_aliases=model_base_aliases,
         model_base_display_names=model_base_display_names,
         model_base_exact_display_names=model_base_exact_display_names,
         model_base_related_display_names=model_base_related_display_names,
-        asset_catalog=_build_archive_asset_catalog_entries(items_with_models),
+        asset_catalog=_build_archive_asset_catalog_entries(items),
     )
 
 
@@ -1981,7 +1949,7 @@ def _try_build_archive_item_search_index_native(
             report_path = temp_path / "item_index_report.json"
             payload_root = temp_path / "payloads"
             payload_root.mkdir(parents=True, exist_ok=True)
-            _write_browser_entries_tsv(entries_path, entries)
+            _write_browser_entries_tsv(entries_path, (*sources.model_entries, *sources.icon_entries))
 
             def write_payload(name: str, entry: Optional[ArchiveEntry]) -> None:
                 if entry is None:
@@ -1994,6 +1962,7 @@ def _try_build_archive_item_search_index_native(
             write_payload("equiptypeinfo.bin", sources.equiptypeinfo_entry)
             write_payload("equiptypeinfo_header.bin", sources.equiptypeinfo_header_entry)
             write_payload("stringinfo.bin", sources.stringinfo_entry)
+            write_payload("stringinfo_header.bin", sources.stringinfo_header_entry)
             write_payload("partprefabdyeslotinfo.bin", sources.part_prefab_dye_slot_entry)
             for language_code, loc_entry in sources.localization_entries.items():
                 write_payload(f"loc_{language_code}.bin", loc_entry)
@@ -2026,7 +1995,7 @@ def _try_build_archive_item_search_index_native(
     if not isinstance(report, Mapping) or report.get("status") != "ok":
         return None
     catalog_schema = report.get("catalog_schema")
-    if catalog_schema is not None and catalog_schema != 1:
+    if catalog_schema != 2:
         if on_log is not None:
             on_log(f"Item-name search: native catalog schema {catalog_schema!r} is not supported; falling back to Python.")
         return None
@@ -2067,7 +2036,7 @@ def _try_build_archive_item_search_index_native(
             ),
             _material_evidence_for_item(item, item.material_tags),
         )
-        if item.internal_name and (item.pac_files or item.model_stems):
+        if item.internal_name:
             items.append(item)
     pac_to_items: Dict[str, List[ArchiveItemRecord]] = {}
     for item in items:
@@ -2124,7 +2093,8 @@ def build_archive_item_search_index(
         if native_index is not None:
             if on_progress is not None:
                 on_progress(3, 3, "Building item-name search... 3 / 3 phases")
-            return native_index
+            from cdmw.core.item_prefab_names import enrich_prefab_names
+            return enrich_prefab_names(native_index, sources.model_entries, stop_event=stop_event)
         if on_progress is not None:
             on_progress(2, 3, "Building item-name search... 2 / 3 phases")
         loc_tables = _parse_archive_localization_tables_from_sources(
@@ -2137,7 +2107,7 @@ def build_archive_item_search_index(
             on_log(f"Item-name search: loaded localization tables ({loaded or 'none'}).")
         if sources.iteminfo_entry is None:
             if on_log is not None:
-                on_log("Item-name search: iteminfo.pabgb was not found in package 0008.")
+                on_log("Item-name search: no complete ItemInfo table was found.")
             items = []
         else:
             icon_path_index = _build_archive_item_icon_path_index(sources.icon_entries)
@@ -2163,6 +2133,7 @@ def build_archive_item_search_index(
                 header_entry=sources.iteminfo_header_entry,
                 icon_model_hashes=icon_model_hashes,
                 equip_type_names=equip_type_names,
+                prefab_names=_archive_prefab_names(sources, stop_event=stop_event),
                 on_log=on_log,
                 stop_event=stop_event,
             )
@@ -2182,10 +2153,12 @@ def build_archive_item_search_index(
 
     if on_progress is not None:
         on_progress(3, 3, "Building item-name search... 3 / 3 phases")
-    return _build_archive_item_search_index_from_records(
+    index = _build_archive_item_search_index_from_records(
         items,
         sources.model_entries,
         icon_path_index=icon_path_index if "icon_path_index" in locals() else {},
         material_tag_index=material_tag_index if "material_tag_index" in locals() else {},
         on_log=on_log,
     )
+    from cdmw.core.item_prefab_names import enrich_prefab_names
+    return enrich_prefab_names(index, sources.model_entries, stop_event=stop_event)

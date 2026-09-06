@@ -209,9 +209,9 @@ class AnimationTabMixin:
         """Play a clip named by the charts, resolved through the browser's index."""
 
         stem = item.data(Qt.UserRole) or item.text()
-        # Resolved in this same turn, so the index has to be built rather than merely
-        # started — otherwise a clip the charts definitely name is reported as missing.
-        self._ensure_clip_index(wait=True)
+        self._when_clips_ready('socket-play', lambda: self._play_socket_stem(stem))
+
+    def _play_socket_stem(self, stem):
         found, _total = self._clip_index.filter(text=stem, include_lod=False, limit=32)
         exact = next((entry for entry in found if entry.name == stem), None)
         if exact is None:

@@ -694,7 +694,7 @@ class ArchivePreviewNativeMixin:
             return self._native_preview_core_failure_result(
                 NativePreviewCoreAttempt(
                     status="error",
-                    fallback_reason="Rust Preview preview cache root unavailable",
+                    fallback_reason="Preview cache root unavailable",
                     diagnostics=dict(native_attempt.diagnostics),
                     elapsed_ms=native_attempt.elapsed_ms,
                 ),
@@ -756,7 +756,7 @@ class ArchivePreviewNativeMixin:
             return self._native_preview_core_failure_result(
                 NativePreviewCoreAttempt(
                     status="error",
-                    fallback_reason=f"canonical Rust preview package generation failed: {exc}",
+                    fallback_reason=f"canonical preview package generation failed: {exc}",
                     diagnostics=diagnostics,
                     elapsed_ms=native_attempt.elapsed_ms,
                 ),
@@ -814,9 +814,9 @@ class ArchivePreviewNativeMixin:
             if str(note).strip()
         )
         diagnostic_lines = [
-            "Preview Core decoded the archive model for the canonical Rust Preview preview package.",
-            "Rust Preview package source: canonical Preview Core decode",
-            f"Rust Preview material tier: {material_quality}",
+            "Preview Core decoded the archive model for the canonical Preview package.",
+            "Preview package source: canonical Preview Core decode",
+            f"Preview material tier: {material_quality}",
             native_attempt.diagnostic_line(),
             (
                 "Native Material Quality: "
@@ -872,13 +872,13 @@ class ArchivePreviewNativeMixin:
         metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
         reason = str(
             getattr(native_attempt, "fallback_reason", "")
-            or "native Preview Core did not produce a Rust Preview package"
+            or "native Preview Core did not produce a Preview package"
         )
         detail_text = "\n".join(
             part
             for part in (
-                "Preview Core did not produce a canonical Rust Preview preview package.",
-                "The legacy renderer is not used as a fallback; the Rust Preview preview will retry.",
+                "Preview Core did not produce a canonical Preview package.",
+                "The legacy renderer is not used as a fallback; the Preview will retry.",
                 native_attempt.diagnostic_line(),
                 f"Native failure reason: {reason}",
             )

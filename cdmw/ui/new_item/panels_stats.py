@@ -17,8 +17,10 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -57,6 +59,7 @@ class StatsPanel(QGroupBox):
         #: ladder's stats alone does not refill the whole list
         self._status_choice_keys: Optional[tuple] = None
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(6,9,6,9)
         self.experimental = NoteLabel("Experimental", WARN)
         self.experimental.setToolTip(
             "Attack, defence and similar fields are raw game values, not the damage number shown to the player. "
@@ -66,11 +69,27 @@ class StatsPanel(QGroupBox):
         self.carries = intro_label("")
         layout.addWidget(self.carries)
         tables = QHBoxLayout()
+        self.tables_layout = tables
         tables.addWidget(self._build_ladder_group(), 3, Qt.AlignmentFlag.AlignTop)
         tables.addWidget(self._build_base_group(), 1, Qt.AlignmentFlag.AlignTop)
-        layout.addLayout(tables)
-        layout.addStretch(1)
+        stats_page = QWidget()
+        stats_layout = QVBoxLayout(stats_page)
+        stats_layout.setContentsMargins(0,0,0,0)
+        stats_layout.addLayout(tables)
+        stats_layout.addStretch(1)
+        self.views = QTabWidget()
+        self.views.addTab(stats_page, "Stats and prices")
+        from cdmw.ui.new_item.recipe_editor import RecipeEditor
+        self.recipes = RecipeEditor(controller)
+        self.views.addTab(self.recipes, "Enhancement and crafting recipes")
+        layout.addWidget(self.views, 1)
         controller.template_changed.connect(self.rebuild)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Expanded controls and larger UI fonts need one column at compact widths.
+        direction = QHBoxLayout.TopToBottom if self.width() < 1400 else QHBoxLayout.LeftToRight
+        self.tables_layout.setDirection(direction)
 
     # ------------------------------------------------------------------ construction
 
@@ -343,6 +362,8 @@ class StatsPanel(QGroupBox):
         self.own_rows.blockSignals(True)
         self.own_rows.setChecked(bool(draft.own_enhancement_rows))
         self.own_rows.blockSignals(False)
+        snapshot = self._controller.snapshot
+        self.own_rows.setVisible(not (snapshot and snapshot.sources and snapshot.sources.static_layout))
         self._table_resize_pending = True
         if self.isVisible():
             self._resize_tables()

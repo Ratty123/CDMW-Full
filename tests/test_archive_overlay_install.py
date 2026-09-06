@@ -184,6 +184,38 @@ class OverlayInstallTests(unittest.TestCase):
         self.assertEqual(result.directory.name, "0037")
         self.assertEqual((foreign / "keep.txt").read_bytes(), b"belongs to another mod")
 
+    def test_an_absent_optional_game_archive_still_reserves_its_mount_number(self) -> None:
+        from cdmw.core.papgt_format import papgt_with_directory
+
+        mount = self.root / "meta" / "0.papgt"
+        mount.write_bytes(papgt_with_directory(mount.read_bytes(), "0036", 123, flags=0x8001, first=False))
+        before = parse_papgt(mount.read_bytes())
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        result = install_overlay([ArchivePatchRequest(target, b"payload")], package_root=self.root)
+        self.assertEqual(result.directory.name, "0037")
+        self.assertEqual(parse_papgt(mount.read_bytes())[1:], before)
+        self.assertFalse((self.root / "0036").exists())
+        with self.assertRaisesRegex(ValueError, "reserved by the game's mount list"):
+            prepare_overlay_install([ArchivePatchRequest(target, b"payload")], package_root=self.root, directory_name="0036")
+
+    def test_an_old_owner_marker_cannot_overwrite_a_changed_game_mount(self) -> None:
+        from cdmw.core.papgt_format import papgt_with_directory
+
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        result = install_overlay([ArchivePatchRequest(target, b"payload")], package_root=self.root)
+        mount = self.root / "meta" / "0.papgt"
+        mount.write_bytes(papgt_with_directory(mount.read_bytes(), result.directory.name, result.pamt_checksum ^ 1))
+        before = {p: p.read_bytes() for p in (mount, result.directory / "0.pamt", result.directory / "0.paz")}
+        with self.assertRaisesRegex(ValueError, "no longer matches"):
+            install_overlay([ArchivePatchRequest(target, b"changed")], package_root=self.root)
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+
+    def test_chosen_overlay_number_cannot_escape_or_name_a_shipped_group(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        for name in ("../0041", "0009", "10000", "mods", "36"):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Overlay folder must"):
+                prepare_overlay_install([ArchivePatchRequest(target, b"payload")], package_root=self.root, directory_name=name)
+
     def test_a_write_failure_rolls_back_without_a_restore_service(self) -> None:
         import cdmw.services.archive_overlay_install as overlay
 

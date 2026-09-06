@@ -230,6 +230,7 @@ class _MeshEditSession:
     mesh_layer_loaded_generation: str = ""
     skeleton: object | None = None
     skeleton_source: str = ""
+    skeleton_resolution_reason: str = ""
     skeleton_descriptor_source: str = ""
     skeleton_variation_source: str = ""
     animation_constraint_source: str = ""

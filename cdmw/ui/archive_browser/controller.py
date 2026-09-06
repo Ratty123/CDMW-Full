@@ -285,7 +285,8 @@ class ArchiveBrowserRowPayloadMixin:
         size_text, size_tooltip = self._archive_entry_display_size(entry)
         display_name = normalized_parts[-1] if normalized_parts else entry.basename
         exact_item_name, name_match, name_match_tooltip = self._archive_entry_item_name_match(entry)
-        item_name = exact_item_name or name_match
+        from cdmw.domain.archives.item_names import compact_item_name
+        item_name = compact_item_name(exact_item_name or name_match)
         role_label = self._archive_entry_role_label(entry)
         override_state = self._archive_entry_override_state_label(entry)
         columns = (

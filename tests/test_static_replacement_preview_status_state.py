@@ -61,7 +61,7 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
     assert "Edit Mesh > Viewport" in text["mesh_view_tooltip"]
     assert "Faces + Wire is the readable default" in text["mesh_view_tooltip"]
     assert text["dotnet_view_label"] == "Preview mode"
-    assert "Rust Preview" in text["dotnet_view_tooltip"]
+    assert "Preview" in text["dotnet_view_tooltip"]
     assert "Only renderer-backed modes" in text["dotnet_view_tooltip"]
     assert text["settings_button"] == "Preview Settings..."
     assert text["use_global"] == "Use Global"
@@ -76,8 +76,8 @@ def test_alignment_preview_control_text_uses_rust_authoritative_status_copy() ->
     assert "d3d11_legend" not in text
     assert "d3d11_legend_tooltip" not in text
     assert "title" not in text
-    assert text["d3d11_waiting_status"] == "Rust Preview alignment preview is waiting for the resident renderer."
-    assert text["d3d11_renderer_error"] == "Rust Preview renderer error."
+    assert text["d3d11_waiting_status"] == "Preview alignment preview is waiting for the resident renderer."
+    assert text["d3d11_renderer_error"] == "Preview renderer error."
     assert text["d3d11_unavailable_status"] == "Preview host is unavailable."
     assert text["d3d11_closed_status"] == "Preview closed."
 
@@ -89,13 +89,13 @@ def test_alignment_preview_help_presentation_preserves_renderer_mode_copy() -> N
     assert static_help.text == "Live preview. Build Mod validates final package paths during export."
     assert "candidate location/rotation/scale" in static_help.tooltip
     assert "Mesh Replacement Alignment renderer" in static_help.settings_tooltip
-    assert d3d11_help.text == "Resident Rust Preview alignment preview."
-    assert "resident Rust Preview renderer" in d3d11_help.tooltip
-    assert "Rust Preview renderer" in d3d11_help.settings_tooltip
+    assert d3d11_help.text == "Resident Preview alignment preview."
+    assert "resident Preview renderer" in d3d11_help.tooltip
+    assert "Preview renderer" in d3d11_help.settings_tooltip
 
 
 def test_alignment_d3d11_renderer_error_message_preserves_fallback() -> None:
-    assert alignment_d3d11_renderer_error_message("") == "Rust Preview renderer error."
+    assert alignment_d3d11_renderer_error_message("") == "Preview renderer error."
     assert alignment_d3d11_renderer_error_message("GPU device removed") == "GPU device removed"
 
 

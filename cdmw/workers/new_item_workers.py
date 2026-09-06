@@ -10,6 +10,7 @@ them, and cancellation raises the shared `RunCancelled`.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence
 
@@ -49,8 +50,8 @@ def list_archive_entries(
 
     The shell's standalone catalogue backend shows the Archive Browser without ever
     filling the window's legacy entry list, so a tool that needs the whole list reads
-    it here (about ten seconds for the shipped game); a package table that will not
-    parse is skipped and said so.
+    it here (about ten seconds for the shipped game). A failed archive index stops
+    authoring: its missing entries could otherwise expose an older table generation.
     """
 
     from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
@@ -68,8 +69,8 @@ def list_archive_entries(
             entries.extend(batch)
             if preview_warmup is not None:
                 preview_warmup.offer(batch)
-        except Exception as error:  # noqa: BLE001 - one bad package is not the end of the list
-            log(f"Skipping {pamt.parent.name}/{pamt.name}: {error}")
+        except Exception as error:  # noqa: BLE001 - report the exact unreadable source
+            raise ValueError(f"Cannot read archive index {pamt}; New Item needs a complete source catalogue: {error}") from error
         if index % 8 == 0 or index == len(tables):
             log(f"Listed {index}/{len(tables)} package tables, {len(entries):,} entries so far...")
     return tuple(entries)
@@ -103,7 +104,11 @@ def snapshot_task(
         warmup = NewItemPreviewWarmup(native_preview_core_cache_root, warmup_settings, stop_event)
         try:
             listed = frozen
-            if not listed:
+            stale_listing = bool(package_root and listed and any(
+                not Path(path).is_file()
+                for path in {entry.pamt_path for entry in listed} | {entry.paz_file for entry in listed}
+            ))
+            if not listed or stale_listing:
                 if package_root is None:
                     raise ValueError("The archive list is empty and no package root was given.")
                 listed = list_archive_entries(Path(package_root), log, stop_event, preview_warmup=warmup)
@@ -114,9 +119,9 @@ def snapshot_task(
                 read_entry=read_entry,
                 on_log=log,
                 stop_event=stop_event,
-                entries_by_normalized_path=entries_by_normalized_path,
-                entries_by_basename=entries_by_basename,
-                entries_by_extension=entries_by_extension,
+                entries_by_normalized_path=None if stale_listing else entries_by_normalized_path,
+                entries_by_basename=None if stale_listing else entries_by_basename,
+                entries_by_extension=None if stale_listing else entries_by_extension,
             )
         finally:
             warmup.finish()
@@ -131,6 +136,8 @@ def plan_task(
     service: NewItemService,
     model: object | None = None,
     scene: object | None = None,
+    variant_models: Optional[Mapping[tuple, object]] = None,
+    variant_scenes: Optional[Mapping[tuple, object]] = None,
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
     mod_base_folder: Optional[Path] = None,
@@ -142,33 +149,41 @@ def plan_task(
     the material route's texture encodes). `reserved_*` are identities already handed out
     that the snapshot cannot see (an earlier plan this session, a loose mod not installed)."""
 
+    variant_arguments = {} if variant_models is None else {
+        "variant_models": dict(variant_models), "variant_scenes": dict(variant_scenes or {}),
+    }
+    reserved_keys, reserved_stems = tuple(reserved_keys), tuple(reserved_stems)
+
     def run(log: LogSink, stop_event: threading.Event) -> NewItemPlan:
         base = snapshot
+        refreshed = None
+        if snapshot.source_files_changed():
+            log("The game archives changed. Refreshing them before building the plan...")
+            root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
+            refreshed = service.build_snapshot(
+                list_archive_entries(root, log, stop_event),
+                read_entry=read_entry or (snapshot.provenance.reader if snapshot.provenance else snapshot.read_entry), on_log=log, stop_event=stop_event,
+            )
+            base = refreshed
         if mod_base_folder is not None:
             if read_entry is None:
                 raise ValueError("Read the archives first.")
-            from cdmw.services.new_item_mod_base import mod_folder_payloads, read_entry_over_mod_folder
+            from cdmw.services.new_item_mod_base import build_mod_base_snapshot
 
-            payloads = mod_folder_payloads(Path(mod_base_folder), stop_event=stop_event)
-            if payloads:
-                log("Reading the archives again so the next item gets its own key and stem...")
-                try:
-                    base = service.build_snapshot(
-                        tuple(snapshot.entries.values()),
-                        read_entry=read_entry_over_mod_folder(read_entry, payloads),
-                        on_log=log,
-                        stop_event=stop_event,
-                    )
-                except (OSError, ValueError) as exc:
-                    raise ValueError(f"The mod folder could not be read as a base: {exc}") from exc
+            log("Reading the mod base so the next item keeps its existing dependencies...")
+            base = build_mod_base_snapshot(
+                service, base, Path(mod_base_folder), read_entry=read_entry,
+                on_log=log, stop_event=stop_event,
+            )
         resolved_icon = icon_source_path
         if spec.icon is IconSource.GENERATED and icon_source_path is not None:
             resolved_icon = _resolve_icon_source(spec, base, Path(icon_source_path), stop_event=stop_event)
-        return service.plan(
-            spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon,
+        plan = service.plan(
+            spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon, **variant_arguments,
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
             on_log=log, stop_event=stop_event,
         )
+        return replace(plan, refreshed_snapshot=refreshed) if refreshed is not None else plan
 
     return run
 
@@ -243,11 +258,12 @@ def install_overlay_task(
     service: NewItemService,
     mutation_service,
     confirmed: bool,
+    directory_name: Optional[str] = None,
 ) -> Callable[[LogSink, threading.Event], object]:
     """Install as an archive directory of the item's own, mounted ahead of the shipped ones."""
 
     def run(log: LogSink, stop_event: threading.Event) -> object:
-        return service.install_overlay(plan, mutation_service=mutation_service, confirmed=confirmed, on_log=log, stop_event=stop_event)
+        return service.install_overlay(plan, mutation_service=mutation_service, confirmed=confirmed, directory_name=directory_name, on_log=log, stop_event=stop_event)
 
     return run
 

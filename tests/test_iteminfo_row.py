@@ -190,7 +190,7 @@ class ParseTests(unittest.TestCase):
     def test_a_row_without_a_stat_block_still_parses(self) -> None:
         raw = build_row()
         # corrupt the marker so no block is found; the prefix and description still decode
-        cut = raw.replace(bytes([0x11, 0x01, 0x01]), bytes([0x12, 0x01, 0x01]))
+        cut = raw.replace(bytes([0x11, 0x01, 0x01]), bytes([0x13, 0x01, 0x01]))
         row = parse_iteminfo_row(cut)
         self.assertEqual(row.coverage, "no-stat-block")
         self.assertEqual(row.item_type, 103)
@@ -413,7 +413,7 @@ class RebuildTests(unittest.TestCase):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), header_bytes=b"\x00"))
         with self.assertRaisesRegex(ItemInfoRowError, "5 bytes"):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), level_stat_keys=(1,), level_stat_entries=(b"\x00",)))
-        no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x01, 0x01]), bytes([0x12, 0x01, 0x01])))
+        no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x01, 0x01]), bytes([0x13, 0x01, 0x01])))
         with self.assertRaisesRegex(ItemInfoRowError, "no decoded stat block"):
             rebuild_stat_block(no_block)
         # a level built by hand still encodes
@@ -446,19 +446,10 @@ class VanillaItemInfoTests(unittest.TestCase):
         from cdmw.core.archive_extraction import read_archive_entry_data
         from cdmw.core.structured_binary_editor import parse_pabgh_table
 
-        if not corpus.game_root().is_dir():
-            self.skipTest("needs the installed game")
-        wanted = {
-            "gamedata/binary__/client/bin/iteminfo.pabgb", "gamedata/binary__/client/bin/iteminfo.pabgh",
-            "gamedata/binary__/client/bin/equiptypeinfo.pabgb", "gamedata/binary__/client/bin/equiptypeinfo.pabgh",
-        }
-        found = {}
-        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
-            path = corpus.normalize_game_path(entry.path)
-            if path in wanted:
-                found[path.rsplit("/", 1)[-1]] = read_archive_entry_data(entry)[0]
-        if len(found) != 4:
-            self.skipTest("iteminfo/equiptypeinfo not found in the archives")
+        from tools.new_item_corpus import read_table
+        item_pair, equip_pair = read_table("iteminfo"), read_table("equiptypeinfo")
+        found = {"iteminfo.pabgb": item_pair.payload, "iteminfo.pabgh": item_pair.header,
+                 "equiptypeinfo.pabgb": equip_pair.payload, "equiptypeinfo.pabgh": equip_pair.header}
         table = parse_pabgh_table(found["iteminfo.pabgh"], payload=found["iteminfo.pabgb"])
         payload = found["iteminfo.pabgb"]
         spans = table.row_spans(len(payload))
@@ -498,15 +489,9 @@ class VanillaItemInfoTests(unittest.TestCase):
         from cdmw.core.archive_extraction import read_archive_entry_data
         from cdmw.core.structured_binary_editor import parse_pabgh_table
 
-        if not corpus.game_root().is_dir():
-            self.skipTest("needs the installed game")
-        found = {}
-        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
-            path = corpus.normalize_game_path(entry.path)
-            if path in ("gamedata/binary__/client/bin/iteminfo.pabgb", "gamedata/binary__/client/bin/iteminfo.pabgh"):
-                found[path.rsplit(".", 1)[-1]] = read_archive_entry_data(entry)[0]
-        if len(found) != 2:
-            self.skipTest("iteminfo not found in the archives")
+        from tools.new_item_corpus import read_table
+        pair = read_table("iteminfo")
+        found = {"pabgb": pair.payload, "pabgh": pair.header}
         table = parse_pabgh_table(found["pabgh"], payload=found["pabgb"])
         payload = found["pabgb"]
         spans = table.row_spans(len(payload))

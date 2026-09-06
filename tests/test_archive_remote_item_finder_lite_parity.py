@@ -175,6 +175,25 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
     assert settings.values["ui/item_finder_group"] == ""
 
 
+def test_name_only_item_remains_visible_with_asset_actions_disabled() -> None:
+    from dataclasses import replace
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    row = replace(_row(7), pac_files=(), model_stems=(), icon_paths=())
+    window.archive_catalogue_service.result_ready.emit(
+        "search-1", "search_item_catalog", ItemCatalogSearchResult("session-a", 1, 0, 72, (row,), ()),
+    )
+    dialog._item_grid.setCurrentRow(0)
+    _drain()
+    assert dialog._item_grid.count() == 1
+    assert not dialog._exact_button.isEnabled() and not dialog._related_button.isEnabled()
+    dialog._scope_selected(include_related=False)
+    assert window.archive_catalogue_service.scopes == []
+    dialog.close()
+
+
 def test_new_search_cancels_icons_and_rejects_stale_conversion(tmp_path) -> None:
     _app()
     window = _Window()

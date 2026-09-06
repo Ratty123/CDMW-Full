@@ -218,9 +218,8 @@ internal static class ArchiveNameIndexBuilder
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress)
     {
-        var result = new NameSources();
+        var sources = new ArchiveItemSources(session.PackageRoot);
         var total = session.Index.EntryCount;
-        Publish(progress, new ProgressUpdate(0, total, "names_scan"));
         for (long entryId = 0; entryId < total; entryId++)
         {
             if ((entryId & 0x1FFF) == 0)
@@ -228,38 +227,11 @@ internal static class ArchiveNameIndexBuilder
                 cancellationToken.ThrowIfCancellationRequested();
                 Publish(progress, new ProgressUpdate(entryId, total, "names_scan"));
             }
-            var entry = session.ReadEntry(entryId);
-            var package = PackageGroup(entry.SourcePamt);
-            var path = entry.Path.Replace('\\', '/');
-            var basename = Path.GetFileName(path);
-            if (package.Equals("0008", StringComparison.OrdinalIgnoreCase))
-            {
-                if (result.ItemInfo is null && path.Contains("iteminfo.pabgb", StringComparison.OrdinalIgnoreCase))
-                {
-                    result.ItemInfo = entry;
-                }
-                else if (result.ItemInfoHeader is null && path.Contains("iteminfo.pabgh", StringComparison.OrdinalIgnoreCase))
-                {
-                    result.ItemInfoHeader = entry;
-                }
-                else if (result.StringInfo is null && basename.Equals("stringinfo.pabgb", StringComparison.OrdinalIgnoreCase))
-                {
-                    result.StringInfo = entry;
-                }
-            }
-            else if (package.Equals("0020", StringComparison.OrdinalIgnoreCase) &&
-                path.Contains("localizationstring_", StringComparison.OrdinalIgnoreCase))
-            {
-                foreach (var (language, tableName) in LocalizationTables)
-                {
-                    if (path.Contains(tableName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        result.Localization.TryAdd(language, entry);
-                        break;
-                    }
-                }
-            }
+            sources.Offer(session.ReadEntry(entryId));
         }
+        sources.Finish();
+        var result = new NameSources { ItemInfo = sources.ItemInfo, ItemInfoHeader = sources.ItemInfoHeader, StringInfo = sources.StringInfo };
+        foreach (var pair in sources.Localizations) result.Localization[pair.Key] = pair.Value;
         return result;
     }
 
@@ -717,7 +689,9 @@ internal static class ArchiveNameIndexBuilder
         NativeArchiveCore native,
         IEnumerable<string> candidateStems,
         CancellationToken cancellationToken,
-        Func<ProgressUpdate, Task>? progress)
+        Func<ProgressUpdate, Task>? progress,
+        bool exactStems = false,
+        ArchiveItemSources? sources = null)
     {
         var candidateKeys = candidateStems
             .Select(NormalizeModelStem)
@@ -729,7 +703,7 @@ internal static class ArchiveNameIndexBuilder
         var ownersByPrefabName = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var candidate in candidateKeys)
         {
-            foreach (var prefabStem in PrefabCandidateStems(candidate))
+            foreach (var prefabStem in exactStems ? new[] { candidate } : PrefabCandidateStems(candidate))
             {
                 var basename = prefabStem + ".prefab";
                 if (!ownersByPrefabName.TryGetValue(basename, out var owners))
@@ -742,6 +716,7 @@ internal static class ArchiveNameIndexBuilder
         }
 
         var matches = new List<(ArchiveEntryDto Entry, HashSet<string> Owners)>();
+        var existingModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var total = session.Index.EntryCount;
         Publish(progress, new ProgressUpdate(0, total, "names_prefab_scan"));
         for (long entryId = 0; entryId < total; entryId++)
@@ -752,7 +727,8 @@ internal static class ArchiveNameIndexBuilder
                 Publish(progress, new ProgressUpdate(entryId, total, "names_prefab_scan"));
             }
             var entry = session.Index.ReadEntry(entryId, session.Id);
-            if (entry.Extension != ".prefab") continue;
+            if (entry.Extension == ".pac" && (sources is null || sources.Accepts(entry))) existingModels.Add(entry.Path.Replace('\\', '/'));
+            if (entry.Extension != ".prefab" || (sources is not null && !sources.Accepts(entry))) continue;
             var basename = Path.GetFileName(entry.Path);
             if (ownersByPrefabName.TryGetValue(basename, out var owners))
             {
@@ -760,6 +736,10 @@ internal static class ArchiveNameIndexBuilder
             }
         }
 
+        matches = matches.GroupBy(row => row.Entry.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(group => sources is null
+                ? group.MaxBy(row => ArchiveItemSources.Priority(row.Entry))
+                : group.MaxBy(row => sources.Order(row.Entry))).ToList();
         var resolved = candidateKeys.ToDictionary(
             static candidate => candidate,
             static _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase),
@@ -782,7 +762,7 @@ internal static class ArchiveNameIndexBuilder
             {
                 continue;
             }
-            var modelPaths = ExtractPrefabModelPaths(bytes);
+            var modelPaths = ExtractPrefabModelPaths(bytes).Where(existingModels.Contains);
             foreach (var owner in owners)
             {
                 resolved[owner].UnionWith(modelPaths);
@@ -1048,7 +1028,9 @@ internal static class ArchiveNameIndexBuilder
     private static uint ReadUInt32(byte[] data, int offset) =>
         BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset, sizeof(uint)));
 
-    private static uint HashLittle(ReadOnlySpan<byte> data, uint initialValue)
+    internal static uint ModelNameHash(string stem) => HashLittle(Encoding.UTF8.GetBytes(stem), NameHashSeed);
+
+    internal static uint HashLittle(ReadOnlySpan<byte> data, uint initialValue)
     {
         unchecked
         {

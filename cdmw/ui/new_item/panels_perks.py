@@ -88,7 +88,7 @@ class PerksPanel(QGroupBox):
         self.custom_perks = QWidget()
         custom_layout = QVBoxLayout(self.custom_perks)
         custom_layout.setContentsMargins(0, 0, 0, 0)
-        custom_layout.setSpacing(6)
+        custom_layout.setSpacing(4)
         self.perk_count = QLabel("")
         self.perk_count.setWordWrap(True)
         columns = QHBoxLayout()
@@ -325,6 +325,12 @@ class PerksPanel(QGroupBox):
         self.effects_page = self.effects_workspace
         self.tabs.addTab(self.perks_page, "Perks (experimental)")
         self.tabs.addTab(self.effects_page, "Effects")
+        from cdmw.ui.new_item.socket_editor import SocketEditor
+        self.socket_editor = SocketEditor(self._controller)
+        self.tabs.addTab(self.socket_editor, "Available sockets")
+        from cdmw.ui.new_item.bonus_editor import BonusEditor
+        self.bonus_editor = BonusEditor(self._controller)
+        self.tabs.addTab(self.bonus_editor, "Inherent bonuses")
         self.tabs.setCurrentWidget(self.effects_page)
         self.own_perks.toggled.connect(self._show_perks_when_customizing)
         self._show_perks_when_customizing(self.own_perks.isChecked())
