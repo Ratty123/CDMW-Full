@@ -89,6 +89,8 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- Fixed Create New Item rejecting rigid sword replacements when the selected template includes weighted accessories. Plan validation now preserves the exact prefab/socket attachment, keeps unchanged template bindings, and still validates changed skinned imports against their target rig.
+- Fixed an archive-catalogue startup exception while Create New Item or another tool is open: catalogue status updates now reach the owning shell through the archive workspace.
 - Fixed New Item Effects repeatedly restarting with "Preview protocol line exceeded its safety limit" for complex effects. Placement and gizmo updates now send only their mutable state, including on restart recovery.
 - Upscale automatically widens its sidebar on opening, section expansion and window resize. Asset Authoring path rows stack their labels so Browse buttons and processing controls remain visible on smaller windows.
 - Completed translations for the recently added New Item model and placement controls.

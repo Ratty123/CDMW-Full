@@ -47,19 +47,21 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
                                       scene=scenes.get(appearance.identity), glow=appearance.glow_choice(), on_log=on_log)
-        validate_variant_rig(snapshot, appearance.model_path, files.pac_data)
+        validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
         result[appearance.identity] = files
     return result
 
 
-def validate_variant_rig(snapshot, target_path, payload):
-    """Require the target's actual skin palette; never borrow another character's rig."""
-    from cdmw.modding.mesh_parser import parse_pac, pac_bone_palette_candidates, resolve_pac_bone_palette
+def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
+    """Preserve an exact attachment or require the target's actual skin palette."""
+    from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
     from cdmw.modding.skeleton_parser import parse_pab
     original = snapshot.payload(target_path)
     mesh = parse_pac(payload, target_path)
     if not mesh.total_vertices:
         raise ValueError("The variant import contains no supported mesh geometry.")
+    if payload == original:
+        return "unchanged template binding"
     target_mesh = parse_pac(original, target_path)
 
     def rigid(value):
@@ -73,6 +75,19 @@ def validate_variant_rig(snapshot, target_path, payload):
         if not rigid(mesh):
             raise ValueError("The rigid target requires its single attachment slot; this import changes the skin binding.")
         return "rigid prefab attachment"
+    if prefab_path and rigid(mesh):
+        from cdmw.core.archive_attachment_patches import inspect_prefab_attachment_profile_fields
+
+        # A socket-attached weapon can contain weighted accessories without a
+        # character PAB. A rigid replacement keeps the selected prefab's slot;
+        # the discarded accessory weights do not give the import a body rig.
+        profile = {field.field_name: field.value
+                   for field in inspect_prefab_attachment_profile_fields(snapshot.payload(prefab_path))}
+        attached_model = profile.get("_skinnedMeshFileName", "").replace("\\", "/").casefold()
+        if attached_model == target_path.replace("\\", "/").casefold() and all(
+            profile.get(name) for name in ("_attachedSocketName", "_pivotSocketName", "_socketFileName")
+        ):
+            return "rigid prefab attachment"
     parts = target_path.replace("\\", "/").split("/")
     if "1_pc" not in parts:
         raise ValueError("This skinned target has no proven playable-character rig binding.")

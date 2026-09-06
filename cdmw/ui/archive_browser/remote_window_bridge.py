@@ -645,7 +645,7 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._shadow:
             self._window.append_archive_log(f"Archive v2 shadow: {message}", verbose=True)
         else:
-            self._window.set_status_message(message)
+            self._window.shell.set_status_message(message)
 
     def _handle_progress(self, kind: str, update: object) -> None:
         if self._shadow:

@@ -9,7 +9,8 @@ lifecycle owner retains the closed dialog until every child thread has finished
 native teardown, then deletes it asynchronously. Partial construction failures
 use the same rule.
 
-The resident v2 catalogue is the listing authority. Preview requests are
+The resident v2 catalogue is the listing authority. Its status messages reach the
+owning shell through the archive workspace's `shell` reference. Preview requests are
 request-correlated and latest-wins: a stale selection may be superseded but may
 not clear or replace the current scene. Archive Browser publishes the path,
 basename, extension, dependency, and native package indexes reused by Model

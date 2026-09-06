@@ -126,6 +126,27 @@ def _remote(entry_id: int, path: str | None = None, *, extension: str = ".pac") 
     )
 
 
+def test_catalogue_status_reaches_shell_from_the_real_archive_workspace() -> None:
+    from cdmw.ui.archive_browser.workspace import ArchiveBrowserWorkspace
+    from cdmw.ui.shell.workbench import WorkbenchWindow
+
+    _app()
+    shell = WorkbenchWindow()
+    workspace = ArchiveBrowserWorkspace(shell)
+    shell.archive = workspace
+    workspace.archive_catalogue_service = _ShadowService(workspace)
+    workspace.archive_tree = ArchiveBrowserTreeView(workspace)
+    messages: list[str] = []
+    shell.set_status_message = messages.append
+    try:
+        bridge = ArchiveRemoteWindowBridge(workspace, display_v2=True, shadow=False)
+        bridge.controller.statusChanged.emit("Loading archive catalogue...")
+        assert messages == ["Loading archive catalogue..."]
+    finally:
+        shell.deleteLater()
+        _drain_events()
+
+
 def test_shadow_comparison_matches_counts_order_and_normalized_identities() -> None:
     _app()
     legacy = [_legacy(index) for index in range(3)]

@@ -45,6 +45,7 @@ def test_two_variant_imports_keep_distinct_assets_and_missing_build_is_rejected(
     with patch("cdmw.services.new_item_variants.validate_variant_rig") as validate:
         plan = service.plan(replace(spec(),variants=choices),snapshot,variant_models=builds)
     assert validate.call_count==2
+    assert [call.kwargs["prefab_path"] for call in validate.call_args_list] == [choice.prefab_path for choice in choices]
     paths = [entry["output_model"] for entry in plan.manifest["variants"] if "output_model" in entry]
     assert len(paths)==2 and len(set(paths))==2
     assert {plan.loose_files[path] for path in paths}=={b"import A",b"import B"}

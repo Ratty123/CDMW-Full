@@ -441,9 +441,13 @@ Variant allocation also reserves StringInfo and dye hashes, including orphaned
 dye records carried by a compatible mod base.
 Companion meshes are preserved, and held/sheathed bindings are individually visible.
 On the current format, the legacy single-model service argument adapts to the
-primary binding. Rigid attachments must retain their single slot. Skinned imports
-require a resolved target skeleton and matching bone palette; an unresolved or
-ambiguous rig is blocked rather than borrowed from another character.
+primary binding. Rigid attachments must retain their single slot. A rigid replacement
+can also retain the selected prefab's exact model/socket binding when the original
+weapon includes weighted accessories; those discarded accessories do not require a
+character skeleton for the new rigid mesh. Byte-identical models retain their existing
+template binding. Changed skinned imports require a resolved target skeleton and matching
+bone palette; an unresolved or ambiguous rig is blocked rather than borrowed from another
+character.
 Palette discovery follows the declared PAC metadata boundary, including palettes
 beyond the former 4 KB scan window, and excludes the geometry sections.
 
