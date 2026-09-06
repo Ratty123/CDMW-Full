@@ -597,7 +597,8 @@ impl LabApplication {
             ui.horizontal(|ui| {
                 for &(page, label, tool) in row {
                     let active = self.cdmw_rail_page == Some(page);
-                    let requires_authoring = page != CdmwRailPage::Select;
+                    let requires_authoring =
+                        !matches!(page, CdmwRailPage::Select | CdmwRailPage::RigWeights);
                     let enabled = !busy && (!requires_authoring || authoring);
                     if ui
                         .add_enabled(
@@ -615,6 +616,14 @@ impl LabApplication {
                         .clicked()
                     {
                         self.cdmw_rail_page = Some(page);
+                        if page == CdmwRailPage::RigWeights {
+                            self.cancel_active_gesture(
+                                "Rig inspection cancelled the previous gesture",
+                            );
+                            self.viewport_tool = ViewportTool::Select;
+                            self.selection_domain = SelectionDomain::Vertex;
+                            self.cdmw_orbit_mode = false;
+                        }
                         if let Some(tool) = tool {
                             if self.viewport_tool != tool {
                                 self.cancel_active_gesture(
@@ -632,7 +641,9 @@ impl LabApplication {
                 .map(|(page, _, _)| *page)
                 .find(|page| self.cdmw_rail_page == Some(*page))
             {
-                let enabled = !busy && (active_page == CdmwRailPage::Select || authoring);
+                let enabled = !busy
+                    && (matches!(active_page, CdmwRailPage::Select | CdmwRailPage::RigWeights)
+                        || authoring);
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.add_enabled_ui(enabled, |ui| match active_page {
                         CdmwRailPage::Select => self.draw_cdmw_selection_page(ui, actions),
@@ -1523,318 +1534,6 @@ impl LabApplication {
         });
         if let Some(feedback) = &self.cdmw_uv_feedback {
             ui.label(RichText::new(format!("Result: {feedback}")).small());
-        }
-    }
-
-    fn draw_cdmw_rig_weights_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let skeleton = self
-            .cdmw_state
-            .get("skeleton")
-            .cloned()
-            .unwrap_or(Value::Null);
-        let skinned = state_bool(&skeleton, "skinned");
-        let source_weights_available = state_bool(&skeleton, "source_weights_available");
-        let weight_capability = skeleton
-            .get("weight_edit_capability")
-            .cloned()
-            .unwrap_or(Value::Null);
-        let weight_edit_enabled = state_bool(&weight_capability, "enabled");
-        let weight_edit_reason = state_str(&weight_capability, "reason")
-            .filter(|reason| !reason.trim().is_empty())
-            .unwrap_or("The host did not authorize a safe skin-weight output route");
-        let palette_size = state_u64(&weight_capability, "palette_size");
-        let selected_bone = skeleton
-            .get("selected_bone_index")
-            .and_then(Value::as_i64)
-            .unwrap_or(-1);
-        let bones = skeleton
-            .get("bones")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        ui.label(RichText::new("Rig & Skin Weights").strong());
-        ui.label(if skinned {
-            format!(
-                "{} weighted vertices · {} bone rows",
-                state_u64(&skeleton, "weighted_vertex_count"),
-                bones.len()
-            )
-        } else if source_weights_available {
-            "The working mesh has no weight rows; source weights can be restored below.".to_owned()
-        } else {
-            "This mesh has no editable skin-weight rows.".to_owned()
-        });
-        ui.small(
-            "PAB handling is automatic: CDMW resolves a proven-family .PAB from the archive/package used to open this mesh. The Mesh Editor does not support manual .PAB attachment.",
-        );
-        if weight_edit_enabled {
-            ui.colored_label(
-                Color32::from_rgb(105, 205, 135),
-                format!(
-                    "Exact-safe rig mapping ready · {palette_size} PAC palette slot(s) · {} PAB bone row(s)",
-                    bones.len()
-                ),
-            );
-        } else if palette_size == 0 {
-            ui.small(
-                "To enable weight editing, open an Exact PAC LOD0 from CDMW Archive Browser with source weights and a resolvable PAC palette → PAB bone mapping.",
-            );
-        }
-        let selected_weights = skeleton
-            .get("selected_vertex_weights")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        if !selected_weights.is_empty() {
-            let bone_names = bones
-                .iter()
-                .filter_map(|bone| {
-                    Some((
-                        bone.get("index")?.as_i64()?,
-                        bone.get("name")?.as_str()?.to_owned(),
-                    ))
-                })
-                .collect::<HashMap<_, _>>();
-            ui.label(RichText::new("Selected vertex weights").strong());
-            for row in selected_weights.iter().take(8) {
-                let submesh = row
-                    .get("submesh_index")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(-1);
-                let vertex = row
-                    .get("vertex_index")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(-1);
-                let mapped = row
-                    .get("influences")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_array)
-                    .filter_map(|influence| {
-                        let bone = influence.first()?.as_i64()?;
-                        let weight = influence.get(1)?.as_f64()?;
-                        (weight.is_finite() && weight > 0.0).then_some((bone, weight))
-                    })
-                    .collect::<Vec<_>>();
-                let influences_resolved = row
-                    .get("influences_resolved")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(!mapped.is_empty());
-                let influence_labels = if influences_resolved {
-                    mapped
-                        .iter()
-                        .map(|(bone, weight)| {
-                            let name = bone_names
-                                .get(bone)
-                                .cloned()
-                                .unwrap_or_else(|| format!("Bone {bone}"));
-                            (name, *weight)
-                        })
-                        .collect::<Vec<_>>()
-                } else {
-                    row.get("influence_labels")
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .filter_map(Value::as_array)
-                        .filter_map(|influence| {
-                            let label = influence.first()?.as_str()?.to_owned();
-                            let weight = influence.get(1)?.as_f64()?;
-                            (weight.is_finite() && weight > 0.0).then_some((label, weight))
-                        })
-                        .collect::<Vec<_>>()
-                };
-                let mut influence_text = influence_labels
-                    .iter()
-                    .take(3)
-                    .map(|(label, weight)| format!("{label} {weight:.3}"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if influence_labels.len() > 3 {
-                    influence_text.push_str(&format!(" +{}", influence_labels.len() - 3));
-                }
-                if influence_text.is_empty() {
-                    influence_text = if influences_resolved {
-                        "No weighted influences".to_owned()
-                    } else {
-                        "No resolved influence labels".to_owned()
-                    };
-                }
-                let total = row
-                    .get("total_weight")
-                    .and_then(Value::as_f64)
-                    .filter(|weight| weight.is_finite())
-                    .unwrap_or(0.0);
-                let label = format!("SM {submesh} · V {vertex} · {influence_text} · Σ {total:.3}");
-                if row.get("invalid").and_then(Value::as_bool) == Some(true) {
-                    ui.colored_label(Color32::from_rgb(245, 120, 105), label);
-                } else {
-                    ui.small(label);
-                }
-            }
-            if selected_weights.len() > 8 {
-                ui.small(format!(
-                    "+{} more selected vertices",
-                    selected_weights.len() - 8
-                ));
-            }
-            if state_bool(&skeleton, "selected_weights_truncated") {
-                ui.small("Additional selected weight rows are hidden by the bounded host summary");
-            }
-        }
-        if !weight_edit_enabled {
-            ui.colored_label(Color32::from_rgb(245, 190, 75), weight_edit_reason);
-        }
-        ComboBox::from_label("Active bone")
-            .selected_text(
-                bones
-                    .iter()
-                    .find(|bone| bone.get("index").and_then(Value::as_i64) == Some(selected_bone))
-                    .and_then(|bone| bone.get("name").and_then(Value::as_str))
-                    .map(|name| format!("{selected_bone}: {name}"))
-                    .unwrap_or_else(|| "Choose bone".to_owned()),
-            )
-            .show_ui(ui, |ui| {
-                for bone in &bones {
-                    let index = bone.get("index").and_then(Value::as_i64).unwrap_or(-1);
-                    let name = bone.get("name").and_then(Value::as_str).unwrap_or("Bone");
-                    if ui
-                        .selectable_label(index == selected_bone, format!("{index}: {name}"))
-                        .clicked()
-                    {
-                        actions.push(UiAction::CdmwCommand {
-                            command: "rig_select_bone",
-                            arguments: json!({"bone_index": index}),
-                            label: "Select rig bone",
-                        });
-                    }
-                }
-            });
-        ui.horizontal(|ui| {
-            ui.label("Weight step");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_weight_step)
-                    .speed(0.01)
-                    .range(0.001..=1.0),
-            );
-        });
-        let selected_vertices = self
-            .mesh
-            .as_ref()
-            .is_some_and(|mesh| !mesh.selection.vertices.is_empty());
-        let selected_part_indices = self.selected_part_indices();
-        let selected_parts = !selected_part_indices.is_empty();
-        let eligible_submeshes = value_u32_list(&weight_capability, "eligible_submesh_indices")
-            .into_iter()
-            .collect::<HashSet<_>>();
-        let mut selected_target_submeshes =
-            selected_part_indices.into_iter().collect::<HashSet<_>>();
-        let mut has_unmappable_target = false;
-        if let Some(mesh) = &self.mesh {
-            for handle in &mesh.selection.vertices {
-                match mesh.vertex(*handle).map(|vertex| vertex.provenance) {
-                    Some(Provenance::Source { submesh, .. }) => {
-                        selected_target_submeshes.insert(submesh);
-                    }
-                    Some(Provenance::Generated { .. }) | None => has_unmappable_target = true,
-                }
-            }
-        }
-        let has_explicit_weight_target = selected_vertices || selected_parts;
-        let target_is_eligible = has_explicit_weight_target
-            && !has_unmappable_target
-            && selected_target_submeshes
-                .iter()
-                .all(|submesh| eligible_submeshes.contains(submesh));
-        let target_reason = if has_unmappable_target {
-            "Generated vertices do not have an exact-safe skin-weight target"
-        } else if has_explicit_weight_target && !target_is_eligible {
-            "The explicit selection includes vertices or Parts outside the exact-safe skin-weight subset"
-        } else {
-            "Explicitly select target vertices or Parts first"
-        };
-        if weight_edit_enabled && has_explicit_weight_target && !target_is_eligible {
-            ui.colored_label(Color32::from_rgb(245, 190, 75), target_reason);
-        }
-        let can_adjust = weight_edit_enabled
-            && target_is_eligible
-            && skinned
-            && selected_vertices
-            && selected_bone >= 0;
-        let step = self.cdmw_weight_step;
-        ui.horizontal_wrapped(|ui| {
-            for (label, delta) in [("Weight -", -step), ("Weight +", step)] {
-                if ui
-                    .add_enabled(can_adjust, Button::new(label))
-                    .on_disabled_hover_text(if !weight_edit_enabled {
-                        weight_edit_reason
-                    } else if !target_is_eligible {
-                        target_reason
-                    } else {
-                        "Choose a bone and explicitly select Vertex elements first"
-                    })
-                    .clicked()
-                {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "rig_adjust_weight",
-                        arguments: json!({"delta": delta}),
-                        label,
-                    });
-                }
-            }
-            if ui
-                .add_enabled(
-                    weight_edit_enabled && target_is_eligible && skinned && selected_vertices,
-                    Button::new("Normalize Weights"),
-                )
-                .on_disabled_hover_text(if !weight_edit_enabled {
-                    weight_edit_reason
-                } else if !target_is_eligible {
-                    target_reason
-                } else {
-                    "Switch Select target to Vertex and explicitly select weighted vertices"
-                })
-                .clicked()
-            {
-                actions.push(UiAction::CdmwCommand {
-                    command: "rig_normalize_weights",
-                    arguments: json!({}),
-                    label: "Normalize weights",
-                });
-            }
-        });
-        if ui
-            .add_enabled(
-                weight_edit_enabled
-                    && target_is_eligible
-                    && source_weights_available
-                    && (selected_vertices || selected_parts),
-                Button::new("Transfer from Original"),
-            )
-            .on_disabled_hover_text(if !weight_edit_enabled {
-                weight_edit_reason
-            } else if !source_weights_available {
-                "The immutable source mesh has no transferable skin weights"
-            } else if !target_is_eligible {
-                target_reason
-            } else {
-                "Explicitly select target vertices or Parts first"
-            })
-            .clicked()
-        {
-            actions.push(UiAction::CdmwCommand {
-                command: "rig_transfer_weights",
-                arguments: json!({}),
-                label: "Transfer source weights",
-            });
-        }
-        let unnormalized = state_u64(&skeleton, "unnormalized_vertex_count");
-        if unnormalized > 0 {
-            ui.colored_label(
-                Color32::from_rgb(245, 190, 75),
-                format!("{unnormalized} vertices have unnormalized weights"),
-            );
         }
     }
 
@@ -2804,6 +2503,7 @@ impl LabApplication {
                 self.handle_viewport_input(ui, rectangle, &response);
             }
             self.paint_viewport_overlay(ui, rectangle);
+            self.paint_rig_overlay(ui, rectangle);
             let mode = if self.cdmw_orbit_mode {
                 "Orbit"
             } else {
@@ -2846,7 +2546,7 @@ impl LabApplication {
         counts
     }
 
-    fn selected_part_indices(&self) -> Vec<u32> {
+    pub(super) fn selected_part_indices(&self) -> Vec<u32> {
         self.mesh.as_ref().map_or_else(Vec::new, |mesh| {
             let mut values = mesh.selection.submeshes.iter().copied().collect::<Vec<_>>();
             values.sort_unstable();
@@ -2902,7 +2602,7 @@ fn stable_ui_id(prefix: &str, label: &str) -> String {
     format!("{prefix}-{}", if slug.is_empty() { "item" } else { &slug })
 }
 
-fn value_u32_list(value: &Value, key: &str) -> Vec<u32> {
+pub(super) fn value_u32_list(value: &Value, key: &str) -> Vec<u32> {
     value
         .get(key)
         .and_then(Value::as_array)
@@ -2912,15 +2612,15 @@ fn value_u32_list(value: &Value, key: &str) -> Vec<u32> {
         .collect()
 }
 
-fn state_str<'a>(state: &'a Value, key: &str) -> Option<&'a str> {
+pub(super) fn state_str<'a>(state: &'a Value, key: &str) -> Option<&'a str> {
     state.get(key).and_then(Value::as_str)
 }
 
-fn state_u64(state: &Value, key: &str) -> u64 {
+pub(super) fn state_u64(state: &Value, key: &str) -> u64 {
     state.get(key).and_then(Value::as_u64).unwrap_or(0)
 }
 
-fn state_bool(state: &Value, key: &str) -> bool {
+pub(super) fn state_bool(state: &Value, key: &str) -> bool {
     state.get(key).and_then(Value::as_bool).unwrap_or(false)
 }
 

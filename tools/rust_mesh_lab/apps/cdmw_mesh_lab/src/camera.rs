@@ -454,7 +454,7 @@ impl OrbitCamera {
         self.frame_bounds(minimum, maximum);
     }
 
-    fn frame_positions_in_viewport(
+    pub(super) fn frame_positions_in_viewport(
         &mut self,
         positions: impl Iterator<Item = Vec3>,
         rectangle: Rect,

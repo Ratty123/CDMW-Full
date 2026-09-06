@@ -6327,6 +6327,13 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 clone=False,
             ).submeshes[0].bone_weights[0]
             self.assertEqual(107, selected["state"]["skeleton"]["selected_bone_index"])
+            self.assertNotIn("document", selected["state"])
+            influence = selected["state"]["rig_influence"]
+            self.assertTrue(influence["available"])
+            self.assertEqual(107, influence["bone_index"])
+            self.assertEqual([0, 55.0 / 255.0], influence["parts"][0]["weights"][0])
+            self.assertNotEqual(influence, adjusted["state"]["rig_influence"])
+            self.assertEqual(influence, transferred["state"]["rig_influence"])
             self.assertEqual(
                 [103, 107],
                 [

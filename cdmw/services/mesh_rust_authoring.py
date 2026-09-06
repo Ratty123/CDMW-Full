@@ -7704,6 +7704,12 @@ class RustMeshAuthoringSession:
                 palette_slot_to_bone_index=palette_slot_to_bone_index,
                 selected_palette_slot=selected_palette_slot,
             )
+            from cdmw.services.mesh_rust_rig import selected_bone_influence
+
+            with shadow_session.export_lock:
+                state["rig_influence"] = selected_bone_influence(
+                    shadow_session, selected_bone_index, weight_edit_capability.palette
+                )
         except (KeyError, RuntimeError, TypeError, ValueError) as exc:
             state["skeleton"] = {
                 "available": False,

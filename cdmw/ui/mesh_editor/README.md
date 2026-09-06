@@ -165,6 +165,20 @@ automatic-resolution failure (including missing dependencies, ambiguous matches,
 and invalid or empty skeletons) and keeps weight editing disabled until the exact
 PAC LOD0, palette, source-map, and record-layout requirements are satisfied.
 
+Rig & Weights identifies the loaded mesh, named Parts, and automatically attached
+PAB. Its searchable bone chooser shows parent context and a labelled gold marker
+on the active bone. Bone inspection preserves the edit selection and camera;
+**Frame bone** and **Frame influence** provide explicit navigation. **Weight
+colours** displays the active bone's resolved influence on visible surfaces using
+a labelled blue-to-gold 0–100% scale, independently of orange edit-selection
+highlights and saved materials. **Select influenced vertices** replaces the edit
+selection with positive-weight vertices in visible Parts, including their rear
+vertices. Hidden Parts remain excluded. Selected weight details are collapsible
+below the controls. Missing mappings and oversized or invalid display data show
+an unavailable reason rather than a partial or guessed influence. Skeleton lines
+use mesh-space bind positions, not the PAB's parent-local offsets. These controls
+inspect the bind rig; they do not pose it or paint weights with a brush.
+
 The integrated Rust viewport reuses Archive Browser's complete resolved
 PAC/PAC_XML material model together with the native material package for the
 same mesh identity. The asynchronous resolver publishes the full model, its

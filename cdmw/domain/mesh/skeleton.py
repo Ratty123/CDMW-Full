@@ -518,7 +518,9 @@ def summarize_skeleton_bones(skeleton: object | None) -> tuple[MeshSkeletonBoneS
                 parent_name=str(getattr(parent, "name", "") or "") if parent is not None else "",
                 child_count=children_by_parent.get(index, 0),
                 depth=depth_for(index),
-                position=_vec3(getattr(bone, "position", ())),
+                # PAB's trailing position is parent-local. Overlays and bone
+                # summaries share the mesh-space bind transform used by skinning.
+                position=_transform_point(_bone_bind_matrix(bone), (0.0, 0.0, 0.0)),
             )
         )
     return tuple(summaries)

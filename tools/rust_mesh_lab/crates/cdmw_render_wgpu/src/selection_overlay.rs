@@ -109,6 +109,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         ("xray", true, 0.6, false),
         ("same depth", false, 0.2, false),
         ("cleared", false, 0.6, true),
+        ("weight gradient", false, 0.6, false),
     ] {
         let positions = [[-1., -1., depth], [1., -1., depth], [0., 1., depth]];
         selection.upload(
@@ -117,6 +118,14 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             if empty { &[] } else { &positions },
             colour,
         )?;
+        if label == "weight gradient" {
+            selection.upload_coloured(
+                &device,
+                &queue,
+                &positions,
+                &[[1., 0., 0., 1.], [0., 0., 1., 1.], [0., 1., 0., 1.]],
+            )?;
+        }
         let color = create_headless_color_target(&device, format, 32, 32);
         let view = color.create_view(&wgpu::TextureViewDescriptor::default());
         let depth = create_depth_target_with_sample_count(&device, 32, 32, 1);
@@ -187,6 +196,16 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let pixels = read_headless_pixels(&device, &readback, 32, 32)?;
         let left_red = pixels[(24 * 32 + 10) * 4 + 2];
         let right_red = pixels[(24 * 32 + 22) * 4 + 2];
+        if label == "weight gradient" {
+            let right_blue = pixels[(24 * 32 + 22) * 4];
+            let right_green = pixels[(24 * 32 + 22) * 4 + 1];
+            if left_red > 10 || right_blue <= right_red.saturating_add(40) || right_green < 20 {
+                return Err(RenderError::InvalidOverlay(format!(
+                    "weight colours did not interpolate or respect depth: left red={left_red}, right rgb={right_red},{right_green},{right_blue}"
+                )));
+            }
+            continue;
+        }
         let should_cover_left = label == "xray" || label == "same depth";
         if (left_red > 100) != should_cover_left || (right_red > 100) == empty {
             return Err(RenderError::InvalidOverlay(format!(
@@ -245,11 +264,22 @@ impl FaceSelectionRenderer {
         positions: &[[f32; 3]],
         colour: [f32; 4],
     ) -> Result<(), RenderError> {
+        self.upload_coloured(device, queue, positions, &vec![colour; positions.len()])
+    }
+
+    pub(super) fn upload_coloured(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        positions: &[[f32; 3]],
+        colours: &[[f32; 4]],
+    ) -> Result<(), RenderError> {
         if !positions.len().is_multiple_of(3)
+            || positions.len() != colours.len()
             || positions
                 .iter()
                 .flatten()
-                .chain(colour.iter())
+                .chain(colours.iter().flatten())
                 .any(|v| !v.is_finite())
         {
             return Err(RenderError::InvalidOverlay(
@@ -264,9 +294,10 @@ impl FaceSelectionRenderer {
         }
         let vertices = positions
             .iter()
-            .map(|position| {
+            .zip(colours)
+            .map(|(position, colour)| {
                 let mut vertex = GpuVertex::overlay(Vec3::from_array(*position));
-                vertex.deformation = colour;
+                vertex.deformation = *colour;
                 vertex
             })
             .collect::<Vec<_>>();

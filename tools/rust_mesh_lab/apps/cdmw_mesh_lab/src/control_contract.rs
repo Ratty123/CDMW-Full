@@ -125,7 +125,11 @@ fn all_anchors_present(source: &str, anchors: &str) -> bool {
 // These are the actual integrated UI and action-dispatch sources compiled into this
 // executable. A contract route is not accepted merely because it was listed below:
 // its concrete control/action/command anchor must also exist in the runtime source.
-const CDMW_UI_SOURCE: &str = include_str!("cdmw_ui.rs");
+const CDMW_UI_SOURCE: &str = concat!(
+    include_str!("cdmw_ui.rs"),
+    "\n",
+    include_str!("cdmw_rig.rs")
+);
 const MAIN_SOURCE: &str = include_str!("main.rs");
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
@@ -666,6 +670,12 @@ uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
 page.rig_weights|rig_weights|CdmwRailPage::RigWeights|RigWeights,
 rig.select_bone|rig_weights|"rig_select_bone"|UiAction::CdmwCommand
+rig.frame_bone|rig_weights|"Frame bone"|UiAction::FrameRigBone
+rig.frame_influence|rig_weights|"Frame influence"|UiAction::FrameRigInfluence
+rig.select_influence|rig_weights|"Select influenced vertices"|UiAction::SelectRigInfluence
+rig.weight_colours|rig_weights|"Weight colours"|cdmw_rig::RigView
+rig.search_bones|rig_weights|"Search bones"|cdmw_rig::RigView
+rig.loaded_parts|rig_weights|"rig_loaded_parts"|UiAction::SetPartSelection
 rig.adjust_weight|rig_weights|"rig_adjust_weight"|UiAction::CdmwCommand
 rig.normalize_weights|rig_weights|"rig_normalize_weights"|UiAction::CdmwCommand
 rig.transfer_weights|rig_weights|"rig_transfer_weights"|UiAction::CdmwCommand

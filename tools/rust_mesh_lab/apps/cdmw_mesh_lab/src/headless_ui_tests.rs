@@ -1266,12 +1266,7 @@ fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult 
     });
     ui.click("Select All")?;
     ui.click("Rig & Weights")?;
-    ui.reveal(
-        "PAB handling is automatic: CDMW resolves a proven-family .PAB from the archive/package used to open this mesh. The Mesh Editor does not support manual .PAB attachment.",
-    )?;
-    ui.reveal(
-        "To enable weight editing, open an Exact PAC LOD0 from CDMW Archive Browser with source weights and a resolvable PAC palette → PAB bone mapping.",
-    )?;
+    ui.reveal("No named rig attached")?;
     ui.reveal("Skin weights require an exact PAC LOD0 output route.")?;
     ui.last_actions.clear();
     ui.click("Weight +")?;
@@ -1300,7 +1295,7 @@ fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult 
         "palette_size": 2
     });
     ui.frame(Vec::new());
-    ui.reveal("Exact-safe rig mapping ready · 2 PAC palette slot(s) · 1 PAB bone row(s)")?;
+    ui.reveal("Weight editing ready")?;
     ui.last_actions.clear();
     ui.click("Weight +")?;
     assert!(ui.last_actions.iter().any(|action| matches!(
@@ -1375,7 +1370,7 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
         selection_revision
     );
     ui.click("Rig & Weights")?;
-    ui.reveal("Selected vertex weights")?;
+    ui.click("Selected vertex weights")?;
     ui.reveal("SM 0 · V 2 · Root 0.750, Spine 0.250 · Σ 1.000")?;
 
     ui.application.cdmw_state["skeleton"]["selected_vertex_weights"] = json!([{
@@ -1887,6 +1882,131 @@ fn integrated_rig_controls_all_dispatch_and_bind_the_explicit_vertex_selection()
             .map(Vec::len),
         Some(3)
     );
+    Ok(())
+}
+
+#[test]
+fn integrated_rig_inspection_links_names_search_frame_weights_and_selection() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    ui.application.source_label = "character/model/character_body.pac".to_owned();
+    ui.application.cdmw_state["skeleton"] = json!({
+        "available": true, "skinned": true, "weighted_vertex_count": 3,
+        "source_weights_available": true,
+        "weight_edit_capability": {"enabled": true, "reason": "", "palette_size": 3, "eligible_submesh_indices": [0]},
+        "skeleton_source": "character/rig/character.pab", "selected_bone_index": 0,
+        "bone_count": 3, "skeleton_bone_count": 3, "bones_truncated": false,
+        "bones": [
+            {"index": 0, "name": "Hip", "parent_index": -1, "position": [0.0, 0.0, 0.0], "child_count": 1},
+            {"index": 1, "name": "Thigh", "parent_name": "Hip", "parent_index": 0, "position": [0.5, 0.5, 0.0], "child_count": 1},
+            {"index": 2, "name": "Knee", "parent_name": "Thigh", "parent_index": 1, "position": [1.0, 0.0, 0.0], "child_count": 0}
+        ],
+        "parts": [{"index": 0, "name": "Body", "vertex_count": 3, "weighted_vertex_count": 3, "skinned": true}]
+    });
+    ui.application.cdmw_state["rig_influence"] = json!({
+        "bone_index": 0, "available": true, "reason": "", "vertex_count": 2,
+        "parts": [{"submesh_index": 0, "weights": [[0, 0.25], [1, 1.0]]}]
+    });
+    ui.application.refresh_cdmw_skeleton_overlay();
+    let geometry = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .geometry_revision;
+    let selection = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .clone();
+    ui.click("Rig & Weights")?;
+    ui.reveal("character_body.pac")?;
+    ui.reveal("Rig loaded")?;
+    ui.reveal("character.pab")?;
+    ui.reveal("2 influenced vertices · 1 part")?;
+    assert_eq!(ui.application.cdmw_rig.positions.len(), 3);
+    assert_ne!(
+        ui.application.cdmw_rig.colours[0],
+        ui.application.cdmw_rig.colours[1]
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selection
+    );
+    ui.click("Frame influence")?;
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selection
+    );
+    ui.click("Weight colours")?;
+    assert!(ui.application.cdmw_rig.positions.is_empty());
+    ui.click("Weight colours")?;
+    assert_eq!(ui.application.cdmw_rig.positions.len(), 3);
+    ui.click("Skeleton")?;
+    assert!(ui.application.show_bones);
+
+    ui.click("0: Hip")?;
+    ui.click("Search bones")?;
+    ui.frame(vec![Event::Text("knee".to_owned())]);
+    assert!(ui.label_rect("1: Thigh").is_none());
+    ui.last_actions.clear();
+    ui.click("2: Knee")?;
+    assert!(has_host_command(&ui.last_actions, "rig_select_bone"));
+    ui.application.cdmw_state["skeleton"]["selected_bone_index"] = json!(2);
+    ui.application.cdmw_state["rig_influence"]["bone_index"] = json!(2);
+    ui.application.refresh_cdmw_skeleton_overlay();
+    ui.frame(Vec::new());
+    ui.click("Frame bone")?;
+    ui.reveal("Knee · Bone 2")?;
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selection
+    );
+    let button = ui.reveal("Select influenced vertices")?.center();
+    ui.frame(vec![Event::PointerMoved(egui::pos2(1.0, 1.0))]);
+    let normal = ui.rectangle_fills_at(button);
+    ui.frame(vec![Event::PointerMoved(button)]);
+    let hovered = ui.rectangle_fills_at(button);
+    ui.frame(vec![pointer_button(button, PointerButton::Primary, true)]);
+    let pressed = ui.rectangle_fills_at(button);
+    assert_ne!(normal, hovered, "influence selection needs hover feedback");
+    assert_ne!(
+        hovered, pressed,
+        "influence selection needs pressed feedback"
+    );
+    ui.frame(vec![
+        Event::PointerMoved(egui::pos2(1.0, 1.0)),
+        pointer_button(egui::pos2(1.0, 1.0), PointerButton::Primary, false),
+    ]);
+    ui.click("Select influenced vertices")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.selection.vertices.len(), 2);
+    assert!(mesh.selection.submeshes.is_empty());
+    assert_eq!(mesh.geometry_revision, geometry);
+    assert_eq!(ui.application.selection_domain, SelectionDomain::Vertex);
+
+    let root = tempdir()?;
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "rig-hidden-parts",
+        1,
+        0,
+    ));
+    ui.application.cdmw_state["geometry_layers"]["layers"][0]["base"] = json!(false);
+    ui.application.cdmw_state["geometry_layers"]["layers"][0]["visible"] = json!(false);
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_rig.positions.is_empty());
+    assert!(ui.application.rig_influenced_vertices().is_empty());
+    ui.reveal("2 influenced vertices are in hidden Parts")?;
+    assert!(
+        ui.actions_from_click("Select influenced vertices")?
+            .is_empty()
+    );
+    ui.application.cdmw_state["skeleton"]["bones"][2]["position"] = json!([1000.0, 0.0, 0.0]);
+    ui.application.refresh_cdmw_skeleton_overlay();
+    ui.reveal("Knee · outside view · Frame bone")?;
     Ok(())
 }
 

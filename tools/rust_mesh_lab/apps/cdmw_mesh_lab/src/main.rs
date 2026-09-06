@@ -3,6 +3,7 @@
 
 mod camera;
 mod cdmw_preview;
+mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
 mod control_contract;
@@ -1427,6 +1428,9 @@ enum UiAction {
     ClearSelection,
     FrameAll,
     FrameSelected,
+    FrameRigBone,
+    FrameRigInfluence,
+    SelectRigInfluence,
     StandardView(StandardView),
     DeleteFaces,
     SubdivideEdges,
@@ -1480,6 +1484,8 @@ impl UiAction {
             self,
             Self::FrameAll
                 | Self::FrameSelected
+                | Self::FrameRigBone
+                | Self::FrameRigInfluence
                 | Self::StandardView(_)
                 | Self::OrbitMode
                 | Self::OrbitYaw(_)
@@ -1956,6 +1962,7 @@ struct LabApplication {
     skeleton_entry: Option<SkeletonInspectorEntry>,
     skeleton_overlay_lines: Vec<[f32; 3]>,
     cdmw_skeleton_overlay_reason: String,
+    cdmw_rig: cdmw_rig::RigView,
     source_label: String,
     status: String,
     history: History,
@@ -2108,6 +2115,7 @@ impl LabApplication {
             skeleton_entry: None,
             skeleton_overlay_lines: Vec::new(),
             cdmw_skeleton_overlay_reason: "No complete skeleton hierarchy is available".to_owned(),
+            cdmw_rig: cdmw_rig::RigView::default(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),
@@ -2395,6 +2403,7 @@ impl LabApplication {
     }
 
     fn refresh_cdmw_skeleton_overlay(&mut self) {
+        self.cdmw_rig.update(&self.cdmw_state);
         match parse_cdmw_skeleton_overlay(&self.cdmw_state) {
             Ok(overlay) => {
                 self.skeleton_overlay_lines = overlay.lines;
@@ -4206,6 +4215,32 @@ impl LabApplication {
                         self.status = "Camera framed the selected elements".to_owned();
                     }
                 }
+                UiAction::FrameRigBone => self.frame_rig(false),
+                UiAction::FrameRigInfluence => self.frame_rig(true),
+                UiAction::SelectRigInfluence => {
+                    let vertices = self.rig_influenced_vertices();
+                    if !vertices.is_empty()
+                        && let Some(mesh) = &mut self.mesh
+                    {
+                        match mesh.set_selection(Selection {
+                            vertices,
+                            ..Selection::default()
+                        }) {
+                            Ok(()) => {
+                                self.selection_domain = SelectionDomain::Vertex;
+                                self.viewport_tool = ViewportTool::Select;
+                                self.cdmw_orbit_mode = false;
+                                self.projection = None;
+                                cdmw_transaction = Some(CdmwLocalEdit::Selection(
+                                    "Select influenced vertices".to_owned(),
+                                ));
+                            }
+                            Err(error) => {
+                                self.status = format!("Influence selection failed: {error}")
+                            }
+                        }
+                    }
+                }
                 UiAction::StandardView(view) => {
                     self.camera.set_standard_view(view);
                     self.projection = None;
@@ -4782,6 +4817,7 @@ impl LabApplication {
 
     fn publish_mesh_snapshot(&mut self) {
         self.face_selection_overlay = None;
+        self.cdmw_rig.overlay_key = None;
         self.selected_counts_cache.set(None);
         if let Some(renderer) = &mut self.renderer {
             let _ = renderer.set_face_selection(&[], [0.0; 4]);

@@ -2472,6 +2472,7 @@ pub struct WindowRenderer {
     guide_pipeline: wgpu::RenderPipeline,
     effect_pipeline: wgpu::RenderPipeline,
     face_selection: selection_overlay::FaceSelectionRenderer,
+    rig_weights: selection_overlay::FaceSelectionRenderer,
     face_selection_xray: bool,
     effect_particle_alpha_pipeline: wgpu::RenderPipeline,
     effect_particle_additive_pipeline: wgpu::RenderPipeline,
@@ -2747,6 +2748,13 @@ impl WindowRenderer {
             &camera_bind_group_layout,
             sample_count,
         );
+        let rig_weights = selection_overlay::FaceSelectionRenderer::new(
+            &device,
+            format,
+            &texture_bind_group_layout,
+            &camera_bind_group_layout,
+            sample_count,
+        );
         Ok(Self {
             _instance: instance,
             surface,
@@ -2766,6 +2774,7 @@ impl WindowRenderer {
             guide_pipeline: pipelines.guide,
             effect_pipeline: pipelines.effect,
             face_selection,
+            rig_weights,
             face_selection_xray: false,
             effect_particle_alpha_pipeline,
             effect_particle_additive_pipeline,
@@ -3057,6 +3066,16 @@ impl WindowRenderer {
 
     pub fn set_face_selection_xray(&mut self, xray: bool) {
         self.face_selection_xray = xray;
+    }
+
+    /// Display-only, interpolated skin weights; independent of edit selection.
+    pub fn set_rig_weights(
+        &mut self,
+        positions: &[[f32; 3]],
+        colours: &[[f32; 4]],
+    ) -> Result<(), RenderError> {
+        self.rig_weights
+            .upload_coloured(&self.device, &self.queue, positions, colours)
     }
 
     pub fn set_skeleton_lines(&mut self, positions: &[[f32; 3]]) -> Result<(), RenderError> {
@@ -3489,6 +3508,14 @@ impl WindowRenderer {
                     self.view_mode,
                     self.face_selection_xray,
                 );
+                self.rig_weights.prepare_depth(
+                    &mut pass,
+                    mesh,
+                    &self.default_material_binding.bind_group,
+                    &self.camera_bind_group,
+                    self.view_mode,
+                    self.view_mode == ViewMode::XRay,
+                );
                 draw_mesh(
                     &mut pass,
                     mesh,
@@ -3513,14 +3540,32 @@ impl WindowRenderer {
                     self.view_mode,
                     self.show_normals,
                     self.show_bounds,
-                    self.show_bones,
+                    false, // Skeleton context is drawn above weight and selection colours below.
                 );
                 if self.effect_batches.is_empty() {
+                    self.rig_weights.draw(
+                        &mut pass,
+                        &self.default_material_binding.bind_group,
+                        &self.camera_bind_group,
+                        self.view_mode == ViewMode::XRay,
+                    );
                     self.face_selection.draw(
                         &mut pass,
                         &self.default_material_binding.bind_group,
                         &self.camera_bind_group,
                         self.face_selection_xray,
+                    );
+                }
+                if self.show_bones
+                    && let Some(lines) = &self.skeleton_lines
+                {
+                    pass.set_bind_group(0, &self.default_material_binding.bind_group, &[]);
+                    pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                    draw_overlay_lines(
+                        &mut pass,
+                        &lines.vertices,
+                        lines.vertex_count,
+                        &self.bone_pipeline,
                     );
                 }
             }
