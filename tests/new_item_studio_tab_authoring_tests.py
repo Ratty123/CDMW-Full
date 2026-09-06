@@ -790,172 +790,100 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
-    def _assert_model_columns_fit_window_sizes(self, tab, panel):
-        for width, height in ((1720, 720), (1920, 900)):
-            tab.resize(width, height)
-            self.app.processEvents()
-            panel.model_icon_scroll.verticalScrollBar().setValue(0)
-            first_y = panel.keep_model.mapTo(panel.model_icon_scroll.viewport(), panel.keep_model.rect().topLeft()).y()
-            next_y = panel.import_model.mapTo(panel.model_icon_scroll.viewport(), panel.import_model.rect().topLeft()).y()
-            self.assertLessEqual(first_y, 12, f"the Model/Icon column starts without a dead title gutter at {width}x{height}")
-            self.assertLessEqual(next_y - first_y, 36, f"the model choice stays compact at {width}x{height}")
-            self.assertTrue(panel.model_group.isVisibleTo(panel))
-            self.assertTrue(panel.icon_group.isVisibleTo(panel))
-            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
-            self.assertLessEqual(panel.icon_source.geometry().bottom(), panel.icon_group.rect().bottom())
-            self.assertLessEqual(panel.apply_button.geometry().bottom(), panel.placement_group.rect().bottom())
-            self.assertIs(panel.preview.parentWidget(), panel.preview_group)
-            self.assertLess(panel.preview_layout.indexOf(panel.variants), panel.preview_layout.indexOf(panel.preview))
-            self.assertEqual(panel.preview_group.height(), panel.workspace_splitter.height())
-            self.assertGreaterEqual(panel.preview.height(), 300)
-            self.assertLessEqual(panel.preview_group.geometry().bottom(), panel.workspace_splitter.rect().bottom())
-            self.assertLessEqual(panel.preview.geometry().bottom(), panel.preview_group.rect().bottom())
-
-            panel.import_model.setChecked(True)
-            self.app.processEvents()
-            panel.model_icon_scroll.verticalScrollBar().setValue(0)
-            self.assertEqual(
-                panel.model_icon_scroll.verticalScrollBar().maximum(),
-                0,
-                f"the inactive-Glow imported-model form fits without scrolling at {width}x{height}",
-            )
-            self.assertTrue(panel.glow_parts.isHidden(), "inactive Glow details do not consume the model pane")
-            self.assertTrue(panel.icon_group.isVisibleTo(panel))
-            self.assertLessEqual(panel.icon_group.geometry().bottom(), panel.model_icon_column.rect().bottom())
-            blender_y = panel.blender_button.mapTo(panel.model_icon_scroll.viewport(), panel.blender_button.rect().topLeft()).y()
-            self.assertLessEqual(blender_y, 260, f"the complete model form stays packed at {width}x{height}")
-
-
-    def test_model_workspace_shows_model_icon_placement_and_preview_in_three_columns(self) -> None:
-        from PySide6.QtGui import QPalette
-        from PySide6.QtWidgets import QScrollArea, QSizePolicy, QTabWidget
+    def test_model_workspace_keeps_preview_and_placement_beside_compact_inspector(self) -> None:
+        from PySide6.QtGui import QFont, QFontDatabase, QPalette
+        from PySide6.QtWidgets import QAbstractButton
         from cdmw.ui.themes import build_app_palette, build_app_stylesheet
 
         old_palette = QPalette(self.app.palette())
         old_stylesheet = self.app.styleSheet()
+        old_font = QFont(self.app.font())
+        self.addCleanup(self.app.setFont, old_font)
+        # The Windows offscreen plugin has no system fonts unless explicitly loaded.
+        font_path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts/segoeui.ttf"
+        if font_path.is_file():
+            QFontDatabase.addApplicationFont(str(font_path))
+            self.app.setFont(QFont("Segoe UI", 10))
         self.addCleanup(self.app.setPalette, old_palette)
         self.addCleanup(self.app.setStyleSheet, old_stylesheet)
         self.app.setPalette(build_app_palette("graphite"))
         self.app.setStyleSheet(build_app_stylesheet("graphite"))
-
         tab = self._tab()
-        tab.resize(1720, 720)
+        self.addCleanup(tab.deleteLater)
+        self.addCleanup(tab.close)
+        package_start = patch("cdmw.ui.new_item.item_preview.ItemPreviewFrame._start_package", lambda *_args, **_kwargs: None)
+        package_start.start()
+        self.addCleanup(package_start.stop)
         tab.show()
         tab.prefill_template(TEMPLATE)
         tab.show_step(2)
-        self.app.processEvents()
         panel = tab.model_panel
-
-        self.assertIs(tab.pages.currentWidget(), panel)
-        self.assertIsNone(panel.findChild(QTabWidget, "new_item_model_inspector_tabs"))
-        self.assertIsInstance(panel.model_icon_scroll, QScrollArea)
-        self.assertIs(panel.model_icon_scroll.widget(), panel.model_icon_content)
-        self.assertEqual(panel.workspace_splitter.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Ignored)
-        self.assertEqual(panel.workspace_splitter.count(), 3)
+        panel.import_model.setChecked(True)
+        panel.placement_group.show()
+        panel.import_summary.setText("wolf_gravestone_sword_free (1).zip\n14,709 vertices · 3 parts · 3 textures")
+        panel.model_status.set_note("Full import notes and material warnings stay available.")
+        panel.keep_physics.show()
+        panel.flip_texture_v.show()
+        self.assertEqual(panel.workspace_splitter.count(), 2)
         self.assertIs(panel.workspace_splitter.widget(0), panel.model_icon_column)
         self.assertIs(panel.workspace_splitter.widget(1), panel.placement_column)
-        self.assertIs(panel.workspace_splitter.widget(2), panel.preview_group)
-        self.assertIs(panel.operation_banner.parentWidget(), panel.placement_column)
-        margins = panel.placement_column.layout().contentsMargins()
-        self.assertEqual((margins.left(), margins.top(), margins.right(), margins.bottom()), (8, 0, 8, 0))
-        self.assertEqual(panel.operation_banner.objectName(), "new_item_loading_card")
-        self.assertEqual(
-            panel.operation_banner.sizePolicy().verticalPolicy(),
-            QSizePolicy.Policy.Fixed,
-        )
-        self.assertGreaterEqual(panel.operation_banner.minimumHeight(), 64)
-        card_margins = panel.operation_banner.layout().contentsMargins()
-        self.assertEqual(
-            (card_margins.left(), card_margins.top(), card_margins.right(), card_margins.bottom()),
-            (10, 8, 10, 8),
-        )
-        self.assertIs(panel.preview_group.parentWidget(), panel.workspace_splitter)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
-        self.assertEqual(panel.title(), "")
-        sizes = panel.workspace_splitter.sizes()
-        self.assertGreater(sizes[2], sizes[1])
-        self.assertGreaterEqual(panel.workspace_splitter.widget(0).width(), 620)
-        self.assertGreaterEqual(panel.workspace_splitter.widget(1).width(), 520)
-        self.assertGreaterEqual(panel.workspace_splitter.widget(2).width(), 520)
-        self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
+        self.assertLess(panel.preview_layout.indexOf(panel.view_toolbar), panel.preview_layout.indexOf(panel.preview))
+        self.assertFalse(panel.model_status.isVisibleTo(panel))
+        panel.import_details.toggle.click()
+        self.assertTrue(panel.model_status.isVisibleTo(panel))
+        panel.import_details.toggle.click()
+        panel.blender_details.toggle.click()
+        self.assertTrue(panel.blender_button.isVisibleTo(panel))
+        panel.blender_details.toggle.click()
 
-        for group in (panel.model_group, panel.placement_group, panel.icon_group):
-            self.assertEqual(group.title(), "", "the three-column layout needs no repeated section name")
-            self.assertTrue(group.property("titlelessSection"), "a blank caption must not reserve a dark title gutter")
-        self.assertEqual(
-            [panel.model_group.accessibleName(), panel.icon_group.accessibleName(), panel.placement_group.accessibleName()],
-            ["Model", "Icon", "Placement"],
-        )
-        for control in (
-            panel.keep_model,
-            panel.import_model,
-            panel.plain_pbr,
-            panel.own_sheath,
-            panel.keep_physics,
-            panel.glow_box,
-            panel.flip_texture_v,
-        ):
-            self.assertTrue(panel.model_icon_content.isAncestorOf(control), f"{control!r} belongs to the Model scroller")
-        for control in (
-            panel.keep_icon,
-            panel.generate_icon,
-            panel.icon_source,
-        ):
-            self.assertTrue(panel.model_icon_column.isAncestorOf(control), f"{control!r} belongs to the Model/Icon column")
-            self.assertFalse(panel.model_icon_content.isAncestorOf(control), f"{control!r} stays visible below the Model scroller")
-        for control in (panel.view_mode, panel.offset_spins[0], panel.apply_button):
-            self.assertTrue(panel.placement_column.isAncestorOf(control), f"{control!r} belongs to the Placement column")
-        self.assertTrue(panel.preview_group.isAncestorOf(panel.preview))
-        self.assertFalse(panel.placement_column.isAncestorOf(panel.preview))
-        panel.placement_group.setVisible(True)
-        panel.model_status.setText(
-            "helmet.zip: 3,393 vertices, 1 part(s), 3 texture(s) of its own\n"
-            "Discovered 4 glTF texture reference(s).\n"
-            "Placed over template.pac: the rebuilt mesh is 348,247 bytes, 4 side file(s)"
-        )
-        panel.keep_physics.setVisible(True)
-        panel.flip_texture_v.setVisible(True)
-
-        self._assert_model_columns_fit_window_sizes(tab, panel)
+        for width, height in ((1280, 720), (1440, 900), (1920, 1080)):
+            tab.resize(width, height)
+            self.app.processEvents()
+            self.assertEqual(tab.size().width(), width, "the page must not force the window wider")
+            self.assertEqual(tab.size().height(), height, "the page must not force the window taller")
+            self.assertGreater(panel.placement_column.width(), panel.model_icon_column.width())
+            self.assertGreaterEqual(panel.preview.height(), 300)
+            self.assertLessEqual(panel.placement_group.geometry().bottom(), panel.placement_column.height())
+            for index, page in enumerate((panel.appearance_page, panel.dyes, panel.icon_group)):
+                panel.inspector_tabs.setCurrentIndex(index)
+                self.app.processEvents()
+                self.assertTrue(page.isVisibleTo(panel))
+                self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
+                self.assertEqual(panel.model_icon_scroll.verticalScrollBar().maximum(), 0,
+                                 f"inspector tab {index} should fit at {width}x{height}")
+                for button in page.findChildren(QAbstractButton):
+                    if button.isVisibleTo(panel):
+                        self.assertLessEqual(button.height(), 36, button.text())
+            panel.inspector_tabs.setCurrentIndex(0)
+            self.assertTrue(panel.glow_parts.isHidden())
+            self.assertLessEqual(panel.import_button.height(), 36)
+            self.assertLessEqual(panel.apply_button.height(), 36)
+            for button in (panel.apply_button, *panel.quick_turn_buttons.values()):
+                bounds = button.rect().translated(button.mapTo(panel, button.rect().topLeft()))
+                self.assertTrue(panel.rect().contains(bounds), button.text())
 
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
-        preview_height = panel.preview_group.height()
-        tab.controller._lane = "model_import"
-        panel._busy_changed(True)
-        self.app.processEvents()
-        self.assertTrue(panel.placement_group.isVisibleTo(panel))
-        self.assertFalse(panel.placement_group.isEnabled())
-        self.assertGreaterEqual(panel.operation_banner.geometry().left(), 8)
-        self.assertGreaterEqual(
-            panel.placement_column.width() - panel.operation_banner.geometry().right() - 1,
-            8,
-        )
-        panel._busy_changed(False)
-
         tab.controller._lane = "model_apply"
         panel._busy_changed(True)
         self.app.processEvents()
-        panel.operation_spinner._advance()
         self.assertTrue(panel.operation_banner.isVisibleTo(panel))
-        self.assertEqual(panel.preview_group.height(), preview_height)
+        self.assertFalse(panel.placement_group.isEnabled())
+        self.assertTrue(all(not button.isEnabled() for button in panel.quick_turn_buttons.values()))
+        panel.operation_spinner._advance()
         self.assertTrue(frames)
         with patch.object(tab.controller, "cancel_operation", return_value=True) as cancel:
             panel.cancel_operation_button.click()
         cancel.assert_called_once_with("model_apply")
         panel._busy_changed(False)
-
         panel._preview_status("Fast textures are visible; loading full textures…")
-        self.app.processEvents()
         self.assertTrue(panel.operation_banner.isVisibleTo(panel))
-        self.assertEqual(panel.operation_label.text(), "Fast textures are visible; loading full textures…")
-        self.assertEqual(panel.preview_status.text(), "", "the pinned busy state is not repeated below the viewport")
+        self.assertEqual(panel.preview_status.text(), "")
         panel._preview_status("Full textures loaded.")
         self.assertFalse(panel.operation_banner.isVisibleTo(panel))
         self.assertEqual(panel.preview_status.text(), "Full textures loaded.")
-        tab.close()
-        tab.deleteLater()
-        self.app.processEvents()
+
     def test_import_appearance_hides_template_specific_controls_when_they_cannot_apply(self) -> None:
         from types import SimpleNamespace
 

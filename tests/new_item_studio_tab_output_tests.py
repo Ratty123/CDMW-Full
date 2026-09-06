@@ -406,7 +406,9 @@ class _TabOutputMixin:
         self.app.processEvents()
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
         self.assertTrue(panel.model_group.isVisibleTo(panel))
+        panel.inspector_tabs.setCurrentWidget(panel.icon_group)
         self.assertTrue(panel.icon_group.isVisibleTo(panel))
+        panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.assertTrue(
             panel.preview.isVisibleTo(tab.template_panel),
             "the same resident preview starts under Template before Model & Placement opens",

@@ -119,6 +119,23 @@ class ModelPanelPreviewMixin:
     def _fit_to_template(self) -> None:
         self._controller.fit_model_placement()
 
+    def _quick_turn(self, axis: int, degrees: float) -> None:
+        if self._controller.model_import is None or not self.placement_group.isEnabled():
+            return
+        placement = self._controller.model_placement
+        rotation = list(placement.rotation)
+        rotation[axis] = (rotation[axis] + degrees + 180.0) % 360.0 - 180.0
+        self._controller.set_model_placement(placement.with_values(rotation=rotation))
+        self._refresh_apply_status()
+
+    def _reset_rotation(self) -> None:
+        if self._controller.model_import is None or not self.placement_group.isEnabled():
+            return
+        self._controller.set_model_placement(
+            self._controller.model_placement.with_values(rotation=(0.0, 0.0, 0.0))
+        )
+        self._refresh_apply_status()
+
     def _placement_changed(self, placement: object) -> None:
         if isinstance(placement, ModelPlacement):
             self._sync_placement_numbers(placement)
@@ -160,6 +177,9 @@ class ModelPanelPreviewMixin:
 
     def _import_failed(self, message: object) -> None:
         self.model_status.set_note(str(message or "The model could not be read."), WARN)
+        self.import_details.toggle.setChecked(True)
+        if "Blender" in str(message):
+            self.blender_details.toggle.setChecked(True)
         self.busy_bar.setVisible(False)
 
     def _busy_changed(self, busy: bool) -> None:

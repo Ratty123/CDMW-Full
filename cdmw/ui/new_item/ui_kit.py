@@ -135,6 +135,28 @@ def step_style(palette) -> str:
         QWidget#effect_action_bar {{ background: {panel}; border-top: 1px solid {border}; }}
         QLabel#effect_section_heading {{ color: {text}; font-weight: 600; padding-top: 8px; }}
         QLabel#effect_library_count, QLabel#effect_staging_state {{ color: {muted}; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QPushButton,
+        QGroupBox#new_item_step[compactModelPanel="true"] QToolButton,
+        QGroupBox#new_item_step[compactModelPanel="true"] QLineEdit,
+        QGroupBox#new_item_step[compactModelPanel="true"] QComboBox,
+        QGroupBox#new_item_step[compactModelPanel="true"] QSpinBox,
+        QGroupBox#new_item_step[compactModelPanel="true"] QDoubleSpinBox {{
+            min-height: 22px; padding: 2px 6px;
+        }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QRadioButton,
+        QGroupBox#new_item_step[compactModelPanel="true"] QCheckBox {{ spacing: 5px; padding: 1px 0; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QDoubleSpinBox {{
+            background: {panel}; border: 1px solid {border}; border-radius: 4px;
+        }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QDoubleSpinBox:focus {{ border-color: {active}; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QToolButton:hover {{ background: {hover}; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QToolButton:pressed {{ background: {pressed}; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QGroupBox {{ margin-top: 8px; padding: 8px 4px 4px 4px; }}
+        QGroupBox#new_item_step[compactModelPanel="true"] QGroupBox[titlelessSection="true"] {{ margin-top: 0; padding: 0; }}
+        QTabWidget#new_item_model_inspector_tabs::pane {{ border: 1px solid {border}; }}
+        QTabWidget#new_item_model_inspector_tabs QTabBar::tab {{ min-height: 24px; padding: 2px 10px; }}
+        QTabWidget#new_item_model_inspector_tabs QTabBar::tab:selected {{ border-bottom: 2px solid {active}; }}
+        QProgressBar#new_item_model_progress {{ min-height: 4px; max-height: 4px; padding: 0; }}
     """
 
 

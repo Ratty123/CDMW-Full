@@ -800,6 +800,70 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         self.assertEqual(calls, [("numbers", placement), ("placement", placement)])
 
+    def test_quick_turn_buttons_update_resident_placement_and_invalidate_applied_mesh(self) -> None:
+        from unittest.mock import PropertyMock
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement
+        from cdmw.ui.new_item.panels_model import ModelPanel
+
+        controller = NewItemStudioController(synchronous=True)
+        panel = ModelPanel(controller)
+        self.addCleanup(panel.deleteLater)
+        source = ModelImportSource(Path("blade.obj"), Path("blade.obj"),
+                                   SimpleNamespace(mesh=None), None, None)
+        controller.model_import = source
+        panel._show_model(None)
+        frame = panel.preview
+        frame._host_factory = self._fake_host_class()
+        frame._ensure_host()
+        frame.is_ready = True
+        frame._loaded_is_placement = True
+        initial = ModelPlacement(offset=(0.25, -0.5, 0.75), scale=(1.5, 2.0, 0.5))
+        frame.set_placement(initial)
+        panel._refresh_placement_enabled()
+        for (axis, degrees), button in panel.quick_turn_buttons.items():
+            with self.subTest(axis=axis, degrees=degrees):
+                controller.set_model_placement(initial)
+                source.applied = (source.bake, initial)
+                controller.model_result = SimpleNamespace()
+                controller.plan = object()
+                controller._plan_revision = controller._draft_revision
+                frame.host.calls.clear()
+                button.click()
+                expected = [0.0, 0.0, 0.0]
+                expected[axis] = {-90: -90.0, 90: 90.0, 180: -180.0}[degrees]
+                placed = controller.model_placement
+                self.assertEqual(placed.rotation, tuple(expected))
+                self.assertEqual(placed.offset, initial.offset)
+                self.assertEqual(placed.scale, initial.scale)
+                self.assertEqual(tuple(spin.value() for spin in panel.rotation_spins), tuple(expected))
+                self.assertEqual(placed.build_transform().rotate_xyz_degrees, tuple(expected))
+                self.assertIsNone(controller.model_result)
+                self.assertFalse(controller.has_current_plan)
+                self.assertEqual(source.bake, ModelPlacement(), "the fitted mesh and template stay fixed")
+                self.assertIn("Not applied", panel.apply_status.plain_text())
+                self.assertEqual([call[0] for call in frame.host.calls], ["set_alignment_preview_transform"])
+                self.assertEqual(frame.host.calls[0][2]["rotation_degrees"], tuple(expected))
+                if degrees == 180:
+                    button.click()
+                    self.assertEqual(controller.model_placement, initial)
+
+        controller.set_model_placement(initial.with_values(rotation=(350.0, -350.0, 0.0)))
+        panel.quick_turn_buttons[0, 90].click()
+        panel.quick_turn_buttons[1, -90].click()
+        self.assertEqual(controller.model_placement.rotation, (80.0, -80.0, 0.0))
+        panel.reset_rotation_button.click()
+        self.assertEqual(controller.model_placement, initial)
+        with patch.object(type(controller), "busy", new_callable=PropertyMock, return_value=True):
+            panel._refresh_placement_enabled()
+            self.assertFalse(panel.reset_rotation_button.isEnabled())
+            panel.quick_turn_buttons[0, 180].click()
+            self.assertEqual(controller.model_placement, initial)
+        frame.is_ready = False
+        panel._refresh_placement_enabled()
+        self.assertFalse(panel.quick_turn_buttons[0, 180].isEnabled())
+        frame.shutdown()
+
     def test_rust_material_presentation_carries_the_imported_v_flip(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
         from cdmw.services.mesh_rust_preview_package import build_rust_preview_package

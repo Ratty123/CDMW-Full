@@ -214,15 +214,19 @@ and the final Builder use; for a wearable, neutral effect placement starts at th
 origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
-The Model & Placement step is a fixed three-column workspace. A top-packed Model pane
-and always-visible Icon choices share the left column, Placement controls and pinned operation
-status occupy the middle column, and the resident Preview owns the full-height right column.
-Titleless section frames reserve no empty caption gutter, and the part, colour and strength
-controls collapse while Glow is off, so the imported-model form fits the common 720 px
-workspace height without scrolling; enabling Glow expands those controls in the same pane.
-That Preview is the exact frame prepared under Template rather than a second renderer or
-package load.
-The repeated Model / Placement / Icon tab strip is gone, so all three surfaces stay mounted at once. It imports a model file itself:
+The Model & Placement step uses two resizable columns: a compact inspector and a wider
+resident preview, with placement controls directly underneath. Model selection and import
+actions stay at the top of the inspector; Appearance, Dyes and Icon tabs retain their controls
+and values when switching. Full import notes and FBX setup expand on demand. Glow details
+still collapse while off. Common controls use compact heights, and the default inspector
+pages fit a 1280 × 720 window without scrolling. Expanded details remain scrollable locally.
+Quick turn buttons add −90°, +90° or 180° to the X, Y or Z placement rotation around the
+fitted model pivot, retaining position and scale. **Reset rotation** restores the fitted
+orientation; **Fit to template** restores the complete fit. These actions move only the
+imported model, update the resident viewport, and invalidate an earlier applied mesh or plan.
+Use **Apply placement** to prepare the resulting mesh for the item.
+The Preview is the exact frame prepared under Template, retaining its camera and package.
+The step imports a model file itself:
 `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 and the same cancellable worker reads the template geometry, retains its bounds and
