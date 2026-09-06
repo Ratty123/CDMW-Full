@@ -162,31 +162,13 @@ class AnimationTabMixin:
         return pane
 
     def _animation_sets(self):
-        """Which clips and sockets each chart names, parsed once per change.
-
-        This walked every chart on every call — 212 of them once a second character's set is
-        loaded — and it is called twice per character switch. That was 1.4 s of a 3.9 s
-        switch, spent re-deriving something that had not changed.
-
-        Keyed on the chart list and the number of commands applied: a retarget rewrites chart
-        bytes, and loading another character's charts lengthens the list, so between them
-        nothing can change the answer without changing the key.
-        """
+        """Return only indexes prepared from the current chart payloads."""
 
         from .animation_sets import AnimationSetIndex
 
-        if self._edits is None:
+        if not self._ensure_chart_indexes():
             return AnimationSetIndex()
-        charts = self._edits.charts()
-        key = (tuple(charts), len(self._edits.commands()))
-        if getattr(self, "_animation_sets_key", None) == key:
-            return self._animation_sets_cache
-        index = AnimationSetIndex.from_files(
-            {path: self._edits.chart_bytes(path) or b"" for path in charts}
-        )
-        self._animation_sets_key = key
-        self._animation_sets_cache = index
-        return index
+        return self._animation_sets_cache
 
     def _refresh_socket_clips(self) -> None:
         from .animation_sets import summarise
@@ -222,17 +204,68 @@ class AnimationTabMixin:
         self._play_clip_entry(exact)
 
     def _chart_index(self):
-        from .animation import ChartIndex, index_chart
-
-        if self._edits is None:
+        from .animation import ChartIndex
+        if not self._ensure_chart_indexes():
             return ChartIndex()
-        return ChartIndex(
-            index_chart(path, self._edits.chart_bytes(path) or b"")
-            for path in self._edits.charts()
-        )
+        return self._chart_index_cache
+
+    def _ensure_chart_indexes(self):
+        from .loading import prepare_charts
+        if self._edits is None:
+            return False
+        # Bytes are immutable. Retained snapshots detect undo/redo and an edit with the
+        # same command count, without hashing all chart payloads on every refresh.
+        sources = tuple((path, self._edits.chart_bytes(path) or b"")
+                        for path in self._edits.charts())
+        if sources == getattr(self, '_chart_sources_ready', None):
+            if getattr(self, '_background_loading', False):
+                if sources != getattr(self, '_chart_sources_requested', None):
+                    task = getattr(self, '_chart_task', None)
+                    if task is not None:
+                        task.cancel()
+                    self._chart_sources_requested = sources
+                self._chart_socket_box.setEnabled(True)
+            return True
+        if not getattr(self, '_background_loading', False):
+            self._chart_index_cache, self._animation_sets_cache = prepare_charts(
+                sources, lambda: False, lambda *_: None)
+            self._chart_sources_ready = sources
+            return True
+        if sources == getattr(self, '_chart_sources_requested', None):
+            return False
+        from .background import LatestTask
+        if getattr(self, '_chart_task', None) is None:
+            self._chart_task = LatestTask(self)
+            self._chart_task.setObjectName('chart_preparation')
+            self._chart_task.ready.connect(self._charts_prepared)
+        self._chart_sources_requested = sources
+        self._retarget_button.setEnabled(False)
+        self._chart_socket_box.setEnabled(False)
+        self._chart_task.submit(lambda cancelled, progress:
+                                (sources, prepare_charts(sources, cancelled, progress)))
+        return False
+
+    def _charts_prepared(self, value, error):
+        if error or value is None:
+            self.statusBar().showMessage(error)
+            return
+        sources, result = value
+        current = tuple((path, self._edits.chart_bytes(path) or b"")
+                        for path in self._edits.charts())
+        if sources != current:
+            self._ensure_chart_indexes()
+            return
+        if result is None:
+            return
+        self._chart_index_cache, self._animation_sets_cache = result
+        self._chart_sources_ready = sources
+        self._chart_socket_box.setEnabled(True)
+        self._refresh_animation()
 
     def _refresh_animation(self) -> None:
         if self._edits is None:
+            return
+        if not self._ensure_chart_indexes():
             return
         index = self._chart_index()
         model = self._session.model if self._session else ""

@@ -21,6 +21,8 @@ from __future__ import annotations
 import math
 from bisect import bisect_right
 from dataclasses import dataclass
+from functools import lru_cache
+from operator import itemgetter
 from typing import Iterable, Sequence, Tuple
 
 from .format import Key, MotionClip
@@ -82,11 +84,13 @@ def quat_slerp(a: Quat, b: Quat, t: float) -> Quat:
     return quat_normalize(tuple(x * wa + y * wb for x, y in zip(a, b)))  # type: ignore[arg-type]
 
 
+_key_time = itemgetter(0)
+
+
 def _bracket(keys: Sequence[Key], frame: float) -> tuple[Key, Key, float]:
     """The two keys `frame` falls between, and how far between them it lies."""
 
-    frames = [key[0] for key in keys]
-    index = bisect_right(frames, frame) - 1
+    index = bisect_right(keys, frame, key=_key_time) - 1
     if index < 0:
         return keys[0], keys[0], 0.0
     if index >= len(keys) - 1:
@@ -184,10 +188,18 @@ def compose(bind: Transform, delta: Transform) -> Transform:
 def bind_transform(bone) -> Transform:
     """The bind-pose local transform a `cdmw.modding.skeleton_parser.Bone` records."""
 
+    return _bind_transform(tuple(bone.position), tuple(bone.rotation), tuple(bone.scale))
+
+
+@lru_cache(maxsize=2048)
+def _bind_transform(position, rotation, scale) -> Transform:
+    # Key by actual proportions, never by bone hash or a mutable skeleton identity.
+    # The bounded cache covers the player rigs without retaining decoded game assets.
+
     return Transform(
-        translation=tuple(bone.position),  # type: ignore[arg-type]
-        rotation=quat_normalize(tuple(bone.rotation)),  # type: ignore[arg-type]
-        scale=tuple(bone.scale),  # type: ignore[arg-type]
+        translation=position,
+        rotation=quat_normalize(rotation),
+        scale=scale,
     )
 
 

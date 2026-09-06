@@ -85,6 +85,8 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- Completed translations for the recently added New Item model and placement controls.
+- **Placement & Animations no longer reads and decodes startup assets in the UI path.** Cached baseline loading, rig preparation, meshes, archive relationships and chart indexes run in cancellable background tasks. Selection changes retain the last usable scene and reject late results; closing does not wait on those tasks. Playback avoids repeated bone lookups, bind-transform calculations, topology conversion and individual bone projections while preserving preview detail.
 - **Mesh Editor now receives the current Archive Browser's prepared skeleton dependencies.** Rig & Weights can automatically attach the matching PAB when legacy global indexes are empty; queued opens and draft resumes retain the selected mesh's dependency snapshot.
 - Textures keeps late-loading Recolor controls inside their own page, preventing overlapping panels when switching modes. Edit, Recolor and Upscale now use themed buttons with visible hover, pressed and selected states.
 - **Mesh Editor now uses the PAC's bone references when finding its matching PAB skeleton.** Rig & Weights shows the actual automatic-attachment failure when dependencies are missing, ambiguous, invalid or empty, instead of asking for an unsupported manual attachment. Geometry remains editable when skeleton attachment fails.

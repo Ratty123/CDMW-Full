@@ -458,7 +458,7 @@ class ClipBrowserMixin:
         task = getattr(self, "_clip_task", None)
         if task is not None:
             task.shutdown()
-        for name in ("_stop_armour_index", "_stop_carry_index", "_stop_swap"):
+        for name in ("_stop_loading", "_stop_armour_index", "_stop_carry_index", "_stop_swap"):
             stop = getattr(self, name, None)
             if stop is not None:
                 stop()

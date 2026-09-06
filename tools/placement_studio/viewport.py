@@ -317,7 +317,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 _np.asarray(body.triangles, dtype=_np.int32)
                 if body is not None and len(getattr(body, "triangles", ())) else None
             )
-        if weapon is not self._weapon:
+        weapon_tris_src = getattr(weapon, "triangles", None)
+        if weapon_tris_src is not getattr(self, '_weapon_tris_src', None):
+            self._weapon_tris_src = weapon_tris_src
             self._weapon_tris = (
                 _np.asarray(weapon.triangles, dtype=_np.int32)
                 if weapon is not None and len(getattr(weapon, "triangles", ())) else None
@@ -633,9 +635,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 behind = depth_arr <= 0.02
                 sx_arr[behind] = 0.0
                 sy_arr[behind] = 0.0
-                sx = sx_arr.tolist()
-                sy = sy_arr.tolist()
-                depths = depth_arr.tolist()
+                sx, sy, depths = sx_arr, sy_arr, depth_arr
             else:
                 sx = []
                 sy = []
@@ -864,20 +864,30 @@ class SkeletonViewport(GizmoMixin, QWidget):
             return
         plain = QPainterPath()
         carrying = QPainterPath()
-        for bone in self._hierarchy:
-            if bone.parent_index < 0 or bone.parent_index >= len(self._hierarchy):
-                continue
-            parent = self._hierarchy.bones[bone.parent_index]
-            start = self._project(parent.world_position)
-            end = self._project(bone.world_position)
-            if start is None or end is None:
-                continue
-            if abs(end.x() - start.x()) + abs(end.y() - start.y()) < 2.0:
-                continue  # shorter than a couple of pixels: nothing to see, and there are
-                          # hundreds of them clustered in the hands and face
+        bones = self._hierarchy.bones
+        if not bones:
+            return
+        # Project each bone once. Avoid repeated camera/QPointF calls for both ends of
+        # every segment, especially the dense fingers and face of the player rigs.
+        right, up, forward, eye, scale, cx, cy = self._view_frame()
+        points = _np.asarray([bone.bind_matrix[12:15] for bone in bones])
+        rel = points - (eye.x, eye.y, eye.z)
+        depth = rel @ _np.asarray((forward.x, forward.y, forward.z))
+        inv = scale / _np.where(depth > 0.02, depth, 1.0)
+        sx = cx + (rel @ _np.asarray((right.x, right.y, right.z))) * inv
+        sy = cy - (rel @ _np.asarray((up.x, up.y, up.z))) * inv
+        parents = _np.asarray([bone.parent_index for bone in bones])
+        children = _np.flatnonzero((parents >= 0) & (parents < len(bones)))
+        starts = parents[children]
+        visible = (depth[children] > 0.02) & (depth[starts] > 0.02)
+        visible &= (_np.abs(sx[children] - sx[starts]) +
+                    _np.abs(sy[children] - sy[starts])) >= 2.0
+        for child in children[visible].tolist():
+            bone = bones[child]
+            parent = bone.parent_index
             target = carrying if bone.name in self._carrying_bones else plain
-            target.moveTo(start)
-            target.lineTo(end)
+            target.moveTo(float(sx[parent]), float(sy[parent]))
+            target.lineTo(float(sx[child]), float(sy[child]))
         painter.setBrush(Qt.NoBrush)
         for path, colour in ((plain, _BONE_COLOR), (carrying, _BONE_COLOR_CARRYING)):
             if not path.isEmpty():

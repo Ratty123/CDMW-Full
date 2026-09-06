@@ -115,6 +115,7 @@ class ArmourPickerMixin:
         self._armour_index = index
         self._weapon_socket_entries = dict(sockets or {})
         self._weapon_mesh_entries = dict(meshes or {})
+        self._weapon_mesh_cache.clear()
         self._populate_armour()
         # The bare body lives in the packages, not in the pinned baseline, so until the index
         # lands the figure is standing there in the fallback coat. Rebuild now that the real
@@ -158,6 +159,8 @@ class ArmourPickerMixin:
         if self._armour_choice:
             self._ensure_meshes_visible()
         self._refresh_meshes()
+        if getattr(self, '_background_loading', False):
+            return  # Completion publishes the bound count without reading on the UI.
         worn = len(self._skinned_body())
         self._armour_status.setText(f"{len(self._armour_choice)} piece(s) worn, {worn} skinned")
         self.statusBar().showMessage(f"Armour: {worn} mesh(es) bound to the rig")
@@ -190,6 +193,9 @@ class ArmourPickerMixin:
         from PySide6.QtCore import QTimer
 
         self._stop_archive_content_load()
+        if getattr(self, '_background_loading', False):
+            self._request_archive_content(weapons)
+            return
         self._archive_load = self._iter_archive_content(weapons=weapons)
         timer = QTimer(self)
         # Zero interval, not zero work: Qt runs the rest of the event loop between timeouts.
@@ -252,6 +258,9 @@ class ArmourPickerMixin:
     def _stop_archive_content_load(self) -> None:
         """A running read must not outlive the window or the character it was reading for."""
 
+        task = getattr(self, '_archive_task', None)
+        if task is not None:
+            task.cancel()
         timer = getattr(self, "_archive_load_timer", None)
         self._archive_load_timer = None
         self._archive_load = None

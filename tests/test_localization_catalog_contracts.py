@@ -1025,6 +1025,37 @@ def test_readonly_python_model_presentation_roles_translate_without_mutation(
     root.deleteLater()
 
 
+def test_unchanged_asset_tree_cells_do_not_emit_model_writes_but_still_switch_language(tmp_path: Path) -> None:
+    _app()
+    tree = QTreeWidget()
+    tree.setColumnCount(1)
+    tree.addTopLevelItem(QTreeWidgetItem(['Bip01_Spine2']))
+    tree.addTopLevelItem(QTreeWidgetItem(['Language']))
+    localizer = UiLocalizer(language_dir=tmp_path / 'languages', language_code='en')
+    writes = []
+    tree.model().dataChanged.connect(lambda *args: writes.append(args))
+    try:
+        localizer._apply_model_view(tree)
+        assert writes == []
+        localizer.load_language('fr')
+        localizer._apply_model_view(tree)
+        assert tree.topLevelItem(0).text(0) == 'Bip01_Spine2'
+        assert tree.topLevelItem(1).text(0) == localizer.translate('Language')
+        writes.clear()
+        localizer._apply_model_view(tree)
+        assert writes == []
+        # A live replacement is a new source, even with existing tracking roles.
+        tree.topLevelItem(1).setText(0, 'Settings')
+        localizer._apply_model_view(tree)
+        assert tree.topLevelItem(1).text(0) == localizer.translate('Settings')
+        localizer.load_language('en')
+        localizer._apply_model_view(tree)
+        assert tree.topLevelItem(1).text(0) == 'Settings'
+    finally:
+        localizer.shutdown()
+        tree.deleteLater()
+
+
 def test_every_composite_widget_kind_restores_its_english_source(tmp_path: Path) -> None:
     """No widget may be translated twice, in any language or on the way back.
 

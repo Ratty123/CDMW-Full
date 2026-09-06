@@ -2561,6 +2561,14 @@ class UiLocalizer(QObject):
                 if not isinstance(current, str):
                     continue
                 rendered = model.data(index, rendered_role)
+                # Game asset trees contain thousands of untranslated identifiers. Storing
+                # two tracking roles for every unchanged cell emits dataChanged and makes
+                # Qt repeatedly lay out the tree while the Studio is opening. There is no
+                # translated value to preserve yet: a later language pass can read the same
+                # source directly from the presentation role.
+                if (not isinstance(source, str) and not isinstance(rendered, str)
+                        and self.translate_rendered(current) == current):
+                    continue
                 if isinstance(source, str):
                     if self._adopts_current_as_source(source, rendered, current):
                         source = current
@@ -2571,7 +2579,8 @@ class UiLocalizer(QObject):
                 translated = self.translate_rendered(source)
                 if translated != current:
                     model.setData(index, translated, presentation_role)
-                model.setData(index, translated, rendered_role)
+                if rendered != translated:
+                    model.setData(index, translated, rendered_role)
 
         if isinstance(view, (QTreeWidget, QTableWidget)):
             # These two track their header text as widget properties, in

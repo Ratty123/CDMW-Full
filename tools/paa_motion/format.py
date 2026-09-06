@@ -46,6 +46,8 @@ to consume the buffer.
 
 from __future__ import annotations
 
+from functools import cached_property
+
 import struct
 from dataclasses import dataclass
 from typing import Sequence, Tuple
@@ -210,11 +212,15 @@ class MotionClip:
     def tags(self) -> Tuple[str, ...]:
         return tuple(part for part in self.tag.split(";") if part)
 
-    def track_for(self, name_hash: int) -> BoneTrack | None:
+    @cached_property
+    def _tracks_by_hash(self):
+        found = {}
         for track in self.tracks:
-            if track.name_hash == name_hash:
-                return track
-        return None
+            found.setdefault(track.name_hash, track)
+        return found
+
+    def track_for(self, name_hash: int) -> BoneTrack | None:
+        return self._tracks_by_hash.get(name_hash)
 
 
 def _read_channel(

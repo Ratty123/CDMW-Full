@@ -69,3 +69,33 @@ def test_zero_duration_falls_back_to_converted_keys_and_roundtrip_preserves_indi
 def test_invalid_duration_cannot_enter_playback(duration):
     with pytest.raises(TimingError):
         Playback().load(clip(duration=duration), "invalid")
+
+
+def test_indexed_track_lookup_preserves_first_duplicate_and_encoded_bytes():
+    first = BoneTrack(1, translation=((0, (1., 0., 0.)),))
+    motion = clip(first, BoneTrack(1, translation=((0, (9., 0., 0.)),), root_motion=True))
+    data = encode_paa(motion)
+    assert motion.track_for(1) is first
+    assert motion.track_for(999) is None
+    assert sample_delta_seconds(motion, 1, .5).translation == (1., 0., 0.)
+    assert encode_paa(motion) == data
+
+
+def test_key_bracketing_boundaries_and_duplicate_indices():
+    from tools.paa_motion.pose import _bracket
+    keys = ((0, (0.,)), (5, (1.,)), (5, (2.,)), (10, (3.,)))
+    assert _bracket(keys, -1) == (keys[0], keys[0], 0)
+    assert _bracket(keys, 5) == (keys[2], keys[3], 0)
+    assert _bracket(keys, 7.5) == (keys[2], keys[3], .5)
+    assert _bracket(keys, 10) == (keys[3], keys[3], 0)
+
+
+def test_cached_bind_transform_uses_proportions_and_detects_mutation():
+    from types import SimpleNamespace
+    from tools.paa_motion.pose import bind_transform
+    bone = SimpleNamespace(position=[1, 0, 0], rotation=[0, 0, 0, 1], scale=[1, 1, 1])
+    original = bind_transform(bone)
+    assert bind_transform(bone) is original
+    bone.position[0] = 2
+    assert bind_transform(bone).translation == (2, 0, 0)
+    assert original.translation == (1, 0, 0)

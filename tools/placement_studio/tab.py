@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .background import LatestTask
+
 
 class BaselineWorker(QObject):
     """Extracts the pinned vanilla baseline off the UI thread."""
@@ -35,12 +37,18 @@ class BaselineWorker(QObject):
     progress = Signal(str)
     done = Signal(object, str)  # (Baseline or None, error message)
 
-    def __init__(self, game_root: str) -> None:
+    def __init__(self, game_root: str, *, cancelled=lambda: False) -> None:
         super().__init__()
         self._game_root = str(game_root or "")
+        self._cancelled = cancelled
 
     def run(self) -> None:
         try:
+            def report(message):
+                if self._cancelled():
+                    raise InterruptedError("Placement preparation cancelled")
+                self.progress.emit(message)
+
             # The extractor reads its roots from the environment, which is also how the CLI
             # overrides them; setting it here keeps one mechanism rather than two.
             if self._game_root:
@@ -56,7 +64,7 @@ class BaselineWorker(QObject):
             from tools.placement_studio.resolver import model_of, weapon_id_of
             from tools.placement_studio.session import skeleton_paths_for
 
-            self.progress.emit("Collecting the paths the studio needs...")
+            report("Collecting the paths the studio needs...")
             try:
                 paths = set(golden_game_paths(discover_golden_mods()))
             except FileNotFoundError:
@@ -71,10 +79,12 @@ class BaselineWorker(QObject):
                     model = model_of(path)
                     if model:
                         paths.add(weapon_mesh_path(weapon_id_of(path), model))
+            if self._cancelled():
+                return
             paths |= set(discover_body_meshes(models))
 
-            self.progress.emit(f"Extracting {len(paths):,} file(s) from the archives...")
-            baseline = extract_baseline(sorted(paths), on_log=self.progress.emit)
+            report(f"Extracting {len(paths):,} file(s) from the archives...")
+            baseline = extract_baseline(sorted(paths), on_log=report)
             if not len(baseline):
                 self.done.emit(None, "The archives yielded no placement files.")
                 return
@@ -99,6 +109,47 @@ _DEFAULT_STUDIO_PATHS = (
 )
 
 
+def _prepare_startup(root, cancelled, progress):
+    """Even cached baselines and first imports must not stall the shell's event loop."""
+    from .corpus import Baseline, baseline_root
+
+    if root:
+        os.environ["CDMW_PS_GAME_ROOT"] = root
+    try:
+        baseline = Baseline.load()
+    except FileNotFoundError:
+        baseline = None
+    if cancelled():
+        return None
+    if baseline is None or not len(baseline):
+        if not root:
+            raise ValueError(
+                "Placement Studio could not read the archive package root.\n\n"
+                "Set it under Settings -> Archive Locations -> Game / Package, then reopen "
+                f"this tab.\n\nBaseline looked for at:\n{baseline_root()}"
+            )
+        if not Path(root).is_dir():
+            raise ValueError(
+                "The configured archive package root does not exist:\n\n"
+                f"{root}\n\n"
+                "Fix it under Settings -> Archive Locations, then reopen this tab."
+            )
+        worker = BaselineWorker(root, cancelled=cancelled)
+        result = []
+        worker.done.connect(lambda value, error: result.append((value, error)), Qt.DirectConnection)
+        worker.run()
+        if cancelled():
+            return None
+        baseline, error = result[0]
+        if baseline is None:
+            raise ValueError(error)
+    if cancelled():
+        return None
+    # Importing decoder modules on first use can be substantial in a frozen executable.
+    from .window import PlacementStudioWindow  # noqa: F401
+    return None if cancelled() else baseline
+
+
 class PlacementStudioTab(QWidget):
     """Hosts the studio, extracting its baseline on first open if needed."""
 
@@ -111,6 +162,10 @@ class PlacementStudioTab(QWidget):
         self._thread: Optional[QThread] = None
         self._worker: Optional[BaselineWorker] = None
         self._studio: Optional[QWidget] = None
+        self._closing = False
+        self._startup_task = LatestTask(self)
+        self._startup_task.setObjectName('baseline_preparation')
+        self._startup_task.ready.connect(self._finished)
 
         self._status = QLabel("Placement Studio")
         self._status.setWordWrap(True)
@@ -144,7 +199,7 @@ class PlacementStudioTab(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._bootstrap_panel, 1)
 
-        self._bootstrap()
+        QTimer.singleShot(0, self._bootstrap)
 
     # ── bootstrap ───────────────────────────────────────────────────
 
@@ -179,64 +234,21 @@ class PlacementStudioTab(QWidget):
         return ""
 
     def _bootstrap(self) -> None:
-        """Open immediately if a baseline exists; otherwise offer to build one."""
-
-        from tools.placement_studio.corpus import Baseline, baseline_root
-
-        try:
-            baseline = Baseline.load()
-        except FileNotFoundError:
-            baseline = None
-        if baseline is not None and len(baseline):
-            self._install(baseline)
-            return
-
-        root = self._game_root()
-        if not root:
-            self._status.setText(
-                "Placement Studio could not read the archive package root.\n\n"
-                "Set it under Settings -> Archive Locations -> Game / Package, then reopen "
-                f"this tab.\n\nBaseline looked for at:\n{baseline_root()}"
-            )
-            self._action.setEnabled(False)
-            return
-        if not Path(root).is_dir():
-            # Name the path that was read. Being told to set something already set is worse
-            # than being told the value is wrong — that was the original report.
-            self._status.setText(
-                "The configured archive package root does not exist:\n\n"
-                f"{root}\n\n"
-                "Fix it under Settings -> Archive Locations, then reopen this tab."
-            )
-            self._action.setEnabled(False)
-            return
-        self._status.setText(
-            "Placement Studio needs a one-time read of the game archives to pin a vanilla "
-            "baseline.\n\nAbout 500 files, roughly a minute. Nothing is written to the game "
-            f"folder.\n\nArchives: {root}"
-        )
+        """Let the shell paint before starting cached or first-use preparation."""
         self._start()
 
     def _start(self) -> None:
-        if self._thread is not None:
+        if self._closing or self._startup_task.busy:
             return
         self._action.setEnabled(False)
         self._progress.setVisible(True)
-
-        self._thread = QThread(self)
-        self._worker = BaselineWorker(self._game_root())
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.progress.connect(self._status.setText)
-        self._worker.done.connect(self._finished)
-        self._thread.start()
+        self._status.setText("Loading...")
+        root = self._game_root()  # Read settings/widgets only on the UI thread.
+        self._startup_task.submit(lambda cancelled, progress: _prepare_startup(root, cancelled, progress))
 
     def _finished(self, baseline, error: str) -> None:
-        thread = self._thread
-        self._thread = None
-        if thread is not None:
-            thread.quit()
-            thread.wait(5000)
+        if self._closing:
+            return
         self._progress.setVisible(False)
         self._worker = None
 
@@ -261,7 +273,7 @@ class PlacementStudioTab(QWidget):
 
         # The studio is a QMainWindow; embedded as a child it keeps its own status bar and
         # layout without the tab having to re-implement either.
-        self._studio = PlacementStudioWindow(baseline, parent=self)
+        self._studio = PlacementStudioWindow(baseline, parent=self, background_loading=True)
         self._studio.setWindowFlags(Qt.Widget)
         self._layout.addWidget(self._studio, 1)
         self._studio.show()
@@ -285,16 +297,28 @@ class PlacementStudioTab(QWidget):
                 thread = getattr(studio, name, None)
                 if thread is not None:
                     tracked.append((name.lstrip("_"), thread, None))
+        for owner in (self, studio):
+            if owner is None or not hasattr(owner, 'findChildren'):
+                continue
+            for number, task in enumerate(owner.findChildren(LatestTask)):
+                if task._thread is not None and all(task._thread is not row[1] for row in tracked):
+                    tracked.append((task.objectName() or f'preparation_{number}', task._thread, task))
         return tuple((name, thread, worker) for name, thread, worker in tracked if thread is not None)
 
     def request_shutdown(self) -> None:
         """Ask every thread to finish, without waiting for any of them.
 
-        `shutdown()` blocks for up to five seconds; the shell calls this first on every
-        worker tab precisely so the waiting happens once, afterwards, across all of
-        them rather than tab by tab.
+        LatestTask retains native threads until teardown; neither close path waits here.
         """
 
+        self._closing = True
+        for owner in (self, self._studio):
+            if owner is not None and hasattr(owner, 'findChildren'):
+                for task in owner.findChildren(LatestTask):
+                    task.shutdown()
+        studio = self._studio
+        if studio is not None and hasattr(studio, 'close'):
+            studio.close()
         for _name, thread, _worker in self.iter_shutdown_workers():
             try:
                 thread.requestInterruption()
@@ -305,11 +329,7 @@ class PlacementStudioTab(QWidget):
     def shutdown(self) -> None:
         """Stop the worker so closing the app never waits on an archive sweep."""
 
-        thread = self._thread
-        self._thread = None
-        if thread is not None:
-            thread.quit()
-            thread.wait(5000)
+        self.request_shutdown()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         self.shutdown()

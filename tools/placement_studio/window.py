@@ -3,9 +3,8 @@
 Runs standalone (`scripts/placement_studio.py`) and embedded as a tool tab (`tab.py`). Both use
 the same widget tree, so there is one implementation to keep working.
 
-Isolation is structural, not a convention: nothing here imports `cdmw.ui`, so the studio cannot
-inherit the embedded-preview freeze or the tool-rail reparenting faults, and it draws its own
-geometry rather than driving a helper process.
+Asset preparation runs separately from the UI in the embedded and standalone application.
+The viewport draws its own geometry rather than driving a helper process.
 
 Panes: a tree (bones -> sockets -> parts), a projected viewport with the body and placed weapon,
 an edit panel, and an inspector answering the question the manual workflow keeps asking —
@@ -47,6 +46,7 @@ from .glossary import as_html as glossary_html, tip
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
+from .window_loading import StudioLoadingMixin
 from .window_editing import EditPanelMixin
 from .window_armour import ArmourPickerMixin
 from .window_carry import CarryPickerMixin
@@ -109,13 +109,14 @@ _let_header_shrink = let_header_shrink
 fit_popup = _fit_popup
 
 class PlacementStudioWindow(
-    EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
+    StudioLoadingMixin, EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
     CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
     RigTabsMixin, QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
-    def __init__(self, baseline: Baseline, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, baseline: Baseline, parent: Optional[QWidget] = None, *,
+                 background_loading: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle("Placement & Animation Studio")
         self.resize(1360, 860)
@@ -146,6 +147,7 @@ class PlacementStudioWindow(
         self._selected_part = ""
         self._local_blade_axis: Optional[Vec3] = None
 
+        self._init_loading(background_loading)
         self._build_ui()
         self._load_models()
 
@@ -404,12 +406,15 @@ class PlacementStudioWindow(
 
 
     def _load_models(self) -> None:
+        if self._background_loading:
+            self._request_model()
+            return
+        from .session import KNOWN_MODELS
         models = PlacementSession.available_models(self._baseline)
         self._model_box.blockSignals(True)
         self._model_box.clear()
         for model in models:
-            session = PlacementSession.from_baseline(self._baseline, model)
-            self._model_box.addItem(session.label, model)
+            self._model_box.addItem(KNOWN_MODELS.get(model, model), model)
         self._model_box.blockSignals(False)
         if models:
             self._on_model_changed(0)
@@ -419,6 +424,9 @@ class PlacementStudioWindow(
     def _on_model_changed(self, _index: int) -> None:
         model = self._model_box.currentData()
         if not model:
+            return
+        if self._background_loading:
+            self._request_model(model)
             return
         self._session = PlacementSession.from_baseline(self._baseline, model)
 
@@ -561,6 +569,8 @@ class PlacementStudioWindow(
 
     def _refresh_scene(self) -> None:
         if self._session is None:
+            return
+        if self._background_loading and not self._ensure_meshes_prepared():
             return
         usage_map = self._session.usage_map()
         usage = {
@@ -799,6 +809,7 @@ class PlacementStudioWindow(
         return read_entry(entry)
 
     def _invalidate_skinned(self) -> None:
+        self._mesh_ready = self._mesh_requested = self._mesh_body_ready = None
         self._skinned_cache_model = ""
         self._skinned_meshes = []
         self._skinned_faces = ()
@@ -892,6 +903,8 @@ class PlacementStudioWindow(
         session = self._session
         if session is None:
             return
+        if self._background_loading and not self._ensure_meshes_prepared():
+            return
         # A posed body when a clip is loaded, the bind-pose proxy otherwise. The proxy is
         # still what clipping is measured against when nothing is playing.
         # Posed while a clip runs, at rest otherwise — but either way from the skinned set,
@@ -906,7 +919,9 @@ class PlacementStudioWindow(
         # the left-hand row against a right-hand weapon mesh, which reported placement numbers
         # for a combination that does not exist.
         weapon = session.weapon
-        bindings = session.bindings()
+        # Selection and edit publication already refresh these immutable routing records.
+        # Posing moves bones, not descriptor rows; resolving them again costs every frame.
+        bindings = self._bindings
         # Bound before the weapon branch: with no weapon selected there is no mesh to load, and
         # reading it afterwards raised UnboundLocalError inside a Qt slot — which Qt swallows,
         # so the tab simply stopped updating instead of reporting anything.
@@ -1231,6 +1246,6 @@ def launch(baseline: Optional[Baseline] = None) -> int:
 
     resolved = baseline if baseline is not None else Baseline.load()
     app = QApplication.instance() or QApplication(sys.argv)
-    window = PlacementStudioWindow(resolved)
+    window = PlacementStudioWindow(resolved, background_loading=True)
     window.show()
     return app.exec()

@@ -362,6 +362,9 @@ class EditPanelMixin:
 
         if self._edits is None:
             return
+        if getattr(self, '_background_loading', False) and not self._ensure_chart_indexes():
+            self.statusBar().showMessage("Loading...")
+            return
         index = self._chart_index()
         model = self._session.model if self._session else ""
         applied = 0
