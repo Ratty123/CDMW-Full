@@ -105,7 +105,6 @@ def step_style(palette) -> str:
         QLineEdit#effect_search {{ min-height: 30px; border: 1px solid {border}; padding: 0 8px; background: {background}; }}
         QToolButton[effectChip="true"] {{ min-height: 24px; padding: 0 5px; border: 1px solid {border}; border-radius: 4px; }}
         QToolButton[effectChip="true"]:checked {{ color: {active_text}; background: {active}; border-color: {active}; }}
-        QPushButton[effectToolbarButton="true"] {{ min-height: 30px; padding: 0 2px; }}
         QGroupBox#new_item_step QLineEdit, QGroupBox#new_item_step QComboBox,
         QGroupBox#new_item_step QDoubleSpinBox, QGroupBox#new_item_step QPushButton {{ min-height: 30px; }}
         QLabel#new_item_step_counter {{ color: {muted}; }}
@@ -121,6 +120,26 @@ def step_style(palette) -> str:
             border: none; margin-top: 0; padding: 0;
         }}
         QGroupBox#new_item_step QSpinBox {{ min-height: 30px; }}
+        QWidget#effect_toolbar QPushButton,
+        QWidget#effect_playback_controls QPushButton,
+        QWidget#effect_playback_controls QDoubleSpinBox,
+        QWidget#effect_playback_controls QSpinBox,
+        QWidget#effect_playback_controls QComboBox,
+        QWidget#effect_inspector QPushButton,
+        QWidget#effect_inspector QDoubleSpinBox,
+        QWidget#effect_inspector QSpinBox,
+        QWidget#effect_inspector QComboBox,
+        QWidget#effect_inspector QLineEdit {{ min-height: 22px; padding: 2px 5px; }}
+        QWidget#effect_playback_controls QDoubleSpinBox,
+        QWidget#effect_inspector QDoubleSpinBox {{
+            color: {text}; background: {panel}; border: 1px solid {border}; border-radius: 4px;
+        }}
+        QWidget#effect_playback_controls QDoubleSpinBox:disabled,
+        QWidget#effect_inspector QDoubleSpinBox:disabled {{ color: {disabled}; }}
+        QWidget#effect_playback_controls QComboBox,
+        QWidget#effect_inspector QComboBox {{ padding-right: 22px; }}
+        QTabWidget#effect_recipe_tabs::pane {{ border: none; }}
+        QTabWidget#effect_recipe_tabs QTabBar::tab {{ min-height: 24px; padding: 0 10px; }}
         QPushButton[newItemPrimary="true"] {{
             min-height: 32px; padding: 0 16px; border-radius: 5px;
             color: {active_text}; background: {active}; border: 1px solid {active}; font-weight: 600;
@@ -133,7 +152,7 @@ def step_style(palette) -> str:
         QToolButton[effectChip="true"]:focus {{ border: 2px solid {active}; }}
         QToolButton[effectChip="true"]:disabled {{ color: {disabled}; background: {panel}; }}
         QWidget#effect_action_bar {{ background: {panel}; border-top: 1px solid {border}; }}
-        QLabel#effect_section_heading {{ color: {text}; font-weight: 600; padding-top: 8px; }}
+        QLabel#effect_section_heading {{ color: {text}; font-weight: 600; padding-top: 4px; }}
         QLabel#effect_library_count, QLabel#effect_staging_state {{ color: {muted}; }}
         QGroupBox#new_item_step[compactModelPanel="true"] QPushButton,
         QGroupBox#new_item_step[compactModelPanel="true"] QToolButton,

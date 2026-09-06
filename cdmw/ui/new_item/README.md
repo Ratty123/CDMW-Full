@@ -183,6 +183,10 @@ worker teardown. The inspector groups Placement,
 Appearance and Preview, with Apply and Discard pinned below its scroll area. Its
 Layers / Emitters / Saved tabs add up to 16 effect layers with independent placement,
 visibility and appearance. Selecting another layer does not itself create a draft edit.
+The inspector tabs size to their active contents and keep actions together at the top.
+The compact preview toolbar and playback rows retain natural control widths and wrap
+at narrow sizes; extra workspace width goes to the viewport, while the inspector remains
+resizable. Apply and Discard remain pinned when the inspector needs to scroll.
 Layer solo and emitter solo affect only the preview. **Create from this emitter** starts
 a custom recipe from an existing emitter; duplicate/remove controls change its emitter
 list, while the inspector exposes declared emission, lifetime, force, velocity, size,

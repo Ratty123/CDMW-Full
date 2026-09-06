@@ -5,10 +5,10 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, QSize, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QListWidget, QListWidgetItem,
+    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QListWidget, QListWidgetItem, QSizePolicy,
     QPushButton, QComboBox, QCheckBox, QDoubleSpinBox, QTableWidget, QHeaderView,
     QTableWidgetItem, QLineEdit, QLabel, QColorDialog, QInputDialog, QMessageBox, QFileDialog, QApplication,
 )
@@ -40,6 +40,26 @@ class EffectUserLibrary:
             self.settings.setValue('recipes', json.dumps(self.recipes, ensure_ascii=False))
 
 
+class _RecipeTabs(QTabWidget):
+    """Reserve height for the selected tools, including when inside a scroll area."""
+
+    def sizeHint(self):
+        page = self.currentWidget()
+        height = page.sizeHint().height() if page is not None else 0
+        return QSize(super().sizeHint().width(), height + self.tabBar().sizeHint().height() + 4)
+
+    def minimumSizeHint(self):
+        page = self.currentWidget()
+        width = page.minimumSizeHint().width() if page is not None else 0
+        return QSize(max(width, self.tabBar().minimumSizeHint().width()), self.sizeHint().height())
+
+    def heightForWidth(self, width):
+        page = self.currentWidget()
+        if page is not None and page.hasHeightForWidth():
+            return page.heightForWidth(width) + self.tabBar().sizeHint().height() + 4
+        return self.sizeHint().height()
+
+
 class EffectRecipePanel(QWidget):
     changed = Signal(object)
     preview_controls = Signal(object)
@@ -54,14 +74,20 @@ class EffectRecipePanel(QWidget):
         self._curve_colours = [(1., .25, .02), (1., .6, .1), (.25, .02, .01)]
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        tabs = QTabWidget()
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        tabs = _RecipeTabs()
+        tabs.setObjectName('effect_recipe_tabs')
+        tabs.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        tabs.currentChanged.connect(tabs.updateGeometry)
         layout.addWidget(tabs)
 
         layers = QWidget()
         col = QVBoxLayout(layers)
         col.setContentsMargins(0, 4, 0, 4)
+        col.setSpacing(4)
+        col.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.layers = QListWidget()
-        self.layers.setMaximumHeight(120)
+        self.layers.setFixedHeight(96)
         self.layers.currentRowChanged.connect(self._select_layer)
         self.layers.itemChanged.connect(self._layer_item_changed)
         col.addWidget(self.layers)
@@ -70,6 +96,7 @@ class EffectRecipePanel(QWidget):
             button = QPushButton(title)
             button.clicked.connect(callback)
             row.addWidget(button)
+        row.addStretch(1)
         col.addLayout(row)
         row = QHBoxLayout()
         for title, delta in (('Up', -1), ('Down', 1)):
@@ -79,13 +106,18 @@ class EffectRecipePanel(QWidget):
         self.solo_layer = QCheckBox('Solo layer')
         self.solo_layer.toggled.connect(lambda v: self.preview_controls.emit({'solo_layer': self.state.active_layer if v else -1}))
         row.addWidget(self.solo_layer)
+        row.addStretch(1)
         col.addLayout(row)
         tabs.addTab(layers, 'Layers')
 
         emitter = QWidget()
         col = QVBoxLayout(emitter)
         col.setContentsMargins(0, 4, 0, 4)
+        col.setSpacing(4)
+        col.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.emitter = QComboBox()
+        self.emitter.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.emitter.setMinimumContentsLength(12)
         self.emitter.currentIndexChanged.connect(self._show_emitter)
         col.addWidget(self.emitter)
         row = QHBoxLayout()
@@ -103,7 +135,7 @@ class EffectRecipePanel(QWidget):
         self.parameters = QTableWidget(0, 3)
         self.parameters.setHorizontalHeaderLabels(('Use', 'Property', 'Value'))
         self.parameters.verticalHeader().hide()
-        self.parameters.setMaximumHeight(250)
+        self.parameters.setFixedHeight(240)
         self.parameters.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.parameters.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.parameters.setColumnWidth(1, 120)
@@ -124,6 +156,7 @@ class EffectRecipePanel(QWidget):
         self.curves = {}
         for key, title, maximum, initial in (('size_curve', 'Size curve', 20., (1.,1.,1.)), ('opacity_curve', 'Opacity curve', 1., (0.,1.,0.))):
             row = QHBoxLayout()
+            row.setSpacing(2)
             check = QCheckBox(title)
             check.toggled.connect(lambda _: self._edit())
             row.addWidget(check)
@@ -145,36 +178,47 @@ class EffectRecipePanel(QWidget):
         self.emitter_status = QLabel('Select an effect to inspect its emitters.')
         self.emitter_status.setWordWrap(True)
         col.addWidget(self.emitter_status)
+        actions = QHBoxLayout()
         reset = QPushButton('Reset emitter')
         reset.clicked.connect(self._reset_emitter)
-        col.addWidget(reset)
+        actions.addWidget(reset)
         tabs.addTab(emitter, 'Emitters')
         create = QPushButton('Create from this emitter')
         create.setToolTip('Start a custom effect using only this emitter as a template')
         create.clicked.connect(self.create_from_emitter)
-        col.addWidget(create)
+        actions.addWidget(create)
+        actions.addStretch(1)
+        col.addLayout(actions)
 
         saved = QWidget()
         col = QVBoxLayout(saved)
+        col.setContentsMargins(0, 4, 0, 4)
+        col.setSpacing(4)
+        col.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.saved = QComboBox()
+        self.saved.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.saved.setMinimumContentsLength(12)
         col.addWidget(self.saved)
         row = QHBoxLayout()
         for title, callback in (('Load', self.load_recipe), ('Save as…', self.save_recipe), ('Delete', self.delete_recipe)):
             button = QPushButton(title)
             button.clicked.connect(callback)
             row.addWidget(button)
+        row.addStretch(1)
         col.addLayout(row)
         label = QLabel('Saved effects retain all layers, placements and emitter settings.')
         label.setWordWrap(True)
         col.addWidget(label)
-        col.addStretch(1)
         row = QHBoxLayout()
         for title, callback in (('Import recipe…', self.import_recipe), ('Export recipe…', self.export_recipe)):
             button = QPushButton(title)
             button.clicked.connect(callback)
             row.addWidget(button)
+        row.addStretch(1)
         col.addLayout(row)
         tabs.addTab(saved, 'Saved')
+        for button in self.findChildren(QPushButton):
+            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         self._refresh_saved()
 
     def set_state(self, state):
@@ -280,7 +324,6 @@ class EffectRecipePanel(QWidget):
             line = QVBoxLayout(holder) if dimensions > 1 else QHBoxLayout(holder)
             line.setContentsMargins(0,0,0,0)
             line.setSpacing(1)
-            self.parameters.setRowHeight(row, 78 if dimensions > 1 else 28)
             spins=[]
             for axis in range(dimensions):
                 spin=QDoubleSpinBox()
@@ -295,6 +338,7 @@ class EffectRecipePanel(QWidget):
                 line.addWidget(spin)
                 spins.append(spin)
             self.parameters.setCellWidget(row,2,holder)
+            self.parameters.setRowHeight(row, holder.sizeHint().height() + 2)
             self._fields[key]=(check,spins)
         self.colour_curve.setChecked(bool(edit.color_curve))
         if edit.color_curve:

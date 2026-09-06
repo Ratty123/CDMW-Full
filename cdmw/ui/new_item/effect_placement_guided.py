@@ -59,9 +59,9 @@ class EffectPlacementGuidedMixin:
         self.preview_splitter = splitter
         splitter.addWidget(self._guided_viewport_panel(splitter))
         splitter.addWidget(self._guided_inspector_panel(splitter))
-        splitter.setStretchFactor(0, 13)
-        splitter.setStretchFactor(1, 7)
-        splitter.setSizes([650, 340])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setSizes([650, 380])
         root.addWidget(splitter, 1)
         self._hide_compatibility_controls()
 
@@ -71,7 +71,7 @@ class EffectPlacementGuidedMixin:
         viewport.setMinimumWidth(480)
         layout = QVBoxLayout(viewport)
         layout.setContentsMargins(12, 8, 0, 8)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
         toolbar_panel = _GuidedToolbarPanel(viewport)
         toolbar_panel.setObjectName("effect_toolbar")
@@ -105,9 +105,8 @@ class EffectPlacementGuidedMixin:
         for button, key in zip(self._guided_toolbar_buttons, toolbar_keys):
             button.setIcon(mesh_editor_action_icon(key, self.palette()))
             button.setProperty("effectToolbarButton", True)
-            button.setFixedHeight(32)
+            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             button.setIconSize(QSize(14, 14))
-            button.setMinimumWidth(button.fontMetrics().horizontalAdvance(button.text()) + 20)
         self.guided_toolbar_panel = toolbar_panel
         self.guided_toolbar_layout = toolbar
         self._guided_toolbar_columns = 0
@@ -130,19 +129,19 @@ class EffectPlacementGuidedMixin:
     def _reflow_guided_toolbar(self, width: int) -> None:
         buttons = self._guided_toolbar_buttons
         spacing = self.guided_toolbar_layout.horizontalSpacing()
-        required = sum(button.minimumWidth() for button in buttons) + spacing * (len(buttons) - 1) + 4
+        required = sum(button.sizeHint().width() for button in buttons) + spacing * (len(buttons) - 1) + 4
         columns = len(buttons) if int(width) >= max(560, required) else 4
         if columns == self._guided_toolbar_columns:
             return
         self._guided_toolbar_columns = columns
         while self.guided_toolbar_layout.count():
             self.guided_toolbar_layout.takeAt(0)
-        for column in range(len(buttons)):
-            self.guided_toolbar_layout.setColumnStretch(column, 1 if column < columns else 0)
+        for column in range(len(buttons) + 1):
+            self.guided_toolbar_layout.setColumnStretch(column, 1 if column == columns else 0)
         for index, button in enumerate(buttons):
-            self.guided_toolbar_layout.addWidget(button, index // columns, index % columns)
+            self.guided_toolbar_layout.addWidget(button, index // columns, index % columns, Qt.AlignmentFlag.AlignLeft)
         rows = (len(buttons) + columns - 1) // columns
-        height = rows * 32 + (rows - 1) * self.guided_toolbar_layout.verticalSpacing()
+        height = rows * max(button.sizeHint().height() for button in buttons) + (rows - 1) * self.guided_toolbar_layout.verticalSpacing()
         self.guided_toolbar_panel.setFixedHeight(height)
         self.guided_toolbar_layout.setGeometry(self.guided_toolbar_panel.rect())
         self.guided_toolbar_panel.updateGeometry()
@@ -176,7 +175,7 @@ class EffectPlacementGuidedMixin:
 
     def _guided_inspector_panel(self, parent: QWidget) -> QWidget:
         panel = QWidget(parent)
-        panel.setMinimumWidth(340)
+        panel.setMinimumWidth(max(380, self.fontMetrics().height() * 22))
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(0, 0, 0, 0)
         panel_layout.setSpacing(0)
@@ -185,13 +184,13 @@ class EffectPlacementGuidedMixin:
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(340)
+        scroll.setMinimumWidth(panel.minimumWidth())
         panel_layout.addWidget(scroll, 1)
         inspector = QWidget()
         inspector.setObjectName("effect_inspector")
         layout = QVBoxLayout(inspector)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
         scroll.setWidget(inspector)
         self.inspector_widget = inspector
 
@@ -234,6 +233,7 @@ class EffectPlacementGuidedMixin:
         scale_row.addWidget(QLabel("Scale"))
         scale_row.addStretch(1)
         self.scale_spin.setMinimumWidth(182)
+        self.scale_spin.setMaximumWidth(182)
         scale_row.addWidget(self.scale_spin)
         layout.addLayout(scale_row)
 
@@ -350,6 +350,7 @@ class EffectPlacementGuidedMixin:
         spin.setSingleStep(0.1)
         spin.setValue(float(getattr(self, key)))
         spin.setMinimumWidth(88)
+        spin.setMaximumWidth(100)
         slider.valueChanged.connect(lambda value, name=key: self._guided_look_slider_changed(name, value))
         spin.valueChanged.connect(lambda value, name=key: self._guided_look_spin_changed(name, value))
         row.addWidget(slider, 1)
