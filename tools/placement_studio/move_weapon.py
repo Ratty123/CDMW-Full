@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QGroupBox,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QPlainTextEdit,
@@ -91,8 +90,13 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Placement & Animations — replacement workspace")
-        self.setMinimumSize(1050, 740)
-        self.resize(1420, 940)
+        self.setWindowFlag(Qt.WindowMinimizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+        self.setSizeGripEnabled(True)
+        self.setMinimumSize(1050, 640)
+        available = self.screen().availableGeometry()
+        self.resize(min(1420, available.width() - 32), min(940, available.height() - 64))
         self._prepare_for = prepare_for
         self._prepared_scene = None
 
@@ -124,6 +128,7 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         self._point_destination_at_current()
         self._reload_clips()
         self._refresh()
+        self._part_box.setFocus()
 
     def _point_destination_at_current(self) -> None:
         """Open on where the item already hangs, so the first state shown is a no-op.
@@ -157,7 +162,7 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         return self._banner_label
 
     def _build_equipment_page(self, parts: Sequence[Tuple[str, str]]) -> QWidget:
-        page = QWidget()
+        page = QGroupBox("Equipment")
         layout = QVBoxLayout(page)
 
         self._part_box = QComboBox()
@@ -220,11 +225,12 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         self._link_warning = QLabel()
         self._link_warning.setObjectName("WarningText")
         self._link_warning.setWordWrap(True)
+        self._link_warning.hide()
         layout.addWidget(self._link_warning)
         return page
 
     def _build_placement_page(self) -> QWidget:
-        page = QWidget()
+        page = QGroupBox("Placement")
         layout = QVBoxLayout(page)
 
         self._to_box = QComboBox()
@@ -295,20 +301,18 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         return page
 
     def _build_animation_page(self) -> QWidget:
-        page = QWidget()
+        page = QGroupBox("Animation")
+        page.setToolTip("How much of the animation set follows")
         layout = QVBoxLayout(page)
 
-        scope_group = QGroupBox("How much of the animation set follows")
-        scope_layout = QVBoxLayout(scope_group)
         self._scope_buttons: Dict[str, QRadioButton] = {}
         for kind in carry.SCOPE_ORDER:
             button = QRadioButton(carry.SCOPE_LABELS[kind])
             button.setToolTip(carry.SCOPE_HINTS.get(kind, ""))
             button.toggled.connect(lambda checked: self._on_scope_changed() if checked else None)
-            scope_layout.addWidget(button)
+            layout.addWidget(button)
             self._scope_buttons[kind] = button
         self._scope_buttons[carry.SCOPE_DRAW_STOW].setChecked(True)
-        layout.addWidget(scope_group)
 
         self._advanced_confirm = QCheckBox(
             "Full-body effects reviewed"
@@ -317,7 +321,8 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         self._advanced_confirm.setToolTip('Donor motion can change the off-hand, shield arm and whole-body stance. Review the complete file set and preview checks.')
         layout.addWidget(self._advanced_confirm)
 
-        context_group = QGroupBox("Contexts (leave alone to use the preset's own set)")
+        context_group = QGroupBox("Context")
+        context_group.setToolTip("Contexts (leave alone to use the preset's own set)")
         context_layout = QVBoxLayout(context_group)
         for name, label in carry.CONTEXT_GROUPS:
             box = QCheckBox(label)
@@ -336,7 +341,8 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         details.toggled.connect(context_group.setVisible)
         layout.insertWidget(layout.indexOf(context_group), details)
 
-        options = QHBoxLayout()
+        options = QVBoxLayout()
+        options.setContentsMargins(0, 0, 0, 0)
         self._include_mounted = QCheckBox("Include mounted clips")
         self._include_borrowed = QCheckBox("Include the other character's clips")
         self._include_borrowed.setToolTip(
@@ -347,7 +353,6 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         for box in (self._include_mounted, self._include_borrowed):
             box.toggled.connect(lambda _c: self._on_scope_changed())
             options.addWidget(box)
-        options.addStretch(1)
         options_panel = QWidget()
         options_panel.setLayout(options)
         options_panel.hide()
@@ -597,6 +602,7 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         self._unit_label.setText(self._unit.weapon_id if self._unit is not None else "(unresolved)")
         self._unit_label.setToolTip(self._unit.describe() if self._unit is not None else "")
         self._unit_problem.setText(self._unit_error)
+        self._unit_problem.setVisible(bool(self._unit_error))
         request = self.request()
         previous = self._plan.request if self._plan is not None else None
         self._plan = self._plan_for(request) if request is not None and self._plan_for else None
@@ -668,6 +674,7 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         total = len(self._file_model.rows)
         self._count_label.setText(f"{len(chosen)} of {total} animation files selected")
         self._risk_label.setText(" · ".join(carry.risk_warnings(chosen)))
+        self._risk_label.setVisible(bool(self._risk_label.text()))
         advanced = self.scope().is_advanced
         self._advanced_confirm.setVisible(advanced)
         self._advanced_confirm.setEnabled(advanced)
@@ -677,6 +684,7 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
         if plan is None:
             self._review_view.setPlainText(self._unit_error or "Select an item")
             self._blocker_label.setText(self._unit_error)
+            self._blocker_label.setVisible(bool(self._unit_error))
             return
         lines = list(plan.review_lines())
         prepared = self.prepared()
@@ -692,3 +700,4 @@ class MoveWeaponDialog(WorkspaceLifecycle, QDialog):
             lines += [f"{r.target_path} ← {r.donor.path}" for r in plan.request.replacements]
         self._review_view.setPlainText("\n".join(lines))
         self._blocker_label.setText("\n".join(plan.blockers))
+        self._blocker_label.setVisible(bool(plan.blockers))

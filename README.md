@@ -134,7 +134,12 @@ Playback reuses bone lookup, bind-transform and mesh-topology data and projects
 the skeleton in batches without reducing the displayed mesh detail.
 
 The replacement workspace keeps equipment, linked parts, destination, animation
-selection, comparison and checks together. Each proposed file has an inspectable
+selection, comparison and checks together. Start with **Equipment**, **Placement**
+and **Animation** on the left, then use **Prepare preview** above the comparison.
+The window supports minimize, maximize and resizing; adjustable panes and expanding
+target/replacement columns use the available space. **Details and exact files**
+switches the file pane to review and back without losing the selection or shrinking
+the preview. Review and apply share a compact footer. Each proposed file has an inspectable
 target/donor mapping, Full/LOD variant, shared references and status. Manual donor
 choices survive refreshes while valid. Select **Prepare preview** to resolve the
 complete payload set before applying one operation; unreadable donors, invalid

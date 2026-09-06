@@ -6908,6 +6908,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_skeleton_state.py",
           "line": 519,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 305,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -22463,6 +22468,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 296,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 325,
+          "sink": "QGroupBox"
         }
       ]
     },
@@ -22546,8 +22556,8 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 320,
-          "sink": "QGroupBox"
+          "line": 326,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -31249,6 +31259,11 @@
     {
       "key": "Equipment",
       "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 166,
+          "sink": "QGroupBox"
+        },
         {
           "path": "tools/placement_studio/window_clips.py",
           "line": 76,
@@ -40996,8 +41011,8 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 301,
-          "sink": "QGroupBox"
+          "line": 306,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -69043,6 +69058,11 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 371,
           "sink": "setAccessibleName"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 234,
+          "sink": "QGroupBox"
         }
       ]
     },

@@ -24,7 +24,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
 import test_placement_studio_operations as fixtures  # noqa: E402
 from tools.placement_studio import carry  # noqa: E402
@@ -119,6 +119,110 @@ def _set_scope(dialog: MoveWeaponDialog, kind: str) -> None:
 
 def _rows(dialog: MoveWeaponDialog):
     return dialog._file_model.rows
+
+
+class WorkspaceLayoutTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from tests.qt_font_metrics_support import pin_default_ui_font
+
+        if not pin_default_ui_font(_APP):
+            self.skipTest("the application's default UI font is unavailable")
+        self.dialog = _Bench().dialog()
+        self.addCleanup(self.dialog.deleteLater)
+        self.addCleanup(self.dialog.reject)
+        self.dialog.resize(1366, 700)
+        self.dialog.show()
+        _APP.processEvents()
+
+    def test_window_supports_maximize_restore_and_fits_a_laptop_screen(self) -> None:
+        dialog = self.dialog
+        for flag in (Qt.WindowMinimizeButtonHint, Qt.WindowMaximizeButtonHint,
+                     Qt.WindowCloseButtonHint):
+            self.assertTrue(dialog.windowFlags() & flag)
+        self.assertTrue(dialog.isSizeGripEnabled())
+        original = dialog.size()
+        self.assertLessEqual(dialog.minimumSizeHint().height(), original.height())
+        dialog.showMaximized()
+        _APP.processEvents()
+        self.assertTrue(dialog.isMaximized())
+        dialog.showNormal()
+        _APP.processEvents()
+        self.assertEqual(dialog.size(), original)
+
+        fitted = _Bench().dialog()
+        try:
+            available = fitted.screen().availableGeometry()
+            self.assertLessEqual(fitted.width(), max(fitted.minimumWidth(), available.width() - 32))
+            self.assertLessEqual(fitted.height(), max(fitted.minimumHeight(), available.height() - 64))
+            self.assertLessEqual(fitted.minimumSizeHint().height(), fitted.height())
+        finally:
+            fitted.reject()
+            fitted.deleteLater()
+
+    def test_resize_gives_space_to_preview_files_and_path_columns(self) -> None:
+        dialog = self.dialog
+        self.assertIs(dialog.focusWidget(), dialog._part_box)
+        self.assertEqual(dialog._equipment_controls.title(), "Equipment")
+        self.assertEqual(dialog._placement_controls.title(), "Placement")
+        self.assertTrue(dialog._blocker_label.isHidden())
+        preview = dialog._preview.size()
+        table = dialog._file_table.size()
+        paths = [dialog._file_table.columnWidth(i) for i in (1, 2)]
+        dialog.resize(1800, 1050)
+        _APP.processEvents()
+        self.assertGreater(dialog._preview.height(), preview.height())
+        self.assertGreater(dialog._file_table.height(), table.height())
+        self.assertGreater(dialog._file_table.width(), table.width())
+        for column, width in zip((1, 2), paths):
+            self.assertGreater(dialog._file_table.columnWidth(column), width)
+        self.assertAlmostEqual(dialog._file_table.horizontalHeader().length(),
+                               dialog._file_table.viewport().width(), delta=2)
+        last_row = dialog._risk_label if dialog._risk_label.isVisible() else dialog._count_label
+        bottom = last_row.mapTo(dialog, last_row.rect().bottomLeft()).y()
+        footer_top = dialog._buttons.mapTo(dialog, dialog._buttons.rect().topLeft()).y()
+        self.assertLessEqual(footer_top - bottom, 2 * dialog.layout().spacing())
+
+    def test_review_reuses_file_space_and_preserves_selection(self) -> None:
+        dialog = self.dialog
+        dialog.resize(1050, 680)
+        dialog._file_model.setData(dialog._file_model.index(0, 0), Qt.Unchecked,
+                                   Qt.CheckStateRole)
+        dialog._file_table.setCurrentIndex(dialog._file_proxy.index(1, 1))
+        _APP.processEvents()
+        selected = dialog.chosen_replacements()
+        current = dialog._file_table.currentIndex()
+        size, preview = dialog.size(), dialog._preview.geometry()
+        dialog._show_files.click()
+        _APP.processEvents()
+        self.assertTrue(dialog._review_view.isVisible())
+        self.assertFalse(dialog._file_table.isVisible())
+        self.assertEqual(dialog.size(), size)
+        self.assertEqual(dialog._preview.geometry(), preview)
+        self.assertLessEqual(dialog.minimumSizeHint().height(), dialog.height())
+        self.assertIn(dialog.plan().unit.primary_part, dialog._review_view.toPlainText())
+        dialog._show_files.click()
+        _APP.processEvents()
+        self.assertTrue(dialog._file_table.isVisible())
+        self.assertEqual(dialog.chosen_replacements(), selected)
+        self.assertEqual(dialog._file_table.currentIndex(), current)
+
+    def test_expanded_filters_fit_the_sidebar_and_blockers_only_take_space_when_needed(self) -> None:
+        dialog = self.dialog
+        filters = next(button for button in dialog.findChildren(QPushButton)
+                       if button.text() == "Animation filters")
+        self.assertFalse(dialog._include_mounted.isVisible())
+        filters.click()
+        _APP.processEvents()
+        for box in (dialog._include_mounted, dialog._include_borrowed):
+            self.assertTrue(box.isVisible())
+            self.assertGreaterEqual(box.width(), box.sizeHint().width())
+        self.assertLess(dialog._include_mounted.geometry().bottom(),
+                        dialog._include_borrowed.geometry().top())
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        self.assertTrue(dialog._blocker_label.isVisible())
+        self.assertTrue(dialog._blocker_label.text())
+        _set_scope(dialog, carry.SCOPE_DRAW_STOW)
+        self.assertTrue(dialog._blocker_label.isHidden())
 
 
 class LabellingTests(unittest.TestCase):
