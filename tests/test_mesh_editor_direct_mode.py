@@ -1516,6 +1516,7 @@ def test_archive_browser_handoff_carries_native_package_and_companion(tmp_path: 
                 "material_package_lease": material_package_lease,
                 "material_context_verified_for_rust": False,
                 "material_source_identity": entry.identity,
+                "archive_dependencies": None,
             },
         )
     ]

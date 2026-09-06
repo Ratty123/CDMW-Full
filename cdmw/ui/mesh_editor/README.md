@@ -154,8 +154,12 @@ remain open rather than being presented as functional controls.
 
 Archive PAC sessions resolve a matching PAB automatically from the same archive
 index, using the original PAC's bone references as well as descriptor and family
-matches, before attaching it to the shadow service. The PAB is a separate skeleton
-dependency; the PAC's vertex weights alone do not contain the named bone hierarchy.
+matches, before attaching it to the shadow service. The current Archive Browser
+passes its prepared per-asset dependency snapshot into the session instead of
+relying on legacy global indexes. Queued opens and draft resumes retain that
+snapshot for both skeleton and material lookup until the session closes.
+The PAB is a separate skeleton dependency; the PAC's vertex weights alone do not
+contain the named bone hierarchy.
 The Rust window has no manual PAB picker. Rig & Skin Weights reports the actual
 automatic-resolution failure (including missing dependencies, ambiguous matches,
 and invalid or empty skeletons) and keeps weight editing disabled until the exact

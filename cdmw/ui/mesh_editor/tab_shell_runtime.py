@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QPushButton, QTabWidget, QWidget
 from cdmw.domain.mesh import MeshPanelSnapshot
 from cdmw.services.mesh_edit_session_state import MeshEditSessionMachine
 from cdmw.services.mesh_material_publication import MaterialPublicationCoordinator
+from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
@@ -45,6 +46,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_request_id = 0
         self.archive_session_load_entry: _tab.ArchiveEntry | None = None
         self.archive_session_load_material_model: object | None = None
+        self.archive_session_dependencies: ArchiveWorkflowDependencyContext | None = None
         self.archive_session_open_pending: dict[str, object] | None = None
         self.standalone_archive_material_preview_model: object | None = None
         self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None

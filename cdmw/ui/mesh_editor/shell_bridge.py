@@ -21,6 +21,10 @@ from cdmw.services.mesh_rust_preview_cache import native_material_package_for_ru
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlowController
 from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest
 
@@ -633,6 +637,15 @@ class MeshEditorShellBridgeMixin:
                 return
         if self._defer_rust_mesh_editor_for_archive_textures(entry):
             return
+        archive_dependencies = None
+        remote_bridge = getattr(self.archive, "archive_remote_bridge", None)
+        if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
+            try:
+                archive_dependencies = archive_workflow_dependency_context(self, entry)
+            except ArchiveWorkflowDependenciesUnavailable as exc:
+                self.set_status_message(str(exc), error=True)
+                return
+            entry = archive_dependencies.selected_entry
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
@@ -684,6 +697,7 @@ class MeshEditorShellBridgeMixin:
             material_package_lease=material_package_lease,
             material_context_verified_for_rust=material_context_verified_for_rust,
             material_source_identity=material_source_identity,
+            archive_dependencies=archive_dependencies,
         )
         self._activate_tool_widget(self.mesh_editor_tab)
         self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")

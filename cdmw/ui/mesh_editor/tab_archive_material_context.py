@@ -18,6 +18,11 @@ class MeshEditorArchiveMaterialContextMixin:
     def _archive_texture_indexes(
         self,
     ) -> tuple[Mapping[str, Sequence[_tab.ArchiveEntry]], Mapping[str, Sequence[_tab.ArchiveEntry]]]:
+        dependencies = self.archive_session_dependencies
+        if dependencies is not None:
+            # The v2 browser keeps prepared dependencies per asset; its legacy
+            # global maps stay empty. Pin these lookups to the open session.
+            return dependencies.entries_by_normalized_path, dependencies.entries_by_basename
         path_provider = self.get_archive_texture_entries_by_normalized_path
         basename_provider = self.get_archive_texture_entries_by_basename
         try:

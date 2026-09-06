@@ -7,6 +7,7 @@ from typing import Mapping, Sequence
 
 from PySide6.QtCore import QThread, QTimer, Qt
 
+from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 from cdmw.ui.mesh_editor.tab_archive_material_context import (
@@ -56,6 +57,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_package_lease: object | None,
         material_context_verified_for_rust: bool,
         material_source_identity: object | None,
+        archive_dependencies: ArchiveWorkflowDependencyContext | None,
     ) -> None:
         previous = getattr(self, "archive_session_open_pending", None)
         previous_lease = (
@@ -83,6 +85,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 material_context_verified_for_rust
             ),
             "material_source_identity": material_source_identity,
+            "archive_dependencies": archive_dependencies,
         }
 
     def _resume_queued_archive_session_open(self) -> None:
@@ -111,10 +114,16 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_package_lease: object | None = None,
         material_context_verified_for_rust: bool = False,
         material_source_identity: object | None = None,
+        archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
     ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
+        if (
+            archive_dependencies is not None
+            and archive_dependencies.selected_entry.identity != entry.identity
+        ):
+            raise ValueError("Archive dependencies belong to a different mesh source")
         if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
             preflight_reason = self._rust_open_preflight_reason()
             if preflight_reason:
@@ -150,6 +159,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 material_package_lease=material_package_lease,
                 material_context_verified_for_rust=material_context_verified_for_rust,
                 material_source_identity=material_source_identity,
+                archive_dependencies=archive_dependencies,
             )
             self.status_message_requested.emit(
                 "Mesh Editor will open the requested mesh after the current Finish has stopped safely.",
@@ -162,6 +172,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         entry_snapshot = copy.deepcopy(entry)
         resume_path = Path(resume_manifest_path) if resume_manifest_path is not None else None
         self.archive_session_load_entry = entry
+        self.archive_session_dependencies = archive_dependencies
         self.archive_session_load_material_model = (
             material_preview_model
             if material_preview_model is not None
@@ -383,6 +394,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             material_package_lease=self.archive_material_context_package_lease,
             material_context_verified_for_rust=self.archive_material_context_verified_for_rust,
             material_source_identity=self.archive_material_context_source_identity,
+            archive_dependencies=self.archive_session_dependencies,
         )
 
     def _dismiss_archive_draft_banner(self, _checked: bool = False) -> None:
@@ -730,6 +742,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.standalone_rebuild_report_request_id += 1
         self._cancel_archive_session_load()
         self._cancel_archive_material_context_resolution()
+        self.archive_session_dependencies = None
         self._cancel_standalone_file_load()
         self._cancel_standalone_action_worker()
         self._cancel_standalone_export_validation_worker()
