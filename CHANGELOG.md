@@ -78,6 +78,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Mesh Editor selection release keeps side-panel text stable.** Recording a completed selection no longer briefly dims the surrounding controls; conflicting edits still wait for acknowledgement.
+
 - **Closing a Mesh Builder keeps its cancelled workers alive until their threads finish.** The closed dialog is deleted asynchronously, avoiding a crash during rapid close.
 
 - **New Item primary actions retain visible hover and pressed feedback across themes.** Their states now use the active semantic palette.

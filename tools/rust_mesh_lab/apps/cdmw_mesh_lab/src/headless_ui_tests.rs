@@ -2249,6 +2249,90 @@ fn viewport_selection_overlay_is_depth_filtered_until_xray_is_explicit() -> Test
 }
 
 #[test]
+fn integrated_selection_release_keeps_side_text_stable_and_blocks_pending_edits() -> TestResult {
+    let root = tempdir()?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "selection-paint-session",
+        1,
+        0,
+    ));
+    ui.click("Select")?;
+    let side_text = |ui: &HeadlessUi| {
+        ["Viewport", "Parts"].map(|label| {
+            ui.output.shapes.iter().find_map(|clipped| {
+                let egui::Shape::Text(text) = &clipped.shape else {
+                    return None;
+                };
+                (text.galley.job.text == label).then_some((
+                    text.fallback_color,
+                    text.override_text_color,
+                    text.opacity_factor,
+                ))
+            })
+        })
+    };
+    let before = side_text(&ui);
+    assert!(before.iter().all(Option::is_some));
+    let point = ui.projected_point(SelectionDomain::Vertex)?;
+    ui.click_at(egui::pos2(point.x, point.y));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_busy());
+    assert_eq!(
+        side_text(&ui),
+        before,
+        "selection release dimmed the side text"
+    );
+
+    let selected = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .vertices
+        .clone();
+    assert!(!selected.is_empty());
+    ui.click("Clear Selection")?;
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .selection
+            .vertices,
+        selected
+    );
+    let fingerprint = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    ui.click("Inflate")?;
+    ui.drag(
+        &[point, point + Vec2::new(18.0, -8.0)],
+        PointerButton::Primary,
+    );
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        fingerprint,
+        "a new gesture edited the mesh before the selection acknowledgement"
+    );
+    assert!(ui.application.cdmw_busy());
+    ui.application.cdmw_pending_request = None;
+    ui.frame(Vec::new());
+    assert_eq!(side_text(&ui), before);
+    Ok(())
+}
+
+#[test]
 fn integrated_selection_settles_to_selected_and_inflate_needs_no_selection() -> TestResult {
     let mut selection_ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));

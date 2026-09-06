@@ -235,8 +235,16 @@ impl LabApplication {
         actions
     }
 
+    fn cdmw_show_busy_controls(&self) -> bool {
+        // Selection is already shown locally. Do not flash the surrounding UI
+        // while the host records it; cdmw_busy still guards edits until the reply.
+        self.cdmw_pending_request
+            .as_ref()
+            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection))
+    }
+
     fn draw_cdmw_session_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let busy = self.cdmw_busy();
+        let busy = self.cdmw_show_busy_controls();
         let undo_count = state_u64(&self.cdmw_state, "undo_count");
         let redo_count = state_u64(&self.cdmw_state, "redo_count");
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
@@ -473,7 +481,7 @@ impl LabApplication {
     }
 
     fn draw_cdmw_left_rail(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let busy = self.cdmw_busy();
+        let busy = self.cdmw_show_busy_controls();
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
         let policy_reason = state_str(&self.cdmw_state, "output_policy_reason")
             .unwrap_or("Authoring is unavailable under the current output policy")
@@ -2479,7 +2487,7 @@ impl LabApplication {
     }
 
     fn draw_cdmw_right_panels(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let busy = self.cdmw_busy();
+        let busy = self.cdmw_show_busy_controls();
         egui::Panel::right("cdmw_right_panels")
             .default_size(320.0)
             .min_size(270.0)

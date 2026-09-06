@@ -1564,6 +1564,7 @@ enum CdmwLocalEdit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum CdmwRequestOrigin {
+    Selection,
     Normals,
     Uv,
     MorphValue(String),
@@ -1614,6 +1615,9 @@ fn cdmw_result_feedback(payload: &Value) -> CdmwResultFeedback {
 }
 
 fn cdmw_request_origin(command: &str, arguments: &Value) -> Option<CdmwRequestOrigin> {
+    if command == "select" {
+        return Some(CdmwRequestOrigin::Selection);
+    }
     if command == "morph_set_value" {
         return arguments
             .get("definition_id")
@@ -2740,7 +2744,7 @@ impl LabApplication {
             Some(CdmwRequestOrigin::Uv) => {
                 self.cdmw_uv_feedback = Some(self.status.clone());
             }
-            Some(CdmwRequestOrigin::MorphValue(_)) | None => {}
+            Some(CdmwRequestOrigin::Selection | CdmwRequestOrigin::MorphValue(_)) | None => {}
         }
     }
 

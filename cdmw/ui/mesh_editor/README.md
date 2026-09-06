@@ -17,6 +17,8 @@ Rust's **Visible** selection compares projected depth with a floating-point
 rounding allowance, so fitted human meshes do not select the hidden back surface
 through the front. **X-Ray** explicitly selects through occluders. A brush stroke
 accumulates its painted path and commits one undo step.
+Recording a completed selection keeps the side panels visually stable; new edits
+still wait for the host acknowledgement, without briefly dimming the whole UI.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
