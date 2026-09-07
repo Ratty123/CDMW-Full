@@ -363,6 +363,7 @@ class ArchivePreviewResultMixin:
                 and str(getattr(finalized_result, "preferred_view", "") or "").strip().lower() == "model"
                 and str(getattr(finalized_result, "dotnet_preview_package_path", "") or "").strip()
                 and self._current_model_preview_render_settings().use_textures_by_default
+                and not finalized_result.native_preview_diagnostics.get("texture_preparation_error")
                 and not bool(
                     getattr(self, "_archive_active_package_has_textures", lambda: False)()
                 )

@@ -628,12 +628,15 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
 
 @pytest.mark.parametrize("quality", ("direct", "full"))
 @pytest.mark.parametrize("has_detail", (False, True))
+@pytest.mark.parametrize("source_format", ("pac", "pam", "pamlod"))
 def test_preview_core_preserves_untextured_base_without_a_wrapper(
-    tmp_path: Path, quality: str, has_detail: bool,
+    tmp_path: Path, quality: str, has_detail: bool, source_format: str,
 ) -> None:
     source, *_ = _write_schema8_preview_core_fixture(tmp_path)
     source_manifest = source / "manifest.json"
     native = json.loads(source_manifest.read_text(encoding="utf-8"))
+    native["format"] = source_format
+    native["source_path"] = f"fixture/model.{source_format}"
     batch = native["batches"][0]
     detail = dict(batch["material_layers"][0], layer_role="detail")
     # make_base_material_layer emits this sentinel when all global maps are absent,

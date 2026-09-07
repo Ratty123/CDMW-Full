@@ -25,6 +25,7 @@ from cdmw.models import (
     AssetRelation,
     RelationConfidence,
     RelationKind,
+    ModelPreviewRenderSettings,
     RunCancelled,
 )
 from cdmw.rendering.native_preview_core import (
@@ -41,6 +42,10 @@ from cdmw.rendering.dotnet_preview_package_cache import (
 )
 from cdmw.services.mesh_rust_preview_cache import (
     build_or_lookup_rust_preview_package,
+)
+from cdmw.services.preview_material_status import (
+    native_preview_missing_texture_reason,
+    with_preview_material_warning,
 )
 
 
@@ -268,7 +273,9 @@ class ArchivePreviewNativeMixin:
         output_root: Optional[Path],
         dds_cache_max_bytes: int,
         dds_cache_target_bytes: int,
+        render_settings: Optional[ModelPreviewRenderSettings] = None,
     ) -> NativePreviewCoreAttempt:
+        settings = self.render_settings if render_settings is None else render_settings
         payload, source, appearance_notes = self._prepare_native_preview_presentation_geometry()
         dependency_entries = tuple(
             getattr(self, "native_preview_dependency_entries", ()) or ()
@@ -280,7 +287,7 @@ class ArchivePreviewNativeMixin:
         attempt = run_native_preview_core_preview_job(
             self.entry,
             cache_root=self.native_preview_core_cache_root,
-            render_settings=self.render_settings,
+            render_settings=settings,
             companion_entry=self.companion_entry,
             dependency_entries=dependency_entries,
             dependency_entries_complete=bool(
@@ -290,7 +297,7 @@ class ArchivePreviewNativeMixin:
             model_property_indices=model_property_indices,
             package_root=self.native_preview_core_package_root,
             output_root=output_root,
-            timeout_seconds=native_preview_core_timeout_seconds(self.render_settings),
+            timeout_seconds=native_preview_core_timeout_seconds(settings),
             stop_event=self.stop_event,
             dds_cache_max_bytes=dds_cache_max_bytes,
             dds_cache_target_bytes=dds_cache_target_bytes,
@@ -308,7 +315,33 @@ class ArchivePreviewNativeMixin:
                 fallback_reason="Native Preview Core did not apply the required PABC presentation geometry.",
                 diagnostics=diagnostics,
             )
-        return dataclasses.replace(attempt, diagnostics=diagnostics)
+        attempt = dataclasses.replace(attempt, diagnostics=diagnostics)
+        texture_failure = (
+            native_preview_missing_texture_reason(attempt.package_path)
+            if attempt.succeeded and bool(getattr(settings, "use_textures_by_default", False))
+            else ""
+        )
+        if texture_failure:
+            if self.stop_event.is_set():
+                raise RunCancelled("Native preview-core job cancelled.")
+            # Decode a separate geometry-only contract; never send a failed
+            # material graph to Rust or change the user's saved texture choice.
+            geometry_attempt = self._run_native_preview_core_with_presentation(
+                output_root=Path(attempt.package_path),
+                dds_cache_max_bytes=dds_cache_max_bytes,
+                dds_cache_target_bytes=dds_cache_target_bytes,
+                render_settings=dataclasses.replace(settings, use_textures_by_default=False),
+            )
+            return dataclasses.replace(
+                geometry_attempt,
+                elapsed_ms=attempt.elapsed_ms + geometry_attempt.elapsed_ms,
+                job_root_path=attempt.job_root_path or geometry_attempt.job_root_path,
+                diagnostics={
+                    **geometry_attempt.diagnostics,
+                    "texture_preparation_error": texture_failure,
+                },
+            )
+        return attempt
 
     def _try_native_preview_core(self) -> Optional[NativePreviewCoreAttempt]:
         if not self.native_preview_core_enabled or self.entry is None:
@@ -503,6 +536,13 @@ class ArchivePreviewNativeMixin:
                         if not bool(descriptor.get("direct_upload_candidate", True)):
                             continue
                         check_path(descriptor.get("source_path"), package_relative=False)
+            # A direct DDS slot is not a complete inventory of the material graph.
+            # Reject expired layer sources here so a cache hit triggers decoding
+            # again instead of repeatedly failing during Rust package conversion.
+            for layer in tuple(batch.get("material_layers", ()) or ()):
+                if isinstance(layer, Mapping):
+                    for role in ("diffuse", "normal", "material", "height", "mask"):
+                        check_path(layer.get(f"{role}_source"), package_relative=False)
             if len(missing) >= 8:
                 break
         return not missing, tuple(missing[:8])
@@ -726,6 +766,7 @@ class ArchivePreviewNativeMixin:
             fast_package_ready
             if bool(getattr(self, "progressive_material_preview", False))
             and bool(getattr(self.render_settings, "use_textures_by_default", False))
+            and not native_attempt.diagnostics.get("texture_preparation_error")
             and getattr(self, "static_thumbnail_size", None) is None
             else None
         )
@@ -792,6 +833,8 @@ class ArchivePreviewNativeMixin:
             self._native_preview_core_manifest_metadata(native_attempt.package_path)
         )
         diagnostics = dict(native_attempt.diagnostics)
+        if diagnostics.get("texture_preparation_error"):
+            material_quality = "geometry"
         diagnostics["rust_preview_package_path"] = str(rust_package.package_dir)
         diagnostics["rust_preview_material_quality"] = str(material_quality)
         notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
@@ -847,7 +890,7 @@ class ArchivePreviewNativeMixin:
             for part in diagnostic_lines
             if part
         )
-        return ArchivePreviewResult(
+        return with_preview_material_warning(ArchivePreviewResult(
             status="ok",
             title=entry.basename if entry is not None else "Native Preview",
             metadata_summary=metadata_summary,
@@ -861,7 +904,7 @@ class ArchivePreviewNativeMixin:
             native_preview_diagnostics=diagnostics,
             preferred_view="model",
             sidecar_generation=self.sidecar_generation,
-        )
+        ))
 
     def _native_preview_core_failure_result(
         self,

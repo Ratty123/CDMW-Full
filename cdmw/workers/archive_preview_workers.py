@@ -39,6 +39,7 @@ from cdmw.models import (
 )
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
+from cdmw.services.preview_material_status import with_preview_material_warning
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.dotnet_preview_package_cache import (
     lookup_dotnet_preview_package_cache,
@@ -383,7 +384,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             sidecar_generation=self.sidecar_generation,
         )
         return _ArchivePreviewWorkerPayload(
-            result=result,
+            result=with_preview_material_warning(result),
             source="rust_preview_package_cache",
             cache_key=self.full_preview_cache_key,
             cacheable=True,

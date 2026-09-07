@@ -52,6 +52,14 @@ full packages preserve textured display intent without momentarily hiding the
 resident textures. A late texture result respects the current saved choice.
 The preview health row stays highlighted while the fast package is being refined
 and remains explicit when the full texture pass completes, fails, or times out.
+PAC, PAM, and PAMLOD packages retain every material-layer DDS during native cache
+cleanup, including support maps without a direct-upload slot. Cached packages
+with missing layer sources are decoded again before conversion to Rust. Models
+without a material wrapper can still display their untextured base geometry.
+If source-declared textures cannot be resolved, the worker prepares a separate
+geometry-only native contract and displays **Textures unavailable**. It preserves
+the saved texture choice and does not automatically retry the failed texture
+request. Invalid material ownership and lost parameters still fail validation.
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and

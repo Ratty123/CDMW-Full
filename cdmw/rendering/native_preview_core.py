@@ -145,22 +145,34 @@ def _native_preview_core_manifest_dds_paths(package_path: str | Path) -> tuple[P
         return ()
     paths: list[Path] = []
     for batch in batches:
-        textures = batch.get("dds_textures") if isinstance(batch, Mapping) else None
-        if not isinstance(textures, Mapping):
+        if not isinstance(batch, Mapping):
             continue
-        for descriptor in textures.values():
-            descriptors = (
-                descriptor
-                if isinstance(descriptor, Sequence)
-                and not isinstance(descriptor, (str, bytes, bytearray))
-                else (descriptor,)
-            )
-            for item in descriptors:
-                if not isinstance(item, Mapping):
-                    continue
-                source_path = str(item.get("source_path", "") or "").strip()
-                if source_path and Path(source_path).suffix.casefold() == ".dds":
-                    paths.append(Path(source_path))
+        sources: list[object] = []
+        textures = batch.get("dds_textures")
+        if isinstance(textures, Mapping):
+            for descriptor in textures.values():
+                descriptors = (
+                    descriptor
+                    if isinstance(descriptor, Sequence)
+                    and not isinstance(descriptor, (str, bytes, bytearray))
+                    else (descriptor,)
+                )
+                sources.extend(
+                    item.get("source_path") for item in descriptors if isinstance(item, Mapping)
+                )
+        # Layer support maps need to survive even when they are not direct-upload
+        # candidates. Rust copies these sources after the post-job cache prune.
+        for layer in tuple(batch.get("material_layers", ()) or ()):
+            if isinstance(layer, Mapping):
+                sources.extend(
+                    layer.get(f"{role}_source")
+                    for role in ("diffuse", "normal", "material", "height", "mask")
+                )
+        for source in sources:
+            source_path = str(source or "").strip()
+            if source_path and Path(source_path).suffix.casefold() == ".dds":
+                path = Path(source_path)
+                paths.append(path if path.is_absolute() else Path(package_path) / path)
     return tuple(dict.fromkeys(paths))
 
 

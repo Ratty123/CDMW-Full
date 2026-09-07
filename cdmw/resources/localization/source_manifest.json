@@ -3576,7 +3576,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 166,
+          "line": 187,
           "sink": "ValueError"
         }
       ]
@@ -7836,7 +7836,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 43,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -8381,7 +8381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 436,
+          "line": 437,
           "sink": "_write_crash_report"
         }
       ]
@@ -9911,12 +9911,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 396,
+          "line": 397,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 443,
+          "line": 444,
           "sink": "set_status_message"
         },
         {
@@ -9956,7 +9956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 377,
+          "line": 378,
           "sink": "_write_crash_report"
         }
       ]
@@ -17286,7 +17286,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -17631,7 +17631,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 127,
+          "line": 132,
           "sink": "ValueError"
         }
       ]
@@ -17641,7 +17641,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 125,
+          "line": 130,
           "sink": "ValueError"
         }
       ]
@@ -17651,7 +17651,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 152,
+          "line": 157,
           "sink": "ValueError"
         }
       ]
@@ -17661,7 +17661,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 142,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -28801,7 +28801,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 244,
+          "line": 265,
           "sink": "ValueError"
         }
       ]
@@ -38006,7 +38006,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -47451,12 +47451,12 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -49546,7 +49546,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 460,
+          "line": 461,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -49566,7 +49566,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 460,
+          "line": 461,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -51256,12 +51256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 416,
+          "line": 417,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 417,
+          "line": 418,
           "sink": "emit"
         }
       ]
@@ -56536,7 +56536,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56676,12 +56676,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56691,12 +56691,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 138,
+          "line": 143,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 149,
+          "line": 154,
           "sink": "RunCancelled"
         }
       ]
@@ -56726,7 +56726,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56786,7 +56786,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 536,
+          "line": 576,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -56851,12 +56851,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -56866,12 +56866,17 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 94,
+          "line": 99,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 346,
+          "line": 326,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/workers/archive_preview_native.py",
+          "line": 379,
           "sink": "RunCancelled"
         }
       ]
@@ -57716,7 +57721,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 220,
+          "line": 241,
           "sink": "ValueError"
         }
       ]
@@ -58106,7 +58111,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 157,
+          "line": 178,
           "sink": "ValueError"
         }
       ]
@@ -63511,7 +63516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 352,
+          "line": 353,
           "sink": "emit"
         },
         {
@@ -66391,12 +66396,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -71331,7 +71336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 370,
+          "line": 371,
           "sink": "log"
         },
         {
@@ -71921,7 +71926,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -71961,7 +71966,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -71991,7 +71996,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 540,
+          "line": 580,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -72021,7 +72026,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 532,
+          "line": 572,
           "sink": "python-return:_native_preview_core_manifest_metadata"
         }
       ]
@@ -72806,12 +72811,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 395,
+          "line": 396,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 442,
+          "line": 443,
           "sink": "_clear_archive_preview"
         },
         {
@@ -73146,7 +73151,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -73506,7 +73511,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -73516,7 +73521,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -84776,7 +84781,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 460,
+          "line": 461,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -88656,12 +88661,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 419,
+          "line": 420,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 423,
+          "line": 424,
           "sink": "_clear_archive_preview"
         },
         {
@@ -99781,22 +99786,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 362,
+          "line": 363,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 364,
+          "line": 365,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 369,
+          "line": 370,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 386,
+          "line": 387,
           "sink": "RuntimeError"
         },
         {
@@ -100736,7 +100741,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 105,
+          "line": 126,
           "sink": "ValueError"
         }
       ]
@@ -100746,7 +100751,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 113,
+          "line": 134,
           "sink": "ValueError"
         }
       ]
@@ -100816,7 +100821,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -101126,7 +101131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 333,
+          "line": 334,
           "sink": "emit"
         }
       ]
@@ -101436,7 +101441,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 76,
+          "line": 104,
           "sink": "ValueError"
         }
       ]
@@ -101591,7 +101596,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 256,
+          "line": 277,
           "sink": "ValueError"
         }
       ]
@@ -101601,7 +101606,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 108,
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -101851,7 +101856,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 62,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -102636,7 +102641,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 93,
+          "line": 114,
           "sink": "ValueError"
         }
       ]
@@ -107336,7 +107341,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 241,
+          "line": 262,
           "sink": "add"
         }
       ]
@@ -107346,7 +107351,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 222,
+          "line": 243,
           "sink": "add"
         }
       ]
@@ -107356,7 +107361,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 248,
+          "line": 269,
           "sink": "add"
         }
       ]
@@ -107366,7 +107371,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 258,
+          "line": 279,
           "sink": "add"
         }
       ]
@@ -107376,7 +107381,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 37,
+          "line": 65,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -107386,7 +107391,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 234,
+          "line": 255,
           "sink": "add"
         }
       ]
@@ -108366,12 +108371,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -115041,7 +115046,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -115951,7 +115956,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 889,
+          "line": 932,
           "sink": "ArchivePreviewResult"
         },
         {
@@ -116661,7 +116666,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 715,
+          "line": 755,
           "sink": "_native_preview_core_package_result"
         }
       ]
@@ -117131,7 +117136,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 772,
+          "line": 813,
           "sink": "_native_preview_core_package_result"
         },
         {
@@ -118036,7 +118041,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -119626,17 +119631,17 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -120976,22 +120981,22 @@
         },
         {
           "path": "cdmw/workers/archive_preview_native.py",
-          "line": 850,
+          "line": 893,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -122651,7 +122656,7 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -123751,7 +123756,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 460,
+          "line": 461,
           "sink": "ArchiveModelTextureReference"
         }
       ]
@@ -131801,7 +131806,7 @@
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 483,
+          "line": 484,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -131856,12 +131861,12 @@
       "origins": [
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 374,
+          "line": 375,
           "sink": "ArchivePreviewResult"
         },
         {
           "path": "cdmw/workers/archive_preview_workers.py",
-          "line": 408,
+          "line": 409,
           "sink": "ArchivePreviewResult"
         }
       ]
@@ -133561,7 +133566,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 152,
+          "line": 173,
           "sink": "add"
         }
       ]
@@ -133571,7 +133576,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 152,
+          "line": 173,
           "sink": "add"
         }
       ]
