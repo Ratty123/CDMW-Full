@@ -398,10 +398,70 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
     tmp_path: Path,
 ) -> None:
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 6
+    assert RUST_PREVIEW_CACHE_SCHEMA == 7
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
     assert "vortice" not in root.name.casefold()
+
+
+@pytest.mark.parametrize("quality", ["direct", "full"])
+@pytest.mark.parametrize("ambiguous_owner", [False, True])
+def test_preview_core_skin_detail_keeps_exact_material_owner_factors(
+    tmp_path: Path, quality: str, ambiguous_owner: bool,
+) -> None:
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    source_manifest = source / "manifest.json"
+    native = json.loads(source_manifest.read_text(encoding="utf-8"))
+    batch = native["batches"][0]
+    batch["material_category"] = "skin"
+    batch["shader_family"] = "SkinnedMeshSkin"
+    skin_layer = {
+        "owner_wrapper_item_id": "fixture-wrapper-1",
+        "material_wrapper_index": 0,
+        "layer_role": "skin_detail",
+        "source_parameter": "_skinDetailMaskTexture",
+        "mask_parameter": "_skinDetailMaskTexture",
+        "mask_channel": "r",
+        "detail_scale": 0.015,
+        "weight": 0.74,
+    }
+    inputs = []
+    for index, (role, parameter) in enumerate((
+        ("mask", "_skinDetailMaskTexture"),
+        ("normal", "_skinDetailNormalTexture"),
+        ("material", "_skinDetailMaterialTexture"),
+    )):
+        path = tmp_path / f"skin_{role}.dds"
+        path.write_bytes(b"DDS " + bytes([index + 1]) * 1024)
+        skin_layer[f"{role}_source"] = str(path)
+        skin_layer[f"{role}_archive_path"] = f"character/texture/{path.name}"
+        inputs.append({
+            "parameter_name": parameter,
+            "source_dds_path": str(path),
+            "layer_role": "detail",
+            "layer_channel": "r",
+            "binding_authority": "authoritative",
+            # PAC owner identity is deliberately different from source index 4.
+            "owner_slot_index": 8 if ambiguous_owner and index == 2 else 7,
+        })
+    batch["dds_textures"]["material_inputs"] = inputs
+    batch["material_layers"].append(skin_layer)
+    source_manifest.write_text(json.dumps(native), encoding="utf-8")
+
+    package = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "rust", material_quality=quality,
+    )
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    presentation = manifest["material_presentations"][0]
+    if ambiguous_owner:
+        assert presentation["skin_detail_scale"] is None
+        assert presentation["skin_detail_opacity"] is None
+    else:
+        assert presentation["skin_detail_scale"] == pytest.approx(0.015)
+        assert presentation["skin_detail_opacity"] == pytest.approx(0.74)
+        assert {"skin_detail_mask", "skin_detail_normal", "skin_detail_material"} <= {
+            resource["role"] for resource in manifest["textures"]
+        }
 
 
 def test_schema8_preview_core_geometry_bypasses_python_and_large_json_roundtrip(

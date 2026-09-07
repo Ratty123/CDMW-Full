@@ -477,6 +477,106 @@ pub fn encode_rgba8_dds(
     Ok(bytes)
 }
 
+/// Encode a composed texture with a complete mip chain, retaining level zero
+/// exactly. Colour is filtered in linear light with alpha coverage; normal
+/// vectors are renormalized and scalar/packed maps stay linear.
+pub fn encode_rgba8_mipmapped_dds(
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+    role: TextureRole,
+) -> Result<Vec<u8>, TextureError> {
+    validate_dimensions(width, height, 1)?;
+    let mut total = 148_u64;
+    let (mut w, mut h) = (width, height);
+    let mut mip_count = 0_u32;
+    loop {
+        total += u64::from(w) * u64::from(h) * 4;
+        if total > DDS_MAX_PAYLOAD_BYTES as u64 {
+            return Err(TextureError::ResourceLimit);
+        }
+        mip_count += 1;
+        if w == 1 && h == 1 {
+            break;
+        }
+        (w, h) = ((w / 2).max(1), (h / 2).max(1));
+    }
+    let mut bytes = encode_rgba8_dds(width, height, pixels, role)?;
+    bytes.reserve_exact(total as usize - bytes.len());
+    let color = matches!(role, TextureRole::BaseColor | TextureRole::Emissive);
+    let normal = matches!(role, TextureRole::Normal | TextureRole::SkinDetailNormal);
+    let linear: [f32; 256] = std::array::from_fn(|index| {
+        let value = index as f32 / 255.0;
+        if color && value > 0.04045 {
+            ((value + 0.055) / 1.055).powf(2.4)
+        } else if color {
+            value / 12.92
+        } else {
+            value
+        }
+    });
+    (w, h) = (width, height);
+    let mut offset = 148_usize;
+    while w > 1 || h > 1 {
+        let (next_w, next_h) = ((w / 2).max(1), (h / 2).max(1));
+        let source = &bytes[offset..];
+        let mut next = Vec::with_capacity((next_w * next_h * 4) as usize);
+        for y in 0..next_h {
+            for x in 0..next_w {
+                let mut sum = [0.0_f32; 4];
+                let mut count = 0.0_f32;
+                // Include the last row/column of non-power-of-two images.
+                for sy in y * h / next_h..(y + 1) * h / next_h {
+                    for sx in x * w / next_w..(x + 1) * w / next_w {
+                        let index = ((sy * w + sx) * 4) as usize;
+                        let alpha = f32::from(source[index + 3]) / 255.0;
+                        for channel in 0..3 {
+                            let value = linear[usize::from(source[index + channel])];
+                            sum[channel] += if color { value * alpha } else { value };
+                        }
+                        sum[3] += alpha;
+                        count += 1.0;
+                    }
+                }
+                let divisor = if color {
+                    sum[3].max(f32::EPSILON)
+                } else {
+                    count
+                };
+                let mut rgb = [sum[0] / divisor, sum[1] / divisor, sum[2] / divisor];
+                if normal {
+                    let vector = rgb.map(|value| value * 2.0 - 1.0);
+                    let length = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+                    rgb = if length > f32::EPSILON {
+                        vector.map(|value| (value / length + 1.0) * 0.5)
+                    } else {
+                        [0.5, 0.5, 1.0]
+                    };
+                } else if color {
+                    rgb = rgb.map(|value| {
+                        if value <= 0.003_130_8 {
+                            value * 12.92
+                        } else {
+                            1.055 * value.powf(1.0 / 2.4) - 0.055
+                        }
+                    });
+                }
+                next.extend(rgb.map(|value| (value.clamp(0.0, 1.0) * 255.0).round() as u8));
+                next.push((sum[3] / count * 255.0).round() as u8);
+            }
+        }
+        offset = bytes.len();
+        bytes.extend_from_slice(&next);
+        (w, h) = (next_w, next_h);
+    }
+    if mip_count > 1 {
+        write_u32_at(&mut bytes, 8, 0x0002_100f);
+        write_u32_at(&mut bytes, 28, mip_count);
+        write_u32_at(&mut bytes, 108, 0x0040_1008);
+    }
+    Ok(bytes)
+}
+
 fn decode_rgba_blocks(
     source: &[u8],
     width: u32,
@@ -1580,6 +1680,51 @@ mod tests {
             inspect_dds(&bytes, TextureRole::BaseColor)?.format,
             DdsFormat::Rgba8Srgb
         );
+        Ok(())
+    }
+
+    #[test]
+    fn composed_mips_preserve_source_and_filter_color_in_linear_light() -> Result<(), TextureError>
+    {
+        let pixels = [0, 0, 0, 255, 255, 255, 255, 255];
+        let bytes = encode_rgba8_mipmapped_dds(2, 1, &pixels, TextureRole::BaseColor)?;
+        assert_eq!(
+            decode_dds_rgba8(&bytes, TextureRole::BaseColor)?.pixels,
+            pixels
+        );
+        assert_eq!(inspect_dds(&bytes, TextureRole::BaseColor)?.mip_count, 2);
+        assert_eq!(&bytes[bytes.len() - 4..], &[188, 188, 188, 255]);
+        let transparent = [255, 0, 0, 255, 0, 0, 255, 0];
+        let bytes = encode_rgba8_mipmapped_dds(2, 1, &transparent, TextureRole::BaseColor)?;
+        assert_eq!(&bytes[bytes.len() - 4..], &[255, 0, 0, 128]);
+        Ok(())
+    }
+
+    #[test]
+    fn composed_mips_include_odd_edges_and_keep_packed_maps_linear() -> Result<(), TextureError> {
+        let pixels = [0, 30, 60, 255, 90, 120, 150, 255, 180, 210, 240, 255];
+        let bytes = encode_rgba8_mipmapped_dds(3, 1, &pixels, TextureRole::Material)?;
+        assert_eq!(&bytes[bytes.len() - 4..], &[90, 120, 150, 255]);
+        let pixels = [32, 64, 128, 255].repeat(8 * 4);
+        let bytes = encode_rgba8_mipmapped_dds(8, 4, &pixels, TextureRole::Material)?;
+        assert_eq!(inspect_dds(&bytes, TextureRole::Material)?.mip_count, 4);
+        assert_eq!(bytes.len(), 148 + (32 + 8 + 2 + 1) * 4);
+        assert_eq!(&bytes[bytes.len() - 4..], &[32, 64, 128, 255]);
+        Ok(())
+    }
+
+    #[test]
+    fn composed_normal_mips_are_unit_vectors() -> Result<(), TextureError> {
+        let pixels = [255, 128, 128, 255, 128, 255, 128, 255];
+        let bytes = encode_rgba8_mipmapped_dds(2, 1, &pixels, TextureRole::Normal)?;
+        let last = &bytes[bytes.len() - 4..];
+        let length = last[..3]
+            .iter()
+            .map(|value| (f32::from(*value) / 255.0 * 2.0 - 1.0).powi(2))
+            .sum::<f32>()
+            .sqrt();
+        assert!((length - 1.0).abs() < 0.01);
+        assert_eq!(last[3], 255);
         Ok(())
     }
 

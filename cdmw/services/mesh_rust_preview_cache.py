@@ -72,8 +72,8 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild external previews that omitted emissive maps or exhausted the fast image budget.
-RUST_PREVIEW_CACHE_SCHEMA = 6
+# Rebuild previews that omitted exact PAC material-owner skin detail factors.
+RUST_PREVIEW_CACHE_SCHEMA = 7
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:

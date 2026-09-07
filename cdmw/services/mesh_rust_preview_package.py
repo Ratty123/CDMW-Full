@@ -923,6 +923,17 @@ def _preview_core_metadata_mesh(
         setattr(submesh, "cdmw_native_context_component", bool(identity.get("context_component", False)))
         setattr(submesh, "cdmw_native_editor_identity", copy.deepcopy(dict(identity)))
         apply_dotnet_native_material_batch_binding(submesh, batch)
+        # The draw/source index can differ from the PAC material owner. Keep
+        # exact owner identity so the shared skin shader receives its factors.
+        material_owners = {
+            _preview_core_int(getattr(item, "owner_slot_index", -1), -1)
+            for item in getattr(submesh, "preview_material_texture_inputs", ())
+            if str(getattr(item, "binding_authority", "")).strip().casefold()
+            in {"authoritative", "exact"}
+            and _preview_core_int(getattr(item, "owner_slot_index", -1), -1) >= 0
+        }
+        if len(material_owners) == 1:
+            setattr(submesh, "preview_pac_material_owner_slot_index", material_owners.pop())
         submeshes.append(submesh)
 
     extent = 1.0 / abs(scale)

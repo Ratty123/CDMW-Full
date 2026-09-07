@@ -5,7 +5,9 @@ use crate::cdmw_session::{
     PreviewCoreMaterialLayer, SessionError, SessionMaterialPresentation,
 };
 use cdmw_formats::MeshDocument;
-use cdmw_texture::{DecodedRgba8, TextureRole, decode_dds_rgba8, encode_rgba8_dds, inspect_dds};
+use cdmw_texture::{
+    DecodedRgba8, TextureRole, decode_dds_rgba8, encode_rgba8_mipmapped_dds, inspect_dds,
+};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -251,7 +253,16 @@ where
     for material in &graph.materials {
         crate::cdmw_session::check_preview_cancelled(cancelled)?;
         cache.begin_material();
-        if let Some(pixels) = compose_base_color(material, &mut cache)? {
+        // Skin support maps already have a shared runtime shader, including
+        // their authored UV repetition. Baking them at base UVs loses detail
+        // and applies them twice once runtime factors are present.
+        let runtime_skin = runtime_skin_detail_layer(material, presentations, resources);
+        let mut composition = material.clone();
+        if let Some(index) = runtime_skin {
+            composition.layers.remove(index);
+        }
+        let material = &composition;
+        if let Some(pixels) = compose_base_color(material, resources, &mut cache)? {
             publish_composed_resource(
                 resources,
                 document,
@@ -287,8 +298,25 @@ where
 
 fn compose_base_color(
     material: &PreviewCoreMaterial,
+    resources: &[CdmwTextureResource],
     cache: &mut ImageCache,
 ) -> Result<Option<DecodedRgba8>, SessionError> {
+    if !material
+        .layers
+        .iter()
+        .skip(1)
+        .any(|layer| layer.layer_role == "color_seed" || layer.diffuse.is_some())
+        && material
+            .layers
+            .first()
+            .and_then(|layer| layer.diffuse.as_ref())
+            .is_some_and(|reference| {
+                resource_matches(resources, TextureRole::BaseColor, material, reference)
+            })
+    {
+        // Preserve authored compression, full resolution and mip filtering.
+        return Ok(None);
+    }
     let Some((width, height)) = largest_target(material, cache, LayerMap::Diffuse)? else {
         return Ok(None);
     };
@@ -984,6 +1012,71 @@ fn mix(left: f32, right: f32, amount: f32) -> f32 {
     left * (1.0 - amount) + right * amount
 }
 
+fn resource_matches(
+    resources: &[CdmwTextureResource],
+    role: TextureRole,
+    material: &PreviewCoreMaterial,
+    reference: &FileReference,
+) -> bool {
+    usize::try_from(material.lod_index).ok().is_some_and(|lod| {
+        resources.iter().any(|resource| {
+            resource.role == role
+                && resource
+                    .metadata
+                    .source_sha256
+                    .eq_ignore_ascii_case(&reference.sha256)
+                && resource
+                    .material_indices_by_lod
+                    .get(lod)
+                    .is_some_and(|owners| owners.contains(&material.material_index))
+        })
+    })
+}
+
+fn runtime_skin_detail_layer(
+    material: &PreviewCoreMaterial,
+    presentations: &[SessionMaterialPresentation],
+    resources: &[CdmwTextureResource],
+) -> Option<usize> {
+    let presentation = presentations.iter().find(|row| {
+        row.lod_index == material.lod_index && row.material_index == material.material_index
+    })?;
+    let scale = presentation.skin_detail_scale?;
+    let opacity = presentation.skin_detail_opacity?;
+    let mut layers = material
+        .layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| layer.layer_role == "skin_detail");
+    let (index, layer) = layers.next()?;
+    if layers.next().is_some()
+        || index == 0
+        || scale <= 0.0
+        || (scale - layer.detail_scale).abs() > 0.000_001
+        || (opacity - layer.weight).abs() > 0.000_001
+        || layer.mask_channel != "r"
+        || layer.diffuse.is_some()
+        || layer.diffuse_declared
+        || layer.height.is_some()
+        || layer.height_declared
+        || ![&layer.source_parameter, &layer.mask_parameter]
+            .iter()
+            .any(|name| TextureRole::from_parameter_name(name) == TextureRole::SkinDetailMask)
+    {
+        return None;
+    }
+    [
+        (TextureRole::SkinDetailMask, layer.mask.as_ref()),
+        (TextureRole::SkinDetailNormal, layer.normal.as_ref()),
+        (TextureRole::SkinDetailMaterial, layer.material.as_ref()),
+    ]
+    .into_iter()
+    .all(|(role, reference)| {
+        reference.is_some_and(|reference| resource_matches(resources, role, material, reference))
+    })
+    .then_some(index)
+}
+
 fn resource_owns(
     resources: &[CdmwTextureResource],
     role: TextureRole,
@@ -1019,7 +1112,7 @@ fn publish_composed_resource(
             owners.retain(|owner| *owner != material.material_index);
         }
     }
-    let bytes = encode_rgba8_dds(image.width, image.height, &image.pixels, role)
+    let bytes = encode_rgba8_mipmapped_dds(image.width, image.height, &image.pixels, role)
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
     let metadata = inspect_dds(&bytes, role)
         .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
@@ -1079,6 +1172,7 @@ fn role_label(role: TextureRole) -> &'static str {
 mod tests {
     use super::*;
     use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
+    use cdmw_texture::encode_rgba8_dds;
     use sha2::{Digest, Sha256};
     use std::cell::Cell;
 
@@ -1160,6 +1254,119 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    #[test]
+    fn runtime_skin_detail_preserves_original_dds_mips_and_owner_bindings() {
+        let roles = [
+            TextureRole::BaseColor,
+            TextureRole::Normal,
+            TextureRole::SkinDetailMask,
+            TextureRole::SkinDetailNormal,
+            TextureRole::SkinDetailMaterial,
+        ];
+        let mut resources = Vec::new();
+        let mut references = Vec::new();
+        let mut files = BTreeMap::new();
+        for (index, role) in roles.into_iter().enumerate() {
+            let pixels = [128, 128, 255, 255].repeat(8 * 4);
+            let bytes = encode_rgba8_mipmapped_dds(8, 4, &pixels, role).expect("DDS");
+            let file = reference(index as u32, &bytes);
+            resources.push(CdmwTextureResource {
+                label: file.path.clone(),
+                role,
+                metadata: inspect_dds(&bytes, role).expect("DDS metadata"),
+                bytes: bytes.clone(),
+                material_indices_by_lod: vec![vec![0]],
+            });
+            files.insert(file.path.clone(), bytes);
+            references.push(file);
+        }
+        let mut base = layer("base", "r");
+        base.diffuse = Some(references[0].clone());
+        base.normal = Some(references[1].clone());
+        let mut skin = layer("skin_detail", "r");
+        skin.source_parameter = "_skinDetailMaskTexture".to_owned();
+        skin.mask_parameter = skin.source_parameter.clone();
+        skin.detail_scale = 0.015;
+        skin.weight = 0.74;
+        skin.mask = Some(references[2].clone());
+        skin.normal = Some(references[3].clone());
+        skin.material = Some(references[4].clone());
+        let graph = PreviewCoreMaterialGraph {
+            schema_version: 1,
+            graph_version: 4,
+            semantics_version: 10,
+            quality: "full".to_owned(),
+            resources_included: true,
+            source_edge_count: 5,
+            unique_resource_count: 2,
+            copied_resource_count: 0,
+            unique_resource_bytes: 0,
+            materials: vec![PreviewCoreMaterial {
+                lod_index: 0,
+                material_index: 0,
+                material_slot_index: 7,
+                material_name: "skin".to_owned(),
+                base_color: [1.0; 3],
+                layers: vec![base, skin],
+            }],
+        };
+        let presentation: SessionMaterialPresentation = serde_json::from_value(serde_json::json!({
+            "lod_index": 0, "material_index": 0, "material_slot_index": 7,
+            "material_category": "skin", "category_code": 5, "category_confidence": 1.0,
+            "shader_family": "SkinnedMeshSkin", "normal_y_policy": "preserve",
+            "normal_y_inverted": false, "alpha_mode": "opaque", "double_sided": false,
+            "hair_anisotropy": false, "skin_detail_scale": 0.015, "skin_detail_opacity": 0.74,
+        }))
+        .expect("presentation");
+        let material = &graph.materials[0];
+        assert_eq!(
+            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            Some(1)
+        );
+        let original = resources.clone();
+        compose_preview_core_material_resources(
+            &graph,
+            &[presentation.clone()],
+            &document(),
+            &mut resources,
+            |reference| Ok(files.get(&reference.path).expect("source").clone()),
+        )
+        .expect("compose");
+        assert_eq!(resources.len(), original.len());
+        for (actual, expected) in resources.iter().zip(&original) {
+            assert_eq!(actual.bytes, expected.bytes);
+            assert_eq!(
+                actual.material_indices_by_lod,
+                expected.material_indices_by_lod
+            );
+            assert_eq!(actual.metadata.mip_count, 4);
+        }
+        // A different owner or payload cannot authorize skipping a graph layer.
+        resources[4].material_indices_by_lod = vec![vec![1]];
+        assert_eq!(
+            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            None
+        );
+        resources[4] = original[4].clone();
+        resources[4].metadata.source_sha256 = "0".repeat(64);
+        assert_eq!(
+            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            None
+        );
+        let mut missing_factors = presentation.clone();
+        missing_factors.skin_detail_scale = None;
+        assert_eq!(
+            runtime_skin_detail_layer(material, &[missing_factors], &original),
+            None
+        );
+        let mut extra_layer = material.clone();
+        extra_layer.layers.push(extra_layer.layers[1].clone());
+        assert_eq!(
+            runtime_skin_detail_layer(&extra_layer, &[presentation], &original),
+            None
+        );
     }
 
     #[test]
@@ -1361,6 +1568,7 @@ mod tests {
             .iter()
             .find(|resource| resource.role == TextureRole::BaseColor)
             .expect("composed color");
+        assert_eq!(color.metadata.mip_count, 2);
         let decoded =
             decode_dds_rgba8(&color.bytes, TextureRole::BaseColor).expect("decode composed color");
         assert!(
@@ -1375,6 +1583,7 @@ mod tests {
             .iter()
             .find(|resource| resource.role == TextureRole::Material)
             .expect("composed material response");
+        assert_eq!(surface.metadata.mip_count, 2);
         let surface = decode_dds_rgba8(&surface.bytes, TextureRole::Material)
             .expect("decode composed response");
         assert!(

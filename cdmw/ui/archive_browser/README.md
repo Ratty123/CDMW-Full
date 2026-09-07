@@ -51,6 +51,11 @@ atomically. A cancelled or failed promotion preserves the initial package.
 The renderer resolves shader response rules once per layer and reuses bilinear
 interpolation coordinates across texture rows. Composition retains the same
 texture dimensions, channels, float blending and final pixels.
+Plain base textures retain their original compressed DDS and mipmaps. Exact PAC
+skin-detail owners use the same repeated normal/material maps, scale and opacity
+as Mesh Editor, without baking that detail into the base UVs a second time.
+Textures that require layer composition retain level-zero pixels and receive a
+complete mip chain for stable filtering and lower rendering cost when zoomed out.
 Archive Browser defaults to geometry-only. Its **Load textures** checkbox saves
 the existing `archive/model_use_textures` preference and keeps that choice across
 model selections and application restarts. The checkbox represents user intent
