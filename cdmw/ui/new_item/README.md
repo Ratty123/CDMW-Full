@@ -62,6 +62,14 @@ same replacement-only layout as its textured package so the initial camera stays
 when host presentation arrives. Model and Effect Placement use
 one neutral studio lighting setup without a lighting-mode selector. Imported glTF
 emissive factors also work without an emissive texture, including explicit zero strength.
+Declared and discovered emissive maps stay bound to their owning material through import
+and the final preview package, so a masked glow cannot become a solid white surface.
+External image preparation budgets the whole batch before encoding: preview copies keep
+their aspect ratio, at most 2048 pixels per side, and share the existing 128 MiB budget
+for uncompressed colour/material/glow maps (including mipmaps and headers). Larger sets
+use a smaller common preview limit instead of switching later maps to slow BC7 encoding.
+Normal maps retain their existing BC5 format. Downloaded images and export resolution
+remain unchanged; old preview packages rebuild once to pick up the corrected bindings.
 Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
 current camera's depth order. Imported previews open flat against their broad

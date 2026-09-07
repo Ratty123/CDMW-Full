@@ -123,6 +123,27 @@ def _bounded_image_dimensions(
     return max(1, round(width * max_dimension / height)), max_dimension
 
 
+def _preview_batch_max_dimension(dimensions: Sequence[tuple[int, int]], budget: int) -> int:
+    """Fit every BC7 replacement, including mips/headers, before spending the budget."""
+
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    low, high = 1, max((max(size) for size in dimensions), default=0)
+    best = 0
+    while low <= high:
+        limit = (low + high) // 2
+        sizes = (_bounded_image_dimensions(width, height, limit) for width, height in dimensions)
+        projected = sum(
+            _projected_rgba_dds_bytes(width, height, max_mips_for_size(width, height))
+            for width, height in sizes
+        )
+        if projected <= budget:
+            best, low = limit, limit + 1
+        else:
+            high = limit - 1
+    return best
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -227,6 +248,7 @@ def _encode_owned_image_dds_batch(
         remaining_budget = max(0, int(preview_uncompressed_max_bytes))
         requests: list[NativeTextureEncodeRequest] = []
         plans: list[tuple[Path, str, bool, object, str, int, int]] = []
+        image_jobs: list[tuple[Path, Path, str, int, int, bool]] = []
         for raw_source, raw_target, channel in jobs:
             raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
             source = Path(raw_source)
@@ -242,9 +264,26 @@ def _encode_owned_image_dds_batch(
                 # The native encoder accepts PNG bytes only. External scene textures
                 # also arrive as JPEG/TGA/WebP, so normalize an owned temporary copy.
                 if image.format != "PNG":
-                    source = Path(normalized_root) / f"{len(requests):04d}.png"
+                    source = Path(normalized_root) / f"{len(image_jobs):04d}.png"
                     with image.convert("RGBA") as rgba:
                         rgba.save(source, format="PNG")
+            preset = resolve_texture_editor_dds_preset(_channel_preset_key(channel), width=width, height=height)
+            image_jobs.append((source, target, channel, width, height, preset.dds_format in {"BC7_UNORM", "BC7_UNORM_SRGB"}))
+
+        # External previews have a size cap; distribute their existing memory budget
+        # across the complete batch instead of making the last map pay for slow BC7.
+        # Saved/exported textures (no cap) retain their full-resolution preset.
+        budget_dimension = (
+            _preview_batch_max_dimension(
+                [(width, height) for _, _, _, width, height, is_bc7 in image_jobs if is_bc7],
+                remaining_budget,
+            )
+            if max_dimension > 0 and remaining_budget > 0 else 0
+        )
+        for source, target, channel, width, height, is_bc7 in image_jobs:
+            raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+            if is_bc7 and budget_dimension:
+                width, height = _bounded_image_dimensions(width, height, budget_dimension)
             preset = resolve_texture_editor_dds_preset(
                 _channel_preset_key(channel),
                 width=width,

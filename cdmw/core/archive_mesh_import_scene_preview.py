@@ -264,7 +264,7 @@ def _append_scene_material_input(mesh: ModelPreviewMesh, slot: str, path: Path, 
 
 def _resolve_scene_mesh_textures(mesh: ModelPreviewMesh, source_path: Path, lookup: Mapping[str, Path], grouped: Mapping[str, Mapping[str, Path]], single_base: Optional[Path]) -> Dict[str, Path]:
     resolved: Dict[str, Path] = {}
-    for slot, attr in (("base", "preview_texture_path"), ("normal", "preview_normal_texture_path"), ("material", "preview_material_texture_path"), ("height", "preview_height_texture_path")):
+    for slot, attr in (("base", "preview_texture_path"), ("normal", "preview_normal_texture_path"), ("material", "preview_material_texture_path"), ("height", "preview_height_texture_path"), ("emissive", "preview_emissive_texture_path")):
         value = _resolve_scene_texture(getattr(mesh, attr, ""), source_path, lookup)
         if value is not None:
             resolved[slot] = value
@@ -334,8 +334,12 @@ def _assign_scene_mesh_textures(mesh: ModelPreviewMesh, paths: Mapping[str, Path
         count += _append_scene_material_input(mesh, "roughness", paths["roughness"], "roughness", "roughness", ("roughness",))
     if paths.get("metallic") is not None:
         count += _append_scene_material_input(mesh, "metallic", paths["metallic"], "metallic", "metallic", ("metallic",))
-    if paths.get("emissive") is not None:
-        count += _append_scene_material_input(mesh, "emissive", paths["emissive"], "emissive", "emissive")
+    emissive = paths.get("emissive")
+    if emissive is not None:
+        mesh.preview_emissive_texture_path = str(emissive); mesh.preview_emissive_texture_name = emissive.name
+        mesh.preview_emissive_texture_default_path = str(emissive); mesh.preview_emissive_texture_default_name = emissive.name
+        _append_scene_material_input(mesh, "emissive", emissive, "emissive", "emissive")
+        count += 1
     height = paths.get("height")
     if height is not None:
         mesh.preview_height_texture_path = str(height); mesh.preview_height_texture_name = height.name

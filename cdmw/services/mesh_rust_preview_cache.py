@@ -72,8 +72,8 @@ _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
 _LOGGER = logging.getLogger(__name__)
-# Rebuild packages whose external colour maps were gamma-encoded twice.
-RUST_PREVIEW_CACHE_SCHEMA = 5
+# Rebuild external previews that omitted emissive maps or exhausted the fast image budget.
+RUST_PREVIEW_CACHE_SCHEMA = 6
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:

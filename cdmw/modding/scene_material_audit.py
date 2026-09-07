@@ -1497,6 +1497,9 @@ def _apply_scene_material_slots_to_submesh(
         elif slot_kind == "height":
             submesh.preview_height_texture_path = path_text
             submesh.preview_height_texture_name = Path(path_text).name
+        elif slot_kind == "emissive":
+            submesh.preview_emissive_texture_path = path_text
+            submesh.preview_emissive_texture_name = Path(path_text).name
     material_priority = {
         "metallic_roughness": 100,
         "specular_glossiness": 98,

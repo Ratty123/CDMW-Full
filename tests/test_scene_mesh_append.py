@@ -452,6 +452,24 @@ class SceneMeshAppendTests(unittest.TestCase):
             self.assertEqual(str(normal), preview_mesh.preview_normal_texture_path)
             self.assertEqual(str(material), preview_mesh.preview_material_texture_path)
 
+    def test_attach_scene_preview_textures_binds_loose_emissive_to_renderer(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            base, glow = root / "Blade_baseColor.png", root / "Blade_emissive.png"
+            for texture in (base, glow):
+                texture.write_bytes(b"fixture image")
+            parsed = _mesh(str(root / "sword.obj"), [SubMesh(
+                name="Blade", material="Blade", texture=str(base),
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], faces=[(0, 1, 2)],
+            )])
+            preview = parsed_mesh_to_preview_model(parsed)
+            result = SceneImportResult(mesh=parsed, discovered_texture_files=(base, glow))
+            for _ in range(2):
+                self.assertEqual(attach_scene_preview_textures(preview, result, root / "sword.obj"), 2)
+                self.assertEqual(preview.meshes[0].preview_emissive_texture_path, str(glow))
+                self.assertEqual(preview.meshes[0].preview_emissive_texture_default_path, str(glow))
+                self.assertEqual(sum(item.slot_kind == "emissive" for item in preview.meshes[0].preview_material_texture_inputs), 1)
+
     def test_attach_scene_preview_textures_recovers_loose_sword_pbr_maps_after_fbx_conversion(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

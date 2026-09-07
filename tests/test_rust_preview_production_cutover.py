@@ -397,7 +397,7 @@ def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
     tmp_path: Path,
 ) -> None:
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 5
+    assert RUST_PREVIEW_CACHE_SCHEMA == 6
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
     assert "vortice" not in root.name.casefold()

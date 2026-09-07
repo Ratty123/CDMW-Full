@@ -137,6 +137,39 @@ def test_rust_preview_keeps_bc7_when_uncompressed_budget_is_exhausted(
     assert artifact["preview_uncompressed"] is False
 
 
+@pytest.mark.parametrize("image_count", (6, 7))
+def test_external_preview_shares_budget_before_encoding_any_texture(
+    tmp_path: Path, image_count: int,
+) -> None:
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
+    from cdmw.services.material_authority_resource_service import _projected_rgba_dds_bytes
+
+    source = tmp_path / "source.png"
+    Image.new("RGBA", (64, 32), (73, 41, 19, 255)).save(source)
+    source_bytes = source.read_bytes()
+    # Full mip payloads almost fit; DDS headers must not push the last map into BC7.
+    budget = image_count * (_projected_rgba_dds_bytes(64, 32, 7) - 148)
+    jobs = tuple(
+        (source, tmp_path / f"map-{index}.dds", "base" if index % 2 else "material_mask")
+        for index in range(image_count)
+    ) + ((source, tmp_path / "normal.dds", "normal"),)
+    artifacts = _encode_owned_image_dds_batch(
+        jobs, threading.Event(), preview_uncompressed_max_bytes=budget, max_dimension=64,
+    )
+
+    assert all(artifact["preview_uncompressed"] for artifact in artifacts[:-1])
+    assert sum(artifact["byte_count"] for artifact in artifacts[:-1]) <= budget
+    dimensions = {(artifact["width"], artifact["height"]) for artifact in artifacts[:-1]}
+    assert len(dimensions) == 1
+    width, height = dimensions.pop()
+    assert 56 <= width < 64
+    assert height == round(width / 2)
+    assert artifacts[-1]["dds_format"] == "BC5_UNORM"
+    assert (artifacts[-1]["width"], artifacts[-1]["height"]) == (64, 32)
+    assert source.read_bytes() == source_bytes
+
+
 @pytest.mark.parametrize("source_format", ("PNG", "JPEG", "TGA", "WEBP"))
 def test_external_preview_images_use_one_native_encode_batch(
     tmp_path: Path,

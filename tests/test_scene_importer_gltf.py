@@ -241,6 +241,54 @@ class GltfSceneImporterTests(unittest.TestCase):
             self.assertNotIn("generated UVs", " ".join(result.diagnostics))
             self.assertIsNone(preview_model.meshes[0].preview_texture_flip_vertical)
 
+    def test_emissive_texture_reaches_new_item_preview_with_its_factor(self) -> None:
+        import threading
+        from cdmw.core.texture_native import find_directxtex_texture_binary
+        from cdmw.services.mesh_rust_preview_package import validate_rust_preview_package
+        from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_package
+        from cdmw.ui.new_item.model_import import load_model_import_source
+
+        if find_directxtex_texture_binary() is None:
+            self.skipTest("cd-texture-dx is not built")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data, document = _triangle_payload()
+            document["buffers"][0]["uri"] = "triangle.bin"
+            document["materials"] = [{
+                "name": "Blade",
+                "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}},
+                "emissiveTexture": {"index": 1},
+                "emissiveFactor": [1.0, 1.0, 1.0],
+                "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 4.5522}},
+            }]
+            document["textures"] = [{"source": 0}, {"source": 1}]
+            # Arbitrary filenames ensure the declared slots, not filename guessing, win.
+            document["images"] = [{"uri": "textures/a.png"}, {"uri": "textures/b.png"}]
+            archive = root / "model.zip"
+            with zipfile.ZipFile(archive, "w") as packed:
+                packed.writestr("scene.gltf", json.dumps(document))
+                packed.writestr("triangle.bin", data)
+                packed.writestr("textures/a.png", valid_image_bytes())
+                packed.writestr("textures/b.png", valid_image_bytes())
+            source = load_model_import_source(archive, extract_root=root / "import")
+            for mesh in (source.scene.mesh.submeshes[0], source.preview_model.meshes[0]):
+                self.assertEqual(Path(mesh.preview_emissive_texture_path).name, "b.png")
+                self.assertTrue(Path(mesh.preview_emissive_texture_path).is_file())
+                parameters = {p.parameter_name: p for p in mesh.preview_material_parameters}
+                self.assertEqual(parameters["_emissiveIntensity"].numeric_value, 4.5522)
+            self.assertEqual(source.texture_count, 2)
+            package = build_item_preview_package(
+                PlacementScene(template=None, model=source.preview_model),
+                token="emissive-zip", output_root=root / "packages", stop_event=threading.Event(),
+            )
+            self.assertEqual(validate_rust_preview_package(package), ())
+            manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual({row["role"] for row in manifest["textures"]}, {"base_color", "emissive"})
+            glow = next(row for row in manifest["textures"] if row["role"] == "emissive")
+            self.assertEqual(glow["material_indices_by_lod"], [[0]])
+            self.assertTrue((package / glow["file"]["path"]).is_file())
+            self.assertEqual(manifest["material_presentations"][0]["emissive_intensity"], 4.5522)
+
     def test_zip_containing_gltf_imports_via_safe_extract_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
