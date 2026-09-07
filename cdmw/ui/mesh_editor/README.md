@@ -195,21 +195,30 @@ inspect the bind rig; they do not pose it or paint weights with a brush.
 
 ### Morph & Refit workflow
 
-Click an open tool again to close it and return to Orbit navigation. Viewport,
-the tool groups, Parts, Geometry Layers, Action History, and the individual
-Morph & Refit sections can be collapsed independently. Closing panels preserves
-geometry and selection.
+**Morph & Refit** opens directly from its tool header. Click an open tool again
+to close it and return to Orbit navigation. Viewport, the tool groups, Parts,
+Geometry Layers, Action History, and the individual Morph & Refit sections start
+collapsed. Each section remembers its open state while navigating between tools
+in the current editor session. Closing panels preserves geometry and selection.
 
-**Meshes & selection** offers named Part checkboxes, viewport region picking,
-and Frame scope. New sliders capture that selection; existing sliders and
+**Meshes & selection** offers named Part checkboxes without an inner scrollbar;
+long names stay on one line with the full name on hover. **Open Selection tool**
+opens the standard selection controls for picking a region and preserves the
+current selection. New sliders capture that selection; existing sliders and
 presets use their saved regions without requiring another selection. **Shape
 sliders** holds preview values, Reset, and Bake. **Create / edit sliders** opens
 when editing a slider and keeps its rule/axis/strength and advanced scope options
 together. The preview warning means that topology and definition changes are
 locked until Reset or Bake; it does not mean the topology is incompatible.
 
+Framing a small selection retains the complete mesh's camera clipping range.
+Scrolling a panel cannot carry camera zoom into a later viewport click.
+
 In Free Edit, **Load Body...** and **Load Armor...** append extracted game
 PAC/PAM/PAMLOD or custom OBJ/GLB geometry as named, selected Geometry Layers.
+When loading is unavailable, the panel shows the required action; **Enable Free
+Edit...** opens the output-folder chooser. File pickers belong to the Mesh
+Editor window.
 Input files are read-only and bounded to 256 MiB. Parsing, mesh validation, and
 the new native runtime prepare before one undoable publication; failure or
 cancellation during preparation preserves the scene. Load at zero preview and

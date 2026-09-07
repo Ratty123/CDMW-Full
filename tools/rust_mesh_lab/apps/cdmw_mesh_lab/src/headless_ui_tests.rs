@@ -76,8 +76,10 @@ fn integrated_theme_button_readability_for_supplied_palettes() -> TestResult {
     assert!(!palettes.is_empty(), "no application palettes supplied");
     let mut results = Vec::new();
     for (key, palette) in palettes {
-        let mut ui =
-            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1480.0, 1050.0));
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            triangle_application()?,
+            egui::vec2(1480.0, 1050.0),
+        );
         ui.application
             .apply_cdmw_theme_payload(&json!({"theme": key, "palette": palette}));
         ui.frame(Vec::new());
@@ -150,7 +152,8 @@ fn measure_authoring_selection_frames_on_supplied_mesh() -> TestResult {
     let mut application = LabApplication::new(None, None);
     application.document = Some(document);
     application.mesh = Some(mesh);
-    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1440.0, 900.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 900.0));
     let mut results = Vec::new();
     for selected in [false, true] {
         let mesh = ui.application.mesh.as_mut().ok_or("mesh")?;
@@ -235,6 +238,21 @@ impl HeadlessUi {
         ui
     }
 
+    // Control behavior tests explicitly open the surrounding sections. Startup
+    // and persistence tests use new_integrated_cdmw to exercise closed defaults.
+    fn new_integrated_cdmw_for_controls(application: LabApplication, size: egui::Vec2) -> Self {
+        let mut ui = Self::new_integrated_cdmw(application, size);
+        for label in ["Viewport", "Selection", "Transform", "Sculpt", "Mesh Data"] {
+            ui.click_tool_button(label).expect("open tool section");
+        }
+        for label in ["Parts", "Geometry Layers", "Action History"] {
+            ui.click(label).expect("open inspector section");
+        }
+        ui.scroll_tool_rail(2_000.0);
+        ui.scroll_inspector(2_000.0);
+        ui
+    }
+
     fn frame(&mut self, events: Vec<Event>) {
         for event in &events {
             let window_event = match event {
@@ -306,7 +324,8 @@ impl HeadlessUi {
                 .filter(|action| {
                     !matches!(
                         action,
-                        UiAction::ChooseCdmwMorphPreset { .. }
+                        UiAction::ChooseCdmwFreeEdit
+                            | UiAction::ChooseCdmwMorphPreset { .. }
                             | UiAction::ChooseCdmwRefitMesh { .. }
                     )
                 })
@@ -350,6 +369,7 @@ impl HeadlessUi {
             .min_by(|a, b| a.top().total_cmp(&b.top()))
             .ok_or("tool row")?;
         self.click_at(row.center());
+        self.settle_layout();
         Ok(())
     }
 
@@ -447,7 +467,16 @@ impl HeadlessUi {
     fn click(&mut self, label: &str) -> TestResult {
         let position = self.reveal(label)?.center();
         self.click_at(position);
+        self.settle_layout();
         Ok(())
+    }
+
+    fn settle_layout(&mut self) {
+        if self.integrated_cdmw {
+            for _ in 0..16 {
+                self.frame(Vec::new());
+            }
+        }
     }
 
     fn click_where(&mut self, label: &str, accepts: impl Fn(Rect) -> bool) -> TestResult {
@@ -638,7 +667,7 @@ fn parts_actions_from_click(
 
 #[test]
 fn integrated_parts_selection_and_actions_use_the_painted_controls() -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw(
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         overlapping_parts_application()?,
         egui::vec2(1280.0, 900.0),
     );
@@ -726,7 +755,7 @@ fn integrated_parts_selection_and_actions_use_the_painted_controls() -> TestResu
 #[test]
 fn integrated_parts_visibility_filters_drawing_and_selection_without_changing_geometry()
 -> TestResult {
-    let mut ui = HeadlessUi::new_integrated_cdmw(
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         overlapping_parts_application()?,
         egui::vec2(1280.0, 900.0),
     );
@@ -811,7 +840,8 @@ fn integrated_parts_rows_stay_compact_with_long_names_and_materials() -> TestRes
         part.name = format!("cd_phm_00_long_part_name_{index}_{}", "damian_".repeat(8));
         part.material = "CD_PHW_00_Long_Material_Name".repeat(4);
     }
-    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1000.0, 650.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1000.0, 650.0));
     ui.frame(Vec::new());
     let rows = ui
         .output
@@ -841,7 +871,7 @@ fn integrated_parts_rows_stay_compact_with_long_names_and_materials() -> TestRes
 #[test]
 fn integrated_parts_visibility_follows_surviving_parts_and_respects_layers() -> TestResult {
     let root = tempdir()?;
-    let mut ui = HeadlessUi::new_integrated_cdmw(
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         overlapping_parts_application()?,
         egui::vec2(1280.0, 900.0),
     );
@@ -885,7 +915,7 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
         egui::vec2(1_000.0, 650.0),
         egui::vec2(800.0, 1_200.0),
     ] {
-        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(triangle_application()?, size);
         for label in [
             "Mesh Editor",
             "Finish Edit Mesh",
@@ -895,7 +925,6 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
             "Transform",
             "Sculpt",
             "Mesh Data",
-            "Deform",
             "Select",
             "Move",
             "Rotate",
@@ -933,8 +962,12 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
 
 #[test]
 fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 900.0),
+    );
+
+    assert!(ui.label_rect("Game / Mod output").is_none());
 
     let header_y = ui
         .label_rect("Mesh Editor")
@@ -1029,8 +1062,10 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
 #[test]
 fn integrated_selection_display_camera_history_and_output_controls_change_real_state_or_route()
 -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.click("Select")?;
 
     for (label, expected) in [
@@ -1164,8 +1199,10 @@ fn integrated_selection_display_camera_history_and_output_controls_change_real_s
 
 #[test]
 fn integrated_overlay_colours_normal_preview_and_uv_checker_have_perceptible_state() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
 
     ui.application.overlay_wire_colour = Color32::from_rgb(255, 220, 0);
     ui.application.overlay_vertex_colour = Color32::from_rgb(12, 34, 56);
@@ -1199,8 +1236,10 @@ fn integrated_overlay_colours_normal_preview_and_uv_checker_have_perceptible_sta
 
 #[test]
 fn integrated_rotate_scale_and_numeric_controls_are_real_undoable_edits() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     ui.click("Select All")?;
     let baseline = ui
         .application
@@ -1237,8 +1276,10 @@ fn integrated_rotate_scale_and_numeric_controls_are_real_undoable_edits() -> Tes
 
 #[test]
 fn integrated_blender_lite_pages_dispatch_typed_mesh_and_weight_commands() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.cdmw_state["skeleton"] = json!({
         "skinned": true,
@@ -1297,8 +1338,10 @@ fn integrated_blender_lite_pages_dispatch_typed_mesh_and_weight_commands() -> Te
 
 #[test]
 fn integrated_cleanup_normals_and_uv_controls_all_dispatch_their_typed_actions() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.click("Select All")?;
 
@@ -1380,8 +1423,10 @@ fn integrated_cleanup_normals_and_uv_controls_all_dispatch_their_typed_actions()
 
 #[test]
 fn integrated_every_topology_button_dispatches_a_supported_typed_action() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.click("Topology")?;
 
@@ -1445,8 +1490,10 @@ fn integrated_every_topology_button_dispatches_a_supported_typed_action() -> Tes
 
 #[test]
 fn integrated_rig_weight_commands_bind_the_live_vertex_selection() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     ui.click("Select All")?;
     let arguments = ui
         .application
@@ -1465,8 +1512,10 @@ fn integrated_rig_weight_commands_bind_the_live_vertex_selection() -> TestResult
 
 #[test]
 fn integrated_topology_controls_dispatch_the_painted_parameter_values() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.selection_domain = SelectionDomain::Face;
     ui.application.extrude_distance = 0.375;
@@ -1512,8 +1561,10 @@ fn integrated_topology_controls_dispatch_the_painted_parameter_values() -> TestR
 #[test]
 fn integrated_rig_controls_require_explicit_vertices_and_can_restore_source_weights() -> TestResult
 {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["skeleton"] = json!({
         "skinned": true,
         "source_weights_available": true,
@@ -1561,8 +1612,10 @@ fn integrated_rig_controls_require_explicit_vertices_and_can_restore_source_weig
 
 #[test]
 fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["skeleton"] = json!({
         "skinned": true,
         "source_weights_available": true,
@@ -1623,8 +1676,10 @@ fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult 
 
 #[test]
 fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weights() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["skeleton"] = json!({
         "available": true,
         "skinned": true,
@@ -1719,8 +1774,10 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
 
 #[test]
 fn integrated_geometry_layer_visibility_dispatches_the_typed_host_command() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["geometry_layers"] = json!({
         "revision": 4,
         "active_layer_id": "detail",
@@ -1752,8 +1809,10 @@ fn integrated_geometry_layer_visibility_dispatches_the_typed_host_command() -> T
 #[test]
 fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_in_free_edit()
 -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
 
     ui.click("Cleanup")?;
     ui.reveal(
@@ -1795,8 +1854,10 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
 #[test]
 fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_stay_disabled()
 -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.application.cdmw_state["geometry_layers"] = json!({
         "revision": 4,
@@ -1883,9 +1944,133 @@ fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_
 }
 
 #[test]
-fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes() -> TestResult {
+fn integrated_morph_part_picker_shows_all_rows_without_nested_scrolling() -> TestResult {
+    let mut app = triangle_application()?;
+    let document = app.document.as_mut().ok_or("document")?;
+    let part = document.lods[0].submeshes[0].clone();
+    document.lods[0].submeshes = (0..6)
+        .map(|index| {
+            let mut part = part.clone();
+            part.name =
+                format!("cd_phm_00_body_part_{index:02}_a_very_long_mesh_and_material_identifier");
+            part
+        })
+        .collect();
+    let names = document.lods[0]
+        .submeshes
+        .iter()
+        .enumerate()
+        .map(|(index, part)| format!("{} · {}", index + 1, part.name))
+        .collect::<Vec<_>>();
+    app.mesh = Some(WorkingMesh::from_document(document)?);
+    let mut ui = HeadlessUi::new_integrated_cdmw(app, egui::vec2(1440.0, 980.0));
+    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    ui.application.cdmw_state["geometry_layers"]["layers"][0]["submesh_indices"] =
+        json!([0, 1, 2, 3, 4, 5]);
+    ui.click("Morph & Refit")?;
+    ui.click("Meshes & selection")?;
+    ui.click("Choose Parts")?;
+    for _ in 0..16 {
+        ui.frame(Vec::new());
+    }
+    let right = ui.application.viewport_rect.ok_or("viewport")?.left();
+    for name in &names {
+        let row = ui
+            .label_rect(name)
+            .ok_or_else(|| format!("Part row needs scrolling: {name}"))?;
+        assert!(row.right() <= right, "Part row exceeds the rail: {row:?}");
+        assert!(
+            row.height()
+                <= ui
+                    .application
+                    .egui_context
+                    .style_of(ui.application.egui_context.theme())
+                    .spacing
+                    .interact_size
+                    .y
+                    + 4.0,
+            "Part row wraps to multiple lines: {row:?}"
+        );
+    }
+    ui.click(&names[5])?;
+    assert_eq!(ui.application.selected_part_indices(), vec![5]);
+    Ok(())
+}
+
+#[test]
+fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_sections() -> TestResult {
     let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+        HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    for hidden in [
+        "Display",
+        "Select",
+        "Move",
+        "Visibility",
+        "Load Body...",
+        "Deform",
+        "Game / Mod output",
+    ] {
+        assert!(
+            ui.label_rect(hidden).is_none(),
+            "initial section exposed {hidden}"
+        );
+    }
+    ui.click("Morph & Refit")?;
+    for section in [
+        "Meshes & selection",
+        "Profiles & presets",
+        "Shape sliders",
+        "Create / edit sliders",
+        "Refit clothing & armor",
+    ] {
+        ui.reveal(section)?;
+    }
+    assert!(ui.label_rect("Load Body...").is_none());
+    ui.click("Meshes & selection")?;
+    ui.reveal("Adding meshes requires Free Edit.")?;
+    assert!(
+        ui.actions_from_click("Enable Free Edit...")?
+            .iter()
+            .any(|action| matches!(action, UiAction::ChooseCdmwFreeEdit))
+    );
+    assert!(ui.actions_from_click("Load Armor...")?.is_empty());
+    ui.click("Choose Parts")?;
+    ui.click("2 · Part B")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    ui.frame(Vec::new());
+    ui.reveal("2 · Part B")?;
+    assert!(ui.label_rect("Adding meshes requires Free Edit.").is_none());
+    assert!(ui.actions_from_click("Load Armor...")?.iter().any(
+        |action| matches!(action, UiAction::ChooseCdmwRefitMesh { role } if *role == "armor")
+    ));
+    ui.click("Open Selection tool")?;
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Select));
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+    assert!(!ui.application.cdmw_orbit_mode);
+    ui.reveal("Shape")?;
+    ui.click_tool_button("Morph & Refit")?;
+    ui.reveal("Load Armor...")?;
+    ui.reveal("2 · Part B")?;
+    assert!(
+        ui.label_rect("Load Preset...").is_none(),
+        "closed preset section reopened"
+    );
+    assert!(ui.label_rect("Pick region").is_none());
+    assert!(ui.label_rect("Frame scope").is_none());
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    ui.click_tool_button("Morph & Refit")?;
+    ui.click_tool_button("Morph & Refit")?;
+    ui.reveal("2 · Part B")?;
+    Ok(())
+}
+
+#[test]
+fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
     let before = ui
         .application
         .mesh
@@ -1922,7 +2107,6 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
         ("Transform", "Move"),
         ("Sculpt", "Grab"),
         ("Mesh Data", "Topology"),
-        ("Deform", "Morph & Refit"),
         ("Parts", "Visibility"),
     ] {
         if heading == "Parts" {
@@ -1959,9 +2143,14 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
 
 #[test]
 fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
     ui.click("Morph & Refit")?;
+    ui.click("Meshes & selection")?;
+    ui.click("Choose Parts")?;
+    ui.click("Profiles & presets")?;
     assert!(ui.actions_from_click("Load Body...")?.is_empty());
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.frame(Vec::new());
@@ -1982,12 +2171,10 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     );
     ui.click("1 · Part A")?;
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
-    ui.click("Pick region")?;
+    ui.click("Open Selection tool")?;
     assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
-    assert_eq!(
-        ui.application.cdmw_rail_page,
-        Some(CdmwRailPage::MorphRefit)
-    );
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Select));
+    ui.click_tool_button("Morph & Refit")?;
     ui.application.cdmw_state["morph_refit"]["profile_id"] = json!("body");
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.application.cdmw_state["morph_refit"]["topology_blocked"] = json!(true);
@@ -2029,8 +2216,10 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
 
 #[test]
 fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["morph_refit"] = json!({
         "profile_id": "owned-profile",
         "state_revision": 7,
@@ -2085,8 +2274,10 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
 
 #[test]
 fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["morph_refit"] = json!({
         "profile_id": "owned-profile",
         "state_revision": 7,
@@ -2123,8 +2314,10 @@ fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() ->
 
 #[test]
 fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 2_000.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 2_000.0),
+    );
     ui.application.cdmw_state["morph_refit"] = json!({
         "profile_id": "profile-1",
         "preset_id": "preset-1",
@@ -2170,8 +2363,9 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
         .insert(0);
     ui.click("Morph & Refit")?;
     ui.click("Refit clothing & armor")?;
+    ui.click("Profiles & presets")?;
+    ui.click("Shape sliders")?;
     ui.reveal("Waist Width")?;
-    ui.reveal("↳ radius · axis x · 100% strength 0.250")?;
     ui.reveal("Selected Parts: 1 · Driver Parts: 1 · Bound garment Parts: 1")?;
 
     ui.click("Create / edit sliders")?;
@@ -2198,6 +2392,8 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
             && arguments["definition"]["mirror_mode"] == json!("x")
     )));
 
+    ui.click("Create / edit sliders")?;
+    assert!(ui.label_rect("Add Slider").is_none());
     ui.click("Edit slider")?;
     assert_eq!(ui.application.cdmw_morph_definition_edit_id, "morph-a");
     assert_eq!(ui.application.cdmw_morph_definition_label, "Waist Width");
@@ -2294,8 +2490,10 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
 
 #[test]
 fn integrated_rig_controls_all_dispatch_and_bind_the_explicit_vertex_selection() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
     ui.application.cdmw_state["skeleton"] = json!({
         "skinned": true,
         "source_weights_available": true,
@@ -2358,8 +2556,10 @@ fn integrated_rig_controls_all_dispatch_and_bind_the_explicit_vertex_selection()
 
 #[test]
 fn integrated_rig_inspection_links_names_search_frame_weights_and_selection() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
     ui.application.source_label = "character/model/character_body.pac".to_owned();
     ui.application.cdmw_state["skeleton"] = json!({
         "available": true, "skinned": true, "weighted_vertex_count": 3,
@@ -2484,8 +2684,10 @@ fn integrated_rig_inspection_links_names_search_frame_weights_and_selection() ->
 #[test]
 fn integrated_read_only_session_disables_import_and_morph_creation_without_selection() -> TestResult
 {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_360.0, 940.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_360.0, 940.0),
+    );
     ui.application.cdmw_state["authoring_enabled"] = json!(false);
     ui.last_actions.clear();
     ui.click("Open Package in CDMW...")?;
@@ -2497,6 +2699,7 @@ fn integrated_read_only_session_disables_import_and_morph_creation_without_selec
 
     ui.application.cdmw_state["authoring_enabled"] = json!(true);
     ui.click("Morph & Refit")?;
+    ui.click("Create / edit sliders")?;
     ui.last_actions.clear();
     ui.click("Add Slider")?;
     assert!(!ui.last_actions.iter().any(|action| matches!(
@@ -2512,7 +2715,7 @@ fn integrated_read_only_session_disables_import_and_morph_creation_without_selec
 #[test]
 fn integrated_parts_delete_routes_explicit_part_deletion_and_import_has_a_typed_route() -> TestResult
 {
-    let mut ui = HeadlessUi::new_integrated_cdmw(
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         overlapping_parts_application()?,
         egui::vec2(1_440.0, 900.0),
     );
@@ -2562,8 +2765,10 @@ fn integrated_parts_delete_routes_explicit_part_deletion_and_import_has_a_typed_
 
 #[test]
 fn integrated_part_row_highlights_and_move_changes_only_that_part() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1_440.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1_440.0, 900.0),
+    );
     let stale_part_b_vertex = ui
         .application
         .mesh
@@ -2650,8 +2855,10 @@ fn integrated_part_row_highlights_and_move_changes_only_that_part() -> TestResul
 
 #[test]
 fn integrated_face_brush_keeps_a_bent_pointer_path_within_one_frame() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 900.0),
+    );
     ui.application.cdmw_orbit_mode = false;
     ui.application.viewport_tool = ViewportTool::Select;
     ui.application.selection_tool = SelectionTool::Brush;
@@ -2715,8 +2922,10 @@ fn integrated_face_brush_keeps_a_bent_pointer_path_within_one_frame() -> TestRes
 
 #[test]
 fn integrated_face_highlights_reuse_geometry_when_the_camera_moves() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 900.0),
+    );
     assert!(
         ui.application.projection.is_none(),
         "navigation must not build a picking index"
@@ -2771,7 +2980,7 @@ fn integrated_textured_mode_paints_its_disabled_reason_until_an_owned_upload_suc
     missing.cdmw_texture_package_reason =
         "Archive Browser preview package no longer contains its DDS payload".to_owned();
     missing.record_cdmw_texture_uploads(0, 0, 0, None);
-    let ui = HeadlessUi::new_integrated_cdmw(missing, egui::vec2(1_440.0, 900.0));
+    let ui = HeadlessUi::new_integrated_cdmw_for_controls(missing, egui::vec2(1_440.0, 900.0));
     assert!(
         ui.application
             .cdmw_textured_mode_reason
@@ -2786,7 +2995,7 @@ fn integrated_textured_mode_paints_its_disabled_reason_until_an_owned_upload_suc
     let mut unavailable = triangle_application()?;
     unavailable.view_mode = ViewMode::TexturedSolid;
     unavailable.record_cdmw_texture_uploads(1, 0, 0, Some("DDS upload validation failed"));
-    let ui = HeadlessUi::new_integrated_cdmw(unavailable, egui::vec2(1_440.0, 900.0));
+    let ui = HeadlessUi::new_integrated_cdmw_for_controls(unavailable, egui::vec2(1_440.0, 900.0));
     assert_eq!(ui.application.view_mode, ViewMode::Solid);
     assert!(
         ui.label_rect(&ui.application.cdmw_textured_mode_reason)
@@ -2797,7 +3006,7 @@ fn integrated_textured_mode_paints_its_disabled_reason_until_an_owned_upload_suc
     let mut available = triangle_application()?;
     available.view_mode = ViewMode::TexturedSolid;
     available.record_cdmw_texture_uploads(1, 1, 1, None);
-    let ui = HeadlessUi::new_integrated_cdmw(available, egui::vec2(1_440.0, 900.0));
+    let ui = HeadlessUi::new_integrated_cdmw_for_controls(available, egui::vec2(1_440.0, 900.0));
     assert!(ui.application.cdmw_textured_mode_available);
     assert_eq!(ui.application.view_mode, ViewMode::TexturedSolid);
     assert!(ui.application.cdmw_textured_mode_reason.is_empty());
@@ -2807,7 +3016,8 @@ fn integrated_textured_mode_paints_its_disabled_reason_until_an_owned_upload_suc
 #[test]
 fn integrated_deformation_colours_are_enabled_and_user_toggleable() -> TestResult {
     let application = triangle_application()?;
-    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1_440.0, 900.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1_440.0, 900.0));
     assert!(ui.application.deformation_heatmap_enabled);
     ui.click("Persistent edit colours")?;
     assert!(!ui.application.deformation_heatmap_enabled);
@@ -2826,7 +3036,8 @@ fn integrated_deformation_colours_keep_the_loaded_baseline_across_strokes_and_to
         .ok_or("mesh")?
         .draw_snapshot()
         .positions;
-    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1_280.0, 900.0));
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1_280.0, 900.0));
     ui.click("Inflate")?;
     let point = ui.projected_point(SelectionDomain::Vertex)?;
     let mut previous_fingerprint = ui
@@ -2951,10 +3162,47 @@ fn viewport_selection_overlay_is_depth_filtered_until_xray_is_explicit() -> Test
 }
 
 #[test]
+fn integrated_panel_scroll_cannot_zoom_or_interrupt_the_next_selection_click() -> TestResult {
+    for tool_rail in [true, false] {
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+        ui.click("Selection")?;
+        ui.click("Select")?;
+        let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+        let point = ui.projected_point(SelectionDomain::Vertex)?;
+        let camera_revision = ui.application.camera.revision();
+        let panel_x = if tool_rail {
+            viewport.left() * 0.5
+        } else {
+            (viewport.right() + ui.size.x) * 0.5
+        };
+        ui.frame(vec![
+            Event::PointerMoved(egui::pos2(panel_x, ui.size.y * 0.5)),
+            wheel_event(-240.0),
+        ]);
+        // Move into the viewport before the panel's scroll smoothing finishes.
+        ui.click_at(egui::pos2(point.x, point.y));
+        assert_eq!(ui.application.camera.revision(), camera_revision);
+        assert!(
+            !ui.application
+                .mesh
+                .as_ref()
+                .ok_or("mesh")?
+                .selection
+                .vertices
+                .is_empty()
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_selection_release_keeps_side_text_stable_and_blocks_pending_edits() -> TestResult {
     let root = tempdir()?;
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(),
         "selection-paint-session",
@@ -3036,8 +3284,10 @@ fn integrated_selection_release_keeps_side_text_stable_and_blocks_pending_edits(
 
 #[test]
 fn integrated_selection_settles_to_selected_and_inflate_needs_no_selection() -> TestResult {
-    let mut selection_ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut selection_ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     selection_ui.click("Select")?;
     let point = selection_ui.projected_point(SelectionDomain::Vertex)?;
     selection_ui.click_at(egui::pos2(point.x, point.y));
@@ -3055,8 +3305,10 @@ fn integrated_selection_settles_to_selected_and_inflate_needs_no_selection() -> 
     assert!(selection_ui.label_rect("Selected").is_some());
     assert!(selection_ui.application.selection_gesture.is_none());
 
-    let mut inflate_ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut inflate_ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     let selection = &inflate_ui
         .application
         .mesh
@@ -3108,8 +3360,10 @@ fn integrated_every_transform_and_sculpt_tool_edits_and_queues_one_shadow_transa
         ViewportTool::Pinch,
     ] {
         let root = tempdir()?;
-        let mut ui =
-            HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            triangle_application()?,
+            egui::vec2(1_280.0, 900.0),
+        );
         let needs_selection = tool.sculpt_tool().is_none();
         if needs_selection {
             ui.click("Select All")?;
@@ -3272,8 +3526,10 @@ fn resampling_brushes_keep_prior_edits_when_the_pointer_leaves_the_surface() -> 
 
 #[test]
 fn integrated_painted_symmetry_control_drives_one_mirrored_grab_stroke() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(symmetry_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        symmetry_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     ui.click("Grab")?;
     ui.choose("Symmetry", "Off", "X")?;
     assert_eq!(ui.application.sculpt_symmetry, SculptSymmetry::X);
@@ -3325,8 +3581,10 @@ fn integrated_painted_symmetry_control_drives_one_mirrored_grab_stroke() -> Test
 
 #[test]
 fn integrated_controls_paint_hover_pressed_selected_disabled_progress_and_failure() -> TestResult {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     let inflate = ui.reveal("Inflate")?;
     let center = inflate.center();
     ui.frame(vec![Event::PointerMoved(center)]);
@@ -3378,8 +3636,10 @@ fn integrated_controls_paint_hover_pressed_selected_disabled_progress_and_failur
 #[test]
 fn pending_integrated_viewport_blocks_primary_edits_but_keeps_pointer_camera_live() -> TestResult {
     let root = tempdir()?;
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_280.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_280.0, 900.0),
+    );
     ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
         root.path().to_path_buf(),
         "pointer-camera-session",

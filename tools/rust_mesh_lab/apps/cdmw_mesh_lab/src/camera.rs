@@ -222,6 +222,7 @@ impl OrbitCamera {
                 .filter_map(|handle| mesh.vertex(*handle))
                 .map(|vertex| Vec3::from_array(vertex.position)),
         );
+        self.retain_full_mesh_clip_extent(mesh);
     }
 
     pub fn frame_selected_in_viewport(&mut self, mesh: &WorkingMesh, rectangle: Rect) {
@@ -237,6 +238,20 @@ impl OrbitCamera {
                 .map(|vertex| Vec3::from_array(vertex.position)),
             rectangle,
         );
+        self.retain_full_mesh_clip_extent(mesh);
+    }
+
+    fn retain_full_mesh_clip_extent(&mut self, mesh: &WorkingMesh) {
+        if let Some((minimum, maximum)) = finite_bounds(
+            mesh.vertices()
+                .map(|(_, vertex)| Vec3::from_array(vertex.position)),
+        ) {
+            // Selection changes the framing target, not the extent of the visible scene.
+            // A point-sized selection must not collapse the far plane or zoom range.
+            let center = (minimum + maximum) * 0.5;
+            self.scene_radius = ((maximum - minimum) * 0.5).length() + center.distance(self.target);
+            self.scene_radius = self.scene_radius.max(MIN_DISTANCE);
+        }
     }
 
     pub fn set_standard_view(&mut self, view: StandardView) {
@@ -636,6 +651,39 @@ mod tests {
         let after_orbit = camera.revision();
         camera.zoom(120.0);
         assert!(camera.revision() > after_orbit);
+    }
+
+    #[test]
+    fn framing_one_vertex_keeps_the_mesh_depth_visible_when_zooming_out() {
+        let mut mesh =
+            mesh_with_positions(vec![[-1.0, -1.0, -2.0], [1.0, -1.0, 2.0], [0.0, 1.0, 2.0]]);
+        let selected = mesh.vertices().next().unwrap().0;
+        mesh.selection.vertices.insert(selected);
+        let positions = mesh.vertices().map(|(_, v)| v.position).collect::<Vec<_>>();
+        let viewport = rectangle(800.0, 700.0);
+        for use_viewport in [false, true] {
+            let mut camera = OrbitCamera::default();
+            camera.frame_all(&mesh);
+            if use_viewport {
+                camera.frame_selected_in_viewport(&mesh, viewport);
+            } else {
+                camera.frame_selected(&mesh);
+            }
+            camera.zoom(-6000.0);
+            for position in &positions {
+                let projected = camera
+                    .project(Vec3::from_array(*position), viewport)
+                    .unwrap();
+                assert!(
+                    projected.inside_view,
+                    "selection framing clipped {position:?}: {projected:?}"
+                );
+            }
+        }
+        assert_eq!(
+            positions,
+            mesh.vertices().map(|(_, v)| v.position).collect::<Vec<_>>()
+        );
     }
 
     #[test]

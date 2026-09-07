@@ -1439,6 +1439,7 @@ enum UiAction {
     Redo,
     ExportObj,
     ChooseCdmwImportPackage,
+    ChooseCdmwFreeEdit,
     ChooseCdmwMorphPreset {
         save: bool,
     },
@@ -4376,6 +4377,7 @@ impl LabApplication {
                 }
                 UiAction::ExportObj => self.choose_export(),
                 UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
+                UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
@@ -4781,7 +4783,8 @@ impl LabApplication {
     }
 
     fn choose_cdmw_import_package(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = self
+            .cdmw_file_dialog()
             .set_title("Choose an editable mesh package")
             .pick_folder()
         else {
@@ -4791,7 +4794,9 @@ impl LabApplication {
     }
 
     fn choose_cdmw_morph_preset(&mut self, save: bool) {
-        let mut dialog = rfd::FileDialog::new().add_filter("CDMW Morph preset", &["json"]);
+        let mut dialog = self
+            .cdmw_file_dialog()
+            .add_filter("CDMW Morph preset", &["json"]);
         if let Some(folder) = self
             .cdmw_state
             .get("morph_preset_directory")
@@ -4820,7 +4825,8 @@ impl LabApplication {
     }
 
     fn choose_cdmw_refit_mesh(&mut self, role: &'static str) {
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = self
+            .cdmw_file_dialog()
             .set_title(if role == "body" {
                 "Add body mesh"
             } else {
@@ -4837,6 +4843,29 @@ impl LabApplication {
                 } else {
                     "Load refit armor"
                 },
+            }]);
+        }
+    }
+
+    fn cdmw_file_dialog(&self) -> rfd::FileDialog {
+        let dialog = rfd::FileDialog::new();
+        if let Some(window) = &self.window {
+            dialog.set_parent(window.as_ref())
+        } else {
+            dialog
+        }
+    }
+
+    fn choose_cdmw_free_edit(&mut self) {
+        if let Some(parent) = self
+            .cdmw_file_dialog()
+            .set_title("Choose the parent for a new Free Edit package")
+            .pick_folder()
+        {
+            self.handle_actions(vec![UiAction::CdmwCommand {
+                command: "configure_output_policy",
+                arguments: json!({"policy": "free_edit_rebuild", "destination": parent.join("cdmw-rust-free-edit")}),
+                label: "Configure Free Edit output",
             }]);
         }
     }
@@ -5110,7 +5139,33 @@ impl LabApplication {
         }
 
         if response.hovered() {
-            let wheel = ui.input(|input| input.smooth_scroll_delta.y);
+            // Scroll smoothing can continue after the pointer leaves a tool
+            // panel. Only a wheel event over this viewport owns camera input.
+            let input_options = ui.ctx().options(|options| options.input_options);
+            let wheel = ui.input(|input| {
+                input.raw.events.iter().fold(0.0, |total, event| {
+                    let egui::Event::MouseWheel {
+                        unit,
+                        delta,
+                        phase: egui::TouchPhase::Move,
+                        modifiers,
+                    } = event
+                    else {
+                        return total;
+                    };
+                    if modifiers.matches_any(input_options.zoom_modifier)
+                        || modifiers.matches_any(input_options.horizontal_scroll_modifier)
+                    {
+                        return total;
+                    }
+                    let scale = match unit {
+                        egui::MouseWheelUnit::Point => 1.0,
+                        egui::MouseWheelUnit::Line => input_options.line_scroll_speed,
+                        egui::MouseWheelUnit::Page => input.viewport_rect().height(),
+                    };
+                    total + delta.y * scale
+                })
+            });
             if wheel.abs() > f32::EPSILON {
                 self.cancel_active_gesture("Camera zoom took pointer ownership");
                 self.camera.zoom(wheel);
