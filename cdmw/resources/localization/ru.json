@@ -2320,6 +2320,7 @@
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "Режим прямого бэкэнда активен, поэтому выбор модели имеет значение. Приложение также будет автоматически маршрутизировать пост-коррекцию для каждой текстуры, если выбран режим «Соответствие исходному коду».",
     "Direct backends can be prepared here. The setup buttons open official external download or install pages in your browser instead of downloading files inside the app. NCNN models can still be imported from files you already downloaded locally.": "Здесь можно подготовить прямые бэкэнды. Кнопки настройки открывают официальные внешние страницы загрузки или установки в вашем браузере вместо загрузки файлов внутри приложения. Модели NCNN по-прежнему можно импортировать из файлов, которые вы уже скачали локально.",
     "Direct links: {value_0}": "Прямые ссылки: {value_0}",
+    "Direct preview does not match the material source.": "Прямой предпросмотр не соответствует источнику материала.",
     "Direct preview requires Preview Core material graph v4 and semantics v10.": "для прямого предварительного просмотра требуется граф материала Preview Core v4 и семантика v10.",
     "Direct preview requires Preview Core schema 8 or newer.": "для прямого предварительного просмотра требуется схема Preview Core 8 или новее.",
     "Direct preview requires a conserved Preview Core material graph.": "для прямого предварительного просмотра требуется сохраненный граф материала Preview Core.",

@@ -2320,6 +2320,7 @@
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "直接后端模式处于活动状态，因此模型选择很重要。当选择源匹配模式时，应用程序还将自动路由每个纹理的后期校正。",
     "Direct backends can be prepared here. The setup buttons open official external download or install pages in your browser instead of downloading files inside the app. NCNN models can still be imported from files you already downloaded locally.": "可以在这里准备直接后端。设置按钮会在浏览器中打开官方外部下载或安装页面，而不是在应用程序内下载文件。 NCNN 模型仍然可以从您已在本地下载的文件导入。",
     "Direct links: {value_0}": "直接链接：{value_0}",
+    "Direct preview does not match the material source.": "直接预览与材质源不匹配。",
     "Direct preview requires Preview Core material graph v4 and semantics v10.": "直接预览需要 Preview Core 材质图 v4 和语义 v10。",
     "Direct preview requires Preview Core schema 8 or newer.": "直接预览需要 Preview Core 架构 8 或更高版本。",
     "Direct preview requires a conserved Preview Core material graph.": "直接预览需要保存的 Preview Core 材质图。",

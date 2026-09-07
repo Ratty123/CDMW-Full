@@ -2320,6 +2320,7 @@
     "Direct backend mode is active, so model choice matters. The app will also auto-route post correction per texture when a Source Match mode is selected.": "Doğrudan arka uç modu etkin olduğundan model seçimi önemlidir. Uygulama aynı zamanda Kaynak Eşleştirme modu seçildiğinde doku başına post düzeltmeyi otomatik olarak yönlendirecektir.",
     "Direct backends can be prepared here. The setup buttons open official external download or install pages in your browser instead of downloading files inside the app. NCNN models can still be imported from files you already downloaded locally.": "Doğrudan arka uçlar burada hazırlanabilir. Kurulum düğmeleri, uygulama içindeki dosyaları indirmek yerine tarayıcınızda resmi harici indirme veya yükleme sayfalarını açar. NCNN modelleri, halihazırda yerel olarak indirdiğiniz dosyalardan içe aktarılabilir.",
     "Direct links: {value_0}": "Doğrudan bağlantılar: {value_0}",
+    "Direct preview does not match the material source.": "Doğrudan önizleme, malzeme kaynağıyla eşleşmiyor.",
     "Direct preview requires Preview Core material graph v4 and semantics v10.": "Doğrudan önizleme, Preview Core malzeme grafiği v4 ve anlambilim v10'u gerektirir.",
     "Direct preview requires Preview Core schema 8 or newer.": "Doğrudan önizleme Preview Core şeması 8 veya daha yenisini gerektirir.",
     "Direct preview requires a conserved Preview Core material graph.": "Doğrudan önizleme, korunmuş bir Preview Core malzeme grafiği gerektirir.",
