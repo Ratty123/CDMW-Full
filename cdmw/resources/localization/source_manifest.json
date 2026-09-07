@@ -6506,7 +6506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 264,
+          "line": 267,
           "sink": "ValueError"
         }
       ]
@@ -6516,7 +6516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 288,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -12361,7 +12361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1390,
+          "line": 1475,
           "sink": "_simple_morph_command"
         }
       ]
@@ -12371,7 +12371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1485,
+          "line": 1570,
           "sink": "RuntimeError"
         }
       ]
@@ -16611,7 +16611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 310,
+          "line": 313,
           "sink": "ValueError"
         }
       ]
@@ -16621,7 +16621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 308,
+          "line": 311,
           "sink": "ValueError"
         }
       ]
@@ -16631,12 +16631,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 257,
+          "line": 260,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 304,
+          "line": 307,
           "sink": "ValueError"
         }
       ]
@@ -16646,7 +16646,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 302,
+          "line": 305,
           "sink": "ValueError"
         }
       ]
@@ -18767,6 +18767,16 @@
       ]
     },
     {
+      "key": "Choose a CDMW Morph preset JSON file",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 45,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a Source Mod folder or zip first.",
       "origins": [
         {
@@ -18883,6 +18893,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1600,
           "sink": "python-return:_new_placement_summary"
+        }
+      ]
+    },
+    {
+      "key": "Choose a portable preset made with Export Preset",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 54,
+          "sink": "ValueError"
         }
       ]
     },
@@ -19901,7 +19921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1384,
+          "line": 1469,
           "sink": "_simple_morph_command"
         }
       ]
@@ -27186,7 +27206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1168,
+          "line": 1179,
           "sink": "ValueError"
         }
       ]
@@ -27196,7 +27216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1163,
+          "line": 1174,
           "sink": "ValueError"
         }
       ]
@@ -27206,7 +27226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1175,
+          "line": 1186,
           "sink": "ValueError"
         }
       ]
@@ -29236,7 +29256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8893,
+          "line": 8961,
           "sink": "RuntimeError"
         }
       ]
@@ -36351,7 +36371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1393,
+          "line": 1478,
           "sink": "_simple_morph_command"
         }
       ]
@@ -38401,7 +38421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1331,
+          "line": 1416,
           "sink": "ValueError"
         }
       ]
@@ -45331,7 +45351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 402,
+          "line": 449,
           "sink": "ValueError"
         }
       ]
@@ -47223,6 +47243,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
           "line": 167,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Load a PAC, PAM, PAMLOD, OBJ, or GLB mesh",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 25,
+          "sink": "ValueError"
         }
       ]
     },
@@ -52871,7 +52901,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 189,
+          "line": 236,
           "sink": "ValueError"
         }
       ]
@@ -53161,7 +53191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 39,
+          "line": 86,
           "sink": "RuntimeError"
         }
       ]
@@ -53171,7 +53201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 35,
+          "line": 82,
           "sink": "RuntimeError"
         }
       ]
@@ -53296,7 +53326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1866,
+          "line": 1867,
           "sink": "ValueError"
         }
       ]
@@ -53446,7 +53476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1907,
+          "line": 1908,
           "sink": "ValueError"
         }
       ]
@@ -55466,7 +55496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 222,
+          "line": 225,
           "sink": "RuntimeError"
         }
       ]
@@ -55476,7 +55506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 532,
+          "line": 535,
           "sink": "TypeError"
         }
       ]
@@ -55496,8 +55526,48 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8313,
+          "line": 8381,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Morph preset file exceeds its size limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 51,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph preset file is empty or exceeds its size limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph preset has no slider definitions",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 60,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Morph preset must include its profile and slider values",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 56,
+          "sink": "ValueError"
         }
       ]
     },
@@ -55506,7 +55576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 409,
+          "line": 456,
           "sink": "ValueError"
         }
       ]
@@ -55516,7 +55586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 441,
+          "line": 444,
           "sink": "RuntimeError"
         }
       ]
@@ -55536,7 +55606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8252,
+          "line": 8311,
           "sink": "RuntimeError"
         }
       ]
@@ -55546,7 +55616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8248,
+          "line": 8307,
           "sink": "RuntimeError"
         }
       ]
@@ -55556,7 +55626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8223,
+          "line": 8282,
           "sink": "RuntimeError"
         }
       ]
@@ -55586,13 +55656,18 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 743,
+          "line": 748,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 938,
+          "line": 943,
           "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1308,
+          "sink": "ValueError"
         }
       ]
     },
@@ -55601,7 +55676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 250,
+          "line": 253,
           "sink": "RuntimeError"
         }
       ]
@@ -59781,7 +59856,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 986,
+          "line": 991,
           "sink": "RuntimeError"
         }
       ]
@@ -71677,12 +71752,62 @@
       ]
     },
     {
+      "key": "Preset export needs a name and a JSON destination",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_morph.py",
+          "line": 1280,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preset identity does not match its slider profile",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 69,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preset must contain a value for every slider in its profile",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 72,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Preset summary",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 392,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "Preset topology does not match the loaded mesh Parts; load the same meshes in the same order",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 62,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Preset value is outside the slider range: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_morph_profiles.py",
+          "line": 75,
+          "sink": "ValueError"
         }
       ]
     },
@@ -71901,7 +72026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1069,
+          "line": 1080,
           "sink": "ValueError"
         }
       ]
@@ -71921,7 +72046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1188,
+          "line": 1199,
           "sink": "ValueError"
         }
       ]
@@ -72031,7 +72156,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1073,
+          "line": 1084,
           "sink": "ValueError"
         }
       ]
@@ -72051,7 +72176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1146,
+          "line": 1157,
           "sink": "ValueError"
         }
       ]
@@ -72061,7 +72186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1148,
+          "line": 1159,
           "sink": "ValueError"
         }
       ]
@@ -72206,7 +72331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1179,
+          "line": 1190,
           "sink": "ValueError"
         }
       ]
@@ -72216,7 +72341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1058,
+          "line": 1069,
           "sink": "ValueError"
         }
       ]
@@ -72226,7 +72351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1181,
+          "line": 1192,
           "sink": "ValueError"
         }
       ]
@@ -74741,7 +74866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1558,
+          "line": 1643,
           "sink": "RuntimeError"
         }
       ]
@@ -74751,7 +74876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 753,
+          "line": 758,
           "sink": "RuntimeError"
         }
       ]
@@ -78586,7 +78711,62 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1313,
+          "line": 1397,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit mesh has no usable triangle geometry",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 42,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit mesh input exceeds 256 MiB",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit mesh input must be a non-empty file no larger than 256 MiB",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Refit mesh loading cancelled",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 29,
+          "sink": "RunCancelled"
+        },
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 40,
+          "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
+      "key": "Refit mesh role must be body or armor",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 21,
           "sink": "ValueError"
         }
       ]
@@ -78596,7 +78776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1353,
+          "line": 1438,
           "sink": "ValueError"
         }
       ]
@@ -78606,7 +78786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1367,
+          "line": 1452,
           "sink": "ValueError"
         }
       ]
@@ -81001,7 +81181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1387,
+          "line": 1472,
           "sink": "_simple_morph_command"
         }
       ]
@@ -81296,7 +81476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1566,
+          "line": 1651,
           "sink": "RuntimeError"
         }
       ]
@@ -81306,7 +81486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 204,
+          "line": 207,
           "sink": "RuntimeError"
         }
       ]
@@ -81316,7 +81496,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 174,
+          "line": 177,
           "sink": "RuntimeError"
         }
       ]
@@ -81326,7 +81506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 212,
+          "line": 215,
           "sink": "RuntimeError"
         }
       ]
@@ -81336,7 +81516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 349,
+          "line": 352,
           "sink": "RuntimeError"
         }
       ]
@@ -81346,7 +81526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 415,
+          "line": 418,
           "sink": "RuntimeError"
         }
       ]
@@ -81356,7 +81536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 446,
+          "line": 449,
           "sink": "RuntimeError"
         }
       ]
@@ -81366,7 +81546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 293,
+          "line": 296,
           "sink": "RuntimeError"
         }
       ]
@@ -81376,7 +81556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 318,
+          "line": 321,
           "sink": "RuntimeError"
         }
       ]
@@ -81386,7 +81566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1563,
+          "line": 1648,
           "sink": "RuntimeError"
         }
       ]
@@ -81396,7 +81576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1696,
+          "line": 1781,
           "sink": "RuntimeError"
         }
       ]
@@ -81416,7 +81596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 786,
+          "line": 791,
           "sink": "_require_bounded_morph_json"
         }
       ]
@@ -88096,7 +88276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1490,
+          "line": 1575,
           "sink": "RuntimeError"
         }
       ]
@@ -89171,7 +89351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 896,
+          "line": 901,
           "sink": "ValueError"
         }
       ]
@@ -104736,7 +104916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1194,
+          "line": 1199,
           "sink": "ValueError"
         }
       ]
@@ -104746,7 +104926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 727,
+          "line": 730,
           "sink": "ValueError"
         }
       ]
@@ -104786,17 +104966,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 859,
+          "line": 864,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 972,
+          "line": 977,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1139,
+          "line": 1144,
           "sink": "ValueError"
         }
       ]
@@ -104806,7 +104986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 1167,
+          "line": 1172,
           "sink": "ValueError"
         }
       ]
@@ -104816,7 +104996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 707,
+          "line": 710,
           "sink": "ValueError"
         }
       ]
@@ -105206,7 +105386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1516,
+          "line": 1527,
           "sink": "ValueError"
         }
       ]
@@ -105226,7 +105406,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1510,
+          "line": 1521,
           "sink": "ValueError"
         }
       ]
@@ -105246,7 +105426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 623,
+          "line": 626,
           "sink": "ValueError"
         }
       ]
@@ -114891,7 +115071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 312,
+          "line": 359,
           "sink": "_finite"
         }
       ]
@@ -115365,8 +115545,13 @@
       "key": "edit",
       "origins": [
         {
+          "path": "cdmw/services/mesh_refit_loading.py",
+          "line": 69,
+          "sink": "open_edit_session"
+        },
+        {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7143,
+          "line": 7146,
           "sink": "open_edit_session"
         },
         {
@@ -115766,12 +115951,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3224,
+          "line": 3225,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3240,
+          "line": 3241,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -116136,7 +116321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 423,
+          "line": 470,
           "sink": "ValueError"
         }
       ]
@@ -117021,7 +117206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3246,
+          "line": 3247,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -117351,7 +117536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3238,
+          "line": 3239,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -117536,7 +117721,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3936,
+          "line": 3937,
           "sink": "ValueError"
         }
       ]
@@ -117676,12 +117861,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3211,
+          "line": 3212,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3244,
+          "line": 3245,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -118561,7 +118746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 355,
+          "line": 402,
           "sink": "_finite"
         }
       ]
@@ -118571,7 +118756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 358,
+          "line": 405,
           "sink": "_finite"
         }
       ]
@@ -118581,7 +118766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 357,
+          "line": 404,
           "sink": "_finite"
         }
       ]
@@ -118591,7 +118776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 356,
+          "line": 403,
           "sink": "_finite"
         }
       ]
@@ -118946,12 +119131,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3222,
+          "line": 3223,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3250,
+          "line": 3251,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -119021,7 +119206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3577,
+          "line": 3578,
           "sink": "ValueError"
         }
       ]
@@ -119031,7 +119216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3566,
+          "line": 3567,
           "sink": "ValueError"
         }
       ]
@@ -119041,7 +119226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3549,
+          "line": 3550,
           "sink": "ValueError"
         }
       ]
@@ -119141,7 +119326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 311,
+          "line": 358,
           "sink": "_finite"
         }
       ]
@@ -119486,7 +119671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3232,
+          "line": 3233,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -119531,7 +119716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 310,
+          "line": 357,
           "sink": "_finite"
         }
       ]
@@ -119751,12 +119936,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6547,
+          "line": 6548,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6645,
+          "line": 6646,
           "sink": "RuntimeError"
         }
       ]
@@ -120666,12 +120851,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3209,
+          "line": 3210,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3228,
+          "line": 3229,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -120911,7 +121096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3234,
+          "line": 3235,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -121091,7 +121276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3242,
+          "line": 3243,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -121956,7 +122141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 137,
+          "line": 184,
           "sink": "ValueError"
         }
       ]
@@ -121966,7 +122151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 139,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -121976,7 +122161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 242,
+          "line": 289,
           "sink": "_finite"
         }
       ]
@@ -122146,7 +122331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1624,
+          "line": 1635,
           "sink": "ValueError"
         }
       ]
@@ -122156,7 +122341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1627,
+          "line": 1638,
           "sink": "ValueError"
         }
       ]
@@ -122166,7 +122351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_preview_package.py",
-          "line": 1636,
+          "line": 1647,
           "sink": "ValueError"
         }
       ]
@@ -122436,7 +122621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 281,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -122446,7 +122631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 286,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -124056,7 +124241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3230,
+          "line": 3231,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -124141,7 +124326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 304,
+          "line": 351,
           "sink": "_finite"
         }
       ]
@@ -124151,7 +124336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 283,
+          "line": 330,
           "sink": "_finite"
         }
       ]
@@ -125556,12 +125741,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3221,
+          "line": 3222,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3236,
+          "line": 3237,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -125681,17 +125866,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 171,
+          "line": 174,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 254,
+          "line": 257,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 284,
+          "line": 287,
           "sink": "TypeError"
         }
       ]
@@ -127101,7 +127286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 240,
+          "line": 287,
           "sink": "ValueError"
         }
       ]
@@ -127111,7 +127296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 214,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -127406,17 +127591,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 424,
+          "line": 471,
           "sink": "_finite"
         },
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 424,
+          "line": 471,
           "sink": "_finite"
         },
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 424,
+          "line": 471,
           "sink": "_finite"
         }
       ]
@@ -127436,7 +127621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 295,
+          "line": 342,
           "sink": "_finite"
         }
       ]
@@ -130216,7 +130401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_morph.py",
-          "line": 102,
+          "line": 105,
           "sink": "RuntimeError"
         }
       ]
@@ -130911,7 +131096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_morph_profiles.py",
-          "line": 416,
+          "line": 463,
           "sink": "ValueError"
         }
       ]
