@@ -244,7 +244,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_icon_content_layout.addWidget(self.model_group)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
-        self.dyes.setChecked(True)
         self.inspector_tabs = _InspectorTabs()
         self.inspector_tabs.setObjectName("new_item_model_inspector_tabs")
         self.inspector_tabs.addTab(self.appearance_page, "Appearance")
@@ -288,6 +287,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         controller.model_changed.connect(lambda _result: self.refresh_glow_parts())
         controller.model_import_changed.connect(lambda _source: self.refresh_glow_parts())
         controller.model_import_failed.connect(self._import_failed)
+        controller.model_apply_failed.connect(self._apply_failed)
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
@@ -994,6 +994,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
 
     def _show_model(self, result: object) -> None:
+        self._apply_error = ""
         source = self._controller.model_import
         self._set_placement_visible(source is not None)
         self.flip_texture_v.setVisible(source is not None)

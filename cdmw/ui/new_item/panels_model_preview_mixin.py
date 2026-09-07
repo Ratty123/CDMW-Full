@@ -111,7 +111,11 @@ class ModelPanelPreviewMixin:
     def _refresh_apply_status(self) -> None:
         if self._controller.model_import is None:
             return
-        if self._controller.model_result is not None:
+        if getattr(self, "_apply_error", ""):
+            self.apply_status.set_note(self._apply_error, WARN)
+        elif self._controller.busy and self._controller._lane == "model_apply":
+            self.apply_status.set_note("Building the item's mesh at this placement...", EDIT)
+        elif self._controller.model_result is not None:
             self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
         else:
             self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
@@ -138,9 +142,11 @@ class ModelPanelPreviewMixin:
 
     def _placement_changed(self, placement: object) -> None:
         if isinstance(placement, ModelPlacement):
+            self._apply_error = ""
             self._sync_placement_numbers(placement)
             if self._controller.model_import is not None:
                 self.preview.set_placement(placement)
+            self._refresh_apply_status()
 
     def _sync_placement_numbers(self, placement: ModelPlacement) -> None:
         self._syncing_numbers = True
@@ -182,6 +188,10 @@ class ModelPanelPreviewMixin:
             self.blender_details.toggle.setChecked(True)
         self.busy_bar.setVisible(False)
 
+    def _apply_failed(self, message: str) -> None:
+        self._apply_error = message
+        self._refresh_apply_status()
+
     def _busy_changed(self, busy: bool) -> None:
         lane = getattr(self._controller, "_lane", "")
         for widget in (
@@ -209,6 +219,7 @@ class ModelPanelPreviewMixin:
             self.model_status.set_note("Reading the model file...", EDIT)
             self.operation_label.setText("Reading the model file…")
         elif busy and lane == "model_apply":
+            self._apply_error = ""
             self.apply_status.set_note("Building the item's mesh at this placement...", EDIT)
             self.operation_label.setText("Building the item's mesh…")
         elif busy and lane == "model_part_edit":
@@ -216,6 +227,8 @@ class ModelPanelPreviewMixin:
             self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
             self.operation_label.setText("Preparing Mesh Editor changes…")
         self._refresh_placement_enabled()
+        if not busy:
+            self._refresh_apply_status()
 
     def _operation_progress(self, lane: str, current: int, total: int, detail: str) -> None:
         if str(lane) not in {"model_import", "model_apply", "model_part_edit"}:
@@ -267,7 +280,7 @@ class ModelPanelPreviewMixin:
         for widget in widgets:
             widget.setEnabled(ready)
         building = self._controller.model_import is not None and not ready
-        if building and not self._controller.busy:
+        if building and not self._controller.busy and self._controller.model_result is None and not getattr(self, "_apply_error", ""):
             self.apply_status.set_note("Building the preview with your model...", EDIT)
 
     def _capture_inline(self) -> None:

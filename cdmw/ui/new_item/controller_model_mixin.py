@@ -329,9 +329,13 @@ class NewItemModelControllerMixin:
                 return
             source.applied = (source.bake, placement)
             self.set_imported_model(entry, result, source.scene)
+            self.log_message.emit(f"Placement applied to {entry.basename}.")
 
         def failed(message: str) -> None:
-            self.status_message.emit(f"The placement could not be built: {message}", True)
+            said = f"The placement could not be built: {message}"
+            self.status_message.emit(said, True)
+            self.log_message.emit(said)
+            self.model_apply_failed.emit(said)
 
         return self._run("model_apply", task, done, failed, task_accepts_progress=True, source_owners=(source,))
 

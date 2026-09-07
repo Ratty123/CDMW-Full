@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "Yerleşim Değiştirme (Devre Dışı - Devam Eden Çalışma)",
     "Placement XML": "Yerleşim XML'i",
     "Placement and sockets": "Yerleşim ve yuvalar",
+    "Placement applied to {value_0}.": "{value_0} için yerleşim uygulandı.",
     "Placement chain": "Yerleşim zinciri",
     "Placement changed during carry analysis; prepare again": "Taşıma analizinde yerleşim değişti; yeniden hazırla",
     "Placement details": "Yerleşim ayrıntıları",

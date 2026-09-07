@@ -189,7 +189,7 @@ class NewItemTaskControllerMixin:
             return False
         # Cheap validation stays immediate. Reading an existing mod and resolving an
         # icon folder happen in the planning worker.
-        issues = self.service.validate(spec, self.snapshot)
+        issues = self.validate()
         if has_errors(issues):
             self.plan_failed.emit("; ".join(issue.message for issue in issues if issue.is_error), issues)
             return False

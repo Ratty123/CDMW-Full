@@ -147,7 +147,10 @@ the accent; clean pages receive a neutral check after they have been visited, an
 untouched future pages keep neutral numbers. Existing validation warnings and blocking
 errors add an explicit attention badge to the current or visited owning step, including
 price and stat-block issues on **Stats & Prices**. Per-step tooltips and accessibility
-text retain the calculated detail. Its footer keeps Back, `Step N of 7` and Continue
+text include the exact validation reasons. The Effects preview and in-game verification
+caveats stay in those details and the plan review; they do not mark applied effects
+as unfinished. Unapplied changes and actionable validation issues still mark the step.
+Its footer keeps Back, `Step N of 7` and Continue
 stable. Output keeps Build plan and its review in the
 left column, with every write and install action in the right. Existing-overlay
 migration and removal are grouped under **Manage existing overlays**; opening that
@@ -247,6 +250,13 @@ composition. Direct imported textures skip recomposition; archive-owned layers s
 compile even when the editable role comes from glTF, OBJ or DAE.
 Apply Placement captures the source snapshot and reads its existing archive indexes
 on the build worker; it does not rescan the template family in the click handler.
+Successful builds are recorded in the Output log. Conversion failures remain beside
+**Apply placement** and in that log through preview refreshes, until the model is edited
+or the build is retried. Build plan checks for unapplied variants before starting work.
+When a template has fewer material slots than the import, automatic atlas allocation
+reserves a separate existing slot for each tiled-UV material and combines compatible
+materials in the remaining slots. This preserves texture repetition and the PAC draw
+layout; insufficient slots or vertex capacity produce an explicit build error.
 Character lookup filters relevant PAC, PAB and XML paths before normalization and
 sorting, observes cancellation during the scan, and does not copy unused archive sizes.
 The current per-part Glow colour and strength are copied into those same rows when the
@@ -467,7 +477,7 @@ character.
 Palette discovery follows the declared PAC metadata boundary, including palettes
 beyond the former 4 KB scan window, and excludes the geometry sections.
 
-**Dye assignments** copies exact shipped material/property wiring and supports
+**Dye assignments** starts unchecked and collapsed. It copies exact shipped material/property wiring and supports
 explicit RGB channel-to-slot mappings. Imported renamed parts require an explicit
 mask fitted to their UVs. No fuzzy name matching or inferred shader flags are used.
 Material preview and export call the same preparation function. The preview is a

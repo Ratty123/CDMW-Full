@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "Zamiana miejsca docelowego (wyłączona – WIP)",
     "Placement XML": "XML miejsca docelowego",
     "Placement and sockets": "Rozmieszczenie i gniazda",
+    "Placement applied to {value_0}.": "Zastosowano położenie do {value_0}.",
     "Placement chain": "Łańcuch rozmieszczenia",
     "Placement changed during carry analysis; prepare again": "Położenie zmienione podczas analizy noszenia; przygotuj ponownie",
     "Placement details": "Szczegóły położenia",

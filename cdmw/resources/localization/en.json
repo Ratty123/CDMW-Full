@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "Placement Swap (Disabled - WIP)",
     "Placement XML": "Placement XML",
     "Placement and sockets": "Placement and sockets",
+    "Placement applied to {value_0}.": "Placement applied to {value_0}.",
     "Placement chain": "Placement chain",
     "Placement changed during carry analysis; prepare again": "Placement changed during carry analysis; prepare again",
     "Placement details": "Placement details",

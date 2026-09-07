@@ -5,10 +5,16 @@ from __future__ import annotations
 import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
+from copy import copy
 
 from .mesh_parser import ParsedMesh
 from .static_mesh_geometry import _is_marker_submesh
-from .static_mesh_source_parts import _source_part_adjustments_by_index
+from .static_mesh_source_parts import (
+    _apply_texture_uv_transform,
+    _source_part_adjustments_by_index,
+    _texture_uv_transform_for_submesh,
+    _texture_uv_transforms_by_key,
+)
 from .static_mesh_types import (
     StaticMaterialAtlasRect,
     StaticMeshReplacementOptions,
@@ -126,6 +132,52 @@ def _atlas_rects_for_source_groups(
     return tuple(rects)
 
 
+def _reserve_tiled_material_slots(
+    assigned_groups: dict[int, list[tuple[list[int], str]]],
+    replacement_mesh: ParsedMesh,
+    options: StaticMeshReplacementOptions,
+) -> str:
+    """Keep repeating UVs out of atlases without adding PAC runtime draw slots."""
+    if not any(len(groups) > 1 for groups in assigned_groups.values()):
+        return ""
+    transforms = _texture_uv_transforms_by_key(options.texture_uv_transforms)
+    tiled_sources = set()
+    for index in {index for groups in assigned_groups.values() for indices, _ in groups for index in indices}:
+        source = replacement_mesh.submeshes[index]
+        transform = _texture_uv_transform_for_submesh(source, transforms)
+        if transform is not None:
+            source = copy(source)
+            _apply_texture_uv_transform(source, transform)
+        if any(float(value) < -0.0001 or float(value) > 1.0001 for uv in source.uvs for value in uv):
+            tiled_sources.add(index)
+    if not any(len(groups) > 1 and any(tiled_sources.intersection(indices) for indices, _ in groups)
+               for groups in assigned_groups.values()):
+        return ""
+    groups = [(target, group) for target, values in assigned_groups.items() for group in values]
+    # Reserve a whole slot for each tiled material before packing ordinary UVs.
+    groups.sort(key=lambda item: not bool(tiled_sources.intersection(item[1][0])))
+    routed, vertex_counts, reserved = {}, {}, set()
+    for preferred, group in groups:
+        indices, _label = group
+        tiled = bool(tiled_sources.intersection(indices))
+        count = sum(_source_vertex_count(replacement_mesh, index, options) for index in indices)
+        candidates = [preferred, *(target for target in assigned_groups if target != preferred)]
+        candidates.sort(key=lambda target: target in routed)
+        target = next((target for target in candidates
+                       if target not in reserved and (not tiled or target not in routed)
+                       and vertex_counts.get(target, 0) + count <= _STATIC_REPLACEMENT_VERTEX_LIMIT), None)
+        if target is None:
+            return (f"Cannot preserve tiled material groups in {len(assigned_groups)} runtime material slot(s) "
+                    "within the PAC vertex limit. Choose a template with more material slots or reduce the source materials.")
+        routed.setdefault(target, []).append(group)
+        vertex_counts[target] = vertex_counts.get(target, 0) + count
+        if tiled:
+            reserved.add(target)
+    assigned_groups.clear()
+    assigned_groups.update(routed)
+    return ""
+
+
 def plan_static_output_draw_sections(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
@@ -211,11 +263,6 @@ def plan_static_output_draw_sections(
                 if mapping is not None
                 else ""
             ) or target.material or target.name or f"target {target_index}"
-            material_slot_index = (
-                int(getattr(mapping, "target_material_slot_index", target_index) or target_index)
-                if mapping is not None
-                else target_index
-            )
             grouped_sources: dict[str, list[int]] = {}
             for source_index in source_indices:
                 if source_index < 0 or source_index >= len(replacement_mesh.submeshes):
@@ -264,6 +311,11 @@ def plan_static_output_draw_sections(
                 continue
             assigned_index = free_target_indices.pop(0)
             assigned_groups[assigned_index] = [(group, source_label)]
+
+        if atlas_mode == "auto_when_needed":
+            tiled_error = _reserve_tiled_material_slots(assigned_groups, replacement_mesh, normalized_options)
+            if tiled_error:
+                errors.append(tiled_error)
 
         for target_index, target in enumerate(original_mesh.submeshes):
             target_name = target.material or target.name or f"target {target_index}"

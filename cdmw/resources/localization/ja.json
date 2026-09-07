@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "配置の交換 (無効 - WIP)",
     "Placement XML": "配置 XML",
     "Placement and sockets": "配置とソケット",
+    "Placement applied to {value_0}.": "{value_0} に配置を適用しました。",
     "Placement chain": "配置チェーン",
     "Placement changed during carry analysis; prepare again": "携行解析中に配置が変わりました。再準備してください",
     "Placement details": "配置の詳細",

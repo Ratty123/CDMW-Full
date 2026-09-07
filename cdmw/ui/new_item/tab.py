@@ -32,6 +32,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.domain.new_item.spec import ModelSource
 from cdmw.services.cache_layout import runtime_cache_layout
 from cdmw.services.new_item_service import NewItemService
 from cdmw.ui.new_item.controller import NewItemStudioController
@@ -592,10 +593,11 @@ class NewItemStudioTab(QWidget):
         blocked = [issue for issue in issues if issue.is_error]
         if blocked:
             lines.append(note(f"{len(blocked)} thing(s) block the plan (see step 2)", BLOCK))
-        imported = controller.model_import
-        if imported is not None and controller.model_result is None:
+        imported = controller.model_import if draft.model_source is ModelSource.IMPORTED else None
+        model_result = controller.model_result if draft.model_source is ModelSource.IMPORTED else None
+        if imported is not None and model_result is None:
             lines.append(note(f"Model: {imported.label}, placement not applied", WARN))
-        elif imported is not None or controller.model_result is not None:
+        elif imported is not None or model_result is not None:
             lines.append(note(f"Model: {imported.label if imported is not None else 'imported'}, placed", EDIT))
         else:
             lines.append(note("Model: the template's", OK))
@@ -622,9 +624,9 @@ class NewItemStudioTab(QWidget):
         name_context = f"Name: {draft.internal_name or 'not set'}"
         if identity_blocked:
             name_context += f"; {len(identity_blocked)} issue(s) block the plan"
-        if imported is not None and controller.model_result is None:
+        if imported is not None and model_result is None:
             model_context = f"Model: {imported.label}; placement not applied"
-        elif imported is not None or controller.model_result is not None:
+        elif imported is not None or model_result is not None:
             model_context = f"Model: {imported.label if imported is not None else 'imported'}; placed"
         else:
             model_context = "Model: template"
@@ -649,23 +651,30 @@ class NewItemStudioTab(QWidget):
             output_context,
         )
         step_attention: list[Optional[WorkflowStepState]] = [None] * len(step_contexts)
+        step_reasons: list[list[str]] = [[] for _ in step_contexts]
 
         def mark_attention(index: int, state: WorkflowStepState) -> None:
             if state == WorkflowStepState.BLOCKED or step_attention[index] is None:
                 step_attention[index] = state
 
         for issue in issues:
+            index = _workflow_step_for_issue(issue)
+            step_reasons[index].append(issue.message)
             if str(getattr(issue, "severity", "error") or "error").casefold() == "info":
                 continue
+            # These preview caveats remain in Effects and the plan review, but
+            # applying again cannot resolve them inside the wizard.
+            if not issue.is_error and issue.code in {"effect.unproven", "effect.look.unproven"}:
+                continue
             mark_attention(
-                _workflow_step_for_issue(issue),
+                index,
                 WorkflowStepState.BLOCKED if issue.is_error else WorkflowStepState.WARNING,
             )
         if not template:
             mark_attention(0, WorkflowStepState.BLOCKED)
         if not draft.internal_name or not english:
             mark_attention(1, WorkflowStepState.BLOCKED)
-        if imported is not None and controller.model_result is None:
+        if imported is not None and model_result is None:
             mark_attention(2, WorkflowStepState.BLOCKED)
         if self.perks_panel.has_staged_effect_changes():
             mark_attention(4, WorkflowStepState.WARNING)
@@ -687,6 +696,8 @@ class NewItemStudioTab(QWidget):
             item = self.steps.item(index)
             if item is None:
                 continue
+            if step_reasons[index]:
+                context += "\n" + "\n".join(dict.fromkeys(step_reasons[index]))
             item.setState(step_states[index])
             item.setToolTip(context)
             item.setAccessibleText(f"Step {index + 1}, {item.text()}. {context}")

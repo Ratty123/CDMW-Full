@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "Échange de placement (désactivé - WIP)",
     "Placement XML": "XML d'emplacement",
     "Placement and sockets": "Placement et emplacements",
+    "Placement applied to {value_0}.": "Placement appliqué à {value_0}.",
     "Placement chain": "Chaîne de placement",
     "Placement changed during carry analysis; prepare again": "Placement modifié pendant l’analyse du port ; préparez à nouveau",
     "Placement details": "Détails du placement",

@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "배치 교환(비활성화 - WIP)",
     "Placement XML": "게재위치 XML",
     "Placement and sockets": "배치 및 소켓",
+    "Placement applied to {value_0}.": "{value_0}에 배치를 적용했습니다.",
     "Placement chain": "배치 체인",
     "Placement changed during carry analysis; prepare again": "휴대 분석 중 배치가 변경되었습니다. 다시 준비하세요",
     "Placement details": "배치 세부 정보",

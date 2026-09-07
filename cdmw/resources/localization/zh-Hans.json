@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "位置交换（已禁用 - WIP）",
     "Placement XML": "放置 XML",
     "Placement and sockets": "放置和插槽",
+    "Placement applied to {value_0}.": "已将放置设置应用到 {value_0}。",
     "Placement chain": "放置链",
     "Placement changed during carry analysis; prepare again": "携带分析期间放置已更改，请重新准备",
     "Placement details": "放置详情",

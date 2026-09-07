@@ -5796,6 +5796,7 @@
     "Placement Swap (Disabled - WIP)": "Обмен местами размещения (отключено – незавершенное производство)",
     "Placement XML": "XML-размещение",
     "Placement and sockets": "Размещение и сокеты",
+    "Placement applied to {value_0}.": "Размещение применено к {value_0}.",
     "Placement chain": "Цепочка размещения",
     "Placement changed during carry analysis; prepare again": "Размещение изменилось при анализе ношения; подготовьте снова",
     "Placement details": "Сведения о размещении",

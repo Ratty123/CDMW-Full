@@ -80,6 +80,8 @@ class NewItemStudioController(
     #: a model file was not read, with the reason: the step says so where the reader is,
     #: since the window's status line is not where they are looking
     model_import_failed = Signal(str)
+    #: placement conversion failed; keep the reason beside Apply placement
+    model_apply_failed = Signal(str)
     #: an imported model accepted one stable Mesh Editor revision
     model_part_edit_finished = Signal(object)
     #: the Mesh Editor revision could not be captured or prepared
@@ -562,7 +564,7 @@ class NewItemStudioController(
             return tuple(ValidationIssue(code="authoring.invalid",field=field,message=message)
                          for field,message in self.draft.authoring_errors.items())
         issues = tuple(self.service.validate(spec, self.snapshot))
-        if self.model_import is not None and self.model_result is None:
+        if self.draft.model_source is ModelSource.IMPORTED and self.model_import is not None and self.model_result is None:
             issues += (ValidationIssue(
                 code="model_placement_not_applied",
                 field="model",

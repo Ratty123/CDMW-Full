@@ -8,6 +8,12 @@ Keep PySide UI and archive mutation confirmation outside this package. UI
 packages collect user intent; services coordinate execution; archive patching
 and backup policy stay behind archive services/core paths.
 
+`static_mesh_output_plan.py` keeps tiled-UV materials in dedicated existing runtime
+slots when an automatic complete-swap atlas is needed. Other material groups share
+the remaining slots, with the current UV transforms and per-draw vertex limit applied
+during allocation. The output section plan owns both mesh and texture routing;
+unsupported capacity still blocks output without changing the PAC descriptor layout.
+
 ## Body region decomposition
 
 `mesh_region_decompose.py` splits the difference between two same-topology
