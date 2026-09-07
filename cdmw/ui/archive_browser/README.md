@@ -48,6 +48,9 @@ Native texture ownership is computed once per package. The full material pass
 reuses verified geometry, direct textures and presentation settings from the
 initial package, adds every authored layer, and publishes a separate package
 atomically. A cancelled or failed promotion preserves the initial package.
+The renderer resolves shader response rules once per layer and reuses bilinear
+interpolation coordinates across texture rows. Composition retains the same
+texture dimensions, channels, float blending and final pixels.
 Archive Browser defaults to geometry-only. Its **Load textures** checkbox saves
 the existing `archive/model_use_textures` preference and keeps that choice across
 model selections and application restarts. The checkbox represents user intent

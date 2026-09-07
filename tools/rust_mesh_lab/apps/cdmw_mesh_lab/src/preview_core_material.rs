@@ -582,13 +582,14 @@ fn compose_material_response(
             .map(|reference| cache.resized(reference, width, height))
             .transpose()?;
         let channel = channel_index(&layer.mask_channel);
+        let response_decoder = MaterialResponseDecoder::new(layer);
         for pixel in 0..pixel_count {
             let offset = pixel * 4;
             let coverage = layer_coverage(layer, mask.as_deref(), offset, channel);
             if coverage <= 0.0 {
                 continue;
             }
-            let decoded = decode_material_pixel(layer, &source[offset..offset + 4]);
+            let decoded = response_decoder.decode(&source[offset..offset + 4]);
             target[offset] = 255;
             target[offset + 1] = unit_byte(mix(unit(target[offset + 1]), decoded[0], coverage));
             target[offset + 2] = unit_byte(mix(unit(target[offset + 2]), decoded[1], coverage));
@@ -602,28 +603,50 @@ fn compose_material_response(
     }))
 }
 
-fn decode_material_pixel(layer: &PreviewCoreMaterialLayer, pixel: &[u8]) -> [f32; 3] {
+#[derive(Clone, Copy)]
+enum MaterialResponseKind {
+    Standard,
+    Skin,
+    Hair,
+}
+
+impl MaterialResponseKind {
+    // Shader identity is constant across a layer. Normalize it once instead of
+    // allocating and scanning the same strings for every output texel.
+    fn from_layer(layer: &PreviewCoreMaterialLayer) -> Self {
+        let rule = layer.shader_rule.to_ascii_lowercase();
+        let family = layer
+            .shader_family
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .flat_map(char::to_lowercase)
+            .collect::<String>();
+        if rule == "skin" || family.contains("skinnedmeshskin") || family.contains("skinwrinkle") {
+            Self::Skin
+        } else if rule == "hair" || family.contains("hair") || family.contains("fur") {
+            Self::Hair
+        } else {
+            Self::Standard
+        }
+    }
+}
+
+fn decode_material_pixel(
+    layer: &PreviewCoreMaterialLayer,
+    pixel: &[u8],
+    response_kind: MaterialResponseKind,
+) -> [f32; 3] {
     let green = unit(pixel[1]);
     let blue = unit(pixel[2]);
-    let rule = layer.shader_rule.to_ascii_lowercase();
-    let family = layer
-        .shader_family
-        .chars()
-        .filter(char::is_ascii_alphanumeric)
-        .flat_map(char::to_lowercase)
-        .collect::<String>();
     let mut roughness = green.clamp(0.04, 1.0);
-    let (mut metalness, mut specular) =
-        if rule == "skin" || family.contains("skinnedmeshskin") || family.contains("skinwrinkle") {
-            (0.0, (0.06 + 0.24 * blue).clamp(0.04, 0.34))
-        } else if rule == "hair" || family.contains("hair") || family.contains("fur") {
-            (0.0, 0.19)
-        } else {
-            (
-                ((blue - 0.18).max(0.0) * 1.22).clamp(0.0, 0.92),
-                (0.04 + 0.84 * blue).clamp(0.04, 0.88),
-            )
-        };
+    let (mut metalness, mut specular) = match response_kind {
+        MaterialResponseKind::Skin => (0.0, (0.06 + 0.24 * blue).clamp(0.04, 0.34)),
+        MaterialResponseKind::Hair => (0.0, 0.19),
+        MaterialResponseKind::Standard => (
+            ((blue - 0.18).max(0.0) * 1.22).clamp(0.0, 0.92),
+            (0.04 + 0.84 * blue).clamp(0.04, 0.88),
+        ),
+    };
     if layer.roughness_hint > 0.02 {
         roughness = (roughness * 0.72 + layer.roughness_hint * 0.28).clamp(0.04, 0.98);
     }
@@ -635,6 +658,28 @@ fn decode_material_pixel(layer: &PreviewCoreMaterialLayer, pixel: &[u8]) -> [f32
         specular = specular.max(layer.specular_hint * 0.58);
     }
     [roughness, metalness, specular.clamp(0.0, 1.0)]
+}
+
+struct MaterialResponseDecoder {
+    channels: [[f32; 3]; 256],
+}
+
+impl MaterialResponseDecoder {
+    fn new(layer: &PreviewCoreMaterialLayer) -> Self {
+        let kind = MaterialResponseKind::from_layer(layer);
+        // Roughness depends only on G; metalness and specular only on B.
+        // Retain the exact float results until the existing blend/quantization.
+        let channels = std::array::from_fn(|value| {
+            decode_material_pixel(layer, &[0, value as u8, value as u8, 255], kind)
+        });
+        Self { channels }
+    }
+
+    fn decode(&self, pixel: &[u8]) -> [f32; 3] {
+        let green = self.channels[usize::from(pixel[1])];
+        let blue = self.channels[usize::from(pixel[2])];
+        [green[0], blue[1], blue[2]]
+    }
 }
 
 fn compose_normal(
@@ -817,32 +862,46 @@ fn resize_rgba8(image: &DecodedRgba8, width: u32, height: u32) -> Result<Vec<u8>
     let mut output = vec![0_u8; pixel_count.saturating_mul(4)];
     let scale_x = image.width as f32 / width as f32;
     let scale_y = image.height as f32 / height as f32;
+    // Every row uses the same horizontal interpolation. Compute its offsets
+    // once, and address whole rows instead of rechecking four corners/channel.
+    let horizontal = (0..width)
+        .map(|x| {
+            let source_x =
+                ((x as f32 + 0.5) * scale_x - 0.5).clamp(0.0, image.width.saturating_sub(1) as f32);
+            let x0 = source_x.floor() as u32;
+            let x1 = (x0 + 1).min(image.width - 1);
+            Ok((
+                source_offset(image.width, x0, 0, 0)?,
+                source_offset(image.width, x1, 0, 0)?,
+                source_x - x0 as f32,
+            ))
+        })
+        .collect::<Result<Vec<_>, SessionError>>()?;
+    let source_row_bytes = source_offset(image.width, image.width, 0, 0)?;
+    let target_row_bytes = source_offset(width, width, 0, 0)?;
     for y in 0..height {
         let source_y =
             ((y as f32 + 0.5) * scale_y - 0.5).clamp(0.0, image.height.saturating_sub(1) as f32);
         let y0 = source_y.floor() as u32;
         let y1 = (y0 + 1).min(image.height - 1);
         let fy = source_y - y0 as f32;
-        for x in 0..width {
-            let source_x =
-                ((x as f32 + 0.5) * scale_x - 0.5).clamp(0.0, image.width.saturating_sub(1) as f32);
-            let x0 = source_x.floor() as u32;
-            let x1 = (x0 + 1).min(image.width - 1);
-            let fx = source_x - x0 as f32;
-            let destination = usize::try_from((u64::from(y) * u64::from(width) + u64::from(x)) * 4)
-                .map_err(|_| {
-                    SessionError::InvalidPayload(
-                        "Preview Core material resize exceeds this platform".to_owned(),
-                    )
-                })?;
+        let row0 = source_offset(image.width, 0, y0, 0)?;
+        let row1 = source_offset(image.width, 0, y1, 0)?;
+        let top_row = &image.pixels[row0..row0 + source_row_bytes];
+        let bottom_row = &image.pixels[row1..row1 + source_row_bytes];
+        let destination = source_offset(width, 0, y, 0)?;
+        for (pixel, &(x0, x1, fx)) in output[destination..destination + target_row_bytes]
+            .chunks_exact_mut(4)
+            .zip(&horizontal)
+        {
             for component in 0..4 {
-                let p00 = unit(image.pixels[source_offset(image.width, x0, y0, component)?]);
-                let p10 = unit(image.pixels[source_offset(image.width, x1, y0, component)?]);
-                let p01 = unit(image.pixels[source_offset(image.width, x0, y1, component)?]);
-                let p11 = unit(image.pixels[source_offset(image.width, x1, y1, component)?]);
+                let p00 = unit(top_row[x0 + component]);
+                let p10 = unit(top_row[x1 + component]);
+                let p01 = unit(bottom_row[x0 + component]);
+                let p11 = unit(bottom_row[x1 + component]);
                 let top = mix(p00, p10, fx);
                 let bottom = mix(p01, p11, fx);
-                output[destination + component] = unit_byte(mix(top, bottom, fy));
+                pixel[component] = unit_byte(mix(top, bottom, fy));
             }
         }
     }
@@ -1100,6 +1159,98 @@ mod tests {
             }],
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
+        }
+    }
+
+    #[test]
+    fn material_response_matches_original_channel_bytes() {
+        // Recorded from the original per-pixel decoder for every green/blue
+        // byte pair, including disabled, threshold and active material hints.
+        let standard = "BE2F49FD68C1EF76E3F9070235C0C3967CCF176F2952BC84E5B1FF1298486EB7";
+        let skin = "A9F7DD3A42AE7E405608F6D98FC9DD1A3A9862B8D1A32760FCDF98C4D582922E";
+        let hair = "30E6F6B1C320A1AA051D8F8C238555425E2868D07E76E107ACC7F1B0D02C4AC5";
+        for (rule, family, expected) in [
+            ("standard_v2", "SkinnedMeshStandard_Ver2", standard),
+            ("SkIn", "", skin),
+            ("HAIR", "", hair),
+            ("", "Skinned_Mesh-Skin", skin),
+            ("", "Skin_Wrinkle_Fur", skin),
+            ("", "CUSTOM_FUR", hair),
+        ] {
+            let mut source = layer("base", "r");
+            source.shader_rule = rule.to_owned();
+            source.shader_family = family.to_owned();
+            let mut hash = Sha256::new();
+            for hints in [[0.0, 0.0, 0.0], [0.02, 0.02, 0.02], [0.6, 0.4, 0.3]] {
+                [
+                    source.roughness_hint,
+                    source.metalness_hint,
+                    source.specular_hint,
+                ] = hints;
+                let kind = MaterialResponseKind::from_layer(&source);
+                let decoder = MaterialResponseDecoder::new(&source);
+                for green in 0..=255_u8 {
+                    for blue in 0..=255_u8 {
+                        let pixel = [0, green, blue, 255];
+                        let decoded = decoder.decode(&pixel);
+                        assert_eq!(
+                            decoded.map(f32::to_bits),
+                            decode_material_pixel(&source, &pixel, kind).map(f32::to_bits),
+                        );
+                        hash.update(decoded.map(unit_byte));
+                    }
+                }
+            }
+            assert_eq!(
+                format!("{:X}", hash.finalize()),
+                expected,
+                "{rule}/{family}"
+            );
+        }
+    }
+
+    #[test]
+    fn bilinear_resize_matches_original_pixels() {
+        for (dimensions, expected) in [
+            (
+                [64, 64, 1024, 1024],
+                "582a0cf6162f6e4ee39e657a587d77f01d903b83da431ace5b25b0f17803425e",
+            ),
+            (
+                [512, 512, 1024, 1024],
+                "c48479157ab85ff526f1188d524271a6a5f2e8787dba5c32ad193abdc4c8c9c4",
+            ),
+            (
+                [1024, 512, 512, 256],
+                "7763a50cd3e4f01c8b7e53b105921d68d9493324875758c1d29c558a2b59b598",
+            ),
+            (
+                [31, 57, 127, 253],
+                "747ef93943212f90f0e5466e474d598b20c59a7aad6732150a34e05ad4e6d2be",
+            ),
+            (
+                [1, 1, 41, 19],
+                "fe3b351decfea90a2e0c7f96dec19c1bb3da645bdd4630e9741608774bbafe0f",
+            ),
+            (
+                [127, 67, 127, 67],
+                "9c8ba97c484703b61117613496ba3efebc194414ff1404a9a802b1448ee42987",
+            ),
+        ] {
+            let [source_width, source_height, width, height] = dimensions;
+            let source = DecodedRgba8 {
+                width: source_width,
+                height: source_height,
+                pixels: (0..source_width * source_height * 4)
+                    .map(|index| ((index * 37 + index / 7) % 256) as u8)
+                    .collect(),
+            };
+            let pixels = resize_rgba8(&source, width, height).expect("resized image");
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&pixels)),
+                expected,
+                "{dimensions:?}"
+            );
         }
     }
 
