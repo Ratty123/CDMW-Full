@@ -426,9 +426,8 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "parts.selection" | "parts.select_all" | "parts.select_none" | "parts.invert" => {
             (Kind::UiAction, "UiAction::SetPartSelection")
         }
-        "parts.visibility" => (Kind::Unavailable, "Visibility"),
-        "parts.duplicate" => (Kind::ShadowTopology, "duplicate"),
-        "parts.delete" => (Kind::ShadowTopology, "delete"),
+        "parts.visibility" => (Kind::UiAction, "UiAction::SetPartVisibility"),
+        "parts.duplicate" | "parts.delete" => (Kind::ShadowCommand, "topology"),
         "layers.list" => (Kind::ShadowCommand, "layer_activate"),
         "layers.copy" => (Kind::ShadowCommand, "layer_copy"),
         "layers.paste" => (Kind::ShadowCommand, "layer_paste"),
@@ -579,7 +578,7 @@ parts.selection|parts_layers|executable|session|false|
 parts.select_all|parts_layers|executable|session|false|
 parts.select_none|parts_layers|executable|session|false|
 parts.invert|parts_layers|executable|session|false|
-parts.visibility|parts_layers|deliberately_disabled|not_stored_in_exact_output|false|Part visibility editing has no stored output authority in direct authoring.
+parts.visibility|parts_layers|executable|viewport_only|false|
 parts.duplicate|parts_layers|deliberately_disabled|free_edit_only|false|Duplicate Part is unavailable because the exact PAC writer cannot add a protected submesh record.
 parts.delete|parts_layers|deliberately_disabled|free_edit_only|false|Delete Part is unavailable because the exact PAC writer cannot remove a protected submesh record.
 layers.list|parts_layers|executable|session|false|
@@ -745,10 +744,7 @@ mod tests {
             .filter(|row| runtime_route(row.key).kind == RuntimeRouteKind::Unavailable)
             .map(|row| row.key)
             .collect::<BTreeSet<_>>();
-        assert_eq!(
-            unavailable,
-            BTreeSet::from(["material_colour.unavailable", "parts.visibility"])
-        );
+        assert_eq!(unavailable, BTreeSet::from(["material_colour.unavailable"]));
 
         for row in rows {
             let route = runtime_route(row.key);

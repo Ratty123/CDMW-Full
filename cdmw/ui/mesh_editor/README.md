@@ -23,6 +23,16 @@ Selected controls pair the muted accent background with the theme's strong text
 colour. Disabled labels stay readable; their fill, border, and interaction still
 distinguish unavailable controls.
 
+Parts use compact, single-line names with the full name and material on hover.
+The checkboxes and Visibility menu hide/show parts in the viewport; hidden parts
+remain in the output, and a hidden Geometry Layer still controls its own parts.
+All and Invert operate on visible parts, and selection changes update the
+viewport immediately. Duplicate and Delete target only the explicitly selected
+whole parts. They wait for pending selection updates and require Free Edit;
+**Enable part edits…** opens the output controls directly. Delete keeps at least
+one part, and successful structural edits refresh the list through the same
+shadow history used by Undo/Redo.
+
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 Rust process/protocol, package, report, session, state, interaction, and action
 behavior. Retained `.NET`/`d3d11` module names are compatibility imports and

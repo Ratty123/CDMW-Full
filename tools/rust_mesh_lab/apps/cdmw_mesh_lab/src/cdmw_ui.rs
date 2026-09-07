@@ -2217,7 +2217,6 @@ impl LabApplication {
     }
 
     fn draw_cdmw_parts(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        ui.label(RichText::new("Parts").strong());
         let selected = self.selected_part_indices();
         let parts = self
             .document
@@ -2231,70 +2230,202 @@ impl LabApplication {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("All").clicked() {
-                actions.push(UiAction::SetPartSelection(
-                    parts.iter().map(|(index, _, _)| *index).collect(),
-                ));
-            }
-            if ui.button("None").clicked() {
-                actions.push(UiAction::SetPartSelection(Vec::new()));
-            }
-            if ui.button("Invert").clicked() {
-                actions.push(UiAction::SetPartSelection(
-                    parts
-                        .iter()
-                        .map(|(index, _, _)| *index)
-                        .filter(|index| !selected.contains(index))
-                        .collect(),
-                ));
-            }
-            ui.add_enabled(false, Button::new("Visibility"))
-                .on_disabled_hover_text("Part visibility is not stored in exact output");
+        let visible = self.cdmw_visible_submeshes();
+        let available = parts
+            .iter()
+            .map(|(index, _, _)| *index)
+            .filter(|index| {
+                visible
+                    .as_ref()
+                    .is_none_or(|visible| visible.contains(index))
+            })
+            .collect::<Vec<_>>();
+        let busy = self.cdmw_busy();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Parts").strong());
+            ui.weak(format!("{} / {} selected", selected.len(), parts.len()));
         });
-        ScrollArea::vertical().max_height(190.0).show(ui, |ui| {
-            for (index, name, material) in parts {
-                let active = selected.contains(&index);
-                if ui
-                    .selectable_label(active, format!("{index}: {name} · {material}"))
-                    .clicked()
-                {
-                    let mut updated = selected.clone();
-                    if active {
-                        updated.retain(|value| *value != index);
-                    } else {
-                        updated.push(index);
-                    }
-                    updated.sort_unstable();
-                    actions.push(UiAction::SetPartSelection(updated));
+        ui.add_enabled_ui(!busy, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(!available.is_empty(), Button::new("All")).clicked() {
+                    actions.push(UiAction::SetPartSelection(available.clone()));
                 }
-            }
+                if ui.button("None").clicked() {
+                    actions.push(UiAction::SetPartSelection(Vec::new()));
+                }
+                if ui.add_enabled(!available.is_empty(), Button::new("Invert")).clicked() {
+                    actions.push(UiAction::SetPartSelection(available.iter().copied()
+                        .filter(|index| !selected.contains(index)).collect()));
+                }
+                ui.menu_button("Visibility", |ui| {
+                    if ui.add_enabled(!selected.is_empty(), Button::new("Hide Selected")).clicked() {
+                        actions.push(UiAction::SetPartVisibility { indices: selected.clone(), visible: false });
+                        ui.close();
+                    }
+                    if ui.add_enabled(!self.cdmw_hidden_parts.is_empty(), Button::new("Show All")).clicked() {
+                        actions.push(UiAction::SetPartVisibility {
+                            indices: self.cdmw_hidden_parts.iter().copied().collect(), visible: true,
+                        });
+                        ui.close();
+                    }
+                }).response.on_hover_text("Viewport visibility only; hidden parts remain in the output");
+            });
+            let layer_visible = self.cdmw_layer_visible_submeshes();
+            ScrollArea::vertical().id_salt("cdmw_parts_list").max_height(160.0).show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.spacing_mut().button_padding.y = 1.0;
+                for (index, name, material) in &parts {
+                    ui.push_id(index, |ui| ui.horizontal(|ui| {
+                        let in_visible_layer = layer_visible.as_ref().is_none_or(|visible| visible.contains(index));
+                        let mut shown = !self.cdmw_hidden_parts.contains(index);
+                        if ui.add_enabled(in_visible_layer, egui::Checkbox::without_text(&mut shown))
+                            .on_hover_text("Show part in viewport")
+                            .on_disabled_hover_text("Show this part's Geometry Layer first")
+                            .changed() {
+                            actions.push(UiAction::SetPartVisibility { indices: vec![*index], visible: shown });
+                        }
+                        let active = selected.contains(index);
+                        let row = ui.add_enabled(shown && in_visible_layer,
+                            Button::selectable(active, format!("{index}: {name}")).truncate());
+                        if row.on_hover_text(format!("{index}: {name}\nMaterial: {material}"))
+                            .on_disabled_hover_text(format!("{index}: {name}\nMaterial: {material}\nShow this part to select it"))
+                            .clicked() {
+                            let mut updated = selected.clone();
+                            if active { updated.retain(|value| value != index); }
+                            else { updated.push(*index); }
+                            updated.sort_unstable();
+                            actions.push(UiAction::SetPartSelection(updated));
+                        }
+                    }));
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                for (action, title, label) in [("duplicate", "Duplicate", "Duplicate part"), ("delete", "Delete", "Delete part")] {
+                    let reason = self.cdmw_part_action_reason(action);
+                    if ui.add_enabled(reason.is_none(), Button::new(title))
+                        .on_disabled_hover_text(reason.unwrap_or_default()).clicked() {
+                        actions.push(UiAction::CdmwCommand {
+                            command: "topology",
+                            arguments: json!({
+                                "action": action,
+                                "selection": {"source_indices": selected,
+                                    "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}},
+                                "params": if action == "delete" { json!({"delete_parts": true}) } else { json!({}) },
+                                "label": label,
+                            }),
+                            label,
+                        });
+                    }
+                }
+            });
         });
-        let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
-        ui.horizontal_wrapped(|ui| {
-            if ui
-                .add_enabled(free_edit && !selected.is_empty(), Button::new("Duplicate"))
-                .on_disabled_hover_text("Duplicate Part requires Free Edit and selected parts")
-                .clicked()
-            {
-                actions.push(UiAction::CdmwTopology {
-                    action: "duplicate",
-                    label: "Duplicate part",
-                    params: json!({}),
-                });
+        if busy {
+            ui.small("Updating parts…");
+        } else if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+            ui.menu_button("Enable part edits…", |ui| {
+                self.draw_cdmw_output_policy(ui, actions)
+            })
+            .response
+            .on_hover_text("Duplicate and Delete require Free Edit output");
+        } else if !selected.is_empty() && selected.len() >= parts.len() {
+            ui.small("Keep at least one part when deleting.");
+        }
+    }
+
+    fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {
+        if self.cdmw_busy() {
+            return Some("Wait for the selected parts to finish updating");
+        }
+        if !state_bool(&self.cdmw_state, "authoring_enabled") {
+            return Some("This session is read-only");
+        }
+        if state_str(&self.cdmw_state, "output_policy") != Some("free_edit_rebuild") {
+            return Some("Choose Free Edit under Output to change the part structure");
+        }
+        let selected = self.selected_part_indices();
+        if selected.is_empty() {
+            return Some("Select one or more parts first");
+        }
+        let count = self
+            .document
+            .as_ref()
+            .and_then(|document| document.lods.get(self.active_lod_index))
+            .map_or(0, |lod| lod.submeshes.len());
+        if action == "delete" && selected.len() >= count {
+            return Some("Keep at least one part when deleting");
+        }
+        None
+    }
+
+    pub(super) fn set_cdmw_part_visibility(&mut self, indices: Vec<u32>, visible: bool) {
+        for index in indices {
+            if visible {
+                self.cdmw_hidden_parts.remove(&index);
+            } else {
+                self.cdmw_hidden_parts.insert(index);
             }
-            if ui
-                .add_enabled(free_edit && !selected.is_empty(), Button::new("Delete"))
-                .on_disabled_hover_text("Delete Part requires Free Edit and selected parts")
-                .clicked()
-            {
-                actions.push(UiAction::CdmwTopology {
-                    action: "delete",
-                    label: "Delete part",
-                    params: json!({"delete_parts": true}),
-                });
+        }
+        let visible = self.cdmw_visible_submeshes();
+        if let (Some(mesh), Some(visible)) = (&mut self.mesh, visible) {
+            let handles = mesh.element_handles_for_submeshes(&visible);
+            let mut selection = mesh.selection.clone();
+            selection
+                .vertices
+                .retain(|handle| handles.vertices.contains(handle));
+            selection
+                .edges
+                .retain(|handle| handles.edges.contains(handle));
+            selection
+                .faces
+                .retain(|handle| handles.faces.contains(handle));
+            selection.submeshes.retain(|index| visible.contains(index));
+            if selection != mesh.selection && mesh.set_selection(selection).is_ok() {
+                self.submit_cdmw_local_edit(CdmwLocalEdit::Selection(
+                    "Hide selected parts".to_owned(),
+                ));
             }
+        }
+        self.publish_mesh_snapshot();
+    }
+
+    pub(super) fn cdmw_visible_submeshes(&self) -> Option<HashSet<u32>> {
+        let layers = self.cdmw_layer_visible_submeshes();
+        if self.cdmw_hidden_parts.is_empty() {
+            return layers;
+        }
+        let mut visible = layers.unwrap_or_else(|| {
+            self.mesh
+                .as_ref()
+                .map_or_else(HashSet::new, WorkingMesh::submesh_indices)
         });
+        visible.retain(|index| !self.cdmw_hidden_parts.contains(index));
+        Some(visible)
+    }
+
+    pub(super) fn remap_cdmw_hidden_parts(&self, next: &MeshDocument) -> HashSet<u32> {
+        let Some(previous) = self
+            .document
+            .as_ref()
+            .and_then(|document| document.lods.get(self.active_lod_index))
+        else {
+            return HashSet::new();
+        };
+        let Some(next) = next.lods.get(self.active_lod_index) else {
+            return HashSet::new();
+        };
+        self.cdmw_hidden_parts
+            .iter()
+            .filter_map(|index| {
+                let part = previous.submeshes.get(*index as usize)?;
+                let mut matches = next
+                    .submeshes
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, next)| same_source_part(part, next));
+                let (index, _) = matches.next()?;
+                matches.next().is_none().then_some(index as u32)
+            })
+            .collect()
     }
 
     fn draw_cdmw_layers(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {

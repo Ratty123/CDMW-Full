@@ -107,7 +107,7 @@ def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> Non
         for row in integrated["rows"]
         if row["rust_route_kind"] == "deliberately_unavailable"
     }
-    assert unavailable == {"material_colour.unavailable", "parts.visibility"}
+    assert unavailable == {"material_colour.unavailable"}
     assert all(
         row["rust_runtime_dispatch"] is True
         for row in integrated["rows"]

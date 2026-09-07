@@ -1468,6 +1468,10 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    SetPartVisibility {
+        indices: Vec<u32>,
+        visible: bool,
+    },
 }
 
 fn cdmw_import_editable_package_action(path: &Path) -> UiAction {
@@ -1954,6 +1958,7 @@ struct LabApplication {
     material_parameter_entries: Vec<MaterialParameterInspectorEntry>,
     material_factor_entries: Vec<MaterialFactorInspectorEntry>,
     cdmw_texture_resources: Vec<LoadedTexture>,
+    cdmw_hidden_parts: HashSet<u32>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
     cdmw_uploaded_texture_count: usize,
     cdmw_textured_mode_available: bool,
@@ -2105,6 +2110,7 @@ impl LabApplication {
             material_parameter_entries: Vec::new(),
             material_factor_entries: Vec::new(),
             cdmw_texture_resources: Vec::new(),
+            cdmw_hidden_parts: HashSet::new(),
             cdmw_material_presentations: Vec::new(),
             cdmw_uploaded_texture_count: 0,
             cdmw_textured_mode_available: false,
@@ -2367,7 +2373,7 @@ impl LabApplication {
         }
     }
 
-    fn cdmw_visible_submeshes(&self) -> Option<HashSet<u32>> {
+    fn cdmw_layer_visible_submeshes(&self) -> Option<HashSet<u32>> {
         if !self.cdmw_mode() {
             return None;
         }
@@ -3099,6 +3105,11 @@ impl LabApplication {
             material_factors,
             skeleton,
         } = loaded;
+        self.cdmw_hidden_parts = if self.cdmw_mode() {
+            self.remap_cdmw_hidden_parts(&document)
+        } else {
+            HashSet::new()
+        };
         let editable_lod_count = other_lod_meshes.len().saturating_add(1);
         let texture_resource_count = textures.len();
         let renderer_available = self.renderer.is_some();
@@ -4506,8 +4517,12 @@ impl LabApplication {
                                 .collect(),
                             ..Selection::default()
                         };
+                        if mesh.selection == selection {
+                            continue;
+                        }
                         match mesh.set_selection(selection) {
                             Ok(()) => {
+                                publish_mesh = true;
                                 cdmw_transaction =
                                     Some(CdmwLocalEdit::Selection("Select parts".to_owned()))
                             }
@@ -4516,6 +4531,9 @@ impl LabApplication {
                             }
                         }
                     }
+                }
+                UiAction::SetPartVisibility { indices, visible } => {
+                    self.set_cdmw_part_visibility(indices, visible);
                 }
             }
         }

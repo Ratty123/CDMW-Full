@@ -135,3 +135,49 @@ def test_selection_bone_and_layer_commands_do_not_republish_geometry(tmp_path):
         assert "document" in command(session, "state", {})
     finally:
         session.cancel()
+
+
+def test_parts_duplicate_delete_and_history_publish_the_changed_document(tmp_path):
+    mesh = _quad_mesh(two_parts=True)
+    service = MeshService(settings=support._Settings(tmp_path / "settings.ini"))
+    view = service.open_edit_session(mesh, session_id="parts", mode="edit")
+    session = RustMeshAuthoringSession.create(
+        SimpleNamespace(mesh_service=service, active_session_id=view.session_id),
+        tmp_path / "session", process_generation=1,
+    )
+    try:
+        command(session, "configure_output_policy", {
+            "policy": "free_edit_rebuild", "destination": str(tmp_path / "output"),
+        })
+        command(session, "select", {"selection": {"vertices_by_submesh": {"0": [0]}}})
+
+        def published_parts(state):
+            document = support.read_owned_payload_reference(session.root, state["document"])
+            parts = document["lods"][0]["submeshes"]
+            current = session.shadow_service.working_mesh(session.shadow_session_id, clone=True)
+            assert parts == _mesh_document_payload(current)["lods"][0]["submeshes"]
+            return parts
+
+        # These are the complete part-only requests emitted by the painted buttons,
+        # even when a previous viewport element selection remains in host state.
+        duplicated = published_parts(command(session, "topology", {
+            "action": "duplicate", "selection": {"source_indices": [1],
+                "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}},
+            "params": {}, "label": "Duplicate part",
+        }))
+        assert [part["material"] for part in duplicated] == ["mat_a", "mat_b", "mat_b"]
+        assert duplicated[2]["positions"] == duplicated[1]["positions"]
+        assert duplicated[2]["indices"] == duplicated[1]["indices"]
+        deleted_state = command(session, "topology", {
+            "action": "delete", "selection": {"source_indices": [0],
+                "vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}},
+            "params": {"delete_parts": True}, "label": "Delete part",
+        })
+        deleted = published_parts(deleted_state)
+        assert deleted == duplicated[1:]
+        assert deleted_state["selection"]["source_indices"] == []
+        assert published_parts(command(session, "undo", {})) == duplicated
+        assert published_parts(command(session, "redo", {})) == deleted
+        assert service.session_view(view.session_id).submesh_count == 2
+    finally:
+        session.cancel()

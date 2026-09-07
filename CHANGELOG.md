@@ -93,6 +93,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- **Mesh Editor Parts controls now apply explicit whole-part selections and refresh the viewport immediately.** Visibility checkboxes and Hide Selected/Show All work in the viewport, while compact single-line rows retain full names and materials on hover. Duplicate/Delete show their Free Edit requirement, wait for pending selection updates, and prevent deleting the last part.
 
 - **New Item Apply placement handles tiled materials such as Frostmourne's handle.** Automatic atlases keep repeating textures in separate existing material slots. Build failures stay visible beside Apply placement and in the Output log, and planning checks unapplied variants immediately. Applied effects no longer retain an attention marker solely for in-game verification caveats; tooltips show actual warning reasons. Dye assignments starts unchecked.
 - **Archive PAM previews resolve textures declared by PAMI companions.** Dependency discovery follows linked material documents across archive packages, so existing DDS files are no longer reported missing because a material companion was skipped. Traversal remains bounded and cancellable and handles reference cycles.

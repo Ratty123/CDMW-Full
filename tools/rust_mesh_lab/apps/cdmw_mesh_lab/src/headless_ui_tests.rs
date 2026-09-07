@@ -564,6 +564,260 @@ fn has_host_command(actions: &[UiAction], expected: &str) -> bool {
     )
 }
 
+fn parts_actions_from_click(
+    ui: &mut HeadlessUi,
+    label: &str,
+) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
+    let row = ui.reveal("Duplicate")?;
+    ui.last_actions.clear();
+    ui.click_where(label, |rect| {
+        (rect.center().y - row.center().y).abs() < row.height()
+    })?;
+    Ok(std::mem::take(&mut ui.last_actions))
+}
+
+#[test]
+fn integrated_parts_selection_and_actions_use_the_painted_controls() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw(
+        overlapping_parts_application()?,
+        egui::vec2(1280.0, 900.0),
+    );
+    let name = ui.application.document.as_ref().ok_or("document")?.lods[0].submeshes[0]
+        .name
+        .clone();
+    ui.application
+        .ensure_projection(ui.application.viewport_rect.ok_or("viewport")?);
+    assert!(ui.application.projection.is_some());
+    ui.click(&format!("0: {name}"))?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    assert!(
+        ui.application.projection.is_none(),
+        "part selection did not refresh the viewport"
+    );
+    ui.click("All")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+    ui.click("None")?;
+    assert!(ui.application.selected_part_indices().is_empty());
+    ui.click_where("Invert", |rect| rect.center().x > 900.0)?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0, 1]);
+    ui.click(&format!("0: {name}"))?;
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    // Exact output exposes an actionable route to the supported output policy.
+    assert!(!has_host_command(
+        &parts_actions_from_click(&mut ui, "Delete")?,
+        "topology"
+    ));
+    ui.click("Enable part edits…")?;
+    assert!(ui.label_rect("Output").is_some());
+    ui.frame(vec![Event::Key {
+        key: egui::Key::Escape,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::default(),
+    }]);
+    ui.frame(Vec::new());
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 1,
+        event: "command_result",
+        label: "Select parts".to_owned(),
+        origin: Some(CdmwRequestOrigin::Selection),
+    });
+    assert!(!has_host_command(
+        &parts_actions_from_click(&mut ui, "Delete")?,
+        "topology"
+    ));
+    assert!(ui.label_rect("Updating parts…").is_some());
+    ui.application.cdmw_pending_request = None;
+    let mesh = ui.application.mesh.as_mut().ok_or("mesh")?;
+    let mut mixed = mesh.selection.clone();
+    mixed.faces.insert(mesh.faces().next().ok_or("face")?.0);
+    mesh.set_selection(mixed)?;
+    for (label, expected) in [("Duplicate", "duplicate"), ("Delete", "delete")] {
+        let actions = parts_actions_from_click(&mut ui, label)?;
+        assert!(actions.iter().any(|action| matches!(
+            action, UiAction::CdmwCommand { command: "topology", arguments, .. } if arguments["action"] == expected
+                && arguments["selection"]["source_indices"] == json!([1])
+                && arguments["selection"]["faces_by_submesh"] == json!({}))),
+            "{label}: {actions:?}; selected {:?}; busy {}; status {}",
+            ui.application.selected_part_indices(), ui.application.cdmw_busy(), ui.application.status);
+    }
+    ui.click("All")?;
+    assert!(!has_host_command(
+        &parts_actions_from_click(&mut ui, "Delete")?,
+        "topology"
+    ));
+    assert!(
+        ui.label_rect("Keep at least one part when deleting.")
+            .is_some()
+    );
+    ui.click("None")?;
+    for label in ["Delete", "Duplicate"] {
+        assert!(!has_host_command(
+            &parts_actions_from_click(&mut ui, label)?,
+            "topology"
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_parts_visibility_filters_drawing_and_selection_without_changing_geometry()
+-> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw(
+        overlapping_parts_application()?,
+        egui::vec2(1280.0, 900.0),
+    );
+    let original = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    ui.click("1: Back")?;
+    ui.click("Visibility")?;
+    ui.click("Hide Selected")?;
+    assert!(ui.application.selected_part_indices().is_empty());
+    assert_eq!(
+        ui.application.cdmw_visible_submeshes(),
+        Some(HashSet::from([0]))
+    );
+    let snapshot = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .draw_snapshot_for_submeshes(&HashSet::from([0]));
+    assert_eq!(snapshot.indices.len(), 3);
+    ui.click("All")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    ui.click_where("Invert", |rect| rect.center().x > 900.0)?;
+    assert!(ui.application.selected_part_indices().is_empty());
+    ui.click("1: Back")?;
+    assert!(
+        ui.application.selected_part_indices().is_empty(),
+        "hidden part was selectable"
+    );
+    // Locate the checkbox from its painted square next to the part label.
+    let label = ui.reveal("1: Back")?;
+    let checkbox = ui
+        .output
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Rect(shape)
+                if shape.rect.width() < 25.0
+                    && shape.rect.height() < 25.0
+                    && shape.rect.width() > 8.0
+                    && shape.rect.right() < label.left()
+                    && (shape.rect.center().y - label.center().y).abs() < 2.0 =>
+            {
+                Some(shape.rect)
+            }
+            _ => None,
+        })
+        .max_by(|a, b| a.right().total_cmp(&b.right()))
+        .ok_or("part visibility checkbox")?;
+    ui.click_at(checkbox.center());
+    assert!(ui.application.cdmw_hidden_parts.is_empty());
+    ui.click("1: Back")?;
+    ui.click("Visibility")?;
+    ui.click("Hide Selected")?;
+    ui.click("Visibility")?;
+    ui.click("Show All")?;
+    assert!(ui.application.cdmw_hidden_parts.is_empty());
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        original
+    );
+    assert_eq!(ui.application.cdmw_transaction_attempts, 0);
+    Ok(())
+}
+
+#[test]
+fn integrated_parts_rows_stay_compact_with_long_names_and_materials() -> TestResult {
+    let mut application = overlapping_parts_application()?;
+    for (index, part) in application.document.as_mut().ok_or("document")?.lods[0]
+        .submeshes
+        .iter_mut()
+        .enumerate()
+    {
+        part.name = format!("cd_phm_00_long_part_name_{index}_{}", "damian_".repeat(8));
+        part.material = "CD_PHW_00_Long_Material_Name".repeat(4);
+    }
+    let mut ui = HeadlessUi::new_integrated_cdmw(application, egui::vec2(1000.0, 650.0));
+    ui.frame(Vec::new());
+    let rows = ui
+        .output
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Text(text)
+                if text.galley.job.text.starts_with("0: cd_phm_")
+                    || text.galley.job.text.starts_with("1: cd_phm_") =>
+            {
+                assert_eq!(
+                    text.galley.rows.len(),
+                    1,
+                    "part name wrapped into multiple rows"
+                );
+                assert!(text.visual_bounding_rect().right() <= ui.size.x);
+                Some(text.visual_bounding_rect())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    assert!((rows[1].center().y - rows[0].center().y).abs() <= 28.0);
+    Ok(())
+}
+
+#[test]
+fn integrated_parts_visibility_follows_surviving_parts_and_respects_layers() -> TestResult {
+    let root = tempdir()?;
+    let mut ui = HeadlessUi::new_integrated_cdmw(
+        overlapping_parts_application()?,
+        egui::vec2(1280.0, 900.0),
+    );
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "parts",
+        1,
+        0,
+    ));
+    let original = ui.application.document.clone().ok_or("document")?;
+    ui.application.cdmw_state["geometry_layers"]["layers"] = json!([
+        {"submesh_indices": [0], "base": true, "visible": true},
+        {"submesh_indices": [1], "base": false, "visible": false},
+    ]);
+    ui.application.set_cdmw_part_visibility(vec![0], false);
+    assert_eq!(
+        ui.application.cdmw_visible_submeshes(),
+        Some(HashSet::new())
+    );
+    ui.application.set_cdmw_part_visibility(vec![0], true);
+    assert_eq!(
+        ui.application.cdmw_visible_submeshes(),
+        Some(HashSet::from([0]))
+    );
+    ui.application.cdmw_state["geometry_layers"]["layers"][1]["visible"] = json!(true);
+    ui.application.set_cdmw_part_visibility(vec![1], false);
+    let mut changed = original.clone();
+    changed.lods[0].submeshes.remove(0);
+    ui.application.install_cdmw_document(changed)?;
+    assert_eq!(ui.application.cdmw_hidden_parts, HashSet::from([0]));
+    ui.application.install_cdmw_document(original)?;
+    assert_eq!(ui.application.cdmw_hidden_parts, HashSet::from([1]));
+    assert_eq!(ui.application.cdmw_transaction_attempts, 0);
+    Ok(())
+}
+
 #[test]
 fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> TestResult {
     for size in [
@@ -2041,12 +2295,14 @@ fn integrated_read_only_session_disables_import_and_morph_creation_without_selec
 #[test]
 fn integrated_parts_delete_routes_explicit_part_deletion_and_import_has_a_typed_route() -> TestResult
 {
-    let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 900.0));
+    let mut ui = HeadlessUi::new_integrated_cdmw(
+        overlapping_parts_application()?,
+        egui::vec2(1_440.0, 900.0),
+    );
     ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     assert!(ui.reveal("Open Package in CDMW...").is_ok());
 
-    ui.click("All")?;
+    ui.click("1: Back")?;
     assert_eq!(
         ui.application
             .mesh
@@ -2054,7 +2310,7 @@ fn integrated_parts_delete_routes_explicit_part_deletion_and_import_has_a_typed_
             .ok_or("mesh")?
             .selection
             .submeshes,
-        HashSet::from([0])
+        HashSet::from([1])
     );
     let duplicate = ui.reveal("Duplicate")?;
     let part_delete = ui
@@ -2065,11 +2321,10 @@ fn integrated_parts_delete_routes_explicit_part_deletion_and_import_has_a_typed_
     ui.click_at(part_delete.center());
     assert!(ui.last_actions.iter().any(|action| matches!(
         action,
-        UiAction::CdmwTopology {
-            action: "delete",
-            params,
-            ..
-        } if params.get("delete_parts").and_then(Value::as_bool) == Some(true)
+        UiAction::CdmwCommand { command: "topology", arguments, .. }
+            if arguments["action"] == "delete"
+                && arguments["params"]["delete_parts"] == true
+                && arguments["selection"]["source_indices"] == json!([1])
     )));
 
     let package = Path::new(r"C:\owned\editable-package");
