@@ -145,8 +145,8 @@ def _prepare_startup(root, cancelled, progress):
             raise ValueError(error)
     if cancelled():
         return None
-    # Importing decoder modules on first use can be substantial in a frozen executable.
-    from .window import PlacementStudioWindow  # noqa: F401
+    # The shell preloads the Qt window module on the GUI thread. Standalone
+    # embedding imports it in _install, also on the GUI thread.
     return None if cancelled() else baseline
 
 
@@ -206,12 +206,12 @@ class PlacementStudioTab(QWidget):
     def _game_root(self) -> str:
         """The archive root the user has configured, read the way the app itself reads it.
 
-        `MainWindow.settings` is a `QSettings`, not the `AppConfig` dataclass — so the obvious
-        `getattr(settings, "archive_package_root")` silently returned empty and the tab told the
-        user to set a path they had already set. The live value lives on the Settings widget.
+        The live edit belongs to MainWindow.archive. QSettings persists the same
+        value under archive/package_root; older embedding inputs remain accepted.
         """
 
-        edit = getattr(self._window, "archive_package_root_edit", None)
+        archive = getattr(self._window, "archive", self._window)
+        edit = getattr(archive, "archive_package_root_edit", None)
         if edit is not None:
             try:
                 text = str(edit.text() or "").strip()
@@ -224,7 +224,7 @@ class PlacementStudioTab(QWidget):
         if settings is not None:
             getter = getattr(settings, "value", None)
             if callable(getter):  # QSettings
-                for key in ("archive_package_root", "paths/archive_package_root"):
+                for key in ("archive/package_root", "archive_package_root", "paths/archive_package_root"):
                     text = str(getter(key, "") or "").strip()
                     if text:
                         return text

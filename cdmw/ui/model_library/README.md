@@ -9,6 +9,10 @@ Rust host only when a prepared package is ready, then promotes it after the
 host reports `ready`; the unopened tab retains a lightweight placeholder.
 Archive Browser preview remains an explicit manual action.
 
+Runtime localization defers child-added processing until after construction.
+Creating a task thread must not expose its incomplete PySide wrapper to the
+localizer; the queued parent pass covers new widgets and actions together.
+
 The shared preview host keeps its camera-control hint beneath the native viewport,
 using the configured orbit and pan bindings. A package reset discards the previous
 camera from state replay once the helper advertises semantic framing, including

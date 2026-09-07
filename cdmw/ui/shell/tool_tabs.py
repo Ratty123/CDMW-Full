@@ -84,7 +84,7 @@ _LAZY_TOOL_UI_MODULES: dict[str, tuple[str, ...]] = {
     "recolor_variants": ("cdmw.ui.recolor_variants_tab",),
     "texture_editor": ("cdmw.ui.texture_editor_tab",),
     "mod_package_retrofit": ("cdmw.ui.tools.mod_package_retrofit_tasks",),
-    "placement_studio": ("tools.placement_studio.tab",),
+    "placement_studio": ("tools.placement_studio.tab", "tools.placement_studio.window"),
     "format_explorer": ("tools.format_explorer.tab",),
     "translation_studio": ("tools.translation_studio.tab",),
     "research": ("cdmw.ui.research",),

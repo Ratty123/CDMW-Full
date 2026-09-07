@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QPlainTextEdit, QScrollArea, QSizePo
 
 from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 from cdmw.services.settings_service import create_settings
+from cdmw.ui.localization import UiLocalizer
 from cdmw.ui.model_library import ModelLibraryTab
 from tests.test_model_library_preview import _write_triangle_gltf
 
@@ -67,6 +68,8 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
             root = Path(temp_dir)
             settings = create_settings(settings_file_path=root / "settings.ini")
             tab = _DotNetPreviewModelLibraryTab(settings=settings, base_dir=root)
+            localizer = UiLocalizer(language_dir=root / "languages", language_code="en")
+            localizer.activate_runtime_tracking(tab, application=app)
             try:
                 def task(_progress: object) -> object:
                     worker_thread_ids.append(threading.get_ident())
@@ -93,6 +96,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                 self.assertIsNone(tab._task_thread)
                 self.assertIsNone(tab._task_ui_bridge)
             finally:
+                localizer.shutdown()
                 if tab._task_thread is not None and tab._task_thread.isRunning():
                     tab._task_thread.quit()
                     tab._task_thread.wait(2000)

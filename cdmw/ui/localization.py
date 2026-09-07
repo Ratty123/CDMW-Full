@@ -1633,21 +1633,13 @@ class UiLocalizer(QObject):
     def _dispatch_filtered_event(self, watched: object, event: QEvent) -> None:
         event_type = event.type()
         if event_type == QEvent.Type.ChildAdded:
-            child_getter = getattr(event, "child", None)
-            child = child_getter() if callable(child_getter) else None
-            if isinstance(child, QWidget):
-                target: QWidget | None = child
-            elif isinstance(child, (QAction, QMenu)) and isinstance(watched, QWidget):
-                # Actions and menus live outside the widget tree, so the parent has
-                # to be re-walked to reach the new one.
-                target = watched
-            else:
-                target = None
-            if (
-                target is not None
-                and target.property("_i18n_applied_revision") != self.revision
-            ):
-                self._schedule_widget_apply(target)
+            # Qt sends ChildAdded from inside the child's constructor. Resolving
+            # event.child() here can expose a partial PySide wrapper (notably
+            # QThread) before its native metadata is ready. Walk the parent on
+            # the next GUI turn instead, even when it was already translated:
+            # its newly added widgets/actions still need their first pass.
+            if isinstance(watched, QWidget):
+                self._schedule_widget_apply(watched)
         elif event_type in {QEvent.Type.Show, QEvent.Type.Polish}:
             if (
                 isinstance(watched, QWidget)

@@ -7,8 +7,8 @@ from types import SimpleNamespace
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 import pytest
-from PySide6.QtCore import QEventLoop, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEventLoop, QSettings, QTimer
+from PySide6.QtWidgets import QApplication, QLineEdit
 
 from tools.placement_studio.background import _retained
 from tools.placement_studio.corpus import Baseline
@@ -23,6 +23,83 @@ def until(predicate):
         QTimer.singleShot(5, loop.quit)
         loop.exec()
     assert predicate(), 'Timed out waiting for Qt delivery'
+
+
+def test_bootstrap_reads_the_current_archive_workspace_path(tmp_path):
+    from tools.placement_studio.tab import PlacementStudioTab
+    settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    settings.setValue('archive/package_root', 'saved-installation')
+    edit = QLineEdit('current-installation')
+    owner = SimpleNamespace(
+        _settings=settings,
+        _window=SimpleNamespace(archive=SimpleNamespace(archive_package_root_edit=edit)),
+    )
+    assert PlacementStudioTab._game_root(owner) == 'current-installation'
+    edit.setText('changed-installation')
+    assert PlacementStudioTab._game_root(owner) == 'changed-installation'
+
+
+def test_bootstrap_reads_the_canonical_saved_archive_path(tmp_path):
+    from tools.placement_studio.tab import PlacementStudioTab
+    settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.IniFormat)
+    settings.setValue('archive/package_root', 'configured-installation')
+    settings.setValue('archive_package_root', 'stale-legacy-installation')
+    owner = SimpleNamespace(_settings=settings, _window=None)
+    assert PlacementStudioTab._game_root(owner) == 'configured-installation'
+
+
+def test_cached_baseline_preparation_does_not_import_qt_window_modules(monkeypatch, tmp_path):
+    import builtins
+    from tools.placement_studio import tab as module
+    baseline = Baseline(tmp_path, {'present': object()})
+    monkeypatch.setattr(Baseline, 'load', lambda: baseline)
+    original_import = builtins.__import__
+
+    def checked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == 'window' and level == 1 and (globals or {}).get('__package__') == 'tools.placement_studio':
+            raise AssertionError('Baseline workers must not import Qt window classes')
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, '__import__', checked_import)
+    assert module._prepare_startup('', lambda: False, lambda *_: None) is baseline
+
+
+def test_bootstrap_retry_uses_the_current_live_archive_path(monkeypatch, tmp_path):
+    from tools.placement_studio import tab as module
+    main = threading.get_ident()
+    prepared, installed = [], []
+    baseline = Baseline(tmp_path, {'present': object()})
+    edit = QLineEdit('first-installation')
+    shell = SimpleNamespace(archive=SimpleNamespace(archive_package_root_edit=edit))
+
+    def prepare(root, cancelled, progress):
+        assert threading.get_ident() != main
+        prepared.append(root)
+        if root == 'first-installation':
+            raise ValueError('Fixture preparation failure')
+        return baseline
+
+    def install(owner, value):
+        assert threading.get_ident() == main
+        installed.append(value)
+
+    monkeypatch.setattr(module, '_prepare_startup', prepare)
+    monkeypatch.setattr(module.PlacementStudioTab, '_install', install)
+    owner = module.PlacementStudioTab(window=shell)
+    try:
+        until(lambda: prepared and not owner._startup_task.busy)
+        assert owner._action.text() == 'Try again'
+        assert owner._action.isEnabled()
+        edit.setText('second-installation')
+        owner._action.click()
+        until(lambda: installed and not owner._startup_task.busy)
+        assert prepared == ['first-installation', 'second-installation']
+        assert installed == [baseline]
+    finally:
+        owner.shutdown()
+        until(lambda: not _retained)
+        owner.close()
+        owner.deleteLater()
 
 
 @pytest.fixture

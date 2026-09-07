@@ -145,8 +145,10 @@ Crimson Desert 2.00.00 layouts byte-for-byte.
 ## Placement & Animations
 
 Opening the Studio prepares the baseline, rig, meshes and archive relationships in
-the background. Equipment and armour changes keep the last usable scene visible
-until the new selection is ready; cancelled or superseded work cannot replace it.
+the background, using the current Game / Package path from Archive Locations.
+If preparation fails, **Try again** reads the current path again. Equipment and
+armour changes keep the last usable scene visible until the new selection is
+ready; cancelled or superseded work cannot replace it.
 Playback reuses bone lookup, bind-transform and mesh-topology data and projects
 the skeleton in batches without reducing the displayed mesh detail.
 
