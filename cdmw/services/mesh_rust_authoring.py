@@ -71,6 +71,7 @@ from cdmw.services.mesh_dotnet_material_state import (
 )
 from cdmw.services.mesh_free_edit_output import publish_free_edit_output
 from cdmw.services.mesh_morph_profiles import mesh_morph_profile_root
+from cdmw.services.mesh_refit_loading import append_refit_mesh, stage_refit_morph_runtime
 from cdmw.services.mesh_rust_contract import (
     RUST_MESH_AUTHORING_PACKAGE,
     RUST_MESH_CANDIDATE,
@@ -7005,6 +7006,8 @@ class RustMeshAuthoringSession:
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
             )
+            if authoritative_morph_root is not None:
+                (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
             instance._write_initial_manifest(stop_event=stop_event)
             _validate_owned_session_tree(session_root, root_identity)
             return instance
@@ -7646,6 +7649,10 @@ class RustMeshAuthoringSession:
                 "Mesh Morph state exceeds the 16 MiB inline protocol limit"
             )
         state: dict[str, object] = {
+            "morph_preset_directory": str(
+                self.authoritative_morph_root.parent / "mesh_presets"
+                if self.authoritative_morph_root is not None else self.root / "mesh_presets"
+            ),
             "session_id": self.session_id,
             "base_revision": view.revision,
             "authoritative_base_revision": self.base_revision,
@@ -7921,6 +7928,55 @@ class RustMeshAuthoringSession:
             }
         return state
 
+    def _load_refit_mesh_command(self, args, stop_event):
+        from cdmw.services.mesh_service_state import _MeshGeometryLayer
+
+        service = self.shadow_service
+        session_id = self.shadow_session_id
+        session = service._session(session_id)
+        with session.export_lock:
+            if session.output_policy != MeshOutputPolicy.FREE_EDIT.value:
+                raise RustMeshValidationError("Adding body or armor Parts requires Free Edit")
+            service._require_baked_morph_definition_edit(session)
+            morph_state = service.cached_morph_state_from_runtime(session_id)
+            if morph_state.refit.garment_submesh_indices:
+                raise RustMeshValidationError("Clear Refit before adding body or armor Parts")
+            current = service.working_mesh(session_id, clone=True)
+            role = str(args.get("role", ""))
+            try:
+                combined, indices = append_refit_mesh(
+                    current, str(args.get("path", "")), role, stop_event=stop_event,
+                )
+            except RunCancelled as exc:
+                raise RustMeshCancellationError("Mesh loading was cancelled before the scene changed") from exc
+            self._raise_if_cancelled(stop_event)
+            prepared = service.prepare_working_mesh_replacement(session_id, combined)
+            blockers = _validation_blockers(prepared.validation_report)
+            if blockers:
+                raise RustMeshValidationError(f"Cannot add {role} mesh: {blockers[0]}")
+            prepared = replace(prepared, selection=MeshEditSelection(source_indices=indices))
+            admitted = self._preflight_mesh_document_capacity(prepared.working_mesh)
+            morph = stage_refit_morph_runtime(service, session_id, prepared.working_mesh)
+            try:
+                layers = (*session.geometry_layers, _MeshGeometryLayer(
+                    layer_id=f"refit-{uuid4().hex[:12]}",
+                    name=f"{role.title()} / {Path(str(args.get('path', ''))).stem}",
+                    submesh_indices=indices,
+                ))
+                self._raise_if_cancelled(stop_event)
+                view = service.commit_prepared_working_mesh_replacement(
+                    prepared, history_action="refit_load_mesh", history_label=f"Load Refit {role.title()}",
+                    geometry_layers=layers, active_geometry_layer_id=layers[-1].layer_id,
+                    morph_session_state=morph, require_reversible_history=True,
+                )
+            finally:
+                try:
+                    service.dispose_morph_session_state(morph)
+                except RuntimeError:
+                    service.defer_morph_session_state_disposal(morph)
+            self.max_state_document_bytes = max(self.max_state_document_bytes, admitted)
+            return {"session_id": view.session_id, "loaded_parts": indices, "role": role}
+
     def _import_editable_package_command(self, args, stop_event):
         raw_package_path = str(args.get("path", "") or "").strip()
         if not raw_package_path:
@@ -8047,6 +8103,8 @@ class RustMeshAuthoringSession:
             )
         elif command == "import_editable_package":
             result = self._import_editable_package_command(args, stop_event)
+        elif command == "refit_load_mesh":
+            result = self._load_refit_mesh_command(args, stop_event)
         elif command == "layer_activate":
             result = self.shadow_service.activate_geometry_layer(
                 self.shadow_session_id,
@@ -8194,6 +8252,7 @@ class RustMeshAuthoringSession:
         args: Mapping[str, object],
     ) -> object:
         file_commands = {
+            "morph_import_preset",
             "morph_save_profile",
             "morph_delete_profile",
             "morph_save_preset",
@@ -8265,6 +8324,15 @@ class RustMeshAuthoringSession:
     def _run_morph_command(self, command: str, args: Mapping[str, object]) -> object:
         service = self.shadow_service
         session_id = self.shadow_session_id
+        if command == "morph_import_preset":
+            return service.import_morph_preset(session_id, str(args.get("path", "")))
+        if command == "morph_export_preset":
+            path = Path(str(args.get("path", ""))).expanduser().resolve()
+            if path.is_relative_to(self.root) or (
+                self.authoritative_morph_root is not None and path.is_relative_to(self.authoritative_morph_root)
+            ):
+                raise RustMeshValidationError("Export presets outside the internal profile and edit-session folders")
+            return service.export_morph_preset(session_id, str(path), str(args.get("name", "")))
         if command == "morph_activate":
             return service.activate_cached_morph_profile(
                 session_id,

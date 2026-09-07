@@ -26,6 +26,53 @@ from cdmw.domain.mesh import (
 
 _LEGACY_PROFILE_FORMAT = "cdmw.mesh_morph_slider_profile.v1"
 _SAFE_ID = re.compile(r"[^a-z0-9_-]+")
+MESH_MORPH_BUNDLE_FORMAT = "cdmw.mesh_morph_preset_bundle.v1"
+
+
+def serialized_mesh_morph_bundle(profile: MeshMorphProfile, preset: MeshMorphValuePreset, *, max_bytes: int) -> str:
+    """A portable preset carries the definition and topology it needs."""
+    validate_mesh_morph_preset(profile, preset)
+    return _serialized_json_document({
+        "format": MESH_MORPH_BUNDLE_FORMAT,
+        "profile": mesh_morph_profile_payload(profile),
+        "preset": mesh_morph_preset_payload(preset),
+    }, max_bytes=max_bytes)
+
+
+def read_mesh_morph_bundle(path: str | Path, mesh: object, *, max_bytes: int):
+    source = Path(path).expanduser()
+    if source.suffix.lower() != ".json":
+        raise ValueError("Choose a CDMW Morph preset JSON file")
+    if not source.is_file() or not 0 < source.stat().st_size <= max_bytes:
+        raise ValueError("Morph preset file is empty or exceeds its size limit")
+    with source.open("rb") as stream:
+        raw = stream.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise ValueError("Morph preset file exceeds its size limit")
+    payload = json.loads(raw)
+    if not isinstance(payload, Mapping) or payload.get("format") != MESH_MORPH_BUNDLE_FORMAT:
+        raise ValueError("Choose a portable preset made with Export Preset")
+    if not isinstance(payload.get("profile"), Mapping) or not isinstance(payload.get("preset"), Mapping):
+        raise ValueError("Morph preset must include its profile and slider values")
+    profile = mesh_morph_profile_from_payload(payload["profile"])
+    preset = mesh_morph_preset_from_payload(payload["preset"])
+    if not profile.definitions:
+        raise ValueError("Morph preset has no slider definitions")
+    if profile.topology_fingerprint != mesh_morph_driver_topology_fingerprint(mesh, profile.definitions):
+        raise ValueError("Preset topology does not match the loaded mesh Parts; load the same meshes in the same order")
+    validate_mesh_morph_preset(profile, preset)
+    return profile, preset
+
+
+def validate_mesh_morph_preset(profile: MeshMorphProfile, preset: MeshMorphValuePreset) -> None:
+    if preset.profile_id != profile.profile_id or preset.topology_fingerprint != profile.topology_fingerprint:
+        raise ValueError("Preset identity does not match its slider profile")
+    definitions = {definition.definition_id: definition for definition in profile.definitions}
+    if set(dict(preset.values)) != set(definitions):
+        raise ValueError("Preset must contain a value for every slider in its profile")
+    for key, value in preset.values:
+        if not definitions[key].min_percent <= value <= definitions[key].max_percent:
+            raise ValueError(f"Preset value is outside the slider range: {key}")
 
 
 def mesh_morph_profile_root(settings: object | None) -> Path:

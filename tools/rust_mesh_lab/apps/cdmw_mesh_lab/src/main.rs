@@ -131,12 +131,8 @@ fn main() -> Result<()> {
     let event_loop = EventLoop::new().context("failed to create the Windows event loop")?;
     event_loop.set_control_flow(ControlFlow::Wait);
     let mut application = if let Some(manifest_path) = options.cdmw_session {
-        let (bridge, document) = CdmwBridge::open(&manifest_path).with_context(|| {
-            format!(
-                "failed to open CDMW session {}",
-                manifest_path.display()
-            )
-        })?;
+        let (bridge, document) = CdmwBridge::open(&manifest_path)
+            .with_context(|| format!("failed to open CDMW session {}", manifest_path.display()))?;
         LabApplication::new_cdmw(bridge, document, options.embedded_parent_hwnd)?
     } else {
         LabApplication::new(options.mesh_path, options.archive_root)
@@ -1443,6 +1439,12 @@ enum UiAction {
     Redo,
     ExportObj,
     ChooseCdmwImportPackage,
+    ChooseCdmwMorphPreset {
+        save: bool,
+    },
+    ChooseCdmwRefitMesh {
+        role: &'static str,
+    },
     FinishCdmw,
     OrbitMode,
     OrbitYaw(f32),
@@ -1511,6 +1513,7 @@ enum CdmwRailPage {
     Cleanup,
     Normals,
     Uv,
+    #[allow(dead_code)] // Retained while its product entry point is hidden.
     RigWeights,
     MorphRefit,
 }
@@ -2031,6 +2034,8 @@ struct LabApplication {
     cdmw_orbit_mode: bool,
     cdmw_rail_page: Option<CdmwRailPage>,
     cdmw_layer_name: String,
+    cdmw_morph_hydrated_profile: String,
+    cdmw_refit_hydration_target: Option<u32>,
     cdmw_morph_profile_name: String,
     cdmw_morph_definition_label: String,
     cdmw_morph_definition_edit_id: String,
@@ -2185,6 +2190,8 @@ impl LabApplication {
             cdmw_orbit_mode: false,
             cdmw_rail_page: None,
             cdmw_layer_name: "Layer".to_owned(),
+            cdmw_morph_hydrated_profile: String::new(),
+            cdmw_refit_hydration_target: None,
             cdmw_morph_profile_name: "Morph Profile".to_owned(),
             cdmw_morph_definition_label: "Morph".to_owned(),
             cdmw_morph_definition_edit_id: String::new(),
@@ -4369,6 +4376,8 @@ impl LabApplication {
                 }
                 UiAction::ExportObj => self.choose_export(),
                 UiAction::ChooseCdmwImportPackage => self.choose_cdmw_import_package(),
+                UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
+                UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
                 UiAction::OrbitMode => {
                     self.cdmw_orbit_mode = true;
@@ -4779,6 +4788,57 @@ impl LabApplication {
             return;
         };
         self.handle_actions(vec![cdmw_import_editable_package_action(&path)]);
+    }
+
+    fn choose_cdmw_morph_preset(&mut self, save: bool) {
+        let mut dialog = rfd::FileDialog::new().add_filter("CDMW Morph preset", &["json"]);
+        if let Some(folder) = self
+            .cdmw_state
+            .get("morph_preset_directory")
+            .and_then(Value::as_str)
+        {
+            dialog = dialog.set_directory(folder);
+        }
+        let path = if save {
+            dialog
+                .set_title("Export Morph preset with slider definitions")
+                .set_file_name(format!(
+                    "{}.json",
+                    cdmw_ui::stable_ui_id("preset", &self.cdmw_morph_preset_name)
+                ))
+                .save_file()
+        } else {
+            dialog.set_title("Load Morph preset").pick_file()
+        };
+        if let Some(path) = path {
+            self.handle_actions(vec![UiAction::CdmwCommand {
+                command: if save { "morph_export_preset" } else { "morph_import_preset" },
+                arguments: json!({"path": path.to_string_lossy(), "name": self.cdmw_morph_preset_name}),
+                label: if save { "Export morph preset" } else { "Load morph preset" },
+            }]);
+        }
+    }
+
+    fn choose_cdmw_refit_mesh(&mut self, role: &'static str) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title(if role == "body" {
+                "Add body mesh"
+            } else {
+                "Add clothing or armor mesh"
+            })
+            .add_filter("Meshes", &["pac", "pam", "pamlod", "obj", "glb"])
+            .pick_file()
+        {
+            self.handle_actions(vec![UiAction::CdmwCommand {
+                command: "refit_load_mesh",
+                arguments: json!({"path": path.to_string_lossy(), "role": role}),
+                label: if role == "body" {
+                    "Load refit body"
+                } else {
+                    "Load refit armor"
+                },
+            }]);
+        }
     }
 
     fn run_topology(

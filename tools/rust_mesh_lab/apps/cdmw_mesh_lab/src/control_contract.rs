@@ -270,6 +270,7 @@ fn product_compiled_anchor_rows() -> Result<Vec<Value>> {
                 "invalid Rust product control row"
             );
             let verified = CDMW_UI_SOURCE.contains(ui_anchor) && MAIN_SOURCE.contains(main_anchor);
+            let hidden = key == "page.rig_weights" || key.starts_with("rig.");
             Ok(json!({
                 "key": key,
                 "surface": surface,
@@ -277,14 +278,14 @@ fn product_compiled_anchor_rows() -> Result<Vec<Value>> {
                 "route": format!("compiled_anchor:{main_anchor}"),
                 "disposition": "executable",
                 "availability": "session",
-                "reason": "",
+                "reason": if hidden { "Rig & Weights is temporarily hidden" } else { "" },
                 "evidence_category": "compiled_rust_control_contract",
                 "host_owned": false,
                 "control_type": "RustIntegratedControl",
                 "control_name": key,
                 "control_text": "",
-                "currently_visible": true,
-                "currently_enabled": true,
+                "currently_visible": !hidden,
+                "currently_enabled": !hidden,
                 "rust_control_id": format!("rust.integrated.anchor.{key}"),
                 "rust_route": format!("compiled_anchor:{main_anchor}"),
                 "rust_route_kind": "compiled_anchor",
@@ -667,6 +668,9 @@ page.uv|uv|CdmwRailPage::Uv|Uv,
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
+morph.load_preset|morph_refit|ChooseCdmwMorphPreset|morph_import_preset
+morph.export_preset|morph_refit|ChooseCdmwMorphPreset|morph_export_preset
+refit.load_mesh|morph_refit|ChooseCdmwRefitMesh|refit_load_mesh
 page.rig_weights|rig_weights|CdmwRailPage::RigWeights|RigWeights,
 rig.select_bone|rig_weights|"rig_select_bone"|UiAction::CdmwCommand
 rig.frame_bone|rig_weights|"Frame bone"|UiAction::FrameRigBone

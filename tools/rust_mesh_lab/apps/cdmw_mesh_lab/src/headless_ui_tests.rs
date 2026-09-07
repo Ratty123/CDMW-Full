@@ -277,6 +277,19 @@ impl HeadlessUi {
                 ..Default::default()
             },
             |ui| {
+                // Exercise the retained rig implementation directly. There is no product entry point.
+                if self.integrated_cdmw
+                    && self.application.cdmw_rail_page == Some(CdmwRailPage::RigWeights)
+                {
+                    egui::Panel::left("retained_rig_test")
+                        .exact_size(350.0)
+                        .show(ui, |ui| {
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                self.application
+                                    .draw_cdmw_rig_weights_page(ui, &mut actions);
+                            });
+                        });
+                }
                 actions.extend(if self.integrated_cdmw {
                     self.application.draw_cdmw_ui(ui)
                 } else {
@@ -287,10 +300,57 @@ impl HeadlessUi {
         if !actions.is_empty() {
             self.last_actions.clone_from(&actions);
         }
-        self.application.handle_actions(actions);
+        self.application.handle_actions(
+            actions
+                .into_iter()
+                .filter(|action| {
+                    !matches!(
+                        action,
+                        UiAction::ChooseCdmwMorphPreset { .. }
+                            | UiAction::ChooseCdmwRefitMesh { .. }
+                    )
+                })
+                .collect(),
+        );
         self.output.textures_delta.clear();
         assert!(self.application.window.is_none());
         assert!(self.application.renderer.is_none());
+    }
+
+    fn open_retained_rig_page(&mut self) {
+        self.application.cancel_active_gesture("Retained rig test");
+        self.application.cdmw_rail_page = Some(CdmwRailPage::RigWeights);
+        self.application.viewport_tool = ViewportTool::Select;
+        self.application.selection_domain = SelectionDomain::Vertex;
+        self.application.cdmw_orbit_mode = false;
+        self.frame(Vec::new());
+        self.frame(Vec::new());
+    }
+
+    fn click_tool_button(&mut self, label: &str) -> TestResult {
+        self.scroll_tool_rail(2_000.0);
+        self.reveal(label)?;
+        let left = self.application.viewport_rect.ok_or("viewport")?.left();
+        // A tool name can also be a dropdown value (for example Smooth falloff).
+        let row = self
+            .output
+            .shapes
+            .iter()
+            .filter_map(|clipped| {
+                let egui::Shape::Text(text) = &clipped.shape else {
+                    return None;
+                };
+                let rect = text.visual_bounding_rect();
+                (text.galley.job.text == label
+                    && rect.right() < left
+                    && clipped.clip_rect.right() <= left + 5.0
+                    && clipped.clip_rect.contains_rect(rect))
+                .then_some(rect)
+            })
+            .min_by(|a, b| a.top().total_cmp(&b.top()))
+            .ok_or("tool row")?;
+        self.click_at(row.center());
+        Ok(())
     }
 
     fn label_rect(&self, label: &str) -> Option<Rect> {
@@ -848,7 +908,6 @@ fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> Tes
             "Cleanup",
             "Normals & Tangents",
             "UV",
-            "Rig & Weights",
             "Morph & Refit",
             "Parts",
             "Geometry Layers",
@@ -1223,7 +1282,7 @@ fn integrated_blender_lite_pages_dispatch_typed_mesh_and_weight_commands() -> Te
         } if params.get("projection").and_then(Value::as_str) == Some("planar")
     )));
 
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
     ui.click("Weight +")?;
     assert!(ui.last_actions.iter().any(|action| matches!(
         action,
@@ -1474,7 +1533,7 @@ fn integrated_rig_controls_require_explicit_vertices_and_can_restore_source_weig
             .vertices
             .is_empty()
     );
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
     ui.last_actions.clear();
     ui.click("Weight +")?;
     assert!(!ui.last_actions.iter().any(|action| matches!(
@@ -1519,7 +1578,7 @@ fn integrated_weight_controls_follow_the_host_output_capability() -> TestResult 
         "bones": [{"index": 0, "name": "Root", "parent_index": -1}]
     });
     ui.click("Select All")?;
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
     ui.reveal("No named rig attached")?;
     ui.reveal("Skin weights require an exact PAC LOD0 output route.")?;
     ui.last_actions.clear();
@@ -1623,7 +1682,7 @@ fn integrated_bone_overlay_requires_complete_hierarchy_and_paints_selected_weigh
             .selection_revision,
         selection_revision
     );
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
     ui.click("Selected vertex weights")?;
     ui.reveal("SM 0 · V 2 · Root 0.750, Spine 0.250 · Σ 1.000")?;
 
@@ -1824,6 +1883,151 @@ fn integrated_geometry_layer_controls_dispatch_and_invalid_empty_copy_or_rename_
 }
 
 #[test]
+fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    let before = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .vertices()
+        .map(|(_, v)| v.position)
+        .collect::<Vec<_>>();
+    assert!(ui.label_rect("Rig & Weights").is_none());
+    for (label, page) in [
+        ("Select", CdmwRailPage::Select),
+        ("Move", CdmwRailPage::Move),
+        ("Rotate", CdmwRailPage::Rotate),
+        ("Scale", CdmwRailPage::Scale),
+        ("Grab", CdmwRailPage::Grab),
+        ("Smooth", CdmwRailPage::Smooth),
+        ("Inflate", CdmwRailPage::Inflate),
+        ("Pinch", CdmwRailPage::Pinch),
+        ("Topology", CdmwRailPage::Topology),
+        ("Cleanup", CdmwRailPage::Cleanup),
+        ("Normals & Tangents", CdmwRailPage::Normals),
+        ("UV", CdmwRailPage::Uv),
+        ("Morph & Refit", CdmwRailPage::MorphRefit),
+    ] {
+        ui.click_tool_button(label)?;
+        assert_eq!(ui.application.cdmw_rail_page, Some(page));
+        ui.click_tool_button(label)?;
+        assert_eq!(ui.application.cdmw_rail_page, None, "{label}");
+        assert!(ui.application.cdmw_orbit_mode);
+    }
+    for (heading, child) in [
+        ("Viewport", "Display"),
+        ("Selection", "Select"),
+        ("Transform", "Move"),
+        ("Sculpt", "Grab"),
+        ("Mesh Data", "Topology"),
+        ("Deform", "Morph & Refit"),
+        ("Parts", "Visibility"),
+    ] {
+        if heading == "Parts" {
+            ui.click(heading)?;
+        } else {
+            ui.click_tool_button(heading)?;
+        }
+        for _ in 0..16 {
+            ui.frame(Vec::new());
+        }
+        assert!(
+            ui.label_rect(child).is_none(),
+            "{heading} did not collapse {child}"
+        );
+        if heading == "Parts" {
+            ui.click(heading)?;
+        } else {
+            ui.click_tool_button(heading)?;
+        }
+        ui.reveal(child)?;
+    }
+    assert_eq!(
+        before,
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .vertices()
+            .map(|(_, v)| v.position)
+            .collect::<Vec<_>>()
+    );
+    Ok(())
+}
+
+#[test]
+fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(two_part_application()?, egui::vec2(1440.0, 980.0));
+    ui.click("Morph & Refit")?;
+    assert!(ui.actions_from_click("Load Body...")?.is_empty());
+    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    ui.frame(Vec::new());
+    assert!(
+        ui.actions_from_click("Load Body...")?
+            .iter()
+            .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "body" }))
+    );
+    assert!(
+        ui.actions_from_click("Load Armor...")?
+            .iter()
+            .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "armor" }))
+    );
+    assert!(
+        ui.actions_from_click("Load Preset...")?
+            .iter()
+            .any(|a| matches!(a, UiAction::ChooseCdmwMorphPreset { save: false }))
+    );
+    ui.click("1 · Part A")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    ui.click("Pick region")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+    assert_eq!(
+        ui.application.cdmw_rail_page,
+        Some(CdmwRailPage::MorphRefit)
+    );
+    ui.application.cdmw_state["morph_refit"]["profile_id"] = json!("body");
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
+    ui.application.cdmw_state["morph_refit"]["topology_blocked"] = json!(true);
+    ui.frame(Vec::new());
+    ui.reveal("Preview active. Reset or Bake before changing sliders, bindings, or topology.")?;
+    assert!(ui.actions_from_click("Load Armor...")?.is_empty());
+    assert!(
+        ui.actions_from_click("Export Preset...")?
+            .iter()
+            .any(|a| matches!(a, UiAction::ChooseCdmwMorphPreset { save: true }))
+    );
+    ui.click("Refit clothing & armor")?;
+    assert!(!has_host_command(
+        &ui.actions_from_click("1. Set Selected Driver Parts")?,
+        "refit_set_driver"
+    ));
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
+    ui.application.cdmw_state["morph_refit"]["driver_submesh_indices"] = json!([0]);
+    ui.frame(Vec::new());
+    assert!(!has_host_command(
+        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        "refit_bind"
+    ));
+    for heading in [
+        "Meshes & selection",
+        "Profiles & presets",
+        "Shape sliders",
+        "Create / edit sliders",
+        "Refit clothing & armor",
+    ] {
+        ui.click(heading)?;
+    }
+    assert_eq!(
+        ui.application.cdmw_rail_page,
+        Some(CdmwRailPage::MorphRefit)
+    );
+    Ok(())
+}
+
+#[test]
 fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1_440.0, 980.0));
@@ -1854,6 +2058,7 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
         .insert(0);
 
     ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
     ui.frame(Vec::new());
     assert!(!ui.application.cdmw_refit_enabled);
     assert_eq!(ui.application.cdmw_refit_intensity, 50.0);
@@ -1895,6 +2100,7 @@ fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() ->
         }
     });
     ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
 
     ui.last_actions.clear();
     ui.click("Apply to Selected Garments")?;
@@ -1963,10 +2169,12 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
         .submeshes
         .insert(0);
     ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
     ui.reveal("Waist Width")?;
     ui.reveal("↳ radius · axis x · 100% strength 0.250")?;
     ui.reveal("Selected Parts: 1 · Driver Parts: 1 · Bound garment Parts: 1")?;
 
+    ui.click("Create / edit sliders")?;
     ui.application.cdmw_morph_rule = "twist".to_owned();
     ui.application.cdmw_morph_axis = "z".to_owned();
     ui.application.cdmw_morph_amount = 0.35;
@@ -2036,12 +2244,10 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     for (label, command) in [
         ("Save Profile", "morph_save_profile"),
         ("Delete Profile", "morph_delete_profile"),
-        ("Save Preset...", "morph_save_preset"),
+        ("Save Preset", "morph_save_preset"),
         ("Delete Preset", "morph_delete_preset"),
         ("Reset", "morph_reset"),
         ("Bake", "morph_bake"),
-        ("1. Set Selected Driver Parts", "refit_set_driver"),
-        ("2. Bind Selected Garment Parts", "refit_bind"),
         ("Clear Refit", "refit_clear"),
         ("Apply to Selected Garments", "refit_configure"),
         ("Apply to All Bound Garments", "refit_configure"),
@@ -2058,16 +2264,27 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     assert!(has_host_command(&ui.last_actions, "morph_activate"));
 
     ui.last_actions.clear();
-    ui.choose("Preset", "Preset One", "Preset Two")?;
+    ui.choose("Saved preset", "Preset One", "Preset Two")?;
     assert!(has_host_command(&ui.last_actions, "morph_apply_preset"));
 
     ui.last_actions.clear();
-    ui.choose("Preset", "Preset One", "(Current values)")?;
-    assert!(has_host_command(&ui.last_actions, "morph_reset"));
+    assert!(ui.label_rect("Current values").is_none());
 
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
+    ui.application.cdmw_state["morph_refit"]["driver_submesh_indices"] = json!([1]);
+    ui.application.cdmw_state["morph_refit"]["refit"]["garment_submesh_indices"] = json!([]);
+    ui.frame(Vec::new());
+    assert!(has_host_command(
+        &ui.actions_from_click("1. Set Selected Driver Parts")?,
+        "refit_set_driver"
+    ));
+    assert!(has_host_command(
+        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        "refit_bind"
+    ));
     ui.application.cdmw_morph_preset_name.clear();
     ui.frame(Vec::new());
-    let actions = ui.actions_from_click("Save Preset...")?;
+    let actions = ui.actions_from_click("Save Preset")?;
     assert!(
         actions.is_empty(),
         "Save Preset must stay disabled until its name is non-empty"
@@ -2097,7 +2314,7 @@ fn integrated_rig_controls_all_dispatch_and_bind_the_explicit_vertex_selection()
         ]
     });
     ui.click("Select All")?;
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
 
     ui.last_actions.clear();
     ui.choose("Active bone", "0: Root", "1: Spine")?;
@@ -2175,7 +2392,7 @@ fn integrated_rig_inspection_links_names_search_frame_weights_and_selection() ->
         .ok_or("mesh")?
         .selection
         .clone();
-    ui.click("Rig & Weights")?;
+    ui.open_retained_rig_page();
     ui.reveal("character_body.pac")?;
     ui.reveal("Rig loaded")?;
     ui.reveal("character.pab")?;
@@ -2365,7 +2582,7 @@ fn integrated_part_row_highlights_and_move_changes_only_that_part() -> TestResul
         .vertices
         .insert(stale_part_b_vertex);
 
-    ui.click("0: Part A · Material A")?;
+    ui.click("0: Part A")?;
     let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
     assert_eq!(mesh.selection.submeshes, HashSet::from([0]));
     assert!(mesh.selection.vertices.is_empty());

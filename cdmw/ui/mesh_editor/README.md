@@ -175,6 +175,10 @@ automatic-resolution failure (including missing dependencies, ambiguous matches,
 and invalid or empty skeletons) and keeps weight editing disabled until the exact
 PAC LOD0, palette, source-map, and record-layout requirements are satisfied.
 
+Rig & Weights is temporarily hidden from the product tool rail. Its code and
+direct headless tests remain available; the following describes the retained
+implementation rather than a currently accessible tool.
+
 Rig & Weights identifies the loaded mesh, named Parts, and automatically attached
 PAB. Its searchable bone chooser shows parent context and a labelled gold marker
 on the active bone. Bone inspection preserves the edit selection and camera;
@@ -188,6 +192,61 @@ below the controls. Missing mappings and oversized or invalid display data show
 an unavailable reason rather than a partial or guessed influence. Skeleton lines
 use mesh-space bind positions, not the PAB's parent-local offsets. These controls
 inspect the bind rig; they do not pose it or paint weights with a brush.
+
+### Morph & Refit workflow
+
+Click an open tool again to close it and return to Orbit navigation. Viewport,
+the tool groups, Parts, Geometry Layers, Action History, and the individual
+Morph & Refit sections can be collapsed independently. Closing panels preserves
+geometry and selection.
+
+**Meshes & selection** offers named Part checkboxes, viewport region picking,
+and Frame scope. New sliders capture that selection; existing sliders and
+presets use their saved regions without requiring another selection. **Shape
+sliders** holds preview values, Reset, and Bake. **Create / edit sliders** opens
+when editing a slider and keeps its rule/axis/strength and advanced scope options
+together. The preview warning means that topology and definition changes are
+locked until Reset or Bake; it does not mean the topology is incompatible.
+
+In Free Edit, **Load Body...** and **Load Armor...** append extracted game
+PAC/PAM/PAMLOD or custom OBJ/GLB geometry as named, selected Geometry Layers.
+Input files are read-only and bounded to 256 MiB. Parsing, mesh validation, and
+the new native runtime prepare before one undoable publication; failure or
+cancellation during preparation preserves the scene. Load at zero preview and
+Clear Refit first if garments are already bound. Invalid UV/material/geometry
+data is rejected at loading with the validator's reason. The existing Open
+Package action still replaces the working mesh.
+
+Align the meshes using the normal transform tools. Create a body slider, assign
+the selected body Parts as the driver, then select clothing/armor Parts and bind
+them. The panel shows the assigned names, offers Select body/Select garments,
+rejects overlapping roles and setup changes during an unbaked preview, and
+shows the engine's binding-distance warning. Binding replaces the garment set;
+select every garment that should participate. Surface and Rigid modes retain
+their existing per-garment enable, intensity, and clearance controls. Changing
+the selected garment hydrates its own settings even when another garment had
+an unapplied draft. Shape sliders move the driver and bound garments together.
+
+Added Parts are editable and included in output. For garment-only output, Bake
+the result, then delete the body Parts before Finish. This is geometry refitting:
+it does not align mismatched poses automatically or convert skeletons/weights.
+Visual fit, clipping during animation, and game compatibility require separate
+inspection.
+
+**Save Preset** saves both the active profile and its current percentages into
+the settings-owned `mesh_slider_profiles/definitions` and `presets` folders as
+one undoable transaction. Finish Edit Mesh commits this library; cancelling the
+edit discards its library changes. **Export Preset...** writes a portable JSON
+file immediately, defaulting to the `mesh_presets` folder beside application
+settings. The file includes the profile, saved vertex regions, procedural rules,
+topology fingerprint, and percentages. **Load Preset...** validates the file,
+loads its profile and values, previews it, and adds it to the session library
+with Undo/Redo. Conflicting IDs get a new imported identity rather than
+overwriting different saved definitions. The same driver topology and Part order
+are required. Refit bindings remain session-specific; set them for the loaded
+body and garments. Legacy profile and preset storage stays compatible.
+
+### Material presentation
 
 The integrated Rust viewport reuses Archive Browser's complete resolved
 PAC/PAC_XML material model together with the native material package for the

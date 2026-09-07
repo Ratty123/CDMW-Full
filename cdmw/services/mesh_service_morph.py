@@ -11,6 +11,7 @@ import time
 from typing import Mapping, Sequence
 from uuid import uuid4
 
+from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.mesh import (
     MeshEditCommand,
     MeshEditResult,
@@ -45,10 +46,12 @@ from cdmw.services.mesh_morph_profiles import (
     list_mesh_morph_presets,
     list_mesh_morph_profiles,
     mesh_morph_profile_root,
+    read_mesh_morph_bundle,
     save_mesh_morph_preset,
     save_mesh_morph_profile,
     serialized_mesh_morph_preset,
     serialized_mesh_morph_profile,
+    serialized_mesh_morph_bundle,
 )
 from cdmw.services.mesh_service_history import (
     _MESH_MORPH_PROFILE_MAX_FILE_BYTES,
@@ -738,6 +741,8 @@ class MeshMorphServiceMixin:
         session: _MeshEditSession,
         profile: MeshMorphProfile,
         diagnostics: tuple[str, ...] = (),
+        *,
+        record_history: bool = True,
     ) -> tuple[MeshEditResult, MeshMorphState]:
         if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
             raise RuntimeError(
@@ -793,7 +798,7 @@ class MeshMorphServiceMixin:
             "morph_upload",
             upload_payload,
             history_label="Select Morph Profile",
-            record_history=True,
+            record_history=record_history,
         )
         data = self._morph_sessions.get(session.session_id)
         if not isinstance(data, _MeshMorphSessionData):
@@ -1235,15 +1240,18 @@ class MeshMorphServiceMixin:
                     preset,
                     max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
                 )
-                self._preflight_morph_profile_history_file_locked(
-                    history,
-                    relative,
-                    document,
+                profile_relative, profile_document = serialized_mesh_morph_profile(
+                    data.profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
                 )
+                candidate = dict(history.morph_profile_files or ())
+                candidate[relative] = document.encode("utf-8")
+                candidate[profile_relative] = profile_document.encode("utf-8")
+                _validated_mesh_morph_profile_files(tuple(sorted(candidate.items())))
             except Exception:
                 _service_call("_dispose_history_snapshot", history)
                 raise
             try:
+                save_mesh_morph_profile(self._profile_root(), data.profile)
                 save_mesh_morph_preset(self._profile_root(), preset)
                 data.preset_id = preset.preset_id
                 data.known_presets[(preset.profile_id, preset.preset_id)] = preset
@@ -1263,6 +1271,81 @@ class MeshMorphServiceMixin:
                     session,
                     history,
                 )
+                raise
+
+    def export_morph_preset(self, session_id: str, path: str, name: str) -> str:
+        """Export current values plus their definition without changing library history."""
+        destination = Path(path).expanduser().resolve()
+        if destination.suffix.lower() != ".json" or not name.strip():
+            raise ValueError("Preset export needs a name and a JSON destination")
+        session = self._session(session_id)
+        with session.export_lock:
+            data = self._required_morph_data(session)
+            report = self._run_morph_query_locked(session, "morph_state")
+            preset = MeshMorphValuePreset(
+                preset_id=f"preset-{uuid4().hex[:12]}", name=name.strip(),
+                profile_id=data.profile.profile_id,
+                topology_fingerprint=data.profile.topology_fingerprint,
+                values=tuple(_morph_values_from_report(report).items()),
+            )
+            document = serialized_mesh_morph_bundle(
+                data.profile, preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
+            )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(destination, document)
+        return str(destination)
+
+    def import_morph_preset(self, session_id: str, path: str) -> MeshMorphState:
+        """Load, validate, preview, and save a portable preset as one undoable edit."""
+        session = self._session(session_id)
+        with session.export_lock, mesh_morph_profile_lock(self._profile_root()):
+            self._require_baked_morph_definition_edit(session)
+            profile, preset = read_mesh_morph_bundle(
+                path, self._profile_driver_mesh_locked(session),
+                max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES,
+            )
+            if len(profile.definitions) > _MORPH_MAX_DEFINITIONS:
+                raise ValueError(f"Morph profiles support at most {_MORPH_MAX_DEFINITIONS} definitions")
+            history = self._capture_morph_profile_history_locked(
+                session, action="morph_import_preset", label=f"Load Morph Preset {preset.name}",
+            )
+            base_revision = session.revision
+            try:
+                files = dict(history.morph_profile_files or ())
+                relative, document = serialized_mesh_morph_profile(profile)
+                cache = self._morph_sessions.get(session_id)
+                existing = cache.known_profiles.get(profile.profile_id) if cache is not None else None
+                if (relative in files and files[relative] != document.encode("utf-8")) or (existing is not None and existing != profile):
+                    profile = replace(profile, profile_id=f"import-{uuid4().hex[:12]}", name=f"{profile.name} (imported)")
+                    preset = replace(preset, profile_id=profile.profile_id)
+                relative, document = serialized_mesh_morph_preset(preset)
+                if relative in files and files[relative] != document.encode("utf-8"):
+                    preset = replace(preset, preset_id=f"import-{uuid4().hex[:12]}")
+                for relative, document in (
+                    serialized_mesh_morph_profile(profile, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
+                    serialized_mesh_morph_preset(preset, max_bytes=_MESH_MORPH_PROFILE_MAX_FILE_BYTES),
+                ):
+                    files[relative] = document.encode("utf-8")
+                _validated_mesh_morph_profile_files(tuple(sorted(files.items())))
+            except Exception:
+                _service_call("_dispose_history_snapshot", history)
+                raise
+            try:
+                self._activate_morph_profile_locked(session, profile, record_history=False)
+                report = self._run_morph_command_locked(
+                    session, "morph_apply_preset", {"preset_id": preset.preset_id, "values": dict(preset.values)},
+                    history_label=f"Load Morph Preset {preset.name}", record_history=False,
+                )
+                save_mesh_morph_profile(self._profile_root(), profile)
+                save_mesh_morph_preset(self._profile_root(), preset)
+                data = self._required_morph_data(session)
+                data.preset_id = preset.preset_id
+                data.known_presets[(profile.profile_id, preset.preset_id)] = preset
+                state = self._morph_result_and_state_locked(session, "morph_apply_preset", report)[1]
+                self._publish_morph_profile_history_locked(session, history, base_revision=base_revision)
+                return state
+            except Exception:
+                self._rollback_unpublished_morph_profile_history_locked(session, history)
                 raise
 
     def delete_morph_preset(self, session_id: str, preset_id: object) -> bool:
@@ -1306,6 +1389,7 @@ class MeshMorphServiceMixin:
         driver_indices = _indices(submesh_indices)
         session = self._session(session_id)
         with session.export_lock:
+            self._require_baked_morph_definition_edit(session)
             data = self._required_morph_data(session)
             garment_indices = data.state.refit.garment_submesh_indices if data.state is not None else ()
             overlap = tuple(sorted(set(driver_indices).intersection(garment_indices)))
@@ -1324,6 +1408,7 @@ class MeshMorphServiceMixin:
         garment_indices = _indices(garment_submesh_indices)
         session = self._session(session_id)
         with session.export_lock:
+            self._require_baked_morph_definition_edit(session)
             data = self._required_morph_data(session)
             driver_indices = data.state.driver_submesh_indices if data.state is not None else ()
             overlap = tuple(sorted(set(garment_indices).intersection(driver_indices)))
