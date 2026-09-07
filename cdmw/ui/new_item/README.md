@@ -70,6 +70,11 @@ for uncompressed colour/material/glow maps (including mipmaps and headers). Larg
 use a smaller common preview limit instead of switching later maps to slow BC7 encoding.
 Normal maps retain their existing BC5 format. Downloaded images and export resolution
 remain unchanged; old preview packages rebuild once to pick up the corrected bindings.
+Large image batches can run through two native conversion workers when their estimated
+combined scratch memory fits 512 MiB. Small batches, oversized sources and exports keep
+one worker. Both workers receive cancellation, and a failed batch stops its sibling and
+waits for owned process teardown before temporary images are removed. Scheduling does
+not change texture dimensions, formats, colour policy or mipmap contents.
 Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
 current camera's depth order. Imported previews open flat against their broad

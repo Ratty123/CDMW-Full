@@ -7,7 +7,21 @@ import os
 import tempfile
 import threading
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cdmw.core.texture_native import NativeTextureEncodeRequest
+
+
+class _PreviewEncodeStop(threading.Event):
+    def __init__(self, parent: threading.Event) -> None:
+        super().__init__()
+        self._parent = parent
+
+    def is_set(self) -> bool:
+        return super().is_set() or self._parent.is_set()
 
 
 def material_authority_resource_backend_available() -> bool:
@@ -223,6 +237,63 @@ def _owned_dds_artifact(
     }
 
 
+def _encode_preview_image_requests(
+    requests: Sequence[NativeTextureEncodeRequest],
+    source_pixels: Sequence[int],
+    stop_event: threading.Event,
+    *,
+    enable_parallel: bool,
+) -> dict[str, dict[str, object]]:
+    """Run large preview batches in two bounded lanes; exports retain one batch."""
+
+    from cdmw.core.texture_native import encode_dds_batch_with_directxtex
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+    # Reserve decoded/converted source pixels plus resize, mip and compression
+    # scratch space. Oversized sources keep the existing serial path.
+    estimates = [
+        12 * pixels + 16 * request.width * request.height
+        for request, pixels in zip(requests, source_pixels)
+    ]
+    parallel = (
+        enable_parallel and len(requests) >= 4 and (os.cpu_count() or 1) >= 2
+        and sum(source_pixels) >= 8 * 1024 * 1024
+        and sum(sorted(estimates, reverse=True)[:2]) <= 512 * 1024 * 1024
+        and len({os.path.normcase(os.path.abspath(request.output_path)) for request in requests}) == len(requests)
+    )
+    if not parallel:
+        return encode_dds_batch_with_directxtex(requests, timeout_seconds=60.0, stop_event=stop_event)
+
+    groups: list[list[NativeTextureEncodeRequest]] = [[], []]
+    loads = [0, 0]
+    for index in sorted(range(len(requests)), key=lambda index: source_pixels[index], reverse=True):
+        lane = 0 if loads[0] <= loads[1] else 1
+        groups[lane].append(requests[index])
+        loads[lane] += source_pixels[index]
+    local_stop = _PreviewEncodeStop(stop_event)
+    reports: dict[str, dict[str, object]] = {}
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="PreviewTextureEncode") as executor:
+        pending = {}
+        try:
+            for group in groups:
+                future = executor.submit(encode_dds_batch_with_directxtex, group, timeout_seconds=60.0, stop_event=local_stop)
+                pending[future] = group
+            for future in as_completed(pending):
+                result = future.result()
+                raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+                missing = next((request for request in pending[future] if not result.get(str(request.output_path))), None)
+                if missing is not None:
+                    raise RuntimeError(f"Native DirectXTex DDS encode failed for {missing.input_path.name}.")
+                reports.update(result)
+        except BaseException:
+            local_stop.set()
+            for future in pending:
+                future.cancel()
+            raise
+    return reports
+
+
 def _encode_owned_image_dds_batch(
     jobs: Sequence[tuple[Path, Path, str]],
     stop_event: threading.Event,
@@ -231,14 +302,11 @@ def _encode_owned_image_dds_batch(
     preview_uncompressed_max_bytes: int = 0,
     max_dimension: int = 0,
 ) -> tuple[dict[str, object], ...]:
-    """Encode external preview images with one native-helper invocation."""
+    """Encode external preview images with bounded native-helper batches."""
 
     from PIL import Image
 
-    from cdmw.core.texture_native import (
-        NativeTextureEncodeRequest,
-        encode_dds_batch_with_directxtex,
-    )
+    from cdmw.core.texture_native import NativeTextureEncodeRequest
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset
 
@@ -249,6 +317,7 @@ def _encode_owned_image_dds_batch(
         requests: list[NativeTextureEncodeRequest] = []
         plans: list[tuple[Path, str, bool, object, str, int, int]] = []
         image_jobs: list[tuple[Path, Path, str, int, int, bool]] = []
+        source_pixels: list[int] = []
         for raw_source, raw_target, channel in jobs:
             raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
             source = Path(raw_source)
@@ -256,6 +325,7 @@ def _encode_owned_image_dds_batch(
             if source.suffix.lower() == ".dds":
                 raise ValueError("External preview image batch cannot contain DDS input.")
             with Image.open(source) as image:
+                source_pixels.append(image.width * image.height)
                 width, height = _bounded_image_dimensions(
                     image.width,
                     image.height,
@@ -326,10 +396,9 @@ def _encode_owned_image_dds_batch(
                 (target, output_format, output_srgb, preset, str(channel), width, height)
             )
 
-        reports = encode_dds_batch_with_directxtex(
-            requests,
-            timeout_seconds=60.0,
-            stop_event=stop_event,
+        reports = _encode_preview_image_requests(
+            requests, source_pixels, stop_event,
+            enable_parallel=max_dimension > 0 and preview_uncompressed_max_bytes > 0,
         )
         artifacts: list[dict[str, object]] = []
         for target, output_format, output_srgb, preset, channel, width, height in plans:
