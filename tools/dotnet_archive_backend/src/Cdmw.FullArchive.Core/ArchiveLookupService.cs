@@ -12,6 +12,7 @@ public sealed class ArchiveLookupService(
     private const int FileVersion = 2;
     private const int MaximumPreviewCandidates = 4096;
     private const int MaximumPreviewLookupResults = MaximumPreviewCandidates + 1;
+    private const int MaximumPreviewReferenceScans = 512;
     private static readonly byte[] Magic = "CDMWLKP2"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveLookupIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -229,27 +230,28 @@ public sealed class ArchiveLookupService(
         incomplete |= AddPreviewCompanionPaths(selected, session.Index, ids, cancellationToken);
         incomplete |= AddPreviewPabCandidates(selected, dependencyIndex, session.Index, ids, cancellationToken);
 
-        var allScanIds = ids
-            .Append(selected.EntryId)
-            .Distinct()
-            .Order()
-            .ToArray();
-        incomplete |= allScanIds.Length > 512;
-        var scanIds = allScanIds.Take(512).ToArray();
-        for (var scanIndex = 0; scanIndex < scanIds.Length; scanIndex++)
+        var scanIds = new List<long>();
+        var queuedIds = new HashSet<long>();
+        void QueueReferenceScan(long candidateId)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (ids.Count >= MaximumPreviewLookupResults)
+            if (queuedIds.Add(candidateId)
+                && ShouldScanPreviewReferences(session.ReadEntry(candidateId), selected.EntryId))
+            {
+                scanIds.Add(candidateId);
+            }
+        }
+        QueueReferenceScan(selected.EntryId);
+        foreach (var candidateId in ids.Order()) QueueReferenceScan(candidateId);
+        for (var scanIndex = 0; scanIndex < scanIds.Count; scanIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (scanIndex >= MaximumPreviewReferenceScans || ids.Count >= MaximumPreviewLookupResults)
             {
                 incomplete = true;
                 break;
             }
             var entry = session.ReadEntry(scanIds[scanIndex]);
-            var shouldScan = ShouldScanPreviewReferences(entry, selected.EntryId);
-            if (!shouldScan)
-            {
-                continue;
-            }
             var maximumBytes = entry.EntryId == selected.EntryId
                 ? 512L * 1024 * 1024
                 : 64L * 1024 * 1024;
@@ -262,7 +264,7 @@ public sealed class ArchiveLookupService(
             {
                 await progress(new ProgressUpdate(
                     scanIndex,
-                    scanIds.Length,
+                    scanIds.Count,
                     "preview_association_scan",
                     entry.Path)).ConfigureAwait(false);
             }
@@ -283,6 +285,9 @@ public sealed class ArchiveLookupService(
                 }
                 incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
             }
+            // Material documents can name other material documents. Follow those
+            // references once, within the same limits, before calling the set complete.
+            foreach (var candidateId in ids.Order()) QueueReferenceScan(candidateId);
         }
         ids.Remove(selected.EntryId);
         cancellationToken.ThrowIfCancellationRequested();
@@ -582,7 +587,7 @@ public sealed class ArchiveLookupService(
             return true;
         }
         return entry.Extension is
-            ".xml" or ".pac_xml" or ".pam_xml" or ".pamlod_xml" or
+            ".xml" or ".pami" or ".pac_xml" or ".pam_xml" or ".pamlod_xml" or ".app_xml" or
             ".material" or ".meshinfo" or ".prefab" or ".prefabdata_xml" or
             ".pappt" or ".pamhc" or ".seqmt";
     }

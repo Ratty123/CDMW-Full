@@ -137,6 +137,51 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateMaterialDependenciesAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-materials-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        await BuildPackageAsync(root, "0009",
+        [
+            ("object/model/fence.pam", "PAR synthetic geometry"u8.ToArray()),
+            ("object/model/fence.pami", Encoding.UTF8.GetBytes(
+                "<StaticMeshInstance><StaticMesh Path=\"object/model/fence.pam\"/>"
+                + "<MaterialParameterTexture Value=\"object/texture/stone_colour.dds\"/>"
+                + "<Material Path=\"materials/shared.material\"/></StaticMeshInstance>")),
+            ("materials/shared.material", Encoding.UTF8.GetBytes(
+                "<Material><Texture Path=\"object/texture/stone_normal.dds\"/>"
+                + "<Include Path=\"materials/detail.app_xml\"/></Material>")),
+            ("materials/detail.app_xml", Encoding.Unicode.GetBytes(
+                "<Material><Texture Path=\"object/texture/stone_detail.dds\"/>"
+                + "<Include Path=\"materials/shared.material\"/></Material>")),
+            ("unrelated/hidden.dds", "DDS unreferenced"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        await BuildPackageAsync(root, "0010",
+        [
+            ("object/texture/stone_colour.dds", "DDS unrelated/hidden.dds"u8.ToArray()),
+            ("object/texture/stone_normal.dds", "DDS normal"u8.ToArray()),
+            ("object/texture/stone_detail.dds", "DDS detail"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        return fixture;
+    }
+
+    public static async Task<SyntheticArchiveFixture> CreateMaterialChainAsync(int length)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-material-chain-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        var payloads = new List<(string Path, byte[] Bytes)>();
+        for (var index = 0; index < length; index++)
+        {
+            var target = index + 1 < length ? $"materials/link{index + 1:D4}.material" : "texture/final.dds";
+            payloads.Add(($"materials/link{index:D4}.material", Encoding.UTF8.GetBytes($"<Include Path=\"{target}\"/>")));
+        }
+        payloads.Add(("texture/final.dds", "DDS final"u8.ToArray()));
+        await BuildPackageAsync(root, "0009", payloads).ConfigureAwait(false);
+        return fixture;
+    }
+
     public static async Task<SyntheticArchiveFixture> CreateNameIndexAsync()
     {
         const uint exactModelHash = 0x1D586E71;

@@ -93,6 +93,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- **Archive PAM previews resolve textures declared by PAMI companions.** Dependency discovery follows linked material documents across archive packages, so existing DDS files are no longer reported missing because a material companion was skipped. Traversal remains bounded and cancellable and handles reference cycles.
 - **Archive PAM previews decompress the static mesh's geometry block before parsing it.** This fixes valid partially compressed PAMs being rejected or showing scrambled triangles. Prepared dependencies retain original archive metadata and validate their actual worker output size and checksum. Recovered relationships stay available across file types and preview failures, and a texture lookup with no usable sources reports **Textures unavailable** without retrying automatically.
 - **New Item imports keep emissive texture masks and avoid the many-texture compression slowdown.** Imported glow maps now reach the final preview package alongside their colour and strength, fixing solid-white blades such as Frostmourne. External previews allocate their existing memory budget across all maps before encoding, preserving aspect ratio and full mip chains without modifying source images or export resolution; previously cached previews rebuild with the corrected materials.
 - **Model Library thread startup no longer exposes partially constructed objects to runtime localization.** New child objects are localized after construction, preventing unsafe PySide metadata access while starting a local scan.

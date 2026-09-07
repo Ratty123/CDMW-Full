@@ -153,8 +153,18 @@ class ArchivePreviewDependencyOptimizationTests(unittest.TestCase):
                 (),
                 dependency_entries=(selected, physical, logical),
             )
+            resolved_texture_key = harness._archive_native_preview_package_cache_key(
+                selected,
+                None,
+                (),
+                dependency_entries=(
+                    selected, logical, physical,
+                    _entry("object/texture/stone_colour.dds", prepared_sha256="4" * 64),
+                ),
+            )
 
         self.assertNotEqual(logical_key, physical_key)
+        self.assertNotEqual(logical_key, resolved_texture_key)
 
     def test_incomplete_dependency_hash_disables_snapshot_cache_identity(self) -> None:
         entry = _entry("a/model.pac", prepared_sha256="")

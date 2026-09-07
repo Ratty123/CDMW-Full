@@ -63,6 +63,11 @@ request. Invalid material ownership and lost parameters still fail validation.
 The same warning covers a completed texture lookup with no usable texture sources;
 geometry-only mode and authored colour-only materials do not report missing textures.
 
+The standalone archive worker discovers PAMI and supported XML/material reference
+chains before preparing the preview's bounded dependency snapshot. Textures named
+only by a material companion are resolved across archive packages; linked material
+documents are followed once, with cycles, cancellation, and scan limits enforced.
+
 Prepared preview dependencies retain the worker's actual payload size separately
 from the original PAMT size. Static PAM's single compressed geometry block is decoded
 before mesh parsing, including older prepared sources that still contain that block.

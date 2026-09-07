@@ -19,6 +19,8 @@ internal static class FullArchiveTestRunner
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
+            ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
+            ("preview_material_dependency_bounds", PreviewMaterialDependencyBoundsAsync),
             ("query_sort_parity", QuerySortParityAsync),
             ("folder_children_prefix_walk", FolderChildrenPrefixWalkAsync),
             ("exact_path_lookup_follows_index_order", ExactPathLookupFollowsIndexOrderAsync),
@@ -958,6 +960,93 @@ internal static class FullArchiveTestRunner
             Require(
                 prepared.Items.All(static item => File.Exists(item.PreparedPath)),
                 "preview dependency preparation did not publish every bounded source");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task PreviewMaterialDependencyClosureAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateMaterialDependenciesAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("material-dependency-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var session = sessions.GetRequired(handle.SessionId);
+            var selected = Enumerable.Range(0, checked((int)handle.EntryCount))
+                .Select(index => session.ReadEntry(index))
+                .Single(static entry => entry.Path == "object/model/fence.pam");
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            var request = new ArchiveAssociationRequest(handle.SessionId, selected.EntryId, 128, ArchiveAssociationPurpose.Preview);
+            var scannedPaths = new List<string>();
+            var association = await lookup.FindAssociationCandidatesAsync(request, CancellationToken.None, update =>
+            {
+                if (update.Phase == "preview_association_scan" && update.CurrentItem is { } path) scannedPaths.Add(path);
+                return Task.CompletedTask;
+            }).ConfigureAwait(false);
+            var paths = association.Candidates.Select(static entry => entry.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Require(paths.Contains("object/texture/stone_colour.dds"), "PAM preview skipped its PAMI texture declarations");
+            Require(paths.SetEquals([
+                "object/model/fence.pami", "materials/shared.material", "materials/detail.app_xml",
+                "object/texture/stone_colour.dds", "object/texture/stone_normal.dds", "object/texture/stone_detail.dds",
+            ]) && !association.Truncated, "preview did not resolve the material dependency chain across packages");
+            Require(scannedPaths.Count == 4 && scannedPaths.Distinct().Count() == 4,
+                "material cycles were rescanned or DDS payloads were treated as dependency documents");
+            Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")),
+                "material closure rebuilt the eager general lookup maps");
+
+            using var cancellation = new CancellationTokenSource();
+            var cancelled = false;
+            try
+            {
+                await lookup.FindAssociationCandidatesAsync(request, cancellation.Token, update =>
+                {
+                    if (update.Phase == "preview_association_scan" && update.CurrentItem == "materials/shared.material")
+                        cancellation.Cancel();
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+            }
+            Require(cancelled, "newly discovered material scans ignored cancellation");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task PreviewMaterialDependencyBoundsAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateMaterialChainAsync(514).ConfigureAwait(false);
+        var cacheRoot = TempDirectory("material-dependency-bounds");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var selected = sessions.GetRequired(handle.SessionId).Index.FindEntriesByPath("materials/link0000.material", 1).Single();
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            var scans = 0;
+            var association = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(handle.SessionId, selected.EntryId, 4096, ArchiveAssociationPurpose.Preview),
+                CancellationToken.None,
+                update =>
+                {
+                    if (update.Phase == "preview_association_scan") scans++;
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            Require(scans == 512 && association.Truncated, "material reference closure exceeded its scan bound or claimed completeness");
+            Require(!association.Candidates.Any(static entry => entry.Path == "texture/final.dds"),
+                "material dependency traversal crossed its reported scan bound");
         }
         finally
         {

@@ -34,9 +34,13 @@ family is capped at five GiB without pruning current or active generations.
 `archive.adi` is the session-owned compact dependency index: two sorted
 16-byte hash/entry-id arrays provide basename and same-stem lookup, while a
 small persisted facet table serves initial Archive Browser filters. It is
-memory-mapped and collision-checked against `archive.ali`; PAC preview
-association therefore resolves only requested names without reconstructing the
-general `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
+memory-mapped and collision-checked against `archive.ali`. Preview association
+scans PAMI and supported XML/material companions, following newly resolved
+material documents once so cross-package DDS references reach the prepared
+snapshot. Cycles are deduplicated, texture payloads remain leaves, and the
+existing candidate, scan-count, byte, and cancellation bounds remain enforced.
+It resolves only requested names without reconstructing the general
+`lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.
 
 An unfiltered, unsorted query pages `archive.ali` in native entry order without
