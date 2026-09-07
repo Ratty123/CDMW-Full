@@ -426,6 +426,7 @@ class ArchiveEntry:
     content_analysis_json_path: Optional[Path] = None
     content_analysis_text_path: Optional[Path] = None
     content_analysis_version: str = ""
+    prepared_size: Optional[int] = None
 
     @property
     def identity(self) -> ArchiveEntryIdentity:

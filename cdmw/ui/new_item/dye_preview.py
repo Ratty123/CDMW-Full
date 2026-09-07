@@ -82,7 +82,7 @@ def variant_dye_preview_source(controller):
                 local = Path(directory)/f"{ordinal}{Path(path).suffix}"
                 local.write_bytes(data)
                 entry = snapshot.entry(path) if snapshot.has_entry(path) else target
-                prepared.append(replace(entry,path=path,orig_size=len(data),prepared_path=local,
+                prepared.append(replace(entry,path=path,orig_size=len(data),prepared_path=local,prepared_size=len(data),
                                         prepared_sha256=hashlib.sha256(data).hexdigest(),prepared_note="New Item dye preview"))
             primary = next(value for value in prepared if value.path==choice.model_path)
             prefab = snapshot.entry(choice.prefab_path)

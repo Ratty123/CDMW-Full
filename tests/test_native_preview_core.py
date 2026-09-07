@@ -102,6 +102,15 @@ class _FakeServiceProcess:
 
 
 class NativePreviewCoreTests(unittest.TestCase):
+    def test_prepared_payload_size_is_transported_without_replacing_archive_metadata(self) -> None:
+        entry = _entry()
+        entry.prepared_path = Path("C:/cache/partial.pam")
+        entry.prepared_size = 23
+        serialized = native_preview_core.archive_entry_to_native_preview_core_dict(entry)
+        self.assertEqual(23, serialized["prepared_size"])
+        self.assertEqual(64, serialized["orig_size"])
+        self.assertEqual(-1, native_preview_core.archive_entry_to_native_preview_core_dict(_entry())["prepared_size"])
+
     def test_build_job_carries_archive_entry_and_schema_v8(self) -> None:
         job = build_native_preview_core_job(
             _entry(),

@@ -430,6 +430,7 @@ class ResearchArchiveCatalogueMixin:
             entry = service.compatibility_entry(dto)
             if prepared is not None:
                 entry.prepared_path = Path(prepared.prepared_path)
+                entry.prepared_size = prepared.size
                 entry.prepared_sha256 = prepared.sha256
             entries_by_id[dto.entry_id] = entry
             return entry
@@ -534,6 +535,7 @@ class ResearchArchiveCatalogueMixin:
             self._report_research_preview_error(channel, request_id, "The archive worker prepared a different Research entry.")
             return
         entry.prepared_path = Path(result.prepared_path)
+        entry.prepared_size = result.size
         entry.prepared_sha256 = result.sha256
         entry.content_analysis_json_path = (
             Path(result.content_analysis_json_path) if result.content_analysis_json_path else None

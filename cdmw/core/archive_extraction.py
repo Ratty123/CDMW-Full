@@ -346,6 +346,31 @@ def _maybe_decompress_partial_par_container(
     if entry.compression_type != 1 or len(data) < 0x50 or not data.startswith(b"PAR "):
         return None
 
+    # Static PAM v0x1802 keeps its metadata/index prefix and trailer plain,
+    # with a single LZ4 geometry block described at 0x3c (not PAC's slot table).
+    if entry.extension == ".pam" and struct.unpack_from("<I", data, 4)[0] == 0x1802:
+        geometry_offset, decoded_size, compressed_size = struct.unpack_from("<III", data, 0x3C)
+        if compressed_size == 0:
+            return None
+        if (
+            geometry_offset < 0x50 or decoded_size <= 0
+            or geometry_offset + compressed_size > len(data)
+            or len(data) - compressed_size + decoded_size != entry.orig_size
+        ):
+            raise ValueError("Partial PAM geometry block has inconsistent sizes.")
+        raise_if_cancelled(stop_event)
+        geometry = lz4_block.decompress(
+            data[geometry_offset : geometry_offset + compressed_size],
+            uncompressed_size=decoded_size,
+        )
+        if len(geometry) != decoded_size:
+            raise ValueError("Partial PAM geometry block decompressed to an unexpected size.")
+        rebuilt = bytearray(data[:geometry_offset])
+        struct.pack_into("<I", rebuilt, 0x44, 0)
+        rebuilt.extend(geometry)
+        rebuilt.extend(data[geometry_offset + compressed_size :])
+        return bytes(rebuilt), "PartialPAM"
+
     slots: List[Tuple[int, int, int]] = []
     file_offset = 0x50
     rebuilt_size = 0x50
@@ -479,8 +504,9 @@ def read_archive_entry_data(
             raise ValueError(
                 f"Prepared archive source is unavailable for {entry.path}: {path}"
             ) from exc
-        expected_size = max(0, int(entry.orig_size or 0))
-        if expected_size and size != expected_size:
+        prepared_size = getattr(entry, "prepared_size", None)
+        expected_size = int(prepared_size) if prepared_size is not None else max(0, int(entry.orig_size or 0))
+        if (prepared_size is not None or expected_size > 0) and size != expected_size:
             raise ValueError(
                 f"Prepared archive source size changed for {entry.path}: "
                 f"expected {expected_size:,} bytes, found {size:,}."
@@ -495,10 +521,18 @@ def read_archive_entry_data(
         )
         if expected_sha256 and hashlib.sha256(data).hexdigest() != expected_sha256:
             raise ValueError(f"Prepared archive source checksum changed for {entry.path}.")
+        prepared_note = str(getattr(entry, "prepared_note", "") or "").strip()
+        partial = _maybe_decompress_partial_par_container(entry, data, stop_event=stop_event)
+        if partial is not None:
+            data, partial_note = partial
+            prepared_note = ",".join(
+                part for part in prepared_note.split(",") if part and part != "PartialRaw"
+            )
+            prepared_note = ",".join(part for part in (prepared_note, partial_note) if part)
         note = ",".join(
             part
             for part in (
-                str(getattr(entry, "prepared_note", "") or "").strip(),
+                prepared_note,
                 "standalone archive worker prepared source",
             )
             if part

@@ -92,6 +92,8 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+
+- **Archive PAM previews decompress the static mesh's geometry block before parsing it.** This fixes valid partially compressed PAMs being rejected or showing scrambled triangles. Prepared dependencies retain original archive metadata and validate their actual worker output size and checksum. Recovered relationships stay available across file types and preview failures, and a texture lookup with no usable sources reports **Textures unavailable** without retrying automatically.
 - **New Item imports keep emissive texture masks and avoid the many-texture compression slowdown.** Imported glow maps now reach the final preview package alongside their colour and strength, fixing solid-white blades such as Frostmourne. External previews allocate their existing memory budget across all maps before encoding, preserving aspect ratio and full mip chains without modifying source images or export resolution; previously cached previews rebuild with the corrected materials.
 - **Model Library thread startup no longer exposes partially constructed objects to runtime localization.** New child objects are localized after construction, preventing unsafe PySide metadata access while starting a local scan.
 - **Placement & Animations finds the configured game archives on a fresh portable workspace.** Startup and retry read the current Archive Locations path and its saved setting; window classes load on the GUI thread while baseline preparation stays in the background.

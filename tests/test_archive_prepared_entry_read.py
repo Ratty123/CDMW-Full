@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import struct
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -68,6 +70,87 @@ def test_changed_prepared_archive_entry_checksum_is_rejected(tmp_path: Path) -> 
     prepared.write_bytes(b"other")
 
     with pytest.raises(ValueError, match="Prepared archive source checksum changed"):
+        read_archive_entry_data(entry)
+
+
+@pytest.mark.parametrize("extension", [".pam", ".pami", ".dds"])
+def test_prepared_size_preserves_archive_provenance_and_integrity(tmp_path: Path, extension: str) -> None:
+    prepared = tmp_path / f"prepared{extension}"
+    payload = b"partial PAR payload"
+    prepared.write_bytes(payload)
+    entry = replace(
+        _prepared_entry(prepared, expected_size=99),
+        path=f"effect/mesh/leaf{extension}", flags=1, prepared_size=len(payload),
+    )
+
+    assert read_archive_entry_data(entry)[0] == payload
+    assert entry.orig_size == 99
+    prepared.write_bytes(b"X" * len(payload))
+    with pytest.raises(ValueError, match="checksum changed"):
+        read_archive_entry_data(entry)
+    prepared.write_bytes(payload[:-1])
+    with pytest.raises(ValueError, match="size changed"):
+        read_archive_entry_data(entry)
+
+
+def _partial_pam_payload() -> tuple[bytes, bytes]:
+    import lz4.block
+
+    geometry = b"ABCD" * 64
+    packed = lz4.block.compress(geometry, store_size=False)
+    prefix = bytearray(0x50)
+    prefix[:4] = b"PAR "
+    struct.pack_into("<I", prefix, 4, 0x1802)
+    struct.pack_into("<III", prefix, 0x3C, len(prefix), len(geometry), len(packed))
+    raw = bytes(prefix) + packed + b"PAM trailer!"
+    struct.pack_into("<I", prefix, 0x44, 0)
+    return raw, bytes(prefix) + geometry + b"PAM trailer!"
+
+
+@pytest.mark.parametrize("prepared_source", [False, True])
+def test_partial_pam_decompresses_geometry_and_preserves_prefix_and_trailer(tmp_path: Path, prepared_source: bool) -> None:
+    raw, expected = _partial_pam_payload()
+    path = tmp_path / "source.pam"
+    path.write_bytes(raw)
+    entry = replace(_raw_entry(path, raw, flags=1, orig_size=len(expected)), path="effect/leaf.pam")
+    if prepared_source:
+        entry = replace(
+            entry, prepared_path=path, prepared_size=len(raw), flags=0x31,
+            prepared_sha256=hashlib.sha256(raw).hexdigest(), prepared_note="ChaCha20,PartialRaw",
+        )
+    data, decompressed, note = read_archive_entry_data(entry)
+    assert data == expected
+    assert decompressed
+    assert "PartialPAM" in note and "PartialRaw" not in note
+    assert path.read_bytes() == raw
+    assert entry.orig_size == len(expected)
+
+
+@pytest.mark.parametrize("damage", ["truncated", "wrong_size"])
+def test_prepared_partial_pam_rejects_invalid_geometry(tmp_path: Path, damage: str) -> None:
+    raw, expected = _partial_pam_payload()
+    raw = bytearray(raw)
+    if damage == "truncated":
+        raw = raw[:0x51]
+    else:
+        struct.pack_into("<I", raw, 0x40, 999)
+    path = tmp_path / "source.pam"
+    path.write_bytes(raw)
+    entry = replace(
+        _prepared_entry(path, expected_size=len(expected)), path="effect/leaf.pam", flags=1,
+        prepared_size=len(raw),
+    )
+    with pytest.raises(ValueError, match="Partial PAM geometry block has inconsistent sizes"):
+        read_archive_entry_data(entry)
+
+
+def test_explicit_empty_prepared_source_rejects_added_bytes(tmp_path: Path) -> None:
+    prepared = tmp_path / "empty.pam"
+    prepared.write_bytes(b"")
+    entry = replace(_prepared_entry(prepared, expected_size=99), prepared_size=0)
+    assert read_archive_entry_data(entry)[0] == b""
+    prepared.write_bytes(b"X")
+    with pytest.raises(ValueError, match="size changed"):
         read_archive_entry_data(entry)
 
 

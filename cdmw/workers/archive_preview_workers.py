@@ -20,6 +20,7 @@ from cdmw.core.archive import (
     build_archive_preview_result,
 )
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
+from cdmw.core.archive_references import build_archive_relationship_references
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import (
@@ -271,7 +272,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
     def _emit_preview_payload(self, payload: _ArchivePreviewWorkerPayload) -> None:
         if self.stop_event.is_set():
             return
-        result = self._with_static_thumbnail(payload.result)
+        result = self._with_static_thumbnail(self._with_archive_relationships(payload.result))
+        if self.stop_event.is_set():
+            return
         if self.emit_private_payloads:
             self.completed.emit(self.request_id, dataclasses.replace(payload, result=result))
         else:
@@ -279,7 +282,31 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
 
     def _emit_archive_preview_result(self, result: ArchivePreviewResult) -> None:
         if not self.stop_event.is_set():
-            self.completed.emit(self.request_id, self._with_static_thumbnail(result))
+            result = self._with_static_thumbnail(self._with_archive_relationships(result))
+            if not self.stop_event.is_set():
+                self.completed.emit(self.request_id, result)
+
+    def _with_archive_relationships(self, result: ArchivePreviewResult) -> ArchivePreviewResult:
+        # Relationship visibility does not depend on the renderer or file type.
+        # Preserve canonical material evidence when the preview already has it.
+        if self.entry is None or result.model_texture_references or (
+            result.asset_family_graph is not None and result.asset_family_graph.relations
+        ):
+            return result
+        raise_if_cancelled(self.stop_event)
+        references = build_archive_relationship_references(
+            self.entry,
+            archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
+            archive_entries_by_basename=self.texture_entries_by_basename,
+        )
+        raise_if_cancelled(self.stop_event)
+        if not references:
+            return result
+        return dataclasses.replace(
+            result,
+            model_texture_references=references,
+            asset_family_graph=build_archive_asset_family_graph(self.entry, references),
+        )
 
     def _with_static_thumbnail(self, result: ArchivePreviewResult) -> ArchivePreviewResult:
         size = self.static_thumbnail_size

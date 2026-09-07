@@ -207,13 +207,13 @@ class ArchivePreviewNativeMixin:
             timings["progressive_full_s"] = timings["native_preview_core_s"]
             payload = self._native_preview_core_result(native_attempt, timings)
             if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, payload)
+                self._emit_archive_preview_result(payload)
             return True
         if self.native_preview_core_enabled:
             timings["progressive_full_s"] = timings["native_preview_core_s"]
             payload = self._native_preview_core_failure_result(native_attempt, timings)
             if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, payload)
+                self._emit_archive_preview_result(payload)
             return True
         return False
 
@@ -760,7 +760,7 @@ class ArchivePreviewNativeMixin:
                 material_quality="direct",
             )
             if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, payload)
+                self._emit_archive_preview_result(payload)
 
         progressive_callback = (
             fast_package_ready

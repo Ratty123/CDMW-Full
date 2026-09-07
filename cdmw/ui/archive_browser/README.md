@@ -60,6 +60,16 @@ If source-declared textures cannot be resolved, the worker prepares a separate
 geometry-only native contract and displays **Textures unavailable**. It preserves
 the saved texture choice and does not automatically retry the failed texture
 request. Invalid material ownership and lost parameters still fail validation.
+The same warning covers a completed texture lookup with no usable texture sources;
+geometry-only mode and authored colour-only materials do not report missing textures.
+
+Prepared preview dependencies retain the worker's actual payload size separately
+from the original PAMT size. Static PAM's single compressed geometry block is decoded
+before mesh parsing, including older prepared sources that still contain that block.
+Prepared-file size and checksum checks run before decoding and reject changed data.
+Recovered relationships remain available for any selected extension and survive
+preview failure or cache reuse. An exact metadata companion can expose Asset Family
+for non-model files without adding unrelated model-family guesses.
 
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and

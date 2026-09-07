@@ -790,6 +790,7 @@ def archive_entry_to_native_preview_core_dict(entry: Optional[ArchiveEntry]) -> 
         "compression_type": int(entry.compression_type),
         "prepared_path": str(entry.prepared_path or ""),
         "prepared_sha256": str(entry.prepared_sha256 or "").strip().lower(),
+        "prepared_size": int(entry.prepared_size) if entry.prepared_size is not None else -1,
     }
 
 

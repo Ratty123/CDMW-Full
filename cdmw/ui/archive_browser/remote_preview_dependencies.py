@@ -78,6 +78,7 @@ class ArchivePreviewDependencySet:
             if prepared_item is None:
                 raise ValueError(f"Prepared preview source is missing for entry id {dto.entry_id}.")
             entry.prepared_path = Path(prepared_item.prepared_path)
+            entry.prepared_size = prepared_item.size
             entry.prepared_sha256 = prepared_item.sha256
             entry.prepared_note = str(prepared_item.note or "")
             entry.content_analysis_json_path = (

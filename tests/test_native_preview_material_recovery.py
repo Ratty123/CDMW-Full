@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewRenderSettings, RunCancelled
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.services.mesh_rust_preview_package import validate_rust_preview_package
+from cdmw.services.preview_material_status import with_preview_material_warning
 from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 from tests.test_rust_preview_production_cutover import _write_schema8_preview_core_fixture
@@ -35,6 +36,23 @@ def _worker(root: Path, source_format: str = "pam") -> ArchivePreviewWorker:
         native_preview_package_cache_target_bytes=8 * 1024 * 1024,
         progressive_material_preview=True,
     )
+
+
+@pytest.mark.parametrize(
+    ("resolution", "dds_count", "base_missing", "warn"),
+    [("none", 0, 1, True), ("disabled", 0, 1, False), ("none", 0, 0, False), ("resolved", 1, 0, False)],
+)
+def test_unresolved_standalone_texture_status_preserves_disabled_and_authored_color_modes(
+    resolution: str, dds_count: int, base_missing: int, warn: bool,
+) -> None:
+    original = ArchivePreviewResult(status="ok", title="leaf.pam", native_preview_diagnostics={
+        "native_texture_resolution": resolution, "dds_extracted": dds_count,
+        "batch_count": 1, "base_missing_count": base_missing,
+    })
+    result = with_preview_material_warning(original)
+    assert bool(result.warning_badge) is warn
+    assert bool(result.native_preview_diagnostics.get("texture_preparation_error")) is warn
+    assert "texture_preparation_error" not in original.native_preview_diagnostics
 
 
 def _install_native_job(monkeypatch, root: Path, worker: ArchivePreviewWorker, damage: str = "") -> list[bool]:
@@ -125,8 +143,8 @@ def test_geometry_recovery_preserves_validation_failures_and_cancellation(
     assert not tuple((tmp_path / "model-cache" / "packages").glob("_staging_*"))
 
 
-@pytest.mark.parametrize("source_failure", (False, True))
-def test_geometry_recovery_does_not_automatically_retry_unavailable_textures(source_failure: bool) -> None:
+@pytest.mark.parametrize("source_failure", (False, True, "unresolved"))
+def test_geometry_recovery_does_not_automatically_retry_unavailable_textures(source_failure: bool | str) -> None:
     app = QApplication.instance() or QApplication([])
     requested = []
     applied = []
@@ -144,6 +162,12 @@ def test_geometry_recovery_does_not_automatically_retry_unavailable_textures(sou
         status="ok", title="fixture", preferred_view="model", dotnet_preview_package_path="fixture-package",
         native_preview_diagnostics={"texture_preparation_error": "missing.dds"} if source_failure else {},
     )
+    if source_failure == "unresolved":
+        result.native_preview_diagnostics = {
+            "native_texture_resolution": "none", "dds_extracted": 0,
+            "batch_count": 1, "base_missing_count": 1,
+        }
+        result = with_preview_material_warning(result)
 
     ArchivePreviewResultMixin._apply_archive_preview_result(host, result, request_id=7)
     app.processEvents()

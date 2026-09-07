@@ -370,6 +370,7 @@ struct ArchiveEntryRef {
     std::uint32_t paz_index = 0;
     fs::path prepared_path;
     std::string prepared_sha256;
+    std::int64_t prepared_size = -1;
 
     int compression_type() const {
         return static_cast<int>(flags & 0x0F);
@@ -501,6 +502,7 @@ ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
     entry.paz_index = static_cast<std::uint32_t>(std::max<long long>(0, find_int_value(object, "paz_index")));
     entry.prepared_path = fs::path(find_string_value(object, "prepared_path"));
     entry.prepared_sha256 = lower_copy(find_string_value(object, "prepared_sha256"));
+    entry.prepared_size = find_int_value(object, "prepared_size", -1);
     return entry;
 }
 

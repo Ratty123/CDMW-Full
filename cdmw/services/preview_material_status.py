@@ -36,7 +36,16 @@ def native_preview_missing_texture_reason(package_path: str | Path) -> str:
 
 
 def with_preview_material_warning(result: ArchivePreviewResult) -> ArchivePreviewResult:
-    reason = str(result.native_preview_diagnostics.get("texture_preparation_error", "") or "")
+    diagnostics = dict(result.native_preview_diagnostics)
+    reason = str(diagnostics.get("texture_preparation_error", "") or "")
+    if not reason and (
+        diagnostics.get("native_texture_resolution") == "none"
+        and diagnostics.get("dds_extracted") == 0
+        and int(diagnostics.get("batch_count") or 0) > 0
+        and int(diagnostics.get("base_missing_count") or 0) >= int(diagnostics["batch_count"])
+    ):
+        reason = "No texture sources could be resolved for this model."
+        diagnostics["texture_preparation_error"] = reason
     if not reason:
         return result
     warning = "Showing geometry only. " + reason
@@ -45,4 +54,5 @@ def with_preview_material_warning(result: ArchivePreviewResult) -> ArchivePrevie
         warning_badge="Textures unavailable",
         warning_text=warning,
         detail_text=result.detail_text.rstrip() + "\n\n" + warning,
+        native_preview_diagnostics=diagnostics,
     )

@@ -508,6 +508,27 @@ static std::vector<char> maybe_decompress_partial_par(const ArchiveEntryRef& ent
     if (entry.compression_type() != 1 || data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") {
         return {};
     }
+    if (entry.extension == ".pam" && read_u32(data, 4) == 0x1802) {
+        const size_t geometry_offset = read_u32(data, 0x3c);
+        const size_t decoded_size = read_u32(data, 0x40);
+        const size_t compressed_size = read_u32(data, 0x44);
+        if (compressed_size == 0) return {};
+        if (geometry_offset < 0x50 || decoded_size == 0 || geometry_offset + compressed_size > data.size()
+            || data.size() - compressed_size + decoded_size != entry.orig_size) {
+            throw std::runtime_error("Partial PAM geometry block has inconsistent sizes");
+        }
+        const auto block_start = data.begin() + static_cast<std::ptrdiff_t>(geometry_offset);
+        const auto block_end = block_start + static_cast<std::ptrdiff_t>(compressed_size);
+        const std::vector<char> geometry = lz4_decompress_block(std::vector<char>(block_start, block_end), decoded_size);
+        if (geometry.size() != decoded_size) {
+            throw std::runtime_error("Partial PAM geometry block decompressed to an unexpected size");
+        }
+        std::vector<char> rebuilt(data.begin(), block_start);
+        std::fill(rebuilt.begin() + 0x44, rebuilt.begin() + 0x48, 0);
+        rebuilt.insert(rebuilt.end(), geometry.begin(), geometry.end());
+        rebuilt.insert(rebuilt.end(), block_end, data.end());
+        return rebuilt;
+    }
     struct Slot {
         std::uint32_t comp_size = 0;
         std::uint32_t decomp_size = 0;
@@ -586,7 +607,8 @@ static std::string archive_ref_identity(const ArchiveEntryRef& entry) {
     return entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
         std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
         std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
-        std::to_string(entry.paz_index) + "|prepared:" + entry.prepared_sha256;
+        std::to_string(entry.paz_index) + "|prepared:" + entry.prepared_sha256 + "|" +
+        std::to_string(entry.prepared_size);
 }
 
 struct DecodedEntryCacheValue {
@@ -661,6 +683,85 @@ static void prune_decoded_entry_cache() {
     }
 }
 
+static void validate_archive_ref_decoded_size(const ArchiveEntryRef& entry, size_t decoded_size) {
+    if (!entry.prepared_path.empty()) {
+        // The worker reports the actual decoded length separately from PAMT
+        // provenance. Type-1 PAR payloads can remain smaller than orig_size.
+        const auto expected_size = entry.prepared_size >= 0
+            ? static_cast<std::uint64_t>(entry.prepared_size) : entry.orig_size;
+        if ((entry.prepared_size >= 0 || expected_size > 0) && decoded_size != expected_size) {
+            throw std::runtime_error("prepared archive dependency size does not match its entry metadata");
+        }
+    } else if (entry.orig_size > 0 && decoded_size != entry.orig_size) {
+        throw std::runtime_error("decoded archive dependency size does not match its entry metadata");
+    }
+}
+
+static void run_archive_decode_size_self_test() {
+    auto entry = parse_archive_entry_ref(
+        R"({"path":"effect/leaf.pam","comp_size":23,"orig_size":40,"flags":1})");
+    const auto rejects_size = [](const ArchiveEntryRef& ref, size_t size) {
+        try { validate_archive_ref_decoded_size(ref, size); }
+        catch (const std::runtime_error&) { return true; }
+        return false;
+    };
+    if (!rejects_size(entry, 23)) throw std::runtime_error("compressed geometry accepted as decoded payload");
+    validate_archive_ref_decoded_size(entry, 40);
+    if (!rejects_size(entry, 22)) throw std::runtime_error("truncated partial raw payload accepted");
+    entry.extension = ".dds";
+    if (!rejects_size(entry, 23)) throw std::runtime_error("incomplete DDS payload accepted");
+    entry.extension = ".pam";
+    entry.flags = 2;
+    if (!rejects_size(entry, 23)) throw std::runtime_error("incomplete LZ4 payload accepted");
+    entry = parse_archive_entry_ref(
+        R"({"path":"effect/leaf.pam","comp_size":23,"orig_size":40,"flags":1,"prepared_path":"leaf.pam","prepared_size":23})");
+    validate_archive_ref_decoded_size(entry, 23);
+    if (!rejects_size(entry, 22)) throw std::runtime_error("changed prepared payload size accepted");
+    const auto prepared_key = archive_ref_identity(entry);
+    entry.prepared_size = 24;
+    if (prepared_key == archive_ref_identity(entry)) throw std::runtime_error("prepared size absent from cache identity");
+    entry.prepared_size = 0;
+    validate_archive_ref_decoded_size(entry, 0);
+    if (!rejects_size(entry, 1)) throw std::runtime_error("nonempty prepared payload accepted as empty");
+    entry.prepared_size = -1;
+    validate_archive_ref_decoded_size(entry, 40);
+    if (!rejects_size(entry, 23)) throw std::runtime_error("legacy prepared size check was bypassed");
+
+    const unsigned char packed[] = {0x4f, 'A', 'B', 'C', 'D', 4, 0, 0xe4, 0x50, 'D', 'A', 'B', 'C', 'D'};
+    std::vector<char> data(0x50, 0);
+    std::copy_n("PAR ", 4, data.begin());
+    const auto set_u32 = [&data](size_t offset, std::uint32_t value) {
+        for (size_t i = 0; i < 4; ++i) data[offset + i] = static_cast<char>((value >> (8 * i)) & 0xff);
+    };
+    set_u32(4, 0x1802);
+    set_u32(0x3c, 0x50);
+    set_u32(0x40, 256);
+    set_u32(0x44, sizeof(packed));
+    data.insert(data.end(), std::begin(packed), std::end(packed));
+    const std::string trailer = "tail";
+    data.insert(data.end(), trailer.begin(), trailer.end());
+    entry = ArchiveEntryRef{};
+    entry.path = "effect/leaf.pam";
+    entry.extension = ".pam";
+    entry.flags = 1;
+    entry.comp_size = data.size();
+    entry.orig_size = 0x50 + 256 + trailer.size();
+    const auto rebuilt = decode_archive_ref_bytes(entry, data);
+    if (rebuilt.size() != entry.orig_size || read_u32(rebuilt, 0x44) != 0
+        || std::string(rebuilt.end() - 4, rebuilt.end()) != trailer) {
+        throw std::runtime_error("PAM geometry decompression lost its header or trailer");
+    }
+    for (size_t i = 0; i < 256; ++i) {
+        if (rebuilt[0x50 + i] != "ABCD"[i % 4]) throw std::runtime_error("PAM geometry decompression changed vertex bytes");
+    }
+    set_u32(0x40, 257);
+    ++entry.orig_size;
+    bool rejected_bad_geometry_size = false;
+    try { (void)decode_archive_ref_bytes(entry, data); }
+    catch (const std::runtime_error&) { rejected_bad_geometry_size = true; }
+    if (!rejected_bad_geometry_size) throw std::runtime_error("PAM decoder accepted an incorrect geometry size");
+}
+
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
     record_preview_decoded_dependency(entry);
     const std::string key = archive_ref_identity(entry);
@@ -677,8 +778,10 @@ static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& e
     std::vector<char> decoded = entry.prepared_path.empty()
         ? decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry))
         : read_binary_file(entry.prepared_path);
-    if (entry.orig_size > 0 && static_cast<std::uint64_t>(decoded.size()) != entry.orig_size) {
-        throw std::runtime_error("prepared archive dependency size does not match its entry metadata");
+    validate_archive_ref_decoded_size(entry, decoded.size());
+    if (!entry.prepared_path.empty()) {
+        auto partial = maybe_decompress_partial_par(entry, decoded);
+        if (!partial.empty()) decoded = std::move(partial);
     }
     if (cacheable && decoded.size() <= kDecodedEntryCacheMaxSingleBytes) {
         g_decoded_entry_cache_bytes += decoded.size();

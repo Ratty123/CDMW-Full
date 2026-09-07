@@ -63,3 +63,9 @@ surface that result. Full-CDMW archive-v2 callers also send an authoritative,
 bounded `archive_dependency_entries` snapshot. The native core resolves
 cross-PAMT basenames and paths from that snapshot and reads its prepared files;
 legacy callers retain the Archive Lite basename-index and package-scan fallback.
+Prepared entries may carry `prepared_size` (actual worker output bytes), independently
+of the original archive `orig_size`. Omitted or negative values retain the legacy
+original-size check. Static PAM v0x1802 uses a single LZ4 geometry block at the offset
+stored in its header, with an uncompressed prefix and trailer. Both archive reads and
+verified prepared payloads decode that block before mesh parsing; raw decoded-size
+checks still require the original archive length.

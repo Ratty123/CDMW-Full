@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -155,6 +156,17 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     assert provider.snapshot_for_entry(snapshot.selected_entry) is snapshot
     provider.cancel(clear_snapshot=True)
     assert provider.snapshot_for_entry(snapshot.selected_entry) is None
+
+
+def test_dependency_snapshot_carries_actual_prepared_size_separately_from_archive_size() -> None:
+    selected = _dto(7, "effect/mesh/leaf.pam")
+    snapshot = ArchivePreviewDependencySet.from_dtos(
+        selected, (), total_candidates=0, truncated=False,
+        prepared={7: replace(_prepared(selected), size=23)},
+    )
+
+    assert snapshot.selected_entry.prepared_size == 23
+    assert snapshot.selected_entry.orig_size == selected.original_size == 40
 
 
 def test_remote_preview_provider_prioritizes_the_selected_items_logical_prefab() -> None:

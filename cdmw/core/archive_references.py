@@ -296,48 +296,6 @@ def build_archive_relationship_references(
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
 ) -> Tuple[ArchiveModelTextureReference, ...]:
-    extension = str(source_entry.extension or "").strip().lower()
-    basename = PurePosixPath(source_entry.path.replace("\\", "/")).name.lower()
-    if not (
-        extension in ARCHIVE_MODEL_EXTENSIONS
-        or extension in {
-            ".app_xml",
-            ".prefabdata_xml",
-            ".pac_xml",
-            ".pam_xml",
-            ".pamlod_xml",
-            ".pami",
-            ".prefab",
-            ".pappt",
-            ".pamhc",
-            ".hkx",
-            ".hkt",
-            ".meshinfo",
-            ".levelinfo",
-            ".palevel",
-            ".roadsector",
-            ".road",
-            ".nav",
-            ".paa",
-            ".paa_metabin",
-            ".pae",
-            ".paem",
-            ".motionblending",
-            ".paseq",
-            ".paseqc",
-            ".paschedule",
-            ".paschedulepath",
-            ".pastage",
-            ".seqmt",
-            ".pab",
-            ".pabc",
-            ".pabv",
-            ".pabgb",
-            ".pabgh",
-        }
-        or _is_material_sidecar_extension(extension, basename)
-    ):
-        return ()
     if archive_entries_by_normalized_path is None and archive_entries_by_basename is None:
         return ()
 
@@ -397,39 +355,21 @@ def build_archive_relationship_references(
             )
         )
 
-    direct_same_stem_extensions = {
-        ".hkx",
-        ".hkt",
-        ".meshinfo",
-        ".prefab",
-        ".pappt",
-        ".pamhc",
-        ".paa",
-        ".paa_metabin",
-        ".motionblending",
-        ".pae",
-        ".paem",
-        ".paseq",
-        ".paseqc",
-        ".paschedule",
-        ".paschedulepath",
-        ".pastage",
-        ".seqmt",
-        ".pab",
-        ".pabc",
-        ".pabv",
-        ".pabgb",
-        ".pabgh",
-        ".levelinfo",
-        ".palevel",
-        ".roadsector",
-        ".road",
-        ".nav",
+    family_hint_extensions = ARCHIVE_MODEL_EXTENSIONS | {
+        ".hkx", ".hkt", ".meshinfo", ".prefab", ".pappt", ".pamhc",
+        ".paa", ".paa_metabin", ".motionblending", ".pae", ".paem",
+        ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage",
+        ".seqmt", ".pab", ".pabc", ".pabv", ".pabgb", ".pabgh",
+        ".levelinfo", ".palevel", ".roadsector", ".road", ".nav",
     }
-    if archive_entries_by_basename is not None and (
-        extension in ARCHIVE_MODEL_EXTENSIONS or extension in direct_same_stem_extensions
-    ):
+    if archive_entries_by_basename is not None:
         for related_entry in _find_archive_model_related_entries(source_entry, archive_entries_by_basename):
+            # Other formats can have an exact metadata companion without
+            # inheriting broad model-family guesses from unrelated folders.
+            if source_entry.extension not in family_hint_extensions and (
+                related_entry.basename.casefold() != f"{source_entry.basename.casefold()}.xml"
+            ):
+                continue
             relation_kind, relation_group, relation_confidence, relation_reason = _build_archive_relation_metadata(
                 source_entry,
                 reference_name=related_entry.path,
