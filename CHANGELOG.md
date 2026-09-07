@@ -89,6 +89,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- **New Item keeps unrigged imports attached to the selected weapon socket during conversion.** Multi-part models no longer inherit a flexible template accessory's skin weights and then fail Build Plan with a missing-skeleton error. Authored source skin remains subject to the existing rig validation.
 - **Rig & Weights now identifies the loaded mesh and rig and connects bone inspection to the viewport.** Search named bones, see the labelled active bone and its weight colours, frame its location or influence, and explicitly select influenced vertices for editing. The Bones overlay now uses mesh-space bind positions, fixing skeleton lines clustered around the origin.
 - Fixed Create New Item rejecting rigid sword replacements when the selected template includes weighted accessories. Plan validation now preserves the exact prefab/socket attachment, keeps unchanged template bindings, and still validates changed skinned imports against their target rig.
 - Fixed an archive-catalogue startup exception while Create New Item or another tool is open: catalogue status updates now reach the owning shell through the archive workspace.

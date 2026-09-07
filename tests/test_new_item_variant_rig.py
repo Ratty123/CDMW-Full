@@ -1,6 +1,8 @@
 """Plan validation distinguishes socket attachments from character skinning."""
 
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -79,3 +81,69 @@ def test_rigid_template_still_rejects_a_different_attachment_slot():
     snapshot.entries[MODEL] = _pac()
     with pytest.raises(ValueError, match="single attachment slot"):
         validate_variant_rig(snapshot, MODEL, _pac(attachment_slot=1), prefab_path=PREFAB)
+
+
+@pytest.mark.parametrize("attachment_supplied", [False, True])
+def test_static_import_build_does_not_inherit_a_socket_weapons_accessory_weights(attachment_supplied):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
+    from cdmw.modding.scene_import_result_ops import SceneImportResult
+    from cdmw.modding.static_mesh_replacer import build_static_mesh_replacement
+    from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import
+
+    snapshot = _snapshot()
+    original = snapshot.payload(MODEL)
+    target = parse_pac(original, MODEL)
+    mesh = ParsedMesh(path="multi_part.obj", format="obj", total_vertices=target.total_vertices, submeshes=[
+        SubMesh(name=part.name, material=part.material, vertices=list(part.vertices),
+                faces=list(part.faces), normals=list(part.normals), uvs=list(part.uvs))
+        for part in target.submeshes
+    ])
+    source = ModelImportSource(Path(mesh.path), Path(mesh.path), SceneImportResult(mesh=mesh), None, None)
+
+    def build(_entry, _path, **kwargs):
+        payload, report = build_static_mesh_replacement(
+            original, target, kwargs["scene_import_result"].mesh, kwargs["static_replacement_options"],
+        )
+        assert not report.errors
+        return payload
+
+    with patch("cdmw.services.preview_workflow_service.build_mesh_import_preview", build):
+        payload = build_placed_import(
+            SimpleNamespace(path=MODEL), source, ModelPlacement(),
+            attachment_prefab_data=snapshot.payload(PREFAB) if attachment_supplied else b"",
+        )
+    assert not mesh.has_bones and all(not part.bone_weights for part in mesh.submeshes)
+    assert snapshot.payload(MODEL) == original
+    if attachment_supplied:
+        assert validate_variant_rig(snapshot, MODEL, payload, prefab_path=PREFAB) == "rigid prefab attachment"
+        rebuilt = parse_pac(payload, MODEL)
+        assert rebuilt.total_vertices == mesh.total_vertices
+        assert [part.faces for part in rebuilt.submeshes] == [part.faces for part in mesh.submeshes]
+    else:
+        with pytest.raises(ValueError, match="skeleton is missing or ambiguous"):
+            validate_variant_rig(snapshot, MODEL, payload, prefab_path=PREFAB)
+
+
+@pytest.mark.parametrize("profile", [{"prefab_model":MODEL.replace("test.pac", "foreign.pac")}, {"attached":""}])
+def test_static_import_does_not_claim_a_foreign_or_incomplete_attachment(profile):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.new_item_variants import bind_static_import_to_attachment
+
+    mesh = ParsedMesh(submeshes=[SubMesh(vertices=[(0.0,0.0,0.0)])])
+    assert bind_static_import_to_attachment(mesh, MODEL, _snapshot(**profile).payload(PREFAB)) is mesh
+
+
+@pytest.mark.parametrize("skin", ["has_bones", "rows", "palette", "layout"])
+def test_static_attachment_binding_preserves_authored_skin(skin):
+    from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+    from cdmw.services.new_item_variants import bind_static_import_to_attachment
+
+    part = SubMesh(vertices=[(0.0,0.0,0.0)])
+    mesh = ParsedMesh(submeshes=[part], has_bones=skin=="has_bones")
+    if skin == "rows":
+        part.bone_indices, part.bone_weights = [(1,)], [(1.0,)]
+    elif skin == "palette":
+        part.source_bone_palette = (43,)
+    elif skin == "layout":
+        part.source_skin_weight_layout = "pac_slot_u10x6"
+    assert bind_static_import_to_attachment(mesh, MODEL, _snapshot().payload(PREFAB)) is mesh

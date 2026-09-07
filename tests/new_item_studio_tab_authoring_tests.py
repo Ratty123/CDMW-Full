@@ -160,12 +160,16 @@ class _TabAuthoringMixin:
         from cdmw.ui.new_item.controller import NewItemStudioController
 
         main_thread = threading.get_ident()
-        readers, pending, results = [], [], []
+        readers, pending, results, prefab_reads = [], [], [], []
         by_path, by_basename = {}, {}
 
         def archive_maps():
             readers.append(threading.get_ident())
             return by_path, by_basename
+
+        def prefab_payload(path):
+            prefab_reads.append((path, threading.get_ident()))
+            return b"selected prefab"
 
         def defer(_lane, task, _done, _failed, **_kwargs):
             pending.append(task)
@@ -174,13 +178,14 @@ class _TabAuthoringMixin:
         controller = SimpleNamespace(
             model_import=SimpleNamespace(usage=nullcontext, label="Sword", bake=object()),
             template_entries=lambda: (SimpleNamespace(basename="sword.pac"),),
-            template_primary_entry=lambda: SimpleNamespace(basename="sword.pac"), _active_variant=None,
-            model_placement=object(), snapshot=SimpleNamespace(archive_index_maps=archive_maps),
+            template_primary_entry=lambda: SimpleNamespace(basename="sword.pac"), _active_variant=("selected.prefab", "sword.pac"),
+            model_placement=object(), snapshot=SimpleNamespace(archive_index_maps=archive_maps, payload=prefab_payload),
             _run=defer, import_dependency_context=Mock(side_effect=AssertionError("The unused family scan must not run")),
         )
         with patch("cdmw.ui.new_item.controller.build_placed_import", return_value="built") as build:
             self.assertTrue(NewItemStudioController.start_model_apply(controller))
             self.assertEqual([], readers)
+            self.assertEqual([], prefab_reads)
             controller.snapshot = SimpleNamespace(archive_index_maps=Mock(side_effect=AssertionError("Snapshot changed")))
 
             def run():
@@ -198,12 +203,15 @@ class _TabAuthoringMixin:
             self.assertNotEqual(main_thread, readers[0])
             self.assertIs(by_path, build.call_args.kwargs["entries_by_normalized_path"])
             self.assertIs(by_basename, build.call_args.kwargs["entries_by_basename"])
+            self.assertEqual([("selected.prefab", readers[0])], prefab_reads)
+            self.assertEqual(b"selected prefab", build.call_args.kwargs["attachment_prefab_data"])
             cancelled = threading.Event()
             cancelled.set()
             with self.assertRaises(RunCancelled):
                 pending[0](lambda _message: None, lambda *_args: None, cancelled)
             self.assertEqual(1, len(readers))
             self.assertEqual(1, build.call_count)
+            self.assertEqual(1, len(prefab_reads))
 
     def test_one_copper_and_the_folded_advanced_controls(self) -> None:
         tab = self._tab()

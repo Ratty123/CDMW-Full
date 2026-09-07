@@ -444,7 +444,10 @@ On the current format, the legacy single-model service argument adapts to the
 primary binding. Rigid attachments must retain their single slot. A rigid replacement
 can also retain the selected prefab's exact model/socket binding when the original
 weapon includes weighted accessories; those discarded accessories do not require a
-character skeleton for the new rigid mesh. Byte-identical models retain their existing
+character skeleton for the new rigid mesh. An unrigged source is bound to that exact
+socket before conversion, so mapping its parts onto a flexible template accessory
+does not transfer the accessory's skin weights. Authored source skin is preserved.
+Byte-identical models retain their existing
 template binding. Changed skinned imports require a resolved target skeleton and matching
 bone palette; an unresolved or ambiguous rig is blocked rather than borrowed from another
 character.

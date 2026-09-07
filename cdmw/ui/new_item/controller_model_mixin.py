@@ -316,6 +316,7 @@ class NewItemModelControllerMixin:
                     placement,
                     entries_by_normalized_path=by_path,
                     entries_by_basename=by_basename,
+                    attachment_prefab_data=snapshot.payload(variant[0]) if snapshot is not None and variant else b"",
                     stop_event=stop_event,
                     on_progress=progress,
                 )

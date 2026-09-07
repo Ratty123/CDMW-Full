@@ -28,6 +28,34 @@ def variant_family(family, appearance):
     return replace(family, model_stem=PurePosixPath(path).stem, model_folder=folder, parts=(part,),files=files)
 
 
+def _has_exact_socket_attachment(prefab_data, target_path):
+    from cdmw.core.archive_attachment_patches import inspect_prefab_attachment_profile_fields
+
+    if not prefab_data:
+        return False
+    profile = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(prefab_data)}
+    return (
+        profile.get("_skinnedMeshFileName", "").replace("\\", "/").casefold()
+        == target_path.replace("\\", "/").casefold()
+        and all(profile.get(name) for name in ("_attachedSocketName", "_pivotSocketName", "_socketFileName"))
+    )
+
+
+def bind_static_import_to_attachment(mesh, target_path, prefab_data):
+    """Keep an unrigged import on its exact socket instead of transferring accessory skin."""
+    from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
+
+    if (mesh.has_bones or any(part.bone_indices or part.bone_weights or part.source_bone_palette
+                             or part.source_skin_weight_layout for part in mesh.submeshes)
+            or not _has_exact_socket_attachment(prefab_data, target_path)):
+        return mesh
+    return replace(mesh, has_bones=True, submeshes=[
+        replace(part, bone_indices=[(0,)] * len(part.vertices), bone_weights=[(1.0,)] * len(part.vertices),
+                source_vertex_map=[], source_vertex_map_authority=SOURCE_VERTEX_MAP_TOPOLOGY)
+        for part in mesh.submeshes
+    ])
+
+
 def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_event=None):
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.services.new_item_materials import route_model_files
@@ -76,17 +104,10 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
             raise ValueError("The rigid target requires its single attachment slot; this import changes the skin binding.")
         return "rigid prefab attachment"
     if prefab_path and rigid(mesh):
-        from cdmw.core.archive_attachment_patches import inspect_prefab_attachment_profile_fields
-
         # A socket-attached weapon can contain weighted accessories without a
         # character PAB. A rigid replacement keeps the selected prefab's slot;
         # the discarded accessory weights do not give the import a body rig.
-        profile = {field.field_name: field.value
-                   for field in inspect_prefab_attachment_profile_fields(snapshot.payload(prefab_path))}
-        attached_model = profile.get("_skinnedMeshFileName", "").replace("\\", "/").casefold()
-        if attached_model == target_path.replace("\\", "/").casefold() and all(
-            profile.get(name) for name in ("_attachedSocketName", "_pivotSocketName", "_socketFileName")
-        ):
+        if _has_exact_socket_attachment(snapshot.payload(prefab_path), target_path):
             return "rigid prefab attachment"
     parts = target_path.replace("\\", "/").split("/")
     if "1_pc" not in parts:

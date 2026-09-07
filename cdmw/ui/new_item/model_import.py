@@ -1259,6 +1259,7 @@ def build_placed_import(
     *,
     entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    attachment_prefab_data: bytes = b"",
     stop_event: Optional[threading.Event] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
 ):
@@ -1274,6 +1275,7 @@ def build_placed_import(
 
     from cdmw.services.preview_workflow_service import build_mesh_import_preview
     from cdmw.services.mesh_workflow_service import apply_full_import_model_replacement_preset
+    from cdmw.services.new_item_variants import bind_static_import_to_attachment
 
     options = dc_replace(
         apply_full_import_model_replacement_preset(),
@@ -1282,7 +1284,9 @@ def build_placed_import(
     )
     if on_progress is not None:
         on_progress(0, 11, "Transform mesh")
-    scene = dc_replace(source.scene, mesh=source.baked_scene_mesh())
+    scene = dc_replace(source.scene, mesh=bind_static_import_to_attachment(
+        source.baked_scene_mesh(), entry.path, attachment_prefab_data,
+    ))
 
     def forward_progress(current: int, total: int, detail: str) -> None:
         if on_progress is not None:
