@@ -1322,13 +1322,13 @@ mod tests {
         .expect("presentation");
         let material = &graph.materials[0];
         assert_eq!(
-            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            runtime_skin_detail_layer(material, std::slice::from_ref(&presentation), &resources),
             Some(1)
         );
         let original = resources.clone();
         compose_preview_core_material_resources(
             &graph,
-            &[presentation.clone()],
+            std::slice::from_ref(&presentation),
             &document(),
             &mut resources,
             |reference| Ok(files.get(&reference.path).expect("source").clone()),
@@ -1346,13 +1346,13 @@ mod tests {
         // A different owner or payload cannot authorize skipping a graph layer.
         resources[4].material_indices_by_lod = vec![vec![1]];
         assert_eq!(
-            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            runtime_skin_detail_layer(material, std::slice::from_ref(&presentation), &resources),
             None
         );
         resources[4] = original[4].clone();
         resources[4].metadata.source_sha256 = "0".repeat(64);
         assert_eq!(
-            runtime_skin_detail_layer(material, &[presentation.clone()], &resources),
+            runtime_skin_detail_layer(material, std::slice::from_ref(&presentation), &resources),
             None
         );
         let mut missing_factors = presentation.clone();

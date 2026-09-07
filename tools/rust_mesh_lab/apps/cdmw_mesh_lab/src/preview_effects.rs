@@ -230,6 +230,7 @@ fn effect_sequence_uv(emitter: &Value, progress: f32) -> [f32; 4] {
     ]
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn effect_emitter_billboards(
     emitter: &Value,

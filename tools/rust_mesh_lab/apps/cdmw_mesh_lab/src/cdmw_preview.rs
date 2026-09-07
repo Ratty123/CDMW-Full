@@ -1,9 +1,8 @@
 #![forbid(unsafe_code)]
 #[cfg(test)]
-use crate::preview_effects::particle_kinematics;
+use crate::preview_effects::{effect_emitter_billboards, particle_kinematics};
 use crate::preview_effects::{
-    effect_emitter_billboards, effect_emitter_billboards_with_limit, effect_emitter_lines,
-    push_effect_line,
+    effect_emitter_billboards_with_limit, effect_emitter_lines, push_effect_line,
 };
 
 use crate::camera::{OrbitCamera, StandardView};

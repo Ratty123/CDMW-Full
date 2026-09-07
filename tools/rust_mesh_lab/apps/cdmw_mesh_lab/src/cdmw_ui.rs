@@ -1580,7 +1580,9 @@ impl LabApplication {
     ) {
         let can_load = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild")
             && !state_bool(state, "unbaked")
-            && state.get("refit").is_none_or(|refit| value_u32_list(refit, "garment_submesh_indices").is_empty());
+            && state
+                .get("refit")
+                .is_none_or(|refit| value_u32_list(refit, "garment_submesh_indices").is_empty());
         ui.horizontal_wrapped(|ui| {
             for (role, label) in [("body", "Load Body..."), ("armor", "Load Armor...")] {
                 if ui
