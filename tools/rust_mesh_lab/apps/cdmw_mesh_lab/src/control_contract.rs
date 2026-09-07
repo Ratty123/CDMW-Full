@@ -449,6 +449,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "morph.save_preset" => (Kind::ShadowCommand, "morph_save_preset"),
         "morph.delete_preset" => (Kind::ShadowCommand, "morph_delete_preset"),
         "refit.set_driver" => (Kind::ShadowCommand, "refit_set_driver"),
+        "refit.use_loaded_body" => (Kind::ShadowCommand, "refit_use_loaded_body"),
         "refit.bind_garment" => (Kind::ShadowCommand, "refit_bind"),
         "refit.clear" => (Kind::ShadowCommand, "refit_clear"),
         "refit.enabled" => (Kind::LocalState, "cdmw_refit_enabled"),
@@ -603,6 +604,7 @@ morph.preset|morph_refit|executable|session|false|
 morph.save_preset|morph_refit|executable|active_profile|false|
 morph.delete_preset|morph_refit|executable|active_preset|false|
 refit.set_driver|morph_refit|executable|part_selection|false|
+refit.use_loaded_body|morph_refit|executable|baked_unbound_mesh|false|
 refit.bind_garment|morph_refit|executable|driver_and_part_selection|false|
 refit.clear|morph_refit|executable|session|false|
 refit.enabled|morph_refit|executable|bound_garment|false|
@@ -670,7 +672,7 @@ uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
 morph.load_preset|morph_refit|ChooseCdmwMorphPreset|morph_import_preset
 morph.export_preset|morph_refit|ChooseCdmwMorphPreset|morph_export_preset
-refit.load_mesh|morph_refit|ChooseCdmwRefitMesh|refit_load_mesh
+refit.load_mesh|morph_refit|ChooseCdmwRefitMesh|refit_choose_archive
 page.rig_weights|rig_weights|CdmwRailPage::RigWeights|RigWeights,
 rig.select_bone|rig_weights|"rig_select_bone"|UiAction::CdmwCommand
 rig.frame_bone|rig_weights|"Frame bone"|UiAction::FrameRigBone

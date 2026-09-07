@@ -738,19 +738,40 @@ class MeshDirectOutputWorker(QObject):
                 raise RuntimeError(
                     "Mesh-only outputs cannot contain texture or material authoring changes"
                 )
-            rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
+            if getattr(snapshot, "archive_refit_context", None) is None:
+                components = ((self.entry, snapshot),)
+            else:
+                from cdmw.services.mesh_archive_refit import archive_refit_snapshots
+                components = archive_refit_snapshots(snapshot)
+                if components[0][0].identity != self.entry.identity:
+                    raise RuntimeError("Archive Refit output target no longer matches the loaded source")
+            requests = []
+            reports = []
+            for entry, component in components:
+                _raise_export_cancelled(self.stop_event)
+                rebuilt, component_report = self.service.rebuild_result_from_snapshot(component)
+                requests.append(ArchivePatchRequest(entry, rebuilt.data))
+                reports.append(component_report)
+            report = reports[0]
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
-            request = ArchivePatchRequest(self.entry, rebuilt.data)
             metadata = self._metadata(snapshot, report)
+            if len(components) > 1:
+                payload = json.loads(metadata)
+                payload["assets"] = [
+                    {"path": entry.path, "source_sha256": component.mesh_asset_source_hash,
+                     "rebuild_report": asdict(component_report) if is_dataclass(component_report) else component_report}
+                    for (entry, component), component_report in zip(components, reports, strict=True)
+                ]
+                metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
             if self.kind == "loose_mod":
-                result = self._write_loose_mod(request, metadata, report)
+                result = self._write_loose_mod(tuple(requests), metadata, report)
             elif self.kind == "overlay_package":
-                result = self._write_overlay_package(request, metadata, report)
+                result = self._write_overlay_package(tuple(requests), metadata, report)
             elif self.kind == "overlay_prepare":
                 package_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
                 preparation = prepare_overlay_install(
-                    (request,),
+                    tuple(requests),
                     package_root=package_root,
                     stop_event=self.stop_event,
                 )
@@ -799,7 +820,7 @@ class MeshDirectOutputWorker(QObject):
 
     def _write_loose_mod(
         self,
-        request: ArchivePatchRequest,
+        requests: tuple[ArchivePatchRequest, ...],
         metadata: bytes,
         report: object,
     ) -> MeshDirectOutputResult:
@@ -810,38 +831,37 @@ class MeshDirectOutputWorker(QObject):
         root = self.output_path.resolve()
         if root.exists():
             raise FileExistsError(f"Mesh mod output already exists: {root}")
-        relative = Path(str(getattr(self.entry, "path", "") or "").replace("\\", "/"))
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ValueError("Archive mesh path escapes the loose package")
+        assets = []
+        files = []
+        relative_paths = []
+        for request in requests:
+            relative = Path(str(request.entry.path or "").replace("\\", "/"))
+            if relative.is_absolute() or relative.drive or ".." in relative.parts or not relative.name:
+                raise ValueError("Archive mesh path escapes the loose package")
+            if relative in relative_paths:
+                raise ValueError("Archive Refit output has duplicate asset paths")
+            relative_paths.append(relative)
+            package_group = Path(request.entry.pamt_path).parent.name
+            mesh_format = relative.suffix.lstrip(".").lower()
+            assets.append(MeshLooseModAsset(entry_path=relative.as_posix(), package_group=package_group,
+                                           format=mesh_format, note="Validated Mesh Editor replacement"))
+            files.append(MeshLooseModFile(path=relative.as_posix(), package_group=package_group,
+                                         format=mesh_format, note="Validated Mesh Editor replacement"))
         root.parent.mkdir(parents=True, exist_ok=True)
         staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
         try:
-            target = staging / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_bytes(target, request.payload_data)
+            for request, relative in zip(requests, relative_paths, strict=True):
+                _raise_export_cancelled(self.stop_event)
+                target = staging / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_bytes(target, request.payload_data)
             atomic_write_bytes(staging / "mesh-editor-session.json", metadata)
             options = mod_package_export_options_for_manager(self.manager_profile)
-            package_group = Path(getattr(self.entry, "pamt_path", "")).parent.name
-            mesh_format = str(getattr(self.entry, "extension", "") or relative.suffix).lstrip(".").lower()
             metadata_files = write_mesh_loose_mod_package_metadata(
                 staging,
                 self._package_info(root),
-                assets=(
-                    MeshLooseModAsset(
-                        entry_path=relative.as_posix(),
-                        package_group=package_group,
-                        format=mesh_format,
-                        note="Validated Mesh Editor replacement",
-                    ),
-                ),
-                files=(
-                    MeshLooseModFile(
-                        path=relative.as_posix(),
-                        package_group=package_group,
-                        format=mesh_format,
-                        note="Validated Mesh Editor replacement",
-                    ),
-                ),
+                assets=tuple(assets),
+                files=tuple(files),
                 include_paired_lod=False,
                 export_options=options,
                 create_no_encrypt_file=bool(options.create_no_encrypt_file),
@@ -856,8 +876,8 @@ class MeshDirectOutputWorker(QObject):
                     "This package contains a validated mesh replacement created in the "
                     "Crimson Desert Mod Workbench Mesh Editor."
                 ),
-                loose_file_count=1,
-                asset_count=1,
+                loose_file_count=len(requests),
+                asset_count=len(requests),
                 include_paired_lod=False,
                 create_no_encrypt_file=bool(effective_options.create_no_encrypt_file),
                 manifest_label="Structured mesh package metadata",
@@ -882,7 +902,7 @@ class MeshDirectOutputWorker(QObject):
 
     def _write_overlay_package(
         self,
-        request: ArchivePatchRequest,
+        requests: tuple[ArchivePatchRequest, ...],
         metadata: bytes,
         report: object,
     ) -> MeshDirectOutputResult:
@@ -896,7 +916,7 @@ class MeshDirectOutputWorker(QObject):
         staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
         try:
             exported = export_archive_overlay_package(
-                (request,),
+                requests,
                 package_root=staging,
                 game_root=game_root,
                 metadata_files=(("mesh-editor-session.json", metadata),),
@@ -939,7 +959,7 @@ class MeshDirectOutputWorker(QObject):
                     "DMM manager-mounted archive group. Shipped game archives are unchanged."
                 ),
                 loose_file_count=int(exported.file_count),
-                asset_count=1,
+                asset_count=len(requests),
                 include_paired_lod=False,
                 create_no_encrypt_file=False,
                 manifest_label="Structured DMM archive-group metadata",

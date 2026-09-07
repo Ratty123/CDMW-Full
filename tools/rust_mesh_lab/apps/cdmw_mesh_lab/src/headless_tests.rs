@@ -1146,6 +1146,70 @@ fn accepted_geometry_revisions_keep_the_deformation_session_baseline() -> TestRe
 }
 
 #[test]
+fn integrated_archive_refit_replaces_textures_atomically_with_the_loaded_assets() -> TestResult {
+    use sha2::{Digest, Sha256};
+    let root = tempdir()?;
+    let original = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("body.dds"),
+        MeshFormat::Pam,
+    )?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "refit-textures", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, original.clone(), None)?;
+    let mut combined = original.clone();
+    combined.lods[0]
+        .submeshes
+        .push(original.lods[0].submeshes[0].clone());
+    let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let hash = format!("{:X}", Sha256::digest(&bytes));
+    let texture_name = format!("texture-0000-{}.dds", hash[..12].to_ascii_lowercase());
+    std::fs::write(root.path().join(&texture_name), &bytes)?;
+    let key = "a".repeat(32);
+    let payload = json!({"key": key, "reason": "", "material_presentations": [], "textures": [
+        {"label": "body", "role": "base_color", "material_indices_by_lod": [[0]], "file": {
+            "path": texture_name, "data_type": "dds_texture", "count": 1, "byte_length": bytes.len(),
+            "sha256": hash, "content_type": "image/vnd-ms.dds"
+        }},
+        {"label": "armor", "role": "base_color", "material_indices_by_lod": [[1]], "file": {
+            "path": texture_name, "data_type": "dds_texture", "count": 1, "byte_length": bytes.len(),
+            "sha256": hash, "content_type": "image/vnd-ms.dds"
+        }}
+    ]});
+    let encoded = serde_json::to_vec(&payload)?;
+    std::fs::write(root.path().join("materials.json"), &encoded)?;
+    let state = json!({"archive_refit_materials": {"key": key, "file": {
+        "path": "materials.json", "data_type": "mesh_materials_json", "count": 1,
+        "byte_length": encoded.len(), "sha256": format!("{:X}", Sha256::digest(&encoded)),
+        "content_type": "application/json"
+    }}});
+    application.install_validated_cdmw_state(state.clone(), Some(combined.clone()))?;
+    assert_eq!(application.cdmw_texture_resources.len(), 2);
+    assert_eq!(application.texture_entries.len(), 2);
+    assert_eq!(
+        application.cdmw_texture_resources[1].material_indices_by_lod,
+        vec![vec![1]]
+    );
+    // A later shape update reuses this immutable bundle without reading DDS again.
+    std::fs::remove_file(root.path().join(&texture_name))?;
+    application.install_validated_cdmw_state(state.clone(), Some(combined))?;
+    assert_eq!(application.cdmw_texture_resources.len(), 2);
+    let mut invalid = state;
+    invalid["archive_refit_materials"]["key"] = json!("b".repeat(32));
+    assert!(
+        application
+            .install_validated_cdmw_state(invalid, Some(original))
+            .is_err()
+    );
+    assert_eq!(
+        application.document.as_ref().unwrap().lods[0]
+            .submeshes
+            .len(),
+        2
+    );
+    assert_eq!(application.cdmw_texture_resources.len(), 2);
+    Ok(())
+}
+
+#[test]
 fn integrated_session_retains_textures_when_a_shadow_revision_reloads_geometry() -> TestResult {
     let root = tempdir()?;
     let document = decode_mesh(

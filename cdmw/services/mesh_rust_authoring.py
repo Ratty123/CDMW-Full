@@ -100,6 +100,7 @@ from cdmw.services.mesh_service_selection import _prune_selection_to_mesh
 
 _CANDIDATE_FILE_RE = re.compile(r"candidate-[0-9]+-[A-Za-z0-9_-]+\.json\Z")
 _STATE_FILE_RE = re.compile(r"state-[0-9]+-[0-9a-f]{10}\.json\Z")
+_MATERIAL_STATE_FILE_RE = re.compile(r"material-state-(?:base|[0-9a-f]{32})\.json\Z")
 _TEXTURE_FILE_RE = re.compile(r"texture-[0-9]{4}-[0-9a-f]{12}\.dds\Z")
 _PREVIEW_GEOMETRY_FILE_RE = re.compile(
     r"preview-geometry-[0-9]{4}-[0-9a-f]{12}\.bin\Z"
@@ -1741,6 +1742,7 @@ def _validate_owned_session_tree(
         if item.is_file() and (
             name in allowed_files
             or _STATE_FILE_RE.fullmatch(name) is not None
+            or _MATERIAL_STATE_FILE_RE.fullmatch(name) is not None
             or _CANDIDATE_FILE_RE.fullmatch(name) is not None
             or _TEXTURE_FILE_RE.fullmatch(name) is not None
             or _PREVIEW_GEOMETRY_FILE_RE.fullmatch(name) is not None
@@ -6754,6 +6756,7 @@ def _capture_shadow_session_seed(authoritative_service: MeshService, authoritati
             clone=True,
         )
         geometry_layer_seed = _geometry_layer_seed(authoritative_session)
+        geometry_layer_seed["archive_refit_context"] = authoritative_session.archive_refit_context
         rigging_seed = _rigging_seed(authoritative_session)
         base_morph_session_revision = max(
             0,
@@ -6827,6 +6830,7 @@ def _configure_shadow_session_seed(
     authoritative_morph_state,
     authoritative_view,
 ):
+    shadow_service._session(shadow_view.session_id).archive_refit_context = geometry_layer_seed.get("archive_refit_context")
     _install_shadow_geometry_layer_seed(
         shadow_service,
         shadow_view.session_id,
@@ -6885,6 +6889,8 @@ class RustMeshAuthoringSession:
     theme: Mapping[str, object]
     preview_material_binding_count: int = 0
     texture_resource_count: int = 0
+    archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
+    archive_refit_material_references: dict[str, dict[str, object]] = field(default_factory=dict)
     texture_unavailable_reason: str = ""
     material_package_path: str = ""
     authoritative_morph_root: Path | None = None
@@ -6937,9 +6943,12 @@ class RustMeshAuthoringSession:
         ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
         try:
             shadow_mesh.active_lod_index = authoritative_view.lod_index
-            preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
-                shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
-            )
+            if geometry_layer_seed.get("archive_refit_context") is None:
+                preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
+                    shadow_mesh, preview_context, texture_unavailable_reason, stop_event,
+                )
+            else:
+                preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             if stop_event is not None and stop_event.is_set():
                 raise RustMeshCancellationError(
                     "Mesh session preparation was cancelled"
@@ -7511,13 +7520,18 @@ class RustMeshAuthoringSession:
             expected_root_identity=self.root_identity,
             stop_event=stop_event,
             synthesis_state=material_synthesis,
-            material_package_path=self.material_package_path,
+            material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
         )
         material_presentations = _mesh_material_presentations(
             mesh,
             generated_overrides=material_synthesis.presentation_overrides,
         )
         self.texture_resource_count = len(textures)
+        material_key = getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "context_id", "base")
+        self.archive_refit_material_cache[material_key] = {
+            "key": material_key, "textures": textures, "material_presentations": material_presentations,
+            "reason": self.texture_unavailable_reason,
+        }
         if textures:
             self.texture_unavailable_reason = ""
         elif not self.texture_unavailable_reason:
@@ -7680,6 +7694,11 @@ class RustMeshAuthoringSession:
                 self.shadow_service.geometry_layer_state(self.shadow_session_id)
             ),
             "morph_refit": morph_payload,
+            "loaded_mesh": Path(str(self.shadow_service._session(self.shadow_session_id).working_mesh.path)).name,
+            "archive_refit_assets": [
+                {"path": asset.entry.path, "role": asset.role, "part_indices": list(asset.part_indices)}
+                for asset in getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "assets", ())
+            ],
             "renderer": RUST_MESH_RENDERER,
             "edit_backend": RUST_MESH_EDIT_BACKEND,
         }
@@ -7687,6 +7706,9 @@ class RustMeshAuthoringSession:
             state["document"] = self._write_mesh_document(
                 f"state-{view.revision}-{uuid4().hex[:10]}.json"
             )
+        material_key = getattr(shadow_session.archive_refit_context, "context_id", "base")
+        if material_key in self.archive_refit_material_references:
+            state["archive_refit_materials"] = {"key": material_key, "file": self.archive_refit_material_references[material_key]}
         try:
             skeleton_summary = self.shadow_service.skeleton_summary(
                 self.shadow_session_id
@@ -8105,6 +8127,9 @@ class RustMeshAuthoringSession:
             result = self._import_editable_package_command(args, stop_event)
         elif command == "refit_load_mesh":
             result = self._load_refit_mesh_command(args, stop_event)
+        elif command == "refit_choose_archive":
+            from cdmw.services.mesh_rust_archive_refit import load_archive_refit
+            result = load_archive_refit(self, args, stop_event)
         elif command == "layer_activate":
             result = self.shadow_service.activate_geometry_layer(
                 self.shadow_session_id,
@@ -8175,6 +8200,10 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if shadow_session.archive_refit_context is not None and command in {
+            "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
+        }:
+            raise RustMeshValidationError("Archive Refit preserves each source Part and topology; finish this refit before changing topology")
         with shadow_session.export_lock:
             before_revision = int(shadow_session.revision)
             before_signature = self._shadow_protocol_signature_locked(
@@ -8446,8 +8475,9 @@ class RustMeshAuthoringSession:
             )
         if command == "morph_delete_preset":
             return service.delete_morph_preset(session_id, args.get("preset_id"))
-        if command == "refit_set_driver":
-            return service.set_refit_driver(session_id, tuple(args.get("submesh_indices", ()) or ()))
+        if command in {"refit_set_driver", "refit_use_loaded_body"}:
+            from cdmw.services.mesh_rust_archive_refit import run_refit_driver_command
+            return run_refit_driver_command(self, command, args)
         if command == "refit_bind":
             return service.bind_refit(session_id, tuple(args.get("submesh_indices", ()) or ()))
         if command == "refit_configure":
@@ -8472,6 +8502,7 @@ class RustMeshAuthoringSession:
         *,
         shadow_revision: int,
         stop_event: threading.Event | None,
+        snapshot=None,
     ) -> dict[str, object]:
         """Prove the current shadow mesh through the existing exact writer.
 
@@ -8483,11 +8514,20 @@ class RustMeshAuthoringSession:
         """
 
         try:
-            snapshot = self.shadow_service.capture_export_snapshot(
+            snapshot = snapshot or self.shadow_service.capture_export_snapshot(
                 self.shadow_session_id,
                 stop_event=stop_event,
                 expected_mesh_revision=shadow_revision,
             )
+            if snapshot.archive_refit_context is not None:
+                from cdmw.services.mesh_archive_refit import archive_refit_snapshots
+                assets = []
+                for entry, component in archive_refit_snapshots(snapshot):
+                    evidence = self._validate_exact_output_writer(
+                        shadow_revision=shadow_revision, stop_event=stop_event, snapshot=component,
+                    )
+                    assets.append({"path": entry.path, **evidence})
+                return {"status": "passed", "assets": assets, "fallback_used": False}
             result, report = self.shadow_service.rebuild_result_from_snapshot(snapshot)
         except Exception as exc:
             self._raise_if_cancelled(stop_event)
@@ -8830,6 +8870,7 @@ class RustMeshAuthoringSession:
             validation_output_policy=shadow_view.output_policy,
             validation_output_destination=shadow_view.output_destination,
             validation_output_destination_ready=shadow_view.output_destination_ready,
+            archive_refit_context=shadow_session.archive_refit_context,
         )
         if prepared.expected_revision != self.base_revision:
             raise RustMeshValidationError(

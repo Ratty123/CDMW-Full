@@ -73,6 +73,8 @@ class _MeshHistorySnapshot:
     committed_texture_resources: tuple[_MeshCommittedTextureResource, ...] | None = None
     retained_bytes: int = 0
     object_transform: MeshObjectTransformState | None = None
+    archive_refit_context: object | None = None
+    restore_archive_refit_context: bool = False
 
 
 @dataclass(slots=True)
@@ -158,6 +160,7 @@ class MeshExportSnapshot:
     material_parameter_groups: tuple[Mapping[str, object], ...] = ()
     material_authority_fingerprint: str = ""
     material_authority_revision: int = 0
+    archive_refit_context: object | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +181,8 @@ class MeshPreparedWorkingMeshReplacement:
     sidecar_warnings: tuple[object, ...] = ()
     edit_operations: tuple[object, ...] = ()
     requires_edit_operations: bool = False
+    archive_refit_context: object | None = None
+    previous_archive_refit_context: object | None = None
 
 
 @dataclass(slots=True)
@@ -186,6 +191,7 @@ class _MeshEditSession:
     base_mesh: ParsedMesh
     working_mesh: ParsedMesh
     original_data: bytes = b""
+    archive_refit_context: object | None = None
     mesh_asset_parse_confidence: str = ""
     mesh_asset_source_hash: str = ""
     mesh_asset_source_size: int = 0

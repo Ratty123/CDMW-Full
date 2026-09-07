@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QWidget
 
 from cdmw.domain.archives.catalogue import (
     ArchiveDurableIdentity,
@@ -207,6 +207,33 @@ def test_character_picker_requires_an_explicit_identity_choice() -> None:
         dialog._update_choose_state()
         assert dialog.choose_button.isEnabled()
         dialog.reject()
+        dialog.deleteLater()
+        app.processEvents()
+
+
+def test_archive_refit_picker_selects_character_assets_without_replacement_identity_mode() -> None:
+    app = QApplication.instance() or QApplication([])
+    service = _Catalogue()
+    target = _entry("character/model/1_pc/1_phm/body/target.pac", 1)
+    source = _entry("character/model/1_pc/2_phw/body/source.pac", 2)
+    with patch("cdmw.ui.mesh_editor.replace_from_archive_dialog._ArchivePreviewLane.start"):
+        dialog = ReplaceFromArchivePickerDialog(
+            service, _session(), target_entry=target, target_dependencies=_context(target), refit_role="armor",
+        )
+        app.processEvents()
+        dialog.selected_entry = source
+        dialog.selected_dependencies = _context(source)
+        dialog._source_lane.settled = True
+        dialog._update_character_mode_visibility(source)
+        dialog._update_choose_state()
+        assert dialog.windowTitle() == "Choose Refit Armor from Archive"
+        assert dialog.choose_button.text() == "Load Armor"
+        assert not dialog.character_mode_combo.isVisibleTo(dialog)
+        assert dialog.choose_button.isEnabled()
+        dialog._accept_current()
+        assert dialog.result() == QDialog.Accepted
+        assert dialog.selected_entry is source
+        assert service.cancelled
         dialog.deleteLater()
         app.processEvents()
 

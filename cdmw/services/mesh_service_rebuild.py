@@ -391,7 +391,7 @@ class MeshRebuildServiceMixin:
             if int(session.revision) != captured_revision:
                 raise RuntimeError("mesh export session changed during snapshot capture")
             visible_submeshes = set(_service_call("_visible_geometry_layer_indices", session))
-            if session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
+            if session.archive_refit_context is None and session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
                 mesh.submeshes = [
                     submesh
                     for submesh_index, submesh in enumerate(mesh.submeshes)
@@ -431,6 +431,7 @@ class MeshRebuildServiceMixin:
                 material_parameter_groups=self.resident_material_parameter_groups(session.session_id),
                 material_authority_fingerprint=str(session.material_authority_fingerprint or ""),
                 material_authority_revision=int(session.material_authority_revision),
+                archive_refit_context=session.archive_refit_context,
             )
 
     def _capture_texture_resources(
@@ -544,6 +545,8 @@ class MeshRebuildServiceMixin:
         available_textures: Iterable[str] | None,
         skeleton_bone_count: int | None,
     ) -> MeshExportValidationReport:
+        if session.archive_refit_context is not None:
+            return self.validate_export_snapshot(self.capture_export_snapshot(session.session_id))
         if session.native_editor_mesh_dirty and not _service_call("_sync_native_editor_session_to_working_mesh", session):
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
         if skeleton_bone_count is None:
@@ -570,6 +573,9 @@ class MeshRebuildServiceMixin:
         available_textures: Iterable[str] | None = None,
         skeleton_bone_count: int | None = None,
     ) -> MeshExportValidationReport:
+        if snapshot.archive_refit_context is not None:
+            from cdmw.services.mesh_archive_refit import validate_archive_refit
+            return validate_archive_refit(self, snapshot)
         no_op = snapshot.no_op_roundtrip_report if isinstance(snapshot.no_op_roundtrip_report, Mapping) else {}
         return _service_call(
             "validate_mesh_export",
@@ -695,6 +701,8 @@ class MeshRebuildServiceMixin:
         developer_override: bool = False,
         developer_override_reason: str = "",
     ):
+        if snapshot.archive_refit_context is not None:
+            raise RuntimeError("Use Build Mod to save all body and armor archive assets together")
         if not snapshot.original_data:
             raise RuntimeError("mesh rebuild report requires original source bytes")
         validation = self.validate_export_snapshot(

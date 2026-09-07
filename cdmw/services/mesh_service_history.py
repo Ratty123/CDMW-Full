@@ -91,6 +91,7 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             snapshot.material_generation,
             snapshot.committed_texture_resources,
             snapshot.object_transform,
+            snapshot.archive_refit_context,
         )
     )
     if snapshot.native_submesh_snapshot is not None:
@@ -804,6 +805,9 @@ def _capture_history_session_state(
 ) -> _MeshHistorySnapshot:
     """Capture the reciprocal service-owned state carried by one history marker."""
 
+    if template.restore_archive_refit_context:
+        snapshot.archive_refit_context = session.archive_refit_context
+        snapshot.restore_archive_refit_context = True
     if template.restore_geometry_layer_state:
         snapshot.geometry_layers = tuple(session.geometry_layers)
         snapshot.active_geometry_layer_id = session.active_geometry_layer_id
@@ -836,6 +840,8 @@ def _restore_history_session_state(
 ) -> None:
     """Restore only the service-owned fields explicitly included in a marker."""
 
+    if snapshot.restore_archive_refit_context:
+        session.archive_refit_context = snapshot.archive_refit_context
     if snapshot.restore_geometry_layer_state:
         target_layers = tuple(snapshot.geometry_layers or ())
         target_active = str(snapshot.active_geometry_layer_id or "base")

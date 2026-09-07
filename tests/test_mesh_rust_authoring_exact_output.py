@@ -96,6 +96,7 @@ def _open_exact_session(
     root: Path,
     *,
     resolved_rig: bool = False,
+    base_texture_path: Path | None = None,
 ) -> tuple[bytes, MeshService, RustMeshAuthoringSession]:
     source = _pac_fixture(skinned=True)
     skeleton = None
@@ -124,6 +125,8 @@ def _open_exact_session(
         "_cdmw_no_op_roundtrip_report",
         {"result": "PASS", "byte_identical": True, "unexpected_differences": 0},
     )
+    if base_texture_path is not None:
+        mesh.submeshes[0].preview_texture_dds_path = str(base_texture_path)
     authoritative = MeshService()
     view = authoritative.open_edit_session(
         mesh,

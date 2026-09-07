@@ -588,19 +588,13 @@ impl LabApplication {
                         );
                         ui.add_space(3.0);
                         let active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
-                        let morph = ui
-                            .push_id("cdmw-morph-root", |ui| {
-                                egui::CollapsingHeader::new("Morph & Refit")
-                                    .id_salt("cdmw-morph-tool")
-                                    .open(Some(active))
-                                    .enabled(!busy && authoring)
-                                    .show_unindented(ui, |ui| {
-                                        self.draw_cdmw_morph_page(ui, actions)
-                                    })
-                            })
-                            .inner;
-                        if morph
-                            .header_response
+                        if ui
+                            .add_enabled(
+                                !busy && authoring,
+                                Button::new(RichText::new("Morph & Refit").strong())
+                                    .selected(active)
+                                    .min_size(egui::vec2(ui.available_width(), 30.0)),
+                            )
                             .on_disabled_hover_text(&policy_reason)
                             .clicked()
                         {
@@ -611,6 +605,19 @@ impl LabApplication {
                                 Some(CdmwRailPage::MorphRefit)
                             };
                             self.cdmw_orbit_mode = true;
+                        }
+                        if self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit) {
+                            ui.push_id("cdmw-morph-root", |ui| {
+                                egui::Frame::group(ui.style())
+                                    .stroke(egui::Stroke::new(1.0, ui.visuals().selection.bg_fill))
+                                    .fill(ui.visuals().faint_bg_color)
+                                    .inner_margin(10.0)
+                                    .show(ui, |ui| {
+                                        ui.add_enabled_ui(!busy && authoring, |ui| {
+                                            self.draw_cdmw_morph_page(ui, actions)
+                                        });
+                                    });
+                            });
                         }
                     });
             });
@@ -1639,7 +1646,6 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         state: &Value,
     ) {
-        let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         let blocked = if state_bool(state, "unbaked") {
             "Reset or Bake before loading meshes."
         } else if state
@@ -1647,16 +1653,14 @@ impl LabApplication {
             .is_some_and(|refit| !value_u32_list(refit, "garment_submesh_indices").is_empty())
         {
             "Clear Refit before loading meshes."
-        } else if !free_edit {
-            "Adding meshes requires Free Edit."
         } else {
             ""
         };
         ui.horizontal_wrapped(|ui| {
-            for (role, label) in [("body", "Load Body..."), ("armor", "Load Armor...")] {
+            for (role, label) in [("body", "Browse Body..."), ("armor", "Browse Armor...")] {
                 if ui
                     .add_enabled(blocked.is_empty(), Button::new(label))
-                    .on_hover_text("Add extracted PAC/PAM/PAMLOD or custom OBJ/GLB Parts. Align meshes before binding.")
+                    .on_hover_text("Choose a game mesh from the loaded archive catalogue.")
                     .on_disabled_hover_text(blocked)
                     .clicked()
                 {
@@ -1666,10 +1670,37 @@ impl LabApplication {
         });
         if !blocked.is_empty() {
             ui.small(blocked);
-            if !free_edit && ui.button("Enable Free Edit...").clicked() {
-                actions.push(UiAction::ChooseCdmwFreeEdit);
+        }
+        ui.label(format!(
+            "Loaded mesh: {}",
+            state_str(&self.cdmw_state, "loaded_mesh").unwrap_or("Current mesh")
+        ));
+        if let Some(assets) = self
+            .cdmw_state
+            .get("archive_refit_assets")
+            .and_then(Value::as_array)
+        {
+            for asset in assets.iter().skip(1) {
+                let role = state_str(asset, "role").unwrap_or("mesh");
+                let path = state_str(asset, "path").unwrap_or("");
+                ui.label(format!(
+                    "Loaded {role}: {}",
+                    path.rsplit('/').next().unwrap_or(path)
+                ))
+                .on_hover_text(path);
             }
         }
+        if ui
+            .add_enabled(blocked.is_empty(), Button::new("Use loaded mesh as body"))
+            .clicked()
+        {
+            actions.push(UiAction::CdmwCommand {
+                command: "refit_use_loaded_body",
+                arguments: json!({}),
+                label: "Use loaded mesh as body",
+            });
+        }
+        ui.small("Assign the body, then browse armor and bind its selected Parts.");
         let selected = self.selected_part_indices();
         let counts = self.selected_counts();
         ui.label(format!(
@@ -1736,9 +1767,9 @@ impl LabApplication {
         body: &[u32],
         garments: &[u32],
     ) {
-        ui.label(format!("Body: {}", self.cdmw_morph_part_names(body)));
+        ui.label(format!("Body driver: {}", self.cdmw_morph_part_names(body)));
         ui.label(format!(
-            "Garments: {}",
+            "Bound armor / clothing: {}",
             self.cdmw_morph_part_names(garments)
         ));
         ui.horizontal_wrapped(|ui| {
@@ -1751,7 +1782,7 @@ impl LabApplication {
                 }
             }
         });
-        ui.small("Bake, then remove body Parts for garment-only output.");
+        ui.small("Finish keeps body and armor edits. Build Mod saves each original archive file.");
     }
 
     fn draw_cdmw_morph_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2272,7 +2303,7 @@ impl LabApplication {
             },
         );
         cdmw_section(ui, "morph-refit", "Refit clothing & armor", None, |ui| {
-            ui.small("Set the body, then bind clothing or armor.");
+            ui.small("Loaded meshes appear above. Assign their roles here.");
             self.draw_cdmw_refit_roles(ui, actions, &driver_parts, &bound_garments);
             ui.small(format!(
                 "Selected Parts: {} · Driver Parts: {} · Bound garment Parts: {}",
@@ -2282,15 +2313,10 @@ impl LabApplication {
             ));
             if ui
                 .add_enabled(
-                    !profile_id.is_empty()
-                        && !morph_unbaked
-                        && !selected_parts.is_empty()
-                        && bound_garments.is_empty(),
-                    Button::new("1. Set Selected Driver Parts"),
+                    !morph_unbaked && !selected_parts.is_empty() && bound_garments.is_empty(),
+                    Button::new("1. Use selected Parts as body"),
                 )
-                .on_disabled_hover_text(if profile_id.is_empty() {
-                    "Activate a Morph profile before setting the Refit driver"
-                } else if morph_unbaked {
+                .on_disabled_hover_text(if morph_unbaked {
                     "Reset or Bake before changing the body"
                 } else if !bound_garments.is_empty() {
                     "Clear Refit before changing the body"

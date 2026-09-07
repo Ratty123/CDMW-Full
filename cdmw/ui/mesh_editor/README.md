@@ -195,7 +195,8 @@ inspect the bind rig; they do not pose it or paint weights with a brush.
 
 ### Morph & Refit workflow
 
-**Morph & Refit** opens directly from its tool header. Click an open tool again
+**Morph & Refit** opens as a bordered panel beneath its highlighted tool button,
+with its section headings visibly inside that panel. Click an open tool again
 to close it and return to Orbit navigation. Viewport, the tool groups, Parts,
 Geometry Layers, Action History, and the individual Morph & Refit sections start
 collapsed. Each section remembers its open state while navigating between tools
@@ -214,33 +215,40 @@ locked until Reset or Bake; it does not mean the topology is incompatible.
 Framing a small selection retains the complete mesh's camera clipping range.
 Scrolling a panel cannot carry camera zoom into a later viewport click.
 
-In Free Edit, **Load Body...** and **Load Armor...** append extracted game
-PAC/PAM/PAMLOD or custom OBJ/GLB geometry as named, selected Geometry Layers.
-When loading is unavailable, the panel shows the required action; **Enable Free
-Edit...** opens the output-folder chooser. File pickers belong to the Mesh
-Editor window.
-Input files are read-only and bounded to 256 MiB. Parsing, mesh validation, and
-the new native runtime prepare before one undoable publication; failure or
-cancellation during preparation preserves the scene. Load at zero preview and
-Clear Refit first if garments are already bound. Invalid UV/material/geometry
-data is rejected at loading with the validator's reason. The existing Open
-Package action still replaces the working mesh.
+**Use loaded mesh as body** assigns the current archive mesh as the refit driver.
+This is separate from merely displaying a mesh. **Browse Body...** and
+**Browse Armor...** open the loaded game archive catalogue with search, paging,
+and source previews. Choosing a body assigns its Parts as the driver; choosing
+armor adds and selects its Parts ready for binding. No Free Edit or external
+mesh file is required. The panel lists loaded files separately from the assigned
+body driver and bound armor/clothing.
 
-Align the meshes using the normal transform tools. Create a body slider, assign
-the selected body Parts as the driver, then select clothing/armor Parts and bind
-them. The panel shows the assigned names, offers Select body/Select garments,
-rejects overlapping roles and setup changes during an unbaked preview, and
-shows the engine's binding-distance warning. Binding replaces the garment set;
-select every garment that should participate. Surface and Rigid modes retain
-their existing per-garment enable, intensity, and clearance controls. Changing
-the selected garment hydrates its own settings even when another garment had
-an unapplied draft. Shape sliders move the driver and bound garments together.
+Archive sources keep their own original bytes, Part mappings, palettes, and
+archive paths. Geometry, rig dependencies, and materials prepare off the UI
+thread before one undoable publication. Cancelled, stale, duplicate, invalid,
+or oversized sources leave the edit unchanged. Reset or Bake before loading;
+Clear Refit first if garments are already bound. Archive refits preserve the
+original topology and allow selection across all visible loaded assets.
 
-Added Parts are editable and included in output. For garment-only output, Bake
-the result, then delete the body Parts before Finish. This is geometry refitting:
-it does not align mismatched poses automatically or convert skeletons/weights.
-Visual fit, clipping during animation, and game compatibility require separate
-inspection.
+Select the body Parts to create a body slider, then select clothing/armor Parts
+and bind them. The panel offers Select body/Select garments, rejects overlapping
+roles and setup changes during an unbaked preview, and shows the binding-distance
+warning. Binding replaces the garment set; select every garment that should
+participate. Surface and Rigid modes retain per-garment enable, intensity, and
+clearance controls. Shape sliders move the driver and bound garments together.
+Use the normal transform tools if the meshes need alignment.
+
+**Finish Edit Mesh** keeps edits to both body and armor. **Build Mod** rebuilds
+each asset through its own exact game-format writer and packages every original
+archive path together. Hiding an asset changes the view without omitting its
+output. Draft generations retain each source fingerprint and asset mapping;
+Undo/Redo restores those mappings with the geometry. A failure rebuilding any
+asset prevents the package from being published. Shipped archives remain
+unchanged; installation still uses the existing confirmation and recovery flow.
+
+This is geometry refitting: it does not align mismatched poses automatically or
+convert skeletons/weights. Visual fit, clipping during animation, and game
+compatibility require separate inspection.
 
 **Save Preset** saves both the active profile and its current percentages into
 the settings-owned `mesh_slider_profiles/definitions` and `presets` folders as

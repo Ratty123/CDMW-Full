@@ -33,6 +33,7 @@ def _publish_prepared_replacement(
     session.sidecar_warnings = prepared.sidecar_warnings
     session.edit_operations = prepared.edit_operations
     session.requires_edit_operations = prepared.requires_edit_operations
+    session.archive_refit_context = prepared.archive_refit_context
     session.object_transform = MeshObjectTransformState(pivot=session.object_transform.pivot)
     session.revision += 1
 
@@ -47,6 +48,7 @@ def _restore_previous_replacement_state(
     session.sidecar_warnings = prepared.previous_sidecar_warnings
     session.edit_operations = prepared.previous_edit_operations
     session.requires_edit_operations = prepared.previous_requires_edit_operations
+    session.archive_refit_context = prepared.previous_archive_refit_context
     session.revision = prepared.expected_revision
 
 
@@ -98,6 +100,7 @@ class MeshWorkingReplacementServiceMixin:
         validation_output_policy: str | None = None,
         validation_output_destination: str | None = None,
         validation_output_destination_ready: bool | None = None,
+        archive_refit_context: object | None = None,
     ) -> MeshPreparedWorkingMeshReplacement:
         """Build and validate an immutable candidate without publishing live state."""
 
@@ -130,11 +133,15 @@ class MeshWorkingReplacementServiceMixin:
                 getattr(mesh, "_cdmw_obj_sidecar_present", False)
             ):
                 _service_call("validate_obj_sidecar_source_identity", mesh, session.original_data)
+            refit_context = archive_refit_context or session.archive_refit_context
             working_mesh = _service_call(
                 "apply_operation_channels_to_original",
                 session.base_mesh,
                 mesh,
                 active_lod_index=session.lod_index,
+            ) if refit_context is None else _service_call(
+                "_clone_mesh_for_service_native_snapshot", mesh,
+                "session.archive_refit_replacement", "Archive Refit snapshot failed",
             )
             if session.original_data:
                 setattr(working_mesh, "_cdmw_original_data", session.original_data)
@@ -159,39 +166,69 @@ class MeshWorkingReplacementServiceMixin:
                 bool(getattr(working_mesh, "_cdmw_imported_from_obj", False))
                 and bool(getattr(working_mesh, "_cdmw_obj_sidecar_present", False))
             )
-            requested_output_policy = (
-                session.output_policy
-                if validation_output_policy is None
-                else str(validation_output_policy)
+            validation_report = self._validate_replacement_export(
+                session, working_mesh, refit_context, sidecar_warnings, edit_operations,
+                requires_edit_operations, validation_output_policy,
+                validation_output_destination, validation_output_destination_ready,
             )
-            requested_output_destination = (
-                session.output_destination
-                if validation_output_destination is None
-                else str(validation_output_destination)
+            return MeshPreparedWorkingMeshReplacement(
+                session_id=session.session_id,
+                expected_revision=session.revision,
+                working_mesh=working_mesh,
+                selection=preserved_selection,
+                previous_working_mesh=previous_working_mesh,
+                previous_selection=session.selection,
+                previous_object_transform=session.object_transform,
+                validation_report=validation_report,
+                previous_sidecar_warnings=tuple(session.sidecar_warnings),
+                previous_edit_operations=tuple(session.edit_operations),
+                previous_requires_edit_operations=session.requires_edit_operations,
+                sidecar_warnings=sidecar_warnings,
+                edit_operations=edit_operations,
+                requires_edit_operations=requires_edit_operations,
+                archive_refit_context=refit_context,
+                previous_archive_refit_context=session.archive_refit_context,
             )
-            requested_output_destination_ready = (
-                session.output_destination_ready
-                if validation_output_destination_ready is None
-                else bool(validation_output_destination_ready)
+
+    def _validate_replacement_export(
+        self, session, working_mesh, refit_context, sidecar_warnings, edit_operations,
+        requires_edit_operations, validation_output_policy,
+        validation_output_destination, validation_output_destination_ready,
+    ):
+        requested_output_policy = (
+            session.output_policy
+            if validation_output_policy is None
+            else str(validation_output_policy)
+        )
+        requested_output_destination = (
+            session.output_destination
+            if validation_output_destination is None
+            else str(validation_output_destination)
+        )
+        requested_output_destination_ready = (
+            session.output_destination_ready
+            if validation_output_destination_ready is None
+            else bool(validation_output_destination_ready)
+        )
+        validation_policy = output_policy_state(
+            session.mesh_format,
+            lod_index=session.lod_index,
+            requested_policy=requested_output_policy,
+            output_destination=requested_output_destination,
+            destination_ready=requested_output_destination_ready,
+        )
+        if validation_policy.policy.value != requested_output_policy:
+            raise RuntimeError(
+                validation_policy.reason
+                or "The requested Mesh Editor output policy is unavailable."
             )
-            validation_policy = output_policy_state(
-                session.mesh_format,
-                lod_index=session.lod_index,
-                requested_policy=requested_output_policy,
-                output_destination=requested_output_destination,
-                destination_ready=requested_output_destination_ready,
-            )
-            if validation_policy.policy.value != requested_output_policy:
-                raise RuntimeError(
-                    validation_policy.reason
-                    or "The requested Mesh Editor output policy is unavailable."
-                )
-            allowed_operation_lods = (
-                (session.lod_index,)
-                if validation_policy.policy is MeshOutputPolicy.FREE_EDIT
-                and validation_policy.authoring_enabled
-                else None
-            )
+        allowed_operation_lods = (
+            (session.lod_index,)
+            if validation_policy.policy is MeshOutputPolicy.FREE_EDIT
+            and validation_policy.authoring_enabled
+            else None
+        )
+        if refit_context is None:
             validation_report = _service_call(
                 "validate_mesh_export",
                 working_mesh,
@@ -215,22 +252,14 @@ class MeshWorkingReplacementServiceMixin:
                 ),
                 exact_output=(validation_policy.policy is not MeshOutputPolicy.FREE_EDIT),
             )
-            return MeshPreparedWorkingMeshReplacement(
-                session_id=session.session_id,
-                expected_revision=session.revision,
-                working_mesh=working_mesh,
-                selection=preserved_selection,
-                previous_working_mesh=previous_working_mesh,
-                previous_selection=session.selection,
-                previous_object_transform=session.object_transform,
-                validation_report=validation_report,
-                previous_sidecar_warnings=tuple(session.sidecar_warnings),
-                previous_edit_operations=tuple(session.edit_operations),
-                previous_requires_edit_operations=session.requires_edit_operations,
-                sidecar_warnings=sidecar_warnings,
-                edit_operations=edit_operations,
-                requires_edit_operations=requires_edit_operations,
+        else:
+            from cdmw.services.mesh_archive_refit import (
+                archive_refit_candidate_snapshot, validate_archive_refit,
             )
+            validation_report = validate_archive_refit(self, archive_refit_candidate_snapshot(
+                session, working_mesh, refit_context,
+            ))
+        return validation_report
 
     def _publish_replacement_with_rollback(self, session, prepared, history_snapshot, next_undo, next_redo, options, checkpoint):
         try:
@@ -352,6 +381,8 @@ class MeshWorkingReplacementServiceMixin:
             history_snapshot = _service_call("_snapshot", session, prefer_native=True)
             history_snapshot.history_action = str(options.history_action or "replace_working_mesh")
             history_snapshot.history_label = str(options.history_label or "Replace Working Mesh")
+            history_snapshot.archive_refit_context = session.archive_refit_context
+            history_snapshot.restore_archive_refit_context = True
             if session.native_editor_mesh_dirty:
                 previous_native_snapshot = _service_call(
                     "snapshot_native_mesh_submeshes",
@@ -414,6 +445,8 @@ class MeshWorkingReplacementServiceMixin:
                         "snapshot exceeds the configured history memory limit."
                     )
                 after_snapshot = _MeshHistorySnapshot(
+                    archive_refit_context=prepared.archive_refit_context,
+                    restore_archive_refit_context=True,
                     mesh=prepared.working_mesh,
                     mode=session.mode,
                     selection=prepared.selection,

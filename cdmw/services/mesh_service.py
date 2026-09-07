@@ -293,6 +293,8 @@ from cdmw.services.mesh_service_native_clone import (
 
 
 def _active_geometry_layer_indices(session: _MeshEditSession) -> tuple[int, ...]:
+    if session.archive_refit_context is not None:
+        return _visible_geometry_layer_indices(session)
     for layer in session.geometry_layers:
         if layer.layer_id == session.active_geometry_layer_id:
             return layer.submesh_indices
@@ -760,6 +762,8 @@ class _MeshServiceSessionLayerCore(
             loaded_layer_project,
             len(working_mesh.submeshes),
         )
+        if loaded_layer_project is not None:
+            session.archive_refit_context = loaded_layer_project.get("archive_refit_context")
         self._sessions[session_key] = session
         return self.session_view(session_key)
 
@@ -1179,6 +1183,7 @@ class _MeshServiceSessionLayerCore(
             workspace_manifest_path=session.mesh_layer_workspace_manifest_path,
             promote_persistent_draft=promote,
             stop_event=stop_event,
+            archive_refit_context=session.archive_refit_context,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
@@ -1291,6 +1296,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 )
             except ValueError as exc:
                 raise ValueError(f"Unsupported Mesh Editor output policy: {output_policy!r}") from exc
+            if session.archive_refit_context is not None and requested is not MeshOutputPolicy.EXACT_GAME_ASSET:
+                raise ValueError("Archive Refit saves the original game assets; undo the archive loads before switching output format")
             destination = ""
             destination_ready = False
             if requested is MeshOutputPolicy.FREE_EDIT:

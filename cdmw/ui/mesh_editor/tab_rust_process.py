@@ -394,6 +394,8 @@ class MeshEditorRustProcessMixin:
         self._sync_mesh_editor_backend_controls(has_active_session=True)
 
     def _start_next_rust_protocol_worker(self) -> None:
+        if getattr(self, "_archive_refit_picker_active", False):
+            return
         if self.standalone_rust_protocol_thread is not None or not self.standalone_rust_protocol_queue:
             return
         session = self.standalone_rust_authoring_session
@@ -401,6 +403,17 @@ class MeshEditorRustProcessMixin:
             self.standalone_rust_protocol_queue.clear()
             return
         event = self.standalone_rust_protocol_queue.pop(0)
+        if event.get("command") == "refit_choose_archive":
+            from cdmw.ui.mesh_editor.archive_refit_flow import prepare_archive_refit_event
+            self._archive_refit_picker_active = True
+            try:
+                event = prepare_archive_refit_event(self, session, event)
+            except Exception as exc:
+                self._send_rust_error_response(event, str(exc))
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
+            finally:
+                self._archive_refit_picker_active = False
         self.standalone_rust_protocol_request_id += 1
         worker_request_id = self.standalone_rust_protocol_request_id
         worker_type = getattr(
@@ -707,6 +720,9 @@ class MeshEditorRustProcessMixin:
     def _stop_rust_editor_process(self, *, reason: str = "") -> None:
         self.standalone_rust_closing = True
         self.standalone_rust_ready = False
+        picker = getattr(self, "_archive_refit_picker", None)
+        if picker is not None:
+            picker.request_shutdown()
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_finish_timer.stop()
         self.standalone_rust_protocol_queue.clear()

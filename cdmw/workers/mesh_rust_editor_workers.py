@@ -208,6 +208,11 @@ class MeshRustProtocolWorker(QObject):
                 payload = self.session.apply_candidate(self.protocol_event)
                 result_name = "transaction_result"
             elif event_name == "command_request":
+                if self.protocol_event.get("command") == "refit_choose_archive":
+                    from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source
+                    self.protocol_event["arguments"] = prepare_archive_refit_source(
+                        dict(self.protocol_event.get("arguments") or {}), self._stop_event,
+                    )
                 payload = self.session.run_command(
                     self.protocol_event,
                     stop_event=self._stop_event,

@@ -57,24 +57,36 @@ def append_refit_mesh(current: ParsedMesh, path: str, role: str, *, stop_event=N
     return current, tuple(range(first, len(current.submeshes)))
 
 
-def stage_refit_morph_runtime(service, session_id, combined):
+def stage_refit_morph_runtime(service, session_id, combined, *, driver_indices=None):
     """Rebuild a zero-preview runtime against the new Part table before publication."""
     from cdmw.services.mesh_service import MeshService
     from cdmw.services.mesh_service_state import _MeshMorphSessionState
 
     cache = service._morph_sessions.get(session_id)
-    if cache is None or cache.profile is None:
+    if (cache is None or cache.profile is None) and driver_indices is None:
         return _MeshMorphSessionState(present=False)
+    from dataclasses import replace
+    from cdmw.domain.mesh.morph import MeshMorphProfile, mesh_morph_driver_topology_fingerprint
+
+    profile = cache.profile if cache is not None else None
+    definitions = profile.definitions if profile is not None else ()
+    fingerprint = mesh_morph_driver_topology_fingerprint(combined, definitions)
+    profile = replace(profile, topology_fingerprint=fingerprint) if profile is not None else MeshMorphProfile(
+        profile_id="archive-refit", name="Body & Armor", topology_fingerprint=fingerprint,
+    )
     staged = MeshService(settings=service.settings)
     staged_id = staged.open_edit_session(combined, mode="edit").session_id
     try:
         staged.prime_morph_profile_cache(staged_id, freeze=True)
-        staged._activate_morph_profile_locked(staged._session(staged_id), cache.profile)
+        staged._activate_morph_profile_locked(staged._session(staged_id), profile)
         staged_cache = staged._morph_sessions[staged_id]
         staged_cache.topology_mesh = staged.working_mesh(staged_id, clone=True)
-        staged_cache.known_profiles.update(cache.known_profiles)
-        staged_cache.known_presets.update(cache.known_presets)
-        if cache.state is not None:
+        if cache is not None:
+            staged_cache.known_profiles.update(cache.known_profiles)
+            staged_cache.known_presets.update(cache.known_presets)
+        if driver_indices is not None:
+            staged.set_refit_driver(staged_id, driver_indices)
+        elif cache is not None and cache.state is not None:
             state = cache.state
             if state.driver_submesh_indices:
                 staged.set_refit_driver(staged_id, state.driver_submesh_indices)

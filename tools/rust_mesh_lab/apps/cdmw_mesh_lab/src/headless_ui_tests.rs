@@ -2006,7 +2006,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
         "Select",
         "Move",
         "Visibility",
-        "Load Body...",
+        "Browse Body...",
         "Deform",
         "Game / Mod output",
     ] {
@@ -2025,23 +2025,20 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
     ] {
         ui.reveal(section)?;
     }
-    assert!(ui.label_rect("Load Body...").is_none());
+    assert!(ui.label_rect("Browse Body...").is_none());
     ui.click("Meshes & selection")?;
-    ui.reveal("Adding meshes requires Free Edit.")?;
-    assert!(
-        ui.actions_from_click("Enable Free Edit...")?
-            .iter()
-            .any(|action| matches!(action, UiAction::ChooseCdmwFreeEdit))
-    );
-    assert!(ui.actions_from_click("Load Armor...")?.is_empty());
+    assert!(ui.label_rect("Enable Free Edit...").is_none());
+    assert!(has_host_command(
+        &ui.actions_from_click("Use loaded mesh as body")?,
+        "refit_use_loaded_body"
+    ));
     ui.click("Choose Parts")?;
     ui.click("2 · Part B")?;
     assert_eq!(ui.application.selected_part_indices(), vec![1]);
-    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
     ui.frame(Vec::new());
     ui.reveal("2 · Part B")?;
     assert!(ui.label_rect("Adding meshes requires Free Edit.").is_none());
-    assert!(ui.actions_from_click("Load Armor...")?.iter().any(
+    assert!(ui.actions_from_click("Browse Armor...")?.iter().any(
         |action| matches!(action, UiAction::ChooseCdmwRefitMesh { role } if *role == "armor")
     ));
     ui.click("Open Selection tool")?;
@@ -2050,7 +2047,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
     assert!(!ui.application.cdmw_orbit_mode);
     ui.reveal("Shape")?;
     ui.click_tool_button("Morph & Refit")?;
-    ui.reveal("Load Armor...")?;
+    ui.reveal("Browse Armor...")?;
     ui.reveal("2 · Part B")?;
     assert!(
         ui.label_rect("Load Preset...").is_none(),
@@ -2151,16 +2148,15 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     ui.click("Meshes & selection")?;
     ui.click("Choose Parts")?;
     ui.click("Profiles & presets")?;
-    assert!(ui.actions_from_click("Load Body...")?.is_empty());
-    ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+    assert!(ui.label_rect("Enable Free Edit...").is_none());
     ui.frame(Vec::new());
     assert!(
-        ui.actions_from_click("Load Body...")?
+        ui.actions_from_click("Browse Body...")?
             .iter()
             .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "body" }))
     );
     assert!(
-        ui.actions_from_click("Load Armor...")?
+        ui.actions_from_click("Browse Armor...")?
             .iter()
             .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "armor" }))
     );
@@ -2180,7 +2176,7 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     ui.application.cdmw_state["morph_refit"]["topology_blocked"] = json!(true);
     ui.frame(Vec::new());
     ui.reveal("Preview active. Reset or Bake before changing sliders, bindings, or topology.")?;
-    assert!(ui.actions_from_click("Load Armor...")?.is_empty());
+    assert!(ui.actions_from_click("Browse Armor...")?.is_empty());
     assert!(
         ui.actions_from_click("Export Preset...")?
             .iter()
@@ -2188,7 +2184,7 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     );
     ui.click("Refit clothing & armor")?;
     assert!(!has_host_command(
-        &ui.actions_from_click("1. Set Selected Driver Parts")?,
+        &ui.actions_from_click("1. Use selected Parts as body")?,
         "refit_set_driver"
     ));
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
@@ -2471,7 +2467,7 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_submesh_indices"] = json!([]);
     ui.frame(Vec::new());
     assert!(has_host_command(
-        &ui.actions_from_click("1. Set Selected Driver Parts")?,
+        &ui.actions_from_click("1. Use selected Parts as body")?,
         "refit_set_driver"
     ));
     assert!(has_host_command(

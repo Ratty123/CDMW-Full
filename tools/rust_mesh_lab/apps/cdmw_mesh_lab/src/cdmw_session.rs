@@ -87,6 +87,22 @@ pub struct CdmwTextureResource {
     pub material_indices_by_lod: Vec<Vec<u32>>,
 }
 
+#[derive(Debug)]
+pub struct CdmwMaterialUpdate {
+    pub key: String,
+    pub textures: Vec<CdmwTextureResource>,
+    pub material_presentations: Vec<SessionMaterialPresentation>,
+    pub reason: String,
+}
+
+#[derive(Deserialize)]
+struct MaterialStatePayload {
+    key: String,
+    textures: Vec<SessionTextureReference>,
+    material_presentations: Vec<SessionMaterialPresentation>,
+    reason: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct EffectTextureReference {
     pub archive_path: String,
@@ -858,6 +874,62 @@ impl CdmwBridge {
         let document: MeshDocument = serde_json::from_slice(&bytes)?;
         validate_document(&document)?;
         Ok(Some(document))
+    }
+
+    pub fn materials_from_state(
+        &self,
+        state: &Value,
+        current_key: &str,
+        document: Option<&MeshDocument>,
+    ) -> Result<Option<CdmwMaterialUpdate>, SessionError> {
+        let Some(update) = state.get("archive_refit_materials") else {
+            return Ok(None);
+        };
+        let key = update
+            .get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if key != "base" && (key.len() != 32 || !key.bytes().all(|byte| byte.is_ascii_hexdigit())) {
+            return Err(SessionError::InvalidPayload(
+                "archive Refit material identity is invalid".to_owned(),
+            ));
+        }
+        if key == current_key {
+            return Ok(None);
+        }
+        let document = document.ok_or_else(|| {
+            SessionError::InvalidPayload(
+                "archive Refit materials require a mesh document".to_owned(),
+            )
+        })?;
+        let reference: FileReference =
+            serde_json::from_value(update.get("file").cloned().unwrap_or(Value::Null))?;
+        if reference.data_type != "mesh_materials_json"
+            || reference.count != 1
+            || reference.byte_length > MAX_MANIFEST_BYTES
+        {
+            return Err(SessionError::InvalidPayload(
+                "archive Refit material reference is invalid".to_owned(),
+            ));
+        }
+        let bytes = read_json_reference(&self.root, &reference)?;
+        let payload: MaterialStatePayload = serde_json::from_slice(&bytes)?;
+        if payload.key != key {
+            return Err(SessionError::InvalidPayload(
+                "archive Refit material identity does not match its payload".to_owned(),
+            ));
+        }
+        let mut manifest = self.manifest.clone();
+        manifest.textures = payload.textures;
+        manifest.material_presentations = payload.material_presentations;
+        validate_material_presentations(&manifest, document)?;
+        let textures = read_texture_resources(&self.root, &manifest, document)?;
+        Ok(Some(CdmwMaterialUpdate {
+            key: key.to_owned(),
+            textures,
+            material_presentations: manifest.material_presentations,
+            reason: payload.reason,
+        }))
     }
 
     fn take_request_id(&mut self) -> u64 {

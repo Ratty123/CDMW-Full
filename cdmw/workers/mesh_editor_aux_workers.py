@@ -113,6 +113,9 @@ class MeshArchiveSessionLoadWorker(QObject):
 
     @Slot()
     def run(self) -> None:
+        service = None
+        view = None
+        transferred = False
         try:
             if self.stop_event.is_set():
                 return
@@ -237,11 +240,16 @@ class MeshArchiveSessionLoadWorker(QObject):
                         skeleton_resolution_reason=skeleton_resolution_reason,
                     ),
                 )
+                transferred = True
         except Exception as exc:
             if not self.stop_event.is_set():
                 self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
         finally:
-            self.finished.emit()
+            try:
+                if not transferred and service is not None and view is not None:
+                    service.close_edit_session(view.session_id, force_without_saving=True)
+            finally:
+                self.finished.emit()
 
 
 class MeshArchiveMaterialContextWorker(QObject):

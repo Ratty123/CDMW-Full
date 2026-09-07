@@ -40,8 +40,8 @@ use cdmw_render_wgpu::{
     WindowRenderer,
 };
 use cdmw_session::{
-    CdmwBridge, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage, PreviewCoreMaterialGraph,
-    SessionMaterialPresentation,
+    CdmwBridge, CdmwMaterialUpdate, CdmwTextureResource, HostEvent, LoadedCdmwSessionPackage,
+    PreviewCoreMaterialGraph, SessionMaterialPresentation,
 };
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
@@ -1879,6 +1879,21 @@ fn cdmw_material_preview_factors(
     }
 }
 
+fn loaded_cdmw_texture(texture: CdmwTextureResource) -> LoadedTexture {
+    LoadedTexture {
+        requested_reference: texture.label.clone(),
+        label: texture.label,
+        metadata: texture.metadata,
+        bytes: texture.bytes,
+        role: texture.role,
+        parameter_name: None,
+        sidecar_label: Some("CDMW isolated authoring package".to_owned()),
+        resolution_method: cdmw_asset_graph::ResolutionMethod::ExplicitVirtualPath,
+        archive_compression: None,
+        material_indices_by_lod: texture.material_indices_by_lod,
+    }
+}
+
 fn loaded_cdmw_material_factor(
     presentation: &SessionMaterialPresentation,
     lod_count: usize,
@@ -1964,6 +1979,7 @@ struct LabApplication {
     cdmw_texture_resources: Vec<LoadedTexture>,
     cdmw_hidden_parts: HashSet<u32>,
     cdmw_material_presentations: Vec<SessionMaterialPresentation>,
+    cdmw_material_key: String,
     cdmw_uploaded_texture_count: usize,
     cdmw_textured_mode_available: bool,
     cdmw_textured_mode_reason: String,
@@ -2118,6 +2134,7 @@ impl LabApplication {
             cdmw_texture_resources: Vec::new(),
             cdmw_hidden_parts: HashSet::new(),
             cdmw_material_presentations: Vec::new(),
+            cdmw_material_key: String::new(),
             cdmw_uploaded_texture_count: 0,
             cdmw_textured_mode_available: false,
             cdmw_textured_mode_reason:
@@ -2810,10 +2827,27 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
+        let materials = self
+            .cdmw_bridge
+            .as_ref()
+            .map(|bridge| {
+                bridge.materials_from_state(
+                    &state,
+                    &self.cdmw_material_key,
+                    document.as_ref().or(self.document.as_ref()),
+                )
+            })
+            .transpose()?
+            .flatten();
+        let document = document.or_else(|| materials.as_ref().and_then(|_| self.document.clone()));
         let previous_visibility = self.cdmw_visible_submeshes();
         let previous_state = std::mem::replace(&mut self.cdmw_state, state);
         let result = if let Some(document) = document {
-            self.install_cdmw_document(document)
+            if let Some(materials) = materials {
+                self.install_cdmw_document_with_materials(document, Some(materials))
+            } else {
+                self.install_cdmw_document(document)
+            }
         } else {
             self.apply_cdmw_selection_state(
                 previous_visibility != self.cdmw_visible_submeshes()
@@ -2830,6 +2864,14 @@ impl LabApplication {
     }
 
     fn install_cdmw_document(&mut self, document: MeshDocument) -> Result<()> {
+        self.install_cdmw_document_with_materials(document, None)
+    }
+
+    fn install_cdmw_document_with_materials(
+        &mut self,
+        document: MeshDocument,
+        materials: Option<CdmwMaterialUpdate>,
+    ) -> Result<()> {
         let path = PathBuf::from(&self.source_label);
         let camera = self.camera.clone();
         let orbit_mode = self.cdmw_orbit_mode;
@@ -2837,37 +2879,59 @@ impl LabApplication {
         let viewport_tool = self.viewport_tool;
         let show_bones = self.show_bones;
         let active_lod_index = self.active_lod_index;
-        let textures = self.document.as_ref().map_or_else(
-            || self.cdmw_texture_resources.clone(),
-            |previous_document| {
-                remap_texture_ownership(&self.cdmw_texture_resources, previous_document, &document)
-            },
-        );
+        let (textures, material_presentations, material_revision) = if let Some(update) = materials
+        {
+            (
+                update
+                    .textures
+                    .into_iter()
+                    .map(loaded_cdmw_texture)
+                    .collect(),
+                update.material_presentations,
+                Some((update.key, update.reason)),
+            )
+        } else {
+            (
+                self.document.as_ref().map_or_else(
+                    || self.cdmw_texture_resources.clone(),
+                    |previous_document| {
+                        remap_texture_ownership(
+                            &self.cdmw_texture_resources,
+                            previous_document,
+                            &document,
+                        )
+                    },
+                ),
+                self.cdmw_material_presentations.clone(),
+                None,
+            )
+        };
         // These resources come from this session's immutable texture payloads;
         // remapping only changes their owners. Preserve GPU resources when the
         // ownership and LOD shape are unchanged and the previous upload succeeded.
-        let reuse_materials = self.document.as_ref().is_some_and(|previous| {
-            previous.lods.len() == document.lods.len()
-                && previous
-                    .lods
-                    .iter()
-                    .zip(&document.lods)
-                    .all(|(before, after)| {
-                        before.submeshes.len() == after.submeshes.len()
-                            && before
-                                .submeshes
-                                .iter()
-                                .zip(&after.submeshes)
-                                .all(|(before, after)| same_source_part(before, after))
-                    })
-                && self.cdmw_uploaded_texture_count == textures.len()
-                && textures
-                    .iter()
-                    .zip(&self.cdmw_texture_resources)
-                    .all(|(next, previous)| {
-                        next.material_indices_by_lod == previous.material_indices_by_lod
-                    })
-        });
+        let reuse_materials = material_revision.is_none()
+            && self.document.as_ref().is_some_and(|previous| {
+                previous.lods.len() == document.lods.len()
+                    && previous
+                        .lods
+                        .iter()
+                        .zip(&document.lods)
+                        .all(|(before, after)| {
+                            before.submeshes.len() == after.submeshes.len()
+                                && before
+                                    .submeshes
+                                    .iter()
+                                    .zip(&after.submeshes)
+                                    .all(|(before, after)| same_source_part(before, after))
+                        })
+                    && self.cdmw_uploaded_texture_count == textures.len()
+                    && textures
+                        .iter()
+                        .zip(&self.cdmw_texture_resources)
+                        .all(|(next, previous)| {
+                            next.material_indices_by_lod == previous.material_indices_by_lod
+                        })
+            });
         let mesh = WorkingMesh::from_document(&document).context("invalid CDMW LOD0 state")?;
         let other_lod_meshes = (1..document.lods.len())
             .map(|index| {
@@ -2875,8 +2939,7 @@ impl LabApplication {
                     .with_context(|| format!("invalid CDMW LOD{index} state"))
             })
             .collect::<Result<Vec<_>>>()?;
-        let material_factors = self
-            .cdmw_material_presentations
+        let material_factors = material_presentations
             .iter()
             .map(|presentation| loaded_cdmw_material_factor(presentation, document.lods.len()))
             .collect::<Vec<_>>();
@@ -2894,6 +2957,11 @@ impl LabApplication {
             reuse_materials,
         );
         self.cdmw_texture_resources = textures;
+        self.cdmw_material_presentations = material_presentations;
+        if let Some((key, reason)) = material_revision {
+            self.cdmw_material_key = key;
+            self.cdmw_texture_package_reason = reason;
+        }
         if let Some(renderer) = &mut self.renderer {
             if !reuse_materials {
                 add_cdmw_material_presentations(
@@ -4825,26 +4893,15 @@ impl LabApplication {
     }
 
     fn choose_cdmw_refit_mesh(&mut self, role: &'static str) {
-        if let Some(path) = self
-            .cdmw_file_dialog()
-            .set_title(if role == "body" {
-                "Add body mesh"
+        self.handle_actions(vec![UiAction::CdmwCommand {
+            command: "refit_choose_archive",
+            arguments: json!({"role": role}),
+            label: if role == "body" {
+                "Load refit body"
             } else {
-                "Add clothing or armor mesh"
-            })
-            .add_filter("Meshes", &["pac", "pam", "pamlod", "obj", "glb"])
-            .pick_file()
-        {
-            self.handle_actions(vec![UiAction::CdmwCommand {
-                command: "refit_load_mesh",
-                arguments: json!({"path": path.to_string_lossy(), "role": role}),
-                label: if role == "body" {
-                    "Load refit body"
-                } else {
-                    "Load refit armor"
-                },
-            }]);
-        }
+                "Load refit armor"
+            },
+        }]);
     }
 
     fn cdmw_file_dialog(&self) -> rfd::FileDialog {

@@ -235,12 +235,14 @@ class ReplaceFromArchivePickerDialog(QDialog):
         target_entry: ArchiveEntry,
         target_dependencies: ArchiveWorkflowDependencyContext,
         parent: QWidget | None = None,
+        refit_role: str = "",
     ) -> None:
         super().__init__(parent)
         self._service = service
         self._session = session
         self._target_entry = target_entry
         self._target_dependencies = target_dependencies
+        self._refit_role = refit_role
         self._generation = 0
         self._selection_generation = 0
         self._requests: dict[str, tuple[str, int, RemotePageFetch | None]] = {}
@@ -251,24 +253,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self.selected_dependencies: ArchiveWorkflowDependencyContext | None = None
         self.character_mode = ReplaceFromArchiveCharacterMode.NOT_CHARACTER
 
-        self.setWindowTitle("Replace from Archive")
-        self.resize(1360, 820)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-
-        intro = QLabel(
-            "Choose another PAC, PAM, or PAMLOD already present in the loaded archives. "
-            "The source bytes are mapped onto the current target and built as a separate loose mod."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText(
-            "Search item name, internal name, type, path, or package"
-        )
-        layout.addWidget(self.search_edit)
+        self._build_picker_header(layout)
 
         content = QSplitter(Qt.Vertical)
         content.setChildrenCollapsible(False)
@@ -335,6 +321,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         self.choose_button = QPushButton("Review Replacement")
+        if refit_role:
+            self.choose_button.setText("Load Body" if refit_role == "body" else "Load Armor")
         cancel_button = QPushButton("Cancel")
         self.choose_button.setEnabled(False)
         buttons.addWidget(self.choose_button)
@@ -381,6 +369,27 @@ class ReplaceFromArchivePickerDialog(QDialog):
 
         QTimer.singleShot(0, self._start_query)
         QTimer.singleShot(0, self._start_target_preview)
+
+    def _build_picker_header(self, layout):
+        self.setWindowTitle("Choose Refit Body from Archive" if self._refit_role == "body" else "Choose Refit Armor from Archive" if self._refit_role else "Replace from Archive")
+        self.resize(1360, 820)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        intro = QLabel(
+            "Choose another PAC, PAM, or PAMLOD already present in the loaded archives. "
+            "The source bytes are mapped onto the current target and built as a separate loose mod."
+        )
+        intro.setWordWrap(True)
+        if self._refit_role:
+            intro.setText("Choose a game mesh to edit alongside the loaded mesh. Build Mod saves both at their original archive paths.")
+        layout.addWidget(intro)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText(
+            "Search item name, internal name, type, path, or package"
+        )
+        layout.addWidget(self.search_edit)
 
     @property
     def target_preview_image(self) -> QImage | None:
@@ -641,7 +650,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self._update_choose_state()
 
     def _update_character_mode_visibility(self, source: ArchiveEntry | None) -> None:
-        character_pair = isinstance(
+        character_pair = not self._refit_role and isinstance(
             source, ArchiveEntry
         ) and archive_entries_are_character_pair(
             self._target_entry,
@@ -661,7 +670,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
             )
             and self._source_lane.settled
         )
-        if ready and archive_entries_are_character_pair(
+        if ready and not self._refit_role and archive_entries_are_character_pair(
             self._target_entry, self.selected_entry
         ):
             ready = self._selected_character_mode() is not None
@@ -672,7 +681,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
             self.selected_entry, ArchiveEntry
         ):
             return
-        if archive_entries_are_character_pair(self._target_entry, self.selected_entry):
+        if not self._refit_role and archive_entries_are_character_pair(self._target_entry, self.selected_entry):
             mode = self._selected_character_mode()
             if mode is None:
                 return

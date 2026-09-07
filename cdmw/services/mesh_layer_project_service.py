@@ -20,6 +20,7 @@ from cdmw.modding.mesh_native_core import (
 )
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.atomic_file_service import atomic_write_text
+from cdmw.services.mesh_archive_refit import load_archive_refit_context, save_archive_refit_context
 
 
 MESH_LAYER_PROJECT_FORMAT = "mesh_layer_project_v1"
@@ -86,6 +87,7 @@ def save_mesh_layer_project(
     workspace_manifest_path: Path | None = None,
     promote_persistent_draft: bool = False,
     stop_event: threading.Event | None = None,
+    archive_refit_context: object | None = None,
 ) -> dict[str, object]:
     """Write one complete generation, then atomically point the project at it."""
 
@@ -182,6 +184,7 @@ def save_mesh_layer_project(
         "layers": [dict(layer) for layer in layers],
         "object_transform": dict(object_transform or {}),
         "snapshot": persisted_snapshot,
+        "archive_refit": save_archive_refit_context(archive_refit_context, project_root, stop),
     }
     generation_manifest = generation_dir / "generation.json"
     atomic_write_text(generation_manifest, json.dumps(generation_payload, indent=2, sort_keys=True))
@@ -273,7 +276,8 @@ def load_mesh_layer_project(
                 timeout_seconds=30.0,
             ):
                 raise RuntimeError("native snapshot restore failed")
-            return {**dict(payload), "loaded_generation": generation_name}
+            refit_context = load_archive_refit_context(payload.get("archive_refit"), target.parent)
+            return {**dict(payload), "loaded_generation": generation_name, "archive_refit_context": refit_context}
         except (OSError, RuntimeError, ValueError) as exc:
             failures.append(f"{generation_name}: {exc}")
     raise RuntimeError("No valid Mesh Editor layer-project generation: " + "; ".join(failures))
