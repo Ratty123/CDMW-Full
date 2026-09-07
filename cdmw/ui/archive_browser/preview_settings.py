@@ -553,8 +553,8 @@ class ArchivePreviewSettingsMixin:
         cleared_count = len(self.archive_preview_cache)
         self._clear_archive_preview_cache(clear_native_packages=True)
         self.shell.append_archive_log(
-            f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
-            "plus durable Preview packages and PAC XML profile index."
+            f"Archive preview cache entries cleared: {cleared_count:,}; "
+            "also cleared durable Preview packages and the PAC XML profile index."
         )
         self.shell.set_status_message("Archive preview cache cleared.")
 

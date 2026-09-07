@@ -75,7 +75,7 @@ class AboutControllerMixin:
     def _build_about_overview_html(self) -> str:
         return self._build_about_intro_html() + """
             <h3>Application Areas</h3>
-            <p>The current build exposes 15 tools across Assets, Mesh &amp; Placement, Textures, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Texture Workflow, Texture Replacer, Texture Recolor, Texture Editor, Retrofit/Repackage, Format Explorer, Translations, Research, and Text Search.</p>
+            <p>The current build exposes 12 tools across Assets, Authoring, and Utilities: Create New Item, Archive Browser, Model Library, Icon Creator, Mesh Editor, Placement &amp; Animations, Textures, Retrofit/Repackage, Format Explorer, Translations, Research, and Text Search.</p>
             <p>Use <b>Help &gt; Documentation</b> for the full searchable guide.</p>
             """
 
@@ -158,7 +158,7 @@ class AboutControllerMixin:
         <a href="topic:new_item_studio">Create New Item</a>,
         <a href="topic:model_library">Model Library</a>,
         <a href="topic:icon_creator">Icon Creator</a>,
-        <a href="topic:workflow_overview">Texture Workflow</a>,
+        <a href="topic:workflow_overview">Textures</a>,
         <a href="topic:workflow_profiles">Workflow Profiles</a>,
         <a href="topic:workflow_rules">Ordered Rules</a>,
         <a href="topic:workflow_planner_profiles">Planner Profiles</a>,
@@ -166,9 +166,9 @@ class AboutControllerMixin:
         <a href="topic:archive_browser">Archive Browser</a>,
         <a href="topic:mesh_editor">Mesh Editor</a>,
         <a href="topic:placement_studio">Placement &amp; Animations</a>,
-        <a href="topic:texture_editor">Texture Editor</a>,
-        <a href="topic:replace_assistant">Texture Replacer</a>,
-        <a href="topic:texture_recolor">Texture Recolor</a>,
+        <a href="topic:texture_editor">Textures: Edit</a>,
+        <a href="topic:replace_assistant">Textures: Replacement matches</a>,
+        <a href="topic:texture_recolor">Textures: Recolor</a>,
         <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>,
         <a href="topic:format_explorer">Format Explorer</a>,
         <a href="topic:translation_studio">Translations</a>,

@@ -30,9 +30,9 @@ requests nonblocking worker shutdown without persisting a setting.
 
 Keep this package focused on application frame behavior. Feature tabs belong in
 `cdmw/ui/<feature>/`; business coordination belongs in `cdmw/services/`; slow
-work belongs in `cdmw/workers/`. `MainWindow` has only `QMainWindow` as a base;
-shell/archive/texture/mesh behavior is supplied by owned controllers and the
-compatibility provider registry.
+work belongs in `cdmw/workers/`. `MainWindow` uses the shell-owned `WorkbenchWindow`;
+shell and feature behavior uses ordinary methods on owning widgets and
+controllers. There is no runtime provider registry or generated method manifest.
 
 `Help > Documentation` is the app's wiki surface. It uses a hierarchical topic
 tree, a generated all-topic index, multi-word relevance search with `Ctrl+K`,

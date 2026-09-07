@@ -47,6 +47,13 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Shared preview combo labels arrive through imported option tables.
+        # Keep their Qt translations independent of the help's wording.
+        "Solid (Textured)", "Faces (No Textures)", "Faces + Wire", "Wire",
+        "Vertices", "Wire + Vertices", "X-Ray", "Solid", "Faces", "Face+W",
+        "Verts", "Wire+V",
+        # Lazy shell registration supplies this title through a factory call.
+        "Texture Recolor",
         # Placement's model headers and prepared checks are indirect data sinks.
         "Use", "Target file", "Replacement", "Action", "Rig", "Variant", "Checks", "Shared impact",
         "Passed", "Warning", "Unverified", "Blocked", "Scope", "Payload", "Timing", "File set",

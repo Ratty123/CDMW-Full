@@ -1482,16 +1482,25 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
             "to the Crimson Desert folder or package root before the first Archive "
             "Browser scan."
         ),
-        (
-            ". Unsupported controls remain visible but fail closed with their "
-            "own policy- and state-specific explanation."
-        ),
+        "Use selection, transforms, brushes, topology, cleanup, normals, UVs, rig weights, layers, and Morph & Refit where enabled. Each disabled control explains its limit.",
         " Placement workspace has {value_0} prefab/socket chain(s).",
         (
             "Build a loose mod package for edited prefab?\n\n"
             "{value_0}\n\n"
             "Original game archives will not be modified."
         ),
+    } <= keys
+
+    # Imported combo tables are not discovered as direct text sinks. Removing
+    # their old help paragraph must not remove translations from the Qt UI.
+    from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+        MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS,
+        MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+    )
+
+    assert {
+        label
+        for label, _mode in MESH_PREVIEW_DISPLAY_MODE_OPTIONS + MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS
     } <= keys
 
 

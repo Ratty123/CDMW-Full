@@ -2,7 +2,7 @@
 
 Native preview/package, archive-name-index, and mesh rebuild service for CDMW.
 It decodes archive entries, resolves authoritative material/texture inputs,
-prepares schema-v8 D3D11 packages, and emits deterministic reports. Native
+prepares schema-v8 material/geometry packages consumed by Rust/D3D12, and emits deterministic reports. Native
 preview jobs do not inject synthetic textures or silently enable Python
 fallback.
 

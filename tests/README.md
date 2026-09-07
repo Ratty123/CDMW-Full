@@ -18,9 +18,10 @@ machine-local paths remain ignored and must never be added as test evidence.
 ## Mesh Editor gates
 
 Dedicated Rust Mesh Editor changes start with the exact owning shadow, embedding,
-control-contract, or output tests. The retained `mesh-contract` and
-`mesh-native` areas now cover Vortice Archive Preview/static-replacement
-compatibility, not the production editor route. `-Area mesh-unit` remains
+control-contract, or output tests. `mesh-contract` covers the Python/Rust helper protocols and runs
+`scripts/test_rust_mesh_lab.ps1`; inspect that script for its current Rust scope.
+`mesh-native` builds and checks the C++ native interaction ABI and bridge
+contracts. Historical filenames do not identify the production renderer. `-Area mesh-unit` remains
 the explicit broad nonvisual aggregate for CI, release confidence, or a
 requested complete Mesh regression. `-Area responsiveness` checks pointer
 handler and host-heartbeat contracts without substituting for native or

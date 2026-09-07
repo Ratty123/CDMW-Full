@@ -22,7 +22,12 @@ native session owns only the live pointer-critical state. Batch commands keep
 their documented Python compatibility paths, but resident-interaction failures
 fail closed instead of silently switching mutation authority.
 
-The packaged .NET/Vortice Mesh Editor uses the exported
+## Compatibility interaction APIs
+
+The following native ABI and D3D11-shaped packets remain compatibility
+contracts. The production editor is Rust/wgpu/D3D12: local gestures update an
+isolated shadow session, and Python owns validated Finish and output. The
+retired .NET/Vortice client used the exported
 `resident_interaction_abi_v1` in `cdmw-mesh-core.dll` for live
 Select/Move/Grab/Smooth/Inflate/Pinch input. ABI v1 exposes identity and struct
 size probes plus open, close, sync, snapshot preparation, begin, update, end,
@@ -48,8 +53,8 @@ catches up. A transport loss can resend one byte-identical transaction; a
 semantic rejection rolls the local leases back and rehydrates the last durable
 state without killing the helper. Undo/Redo and host-originated topology,
 material, and morph changes continue to resynchronize mesh, selection, and
-topology revisions through their existing authority path. Packaged startup
-verifies the DLL hash, ABI version and contract, header hash, and backend
+topology revisions through their existing authority path. That historical client startup
+verified the DLL hash, ABI version and contract, header hash, and backend
 identity before enabling these controls.
 
 `mesh-editor-session-json` is the resident Edit Mesh protocol. It stores live

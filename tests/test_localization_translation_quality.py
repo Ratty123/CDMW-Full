@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from localization_quality import (  # noqa: E402
     SURVIVING_WORD_THRESHOLD,
+    flatten,
     is_scannable,
     measure_catalog,
     surviving_word_share,
@@ -98,3 +99,20 @@ def test_builtin_catalog_is_not_mostly_english(code: str) -> None:
         "sentence rather than the sentence being translated. Worst offenders:\n"
         + "\n".join(worst_examples(quality))
     )
+
+
+@pytest.mark.parametrize("code", _language_codes())
+def test_builtin_catalog_translates_full_interface_sentences(code: str) -> None:
+    """Do not let the source-identical allowlist hide whole English sentences."""
+
+    english = _catalog("en")
+    translations = _catalog(code)
+    untranslated = [
+        source
+        for key, entry in english.items()
+        if is_scannable(source := flatten(entry))
+        # French uses the same label for this format-heavy file filter.
+        and not (code == "fr" and source == "Textures (*.dds *.png *.tga *.tif *.tiff *.bmp *.jpg *.jpeg)")
+        and flatten(translations.get(key, "")) == source
+    ]
+    assert not untranslated, f"{code}: untranslated interface sentences:\n" + "\n".join(untranslated)

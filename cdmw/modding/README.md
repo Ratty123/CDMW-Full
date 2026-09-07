@@ -25,22 +25,31 @@ skipped and named instead of subtracted.
 
 ## PAC skin-influence layout
 
-Inside the 40-byte PAC vertex record, four influence slots sit at byte 20 and
-their four u8 weights at byte 28 (`PAC_SKIN_*` in `mesh_parser.py`). `0xFF`
-marks an unused slot, so slot values are capped at 254.
+Inside the proven 40-byte PAC vertex record, two little-endian u32 fields at
+bytes 20 and 24 each hold three 10-bit influence slots. Their six u8 weights
+start at byte 28 (`PAC_SKIN_*` in `mesh_parser.py`). Slots range from 0 to 1023;
+a zero weight marks an unused influence, and slot 0 is a valid entry.
 
-Slots are **not skeleton bone indices**. Each `.pac` carries its own bone
+Slots are **not skeleton bone indices**. Smooth-skinned `.pac` files carry a bone
 palette — a u16 count then that many u32 `.pab` bone-name hashes near the start
 of the file. `pac_bone_palette_candidates` returns every table matching that
 shape and `resolve_pac_bone_palette` picks the one that fully resolves against a
 given skeleton, so a mismatched rig yields nothing rather than wrong names.
 
-Only the **primary** influence (byte 20) decodes. Weights are sorted descending,
-so it is the heaviest, and it resolves correctly through the palette. Bytes
-21-23 are a packed field rather than plain slots — byte 21 is always a multiple
-of 4 with 64 distinct values, byte 23 caps at 12 — and decoding them as slots
-produces impossible blends. Anything needing named bones must use the primary
-influence; the raw bytes still round-trip verbatim for replacement.
+The decoder reads all six packed influences. It also reads two additional
+indices from half-float fields at bytes 12–15, with weights at bytes 34–35, when
+the low six bits of byte 39 are not 63. These extra lanes can bring a vertex to
+eight influences; invalid or disabled entries are excluded.
+
+The writer authors only the six packed palette lanes and preserves the extra
+lanes. `pack_pac_skin_weights` keeps the six strongest inputs and quantizes
+their weights to sum to 255. Callers that require lossless influence coverage
+must reject wider rows before calling it. Do not reinterpret packed slots as
+four u8 indices or reduce named-bone inspection to the primary influence.
+
+Rigid attachments may have a single full-weight slot 0 and no bone palette.
+Their target bone must come from attachment or prefab data outside the mesh;
+an unresolved palette alone does not prove a corrupt rig.
 
 Races share rigs: the "other" races ship no `.pab` and skin against
 `phm_01.pab` / `phw_01.pab` / `ptm_01.pab`, so pick a skeleton by which palette

@@ -159,6 +159,11 @@ renderer output, not in-game parity.
 
 ## User interface
 
+The Rust controls currently use English text. The surrounding CDMW PySide UI
+and documentation use the selected app language; those catalogs are not yet
+consumed by this editor. Preview localization acknowledgements are separate from
+editor UI translation.
+
 The interface described below is the standalone Rust Mesh Lab layout. In
 CDMW-managed mode the executable instead presents the Mesh Editor session bar,
 left tool rail, camera strip, Parts, Geometry Layers, Action History, Morph &

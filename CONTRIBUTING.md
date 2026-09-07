@@ -47,7 +47,7 @@ Please try to:
 
 - keep the scope narrow
 - explain user-facing behavior changes clearly
-- mention any affected workflows such as `Texture Workflow`, `Texture Replacer`, `Research`, or `Archive Browser`
+- mention any affected workflows such as `Textures`, `Create New Item`, `Mesh Editor`, `Research`, or `Archive Browser`
 - avoid unrelated cleanup in the same PR
 
 ## Project Scope
@@ -56,7 +56,9 @@ Crimson Desert Mod Workbench is intentionally centered on:
 
 - archive browsing, preview, extraction, and supported patch workflows
 - explicit confirm-before-write archive mutation for supported paths only
-- loose-file DDS and PNG workflows
+- creating equipment identities through Create New Item
+- bounded mesh authoring and equipment placement/animation review
+- layered texture editing, recolor, upscale, and loose-file DDS/PNG workflows
 - rebuild, review, classification, and mod-package export
 
 It does support writing back to game archives for specific supported workflows, but those writes should stay explicit, recoverable, and tightly scoped.

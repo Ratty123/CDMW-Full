@@ -306,18 +306,17 @@ def test_documentation_covers_current_mesh_editor_behavior() -> None:
     help_dialogs_source = Path("cdmw/ui/shell/help_dialogs.py").read_text(encoding="utf-8")
     main_window_source = _about_documentation_source()
 
-    assert "standalone workspace and viewport" in main_window_source
-    assert "no-session guidance" in main_window_source
+    assert "embedded Rust/D3D12 editor" in main_window_source
+    assert "missing or incompatible helper blocks editing" in main_window_source
     assert "Open in Mesh Editor" in main_window_source
-    assert "Object Transform" in main_window_source
+    assert "right-drag orbits, middle-drag pans" in main_window_source
     assert "Solid (Textured)" in main_window_source
-    assert "<b>Select</b>" in main_window_source
-    assert "resident <code>cdmw-mesh-core</code> interaction session" in main_window_source
-    assert "one <code>MeshService</code> history entry" in main_window_source
-    assert "resynchronise the native mirror" in main_window_source
-    assert "<b>Exact Game Asset</b>" in main_window_source
-    assert "<b>Free Edit</b>" in main_window_source
-    assert "conditionally ready" in main_window_source
+    assert "Select influenced vertices" in main_window_source
+    assert "isolated session until Finish Edit Mesh validates" in main_window_source
+    assert "Run validation again before exporting" in main_window_source
+    assert "Exact Game Asset preserves protected source records" in main_window_source
+    assert "Free Edit permits supported geometry changes" in main_window_source
+    assert "Rust editor controls currently remain in English" in main_window_source
     assert "QuickStartDialog" not in help_dialogs_source
     assert "Import DDS Preview" not in help_dialogs_source
     assert "Swap With In-Game Mesh" not in main_window_source
@@ -327,7 +326,7 @@ def test_archive_browser_documentation_covers_current_functionality() -> None:
     main_window_source = _about_documentation_source()
 
     assert "active mod/original/shadowed duplicate status" in main_window_source
-    assert "static geometry thumbnail so browsing candidates" in main_window_source
+    assert "Prepare the target and replacement, compare their placement and animation" in main_window_source
     assert "Item Finder" in main_window_source
 
     assert "Intercambio masivo de colocacion" not in main_window_source
@@ -377,7 +376,7 @@ def test_documentation_and_readme_cover_current_mesh_and_texture_workflows() -> 
     main_window_source = _about_documentation_source()
     readme_source = Path("README.md").read_text(encoding="utf-8")
 
-    assert "exact archive bytes are validated off the UI thread" in main_window_source
+    assert "missing or incompatible helper blocks editing" in main_window_source
     assert "Solid (Textured)" in main_window_source
     assert "Export Mesh File" in main_window_source
     assert "Build Mod" in main_window_source
@@ -461,7 +460,9 @@ def test_supported_documentation_languages_cover_all_topic_ids() -> None:
 
     source = _DocumentationSource()
     topic_sets = []
-    for language_code in ("en", "de", "es-ES", "es-419", "ja", "zh-Hans"):
+    from cdmw.domain.localization import BUILTIN_LANGUAGES
+
+    for language_code in (language.code for language in BUILTIN_LANGUAGES):
         title, _intro, sections = source._build_about_document_for_language(language_code)
         assert title == "Documentation"
         topic_sets.append({section["id"] for section in sections})

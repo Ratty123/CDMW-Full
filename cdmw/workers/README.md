@@ -2,7 +2,7 @@
 
 Owns shared long-running worker contracts, cancellation, result payloads, Qt
 worker runner glue, and extracted archive, asset authoring, preview, package,
-texture, utility, Model Library, Mesh Editor topology edit, and D3D11 package
+texture, utility, Model Library, Mesh Editor topology edit, and Rust preview package
 workers.
 
 Workers must not mutate UI widgets directly. Report progress and results through

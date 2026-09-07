@@ -16,18 +16,20 @@ CREATE_NEW_ITEM_SECTION = {
     "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, perks, effect, shop.",
     "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect element preset material pbr shader loose mod install",
     "html": """
-    <p><b>Create New Item</b> (Assets) makes a brand-new item from a template instead of replacing a shipped one. The template fixes the class (equip type, item type, sockets, animations, sheath and stat shape); everything else is yours.</p>
-    <ul>
-      <li><b>Read the archives</b> once per session: the item, string, part-prefab, store, group and language tables are read into a snapshot, then every check is a lookup.</li>
-      <li><b>Template</b> from the search box, or from <b>Item Finder &gt; Clone as new item...</b>. <b>Identity</b>: internal name, per-language names and descriptions (English required, others fall back to it), an item key from the reserved range and a model stem, both allocated for you unless you set them.</li>
-      <li><b>Model and icon</b>: keep the template's model, or <b>Import a model file...</b>, which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, imports it through Create New Item's own Model step without writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the imported material mapping as reviewed by the studio. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Model step's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
-      <li><b>Combat stats and prices</b>: the grid shows raw ItemInfo values, not a proven player-facing damage number. Select a cell to compare it with the template and the range used by the game's own equipment. Prices are identified separately; arbitrary stats, exact raw values, extra levels and separate enhancement rows stay under <b>Advanced / experimental</b>.</li>
-      <li><b>Perks &amp; Effects</b>: gameplay perks are the Abyss Gear socket items built into the item. Keep the template list or customize it; four is the evidence-backed default, and five to eight requires an explicit experimental option. The Effects tab lists every shipped visual by a neutral label and its exact internal stem. Search and category filters narrow the list together; placement, colour and particle tuning remain staged until <b>Apply placement</b>. Effects are visual only, do not add damage or elemental status, and are available to weapons, armour, accessories and other equipment only when every prefab the new item will own passes the real structural graft preflight.</li>
-      <li><b>Shop and item groups</b>: replace one entry of a shop (the form the game accepted) or add an entry (unproven); join the template's item groups or a list of your own.</li>
-      <li><b>Output</b>: <b>Build plan</b> composes every table change and file without writing; <b>Write loose mod</b> lays it out for CDUMM, DMM or JMM with the new files declared; <b>Install into the game archives...</b> goes through the same confirmed, backed-up, restorable path as every other patch and is refused while the game runs.</li>
-    </ul>
-    <p>The plan's summary names what is unproven in game; the checklist under it is what to look at after installing.</p>
-    """,
+<p><b>Create New Item</b> creates a separate equipment identity from a shipped template.</p>
+    <ol>
+      <li><b>Template</b>: search internal names, item keys, equipment types, or any available game-language name. The table displays English names when available.</li>
+      <li><b>Identity</b>: keep allocated IDs or choose Manual. English names are required; missing item-language entries fall back to English.</li>
+      <li><b>Model &amp; Placement</b>: keep the template or import glTF, GLB, OBJ, DAE, FBX, or a ZIP. FBX needs the configured converter. Review placement, materials, variants, dyes, and the icon.</li>
+      <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
+      <li><b>Perks &amp; Effects</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
+      <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
+      <li><b>Output</b>: Build plan reviews the exact changes without writing. Export a loose mod or archive-group package, or review and confirm a backed-up installation.</li>
+    </ol>
+    <p>Valid template socket bindings are preserved. Changed skin bindings need a compatible rig. Each mesh section is limited to 65,535 vertices. Map incompatible inherited dyes explicitly or clear their assignments.</p>
+    <p>Installing another item preserves existing content in a compatible CDMW-owned overlay. Manage existing overlays provides explicit migration and removal actions; planning never performs them.</p>
+    <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
+                """,
 }
 
 
@@ -341,7 +343,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                   <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
                   <tr><td>Mesh Actions</td><td>Inspection, export, and direct mesh authoring.</td><td>Open in Mesh Editor, export OBJ/FBX and dependencies, inspect references, and keep unrelated HKX/placement workflows separate.</td></tr>
-                  <tr><td>HKX / Placement</td><td>Socket, prefab, and placement-copy workflows for weapons and other attachment-driven assets.</td><td>Edit HKX placement context from HKX/model selections, choose a .pac placement source, use Item Finder, compare source/target placement, edit socket values, and build one loose placement-copy package.</td></tr>
+                  <tr><td>Placement &amp; Animations</td><td>Equipment placement and animation review.</td><td>Open the dedicated workspace from Authoring. HKX actions are temporarily absent from the Tools and file context menus; read-only inspection remains available.</td></tr>
                 </table>
                 <ul>
                   <li>Scan package roots and cache the discovered archive index locally.</li>
@@ -351,7 +353,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Extract selected or filtered content to loose folders.</li>
                   <li>Use <b>Item Finder</b> when a name/category/icon is a better starting point than a raw path; armor and horse gear categories are inferred from item names, IDs, and game metadata where possible.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
-                  <li>Use <b>Edit HKX</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live model view.</li>
+                  <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
                   <li>Use Textures for editing, recolor, upscaling, and replacement review.</li>
                 </ul>
@@ -383,7 +385,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use the <b>Item Name</b> column when available.</td><td>The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.</td></tr>
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                   <tr><td>Find textures used by a model</td><td>Select the model and click <b>Asset Family</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
-                  <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
+                  <tr><td>Review equipment placement</td><td>Open <b>Placement &amp; Animations</b>.</td><td>Prepare the target and replacement, compare their placement and animation, then review the exact files before export.</td></tr>
                   <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Inspect the sidecar and its Asset Family as read-only context. Material authoring is not an Archive Browser or Mesh Editor action.</td></tr>
                   <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
                 </table>
@@ -408,51 +410,27 @@ class AboutDocumentationEnglishMixin:
                 "summary": "Permanent standalone viewport, resident native interaction, capability-gated LOD0 authoring, review, and safe mesh output.",
                 "keywords": "mesh editor viewport standalone workspace no-session guidance select move grab smooth inflate pinch undo redo resident native interaction solid textured authoring exact game asset free edit replace from archive pam pamlod pac object transform overlay export sidecar app xml pac xml",
                 "html": """
-                <p>The <b>Mesh Editor</b> always keeps its standalone workspace and viewport available. Before a model is opened, and after a session is closed, compact no-session guidance appears above that workspace instead of replacing it. Opening an archive, file, standalone, or embedded Builder session hides the guidance.</p>
+<p><b>Mesh Editor</b> opens supported archive or local meshes in the embedded Rust/D3D12 editor. A missing or incompatible helper blocks editing and offers Retry.</p>
                 <h4>Open and author a mesh</h4>
-                <ol>
-                  <li>Select a supported <code>.pam</code>, <code>.pamlod</code>, or <code>.pac</code> in Archive Browser.</li>
-                  <li>Choose <b>Open in Mesh Editor</b>. The exact archive bytes are validated off the UI thread and loaded into the permanent viewport.</li>
-                  <li>Use <b>Select</b> with vertex, wire, or face selection and the available Click, Brush, Rectangle, and Lasso controls. Use <b>Move</b>, <b>Grab</b>, <b>Smooth</b>, <b>Inflate</b>, or <b>Pinch</b> when the active session exposes that resident operation.</li>
-                  <li>Edit capability-gated LOD0 geometry, topology, normals/tangents, rigging, Morph &amp; Refit, UV coordinates, or transforms. Each control reports its own availability reason. Use Original/Edited review and <b>Solid (Textured)</b> for source-texture inspection.</li>
-                </ol>
-                <div class="doc-callout"><b>Mesh-only boundary:</b> material and texture names are diagnostics. Mesh Editor does not replace, recolour, assign, copy, or open textures. If <b>Solid (Textured)</b> cannot bind a source DDS, it falls back visibly to untextured drawing and geometry editing stays available.</div>
-                <h4>Object Transform</h4>
                 <ul>
-                  <li>Location, rotation, XYZ or linked scale, tilt steps, and reset buttons affect every mesh part without changing selection.</li>
-                  <li>Rotation and scale use the fixed centre of the original source bounds. Each completed gesture is one undoable history action, and drafts restore both geometry and controls.</li>
+                  <li>Choose Open in Mesh Editor for a supported PAC, PAM, or PAMLOD. Imported geometry uses the available Free Edit route.</li>
+                  <li>Use selection, transforms, brushes, topology, cleanup, normals, UVs, rig weights, layers, and Morph &amp; Refit where enabled. Each disabled control explains its limit.</li>
+                  <li>Exact Game Asset preserves protected source records. Free Edit permits supported geometry changes for a new validated output.</li>
+                  <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
-                <h4>Resident interaction and history</h4>
+                <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <h4>Rig &amp; Weights</h4>
                 <ul>
-                  <li><b>Select</b>, <b>Move</b>, <b>Grab</b>, <b>Smooth</b>, <b>Inflate</b>, and <b>Pinch</b> use the resident <code>cdmw-mesh-core</code> interaction session. Opening a tool changes its panel without replacing, resizing, or flickering the permanent viewport.</li>
-                  <li>Brush selection and editing accumulate against one immutable gesture baseline. Releasing a completed gesture commits exactly one <code>MeshService</code> history entry; cancellation restores the baseline.</li>
-                  <li><b>Undo</b> and <b>Redo</b> restore the authoritative service state, resynchronise the native mirror, and re-arm the available modal tools. A recovery or stale revision keeps authoring disabled until that resynchronisation is complete.</li>
-                  <li>Native-format sessions use the <b>Exact Game Asset</b> policy; imported rebuild sessions use <b>Free Edit</b>. Unsupported controls remain visible but fail closed with their own policy- and state-specific explanation.</li>
+                  <li>Review the loaded mesh, Part, rig, active bone, and parent. Search bones by name and inspect the labelled bone and weight colours in the viewport.</li>
+                  <li>Frame bone and Frame influence change the camera. Select influenced vertices changes the edit selection and excludes hidden Parts.</li>
                 </ul>
                 <h4>Save and build</h4>
-                <table>
-                  <tr><th>Action</th><th>Result</th><th>Archive safety</th></tr>
-                  <tr><td>Replace from Archive</td><td>Chooses another PAC, PAM, or PAMLOD already in the loaded archives, reviews proven companion mappings and reused game textures, then writes a separate loose replacement mod. Character pairs require an explicit identity mode.</td><td>Uses exact archive payloads, never opens an external mesh, never changes the current edit session, and never writes shipped PAMT/PAZ archives.</td></tr>
-                  <tr><td>Export Mesh File</td><td>Atomically writes the rebuilt mesh and report.</td><td>Never overwrites the source asset.</td></tr>
-                  <tr><td>Build Mod</td><td>Writes either a loose mesh-only folder or a DMM archive-group overlay package.</td><td>Source textures and material sidecars remain inherited.</td></tr>
-                  <tr><td>Install as Overlay</td><td>Shows the exact mesh path, overlay directory, mount lists, carry-forward set, and backup targets before confirmation.</td><td>Rechecks that the game is closed, backs up, publishes the mount list last, and rolls back on cancellation or failure.</td></tr>
-                  <tr><td>Restore Last Overlay Install</td><td>Uses the install receipt to restore the prior mount/overlay state.</td><td>Removes only files created by that installation.</td></tr>
-                </table>
-                <p>Shipped PAMT/PAZ archives are never patched by these Mesh Editor outputs. Replace from Archive does not include current geometry edits; it leaves the session open and unchanged. Same-source editable-package export/import remains available for external geometry work; import must match the active source identity.</p>
-                <p>A same-stem <code>.app_xml</code> appearance descriptor is never added automatically to an ordinary mesh package. It remains available through manual Supplemental Files selection and the explicit character identity choices. Same-stem <code>.pac_xml</code>, <code>.pami</code>, <code>.pam_xml</code>, and <code>.pamlod_xml</code> material sidecars remain automatic.</p>
-                <h4>New assets and textures</h4>
                 <ul>
-                  <li>From Model Library, <b>Use in Create New Item</b> resolves or downloads the model and opens Create New Item's Model step.</li>
-                  <li>Use the shared Textures workspace for texture work.</li>
+                  <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>
+                  <li>Install as Overlay requires review, confirmation, a closed game, and verified recovery. Restore Last Overlay Install uses the saved receipt.</li>
                 </ul>
-                <h4>HKX placement and socket workflows</h4>
-                <ul>
-                  <li><b>Edit HKX</b> treats the opened asset as the target that changes. <b>Choose Placement Source</b> finds the source weapon/model whose placement should be copied.</li>
-                  <li>Pick a visible source <code>.pac</code> when possible. The picker can search the archive indexes directly or use <b>Pick From Item Finder</b> to start from item name/icon/category.</li>
-                  <li>The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.</li>
-                  <li><b>Compare Placement</b> verifies the resolved prefab/socket/HKX context before packaging. <b>Edit Socket Values</b> is available when the recovered socket XML can be safely shown and written as loose output.</li>
-                </ul>
-                <div class="doc-callout doc-warning"><b>Current evidence boundary:</b> the direct production route and executable native-contract gates cover the permanent viewport, <b>Solid (Textured)</b>, <b>Select</b>, resident <b>Move</b>/<b>Grab</b>/<b>Smooth</b>/<b>Inflate</b>/<b>Pinch</b>, one-entry history, and <b>Undo</b>/<b>Redo</b> resynchronisation. Release packaging rejects a helper/DLL identity mismatch. The final portable onefile sweep passed on an AMD RX 9070 XT with a fixed real PAC: 15 live texture resources, three textured draws, a committed <b>Select</b> overlay, <b>Grab</b>/<b>Undo</b>/<b>Redo</b> history, and all nine physical page/tool controls passing the 50 ms p95 gate. Hardware and WARP D3D11 debug layers were active with zero messages; the run recorded zero foreground or cursor violations and left PAMT/PAZ hashes unchanged. This is focused proof for one GPU and one asset, not broad game-material parity. Overall readiness remains conditionally ready for every-asset, every-command, and every-GPU coverage. Human physical-input soak, renderer process-kill recovery, and exact/free output round trips remain pending.</div>
+                <p>Textures are read-only references here. Use Textures for texture editing and Create New Item for a new equipment identity. Equipment placement belongs in Placement &amp; Animations.</p>
+                <p>The Rust editor controls currently remain in English. The surrounding app and this guide use the selected interface language.</p>
                 """,
             },
         ]
@@ -469,7 +447,7 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.</li>
                   <li>Retarget supported draw/stow animation references without presenting unsupported full animation authoring as safe.</li>
-                  <li>Compare the resolved source and target context before writing output.</li>
+                  <li>Choose Prepare preview, compare Before and After, and inspect Details and exact files. Checks distinguish Passed, Warning, Unverified, and Blocked; unsupported runtime behavior remains unverified.</li>
                   <li>Package reviewed changes for CDUMM, DMM, or JMM; unsupported graph swaps or variable-length binary edits remain outside the bounded workflow.</li>
                 </ul>
                 """,

@@ -27,14 +27,15 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.10` is the current source version and has not been published as a
-> release yet. The newest build on the Releases page is `0.10.0-alpha.2`.
+> `0.11.0-alpha.10` is the current source version. See the Releases page for
+> published downloads; an existing executable does not include later source changes.
 
 ---
 
 ## Contents
 
 - [What it does](#what-it-does)
+- [Documentation and languages](#documentation-and-languages)
 - [Create New Item](#create-new-item)
 - [Placement & Animations](#placement--animations)
 - [File format decoding status](#file-format-decoding-status)
@@ -96,11 +97,23 @@ including supported material-color sidecars and manager profiles.
 | **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
 | **Text Search** | Search archive or loose text-like assets such as XML, JSON, CFG, and Lua with preview and export. |
 
+## Documentation and languages
+
+Open **Help > Documentation** for the 35-topic wiki, grouped index, topic links,
+and search with **Ctrl+K**. **Help > About** provides the app overview, license,
+and third-party notices. This README is also bundled with the application.
+
+**Settings > Appearance** selects from 14 interface languages or imports a custom
+language pack. The PySide interface and documentation use those catalogs. The
+embedded Rust Mesh Editor currently has English-only controls. **Translations**
+edits the game's PALOC text separately from the app's interface language.
+
 ## Create New Item
 
 Create New Item creates a new equipment row from a shipped template; it never
-silently overwrites the template. Search covers the internal name, localized
-English name, numeric item key, and equipment type. Template and imported-model
+silently overwrites the template. Search covers the internal name, every available localized
+item name, numeric item key, and equipment type; result rows display English names
+when available. Template and imported-model
 previews use the same resident Rust D3D12 host and native Preview Core cache as the
 Archive Browser. Imported glTF, GLB, OBJ, DAE, and converted-FBX materials arrive
 as one complete direct-texture package, preserve their vertical texture orientation,
@@ -109,8 +122,12 @@ from their principal axes instead of only trying right-angle rotations; its mute
 depth-tested grid, distinct reference wire, and labelled red X, green Y, and blue Z
 gizmo remain resident while numeric and gizmo movement update in place. Model
 placement, icon capture, the enhancement ladder, base prices,
-Abyss Gear perks, shop and item-group membership, and the final file plan stay
-visible as separate decisions.
+Abyss Gear perks, model variants and dye assignments, shops, crafting recipes,
+supported reward sources, item groups, and the final file plan remain explicit.
+Valid template socket bindings are preserved; changed skin bindings require a
+compatible rig. Map incompatible inherited dyes explicitly or clear them. A mesh
+section may contain at most 65,535 vertices. A successful plan or game startup
+does not establish equipping, appearance, or gameplay behavior in a save.
 
 Effects are visual-only authoring. CDMW can decode `.pae` and `.paem` completely,
 clone compatible fixed-layout effect data, edit fixed-size colour, brightness,
@@ -204,14 +221,14 @@ replace tests of the operation or validation against the target asset.
 | Mesh Editor | Preview and capability-gated LOD0 authoring, review, validation and output | Individual tools report availability. Parser support does not establish every material, asset or GPU as verified. |
 | Translations | Search and edit PALOC string records | Category IDs are preserved; the engine's category names are not known. |
 | Prefabs | Inspect decoded objects and perform the supported typed edits | Some files cannot be walked completely; editing is limited to supported structures. |
-| Physics / HKX | Inspect records and perform allowed fixed-size value edits | New topology, collision shapes, ragdoll bodies and structural edits are blocked. |
+| Physics / HKX | Read-only inspection; the backend retains bounded fixed-size editing support | HKX actions are temporarily absent from Tools and file context menus. New topology, collision shapes, ragdoll bodies and structural edits remain blocked. |
 | Animation / PAA | Read and rebuild supported sampled and packed clips | Unmodelled fields are preserved; they cannot be authored from nothing. |
 | Audio / WEM | Decode to WAV and rebuild PCM WEM | Vorbis and Opus streams cannot be authored. |
 
 The [capability manifest](schemas/archive_content_capabilities.v1.json) records
-per-format evidence and remaining work. The generated
-[contributor decoding report](docs/features/format-decode-progress.md) retains a
-weighted research-progress heuristic. Those scores are not percentages of
+per-format evidence and remaining work. The local contributor report generated by
+`python tools/report_format_decode_progress.py --write` retains a weighted
+research-progress heuristic. Those scores are not percentages of
 supported operations, editable assets or verified game behavior.
 
 ---
@@ -281,10 +298,11 @@ flowchart TD
 `cdmw/ui` is the only layer allowed to import PySide6 widgets. Everything below
 it is testable without a running Qt application.
 
-`MainWindow` has only `QMainWindow` as a direct base. Feature behaviour is
-registered through stable descriptors bound to the window rather than through
-new window base classes, so call sites stay put while implementation owners are
-extracted. New behaviour belongs in a focused controller.
+`MainWindow` is implemented through the shell-owned `WorkbenchWindow`. The
+public import remains a compatibility proxy. Shell and feature methods are
+ordinary methods on their owning widgets and controllers; Archive and Textures
+state belongs to those workspaces. Worker callbacks remain bound to their
+owning QObject on the UI thread.
 
 ### Mesh preview and editing
 
@@ -463,8 +481,8 @@ tests/                   behaviour, protocol contract, and source-guard tests
 Note the two similarly named directories. **`tools/`** is source and is in the
 repository. **`.tools/`**, with the dot, is gitignored and holds downloaded or
 locally built binaries: bazelisk, the published build UI, RenderDoc, vgmstream,
-the Havok CLIs. Nothing in it is tracked, and nothing in the release build needs
-it.
+the Havok CLIs. Its generated contents are not tracked; build scripts locate or prepare
+required helpers explicitly.
 
 The guides, runbooks and reverse-engineering notes are working documents and
 are kept outside this repository, so the paths they were once linked from are
@@ -501,9 +519,8 @@ vocabulary. Anything outside it (full PAAC graph swaps, `ItemInfo`/`EquipSlot`
 edits, new keyframe data, any binary write that changes file length) is out of
 scope by design rather than a feature gap, and the editor refuses it with an
 explanation. An earlier `Weapon Placement Studio` made those operations
-expressible and was pulled for hanging the game; its menu entries in the Archive
-Browser are left disabled and untouched, so nothing inherits the name or the code
-path of the feature that crashed.
+expressible and was pulled for hanging the game; its former HKX/placement menu entries are absent from the Archive Browser.
+The dedicated Placement & Animations workspace owns the supported workflow.
 
 **Exact game-asset rebuild remains LOD0-only.** `.pamlod` LOD1+ cannot be
 published through the exact archive writer. Free Edit may author the active
