@@ -2515,7 +2515,6 @@
     "Edit socket descriptor transforms and write them as a mod-ready loose package. This edits XML only; binary prefab, HKX, and PAA writes remain disabled.": "Soket tanımlayıcı dönüşümlerini düzenleyin ve bunları moda hazır gevşek bir paket olarak yazın. Bu yalnızca XML'i düzenler; ikili prefabrik, HKX ve PAA yazma işlemleri devre dışı kalır.",
     "Edit state: edited, pending loose-mod write": "Düzenleme durumu: düzenlendi, gevşek mod yazımı bekleniyor",
     "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.": "İlgili HKX/HKT'yi doğrudan Yerleşim üzerinde düzenleyin. Seçilen modelde birden fazla HKX/HKT dosyası varsa, hangisinin inceleneceğini seçin.",
-    "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked.": "İlgili HKX/HKT'i doğrudan Yerleştirmede düzenleyin. İlgili HKX/HKT dosyaları yalnızca bu eylem tıklatıldıktan sonra çözümlenir.",
     "Edit the selected Asset Family row as an HKX/HKT physics file.": "Seçilen Varlık Ailesi satırını HKX/HKT fizik dosyası olarak düzenleyin.",
     "Edit the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view.": "Seçilen HKX/HKT'i veya seçilen model ailesinden bulunan ilgili HKX/HKT'i doğrudan Yerleştirme görünümünde düzenleyin.",
     "Edit value": "Değeri düzenle",

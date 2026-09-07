@@ -443,14 +443,6 @@ class ArchiveBrowserActionMixin:
             family_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._open_archive_asset_family_workspace_dialog(current_entry)
             )
-            hkx_placement_action = menu.addAction(menu_icons["family"], "Edit HKX...")
-            hkx_placement_action.setToolTip(
-                "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked."
-            )
-            hkx_placement_action.setEnabled(self._archive_entry_supports_attachment_placement_workflow(entry))
-            hkx_placement_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._open_archive_hkx_placement_for_entry(current_entry)
-            )
             scope_family_action = menu.addAction(menu_icons["family"], "Filter to Family")
             scope_family_action.setToolTip("Filter Archive Files to the required/recommended files in this Asset Family.")
             scope_family_action.triggered.connect(
@@ -476,17 +468,6 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
-
-        if entry.extension in {".hkx", ".hkt"}:
-            _add_menu_section("physics", "Physics / HKX")
-            edit_hkx_action = menu.addAction(menu_icons["physics"], "Edit HKX...")
-            edit_hkx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._edit_archive_hkx_entry(current_entry))
-            export_hkx_json_action = menu.addAction(menu_icons["physics"], "Export HKX JSON...")
-            export_hkx_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_json())
-            export_hkx_xml_action = menu.addAction(menu_icons["physics"], "Export HKX XML...")
-            export_hkx_xml_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_xml())
-            export_havok_view_action = menu.addAction(menu_icons["physics"], "Export Havok XML View...")
-            export_havok_view_action.triggered.connect(lambda _checked=False: self._export_current_archive_hkx_havok_xml_view())
 
         if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")

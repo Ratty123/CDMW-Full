@@ -2515,7 +2515,6 @@
     "Edit socket descriptor transforms and write them as a mod-ready loose package. This edits XML only; binary prefab, HKX, and PAA writes remain disabled.": "Modifica le trasformazioni del descrittore del socket e scrivile come un pacchetto sciolto pronto per la modifica. Questo modifica solo XML; le scritture binarie prefabbricate, HKX e PAA rimangono disabilitate.",
     "Edit state: edited, pending loose-mod write": "Modifica stato: modificato, in attesa di scrittura loose-mod",
     "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.": "Modifica l'HKX/HKT correlato direttamente sul posizionamento. Se il modello selezionato ha più file HKX/HKT, scegli quale controllare.",
-    "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked.": "Modifica il relativo HKX/HKT direttamente su Posizionamento. I file HKX/HKT correlati vengono risolti solo dopo aver fatto clic su questa azione.",
     "Edit the selected Asset Family row as an HKX/HKT physics file.": "Modifica la riga della famiglia di asset selezionata come file fisico HKX/HKT.",
     "Edit the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view.": "Modifica il HKX/HKT selezionato o un HKX/HKT correlato trovato nella famiglia di modelli selezionata, direttamente nella vista Posizionamento.",
     "Edit value": "Modifica valore",

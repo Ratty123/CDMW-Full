@@ -4,6 +4,9 @@ Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
 
+The Tools menu and archive-file context menu temporarily omit HKX actions.
+The underlying HKX editor and import/export code remain available for other workflows.
+
 Mesh Builder close cancels pending work and hides the dialog promptly. The
 lifecycle owner retains the closed dialog until every child thread has finished
 native teardown, then deletes it asynchronously. Partial construction failures

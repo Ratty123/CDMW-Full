@@ -405,15 +405,6 @@ class ArchivePreviewLayoutMixin:
                     ),
                 ),
                 (
-                    "physics",
-                    "Physics / HKX",
-                    (
-                        ("Edit HKX", self.archive_hkx_placement_button),
-                        ("Edit Selected HKX", self.archive_hkx_edit_button),
-                        ("Scan HKX Corpus", self.archive_hkx_corpus_button),
-                    ),
-                ),
-                (
                     "data",
                     "Structured Data",
                     (

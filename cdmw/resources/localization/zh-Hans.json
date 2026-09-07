@@ -2515,7 +2515,6 @@
     "Edit socket descriptor transforms and write them as a mod-ready loose package. This edits XML only; binary prefab, HKX, and PAA writes remain disabled.": "编辑套接字描述符转换并将它们编写为 mod-ready 松散包。这仅编辑 XML；二进制预制件、HKX 和 PAA 写入保持禁用状态。",
     "Edit state: edited, pending loose-mod write": "编辑状态：已编辑，待松散修改写入",
     "Edit the related HKX/HKT directly on Placement. If the selected model has multiple HKX/HKT files, choose which one to inspect.": "直接在展示位置编辑相关 HKX/HKT。如果所选模型有多个 HKX/HKT 文件，请选择要检查的一个。",
-    "Edit the related HKX/HKT directly on Placement. Related HKX/HKT files are resolved only after this action is clicked.": "直接在 Placement 上编辑相关的 HKX/HKT。仅在单击此操作后才能解析相关 HKX/HKT 文件。",
     "Edit the selected Asset Family row as an HKX/HKT physics file.": "将选定的资产系列行编辑为 HKX/HKT 物理文件。",
     "Edit the selected HKX/HKT, or a related HKX/HKT found from the selected model family, directly on the Placement view.": "直接在布局视图上编辑选定的 HKX/HKT，或从选定型号系列中找到的相关 HKX/HKT。",
     "Edit value": "编辑值",
