@@ -93,11 +93,23 @@ static bool placeholder_layer_mask_path(const std::string& raw_path) {
     return false;
 }
 
+// These keys are evaluated for every texture candidate and mesh. Filtering the
+// already-lowercased bytes is equivalent to [^a-z0-9]+ without compiling and
+// running a regex for each comparison.
+static std::string compact_material_ascii_key(const std::string& lower_text) {
+    std::string result;
+    result.reserve(lower_text.size());
+    for (char ch : lower_text) {
+        if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) result.push_back(ch);
+    }
+    return result;
+}
+
 static bool technical_for_visible_base(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     const std::string hint = lower_copy(parameter_name);
     const std::string path = lower_copy(raw_path);
-    const std::string compact_hint = std::regex_replace(hint, std::regex("[^a-z0-9]+"), "");
-    const std::string compact_path = std::regex_replace(path, std::regex("[^a-z0-9]+"), "");
+    const std::string compact_hint = compact_material_ascii_key(hint);
+    const std::string compact_path = compact_material_ascii_key(path);
     if (role_is_technical_for_base(role)) return true;
     if (compact_hint.find("ssdm") != std::string::npos || compact_hint.find("direction") != std::string::npos) return true;
     if (compact_hint.find("normal") != std::string::npos || compact_hint.find("height") != std::string::npos) return true;
@@ -150,7 +162,7 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
 }
 
 static bool parameter_is_authoritative_visible_base(const std::string& parameter_name) {
-    const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    const std::string hint = compact_material_ascii_key(lower_copy(parameter_name));
     if (
         hint.find("grime") != std::string::npos
         || hint.find("detail") != std::string::npos
@@ -171,7 +183,7 @@ static bool parameter_is_authoritative_visible_base(const std::string& parameter
 
 static std::string visible_class_for_binding(const std::string& parameter_name, const std::string& raw_path, const std::string& role) {
     if (technical_for_visible_base(parameter_name, raw_path, role)) return "technical";
-    const std::string hint = std::regex_replace(lower_copy(parameter_name), std::regex("[^a-z0-9]+"), "");
+    const std::string hint = compact_material_ascii_key(lower_copy(parameter_name));
     if (hint.find("overlaycolor") != std::string::npos || low_authority_base_path(raw_path)) {
         return "visible_generic";
     }

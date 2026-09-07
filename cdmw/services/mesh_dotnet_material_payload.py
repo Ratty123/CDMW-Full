@@ -82,15 +82,17 @@ def _dotnet_manifest_resource_bindings(
     source_asset_path: str = "",
     submesh_index: int = 0,
     role: str = "replacement",
+    semantic_contract: Mapping[str, object] | None = None,
 ) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
     channels: dict[str, str] = {}
     resources: dict[str, dict[str, object]] = {}
     profile_name = _material_profile_name(source)
-    semantic_contract = _dotnet_material_semantic_contract(
-        source,
-        resolved_channels,
-        source_asset_path=source_asset_path,
-    )
+    if semantic_contract is None:
+        semantic_contract = _dotnet_material_semantic_contract(
+            source,
+            resolved_channels,
+            source_asset_path=source_asset_path,
+        )
     channel_color_spaces = semantic_contract["channel_color_spaces"]
     channel_authorities = semantic_contract["channel_authorities"]
     for semantic, raw_path in sorted(resolved_channels.items()):
@@ -208,6 +210,7 @@ def mesh_dotnet_material_state_payload(
             source_asset_path=source_asset_path,
             submesh_index=submesh_index,
             role=role,
+            semantic_contract=semantic_contract,
         )
         resources.update(submesh_resources)
         submesh_payloads.append(

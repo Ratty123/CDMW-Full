@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import struct
@@ -597,7 +598,7 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
         fast_package_ready=direct_packages.append,
     )
 
-    assert synthesis_flags == [False, False]
+    assert synthesis_flags == [False]
     assert len(direct_packages) == 1
     direct = direct_packages[0]
     assert direct.package_dir != full.package_dir
@@ -611,6 +612,18 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     ] is None
     assert full_manifest["preview_core_material_graph"]["resources_included"] is True
     assert direct_manifest["source"] == full_manifest["source"]
+    from cdmw.services.mesh_rust_preview_cache import rust_preview_overlays_from_preview_core_package
+    ordinary = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "ordinary-full",
+        preview_overlays=rust_preview_overlays_from_preview_core_package(source),
+    )
+    ordinary_manifest = json.loads(ordinary.manifest_path.read_text(encoding="utf-8"))
+    ordinary_manifest["session_id"] = full_manifest["session_id"]
+    ordinary_manifest["state"]["preview_scene"]["session_id"] = (
+        full_manifest["state"]["preview_scene"]["session_id"]
+    )
+    assert full_manifest == ordinary_manifest
+    assert validate_rust_preview_package(full.package_dir) == ()
 
     warm_callbacks = []
     warm = build_or_lookup_rust_preview_package(
@@ -624,6 +637,72 @@ def test_schema8_preview_core_publishes_direct_then_full_material_tiers(
     )
     assert warm.package_dir == full.package_dir
     assert warm_callbacks == []
+
+
+@pytest.mark.parametrize("failure", ("cancel", "copy", "changed", "source"))
+def test_full_material_promotion_preserves_direct_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    import threading
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.services import mesh_rust_preview_promotion as promotion
+
+    source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+    direct = build_rust_preview_package_from_preview_core(
+        source, output_package_dir=tmp_path / "direct", material_quality="direct"
+    )
+    original_manifest = direct.manifest_path.read_bytes()
+    native = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+    stop = threading.Event()
+    original_copy = promotion.shutil.copyfile
+
+    def copy_with_failure(src, dst):
+        if failure == "copy":
+            raise OSError("injected copy failure")
+        result = original_copy(src, dst)
+        if failure == "cancel":
+            stop.set()
+        elif failure == "changed":
+            Path(dst).write_bytes(b"changed during copy")
+        return result
+
+    monkeypatch.setattr(promotion.shutil, "copyfile", copy_with_failure)
+    if failure == "source":
+        native["material_conservation"]["declared_parameter_count"] = 999
+    destination = tmp_path / "full"
+    expected_error, message = {
+        "cancel": (RunCancelled, "cancelled"),
+        "copy": (OSError, "injected copy failure"),
+        "changed": (ValueError, "preview resource size does not match"),
+        "source": (ValueError, "Direct preview does not match"),
+    }[failure]
+    with pytest.raises(expected_error, match=message):
+        promotion.promote_rust_preview_package_from_preview_core(
+            direct, source, source_manifest=native,
+            output_package_dir=destination, cancelled=stop.is_set,
+        )
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".rust-preview-*"))
+    assert direct.manifest_path.read_bytes() == original_manifest
+    assert validate_rust_preview_package(direct.package_dir) == ()
+
+
+def test_native_material_rebasing_preserves_caller_parameters(tmp_path: Path) -> None:
+    from cdmw.services.mesh_rust_preview_package import _rebased_preview_core_batch
+    from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_binding
+
+    (tmp_path / "texture.dds").write_bytes(b"DDS fixture")
+    raw = {"dds_textures": {"material_inputs": [{
+        "source_path": "texture.dds", "slot": "base", "parameter_name": "_baseColorTexture",
+        "material_parameters": [{"parameter_kind": "float", "parameter_name": "_roughness", "numeric_value": 0.5}],
+    }]}}
+    original = copy.deepcopy(raw)
+    rebased = _rebased_preview_core_batch(tmp_path, raw)
+    target = SubMesh(name="material")
+    assert apply_dotnet_native_material_batch_binding(target, rebased)
+    assert target.preview_material_texture_inputs[0].source_dds_path == str(tmp_path / "texture.dds")
+    target.preview_material_texture_inputs[0].material_parameters[0].numeric_value = 0.7
+    assert raw == original
 
 
 @pytest.mark.parametrize("quality", ("direct", "full"))

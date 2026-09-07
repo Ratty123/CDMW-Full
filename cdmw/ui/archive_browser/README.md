@@ -44,6 +44,10 @@ as Preview Core finishes, then promote the same resident scene to the full
 PAC/PAC_XML material package without resetting its camera. Rust manifest texture
 resources are the active completion authority, so a successful package cannot
 trigger a redundant forced texture request through the retired material format.
+Native texture ownership is computed once per package. The full material pass
+reuses verified geometry, direct textures and presentation settings from the
+initial package, adds every authored layer, and publishes a separate package
+atomically. A cancelled or failed promotion preserves the initial package.
 Archive Browser defaults to geometry-only. Its **Load textures** checkbox saves
 the existing `archive/model_use_textures` preference and keeps that choice across
 model selections and application restarts. The checkbox represents user intent

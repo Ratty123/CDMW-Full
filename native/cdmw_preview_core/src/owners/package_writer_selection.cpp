@@ -88,5 +88,6 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
         state.submeshes,
         mesh,
         {batch.base, batch.primary_visible_layer, batch.normal, batch.material, batch.height,
-         batch.specular, batch.detail, batch.emissive});
+         batch.specular, batch.detail, batch.emissive},
+        &state.binding_owner_slots);
 }

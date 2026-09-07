@@ -792,16 +792,19 @@ def _rebased_preview_core_batch(
     package_dir: Path,
     batch: Mapping[str, object],
 ) -> dict[str, object]:
-    result = copy.deepcopy(dict(batch))
+    # Only descriptor source paths change. The binding adapter hydrates its own
+    # material inputs; copying every nested parameter at each level multiplies
+    # preparation time for PACs with many texture edges.
+    result = dict(batch)
     raw_dds = result.get("dds_textures")
     if not isinstance(raw_dds, Mapping):
         return result
-    dds: dict[str, object] = copy.deepcopy(dict(raw_dds))
+    dds: dict[str, object] = dict(raw_dds)
 
     def rebase_descriptor(value: object) -> object:
         if not isinstance(value, Mapping):
             return value
-        descriptor = copy.deepcopy(dict(value))
+        descriptor = dict(value)
         text = str(descriptor.get("source_path", "") or "").strip()
         if text and not Path(text).expanduser().is_absolute():
             resolved = _preview_core_child(package_dir, text)
@@ -934,7 +937,6 @@ def _preview_core_metadata_mesh(
         has_uvs=True,
     )
     setattr(mesh, "cdmw_preview_core_package_path", str(package_dir))
-    setattr(mesh, "cdmw_preview_core_manifest", copy.deepcopy(dict(manifest)))
     return mesh
 
 
@@ -1136,7 +1138,7 @@ def _copy_preview_core_geometry(raw_batches, source_package, package_dir, root_i
 
 def _validated_preview_core_source(preview_core_package_dir, source_manifest):
     source_package = Path(preview_core_package_dir).expanduser().resolve(strict=True)
-    manifest = copy.deepcopy(dict(source_manifest or {}))
+    manifest = dict(source_manifest or {})
     if not manifest:
         try:
             loaded = json.loads((source_package / "manifest.json").read_text(encoding="utf-8"))
@@ -1144,7 +1146,7 @@ def _validated_preview_core_source(preview_core_package_dir, source_manifest):
             raise ValueError("Preview Core manifest is missing or invalid.") from exc
         if not isinstance(loaded, Mapping):
             raise ValueError("Preview Core manifest is not an object.")
-        manifest = copy.deepcopy(dict(loaded))
+        manifest = loaded
     source_schema = _preview_core_int(manifest.get("schema_version"), 0)
     material_graph_version = _preview_core_int(
         manifest.get("material_graph_version"), 0
@@ -1322,7 +1324,7 @@ def build_rust_preview_package_from_preview_core(
     manifest_path = package_dir / "manifest.json"
     atomic_write_text(
         manifest_path,
-        json.dumps(manifest_payload, indent=2, sort_keys=True),
+        json.dumps(manifest_payload, separators=(",", ":"), sort_keys=True),
     )
     return RustPreviewPackage(
         package_dir=package_dir,

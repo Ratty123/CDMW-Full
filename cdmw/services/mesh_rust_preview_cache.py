@@ -566,7 +566,22 @@ class _PreviewCorePackageRequest:
             source_manifest=self.source_manifest,
         )
 
-    def build(self, output_package_dir: Path, quality: str) -> RustPreviewPackage:
+    def build(
+        self, output_package_dir: Path, quality: str,
+        direct_package: RustPreviewPackage | None = None,
+    ) -> RustPreviewPackage:
+        if quality == "full" and direct_package is not None:
+            from cdmw.services.mesh_rust_preview_promotion import (
+                promote_rust_preview_package_from_preview_core,
+            )
+
+            return promote_rust_preview_package_from_preview_core(
+                direct_package,
+                self.source_package,
+                source_manifest=self.source_manifest,
+                output_package_dir=output_package_dir,
+                cancelled=self.cancelled,
+            )
         overlays = rust_preview_overlays_from_preview_core_package(
             self.source_package,
             cancelled=self.cancelled,
@@ -614,13 +629,16 @@ class _PreviewCorePackageRequest:
         )
         return rust_preview_package_from_path(hit.package_dir) if hit is not None else None
 
-    def _publish_locked(self, cache_key: str, quality: str) -> RustPreviewPackage:
+    def _publish_locked(
+        self, cache_key: str, quality: str,
+        direct_package: RustPreviewPackage | None = None,
+    ) -> RustPreviewPackage:
         staging_entry = create_dotnet_preview_package_staging_dir(
             self.derived_cache_root,
             leased=True,
         )
         try:
-            self.build(staging_entry / "package", quality)
+            self.build(staging_entry / "package", quality, direct_package)
             hit = store_dotnet_preview_package_cache(
                 self.derived_cache_root,
                 cache_key,
@@ -636,24 +654,26 @@ class _PreviewCorePackageRequest:
         finally:
             release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
 
-    def build_or_lookup_quality(self, quality: str) -> RustPreviewPackage:
+    def build_or_lookup_quality(
+        self, quality: str, direct_package: RustPreviewPackage | None = None,
+    ) -> RustPreviewPackage:
         if not self.durable:
             self.cache_root.mkdir(parents=True, exist_ok=True)
             transient_root = Path(
                 tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(self.cache_root))
             )
-            return self.build(transient_root / "package", quality)
+            return self.build(transient_root / "package", quality, direct_package)
         cache_key = self.cache_key(quality)
         with dotnet_preview_package_cache_build_lock(self.derived_cache_root, cache_key):
             _check_cancelled(self.cancelled)
-            return self._lookup_locked(cache_key) or self._publish_locked(cache_key, quality)
+            return self._lookup_locked(cache_key) or self._publish_locked(cache_key, quality, direct_package)
 
     def emit_direct(
         self,
         callback: Callable[[RustPreviewPackage], None],
         *,
         retain_lease: bool,
-    ) -> object | None:
+    ) -> tuple[RustPreviewPackage | None, object | None]:
         lease = None
         try:
             package = self.build_or_lookup_quality("direct")
@@ -662,7 +682,7 @@ class _PreviewCorePackageRequest:
             _check_cancelled(self.cancelled)
             callback(package)
             _check_cancelled(self.cancelled)
-            return lease
+            return package, lease
         except RunCancelled:
             if lease is not None:
                 lease.release()
@@ -675,7 +695,7 @@ class _PreviewCorePackageRequest:
                 self.source_package,
                 exc_info=True,
             )
-            return None
+            return None, None
 
     def _progressive_durable(
         self,
@@ -687,9 +707,9 @@ class _PreviewCorePackageRequest:
             hit = self._lookup_locked(full_key)
             if hit is not None:
                 return hit
-            fast_lease = self.emit_direct(callback, retain_lease=True)
+            direct_package, fast_lease = self.emit_direct(callback, retain_lease=True)
             try:
-                return self._publish_locked(full_key, "full")
+                return self._publish_locked(full_key, "full", direct_package)
             finally:
                 if fast_lease is not None:
                     fast_lease.release()
@@ -708,8 +728,8 @@ class _PreviewCorePackageRequest:
             return self.build_or_lookup_quality(quality)
         if self.durable:
             return self._progressive_durable(fast_package_ready)
-        self.emit_direct(fast_package_ready, retain_lease=False)
-        return self.build_or_lookup_quality("full")
+        direct_package, _ = self.emit_direct(fast_package_ready, retain_lease=False)
+        return self.build_or_lookup_quality("full", direct_package)
 
 
 def build_or_lookup_rust_preview_package(

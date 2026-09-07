@@ -551,7 +551,42 @@ static void run_head_eye_cover_identity_contract_self_test() {
         "0028 eye-cover lost its own response map");
 }
 
+static void run_cached_material_owner_contract_self_test() {
+    NativeSubmesh left;
+    left.material = "shared_cloth";
+    left.name = "left";
+    left.source_local_submesh_index = 0;
+    NativeSubmesh right = left;
+    right.name = "right";
+    right.source_local_submesh_index = 1;
+    const std::vector<NativeSubmesh> meshes{left, right};
+    TextureBinding shared;
+    shared.material_name = "shared_cloth";
+    shared.texture_name = "shared_cloth_n.dds";
+    shared.source_path = "shared_cloth_n.dds";
+    shared.role = "normal";
+    shared.material_wrapper_order_authoritative = true;
+    shared.material_wrapper_index = 0;
+    const std::vector<TextureBinding> bindings(9, shared);
+    std::unordered_map<const TextureBinding*, int> owners;
+    for (const TextureBinding& binding : bindings) {
+        owners.emplace(&binding, binding_owner_submesh_local_index(meshes, binding));
+    }
+    for (const NativeSubmesh& mesh : meshes) {
+        const auto uncached = relevant_bindings_for_mesh(bindings, meshes, mesh, {});
+        const auto cached = relevant_bindings_for_mesh(bindings, meshes, mesh, {}, &owners);
+        require_material_contract(cached == uncached && cached.size() == bindings.size(),
+            "cached ownership changed shared-material bindings");
+    }
+    std::string bytes;
+    for (int value = 0; value < 256; ++value) bytes.push_back(static_cast<char>(value));
+    require_material_contract(
+        compact_material_ascii_key(bytes) == std::regex_replace(bytes, std::regex("[^a-z0-9]+"), ""),
+        "compact material keys changed byte filtering");
+}
+
 static void run_material_contract_self_test() {
+    run_cached_material_owner_contract_self_test();
     run_embedded_mesh_owner_contract_self_test();
     run_bounded_material_dependencies_self_test();
 

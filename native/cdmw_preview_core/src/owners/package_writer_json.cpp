@@ -185,7 +185,7 @@ static void append_package_material_inputs(
         // parameter/path identities already recorded by conservation.
         if (!package_binding_is_conserved_logical_texture_edge(state, binding)) continue;
         if (!job_allows_texture_role(state.job, binding.role)) continue;
-        const int owner_slot_index = binding_owner_submesh_local_index(state.submeshes, binding);
+        const int owner_slot_index = state.binding_owner_slots.at(&binding);
         if (!first) state.batches_json << ",";
         first = false;
         state.batches_json << "{"

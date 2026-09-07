@@ -654,7 +654,13 @@ def _native_material_texture_input(
     if not isinstance(value, Mapping):
         return None
     fields = PreviewMaterialTextureInput.__dataclass_fields__
-    payload = {str(key): copy.deepcopy(item) for key, item in value.items() if key in fields}
+    # Parameters are hydrated below into typed records, so do not
+    # recursively copy the raw list only to immediately replace it.
+    payload = {
+        str(key): copy.deepcopy(item)
+        for key, item in value.items()
+        if key in fields and key != "material_parameters"
+    }
     payload["slot_kind"] = str(
         payload.get("slot_kind") or value.get("slot") or "material"
     ).strip()

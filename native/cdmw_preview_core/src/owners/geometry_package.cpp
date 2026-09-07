@@ -684,7 +684,8 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
     const std::vector<TextureBinding>& bindings,
     const std::vector<NativeSubmesh>& submeshes,
     const NativeSubmesh& mesh,
-    const std::vector<const TextureBinding*>& selected_slots
+    const std::vector<const TextureBinding*>& selected_slots,
+    const std::unordered_map<const TextureBinding*, int>* owner_slots = nullptr
 ) {
     std::vector<const TextureBinding*> result;
     std::set<const TextureBinding*> seen;
@@ -718,7 +719,9 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty()) continue;
         if (!material_binding_matches_mesh_source(binding, mesh)) continue;
-        const int owner_slot_index = binding_owner_submesh_local_index(submeshes, binding);
+        const int owner_slot_index = owner_slots != nullptr
+            ? owner_slots->at(&binding)
+            : binding_owner_submesh_local_index(submeshes, binding);
         if (owner_slot_index >= 0
             && mesh.source_local_submesh_index >= 0
             && owner_slot_index != mesh.source_local_submesh_index) {

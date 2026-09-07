@@ -50,6 +50,8 @@ struct PackageWriteState {
     int cloth_runtime_particle_count = 0;
     int cloth_runtime_constraint_count = 0;
     bool has_metal_preview_response = false;
+    // Bindings and submeshes are immutable for the lifetime of this package.
+    std::unordered_map<const TextureBinding*, int> binding_owner_slots;
 };
 
 struct PackageBatchState {
@@ -176,7 +178,7 @@ static PackageWriteState start_package_write(
     const fs::path package_dir = job.output_root;
     const fs::path geometry_dir = package_dir / "geometry";
     fs::create_directories(geometry_dir);
-    return PackageWriteState{
+    PackageWriteState state{
         job,
         submeshes,
         bindings,
@@ -186,6 +188,12 @@ static PackageWriteState start_package_write(
         &index,
         inspect_package_geometry(submeshes),
     };
+    state.binding_owner_slots.reserve(bindings.size());
+    for (const TextureBinding& binding : bindings) {
+        state.binding_owner_slots.emplace(
+            &binding, binding_owner_submesh_local_index(submeshes, binding));
+    }
+    return state;
 }
 
 static PackageBatchState start_package_batch(PackageWriteState& state, size_t batch_index) {
