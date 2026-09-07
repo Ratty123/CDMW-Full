@@ -64,3 +64,21 @@ request. Invalid material ownership and lost parameters still fail validation.
 Browsing, preview, scan, extraction, and package preparation are read-only.
 Actions that can write route through service-owned confirmation and
 `ArchiveMutationService`; this UI package never patches PAMT/PAZ directly.
+
+Archive OBJ/FBX conversion rejects incomplete `PartialRaw` mesh payloads; select
+the PAMLOD companion explicitly when the PAM is incomplete. PAMLOD conversion
+uses the first usable LOD and retains its individual material groups, local
+triangle indices, and source vertex mapping. Selected related entries are copied
+as original files; only the primary mesh is converted. The mesh, materials,
+selected companions, and manifest are staged together. A preparation failure or
+cancellation preserves the previous export, and publication rolls back on failure.
+
+Character OBJ exports bake the same neutral skeleton variation used by FBX.
+OBJ carries no armature or facial morph channels. Its baked appearance manifest
+disallows direct source-asset edits; **Modify Original** still uses the original
+editable coordinates. FBX retains its existing rig and recovered morph support.
+Character dependency packages preserve `character/...` paths directly below the
+chosen root so the appearance manifest can find and verify every companion.
+The extraction service's `include_package_directory=False` selects this layout
+for both extraction and collision checks; ordinary extraction keeps its archive
+package directory by default.

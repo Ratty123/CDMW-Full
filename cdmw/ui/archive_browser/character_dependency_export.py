@@ -133,7 +133,9 @@ class ArchiveCharacterDependencyExportMixin:
     ) -> None:
         entries = tuple(plan.entries)
         output_root = self.shell._suggest_archive_extract_root().resolve()
-        extract_options = self._prompt_archive_extract_options(entries, output_root)
+        extract_options = self._prompt_archive_extract_options(
+            entries, output_root, include_package_directory=False,
+        )
         if extract_options is None:
             self.shell.set_status_message("Character dependency package export cancelled.")
             return
@@ -168,6 +170,7 @@ class ArchiveCharacterDependencyExportMixin:
                 entries,
                 output_root,
                 collision_mode=collision_mode,
+                include_package_directory=False,
                 on_log=on_log,
                 on_progress=on_progress,
                 stop_event=stop_event,

@@ -257,8 +257,12 @@ def reconstruct_partial_dds(entry: ArchiveEntry, data: bytes) -> bytes:
     return bytes(output_data)
 
 
-def sanitize_archive_entry_output_path(entry: ArchiveEntry, output_root: Path) -> Path:
+def sanitize_archive_entry_output_path(
+    entry: ArchiveEntry, output_root: Path, *, include_package_directory: bool = True,
+) -> Path:
     error_message = f"Archive entry has an invalid path: {entry.path}"
+    if not include_package_directory:
+        return safe_archive_output_path(output_root, entry.path, error_message=error_message)
     package_root = entry.pamt_path.parent.name.strip() or "package"
     package_output = safe_archive_output_path(
         output_root,
@@ -554,6 +558,7 @@ def extract_archive_entries(
     output_root: Path,
     *,
     collision_mode: str = "overwrite",
+    include_package_directory: bool = True,
     on_log: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     stop_event: Optional[threading.Event] = None,
@@ -588,7 +593,9 @@ def extract_archive_entries(
     emit_progress(0, f"Preparing to extract {total:,} archive file(s)...", force=True)
     for entry in entries:
         try:
-            target_path = sanitize_archive_entry_output_path(entry, output_root)
+            target_path = sanitize_archive_entry_output_path(
+                entry, output_root, include_package_directory=include_package_directory,
+            )
             duplicate_targets[str(target_path).lower()] += 1
         except Exception:
             continue
@@ -605,7 +612,9 @@ def extract_archive_entries(
     for index, entry in enumerate(entries, start=1):
         raise_if_cancelled(stop_event)
         try:
-            target_path = sanitize_archive_entry_output_path(entry, output_root)
+            target_path = sanitize_archive_entry_output_path(
+                entry, output_root, include_package_directory=include_package_directory,
+            )
             if collision_mode == "rename":
                 resolved_path = find_available_output_path(target_path, used_targets)
                 if resolved_path != target_path:
@@ -706,8 +715,15 @@ def clear_directory_contents(path: Path) -> None:
         raise
 
 
-def count_existing_archive_targets(entries: Sequence[ArchiveEntry], output_root: Path) -> int:
-    return sum(1 for entry in entries if sanitize_archive_entry_output_path(entry, output_root).exists())
+def count_existing_archive_targets(
+    entries: Sequence[ArchiveEntry], output_root: Path, *, include_package_directory: bool = True,
+) -> int:
+    return sum(
+        1 for entry in entries
+        if sanitize_archive_entry_output_path(
+            entry, output_root, include_package_directory=include_package_directory,
+        ).exists()
+    )
 
 
 def format_byte_size(size: int) -> str:

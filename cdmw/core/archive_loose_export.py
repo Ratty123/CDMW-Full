@@ -145,30 +145,32 @@ def _export_related_archive_entries(
     output_root: Path,
     *,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event: object = None,
 ) -> List[Path]:
     from cdmw.core.archive_extraction import extract_archive_entry
+    from cdmw.core.common import RunCancelled, raise_if_cancelled
+    from cdmw.domain.archives.safety import safe_archive_output_path
 
     written_paths: List[Path] = []
     seen_paths: set[str] = set()
     for entry in entries:
+        raise_if_cancelled(stop_event)
         normalized_path = _normalize_virtual_path(entry.path)
         if not normalized_path or normalized_path in seen_paths:
             continue
         seen_paths.add(normalized_path)
-        relative_parts = PurePosixPath(entry.path.replace("\\", "/")).parts
-        if not relative_parts:
-            continue
-        target_path = output_root.joinpath(*relative_parts)
+        target_path = safe_archive_output_path(
+            output_root, entry.path, error_message=f"Invalid selected related file path: {entry.path}",
+        )
         target_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             _safe_log(on_log, f"Copying related file: {target_path.relative_to(output_root).as_posix()}")
-            extract_archive_entry(entry, target_path)
+            extract_archive_entry(entry, target_path, stop_event=stop_event)
             written_paths.append(target_path)
+        except RunCancelled:
+            raise
         except Exception as exc:
-            _safe_log(
-                on_log,
-                f"Warning: could not export related file {entry.path}: {exc}",
-            )
+            raise RuntimeError(f"Could not export selected related file {entry.path}: {exc}") from exc
     return written_paths
 
 

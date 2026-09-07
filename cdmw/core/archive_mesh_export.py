@@ -3,9 +3,11 @@ from __future__ import annotations
 import dataclasses
 import re
 from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.atomic_file import atomic_write_text
+from cdmw.core.atomic_file import atomic_publish_files, atomic_write_text
+from cdmw.core.common import RunCancelled, raise_if_cancelled
 from cdmw.core.archive_loose_export import _export_related_archive_entries, _sha256_file
 from cdmw.core.archive_modding_constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.core.archive_mesh_types import MeshExportResult
@@ -208,7 +210,12 @@ def _parse_archive_mesh(
 ) -> ParsedMesh:
     from cdmw.core.archive_extraction import read_archive_entry_data
 
-    data, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+    data, _decompressed, note = read_archive_entry_data(entry, stop_event=stop_event)
+    if "PartialRaw" in str(note):
+        raise ValueError(
+            f"Cannot convert {entry.path}: the archive returned incomplete mesh data (PartialRaw). "
+            "Export a complete mesh or select its PAMLOD companion explicitly."
+        )
     mesh = parse_mesh(data, entry.path)
     setattr(mesh, "_cdmw_original_data", bytes(data))
     return mesh
@@ -345,6 +352,46 @@ def export_archive_mesh(
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
 ) -> MeshExportResult:
+    """Prepare every selected output before replacing an existing export."""
+    raise_if_cancelled(stop_event)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=".cdmw-mesh-export-", dir=output_dir) as temporary:
+        staging = Path(temporary)
+        result = _export_archive_mesh_staged(
+            entry, staging, export_format,
+            archive_entries_by_normalized_path=archive_entries_by_normalized_path,
+            archive_entries_by_basename=archive_entries_by_basename,
+            related_entries=related_entries,
+            allow_missing_skeleton=allow_missing_skeleton,
+            resolve_skeleton_for_obj=resolve_skeleton_for_obj,
+            model_texture_references=model_texture_references,
+            asset_family_graph=asset_family_graph,
+            build_preview_context=build_preview_context,
+            on_log=on_log, stop_event=stop_event,
+        )
+        raise_if_cancelled(stop_event)
+        publication = {path: output_dir / path.relative_to(staging) for path in result.output_paths}
+        # Cancellation is checked before the indivisible, rollback-capable publish.
+        atomic_publish_files(publication)
+        return dataclasses.replace(result, output_paths=list(publication.values()))
+
+
+def _export_archive_mesh_staged(
+    entry: ArchiveEntry,
+    output_dir: Path,
+    export_format: str,
+    *,
+    archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    related_entries: Sequence[ArchiveEntry] = (),
+    allow_missing_skeleton: bool = False,
+    resolve_skeleton_for_obj: bool = True,
+    model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
+    asset_family_graph: object = None,
+    build_preview_context: bool = True,
+    on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
+) -> MeshExportResult:
     export_kind = export_format.strip().lower()
     if export_kind not in {"obj", "fbx"}:
         raise ValueError(f"Unsupported mesh export format: {export_format}")
@@ -364,6 +411,8 @@ def export_archive_mesh(
     skeleton_resolution_warning = ""
     skeleton_resolve_report: Optional[SkeletonResolveReport] = None
     appearance_notes: Tuple[str, ...] = ()
+    export_mesh = parsed_mesh
+    obj_appearance_baked = False
     copied_related_count = 0
     should_resolve_skeleton = entry.extension == ".pac" and (
         export_kind == "fbx" or bool(resolve_skeleton_for_obj)
@@ -374,7 +423,17 @@ def export_archive_mesh(
             archive_entries_by_basename=archive_entries_by_basename, stop_event=stop_event,
         )
     if export_kind == "obj":
-        output_paths.extend(Path(path) for path in export_obj(parsed_mesh, str(output_dir), basename))
+        if should_resolve_skeleton:
+            from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+
+            export_mesh, appearance_notes = apply_archive_mesh_appearance(
+                entry, parsed_mesh, getattr(parsed_mesh, "_cdmw_original_data", b""),
+                archive_entries_by_normalized_path=archive_entries_by_normalized_path or {},
+                archive_entries_by_basename=archive_entries_by_basename or {},
+                stop_event=stop_event,
+            )
+            obj_appearance_baked = export_mesh is not parsed_mesh
+        output_paths.extend(Path(path) for path in export_obj(export_mesh, str(output_dir), basename))
     else:
         if entry.extension == ".pac":
             if skeleton_entry is not None:
@@ -389,6 +448,7 @@ def export_archive_mesh(
                         )
                         skeleton = None
                 except Exception as exc:
+                    raise_if_cancelled(stop_event)
                     skeleton_resolution_warning = (
                         f"Matched skeleton {skeleton_entry.path} could not be parsed: {exc}"
                     )
@@ -446,6 +506,7 @@ def export_archive_mesh(
             related_entries,
             related_output_root,
             on_log=on_log,
+            stop_event=stop_event,
         )
         output_paths.extend(copied_paths)
         copied_related_count = len(copied_paths)
@@ -572,17 +633,28 @@ def export_archive_mesh(
                 extra_payload["skeleton_resolver"] = skeleton_resolver_payload
             if skin_binding_payload:
                 extra_payload["skin_binding_map"] = skin_binding_payload
+            if obj_appearance_baked:
+                # Neutral appearance is for interchange, not editable PAC source coordinates.
+                extra_payload["allowed_edit_operations"] = []
+                for rules_key in ("rules", "import_rules"):
+                    extra_payload[rules_key] = {
+                        "allow_position_edit": False, "allow_normal_edit": False,
+                        "allow_uv_edit": False, "allow_topology_change": False,
+                        "preserve_bone_weights": True, "require_source_asset_hash": True,
+                    }
             manifest_stage = "round-trip manifest write"
             manifest_path = write_roundtrip_manifest(
-                parsed_mesh,
+                export_mesh if export_kind == "obj" else parsed_mesh,
                 manifest_target_path,
                 companion_path=companion_path,
                 extra_payload=extra_payload,
             )
             if manifest_path not in output_paths:
                 output_paths.append(manifest_path)
+        except RunCancelled:
+            raise
         except Exception as exc:
-            _safe_log(on_log, f"Warning: {manifest_stage} failed for {entry.path}: {exc}")
+            raise RuntimeError(f"{manifest_stage} failed for {entry.path}: {exc}") from exc
 
     summary_lines = [
         f"Path: {entry.path}",
@@ -594,6 +666,8 @@ def export_archive_mesh(
     if copied_related_count:
         summary_lines.append(f"Referenced files copied: {copied_related_count:,}")
     summary_lines.extend(appearance_notes)
+    if obj_appearance_baked:
+        summary_lines.append("OBJ contains neutral character appearance; source-asset round-trip edits are disabled.")
     if skeleton_entry is not None and skeleton is not None and skeleton.bones:
         summary_lines.append(f"Skeleton: {skeleton_entry.path}")
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")

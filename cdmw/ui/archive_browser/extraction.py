@@ -74,6 +74,8 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
         self,
         entries: Sequence[ArchiveEntry],
         output_root: Path,
+        *,
+        include_package_directory: bool = True,
     ) -> Optional[Tuple[bool, str]]:
         summary_box = QMessageBox(self)
         summary_box.setWindowTitle("Archive Extraction Target")
@@ -118,7 +120,9 @@ class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
                 clear_root = True
                 collision_mode = "overwrite"
             else:
-                collisions = count_existing_archive_targets(entries, output_root)
+                collisions = count_existing_archive_targets(
+                    entries, output_root, include_package_directory=include_package_directory,
+                )
                 if collisions > 0:
                     collision_box = QMessageBox(self)
                     collision_box.setWindowTitle("Existing Files Found")

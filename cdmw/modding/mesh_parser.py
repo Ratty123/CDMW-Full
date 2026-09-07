@@ -1140,11 +1140,9 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
 
         # Parse submeshes for this LOD
         lod_submeshes = []
-        vert_offset = 0
         has_uv = found_stride >= 12
 
-        all_verts, all_uvs, all_faces, all_offsets = [], [], [], []
-        for e in group:
+        for entry_index, e in enumerate(group):
             nv_e, ni_e = e["nv"], e["ni"]
             vert_base_e = found_base + e["voff"] * found_stride
             idx_off_e = found_idx_off + e["ioff"] * 2
@@ -1158,29 +1156,21 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
                 bmin,
                 bmax,
                 has_uv,
-                face_base_offset=vert_offset,
             )
             if extracted is None:
                 continue
-            verts_e, uvs_e, faces_e, offsets_e, unique_count = extracted
-            all_verts.extend(verts_e)
-            all_uvs.extend(uvs_e)
-            all_offsets.extend(offsets_e)
-            all_faces.extend(faces_e)
-
-            vert_offset += unique_count
-
-        mat_name = group[0]["mat"] or f"lod{lod_i}"
-        sm = SubMesh(
-            name=f"lod{lod_i:02d}_{mat_name}",
-            material=mat_name,
-            texture=group[0]["tex"],
-            vertices=all_verts, uvs=all_uvs, faces=all_faces,
-            normals=_compute_smooth_normals(all_verts, all_faces),
-            source_vertex_offsets=all_offsets,
-            vertex_count=len(all_verts), face_count=len(all_faces),
-        )
-        lod_submeshes.append(sm)
+            verts_e, uvs_e, faces_e, offsets_e, _unique_count = extracted
+            mat_name = e["mat"] or f"lod{lod_i}_part{entry_index}"
+            lod_submeshes.append(SubMesh(
+                name=(f"lod{lod_i:02d}_{mat_name}" if len(group) == 1
+                      else f"lod{lod_i:02d}_{entry_index:02d}_{mat_name}"),
+                material=mat_name,
+                texture=e["tex"],
+                vertices=verts_e, uvs=uvs_e, faces=faces_e,
+                normals=_compute_smooth_normals(verts_e, faces_e),
+                source_vertex_offsets=offsets_e,
+                vertex_count=len(verts_e), face_count=len(faces_e),
+            ))
         result.lod_levels.append(lod_submeshes)
         cur = found_idx_off + total_ni * 2
 
