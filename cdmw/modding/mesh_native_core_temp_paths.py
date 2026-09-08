@@ -112,6 +112,7 @@ def cleanup_native_preview_delta_paths(time_budget_seconds: float | None = None)
     recorded 2026-08-02 15:12 stall was exactly this stack). Under a budget
     the remainder is deliberately left behind: the stale sweep removes it in
     the background the next time the Mesh Editor allocates a delta.
+    A zero budget leaves every entry for that sweep, even before the clock ticks.
 
     Returns the number of tracked entries left undeleted.
     """
@@ -127,12 +128,12 @@ def cleanup_native_preview_delta_paths(time_budget_seconds: float | None = None)
         _native_preview_delta_dirs.clear()
     remaining = 0
     for index, path in enumerate(paths):
-        if deadline is not None and time.monotonic() > deadline:
+        if deadline is not None and time.monotonic() >= deadline:
             remaining += len(paths) - index
             break
         _unlink_delta_path(path)
     for index, path in enumerate(dirs):
-        if deadline is not None and time.monotonic() > deadline:
+        if deadline is not None and time.monotonic() >= deadline:
             remaining += len(dirs) - index
             break
         shutil.rmtree(path, ignore_errors=True)

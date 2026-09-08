@@ -29,16 +29,28 @@ def _track_files(tmp_path: Path, count: int) -> list[Path]:
     return created
 
 
-def test_a_zero_budget_leaves_work_behind_and_reports_it(tmp_path: Path) -> None:
+def test_a_zero_budget_leaves_work_behind_and_reports_it(tmp_path: Path, monkeypatch) -> None:
     created = _track_files(tmp_path, 8)
+    directory = tmp_path / "cdmw_mesh_editor_delta_test"
+    directory.mkdir()
+    payload = directory / "payload.bin"
+    payload.write_bytes(b"x")
+    with temp_paths._native_preview_delta_paths_lock:
+        temp_paths._native_preview_delta_dirs.add(directory)
     try:
-        remaining = temp_paths.cleanup_native_preview_delta_paths(time_budget_seconds=0.0)
-        # A zero budget deletes at most the first entry per loop before the
-        # deadline check trips; most of the batch must be reported undone.
-        assert remaining >= len(created) - 2
+        # Model a clock that has not ticked since the deadline was calculated.
+        with monkeypatch.context() as clock:
+            clock.setattr(temp_paths.time, "monotonic", lambda: 100.0)
+            remaining = temp_paths.cleanup_native_preview_delta_paths(time_budget_seconds=0.0)
+        assert remaining == len(created) + 1
+        assert all(path.exists() for path in created)
+        assert payload.exists()
     finally:
         for path in created:
             path.unlink(missing_ok=True)
+        payload.unlink(missing_ok=True)
+        if directory.exists():
+            directory.rmdir()
 
 
 def test_an_unbudgeted_cleanup_still_deletes_everything(tmp_path: Path) -> None:
