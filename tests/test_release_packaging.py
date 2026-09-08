@@ -360,6 +360,39 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
     assert '$Area -in @("smoke", "mesh-unit")' not in source
 
 
+@pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
+@pytest.mark.parametrize(
+    "smoke_exit,mesh_exit,expected_exit,expected_calls",
+    [(42, 0, 42, ["smoke"]), (0, 43, 43, ["smoke", "mesh-contract"]),
+     (0, 0, 0, ["smoke", "mesh-contract"])],
+)
+def test_main_push_validation_preserves_each_gate_failure(
+    tmp_path, smoke_exit, mesh_exit, expected_exit, expected_calls,
+) -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
+    step = source.split("      - name: Run fast main-push validation\n", 1)[1]
+    step = step.split("      - name:", 1)[0]
+    commands = step.split("        run: |\n", 1)[1]
+    commands = "\n".join(line[10:] for line in commands.splitlines() if line.strip())
+    commands = commands.replace("${{ matrix.python-version }}", "3.14")
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "codex_check.ps1").write_text(
+        "param([string]$Area, [string]$PytestBaseTemp)\n"
+        "Add-Content -LiteralPath (Join-Path $PSScriptRoot 'calls.txt') -Value $Area\n"
+        f"if ($Area -eq 'smoke') {{ exit {smoke_exit} }}\nexit {mesh_exit}\n",
+        encoding="utf-8",
+    )
+    runner = tmp_path / "run.ps1"
+    runner.write_text("$env:RUNNER_TEMP = $PSScriptRoot\n" + commands, encoding="utf-8")
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(runner)],
+        cwd=tmp_path, text=True, capture_output=True, timeout=20,
+    )
+    assert result.returncode == expected_exit, result.stdout + result.stderr
+    assert (scripts / "calls.txt").read_text(encoding="utf-8-sig").splitlines() == expected_calls
+
+
 def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
     approved = {

@@ -186,8 +186,10 @@ jobs:
         run: |
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-smoke-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area smoke -PytestBaseTemp $baseTemp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $meshBaseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-mesh-contract-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area mesh-contract -PytestBaseTemp $meshBaseTemp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run canonical nonvisual QA
         if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')

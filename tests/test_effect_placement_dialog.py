@@ -574,10 +574,15 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
         self.assertIsNone(dialog._preview)
 
     def test_closing_during_package_build_never_waits_on_the_ui_thread(self) -> None:
-        output = Path(tempfile.mkdtemp(prefix="cdmw_effect_shutdown_"))
+        folder = tempfile.TemporaryDirectory(prefix="cdmw_effect_shutdown_")
+        self.addCleanup(folder.cleanup)
+        output = Path(folder.name)
+        build_started = threading.Event()
+        release_build = threading.Event()
 
         def slow_build(*_args, output_root, **_kwargs):
-            time.sleep(0.2)
+            build_started.set()
+            release_build.wait(5.0)
             package = Path(output_root) / "slow" / "package"
             package.mkdir(parents=True, exist_ok=True)
             return EffectPlacementPreview(
@@ -598,12 +603,18 @@ class DialogTests(_DialogPresentationMixin, _DialogTestCase):
             )
             self.addCleanup(dialog.deleteLater)
             dialog.show()
-            self._settle(lambda: dialog._thread is not None and dialog._thread.isRunning())
-            started = time.monotonic()
-            dialog.reject()
-            self.assertLess(time.monotonic() - started, 0.08)
-            self.assertTrue(dialog.iter_shutdown_workers())
-            self._settle(lambda: dialog._thread is None)
+            try:
+                self._settle(build_started.is_set)
+                thread = dialog._thread
+                with patch.object(thread, "wait", side_effect=AssertionError("close waited for its worker")) as wait:
+                    dialog.reject()
+                    wait.assert_not_called()
+                self.assertTrue(thread.isRunning())
+                self.assertTrue(dialog.iter_shutdown_workers())
+            finally:
+                release_build.set()
+                dialog.request_shutdown()
+                self._settle(lambda: dialog._thread is None)
             self.assertEqual(dialog.iter_shutdown_workers(), ())
 
     def test_effect_decode_runs_on_the_package_worker_without_blocking_the_ui(self) -> None:

@@ -32,6 +32,9 @@ ordinary `main` pushes. Pull requests, version tags and manual dispatch run the
 full nonvisual suite on Python 3.11 and 3.14. Packaging requires both checks and
 runs only for tags or manual dispatch. There is no nightly schedule. CI excludes
 `visual`, `real_game` and machine-sensitive `timing` tests.
+Each gate's exit code is checked before continuing, so a later successful gate
+cannot hide an earlier failure. Async shutdown tests verify worker ownership and
+nonblocking calls directly instead of imposing wall-clock limits on shared runners.
 
 ## Mesh Editor gates
 
