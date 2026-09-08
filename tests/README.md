@@ -44,6 +44,9 @@ interpreter to contain accumulated Qt state. Full discovers its modules through
 pytest collection with the active markers; collection errors also fail the gate.
 Every module's process exit must succeed
 before the next module starts; no tests are skipped or failures retried.
+These gates capture Python streams while leaving native stderr visible. If a
+test process fails, the runner also prints a bounded excerpt of the app's
+native fault log, where shell construction redirects faulthandler output.
 
 ## Mesh Editor gates
 

@@ -336,9 +336,18 @@ if ($Area -in @("smoke", "mesh-unit", "full")) {
     # the real helper open/close soak below remains the product lifetime gate.
     foreach ($TestPath in $ConfiguredTests) {
         Write-Host "Running $Area module $TestPath"
-        & $Python -X faulthandler -m pytest @PytestTempArgs @AreaMarkerArgs $TestPath
+        & $Python -X faulthandler -m pytest --capture=sys @PytestTempArgs @AreaMarkerArgs $TestPath
         $PytestExitCode = $LASTEXITCODE
         if ($PytestExitCode -ne 0) {
+            # Shell construction redirects faulthandler into this app log.
+            # Preserve its evidence when a native failure prevents pytest from
+            # printing a traceback; never replace the failing process status.
+            $NativeFaultLog = Get-Item -LiteralPath (Join-Path $RepoRoot "workspace/logs/native_fault_current.log") -ErrorAction SilentlyContinue
+            if ($NativeFaultLog -and $NativeFaultLog.Length -gt 0) {
+                Write-Host "Native fault log: $($NativeFaultLog.FullName) ($($NativeFaultLog.Length) bytes; updated $($NativeFaultLog.LastWriteTimeUtc.ToString('o')))"
+                Get-Content -LiteralPath $NativeFaultLog.FullName -TotalCount 8 -ErrorAction Continue
+                Get-Content -LiteralPath $NativeFaultLog.FullName -Tail 120 -ErrorAction Continue
+            }
             exit $PytestExitCode
         }
     }

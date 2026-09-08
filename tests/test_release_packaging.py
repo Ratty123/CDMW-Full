@@ -426,6 +426,9 @@ def test_full_discovers_selected_modules_and_preserves_failures(tmp_path, failur
         target = tmp_path / module
         target.parent.mkdir(parents=True, exist_ok=True)
         target.touch()
+    native_fault_log = tmp_path / "workspace/logs/native_fault_current.log"
+    native_fault_log.parent.mkdir(parents=True)
+    native_fault_log.write_text("native failure diagnostic\n", encoding="utf-8")
     runner = tmp_path / "run.ps1"
     runner.write_text(
         "$global:moduleCalls = Join-Path $PSScriptRoot 'calls.jsonl'\n"
@@ -438,6 +441,7 @@ def test_full_discovers_selected_modules_and_preserves_failures(tmp_path, failur
         f"        $global:LASTEXITCODE = {43 if failure == 'collection' else 0}\n"
         "        return\n"
         "    }\n"
+        "    if ($args -notcontains '--capture=sys') { $global:LASTEXITCODE = 99; return }\n"
         "    $modules = @($args | Where-Object { $_ -like 'tests/*.py' })\n"
         "    ConvertTo-Json -InputObject $modules -Compress | Add-Content -LiteralPath $global:moduleCalls\n"
         f"    $global:LASTEXITCODE = if ({'$true' if failure == 'second' else '$false'} -and "
@@ -458,6 +462,7 @@ def test_full_discovers_selected_modules_and_preserves_failures(tmp_path, failur
         expected = expected[:1]
     assert calls == [[module] for module in expected]
     assert result.returncode == {"": 0, "collection": 43, "second": 47}[failure], result.stdout + result.stderr
+    assert ("native failure diagnostic" in result.stdout) == (failure == "second")
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
