@@ -1762,7 +1762,7 @@ internal static class FullArchiveTestRunner
         var current = new DirectoryInfo(Environment.CurrentDirectory);
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "AGENTS.md")) && Directory.Exists(Path.Combine(current.FullName, "native")))
+            if (File.Exists(Path.Combine(current.FullName, "cdmw_app.py")) && Directory.Exists(Path.Combine(current.FullName, "native")))
             {
                 return current.FullName;
             }
