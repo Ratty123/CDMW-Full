@@ -9,7 +9,9 @@ Recolor previews use the editor canvas's zoom and original/split views without
 changing the document or its undo history. Remove closes the active asset in the
 job; it does not delete the source file.
 Upscale automatically widens the sidebar when opened or expanded and adjusts it
-on window resize while retaining space for the preview. Asset Authoring path
+on window resize while retaining space for the preview. The sidebar follows the
+expanded controls' width and selected font size; the Upscale preview can shrink
+to leave controls accessible on narrower windows. Asset Authoring path
 labels stack above their fields and Browse buttons. The profile and rule tables
 open in their own editor through **Workflow Profiles, Rules & Matches > Edit**.
 Lazy panels restore their saved settings when first opened.

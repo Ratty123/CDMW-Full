@@ -240,6 +240,36 @@ class OutputPanel(QGroupBox):
             "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
             "two, and the newer."
         )
+        self._build_overlay_tools(write_layout)
+        self.checklist = DetailsToggle(
+            "\n".join(f"- {line}" for line in CHECKLIST),
+            title="After installing, check in game",
+        )
+        write_layout.addWidget(self.checklist)
+        write_layout.addStretch(1)
+        content.addWidget(write, 0, 1, 2, 1)
+        content.setColumnStretch(0, 1)
+        content.setColumnStretch(1, 1)
+        content.setRowStretch(1, 1)
+        layout.addLayout(content, 1)
+
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setPlaceholderText("What happened: exports, installs, messages.")
+        self.log.setMaximumHeight(90)
+        layout.addWidget(self.log)
+
+        controller.log_message.connect(self.append_log)
+        controller.plan_ready.connect(self._show_plan)
+        controller.plan_failed.connect(self._plan_failed)
+        controller.plan_invalidated.connect(self._show_plan)
+        controller.export_finished.connect(self._export_finished)
+        controller.install_finished.connect(self._install_finished)
+        controller.busy_changed.connect(self._busy_changed)
+        controller.template_changed.connect(lambda _key: self._show_plan(None))
+        self._busy_changed(False)
+
+    def _build_overlay_tools(self, write_layout: QVBoxLayout) -> None:
         self.overlay_tools_toggle = QToolButton()
         self.overlay_tools_toggle.setText("Manage existing overlays")
         self.overlay_tools_toggle.setCheckable(True)
@@ -268,33 +298,6 @@ class OutputPanel(QGroupBox):
         self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
         overlay_row.addWidget(self.overlay_removal_button)
         write_layout.addWidget(self.overlay_tools)
-        self.checklist = DetailsToggle(
-            "\n".join(f"- {line}" for line in CHECKLIST),
-            title="After installing, check in game",
-        )
-        write_layout.addWidget(self.checklist)
-        write_layout.addStretch(1)
-        content.addWidget(write, 0, 1, 2, 1)
-        content.setColumnStretch(0, 1)
-        content.setColumnStretch(1, 1)
-        content.setRowStretch(1, 1)
-        layout.addLayout(content, 1)
-
-        self.log = QPlainTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setPlaceholderText("What happened: exports, installs, messages.")
-        self.log.setMaximumHeight(90)
-        layout.addWidget(self.log)
-
-        controller.log_message.connect(self.append_log)
-        controller.plan_ready.connect(self._show_plan)
-        controller.plan_failed.connect(self._plan_failed)
-        controller.plan_invalidated.connect(self._show_plan)
-        controller.export_finished.connect(self._export_finished)
-        controller.install_finished.connect(self._install_finished)
-        controller.busy_changed.connect(self._busy_changed)
-        controller.template_changed.connect(lambda _key: self._show_plan(None))
-        self._busy_changed(False)
 
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().resizeEvent(event)

@@ -757,10 +757,11 @@ class _TabAuthoringMixin:
             total = float(sum(outer))
             left = outer[0] / total
             centre = outer[1] / total * inner[0] / sum(inner)
-            inspector = outer[1] / total * inner[1] / sum(inner)
             self.assertAlmostEqual(left, 0.29, delta=0.035)
             self.assertAlmostEqual(centre, 0.43, delta=0.045)
-            self.assertAlmostEqual(inspector, 0.28, delta=0.04)
+            # The inspector retains its natural width; the viewport receives
+            # extra width on larger windows instead of scaling every pane.
+            self.assertEqual(placement.preview_splitter.widget(1).sizePolicy().horizontalStretch(), 0)
             self.assertGreaterEqual(effects.splitter.widget(0).width(), 300)
             self.assertGreaterEqual(placement.preview_splitter.widget(0).width(), 480)
             self.assertGreaterEqual(placement.preview_splitter.widget(1).width(), 340)

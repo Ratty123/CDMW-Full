@@ -302,7 +302,8 @@ after this live capture and has not yet been exercised through the visible Windo
 
 Do not describe standalone Rust Mesh Lab evidence as production Mesh Editor
 evidence. CDMW-managed mode is the dedicated embedded Mesh Editor and owns a
-separate shadow, Finish, HWND, and process-lifecycle contract. Standalone
+separate shadow, Finish, HWND, and process-lifecycle contract. Production Archive
+Preview also uses this executable, through its viewport-only preview protocol. Standalone
 synthetic or visible lab results do not establish an accepted CDMW-managed Rust
-Finish transaction, and retained Vortice Archive Preview evidence does not
+Finish transaction, and historical Vortice Archive Preview evidence does not
 substitute for Rust editor evidence.

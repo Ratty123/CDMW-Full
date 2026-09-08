@@ -424,6 +424,8 @@ class AboutDocumentationEnglishMixin:
                   <li>Review the loaded mesh, Part, rig, active bone, and parent. Search bones by name and inspect the labelled bone and weight colours in the viewport.</li>
                   <li>Frame bone and Frame influence change the camera. Select influenced vertices changes the edit selection and excludes hidden Parts.</li>
                 </ul>
+                <h4>Morph &amp; Refit</h4>
+                <p>Use Browse Body... and Browse Armor... to load archive assets. Assign the body as the driver, then select and bind the garments. Reset or Bake before changing the setup. Finish Edit Mesh keeps both body and armor edits; Build Mod rebuilds each asset at its original archive path. Refit changes geometry, not skeletons or animation.</p>
                 <h4>Save and build</h4>
                 <ul>
                   <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>

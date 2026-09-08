@@ -793,12 +793,13 @@ class ItemPreviewFrameTests(unittest.TestCase):
             _controller=controller,
             preview=preview,
             _sync_placement_numbers=lambda value: calls.append(("numbers", value)),
+            _refresh_apply_status=lambda: calls.append(("status", None)),
             refresh_preview=lambda: calls.append(("refresh", None)),
         )
 
         ModelPanelPreviewMixin._placement_changed(panel, placement)
 
-        self.assertEqual(calls, [("numbers", placement), ("placement", placement)])
+        self.assertEqual(calls, [("numbers", placement), ("placement", placement), ("status", None)])
 
     def test_quick_turn_buttons_update_resident_placement_and_invalidate_applied_mesh(self) -> None:
         from unittest.mock import PropertyMock

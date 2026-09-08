@@ -219,6 +219,10 @@ def test_upscale_sidebar_fits_expanded_controls_without_dragging(
         window._activate_tool_key("texture_workflow")
         window.texture_editor_tab.ensure_widget()
         textures = window.textures
+        textures.set_texture_mode("upscale")
+        for _ in range(3):
+            app.processEvents()
+        window.resize(width, 800)
         for name in ("settings", "asset_authoring", "dds_output", "filters", "chainner"):
             section = getattr(textures, f"{name}_section")
             section.toggle_button.click()

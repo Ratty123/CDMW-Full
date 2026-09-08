@@ -4,9 +4,10 @@
 
 The code remains an isolated Cargo workspace under `tools/rust_mesh_lab` and
 production CDMW does not import its crates. The `cdmw_mesh_lab` executable has a
-standalone diagnostic mode and a CDMW-managed embedded Mesh Editor mode. CDMW
-packages and launches this executable as the sole editor. The separate Vortice
-process remains only for Archive Browser and specialist preview consumers.
+standalone diagnostic mode and separate CDMW-managed preview and authoring
+modes. CDMW packages this executable as the sole Mesh Editor and Archive
+Preview renderer. Archive Browser, Model Library, New Item and specialist
+previews use its viewport-only mode; authoring uses the complete editor UI.
 
 ```text
 cdmw_archive ──────┐
@@ -35,7 +36,9 @@ CDMW Mesh Editor ──JSONL + owned files + child HWND──>
 
 `--mesh` and `--archive-root` enter the standalone loader and document path.
 `--cdmw-session <manifest> --embedded-parent-hwnd <decimal>` enters only the
-managed path and cannot be combined with those options. `--control-contract-json
+managed authoring path and cannot be combined with those options.
+`--cdmw-preview-session <manifest> --embedded-parent-hwnd <decimal>` uses the
+read-only or static-replacement preview contract. `--control-contract-json
 <path>` writes the Rust-owned v2 product contract headlessly and exits.
 
 ## Crate responsibilities

@@ -114,7 +114,7 @@ class ResponsivenessControllerMixin:
         controls_min, _controls_pref, controls_max = self._archive_controls_sidebar_bounds()
         files_min, _files_pref, _files_max = responsive_sidebar_bounds(self, role="narrow")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
-        workflow_nav_min, _workflow_nav_pref, workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
+        workflow_nav_min, _workflow_nav_pref, _workflow_nav_max = responsive_sidebar_bounds(self, role="workflow")
         workflow_content_min, _workflow_content_pref, _workflow_content_max = responsive_sidebar_bounds(self, role="wide")
         for widget in (getattr(self.archive, "archive_controls_group", None), getattr(self.archive, "archive_controls_scroll", None)):
             if widget is not None:
@@ -139,7 +139,8 @@ class ResponsivenessControllerMixin:
             self.textures.left_panel.setMinimumWidth(workflow_nav_min)
         if hasattr(self.textures, "left_scroll_area"):
             self.textures.left_scroll_area.setMinimumWidth(workflow_nav_min)
-            self.textures.left_scroll_area.setMaximumWidth(workflow_nav_max)
+            # The shared Textures splitter sizes this page from its expanded controls.
+            self.textures.left_scroll_area.setMaximumWidth(16777215)
         if hasattr(self.textures, "right_panel"):
             self.textures.right_panel.setMinimumWidth(workflow_content_min)
         self._apply_responsive_label_density()

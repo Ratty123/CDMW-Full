@@ -291,6 +291,19 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
     assert "CDMW_GAME_ROOT" not in source
 
 
+def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None:
+    """Unchanged main must not rerun the full suite and notify every night."""
+
+    source = WORKFLOW.read_text(encoding="utf-8")
+    triggers = source.split("\non:\n", 1)[1].split("\npermissions:", 1)[0]
+
+    assert set(re.findall(r"^  ([a-z_]+):", triggers, flags=re.MULTILINE)) == {
+        "push", "pull_request", "workflow_dispatch",
+    }
+    assert "    branches:\n      - main" in triggers
+    assert '    tags:\n      - "v*"' in triggers
+
+
 def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     """A normal push must not spend an hour rerunning release-grade QA."""
 

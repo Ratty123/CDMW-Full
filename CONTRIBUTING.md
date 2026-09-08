@@ -49,6 +49,10 @@ Please try to:
 - explain user-facing behavior changes clearly
 - mention any affected workflows such as `Textures`, `Create New Item`, `Mesh Editor`, `Research`, or `Archive Browser`
 - avoid unrelated cleanup in the same PR
+- use the current tool names from the [README](README.md) and update in-app
+  documentation when controls or workflows change
+- follow the [test guide](tests/README.md) for focused checks; GitHub runs the
+  full nonvisual Python matrix for pull requests
 
 ## Project Scope
 

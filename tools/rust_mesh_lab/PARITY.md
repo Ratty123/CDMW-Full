@@ -110,8 +110,8 @@ Private Crimson Desert archive, PAC, PAM, PAMLOD, DDS, skeleton, variation, and 
 - native archive parity is not READY;
 - PAC skinning and appearance parity are not READY;
 - textured GPU parity is not READY;
-- the current renderer does not claim pixel-identical parity with the retained
-  `d3d11_vortice_shader` Archive Preview renderer;
+- the current renderer does not claim pixel-identical parity with historical
+  `d3d11_vortice_shader` captures; production Archive Preview now uses Rust/D3D12;
 - existing CDMW heuristic results are not strict Rust requirements until independently proven.
 
 ## Mismatch classification

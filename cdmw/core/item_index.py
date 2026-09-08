@@ -1918,6 +1918,49 @@ def _rows_to_string_map(rows: object) -> Dict[str, str]:
     return result
 
 
+def _native_item_index_records(report: Mapping[str, object]) -> List[ArchiveItemRecord]:
+    items: List[ArchiveItemRecord] = []
+    for row in report.get("items", []) or []:
+        if not isinstance(row, Mapping):
+            continue
+        prefab_hashes = [int(value) for value in row.get("prefab_hashes", []) or []]
+        model_stems = [str(value) for value in row.get("model_stems", []) or [] if str(value or "").strip()]
+        pac_files = [str(value) for value in row.get("pac_files", []) or [] if str(value or "").strip()]
+        icon_paths = [str(value) for value in row.get("icon_paths", []) or [] if str(value or "").strip()]
+        localized_names = tuple(str(value) for value in row.get("localized_names", []) or [] if str(value or "").strip())
+        material_tags = [str(value) for value in row.get("material_tags", []) or [] if str(value or "").strip()]
+        item = ArchiveItemRecord(
+            item_id=int(row.get("item_id") or 0),
+            internal_name=str(row.get("internal_name") or ""),
+            display_name=str(row.get("display_name") or ""),
+            description=str(row.get("description") or ""),
+            equip_type=str(row.get("equip_type") or ""),
+            localized_names=localized_names,
+            prefab_hashes=prefab_hashes,
+            model_stems=model_stems,
+            pac_files=pac_files,
+            icon_paths=icon_paths,
+            material_tags=material_tags,
+        )
+        item.table_evidence = merge_table_evidence(
+            build_item_table_evidence(
+                item_id=item.item_id,
+                internal_name=item.internal_name,
+                display_name=item.display_name,
+                localized_names=item.localized_names,
+                prefab_hashes=tuple(item.prefab_hashes),
+                model_stems=tuple(item.model_stems),
+                icon_paths=tuple(item.icon_paths),
+                description=item.description,
+                equip_type=item.equip_type,
+            ),
+            _material_evidence_for_item(item, item.material_tags),
+        )
+        if item.internal_name:
+            items.append(item)
+    return items
+
+
 def _try_build_archive_item_search_index_native(
     entries: Sequence[ArchiveEntry],
     sources: _ArchiveItemIndexSources,
@@ -1999,45 +2042,7 @@ def _try_build_archive_item_search_index_native(
         if on_log is not None:
             on_log(f"Item-name search: native catalog schema {catalog_schema!r} is not supported; falling back to Python.")
         return None
-    items: List[ArchiveItemRecord] = []
-    for row in report.get("items", []) or []:
-        if not isinstance(row, Mapping):
-            continue
-        prefab_hashes = [int(value) for value in row.get("prefab_hashes", []) or []]
-        model_stems = [str(value) for value in row.get("model_stems", []) or [] if str(value or "").strip()]
-        pac_files = [str(value) for value in row.get("pac_files", []) or [] if str(value or "").strip()]
-        icon_paths = [str(value) for value in row.get("icon_paths", []) or [] if str(value or "").strip()]
-        localized_names = tuple(str(value) for value in row.get("localized_names", []) or [] if str(value or "").strip())
-        material_tags = [str(value) for value in row.get("material_tags", []) or [] if str(value or "").strip()]
-        item = ArchiveItemRecord(
-            item_id=int(row.get("item_id") or 0),
-            internal_name=str(row.get("internal_name") or ""),
-            display_name=str(row.get("display_name") or ""),
-            description=str(row.get("description") or ""),
-            equip_type=str(row.get("equip_type") or ""),
-            localized_names=localized_names,
-            prefab_hashes=prefab_hashes,
-            model_stems=model_stems,
-            pac_files=pac_files,
-            icon_paths=icon_paths,
-            material_tags=material_tags,
-        )
-        item.table_evidence = merge_table_evidence(
-            build_item_table_evidence(
-                item_id=item.item_id,
-                internal_name=item.internal_name,
-                display_name=item.display_name,
-                localized_names=item.localized_names,
-                prefab_hashes=tuple(item.prefab_hashes),
-                model_stems=tuple(item.model_stems),
-                icon_paths=tuple(item.icon_paths),
-                description=item.description,
-                equip_type=item.equip_type,
-            ),
-            _material_evidence_for_item(item, item.material_tags),
-        )
-        if item.internal_name:
-            items.append(item)
+    items = _native_item_index_records(report)
     pac_to_items: Dict[str, List[ArchiveItemRecord]] = {}
     for item in items:
         for pac_name in item.pac_files:

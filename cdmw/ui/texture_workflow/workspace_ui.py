@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDialog, QFileDialog,
-    QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QStackedWidget,
+    QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QStackedWidget, QStyle,
     QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -182,6 +182,8 @@ class TextureJobUiMixin:
         self.shell.settings.setValue(TEXTURE_MODE_SETTING, mode)
         for key, button in self.mode_buttons.items():
             button.setChecked(key == mode)
+        if mode != "upscale":
+            self.job_splitter.widget(0).setMaximumWidth(460)
         if mode == "upscale":
             self.mode_controls.setCurrentWidget(self.upscale_controls)
             QTimer.singleShot(0, self, self._fit_upscale_sidebar)
@@ -205,6 +207,13 @@ class TextureJobUiMixin:
         if not available:
             return
         sidebar = self.job_splitter.widget(0)
+        scroll = self.upscale_controls
+        required_width = (
+            self.left_panel.minimumSizeHint().width()
+            + scroll.style().pixelMetric(QStyle.PM_ScrollBarExtent)
+            + 2 * scroll.frameWidth()
+        )
+        sidebar.setMaximumWidth(max(460, required_width))
         width = min(sidebar.maximumWidth(), max(
             sidebar.minimumWidth(), available - self.preview_stack.minimumSizeHint().width(),
         ))

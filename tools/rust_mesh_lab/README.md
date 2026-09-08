@@ -6,11 +6,13 @@ Particle BC4/R8 masks use linear sampling; RGB mask coverage is converted back f
 sRGB only when the uploaded view actually uses sRGB. The synthetic particle pixel
 check covers BC4 half-intensity and authored colour alongside the existing RGBA cases.
 
-`cdmw_mesh_lab.exe` has two deliberately separate modes. The default standalone
+`cdmw_mesh_lab.exe` has standalone diagnostic and CDMW-managed modes. The default standalone
 **Rust Mesh Lab** is a Windows-first diagnostic application for testing the
 native Rust archive, mesh, editing, and `wgpu` architecture. In CDMW-managed
-mode, the same executable is the sole production **Mesh Editor** and creates an
-undecorated child inside CDMW without importing Rust crates into Python.
+modes, the same executable owns both production **Mesh Editor** authoring and
+**Archive Preview**, including Model Library, New Item and specialist previews.
+It creates an undecorated child inside CDMW without importing Rust crates into
+Python. Preview exposes viewport controls; authoring exposes the full editor.
 
 The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, reconstructs bounded supported 2D Partial DDS entries from sibling `meta/0.pathc` metadata and Sparse DDS entries by validated zero padding, loads supported PAC/PAM/PAMLOD layouts, resolves same-stem material sidecars and authoritative per-submesh DDS relationships for base color, normal, packed material, separate roughness/metalness/occlusion, emissive, independent RGB Specular and red-channel Glossiness/Smoothness, explicit-cutout opacity, explicit global height, hair Flow, and layer-mask diagnostic preview roles, preserves typed and unknown material parameters, applies uniquely owned explicit roughness/metalness/specular/height-scale factors to their material ranges, emissive color/intensity with or without an emissive texture, explicit alpha-test enable state as an approximate cutout policy, hair anisotropy only when both Flow and a proven hair/fur shader family own the range, and production-backed R/B channel selection for color-blending/detail masks, renders geometry through Direct3D 12, provides a navigable aspect-correct viewport with fifteen geometry/material preview modes including Game Outdoor lighting and texture-independent Part ID ownership colors, routes X-Ray and depth-aware Visible selection plus interactive editing through an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Its app flow, archive reconstruction boundary, relationship failures, material-parameter Inspector, multi-role DDS upload, and offscreen D3D12 renderer can also be exercised without creating a window. Partial PAR, DDS arrays/cubes and fallback transcoding, actual layered/dye and blended-alpha material composition, non-global displacement/layer semantics, remaining scalar/vector sampling, PAC skin/appearance parity, versioned lab projects, representative performance evidence, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
 
@@ -79,7 +81,9 @@ cdmw_mesh_lab.exe --cdmw-session <manifest> --embedded-parent-hwnd <decimal>
 ```
 
 `--cdmw-session` cannot be combined with standalone `--mesh` or
-`--archive-root`. The manifest uses `cdmw_rust_mesh_authoring_package_v1`; the
+`--archive-root`. Preview consumers instead use `--cdmw-preview-session <manifest>` with the
+`cdmw_rust_preview_package_v1` package and `cdmw_rust_preview_protocol_v1`.
+The authoring manifest uses `cdmw_rust_mesh_authoring_package_v1`; the
 window and CDMW then exchange bounded JSONL control messages under
 `cdmw_rust_mesh_editor_protocol_v1`. Control messages use stdout and diagnostics
 use stderr. Large geometry and state arrays stay in hash-checked files beneath
@@ -374,7 +378,7 @@ The CDMW-managed authoring lifecycle has separate focused Python tests for
 shadow isolation, bounded payloads, exact output, typed cleanup/normals/UV and
 rig-weight actions, Morph & Refit safety, atomic history restore, embedded HWND
 ownership/lifecycle, and the merged Rust v2 control contract. See
-`docs/features/rust-edit-mesh-integration.md`; the standalone Rust gates above
+[the Mesh Editor guide](../../cdmw/ui/mesh_editor/README.md); the standalone Rust gates above
 do not prove an accepted CDMW Finish transaction.
 
 ## Troubleshooting

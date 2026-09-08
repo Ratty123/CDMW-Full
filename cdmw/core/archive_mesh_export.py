@@ -377,6 +377,199 @@ def export_archive_mesh(
         return dataclasses.replace(result, output_paths=list(publication.values()))
 
 
+def _archive_export_companion_metadata(
+    related_entries: Sequence[ArchiveEntry], output_dir: Path,
+) -> Tuple[List[str], Dict[str, str]]:
+    selected_companion_files: List[str] = []
+    seen_selected_companion_files: set[str] = set()
+    sidecar_hashes: Dict[str, str] = {}
+    for related_entry in related_entries:
+        if not isinstance(related_entry, ArchiveEntry):
+            continue
+        normalized_related_path = related_entry.path.replace("\\", "/").strip()
+        normalized_related_key = normalized_related_path.lower()
+        if normalized_related_path and normalized_related_key not in seen_selected_companion_files:
+            seen_selected_companion_files.add(normalized_related_key)
+            selected_companion_files.append(normalized_related_path)
+        related_extension = related_entry.extension.lower()
+        related_basename = PurePosixPath(normalized_related_path).name.lower()
+        if related_extension in {".xml", ".pami", ".json"} or related_basename.endswith("_xml"):
+            copied_sidecar_path = (output_dir / "referenced_files").joinpath(
+                *PurePosixPath(normalized_related_path).parts
+            )
+            if copied_sidecar_path.is_file():
+                sidecar_hashes[normalized_related_path] = _sha256_file(copied_sidecar_path)
+    return selected_companion_files, sidecar_hashes
+
+
+def _write_archive_export_manifest(
+    entry: ArchiveEntry, parsed_mesh: ParsedMesh, manifest_mesh: ParsedMesh,
+    output_dir: Path, output_paths: List[Path], skeleton: Optional[Skeleton],
+    skeleton_entry: Optional[ArchiveEntry], skeleton_resolve_report: Optional[SkeletonResolveReport],
+    related_entries: Sequence[ArchiveEntry],
+    model_texture_references: Optional[Sequence[ArchiveModelTextureReference]], asset_family_graph: object,
+    archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]],
+    build_preview_context: bool, obj_appearance_baked: bool, on_log: Optional[Callable[[str], None]],
+) -> None:
+    manifest_target_path = next(
+        (
+            path for path in output_paths
+            if path.suffix.lower() in {".obj", ".fbx"}
+        ),
+        None,
+    )
+    if manifest_target_path is not None:
+        # One try covers several stages; track which one is running so a failure
+        # in an early stage is not reported as a round-trip manifest problem.
+        manifest_stage = "archive preview metadata rebuild"
+        try:
+            manifest_texture_references = tuple(model_texture_references or ())
+            manifest_family_graph = asset_family_graph
+            if build_preview_context and not manifest_texture_references and manifest_family_graph is None:
+                from cdmw.core.archive_preview_result_builder import build_archive_preview_result
+
+                preview_result = build_archive_preview_result(
+                    entry,
+                    (),
+                    texture_entries_by_normalized_path=(
+                        dict(archive_entries_by_normalized_path) if archive_entries_by_normalized_path is not None else None
+                    ),
+                    texture_entries_by_basename=(
+                        dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None
+                    ),
+                )
+                manifest_texture_references = tuple(getattr(preview_result, "model_texture_references", ()) or ())
+                manifest_family_graph = getattr(preview_result, "asset_family_graph", None)
+            elif not build_preview_context and not manifest_texture_references:
+                _safe_log(on_log, "Skipped archive preview metadata rebuild for internal Modify Original clone.")
+            paired_lod_target = ""
+            if entry.extension == ".pam" and archive_entries_by_normalized_path is not None:
+                paired_candidates = archive_entries_by_normalized_path.get(
+                    str(PurePosixPath(entry.path).with_suffix(".pamlod")).replace("\\", "/").strip().lower(),
+                    (),
+                )
+                if paired_candidates:
+                    paired_lod_target = paired_candidates[0].path
+            manifest_stage = "OBJ material texture rebinding"
+            companion_path = ""
+            if manifest_target_path.suffix.lower() == ".obj":
+                companion_candidate = manifest_target_path.with_suffix(".mtl")
+                if companion_candidate.is_file():
+                    companion_path = str(companion_candidate)
+                    rewritten_mtl_rows = _rewrite_export_mtl_map_kd(
+                        companion_candidate,
+                        _build_export_mtl_texture_overrides(parsed_mesh, manifest_texture_references),
+                        output_dir,
+                    )
+                    if rewritten_mtl_rows:
+                        _safe_log(
+                            on_log,
+                            f"Updated {rewritten_mtl_rows:,} OBJ material texture binding(s) from resolved archive sidecar evidence.",
+                        )
+            selected_companion_files, sidecar_hashes = _archive_export_companion_metadata(related_entries, output_dir)
+            family_graph_payload = _archive_family_graph_payload(manifest_family_graph)
+            texture_binding_rows = [
+                {
+                    "reference_name": reference.reference_name,
+                    "resolved_archive_path": reference.resolved_archive_path,
+                    "semantic_label": reference.semantic_label,
+                    "semantic_hint": reference.semantic_hint,
+                    "sidecar_parameter_name": reference.sidecar_parameter_name,
+                    "material_name": reference.material_name,
+                    "relation_group": reference.relation_group,
+                }
+                for reference in manifest_texture_references
+                if str(getattr(reference, "relation_group", "") or "").strip() == "Textures"
+            ]
+            skeleton_resolver_payload = (
+                dataclasses.asdict(skeleton_resolve_report)
+                if skeleton_resolve_report is not None
+                else {}
+            )
+            skin_binding_payload = (
+                build_skin_binding_map(
+                    skeleton,
+                    (),
+                    source_path=skeleton_entry.path if skeleton_entry is not None else entry.path,
+                    strict=True,
+                ).to_dict()
+                if skeleton is not None and getattr(skeleton, "bones", None)
+                else {}
+            )
+            extra_payload = {
+                "source_archive_path": entry.path,
+                "source_archive_format": entry.extension.lstrip(".").lower(),
+                "export_format": manifest_target_path.suffix.lstrip(".").lower(),
+                "selected_companion_files": selected_companion_files,
+                "texture_bindings": texture_binding_rows,
+                "texture_semantics": texture_binding_rows,
+                "sidecar_hashes": sidecar_hashes,
+            }
+            if family_graph_payload:
+                extra_payload["family_graph"] = family_graph_payload
+            if paired_lod_target:
+                extra_payload["paired_pamlod_target"] = paired_lod_target
+            if skeleton_entry is not None:
+                extra_payload["skeleton_identity"] = skeleton_entry.path
+            if skeleton_resolver_payload:
+                extra_payload["skeleton_resolver"] = skeleton_resolver_payload
+            if skin_binding_payload:
+                extra_payload["skin_binding_map"] = skin_binding_payload
+            if obj_appearance_baked:
+                # Neutral appearance is for interchange, not editable PAC source coordinates.
+                extra_payload["allowed_edit_operations"] = []
+                for rules_key in ("rules", "import_rules"):
+                    extra_payload[rules_key] = {
+                        "allow_position_edit": False, "allow_normal_edit": False,
+                        "allow_uv_edit": False, "allow_topology_change": False,
+                        "preserve_bone_weights": True, "require_source_asset_hash": True,
+                    }
+            manifest_stage = "round-trip manifest write"
+            manifest_path = write_roundtrip_manifest(
+                manifest_mesh,
+                manifest_target_path,
+                companion_path=companion_path,
+                extra_payload=extra_payload,
+            )
+            if manifest_path not in output_paths:
+                output_paths.append(manifest_path)
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            raise RuntimeError(f"{manifest_stage} failed for {entry.path}: {exc}") from exc
+
+
+def _archive_export_summary(
+    entry: ArchiveEntry, parsed_mesh: ParsedMesh, export_kind: str, copied_related_count: int,
+    appearance_notes: Tuple[str, ...], obj_appearance_baked: bool, skeleton_entry: Optional[ArchiveEntry],
+    skeleton: Optional[Skeleton], skeleton_resolve_report: Optional[SkeletonResolveReport],
+    skeleton_resolution_warning: str,
+) -> List[str]:
+    summary_lines = [
+        f"Path: {entry.path}",
+        f"Format: {parsed_mesh.format.upper()}",
+        f"Submeshes: {len(parsed_mesh.submeshes):,}",
+        f"Vertices: {parsed_mesh.total_vertices:,}",
+        f"Faces: {parsed_mesh.total_faces:,}",
+    ]
+    if copied_related_count:
+        summary_lines.append(f"Referenced files copied: {copied_related_count:,}")
+    summary_lines.extend(appearance_notes)
+    if obj_appearance_baked:
+        summary_lines.append("OBJ contains neutral character appearance; source-asset round-trip edits are disabled.")
+    if skeleton_entry is not None and skeleton is not None and skeleton.bones:
+        summary_lines.append(f"Skeleton: {skeleton_entry.path}")
+        summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
+        if skeleton_resolve_report is not None:
+            _append_skeleton_resolution_summary(summary_lines, skeleton_resolve_report)
+    elif export_kind == "fbx" and entry.extension == ".pac":
+        summary_lines.append("Skeleton: mesh-only export")
+        if skeleton_resolution_warning:
+            summary_lines.append(f"Skeleton fallback reason: {skeleton_resolution_warning}")
+    return summary_lines
+
+
 def _export_archive_mesh_staged(
     entry: ArchiveEntry,
     output_dir: Path,
@@ -511,170 +704,16 @@ def _export_archive_mesh_staged(
         output_paths.extend(copied_paths)
         copied_related_count = len(copied_paths)
 
-    manifest_target_path = next(
-        (
-            path for path in output_paths
-            if path.suffix.lower() in {".obj", ".fbx"}
-        ),
-        None,
+    _write_archive_export_manifest(
+        entry, parsed_mesh, export_mesh if export_kind == "obj" else parsed_mesh,
+        output_dir, output_paths, skeleton, skeleton_entry, skeleton_resolve_report,
+        related_entries, model_texture_references, asset_family_graph,
+        archive_entries_by_normalized_path, archive_entries_by_basename,
+        build_preview_context, obj_appearance_baked, on_log,
     )
-    if manifest_target_path is not None:
-        # One try covers several stages; track which one is running so a failure
-        # in an early stage is not reported as a round-trip manifest problem.
-        manifest_stage = "archive preview metadata rebuild"
-        try:
-            manifest_texture_references = tuple(model_texture_references or ())
-            manifest_family_graph = asset_family_graph
-            if build_preview_context and not manifest_texture_references and manifest_family_graph is None:
-                from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 
-                preview_result = build_archive_preview_result(
-                    entry,
-                    (),
-                    texture_entries_by_normalized_path=(
-                        dict(archive_entries_by_normalized_path) if archive_entries_by_normalized_path is not None else None
-                    ),
-                    texture_entries_by_basename=(
-                        dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None
-                    ),
-                )
-                manifest_texture_references = tuple(getattr(preview_result, "model_texture_references", ()) or ())
-                manifest_family_graph = getattr(preview_result, "asset_family_graph", None)
-            elif not build_preview_context and not manifest_texture_references:
-                _safe_log(on_log, "Skipped archive preview metadata rebuild for internal Modify Original clone.")
-            paired_lod_target = ""
-            if entry.extension == ".pam" and archive_entries_by_normalized_path is not None:
-                paired_candidates = archive_entries_by_normalized_path.get(
-                    str(PurePosixPath(entry.path).with_suffix(".pamlod")).replace("\\", "/").strip().lower(),
-                    (),
-                )
-                if paired_candidates:
-                    paired_lod_target = paired_candidates[0].path
-            manifest_stage = "OBJ material texture rebinding"
-            companion_path = ""
-            if manifest_target_path.suffix.lower() == ".obj":
-                companion_candidate = manifest_target_path.with_suffix(".mtl")
-                if companion_candidate.is_file():
-                    companion_path = str(companion_candidate)
-                    rewritten_mtl_rows = _rewrite_export_mtl_map_kd(
-                        companion_candidate,
-                        _build_export_mtl_texture_overrides(parsed_mesh, manifest_texture_references),
-                        output_dir,
-                    )
-                    if rewritten_mtl_rows:
-                        _safe_log(
-                            on_log,
-                            f"Updated {rewritten_mtl_rows:,} OBJ material texture binding(s) from resolved archive sidecar evidence.",
-                        )
-            selected_companion_files: List[str] = []
-            seen_selected_companion_files: set[str] = set()
-            sidecar_hashes: Dict[str, str] = {}
-            for related_entry in related_entries:
-                if not isinstance(related_entry, ArchiveEntry):
-                    continue
-                normalized_related_path = related_entry.path.replace("\\", "/").strip()
-                normalized_related_key = normalized_related_path.lower()
-                if normalized_related_path and normalized_related_key not in seen_selected_companion_files:
-                    seen_selected_companion_files.add(normalized_related_key)
-                    selected_companion_files.append(normalized_related_path)
-                related_extension = related_entry.extension.lower()
-                related_basename = PurePosixPath(normalized_related_path).name.lower()
-                if related_extension in {".xml", ".pami", ".json"} or related_basename.endswith("_xml"):
-                    copied_sidecar_path = (output_dir / "referenced_files").joinpath(
-                        *PurePosixPath(normalized_related_path).parts
-                    )
-                    if copied_sidecar_path.is_file():
-                        sidecar_hashes[normalized_related_path] = _sha256_file(copied_sidecar_path)
-            family_graph_payload = _archive_family_graph_payload(manifest_family_graph)
-            texture_binding_rows = [
-                {
-                    "reference_name": reference.reference_name,
-                    "resolved_archive_path": reference.resolved_archive_path,
-                    "semantic_label": reference.semantic_label,
-                    "semantic_hint": reference.semantic_hint,
-                    "sidecar_parameter_name": reference.sidecar_parameter_name,
-                    "material_name": reference.material_name,
-                    "relation_group": reference.relation_group,
-                }
-                for reference in manifest_texture_references
-                if str(getattr(reference, "relation_group", "") or "").strip() == "Textures"
-            ]
-            skeleton_resolver_payload = (
-                dataclasses.asdict(skeleton_resolve_report)
-                if skeleton_resolve_report is not None
-                else {}
-            )
-            skin_binding_payload = (
-                build_skin_binding_map(
-                    skeleton,
-                    (),
-                    source_path=skeleton_entry.path if skeleton_entry is not None else entry.path,
-                    strict=True,
-                ).to_dict()
-                if skeleton is not None and getattr(skeleton, "bones", None)
-                else {}
-            )
-            extra_payload = {
-                "source_archive_path": entry.path,
-                "source_archive_format": entry.extension.lstrip(".").lower(),
-                "export_format": manifest_target_path.suffix.lstrip(".").lower(),
-                "selected_companion_files": selected_companion_files,
-                "texture_bindings": texture_binding_rows,
-                "texture_semantics": texture_binding_rows,
-                "sidecar_hashes": sidecar_hashes,
-            }
-            if family_graph_payload:
-                extra_payload["family_graph"] = family_graph_payload
-            if paired_lod_target:
-                extra_payload["paired_pamlod_target"] = paired_lod_target
-            if skeleton_entry is not None:
-                extra_payload["skeleton_identity"] = skeleton_entry.path
-            if skeleton_resolver_payload:
-                extra_payload["skeleton_resolver"] = skeleton_resolver_payload
-            if skin_binding_payload:
-                extra_payload["skin_binding_map"] = skin_binding_payload
-            if obj_appearance_baked:
-                # Neutral appearance is for interchange, not editable PAC source coordinates.
-                extra_payload["allowed_edit_operations"] = []
-                for rules_key in ("rules", "import_rules"):
-                    extra_payload[rules_key] = {
-                        "allow_position_edit": False, "allow_normal_edit": False,
-                        "allow_uv_edit": False, "allow_topology_change": False,
-                        "preserve_bone_weights": True, "require_source_asset_hash": True,
-                    }
-            manifest_stage = "round-trip manifest write"
-            manifest_path = write_roundtrip_manifest(
-                export_mesh if export_kind == "obj" else parsed_mesh,
-                manifest_target_path,
-                companion_path=companion_path,
-                extra_payload=extra_payload,
-            )
-            if manifest_path not in output_paths:
-                output_paths.append(manifest_path)
-        except RunCancelled:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"{manifest_stage} failed for {entry.path}: {exc}") from exc
-
-    summary_lines = [
-        f"Path: {entry.path}",
-        f"Format: {parsed_mesh.format.upper()}",
-        f"Submeshes: {len(parsed_mesh.submeshes):,}",
-        f"Vertices: {parsed_mesh.total_vertices:,}",
-        f"Faces: {parsed_mesh.total_faces:,}",
-    ]
-    if copied_related_count:
-        summary_lines.append(f"Referenced files copied: {copied_related_count:,}")
-    summary_lines.extend(appearance_notes)
-    if obj_appearance_baked:
-        summary_lines.append("OBJ contains neutral character appearance; source-asset round-trip edits are disabled.")
-    if skeleton_entry is not None and skeleton is not None and skeleton.bones:
-        summary_lines.append(f"Skeleton: {skeleton_entry.path}")
-        summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
-        if skeleton_resolve_report is not None:
-            _append_skeleton_resolution_summary(summary_lines, skeleton_resolve_report)
-    elif export_kind == "fbx" and entry.extension == ".pac":
-        summary_lines.append("Skeleton: mesh-only export")
-        if skeleton_resolution_warning:
-            summary_lines.append(f"Skeleton fallback reason: {skeleton_resolution_warning}")
+    summary_lines = _archive_export_summary(
+        entry, parsed_mesh, export_kind, copied_related_count, appearance_notes, obj_appearance_baked,
+        skeleton_entry, skeleton, skeleton_resolve_report, skeleton_resolution_warning,
+    )
     return MeshExportResult(output_paths=output_paths, summary_lines=summary_lines)

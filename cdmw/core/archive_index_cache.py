@@ -738,6 +738,35 @@ def save_archive_derived_index_cache(
     return cache_path
 
 
+def _derived_index_metadata_payload(data: Mapping[str, object], cache_path: Path) -> Dict[str, object]:
+    payload = {
+        "item_search_aliases": {
+            str(key): str(value)
+            for key, value in (data.get("item_search_aliases", {}) or {}).items()
+        },
+        "item_display_names": {
+            str(key): str(value)
+            for key, value in (data.get("item_display_names", {}) or {}).items()
+        },
+        "item_exact_display_names": {
+            str(key): str(value)
+            for key, value in (data.get("item_exact_display_names", {}) or {}).items()
+        },
+        "item_related_display_names": {
+            str(key): str(value)
+            for key, value in (data.get("item_related_display_names", {}) or {}).items()
+        },
+        "item_asset_catalog": [
+            dict(row)
+            for row in (data.get("item_asset_catalog", []) or [])
+            if isinstance(row, Mapping)
+        ],
+        "table_catalog": dict(data.get("table_catalog", {}) or {}),
+        "cache_path": str(cache_path),
+    }
+    return payload
+
+
 def load_archive_derived_index_cache(
     package_root: Path,
     cache_root: Path,
@@ -856,31 +885,7 @@ def load_archive_derived_index_cache(
                         )
                         on_log("Archive search cache is out of date: " + "; ".join(reasons or ["metadata changed"]))
                     return None
-        payload = {
-            "item_search_aliases": {
-                str(key): str(value)
-                for key, value in (data.get("item_search_aliases", {}) or {}).items()
-            },
-            "item_display_names": {
-                str(key): str(value)
-                for key, value in (data.get("item_display_names", {}) or {}).items()
-            },
-            "item_exact_display_names": {
-                str(key): str(value)
-                for key, value in (data.get("item_exact_display_names", {}) or {}).items()
-            },
-            "item_related_display_names": {
-                str(key): str(value)
-                for key, value in (data.get("item_related_display_names", {}) or {}).items()
-            },
-            "item_asset_catalog": [
-                dict(row)
-                for row in (data.get("item_asset_catalog", []) or [])
-                if isinstance(row, Mapping)
-            ],
-            "table_catalog": dict(data.get("table_catalog", {}) or {}),
-            "cache_path": str(cache_path),
-        }
+        payload = _derived_index_metadata_payload(data, cache_path)
         name_index_payload = data.get("name_search_index")
         if isinstance(name_index_payload, Mapping):
             name_index_format = str(name_index_payload.get("format") or "")

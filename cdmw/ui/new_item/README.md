@@ -159,7 +159,9 @@ Continue, Build plan and Apply placement visually distinct, with palette-based
 hover, pressed, focus and disabled states. Step 5 is a
 non-scrolling full-height page with Perks and Effects tabs. The navigator is a
 compact 46 px row; the outer pages do not
-repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
+repeat numbered titles underneath it. Distribution measures the selected route tab,
+so hidden reward controls do not add an outer scrollbar to Shops and groups at
+1280x720. Longer active content remains scrollable. Perks & Effects keeps gameplay perks separate
 from visual-only effects. Perks are chosen through searchable Available and Selected
 lists that grow with the workspace rather than a popup catalogue. Perk search, labels
 and tooltips share one lookup for the immutable English table; loading a different

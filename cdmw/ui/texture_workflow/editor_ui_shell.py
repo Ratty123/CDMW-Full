@@ -13,6 +13,7 @@ class TextureEditorUiShellMixin:
 
     def set_workspace_mode(self, mode: str) -> None:
         self.workspace_preview = None
+        self.canvas_panel.setMinimumWidth(240 if mode == "upscale" else 480)
         self.canvas.set_editable(mode == "edit")
         for shortcut in self._shortcut_objects:
             shortcut.setEnabled(mode == "edit")

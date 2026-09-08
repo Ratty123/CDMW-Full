@@ -37,6 +37,7 @@ is smaller and safer to hand to someone who is not modding.
 - [What it does](#what-it-does)
 - [Documentation and languages](#documentation-and-languages)
 - [Create New Item](#create-new-item)
+- [Mesh Editor](#mesh-editor)
 - [Placement & Animations](#placement--animations)
 - [File format decoding status](#file-format-decoding-status)
 - [Architecture](#architecture)
@@ -88,7 +89,7 @@ including supported material-color sidecars and manager profiles.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Edit archive or local meshes in the single embedded Rust `wgpu`/D3D12 workspace. It exposes capability-gated Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, topology, cleanup, normals/tangents, UV, rig/weights, history, layers, Morph & Refit, OBJ/FBX export, OBJ/DAE/glTF/GLB import, and Exact/Free Edit controls for the active LOD. Tool scope and disabled reasons are shown in place: topology-changing maintenance remains Free Edit-only, tangent generation cannot silently split Exact geometry, rectangular UV snapping accepts width and height, Refit distinguishes selected from all garments, and Morph sliders support add/edit/delete plus optional scope replacement. Wide layouts use single-row session and navigation/status chrome plus compact grouped tool rows; narrow layouts expand without hiding controls. Live geometry previews use a lightweight tangent update and restore the exact basis at gesture completion, while bounded Cleanup/Normal/UV commands avoid a duplicate native preflight execution; topology-growing actions retain full result preflight. Texture, mip, filtering, AA, material, history, and final-geometry quality remain unchanged. Work stays in an isolated shadow session; only a validated **Finish Edit Mesh** atomically publishes one reversible result. A missing, incompatible, crashed, or unembeddable Rust helper is explained with Retry and never falls back to another renderer. |
+| **Mesh Editor** | Edit supported archive or local meshes with selection, transforms, sculpting, topology, UVs, rig weights, layers, and Morph & Refit. Load body and armor from archives and rebuild each asset separately in one mod. Exact/Free Edit controls explain their limits; Finish Edit Mesh validates the isolated session before accepting changes. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Textures** | Edit layered documents, recolor mod textures and supported material values, upscale selected assets, review replacement matches, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
@@ -117,7 +118,9 @@ when available. Template and imported-model
 previews use the same resident Rust D3D12 host and native Preview Core cache as the
 Archive Browser. Imported glTF, GLB, OBJ, DAE, and converted-FBX materials arrive
 as one complete direct-texture package, preserve their vertical texture orientation,
-and do not trigger a duplicate PAC-material pass. Placement aligns elongated models
+and do not trigger a duplicate PAC-material pass. Use **Apply placement** before
+**Build plan**; failed builds remain explained beside Apply and in Output. Tiled
+materials retain their repeating textures in separate material slots. Placement aligns elongated models
 from their principal axes instead of only trying right-angle rotations; its muted
 depth-tested grid, distinct reference wire, and labelled red X, green Y, and blue Z
 gizmo remain resident while numeric and gizmo movement update in place. Model
@@ -141,6 +144,42 @@ confirmed archive-install path. Planning and preview are read-only; every game
 write goes through `ArchiveMutationService` with preflight, backup or receipt,
 rollback, and restore. The part-prefab reader preserves both the original and
 Crimson Desert 2.00.00 layouts byte-for-byte.
+
+## Mesh Editor
+
+Open a supported PAC, PAM, or PAMLOD from Archive Browser, or open a supported
+local mesh. The embedded Rust `wgpu`/D3D12 editor keeps a disposable working
+session with Undo/Redo. A missing or incompatible helper shows its failure and
+Retry. Exact Game Asset preserves protected source records; Free Edit enables
+supported topology changes for a new output. Disabled controls explain their
+requirements. Textures remain read-only references in this workspace.
+
+Use Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, cleanup,
+normals/tangents, UVs, rig weights, and layers where the active mesh supports
+them. The Parts list controls visibility and whole-part selection. Rig & Weights
+identifies the mesh, rig and active bone, with influence colours and framing.
+
+**Morph & Refit** supports body shape sliders and fitting armor or clothing:
+
+1. Use **Browse Body...** and **Browse Armor...** to load assets from the current
+   archive catalogue, or **Use loaded mesh as body** to assign the open mesh.
+2. Select the body Parts for shape sliders, then select and bind all garments
+   that should follow the body. Align meshes with the normal transform tools
+   when needed. The panel separates loaded assets, the driver, and bound garments.
+3. Adjust the shape sliders. **Reset** or **Bake** the preview before changing
+   its setup. Presets can be saved in the session library or exported as portable
+   JSON; they require matching driver topology and Part order.
+4. **Finish Edit Mesh** validates and retains the body and armor edits. **Build
+   Mod** rebuilds each asset at its original archive path and publishes them
+   together only after every asset succeeds. Hiding a Part does not exclude it
+   from output.
+
+Refit changes geometry; it does not automatically align poses or convert
+skeletons, weights or animations. Check visual fit and animation clipping in
+game. Export and mod-package creation leave shipped archives unchanged;
+installation has its separate confirmation and recovery flow. See the
+[Mesh Editor guide](cdmw/ui/mesh_editor/README.md) for controls, supported output,
+rig requirements and preset behavior.
 
 ## Placement & Animations
 
@@ -239,8 +278,8 @@ supported operations, editable assets or verified game behavior.
 
 The workbench is one Python process that owns the UI and the domain rules, plus
 verified helper processes that own everything performance- or platform-critical.
-No surface silently falls back to a different renderer or a slower path: a
-helper that cannot do the job reports an explicit unavailable state.
+The production preview and editor use one Rust renderer. Missing or incompatible
+helpers report an unavailable state; they never switch to a different renderer.
 
 ```mermaid
 flowchart LR
@@ -337,16 +376,17 @@ viewport-only Rust `wgpu`/D3D12 child used by every Archive Preview consumer.
 Mesh Editor authoring uses the helper's complete UI, edits a disposable shadow
 `MeshService`, and publishes only through validated Finish. A Rust failure never
 switches to another renderer. See
-[Rust Edit Mesh Integration](docs/features/rust-edit-mesh-integration.md).
+[Mesh Editor integration guide](cdmw/ui/mesh_editor/README.md).
 
 ### Build system
 
-Two build paths, both supported, driven from one UI:
+The PowerShell builder owns the current application package and release checks.
+The optional build UI also exposes an experimental Bazel path:
 
 ```mermaid
 flowchart LR
     UIB["cdmw-build.exe<br/>build UI"]
-    BZL["bazel build<br/>fast<br/>skips release gates"]
+    BZL["bazel build<br/>experimental staging<br/>incomplete app package"]
     REL["build.bat<br/>onefile release<br/>full gates"]
     NATIVE_T["bazel test<br/>//native/..."]
     UIB --> BZL
@@ -354,10 +394,11 @@ flowchart LR
     UIB --> NATIVE_T
 ```
 
-Bazel builds the shipped executable end to end: all five native projects,
-both self-contained .NET publishes, and the PyInstaller package. It is additive,
-so the PowerShell release path is untouched and still owns the release gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
-system-wide install.
+Bazel has native-helper targets and stages the separate .NET archive worker,
+but its application target does not yet stage the production Rust helper and
+complete current resources. Use `build.bat` or `build_pyside6_app.ps1` for a
+complete application package. Bazel is optional and can be installed locally
+under `.tools/bazel/`.
 
 ---
 
@@ -366,7 +407,9 @@ system-wide install.
 1. Download the latest Windows portable EXE from
    [Releases](https://github.com/Ratty123/CDMW-Full/releases).
 2. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
-3. In **Texture Workflow → Setup**, initialize a workspace and configure roots.
+3. Set your game folder in **Settings > Paths > Archive Locations**. For
+   upscaling, open **Textures > Upscale** and configure the Original DDS, PNG,
+   and Output roots.
 4. DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe` helper
    automatically. Configure optional upscaling tools only if you need them:
    - **Real-ESRGAN NCNN** for direct upscaling
@@ -381,8 +424,9 @@ cache, logs, sessions, projects, and research data.
 ## Build from source
 
 **Requirements:** Windows 11 x64, Python 3.11 or 3.14 (the two release-tested
-interpreters), PowerShell, .NET 10 SDK, and a CMake/MSVC toolchain for the
-native helpers.
+interpreters), PowerShell, .NET 10 SDK, a CMake/MSVC C++ toolchain, and Rust
+through rustup. The Rust workspace pins its MSVC toolchain in
+[its toolchain file](tools/rust_mesh_lab/rust-toolchain.toml).
 
 ```powershell
 python -m venv .venv
@@ -391,8 +435,15 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
 ```
 
-Run the canonical nonvisual suite covering behaviour, protocol contracts, and
-source guards in one process:
+Prepare the required native helpers, archive worker, and Rust preview/editor
+before running the app or tests from a fresh checkout:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -NativeHelpersOnly -BuildProfile release
+```
+
+For an ordinary change, run its owning test file. The canonical full nonvisual
+suite covers behavior, protocol contracts, and source guards in one process:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
@@ -431,7 +482,7 @@ Other entry points:
 | `build.bat onefile release` | Same as above, through the batch wrapper |
 | `build.bat onedir release` | Folder package instead of a single file |
 | `build.bat` | Graphical build picker |
-| `bazel build //:CrimsonDesertModWorkbench` | Fast Bazel build, no release gates |
+| `bazel build //:CrimsonDesertModWorkbench` | Experimental app staging; not a complete current package |
 | `bazel test //native/...` | Native helper unit tests |
 
 ### Bazel and the build UI
@@ -453,12 +504,24 @@ dotnet publish tools\dotnet_bazel_launcher\Cdmw.BazelLauncher.csproj -c Release 
 ```
 
 That produces `.tools\build-ui\cdmw-build.exe`, a WinForms front end covering
-both build paths: `bazel build //:CrimsonDesertModWorkbench` for a fast build,
+both build paths: `bazel build //:CrimsonDesertModWorkbench` for experimental staging,
 and `build.bat onefile release` for the gated release. It finds the workspace by
-walking up for `MODULE.bazel` and sets `BAZEL_VC` itself. See
-the Bazel migration notes.
+walking up for `MODULE.bazel` and sets `BAZEL_VC` itself. Its Bazel option does
+not supply the release checks or missing current packaging inputs.
 
 ---
+
+## Continuous integration
+
+**Windows Build** runs automatically on pushes to `main`, version tags, and pull
+requests, and can be started manually. There is no nightly schedule, so unchanged
+code does not produce another daily run or failure notification.
+
+Ordinary `main` pushes run `smoke` and `mesh-contract` on Python 3.14. Pull
+requests, version tags and manual runs use the full nonvisual suite on both
+Python 3.11 and 3.14. Packaging runs only for version tags or manual dispatch,
+after both Python checks pass. Visual and installed-game tests stay outside CI.
+See the [test guide](tests/README.md) and [workflow](.github/workflows/windows-build.yml).
 
 ## Project layout
 

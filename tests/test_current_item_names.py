@@ -22,8 +22,10 @@ from cdmw.services.new_item_service import NewItemService
 from cdmw.services.new_item_snapshot import build_snapshot
 from cdmw.ui.new_item.controller import NewItemStudioController
 from test_new_item_service import (
-    BIN, LOC, NAME_KEY, DESC_KEY, TEMPLATE, STEM, PAC, synthetic_files, build_package, _read,
+    BIN, LOC, NAME_KEY, DESC_KEY, TEMPLATE, STEM, PAC, MC_ROW_0, MC_ROW_1,
+    synthetic_files, build_package, _read,
 )
+from tests.new_item_current_fixture_tables import current_recipe_tables
 
 
 def current_files():
@@ -40,6 +42,7 @@ def current_files():
     files[f"{LOC}/ara/item.paloc"] = encode_paloc([
         LocalizationEntry(7, NAME_KEY, "سيف الاختبار"), LocalizationEntry(7, DESC_KEY, "سيف"),
     ])
+    files.update(current_recipe_tables(TEMPLATE, (MC_ROW_0, MC_ROW_1)))
     return files
 
 

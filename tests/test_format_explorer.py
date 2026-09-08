@@ -97,6 +97,7 @@ class RowTests(unittest.TestCase):
                 "cdmw/ui/shell/classic_navigation.py",
                 "cdmw/ui/shell/compact/registry.py",
                 "cdmw/ui/archive_browser/workspace_layout.py",
+                "cdmw/ui/archive_browser/preview_layout.py",
                 "cdmw/ui/shell/texture_workspace_layout.py",
                 "cdmw/ui/archive_browser/actions.py",
                 "tools/placement_studio/window.py",

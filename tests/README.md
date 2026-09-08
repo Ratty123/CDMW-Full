@@ -15,6 +15,24 @@ regression contract, including trimmed golden byte fixtures. Full game archives,
 extracted corpora, screenshots, captures, benchmark output, restore points, and
 machine-local paths remain ignored and must never be added as test evidence.
 
+## Running tests and CI
+
+Use the repository virtual environment and a system-temp directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_documentation_consistency.py --basetemp="$env:TEMP\cdmw-docs-tests"
+```
+
+Choose the exact test file for an ordinary change. On a fresh source checkout,
+prepare the native helpers and archive worker using the root README's source
+setup first. Full-suite and native tests require those real helpers.
+
+GitHub's Windows Build runs `smoke` and `mesh-contract` on Python 3.14 for
+ordinary `main` pushes. Pull requests, version tags and manual dispatch run the
+full nonvisual suite on Python 3.11 and 3.14. Packaging requires both checks and
+runs only for tags or manual dispatch. There is no nightly schedule. CI excludes
+`visual`, `real_game` and machine-sensitive `timing` tests.
+
 ## Mesh Editor gates
 
 Dedicated Rust Mesh Editor changes start with the exact owning shadow, embedding,

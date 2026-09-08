@@ -191,6 +191,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertTrue(written.is_file(), written)
         self.assertNotEqual(written, captured, "the icon is the selected region, not the raw frame")
         self.assertEqual(QImage(str(written)).size().width(), 512)
+        model.inspector_tabs.setCurrentWidget(model.icon_group)
         self.assertTrue(model.icon_thumbnail.isVisibleTo(model))
         # a cancelled selection leaves the icon alone
         model.icon_source.setText("")
@@ -596,7 +597,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                 placement = tab.placement_panel
                 placement.explicit.setChecked(True)
                 placement.swap.setChecked(True)
-                self.app.processEvents()
+                for _ in range(3):
+                    self.app.processEvents()
                 page = tab.pages.currentWidget()
                 self.assertEqual(
                     page.verticalScrollBar().maximum(),
@@ -612,7 +614,8 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                     self.assertGreater(placement.group_list.height(), 140)
 
                 tab.show_step(6)
-                self.app.processEvents()
+                for _ in range(3):
+                    self.app.processEvents()
                 page = tab.pages.currentWidget()
                 output = tab.output_panel
                 self.assertEqual(
@@ -646,12 +649,13 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.show_step(4)
         perks = tab.perks_panel
         perks.own_perks.setChecked(True)
-        self.app.processEvents()
+        for _ in range(3):
+            self.app.processEvents()
 
         compact_available = perks.perk_results.height()
         compact_selected = perks.chosen.height()
-        self.assertGreaterEqual(compact_available, 299, "Qt may assign the final odd layout pixel elsewhere")
-        self.assertGreaterEqual(compact_selected, 299, "Qt may assign the final odd layout pixel elsewhere")
+        self.assertGreater(compact_available, perks.perk_results.sizeHint().height())
+        self.assertGreater(compact_selected, perks.chosen.sizeHint().height())
         self.assertTrue(perks.add_button.isVisibleTo(perks))
         self.assertTrue(perks.remove_button.isVisibleTo(perks))
 

@@ -1044,7 +1044,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root)
             )
 
-            self.assertEqual(raw_payload.get("version"), 12)
+            self.assertEqual(raw_payload.get("version"), 13)
             self.assertEqual(
                 raw_payload.get("table_catalog"),
                 table_catalog_cache_metadata(row_counts={"item_asset_catalog": 1}),

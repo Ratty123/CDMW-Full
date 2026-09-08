@@ -173,6 +173,22 @@ def test_test_matrix_command_paths_exist() -> None:
     assert not missing, f"Missing test-matrix command paths: {missing}"
 
 
+def test_current_markdown_links_resolve_in_a_fresh_checkout() -> None:
+    tracked = set(subprocess.check_output(["git", "ls-files"], cwd=ROOT, text=True).splitlines())
+    missing = []
+    for path in _documentation_files():
+        if path.name == "CHANGELOG.md" or "third_party" in path.parts:
+            continue
+        for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", path.read_text(encoding="utf-8-sig")):
+            target = target.split("#", 1)[0]
+            if not target or ":" in target:
+                continue
+            relative = (path.parent / target).resolve().relative_to(ROOT).as_posix()
+            if relative not in tracked and not any(name.startswith(relative + "/") for name in tracked):
+                missing.append((path.relative_to(ROOT).as_posix(), target))
+    assert not missing, f"Unpublished or missing documentation links: {missing}"
+
+
 def test_security_policy_tracks_current_application_version() -> None:
     security = (ROOT / "SECURITY.md").read_text(encoding="utf-8-sig")
     assert f"`{APP_VERSION}`" in security

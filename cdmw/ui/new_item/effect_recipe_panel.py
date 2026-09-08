@@ -190,6 +190,12 @@ class EffectRecipePanel(QWidget):
         actions.addStretch(1)
         col.addLayout(actions)
 
+        self._build_saved_tab(tabs)
+        for button in self.findChildren(QPushButton):
+            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self._refresh_saved()
+
+    def _build_saved_tab(self, tabs: QTabWidget) -> None:
         saved = QWidget()
         col = QVBoxLayout(saved)
         col.setContentsMargins(0, 4, 0, 4)
@@ -217,9 +223,6 @@ class EffectRecipePanel(QWidget):
         row.addStretch(1)
         col.addLayout(row)
         tabs.addTab(saved, 'Saved')
-        for button in self.findChildren(QPushButton):
-            button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        self._refresh_saved()
 
     def set_state(self, state):
         self.state = state

@@ -21,8 +21,7 @@ What problem does this solve, or what workflow does it improve?
   - [ ] Model Library / Icon Creator
   - [ ] Mesh Editor
   - [ ] Placement & Animations
-  - [ ] Texture Workflow
-  - [ ] Texture Replacer / Texture Recolor / Texture Editor
+  - [ ] Textures: Edit / Recolor / Upscale / Review & Export
   - [ ] Retrofit/Repackage
   - [ ] Format Explorer / Translations
   - [ ] Research
