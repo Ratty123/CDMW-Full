@@ -212,7 +212,7 @@ jobs:
     # it was the longest job in the pipeline while running on every push and
     # every pull request. Tags and manual dispatch are when a package is
     # actually wanted.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    if: ${{ !cancelled() && needs.qa.result == 'success' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) }}
     runs-on: windows-latest
     timeout-minutes: 180
     env:

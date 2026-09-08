@@ -284,8 +284,8 @@ def test_windows_workflow_gates_packaging_on_selected_qa() -> None:
 
     assert "fromJSON('[\"3.11\", \"3.14\"]')" in source
     assert (
-        "if: github.event_name == 'workflow_dispatch' "
-        "|| startsWith(github.ref, 'refs/tags/')"
+        "if: ${{ !cancelled() && needs.qa.result == 'success' && "
+        "(github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) }}"
     ) in source
     assert "(github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests)" in source
     assert "|| fromJSON('[\"3.14\"]')" in source
