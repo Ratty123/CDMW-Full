@@ -1,3 +1,0 @@
-"""Build tooling exposed to Bazel rules."""
-
-exports_files(["bazel_pyinstaller_driver.py"])

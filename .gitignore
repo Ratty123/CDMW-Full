@@ -37,9 +37,6 @@ workspace/
 tmp_*/
 
 .tools/
-# Bazel convenience junctions (see --symlink_prefix in .bazelrc). The output
-# base itself lives outside the repo entirely.
-.bazel/
 *.zip
 _ui_smoke.ini
 archive_scan_cache_probe/
@@ -92,8 +89,6 @@ third_party/qt/
 Thumbs.db
 tools/dotnet_mesh_editor_experiment/bin/
 tools/dotnet_mesh_editor_experiment/obj/
-tools/dotnet_bazel_launcher/bin/
-tools/dotnet_bazel_launcher/obj/
 
 # Working notes kept on the developer's machine rather than in the repository.
 # docs/plans was already local; the rest of docs/ and the agent instructions

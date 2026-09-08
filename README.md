@@ -380,25 +380,10 @@ switches to another renderer. See
 
 ### Build system
 
-The PowerShell builder owns the current application package and release checks.
-The optional build UI also exposes an experimental Bazel path:
-
-```mermaid
-flowchart LR
-    UIB["cdmw-build.exe<br/>build UI"]
-    BZL["bazel build<br/>experimental staging<br/>incomplete app package"]
-    REL["build.bat<br/>onefile release<br/>full gates"]
-    NATIVE_T["bazel test<br/>//native/..."]
-    UIB --> BZL
-    UIB --> REL
-    UIB --> NATIVE_T
-```
-
-Bazel has native-helper targets and stages the separate .NET archive worker,
-but its application target does not yet stage the production Rust helper and
-complete current resources. Use `build.bat` or `build_pyside6_app.ps1` for a
-complete application package. Bazel is optional and can be installed locally
-under `.tools/bazel/`.
+`build.bat` is the supported build entry point. Run it without arguments to open
+the graphical builder (`build_gui.py`), or pass a package type and profile for
+automation. Both use `build_pyside6_app.ps1`, which owns native-helper preparation,
+application packaging, and release checks.
 
 ---
 
@@ -458,7 +443,7 @@ Run the app from source:
 Build a publishable onefile EXE:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
+.\build.bat onefile release
 ```
 
 Release builds install the complete CPython 3.11/3.14 Windows x64 wheel graph
@@ -479,35 +464,13 @@ Other entry points:
 
 | Command | Result |
 |---|---|
-| `build.bat onefile release` | Same as above, through the batch wrapper |
 | `build.bat onedir release` | Folder package instead of a single file |
 | `build.bat` | Graphical build picker |
-| `bazel build //:CrimsonDesertModWorkbench` | Experimental app staging; not a complete current package |
-| `bazel test //native/...` | Native helper unit tests |
+| `build.bat onefile fast` | Incremental build for local iteration |
+| `build.bat onefile debug` | Console-enabled build for troubleshooting |
 
-### Bazel and the build UI
-
-Both are optional, and neither is in the repository: `.tools/` is gitignored, so
-a fresh clone will not have them. The PowerShell release path above needs
-neither.
-
-**Bazel** is not vendored. Install [bazelisk](https://github.com/bazelbuild/bazelisk)
-and either put it on `PATH` or drop it at `.tools\bazel\bazel.exe`. The build UI
-prefers the repo-local copy and falls back to `PATH`, so the version in
-`.bazelversion` is what gets used either way. `BAZEL_VC` must point at the VC
-directory if Bazel cannot detect MSVC on its own.
-
-**The build UI** is built from source in this repository:
-
-```powershell
-dotnet publish tools\dotnet_bazel_launcher\Cdmw.BazelLauncher.csproj -c Release -o .tools\build-ui
-```
-
-That produces `.tools\build-ui\cdmw-build.exe`, a WinForms front end covering
-both build paths: `bazel build //:CrimsonDesertModWorkbench` for experimental staging,
-and `build.bat onefile release` for the gated release. It finds the workspace by
-walking up for `MODULE.bazel` and sets `BAZEL_VC` itself. Its Bazel option does
-not supply the release checks or missing current packaging inputs.
+Automation can also call `build_pyside6_app.ps1` directly with `-Mode` and
+`-BuildProfile`. Run `build.bat help` for the available package types and profiles.
 
 ---
 
@@ -538,15 +501,15 @@ cdmw/                    application code
   core/ modding/ rendering/   archive, DDS, import/export, packaging logic
 native/                  C++ helpers, Rust backends, staged Rust renderer/editor
 tools/                   .NET 10 helpers, Rust Mesh Lab, audit and research source
-tools/dotnet_*           archive worker and build UI source; old renderer is historical
+tools/dotnet_*           archive worker source; old renderer is historical
 schemas/                 versioned capability and package schemas
 tests/                   behaviour, protocol contract, and source-guard tests
 ```
 
 Note the two similarly named directories. **`tools/`** is source and is in the
 repository. **`.tools/`**, with the dot, is gitignored and holds downloaded or
-locally built binaries: bazelisk, the published build UI, RenderDoc, vgmstream,
-the Havok CLIs. Its generated contents are not tracked; build scripts locate or prepare
+locally built binaries: RenderDoc, vgmstream, and the Havok CLIs.
+Its generated contents are not tracked; build scripts locate or prepare
 required helpers explicitly.
 
 The guides, runbooks and reverse-engineering notes are working documents and
