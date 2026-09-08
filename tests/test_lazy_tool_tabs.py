@@ -285,6 +285,7 @@ class LazyToolTabTests(unittest.TestCase):
                     "settings = create_settings(settings_file_path=settings_path)",
                     "context = AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus())",
                     "window = MainWindow(app_context=context)",
+                    "window.show_first_run_guide_on_launch = False",
                     "window.show(); app.processEvents()",
                     "targets = (",
                     "    'cdmw.ui.mesh_editor.tab', 'cdmw.ui.model_library.tab',",
