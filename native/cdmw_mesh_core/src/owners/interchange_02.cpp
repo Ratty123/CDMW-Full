@@ -14,6 +14,7 @@ struct NativeFbxShape {
 struct NativeFbxSubmesh {
     std::string name;
     std::string material;
+    std::string diffuse_texture;
     std::vector<double> vertices_flat;
     std::vector<int> indices_flat;
     std::vector<double> normals_flat;
@@ -120,6 +121,7 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
             submesh.name = std::string("part_") + std::to_string(index);
         }
         submesh.material = string_or(item.get("material"), submesh.name);
+        submesh.diffuse_texture = string_or(item.get("diffuse_texture"), "");
         if (submesh.material.empty()) {
             submesh.material = submesh.name;
         }
@@ -377,6 +379,30 @@ fbx_node(
 );
 }
 
+void write_native_fbx_texture_objects(
+    std::vector<char>& out, const NativeFbxSubmesh& submesh,
+    long long texture_id, long long video_id
+) {
+    if (texture_id == 0) return;
+    fbx_node(out, "Video", {fbx_i64(video_id), fbx_string(fbx_object_name(submesh.material, "Video")), fbx_string("Clip")}, {
+        [](std::vector<char>& node) { fbx_node(node, "Type", {fbx_string("Clip")}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "Filename", {fbx_string(submesh.diffuse_texture)}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(submesh.diffuse_texture)}); },
+    });
+    fbx_node(out, "Texture", {fbx_i64(texture_id), fbx_string(fbx_object_name(submesh.material, "Texture")), fbx_string("")}, {
+        [](std::vector<char>& node) { fbx_node(node, "Type", {fbx_string("TextureVideoClip")}); },
+        [](std::vector<char>& node) { fbx_node(node, "Version", {fbx_i32(202)}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "TextureName", {fbx_string(fbx_object_name(submesh.material, "Texture"))}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "Media", {fbx_string(fbx_object_name(submesh.material, "Video"))}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "FileName", {fbx_string(submesh.diffuse_texture)}); },
+        [&submesh](std::vector<char>& node) { fbx_node(node, "RelativeFilename", {fbx_string(submesh.diffuse_texture)}); },
+        [](std::vector<char>& node) { fbx_node(node, "ModelUVTranslation", {fbx_f64(0), fbx_f64(0)}); },
+        [](std::vector<char>& node) { fbx_node(node, "ModelUVScaling", {fbx_f64(1), fbx_f64(1)}); },
+        [](std::vector<char>& node) { fbx_node(node, "Texture_Alpha_Source", {fbx_string("None")}); },
+        [](std::vector<char>& node) { fbx_node(node, "Cropping", {fbx_i32(0), fbx_i32(0), fbx_i32(0), fbx_i32(0)}); },
+    });
+}
+
 void write_native_fbx_bone_object(
     std::vector<char>& objects_out,
     const NativeFbxBone& bone,
@@ -526,6 +552,8 @@ struct NativeFbxIds {
     std::vector<long long> mesh_ids;
     std::vector<long long> model_ids;
     std::vector<long long> mat_ids;
+    std::vector<long long> texture_ids;
+    std::vector<long long> video_ids;
     std::map<int, long long> bone_model_ids;
     std::map<int, long long> bone_attr_ids;
     std::map<int, std::vector<double>> bone_binds;
@@ -552,6 +580,8 @@ NativeFbxIds assign_native_fbx_ids(
         ids.mesh_ids.push_back(uid());
         ids.model_ids.push_back(uid());
         ids.mat_ids.push_back(uid());
+        ids.texture_ids.push_back(submeshes[index].diffuse_texture.empty() ? 0 : uid());
+        ids.video_ids.push_back(submeshes[index].diffuse_texture.empty() ? 0 : uid());
     }
     for (const NativeFbxBone& bone : bones) {
         ids.bone_model_ids[bone.index] = uid();
@@ -678,6 +708,10 @@ void write_native_fbx_connection_rows(
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.model_ids[index]), fbx_i64(0)});
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mesh_ids[index]), fbx_i64(ids.model_ids[index])});
         fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mat_ids[index]), fbx_i64(ids.model_ids[index])});
+        if (ids.texture_ids[index] != 0) {
+            fbx_node(connections_out, "C", {fbx_string("OP"), fbx_i64(ids.texture_ids[index]), fbx_i64(ids.mat_ids[index]), fbx_string("DiffuseColor")});
+            fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.video_ids[index]), fbx_i64(ids.texture_ids[index])});
+        }
         if (ids.blend_shape_ids[index] != 0) {
             fbx_node(
                 connections_out,
@@ -755,6 +789,7 @@ FbxExportResult run_fbx_export(const JsonValue& root) {
                     write_native_fbx_submesh_object(
                         objects_out, submeshes[index], ids.mesh_ids[index], ids.model_ids[index], ids.mat_ids[index]
                     );
+                    write_native_fbx_texture_objects(objects_out, submeshes[index], ids.texture_ids[index], ids.video_ids[index]);
                 }
                 for (const NativeFbxBone& bone : bones) {
                     write_native_fbx_bone_object(objects_out, bone, ids.bone_model_ids, ids.bone_attr_ids);

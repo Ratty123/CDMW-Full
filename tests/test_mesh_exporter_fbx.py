@@ -66,6 +66,13 @@ def _export_mesh() -> ParsedMesh:
 
 
 class FbxExporterTests(unittest.TestCase):
+    def test_missing_native_writer_does_not_silently_drop_skin_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
+            "cdmw.modding.mesh_exporter._export_fbx_native", return_value=False
+        ):
+            with self.assertRaisesRegex(RuntimeError, "refusing to drop skin binding"):
+                export_fbx_with_skeleton(_skinned_export_mesh(), _two_bone_skeleton(), temp_dir)
+
     def test_plain_fbx_export_uses_native_writer_before_python_node_writer(self) -> None:
         mesh = ParsedMesh(
             path="character/native.pac",
@@ -272,6 +279,17 @@ def _two_bone_skeleton() -> Skeleton:
 class FbxSkinRowTests(unittest.TestCase):
     """The slot-to-bone mapping that stands between a PAC and a usable rig."""
 
+    def test_repeated_slots_are_merged_before_writing_fbx_clusters(self) -> None:
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        part = _skinned_export_mesh().submeshes[0]
+        part.bone_indices[2] = (0, 1, 0)
+        part.bone_weights[2] = (.2, .3, .5)
+        indices, weights = _fbx_skin_rows(part, (17, 42))
+        self.assertEqual(indices[2], (17, 42))
+        self.assertAlmostEqual(weights[2][0], .7)
+        self.assertAlmostEqual(weights[2][1], .3)
+
     def test_palette_maps_slots_onto_skeleton_bones(self) -> None:
         from cdmw.modding.mesh_native_core import _fbx_skin_rows
 
@@ -442,7 +460,7 @@ class FbxUnitScaleTests(unittest.TestCase):
                 mock.patch("cdmw.modding.mesh_exporter._fbx_geometry_native", return_value=fake_native),
             ):
                 payload = Path(export_fbx_with_skeleton(
-                    _skinned_export_mesh(), _two_bone_skeleton(), temp_dir, name="units_skel"
+                    _skinned_export_mesh(), _two_bone_skeleton(), temp_dir, name="units_skel", bone_palette=()
                 )).read_bytes()
 
         self.assertEqual(self._unit_scale_factors(payload), [100.0, 100.0])

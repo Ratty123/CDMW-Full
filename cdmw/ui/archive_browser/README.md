@@ -135,9 +135,35 @@ selected companions, and manifest are staged together. A preparation failure or
 cancellation preserves the previous export, and publication rolls back on failure.
 
 Character OBJ exports bake the same neutral skeleton variation used by FBX.
-OBJ carries no armature or facial morph channels. Its baked appearance manifest
-disallows direct source-asset edits; **Modify Original** still uses the original
-editable coordinates. FBX retains its existing rig and recovered morph support.
+The matching `.meta.json` stores the source identity and reversible appearance
+transform. **Round-trip edit** converts neutral OBJ positions and normals back
+to PAC coordinates, retains donor skin weights and lower LODs, and restores part
+order and duplicate triangles removed by Blender. Keep vertex order and counts;
+topology or rig changes require their separate replacement/authoring workflows.
+Blender corner-normal splits can recover the original vertex slots when positions,
+UVs and protected channels agree and a source normal remains. The import summary
+reports retained source normals; new UV seams or separate hard-edge normals need
+topology replacement.
+
+In Blender, return an OBJ with modifiers disabled and keep the matching manifest
+beside it as `<returned>.obj.meta.json`. This also supports a mesh first exported
+as FBX: retain and rename its `.fbx.meta.json` for the returned OBJ. Direct FBX
+input remains a separate Blender conversion/replacement workflow. OBJ returns
+carry positions, normals and UV edits; they retain the PAC's original rig data.
+Blender's numeric rounding can prevent byte-identical no-edit returns.
+The rebuild verifies the resulting neutral positions. A nearly singular skin
+transform can magnify an edit beyond PAC position precision; that edit is blocked
+with the affected part and displacement instead of publishing distorted geometry.
+Use a source-coordinate OBJ or Mesh Replacement for such edits.
+
+FBX retains its rig and recovered morph support, merges repeated influences on
+the same bone, and connects the resolved diffuse DDS files using portable paths.
+OBJ uses the same resolved diffuse evidence. These interchange materials do not
+recreate the game's complete layered shader. Rigid attachments without a PAC
+bone palette retain their source geometry without guessing an attachment bone.
+Other unresolved palettes also export source coordinates: the summary marks
+neutral appearance as unavailable, and FBX includes an unbound armature. OBJ
+returns still retain the original PAC skin records.
 Character dependency packages preserve `character/...` paths directly below the
 chosen root so the appearance manifest can find and verify every companion.
 The extraction service's `include_package_directory=False` selects this layout

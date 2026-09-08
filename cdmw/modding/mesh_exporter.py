@@ -17,6 +17,7 @@ import tempfile
 import zlib
 import math
 import hashlib
+from dataclasses import asdict
 from pathlib import Path, PurePath
 from datetime import UTC, datetime
 from typing import Optional
@@ -347,7 +348,7 @@ def _roundtrip_contract_payload(mesh: ParsedMesh) -> dict[str, object]:
     original_data = mesh_export_original_data(mesh)
     source_identity = mesh_export_source_identity(mesh)
     rules = _sidecar_import_rules(mesh, source_identity)
-    return {
+    payload = {
         "schema_version": _OBJ_ROUNDTRIP_SCHEMA_VERSION,
         "tool_version": _OBJ_ROUNDTRIP_TOOL_VERSION,
         **source_identity,
@@ -361,6 +362,10 @@ def _roundtrip_contract_payload(mesh: ParsedMesh) -> dict[str, object]:
         "rules": rules,
         "allowed_edit_operations": list(_OBJ_ROUNDTRIP_ALLOWED_EDIT_OPERATIONS),
     }
+    appearance = getattr(mesh, "_cdmw_neutral_appearance", None)
+    if appearance is not None:
+        payload["neutral_appearance"] = {"version": 1, **asdict(appearance)}
+    return payload
 
 
 def _roundtrip_manifest_extra_payload(mesh: ParsedMesh, extra_payload: Optional[dict]) -> dict[str, object]:
@@ -789,6 +794,33 @@ def _fbx_node(buf: io.BytesIO, name: str, props=None, children=None):
     buf.seek(end_offset)  # restore position
 
 
+def _fbx_texture_objects(buf, submesh, texture_id, video_id):
+    if not texture_id:
+        return
+    path = str(submesh.texture).replace("\\", "/")
+    name = submesh.material or submesh.name
+
+    def video(out):
+        _fbx_node(out, "Type", ["Clip"])
+        _fbx_node(out, "Filename", [path])
+        _fbx_node(out, "RelativeFilename", [path])
+
+    def texture(out):
+        _fbx_node(out, "Type", ["TextureVideoClip"])
+        _fbx_node(out, "Version", [202])
+        _fbx_node(out, "TextureName", [f"{name}\x00\x01Texture"])
+        _fbx_node(out, "Media", [f"{name}\x00\x01Video"])
+        _fbx_node(out, "FileName", [path])
+        _fbx_node(out, "RelativeFilename", [path])
+        _fbx_node(out, "ModelUVTranslation", [0.0, 0.0])
+        _fbx_node(out, "ModelUVScaling", [1.0, 1.0])
+        _fbx_node(out, "Texture_Alpha_Source", ["None"])
+        _fbx_node(out, "Cropping", [0, 0, 0, 0])
+
+    _fbx_node(buf, "Video", [video_id, f"{name}\x00\x01Video", "Clip"], children=[video])
+    _fbx_node(buf, "Texture", [texture_id, f"{name}\x00\x01Texture", ""], children=[texture])
+
+
 def _fbx_bone_visual_sizes(skeleton, scale: float = 1.0) -> dict[int, float]:
     """Compute FBX LimbNode Size values from child distances."""
     bones = list(getattr(skeleton, "bones", None) or [])
@@ -955,10 +987,13 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
     mesh_ids = []
     model_ids = []
     mat_ids = []
+    texture_ids, video_ids = [], []
     for sm in mesh.submeshes:
         mesh_ids.append(uid())
         model_ids.append(uid())
         mat_ids.append(uid())
+        texture_ids.append(uid() if sm.texture else None)
+        video_ids.append(uid() if sm.texture else None)
 
     root_id = uid()
     # Objects
@@ -1061,6 +1096,7 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
 
             W(b, "Material", [ma_id, f"{sm.material or sm.name}\x00\x01Material", ""],
               children=[mat_node])
+            _fbx_texture_objects(b, sm, texture_ids[idx], video_ids[idx])
 
     try:
         W(buf, "Objects", children=[objects])
@@ -1077,6 +1113,9 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
             W(b, "C", ["OO", mesh_ids[idx], model_ids[idx]])
             # Material → Model
             W(b, "C", ["OO", mat_ids[idx], model_ids[idx]])
+            if texture_ids[idx]:
+                W(b, "C", ["OP", texture_ids[idx], mat_ids[idx], "DiffuseColor"])
+                W(b, "C", ["OO", video_ids[idx], texture_ids[idx]])
 
     W(buf, "Connections", children=[connections])
 
@@ -1118,8 +1157,8 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
     geometry plus armature with no binding, which is the honest result: nothing
     in the file says which bone it follows.
 
-    The Python fallback writer, used only when the native mesh core is
-    unavailable, writes the armature without the skin binding.
+    Skinned export requires the native mesh core. The Python fallback remains
+    available for an unskinned mesh and its optional armature.
     """
     from .skeleton_parser import Skeleton
 
@@ -1132,6 +1171,10 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
         logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",
                     fbx_path, mesh.total_vertices, mesh.total_faces, bone_count)
         return fbx_path
+    if skeleton and (bone_palette is None or bone_palette) and any(
+        part.bone_indices and part.bone_weights for part in mesh.submeshes
+    ):
+        raise RuntimeError("Native mesh core is required for skinned FBX export; refusing to drop skin binding.")
     native_geometry = _fbx_geometry_native(mesh, scale=scale, require_vertex_aligned_uvs=True)
     if native_geometry is None and not _allow_python_export_fallback(mesh, "export.fbx_skeleton"):
         raise RuntimeError("native FBX skeleton export failed and Python export fallback was blocked")
@@ -1175,10 +1218,13 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
 
     # Build IDs
     mesh_ids, model_ids, mat_ids = [], [], []
+    texture_ids, video_ids = [], []
     for sm in mesh.submeshes:
         mesh_ids.append(uid())
         model_ids.append(uid())
         mat_ids.append(uid())
+        texture_ids.append(uid() if sm.texture else None)
+        video_ids.append(uid() if sm.texture else None)
 
     bone_model_ids = {}
     bone_attr_ids = {}
@@ -1270,6 +1316,7 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
                 W(b2, "ShadingModel", ["phong"])
             W(b, "Material", [ma_id, f"{sm.material or sm.name}\x00\x01Material", ""],
               children=[mat_node])
+            _fbx_texture_objects(b, sm, texture_ids[idx], video_ids[idx])
 
         # Bone nodes
         if skeleton and skeleton.bones:
@@ -1310,6 +1357,10 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             W(b, "C", ["OO", model_ids[idx], _FbxId(0)])
             W(b, "C", ["OO", mesh_ids[idx], model_ids[idx]])
             W(b, "C", ["OO", mat_ids[idx], model_ids[idx]])
+
+            if texture_ids[idx]:
+                W(b, "C", ["OP", texture_ids[idx], mat_ids[idx], "DiffuseColor"])
+                W(b, "C", ["OO", video_ids[idx], texture_ids[idx]])
 
         # Bone connections
         if skeleton and skeleton.bones:

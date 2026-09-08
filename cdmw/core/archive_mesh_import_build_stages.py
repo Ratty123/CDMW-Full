@@ -96,7 +96,19 @@ def rebuild_mesh_import(state: MeshImportBuildState) -> None:
     raise_if_cancelled(state.stop_event, "Mesh import preview cancelled.")
     state.parsed_mesh = api.parse_mesh(state.rebuilt_data, state.entry.path)
     restored = api._restore_rebuilt_mesh_texture_identity(state.imported_mesh, state.parsed_mesh)
-    state.preview_model = api.parsed_mesh_to_preview_model(state.parsed_mesh)
+    preview_mesh = state.parsed_mesh
+    appearance = (state.manifest_payload or {}).get("neutral_appearance")
+    if state.normalized_import_mode == "roundtrip" and isinstance(appearance, dict):
+        from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+
+        # build_mesh already validated this manifest and reconstructed source
+        # coordinates. Only the disposable preview returns to neutral space.
+        context = NeutralMeshAppearance(
+            str(appearance.get("source", "")), tuple(int(value) for value in appearance["bone_palette"]),
+            tuple(tuple(float(value) for value in row) for row in appearance["skin_matrices"]),
+        )
+        preview_mesh = context.to_neutral(state.parsed_mesh)
+    state.preview_model = api.parsed_mesh_to_preview_model(preview_mesh)
     start_mesh_import_summary(state, restored)
 
 
@@ -116,6 +128,7 @@ def start_mesh_import_summary(state: MeshImportBuildState, restored_texture_coun
     if state.scene_import_result.diagnostics:
         state.summary_lines.append("Scene import notes:")
         state.summary_lines.extend(f"  {line}" for line in state.scene_import_result.diagnostics)
+    state.summary_lines.extend(getattr(state.imported_mesh, "_cdmw_obj_normal_recovery_notes", ()))
     if state.static_report is not None:
         report = state.static_report
         state.summary_lines.append(
