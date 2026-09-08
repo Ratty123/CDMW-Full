@@ -415,6 +415,52 @@ def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_pat
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
+@pytest.mark.parametrize("failure", ("", "collection", "second"))
+def test_full_discovers_selected_modules_and_preserves_failures(tmp_path, failure):
+    source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "codex_check.ps1").write_text(source, encoding="utf-8")
+    modules = ["tests/test_first.py", "tests/nested/test_second.py", "tests/test_third.py"]
+    for module in modules:
+        target = tmp_path / module
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.touch()
+    runner = tmp_path / "run.ps1"
+    runner.write_text(
+        "$global:moduleCalls = Join-Path $PSScriptRoot 'calls.jsonl'\n"
+        "function global:python {\n"
+        "    if ($args -contains '--collect-only') {\n"
+        "        'tests/test_first.py::test_one'\n"
+        "        'tests/test_first.py::test_two'\n"
+        "        'tests/nested/test_second.py::test_case'\n"
+        "        'tests/test_third.py::test_case'\n"
+        f"        $global:LASTEXITCODE = {43 if failure == 'collection' else 0}\n"
+        "        return\n"
+        "    }\n"
+        "    $modules = @($args | Where-Object { $_ -like 'tests/*.py' })\n"
+        "    ConvertTo-Json -InputObject $modules -Compress | Add-Content -LiteralPath $global:moduleCalls\n"
+        f"    $global:LASTEXITCODE = if ({'$true' if failure == 'second' else '$false'} -and "
+        "$modules -contains 'tests/nested/test_second.py') { 47 } else { 0 }\n"
+        "}\n"
+        "& (Join-Path $PSScriptRoot 'scripts/codex_check.ps1') -Area full\n"
+        "exit $LASTEXITCODE\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(runner)],
+        cwd=tmp_path, text=True, capture_output=True, timeout=20,
+    )
+    calls_path = tmp_path / "calls.jsonl"
+    calls = [json.loads(line) for line in calls_path.read_text(encoding="utf-8-sig").splitlines()] if calls_path.exists() else []
+    expected = [] if failure == "collection" else sorted(modules)
+    if failure == "second":
+        expected = expected[:1]
+    assert calls == [[module] for module in expected]
+    assert result.returncode == {"": 0, "collection": 43, "second": 47}[failure], result.stdout + result.stderr
+
+
+@pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
 @pytest.mark.parametrize(
     "smoke_exit,mesh_exit,expected_exit,expected_calls",
     [(42, 0, 42, ["smoke"]), (0, 43, 43, ["smoke", "mesh-contract"]),

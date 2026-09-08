@@ -226,9 +226,18 @@ if ($PytestBaseTemp) {
 }
 
 if ($Area -eq "full") {
-    Write-Host "Running non-visual full pytest suite with $Python"
-    & $Python -m pytest @PytestTempArgs
-    exit $LASTEXITCODE
+    Write-Host "Collecting the complete non-visual pytest suite with $Python"
+    $CollectionOutput = @(& $Python -X faulthandler -m pytest @PytestTempArgs --collect-only -q)
+    $CollectionExitCode = $LASTEXITCODE
+    if ($CollectionExitCode -ne 0) {
+        $CollectionOutput | Select-Object -Last 60 | Write-Output
+        exit $CollectionExitCode
+    }
+    $ConfiguredTests = @($CollectionOutput | ForEach-Object {
+        if ($_ -match '^(tests[/\\].+?\.py)::') {
+            $Matches[1].Replace([char]92, [char]47)
+        }
+    } | Sort-Object -Unique)
 }
 
 if ($Area -eq "mesh") {
@@ -282,7 +291,9 @@ if ($Area -eq "rust-mesh-lab-stress") {
     exit $RustStressExitCode
 }
 
-$ConfiguredTests = @($TestsByArea[$Area])
+if ($Area -ne "full") {
+    $ConfiguredTests = @($TestsByArea[$Area])
+}
 if ($ConfiguredTests.Count -eq 0) {
     throw "No tests are configured for area '$Area'."
 }
@@ -317,7 +328,7 @@ $AreaMarkerArgs = @()
 if ($Area -eq "responsiveness") {
     $AreaMarkerArgs = @("-m", "not visual and not real_game")
 }
-if ($Area -in @("smoke", "mesh-unit")) {
+if ($Area -in @("smoke", "mesh-unit", "full")) {
     # PySide6 on Python 3.14 can terminate a very long-lived pytest interpreter
     # in pyside6.abi3.dll or qoffscreen.dll after hundreds of Qt forms, including
     # after pytest has already printed an all-passing test summary.

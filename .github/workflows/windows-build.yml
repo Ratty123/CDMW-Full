@@ -110,7 +110,7 @@ jobs:
       matrix:
         # An ordinary push to main runs the fast smoke contract on the
         # interpreter the package is built with. Pull requests, tags, and manual
-        # dispatch retain the complete one-process suite on both supported
+        # dispatch retain the complete module-isolated suite on both supported
         # interpreters.
         python-version: >-
           ${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))

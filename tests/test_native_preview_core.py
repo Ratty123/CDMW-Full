@@ -1172,7 +1172,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         )
         self.assertIn('"\\\"logical_graph_edge\\\":true,"', writer)
         self.assertIn('"\\\"owner_slot_index\\\":"', writer)
-        self.assertIn("binding_owner_submesh_local_index(state.submeshes, binding)", writer)
+        self.assertIn("state.binding_owner_slots.at(&binding)", writer)
+        self.assertIn("state.binding_owner_slots.emplace(", source)
+        self.assertIn("binding_owner_submesh_local_index(submeshes, binding)", source)
 
     def test_native_global_height_slot_rejects_layer_only_relief(self) -> None:
         source = preview_core_source()

@@ -36,7 +36,7 @@ def test_full_qa_uses_canonical_bounded_temp_owned_gates() -> None:
     assert "CDMW_GUI_STARTUP_SMOKE_RESULT" in source
     assert '"post_construction"' in source
     assert '"-BuildProfile", "release", "-NativeHelpersOnly"' in source
-    assert "Production preview and Mesh Editor build with offscreen GPU smoke" in source
+    assert "Production Rust preview and Mesh Editor build with offscreen GPU smoke" in source
     assert ') $scriptDir $BuildTimeoutSeconds' in source
     assert "function Invoke-NativeHelperPreparation" in package_source
     assert "Invoke-RustMeshEditorBuild -Configuration $Configuration -Required:$RequireReleaseHelpers" in package_source

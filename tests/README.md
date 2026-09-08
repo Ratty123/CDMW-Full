@@ -39,8 +39,10 @@ The shared pytest teardown drains requested Qt deletions and shuts down
 QApplication before Python exits. A subprocess regression checks both the
 session cleanup and the final process status, since a passing pytest summary
 does not rule out a later crash in the offscreen platform plugin.
-Smoke and Mesh unit gates run each complete test module in a fresh interpreter
-to contain accumulated Qt state. Every module's process exit must succeed
+Smoke, Mesh unit, and full gates run each complete test module in a fresh
+interpreter to contain accumulated Qt state. Full discovers its modules through
+pytest collection with the active markers; collection errors also fail the gate.
+Every module's process exit must succeed
 before the next module starts; no tests are skipped or failures retried.
 
 ## Mesh Editor gates
