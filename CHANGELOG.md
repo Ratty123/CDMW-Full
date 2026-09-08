@@ -11,6 +11,8 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.11] - 2026-09-08
+
 ### Added
 - **Morph & Refit selects game body and armor meshes from the archive catalogue.** Use the loaded mesh as the body or browse another game body, then browse and bind armor without enabling Free Edit. Loaded files and assigned roles are distinct, and the tool has a highlighted button and bordered panel. Finish keeps both assets; Build Mod validates and packages each original archive path together. Undo/Redo and drafts preserve asset identities, and source archives stay unchanged.
 - **Effects can be composed and authored as reusable recipes.** Layer effects with independent transforms and visibility; inspect and edit emitter timing, particles, forces, atlas settings and colour/size/opacity curves; duplicate or remove emitters and save, import or export custom recipes. Enabled layers export as separate components in owned item prefabs.
