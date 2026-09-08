@@ -209,6 +209,8 @@ class _MeshEditSession:
     # recorded.
     native_editor_topology_summaries: tuple[Mapping[str, int], ...] = ()
     base_mesh_is_original_parse: bool = False
+    neutral_appearance: object | None = None
+    source_coordinate_base_mesh: ParsedMesh | None = None
     mesh_format: str = ""
     lod_index: int = 0
     output_policy: str = "read_only"

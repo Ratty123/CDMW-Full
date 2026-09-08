@@ -16,6 +16,7 @@ The format is intentionally simple:
 
 ### Fixed
 - Standalone Mesh Replacement Builder sends its models to the Rust/DX12 preview again and accepts subsequent alignment updates after the initial load.
+- Mesh Editor shows character heads in their resolved neutral shape, matching Archive Browser. Move and sculpt edits, selection, and Undo/Redo use that face; Finish converts edits back to the original PAC coordinates before validation and saving, avoiding a second deformation in game.
 - PAM replacement stops before export if its indexed PAMLOD companion cannot be rebuilt, reporting the companion path and cause instead of silently omitting it.
 - Browse Archives exposes **Replace Mesh from File...** in its Import menu and mesh context menu. OBJ and other supported model imports open the replacement builder without replacing an active Mesh Editor session.
 - **Import Loose Mod Folder...** and replacement source pickers use the main window's background task runner, fixing the erroneous "Background source processing is unavailable in this window" failure.

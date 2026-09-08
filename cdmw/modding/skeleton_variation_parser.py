@@ -308,6 +308,11 @@ def apply_skeleton_variation_to_mesh(
         clone.submeshes.append(submesh)
     if variation is not None:
         setattr(clone, "_cdmw_skeleton_variation_source", variation.path)
+        from .mesh_neutral_appearance import NeutralMeshAppearance
+
+        setattr(clone, "_cdmw_neutral_appearance", NeutralMeshAppearance(
+            variation.path, palette, tuple(skin_matrices),
+        ))
     if morph_target_set is not None:
         setattr(clone, "_cdmw_morph_target_set_source", morph_target_set.path)
     return clone

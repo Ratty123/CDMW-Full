@@ -97,6 +97,7 @@ def _open_exact_session(
     *,
     resolved_rig: bool = False,
     base_texture_path: Path | None = None,
+    neutral_appearance: object | None = None,
 ) -> tuple[bytes, MeshService, RustMeshAuthoringSession]:
     source = _pac_fixture(skinned=True)
     skeleton = None
@@ -140,6 +141,7 @@ def _open_exact_session(
             source_path=skeleton.path,
         )
     assert view.output_policy == "exact_game_asset"
+    authoritative._session(view.session_id).neutral_appearance = neutral_appearance
     session = RustMeshAuthoringSession.create(
         SimpleNamespace(
             mesh_service=authoritative,
