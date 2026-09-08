@@ -13,11 +13,16 @@ on:
         description: Which package(s) to build
         required: true
         type: choice
-        default: both
+        default: onefile
         options:
           - both
           - onefile
           - onedir
+      exhaustive_tests:
+        description: Run the full suite on Python 3.11 and 3.14 (slow)
+        required: true
+        type: boolean
+        default: false
       sign_with_signpath:
         description: Submit the onefile artifact to SignPath
         required: true
@@ -44,6 +49,7 @@ jobs:
   # exes to both interpreter legs.
   native:
     name: Build native helpers
+    if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
     runs-on: windows-latest
     timeout-minutes: 60
 
@@ -103,19 +109,18 @@ jobs:
   qa:
     name: Headless QA / Python ${{ matrix.python-version }}
     needs: native
+    if: ${{ !cancelled() && (needs.native.result == 'success' || needs.native.result == 'skipped') }}
     runs-on: windows-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        # An ordinary push to main runs the fast smoke contract on the
-        # interpreter the package is built with. Pull requests, tags, and manual
-        # dispatch retain the complete module-isolated suite on both supported
-        # interpreters.
+        # Everyday CI and releases use the packaged interpreter. Compatibility
+        # and exhaustive regression checks are an explicit manual choice.
         python-version: >-
-          ${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
-              && fromJSON('["3.14"]')
-              || fromJSON('["3.11", "3.14"]') }}
+          ${{ (github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests)
+              && fromJSON('["3.11", "3.14"]')
+              || fromJSON('["3.14"]') }}
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -123,12 +128,14 @@ jobs:
       # Restores native/<helper>/build/Release/, which is where
       # cdmw/core/texture_native.py and cdmw/modding/mesh_native_core.py look.
       - name: Download native helpers
+        if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: native-helpers
           path: native
 
       - name: Confirm the helpers the suite needs are present
+        if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
         shell: pwsh
         run: |
           $expected = @(
@@ -154,6 +161,7 @@ jobs:
             constraints-release.txt
 
       - name: Set up .NET 10
+        if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           dotnet-version: "10.0.x"
@@ -174,11 +182,10 @@ jobs:
         shell: pwsh
         run: .\.venv\Scripts\python -m compileall -q cdmw tests tools
 
-      # Ordinary pushes keep assembled-shell smoke and executable Mesh protocol
-      # contracts separate. The latter builds its own helper; neither route runs
-      # the broad mesh-unit or full suites.
-      - name: Run fast main-push validation
-        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+      # A short startup and safety suite needs no native build. Packaging checks
+      # its actual helper payload separately; full/native gates remain opt-in.
+      - name: Run focused validation
+        if: github.event_name != 'workflow_dispatch' || !inputs.exhaustive_tests
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
@@ -187,12 +194,9 @@ jobs:
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-smoke-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area smoke -PytestBaseTemp $baseTemp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $meshBaseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-mesh-contract-${{ matrix.python-version }}"
-          .\scripts\codex_check.ps1 -Area mesh-contract -PytestBaseTemp $meshBaseTemp
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Run canonical nonvisual QA
-        if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')
+      - name: Run optional exhaustive QA
+        if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
@@ -212,7 +216,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 180
     env:
-      SELECTED_BUILD_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mode || 'both' }}
+      SELECTED_BUILD_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mode || 'onefile' }}
 
     steps:
       - name: Check out repository

@@ -27,10 +27,16 @@ Choose the exact test file for an ordinary change. On a fresh source checkout,
 prepare the native helpers and archive worker using the root README's source
 setup first. Full-suite and native tests require those real helpers.
 
-GitHub's Windows Build runs `smoke` and `mesh-contract` on Python 3.14 for
-ordinary `main` pushes. Pull requests, version tags and manual dispatch run the
-full nonvisual suite on Python 3.11 and 3.14. Packaging requires both checks and
-runs only for tags or manual dispatch. There is no nightly schedule. CI excludes
+GitHub's Windows Build defaults to the ten-module `smoke` gate on Python 3.14
+for pushes, pull requests, tags and manual runs. It covers startup/tool
+construction, archive confirmation/backup/rollback, output path safety,
+helper cleanup, metadata and localization without building native helpers.
+Manual `exhaustive_tests` opts into native builds and the full nonvisual suite
+on Python 3.11 and 3.14. Packaging requires the selected QA to pass and runs
+only for tags or manual dispatch; onefile is the default, with onedir and both
+available explicitly. Packaged helper and startup checks remain mandatory.
+Feature-specific and native regressions should use their owning tests when
+those surfaces change. There is no nightly schedule. CI excludes
 `visual`, `real_game` and machine-sensitive `timing` tests.
 Each gate's exit code is checked before continuing, so a later successful gate
 cannot hide an earlier failure. Async shutdown tests verify worker ownership and

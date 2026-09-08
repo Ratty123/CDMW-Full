@@ -427,11 +427,11 @@ before running the app or tests from a fresh checkout:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -NativeHelpersOnly -BuildProfile release
 ```
 
-For an ordinary change, run its owning test file. The canonical full nonvisual
-suite covers behavior, protocol contracts, and source guards in one process:
+For an ordinary change, run its owning test file. The optional full nonvisual
+suite covers behavior, protocol contracts, and source guards:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+.\scripts\codex_check.ps1 -Area full
 ```
 
 Run the app from source:
@@ -480,10 +480,16 @@ Automation can also call `build_pyside6_app.ps1` directly with `-Mode` and
 requests, and can be started manually. There is no nightly schedule, so unchanged
 code does not produce another daily run or failure notification.
 
-Ordinary `main` pushes run `smoke` and `mesh-contract` on Python 3.14. Pull
-requests, version tags and manual runs use the full nonvisual suite on both
-Python 3.11 and 3.14. Packaging runs only for version tags or manual dispatch,
-after both Python checks pass. Visual and installed-game tests stay outside CI.
+Pushes, pull requests, version tags and default manual runs use a short `smoke`
+suite on Python 3.14: startup, tool construction, archive confirmation/backup/
+rollback, output path safety, helper cleanup, metadata and localization checks.
+This route does not build native helpers. Select `exhaustive_tests` in a manual
+run to build helpers and run the full suite on Python 3.11 and 3.14.
+Packaging runs only for tags or manual dispatch after the selected checks pass.
+The portable onefile EXE is the default; onedir or both remain manual choices.
+Each package still verifies its helpers and startup. Visual and installed-game
+tests stay outside CI. Run affected feature or native tests when changing those
+features; the short suite does not replace that focused regression work.
 See the [test guide](tests/README.md) and [workflow](.github/workflows/windows-build.yml).
 
 ## Project layout

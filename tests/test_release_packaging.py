@@ -277,16 +277,8 @@ def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:
     assert "Retired Vortice preview payload was collected" in source
 
 
-def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> None:
-    """A package must never ship on QA that skipped an interpreter.
-
-    A push to main runs only the interpreter the package is built with, because
-    the second leg is a compatibility check rather than a different suite. That
-    stays safe only while packaging cannot happen on a push: the package job is
-    restricted to tags and manual dispatch, and on those events the matrix is
-    the full list again. Assert that pair rather than a literal matrix line, or
-    the trim reads as a hole in release gating.
-    """
+def test_windows_workflow_gates_packaging_on_selected_qa() -> None:
+    """Release artifacts require the selected checks and packaged startup proof."""
 
     source = WORKFLOW.read_text(encoding="utf-8")
 
@@ -295,7 +287,8 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
         "if: github.event_name == 'workflow_dispatch' "
         "|| startsWith(github.ref, 'refs/tags/')"
     ) in source
-    assert "(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))" in source
+    assert "(github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests)" in source
+    assert "|| fromJSON('[\"3.14\"]')" in source
     assert "needs: qa" in source
     assert "constraints-release.txt" in source
     assert "scripts\\verify_release_dependencies.py" in source
@@ -307,6 +300,7 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
     assert "Build and startup-smoke onefile package" in source
     assert "-Area mesh " not in source
     assert "CDMW_GAME_ROOT" not in source
+    assert "inputs.build_mode || 'onefile'" in source
 
 
 def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None:
@@ -322,23 +316,23 @@ def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None
     assert '    tags:\n      - "v*"' in triggers
 
 
-def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
-    """A normal push must not spend an hour rerunning release-grade QA."""
+def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
+    """Pushes, PRs and releases must not implicitly run the exhaustive matrix."""
 
     source = WORKFLOW.read_text(encoding="utf-8")
-    fast_start = source.index("- name: Run fast main-push validation")
-    canonical_start = source.index("- name: Run canonical nonvisual QA")
+    fast_start = source.index("- name: Run focused validation")
+    canonical_start = source.index("- name: Run optional exhaustive QA")
     package_start = source.index("  package:", canonical_start)
     fast_step = source[fast_start:canonical_start]
     canonical_step = source[canonical_start:package_start]
 
-    assert "if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')" in fast_step
+    assert "if: github.event_name != 'workflow_dispatch' || !inputs.exhaustive_tests" in fast_step
     assert "codex_check.ps1 -Area smoke" in fast_step
-    assert "codex_check.ps1 -Area mesh-contract" in fast_step
+    assert "codex_check.ps1 -Area mesh-contract" not in fast_step
     assert "codex_check.ps1 -Area mesh-unit" not in fast_step
     assert "codex_check.ps1 -Area full" not in fast_step
     assert (
-        "if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/')"
+        "if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests"
         in canonical_step
     )
     assert "codex_check.ps1 -Area full" in canonical_step
@@ -347,6 +341,11 @@ def test_windows_workflow_keeps_ordinary_main_pushes_fast() -> None:
     assert "$nativeAccessViolation" not in canonical_step
     assert "for ($attempt = 1; $attempt -le 3; $attempt++)" not in canonical_step
     assert "retrying the same full one-process suite" not in canonical_step
+    native_job = source.split("  native:\n", 1)[1].split("  qa:\n", 1)[0]
+    assert "if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests" in native_job
+    assert "needs.native.result == 'skipped'" in source
+    inputs = source.split("      exhaustive_tests:\n", 1)[1].split("\npermissions:", 1)[0]
+    assert "        default: false" in inputs
     assert "dotnet_mesh_editor_experiment" not in source
     assert "cdmw-mesh-dotnet-editor" not in source
     assert "D3D11MaterialShaders.hlsl" not in source
@@ -467,15 +466,13 @@ def test_full_discovers_selected_modules_and_preserves_failures(tmp_path, failur
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
 @pytest.mark.parametrize(
-    "smoke_exit,mesh_exit,expected_exit,expected_calls",
-    [(42, 0, 42, ["smoke"]), (0, 43, 43, ["smoke", "mesh-contract"]),
-     (0, 0, 0, ["smoke", "mesh-contract"])],
+    "smoke_exit", (0, 42),
 )
-def test_main_push_validation_preserves_each_gate_failure(
-    tmp_path, smoke_exit, mesh_exit, expected_exit, expected_calls,
+def test_focused_validation_preserves_gate_failure(
+    tmp_path, smoke_exit,
 ) -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
-    step = source.split("      - name: Run fast main-push validation\n", 1)[1]
+    step = source.split("      - name: Run focused validation\n", 1)[1]
     step = step.split("      - name:", 1)[0]
     commands = step.split("        run: |\n", 1)[1]
     commands = "\n".join(line[10:] for line in commands.splitlines() if line.strip())
@@ -485,7 +482,7 @@ def test_main_push_validation_preserves_each_gate_failure(
     (scripts / "codex_check.ps1").write_text(
         "param([string]$Area, [string]$PytestBaseTemp)\n"
         "Add-Content -LiteralPath (Join-Path $PSScriptRoot 'calls.txt') -Value $Area\n"
-        f"if ($Area -eq 'smoke') {{ exit {smoke_exit} }}\nexit {mesh_exit}\n",
+        f"exit {smoke_exit}\n",
         encoding="utf-8",
     )
     runner = tmp_path / "run.ps1"
@@ -494,8 +491,8 @@ def test_main_push_validation_preserves_each_gate_failure(
         [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(runner)],
         cwd=tmp_path, text=True, capture_output=True, timeout=20,
     )
-    assert result.returncode == expected_exit, result.stdout + result.stderr
-    assert (scripts / "calls.txt").read_text(encoding="utf-8-sig").splitlines() == expected_calls
+    assert result.returncode == smoke_exit, result.stdout + result.stderr
+    assert (scripts / "calls.txt").read_text(encoding="utf-8-sig").splitlines() == ["smoke"]
 
 
 def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:

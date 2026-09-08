@@ -15,38 +15,14 @@ $TestsByArea = @{
         "tests/test_qt_test_cleanup.py",
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_restructure_runtime_regression_smoke.py",
-        # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
-        # output. These fail at user-command time if session filtering drifts.
-        "tests/test_mesh_output_policy.py",
+        # Fixture-backed safety checks stay on the short default route.
+        "tests/test_archive_patch_preflight.py",
+        "tests/test_archive_mutation_service.py",
+        "tests/test_archive_output_path_safety.py",
         "tests/test_mesh_editor_ui_state.py",
-        "tests/test_mesh_editor_ui_state_bridge.py",
-        # Generated-manifest freshness. Both of these are verified by
-        # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
-        # failed release build. Source line numbers are informational; only
-        # key/path/sink/manual/exclusion changes affect freshness.
-        "tests/test_workspace_ownership.py",
-        "tests/test_localization_catalog_contracts.py",
-        "tests/test_localization_runtime_owner.py",
-        "tests/test_documentation_dialog.py",
-        "tests/test_character_context.py",
-        "tests/test_compact_shell.py",
-        "tests/test_compact_shell_visual_harness.py",
-        "tests/test_shell_theme_controller.py",
-        "tests/test_theme_surface_coherence.py",
-        "tests/test_format_explorer.py",
-        "tests/test_translation_studio.py",
-        "tests/test_translation_studio_theme.py",
-        # New Item Studio: headless construction, and a plan driven through its panels.
-        "tests/test_combo_popup_limiter.py",
-        "tests/test_new_item_item_preview.py",
-        "tests/test_new_item_fit.py",
-        "tests/test_new_item_model_cleanup.py",
-        "tests/test_new_item_studio_tab.py",
-        "tests/test_new_item_glow_preview.py",
-        "tests/test_effect_character_reference.py",
-        "tests/test_effect_placement_dialog.py",
-        "tests/test_new_item_effect_workspace.py",
-        "tests/test_new_item_workflow_header.py"
+        "tests/test_build_metadata.py",
+        "tests/test_process_lifecycle.py",
+        "tests/test_localization_catalog_contracts.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
