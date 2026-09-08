@@ -278,7 +278,7 @@ class ArchiveSourceMixActionsMixin:
         dialog.setWindowTitle("Build Loose Package From Sources")
         dialog.setModal(True)
         dialog.resize(980, 520)
-        source_task_controller = source_mix_task_controller_for_guard(self, dialog)
+        source_task_controller = source_mix_task_controller_for_guard(self.shell, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)

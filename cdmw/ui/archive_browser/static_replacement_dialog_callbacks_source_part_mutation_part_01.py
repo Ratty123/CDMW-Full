@@ -229,7 +229,7 @@ def _source_part_mutation_step_003(_state):
     _state.transform_source_indices = _state.context.get('transform_source_indices')
     _state.value = _state.context.get('value')
     _state.working_copy = _state.context.get('working_copy')
-    _state.source_task_controller = _state.source_mix_task_controller_for_guard(_state.self, _state.dialog)
+    _state.source_task_controller = _state.source_mix_task_controller_for_guard(_state.self.shell, _state.dialog)
 
 def _source_part_mutation_step_004(_state):
 

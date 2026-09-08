@@ -820,6 +820,17 @@ def check_material_authority_report(
 
     all_risk_flags = tuple(_dedupe_text((*risk_flags, *derived_risk_flags)))
     active_blocking_risk_flags = set(fail_on_risk_flags)
+    if (
+        isinstance(preview_settings, Mapping)
+        and preview_settings.get("require_source_owned_colors") is False
+        and material_authority_export.get("enabled") is False
+        and not texture_outputs
+        and not sidecar_outputs
+    ):
+        # A geometry-only OBJ may omit MTL/colour because the output retains
+        # the game's materials. Keep the source warning, but only require its
+        # colour when replacing materials or textures. Final DDS checks stay on.
+        active_blocking_risk_flags.discard("source_missing_base_color")
     blocking_flags = tuple(flag for flag in all_risk_flags if flag in active_blocking_risk_flags)
     if blocking_flags:
         errors.append("Blocking material authority risk flag(s): " + ", ".join(blocking_flags))

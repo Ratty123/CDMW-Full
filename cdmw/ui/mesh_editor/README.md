@@ -3,8 +3,9 @@
 Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
 resident authoring workspace, and output orchestration. Archive internals and
 destructive writes stay outside this UI package. Static-replacement builder
-hosting remains compatibility-only and is not reachable from normal Mesh Editor
-or Archive Browser UI.
+hosting remains compatibility-only in this tab. Archive Browser exposes
+**Import > Replace Mesh from File...** in a separate replacement window; opening
+it does not replace the active Mesh Editor session.
 
 The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,

@@ -42,7 +42,7 @@ def create_alignment_source_mix_callbacks(context: dict[str, object]) -> SimpleN
     add_mod_archive_source_button = context.get('add_mod_archive_source_button')
     source_mix_control_text = context.get('source_mix_control_text')
     source_mix_status_label = context.get('source_mix_status_label')
-    source_task_controller = source_mix_task_controller_for_guard(self, dialog)
+    source_task_controller = source_mix_task_controller_for_guard(self.shell, dialog)
 
     def _set_source_controls_enabled(enabled: bool) -> None:
         for button in (

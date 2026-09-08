@@ -207,26 +207,9 @@ class ArchiveMeshPatchFlowMixin:
             return
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
-        setup_title_key = f"{setup.placement_review_title} {setup.source_label}".casefold()
-        mesh_editor_mode = (
-            "modify_original"
-            if "modify original" in setup_title_key
-            else "in_game_swap"
-            if "swap" in setup_title_key
-            else "external_import"
-        )
-        self.shell._open_mesh_editor_for_entry(
-            entry,
-            mode=mesh_editor_mode,
-            source_path=scene_path_obj,
-            source_skeleton=setup.source_skeleton,
-            supplemental_files=setup.supplemental_files,
-            scene_import_result=setup.scene_import_result,
-            # A static replacement is mounted inside the Mesh Editor only
-            # after its asynchronous preflight and builder construction finish.
-            # Keep Archive Browser visible until that complete surface exists.
-            activate=import_mode != "static_replacement",
-        )
+        # Replacement owns its modeless Builder and export review. Opening a
+        # Mesh Editor session here now loads the original archive mesh and can
+        # replace an unrelated active edit session before the import is ready.
         build_entry = entry
         if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
             self.shell.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))
@@ -925,7 +908,7 @@ class ArchiveMeshPatchFlowMixin:
                 runtime_export_target_entry=build_entry,
                 full_import_model_replacement=bool(setup.full_import_model_replacement),
                 materials_and_textures_only=bool(setup.materials_and_textures_only),
-                embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None,
+                embedded_host=None,
                 continue_build_callback=_start_build_with_static_options,
             )
             return

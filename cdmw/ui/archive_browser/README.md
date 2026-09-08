@@ -4,6 +4,26 @@ Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
 
+To replace an existing mesh, select its PAC/PAM/PAMLOD in Browse Archives, then
+choose **Import > Replace Mesh from File...** (also available by right-clicking
+the mesh). Choose the OBJ, DAE, GLB or glTF source, use **Mesh Replacement** in
+the setup dialog, review alignment/mapping in Mesh Replacement Builder, and
+build a mod-ready loose package. **Round-trip edit** is for an OBJ exported by
+CDMW whose original mesh structure is preserved. Unsupported target formats
+remain blocked by preflight. Replacement opens its own window and preserves
+any active Mesh Editor session.
+
+For a geometry-only OBJ without MTL/textures, turn off **Complete source-owned
+mesh/material swap** in the builder to keep the target's existing materials. A
+missing source colour remains a review warning in this mode; missing final textures still
+block export. Keep the complete-swap mode enabled when replacing materials too,
+and provide the model's MTL/textures alongside its OBJ.
+
+**Import Loose Mod Folder...** scans already prepared game-format mod files and
+matches them to archive entries; it does not convert OBJ models. Source scans
+and replacement source imports use the main window's background utility worker,
+with the requesting workspace/dialog retained as their result-lifetime guard.
+
 The Tools menu and archive-file context menu temporarily omit HKX actions.
 The underlying HKX editor and import/export code remain available for other workflows.
 

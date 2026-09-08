@@ -135,6 +135,12 @@ class ArchiveBrowserActionControlsMixin:
             mesh_reason,
         )
         self._set_action_button_state(
+            self.archive_model_import_mesh_button,
+            controls_enabled and can_mesh_actions,
+            "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package.",
+            mesh_reason,
+        )
+        self._set_action_button_state(
             self.archive_appearance_composite_button,
             controls_enabled and can_appearance_composite,
             "Preview a read-only app XML appearance composite or selected prefab/socket model evidence. "

@@ -47,6 +47,8 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Archive action menus remove the file-dialog ellipsis from this label.
+        "Replace Mesh from File",
         # Shared preview combo labels arrive through imported option tables.
         # Keep their Qt translations independent of the help's wording.
         "Solid (Textured)", "Faces (No Textures)", "Faces + Wire", "Wire",

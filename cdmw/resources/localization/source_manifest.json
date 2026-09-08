@@ -42127,6 +42127,26 @@
       ]
     },
     {
+      "key": "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/action_controls.py",
+          "line": 137,
+          "sink": "_set_action_button_state"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 472,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_layout.py",
+          "line": 224,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Import an edited mesh package and run validation before rebuild.",
       "origins": [
         {
@@ -80373,6 +80393,26 @@
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
           "line": 595,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Replace Mesh from File",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Replace Mesh from File...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 471,
+          "sink": "addAction"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/preview_layout.py",
+          "line": 223,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -124903,6 +124943,11 @@
           "path": "cdmw/ui/archive_browser/action_controls.py",
           "line": 131,
           "sink": "_set_action_button_state"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/action_controls.py",
+          "line": 137,
+          "sink": "_set_action_button_state"
         }
       ]
     },
@@ -128036,7 +128081,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/action_controls.py",
-          "line": 144,
+          "line": 143,
           "sink": "_set_action_button_state"
         },
         {
@@ -128077,6 +128122,11 @@
         {
           "path": "cdmw/ui/archive_browser/action_controls.py",
           "line": 192,
+          "sink": "_set_action_button_state"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/action_controls.py",
+          "line": 198,
           "sink": "_set_action_button_state"
         },
         {

@@ -109,6 +109,7 @@ class ShellSignalWiringMixin:
             lambda: self._export_current_archive_mesh("fbx")
         )
         self.archive.archive_model_open_mesh_editor_button.clicked.connect(self._open_current_archive_mesh_editor)
+        self.archive.archive_model_import_mesh_button.clicked.connect(self.archive._patch_current_archive_mesh_from_obj)
         self.archive.archive_appearance_composite_button.clicked.connect(self.archive._open_current_archive_appearance_composite_preview)
         self.archive.archive_hkx_export_json_button.clicked.connect(self.archive._export_current_archive_hkx_json)
         self.archive.archive_hkx_import_json_button.clicked.connect(self.archive._import_current_archive_hkx_json)

@@ -74,7 +74,7 @@ class ArchiveSourceMixOverlayMixin:
                 return
             scan_root = Path(selected_dir)
             controller = source_mix_task_controller_for_guard(
-                self,
+                self.shell,
                 self,
                 attribute="_source_mix_overlay_scan_controller",
             )

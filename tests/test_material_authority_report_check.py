@@ -140,6 +140,39 @@ def _source_section(
 
 
 class MaterialAuthorityReportCheckTests(unittest.TestCase):
+    def test_geometry_only_obj_can_retain_target_materials_without_source_color(self) -> None:
+        report = _report(
+            preview_settings={"require_source_owned_colors": False, "material_authority_export": {"enabled": False}},
+            texture_outputs=[], sidecar_outputs=[], sidecar_reports=[], routing=[],
+            risk_flags=["source_missing_base_color"],
+        )
+        result = check_material_authority_report(report)
+        self.assertNotEqual("failed", result["status"])
+        self.assertIn("source_missing_base_color", result["review_risk_flags"])
+        self.assertNotIn("source_missing_base_color", result["blocking_risk_flags"])
+
+    def test_missing_source_color_still_blocks_material_outputs_or_unknown_authority(self) -> None:
+        for overrides in (
+            {"preview_settings": {"require_source_owned_colors": True}, "texture_outputs": [], "sidecar_outputs": []},
+            {"preview_settings": {"require_source_owned_colors": False}},
+            {"preview_settings": {"require_source_owned_colors": False}, "texture_outputs": [], "sidecar_outputs": []},
+            {"preview_settings": {"require_source_owned_colors": False, "material_authority_export": {"enabled": True}}, "texture_outputs": [], "sidecar_outputs": []},
+            {"preview_settings": {}, "texture_outputs": [], "sidecar_outputs": []},
+        ):
+            with self.subTest(overrides=overrides):
+                result = check_material_authority_report(_report(risk_flags=["source_missing_base_color"], **overrides))
+                self.assertEqual("failed", result["status"])
+                self.assertIn("source_missing_base_color", result["blocking_risk_flags"])
+
+    def test_geometry_only_export_still_blocks_missing_final_texture(self) -> None:
+        result = check_material_authority_report(_report(
+            preview_settings={"require_source_owned_colors": False, "material_authority_export": {"enabled": False}},
+            texture_outputs=[], sidecar_outputs=[], sidecar_reports=[], routing=[],
+            risk_flags=["source_missing_base_color", "missing_final_dds"],
+        ))
+        self.assertEqual("failed", result["status"])
+        self.assertIn("missing_final_dds", result["blocking_risk_flags"])
+
     def test_passes_clean_report(self) -> None:
         result = check_material_authority_report(_report())
 

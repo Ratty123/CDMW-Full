@@ -78,7 +78,6 @@ class ArchiveImportActionsMixin:
         if current_entry is None:
             self.shell.set_status_message("Select a supported archive mesh before importing an OBJ.", error=True)
             return
-        self.shell._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
         self._start_archive_mesh_patch(current_entry)
 
     def _full_import_current_archive_model_replacement(self) -> None:

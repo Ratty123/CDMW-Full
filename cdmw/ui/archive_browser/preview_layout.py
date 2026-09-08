@@ -220,6 +220,11 @@ class ArchivePreviewLayoutMixin:
             "Open the selected archive mesh directly in the resident mesh-authoring workspace."
         )
         self.archive_model_open_mesh_editor_button.setEnabled(False)
+        self.archive_model_import_mesh_button = QPushButton("Replace Mesh from File...")
+        self.archive_model_import_mesh_button.setToolTip(
+            "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package."
+        )
+        self.archive_model_import_mesh_button.setEnabled(False)
         self.archive_hkx_export_json_button = QPushButton("Export HKX JSON...")
         self.archive_hkx_export_json_button.setToolTip(
             "Export a documented editable JSON patch for decoded Crimson Desert HKX geometry."
@@ -372,6 +377,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_import_menu_button = _make_archive_action_menu_button(
             "Import",
             (
+                ("Replace Mesh from File", self.archive_model_import_mesh_button),
                 ("Import Loose Mod Folder", self.archive_import_loose_mod_button),
                 ("Import HKX JSON", self.archive_hkx_import_json_button),
                 ("Import HKX XML", self.archive_hkx_import_xml_button),
@@ -501,6 +507,7 @@ class ArchivePreviewLayoutMixin:
             self.archive_action_export_family_button,
             self.archive_action_character_dependency_button,
             self.archive_model_open_mesh_editor_button,
+            self.archive_model_import_mesh_button,
             self.archive_appearance_composite_button,
             self.archive_hkx_export_json_button,
             self.archive_hkx_import_json_button,

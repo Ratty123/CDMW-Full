@@ -11,6 +11,11 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- Browse Archives exposes **Replace Mesh from File...** in its Import menu and mesh context menu. OBJ and other supported model imports open the replacement builder without replacing an active Mesh Editor session.
+- **Import Loose Mod Folder...** and replacement source pickers use the main window's background task runner, fixing the erroneous "Background source processing is unavailable in this window" failure.
+- Geometry-only mesh replacements can retain the target's materials when the imported OBJ has no MTL or base colour. Full material replacement and missing final-texture checks remain enforced.
+
 ## [0.11.0-alpha.12] - 2026-09-08
 
 ### Fixed

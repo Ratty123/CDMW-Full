@@ -296,9 +296,9 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         self.assertEqual(1, len(preview_shell.utility_tasks))
         self.assertEqual(1, len(patch_shell.utility_tasks))
         self.assertIn("Rebuilding mesh preview for body.pac", str(patch_shell.utility_tasks[0]["status_message"]))
-        self.assertEqual(rebuilt_path, patch_shell.opened[0]["source_path"])
+        self.assertEqual([], patch_shell.opened)
 
-    def test_modify_original_preset_opens_mesh_editor_in_modify_original_mode(self) -> None:
+    def test_modify_original_preset_opens_builder_without_replacing_editor(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             clone_path = root / "modify-original.obj"
@@ -323,9 +323,9 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
 
             shell._start_archive_mesh_patch(entry, preset_setup=setup)
 
-        self.assertEqual("modify_original", shell.opened[0]["mode"])
-        self.assertEqual(clone_path, shell.opened[0]["source_path"])
-        self.assertFalse(shell.opened[0]["activate"])
+        self.assertEqual([], shell.opened)
+        self.assertEqual(clone_path, shell.static_prompts[0]["scene_path"])
+        self.assertEqual("Modify Original Geometry", shell.static_prompts[0]["dialog_title"])
 
 
 if __name__ == "__main__":

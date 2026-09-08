@@ -468,6 +468,14 @@ class ArchiveBrowserActionMixin:
             )
             _add_menu_section("mesh", "Mesh Edit")
             open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
+            replace_mesh_action = menu.addAction(menu_icons["mesh"], "Replace Mesh from File...")
+            replace_mesh_action.setToolTip(
+                "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package."
+            )
+            replace_mesh_action.setEnabled(not self.shell._background_task_active())
+            replace_mesh_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
+            )
 
         if entry.extension in {".meshinfo", ".motionblending", ".paa", ".paa_metabin", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage", ".prefab", ".pappt", ".pamhc", ".seqmt"}:
             _add_menu_section("data", "Structured Data")
