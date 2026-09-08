@@ -804,11 +804,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_embedded_dotnet_honors_disabled_setting(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp:
-            exe_path = Path(tmp) / "cdmw-mesh-dotnet-editor.exe"
+            exe_path = Path(tmp) / "cdmw_mesh_lab.exe"
             exe_path.write_text("", encoding="utf-8")
             settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetDisabledSetting")
             settings.clear()
-            settings.setValue("mesh_editor/dotnet_experiment_executable", str(exe_path))
+            settings.setValue("mesh_editor/rust_mesh_editor_executable", str(exe_path))
             settings.setValue("mesh_editor/use_embedded_dotnet_viewport", False)
             tab = MeshEditorTab(settings=settings)
             builder = _EmbeddedMeshBuilder()
@@ -829,11 +829,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
     def test_embedded_dotnet_auto_start_enabled_by_default_when_helper_available(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as tmp:
-            exe_path = Path(tmp) / "cdmw-mesh-dotnet-editor.exe"
+            exe_path = Path(tmp) / "cdmw_mesh_lab.exe"
             exe_path.write_text("", encoding="utf-8")
             settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetDefaultEnabled")
             settings.clear()
-            settings.setValue("mesh_editor/dotnet_experiment_executable", str(exe_path))
+            settings.setValue("mesh_editor/rust_mesh_editor_executable", str(exe_path))
             tab = MeshEditorTab(settings=settings)
             builder = _EmbeddedMeshBuilder()
 

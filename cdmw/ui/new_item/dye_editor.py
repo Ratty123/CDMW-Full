@@ -129,7 +129,7 @@ class DyeEditor(QGroupBox):
                 data = getattr(supplemental,"payload_data",b"")
                 if data:
                     payloads[str(supplemental.target_path)] = data
-            from cdmw.core.item_dye_material import material_dye_bindings
+            from cdmw.services.new_item_dyes import material_dye_bindings
             names = set()
             for path,data in payloads.items():
                 if str(path).casefold().endswith(".pac_xml") and isinstance(data,bytes):

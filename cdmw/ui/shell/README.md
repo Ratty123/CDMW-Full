@@ -15,7 +15,8 @@ Lazy tools reveal an indeterminate progress bar immediately, preload only Qt-fre
 data dependencies on a tracked low-priority thread, then import their UI module,
 construct the widget, and apply presentation in separate GUI turns. Tool-specific
 I/O remains in its owning workers, and shell shutdown retains both preload and
-feature threads until native teardown completes.
+feature threads until native teardown completes. Translation and language-export
+property inspection must not construct unopened lazy tools.
 Archive Browser's compact Select, Actions, and More Filters triggers retain their
 existing routing while rendering normal, hover, pressed/open-menu, focus, and
 disabled button states.

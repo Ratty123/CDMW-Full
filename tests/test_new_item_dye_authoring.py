@@ -12,7 +12,7 @@ from cdmw.core.partprefab_dye_table import (
     parse_prefab_dye_row, parse_prefab_dye_table,
 )
 from cdmw.domain.new_item.authoring import DyeAssignment
-from cdmw.services.new_item_dyes import prepare_dye_assignments
+from cdmw.services.new_item_dyes import prepare_dye_assignments, prepare_dye_preview_table
 from cdmw.services.new_item_mod_base import build_mod_base_snapshot
 from cdmw.services.new_item_variants import xml_path
 from tests.test_multichangeinfo_table import _table
@@ -53,6 +53,17 @@ def test_dye_roundtrip_and_explicit_property_mask_mapping():
         prepare_dye_assignments(row,material("Custom"),material(),assignments,imported=True)
     with pytest.raises(ValueError,match="property 3"):
         prepare_dye_assignments(row,material("custom",(0,3)),material(),assignments,imported=True,mask_paths={"custom":"x.dds"})
+
+
+def test_preview_table_replaces_only_the_selected_dye_row():
+    row = dye_row()
+    other = row.for_model("character/model/other.pac")
+    payload, header = _table([(value.key, encode_prefab_dye_row(value)) for value in (row, other)])
+    index = SimpleNamespace(pair=SimpleNamespace(payload=payload, header=header))
+    parts = (replace(row.submeshes[0], slots=(4, 3, 2)),)
+    prepared, prepared_header = prepare_dye_preview_table(index, row, parts)
+    assert parse_prefab_dye_table(prepared, prepared_header) == (replace(row, submeshes=parts), other)
+    assert parse_prefab_dye_table(payload, header) == (row, other)
 
 
 def test_dye_variant_export_survives_second_item_base(tmp_path):
@@ -131,7 +142,7 @@ def test_template_dye_preview_ignores_retained_inactive_import(tmp_path):
     controller.select_variant(identity)
     controller.model_result=SimpleNamespace(rebuilt_data=b"retained custom model")
     controller.set_variant_dyes(())
-    with patch("cdmw.modding.mesh_parser.parse_pac") as parse:
+    with patch("cdmw.services.mesh_workflow_service.parse_pac") as parse:
         _token,preview=variant_dye_preview_source(controller)
         preview.geometry(threading.Event())
     assert parse.call_args.args[0]==snapshot.payload(identity[1])

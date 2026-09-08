@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
     QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
-from cdmw.core.item_recipe_links import connected_recipe_keys
+from cdmw.services.new_item_recipes import connected_recipe_keys
 from cdmw.domain.new_item.authoring import RecipeInput, RecipeOutput, RecipeOverride
 from cdmw.ui.new_item.ui_kit import compact_table_height
 

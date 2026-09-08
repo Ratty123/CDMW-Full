@@ -1694,12 +1694,12 @@ class UiLocalizer(QObject):
                 ("placeholderText", "placeholder"),
                 ("windowTitle", "window_title"),
             ):
-                getter = getattr(widget, attr_name, None)
-                if callable(getter):
-                    try:
+                try:
+                    getter = object.__getattribute__(widget, attr_name)
+                    if callable(getter):
                         add(source_or_current(widget, property_name, getter()))
-                    except Exception:
-                        pass
+                except Exception:
+                    pass
             if isinstance(widget, QTabWidget):
                 for index in range(widget.count()):
                     source = widget.property(f"_i18n_tab_source_{index}")
@@ -1912,8 +1912,10 @@ class UiLocalizer(QObject):
         try:
             # Even the attribute lookup raises once the C++ object behind a live
             # Python wrapper is gone, so it belongs inside the guard.
-            getter = getattr(obj, getter_name, None)
-            setter = getattr(obj, setter_name, None)
+            # Inspect this widget's own properties without triggering a lazy
+            # proxy's __getattr__, which can construct an unopened tool.
+            getter = object.__getattribute__(obj, getter_name)
+            setter = object.__getattribute__(obj, setter_name)
             if not callable(getter) or not callable(setter):
                 return
             source = self._source_property(obj, property_name, getter())
@@ -2037,14 +2039,12 @@ class UiLocalizer(QObject):
         )
 
     def _apply_empty_state(self, widget: QWidget) -> None:
-        if not (
-            hasattr(widget, "empty_title")
-            and hasattr(widget, "empty_detail")
-        ):
+        try:
+            values = {name: object.__getattribute__(widget, name) for name in ("empty_title", "empty_detail")}
+        except AttributeError:
             return
         changed = False
-        for attribute_name in ("empty_title", "empty_detail"):
-            current = getattr(widget, attribute_name, None)
+        for attribute_name, current in values.items():
             if not isinstance(current, str):
                 continue
             source = self._indexed_source(

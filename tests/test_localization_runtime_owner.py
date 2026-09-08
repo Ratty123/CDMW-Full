@@ -5,9 +5,10 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
 from cdmw.ui.localization import UiLocalizer
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
 
 
 _APPLICATION: QApplication | None = None
@@ -40,3 +41,24 @@ def test_runtime_tracking_transfers_the_single_application_owner(tmp_path: Path)
     first_root.deleteLater()
     second_root.deleteLater()
     app.processEvents()
+
+
+def test_applying_and_collecting_translations_do_not_construct_lazy_tools(tmp_path: Path) -> None:
+    app = _app()
+    root = QWidget()
+    created: list[QWidget] = []
+    lazy = LazyToolTab(lambda: created.append(QWidget()) or created[-1])
+    lazy.setToolTip("Cancel")
+    QVBoxLayout(root).addWidget(lazy)
+    localizer = UiLocalizer(language_dir=tmp_path, language_code="fr")
+    try:
+        localizer.apply(root)
+        sources = localizer.collect_source_strings(root)
+        assert created == []
+        assert lazy.widget_if_created() is None
+        assert lazy.toolTip() == localizer.translate("Cancel")
+        assert "Cancel" in sources
+    finally:
+        localizer.shutdown()
+        root.deleteLater()
+        app.processEvents()

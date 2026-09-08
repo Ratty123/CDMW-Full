@@ -5,7 +5,7 @@ from types import MappingProxyType
 
 from cdmw.core.item_dye_material import material_dye_bindings, has_dye_wiring, copy_dye_materials
 from cdmw.core.partprefab_dye_table import parse_prefab_dye_table, encode_prefab_dye_row
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table, replace_table_row
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_acquisition_index import optional_pair
 from cdmw.services.new_item_provenance import _stamp, StaleNewItemSource
@@ -52,6 +52,12 @@ def load_dye_index(snapshot, *, stop_event=None):
     result = DyeIndex(pair,MappingProxyType({row.model_path.casefold():row for row in rows}))
     snapshot._authoring_indexes["dyes"] = result
     return result
+
+
+def prepare_dye_preview_table(index, row, parts):
+    """Replace only the selected dye row in the disposable preview table."""
+    return replace_table_row(index.pair.payload, index.pair.header, row.key,
+                             encode_prefab_dye_row(replace(row, submeshes=parts)))
 
 
 def prepare_dye_assignments(source_row, material, source_material, assignments, *, imported, mask_paths=None):

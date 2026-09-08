@@ -407,6 +407,7 @@ class LazyToolTabTests(unittest.TestCase):
                     "settings.setValue('ui/shell_variant', 'compact_rail')",
                     "context = AppContext(settings, ServiceContainer.create_default(settings=settings), AppEventBus())",
                     "window = MainWindow(app_context=context)",
+                    "window.show_first_run_guide_on_launch = False",
                     "window.show(); app.processEvents()",
                     "keys = ('archive_browser','model_library','item_icons','new_item_studio','texture_workflow','replace_assistant','recolor_variants','texture_editor','mod_package_retrofit','format_explorer','translation_studio','research','text_search','mesh_editor','placement_studio','settings')",
                     "assert set(keys) == set(window._tool_widgets_by_key)",

@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.spec import MaterialRoute
-from cdmw.services.new_item_dyes import load_dye_index, prepare_dye_assignments, dye_mask_revision, read_dye_mask
+from cdmw.services.new_item_dyes import load_dye_index, prepare_dye_assignments, prepare_dye_preview_table, dye_mask_revision, read_dye_mask
 from cdmw.services.new_item_variants import xml_path, variant_family
 from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
 
@@ -42,14 +42,12 @@ def variant_dye_preview_source(controller):
         return route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,glow=choice.glow_choice())
 
     def geometry(stop_event):
-        from cdmw.modding.mesh_parser import parse_pac
+        from cdmw.services.mesh_workflow_service import parse_pac
         raise_if_cancelled(stop_event)
         payload = bytes(getattr(result,"rebuilt_data",b"") or getattr(result,"pac_data",b"")) if result is not None else snapshot.payload(choice.model_path)
         return parse_pac(payload,choice.model_path)
 
     def materials(stop_event,**context):
-        from cdmw.core.partprefab_dye_table import encode_prefab_dye_row
-        from cdmw.core.structured_binary_editor import replace_table_row
         from cdmw.ui.new_item.template_preview_cache import build_native_template_preview
         raise_if_cancelled(stop_event)
         if context.get("output_root") is None or context.get("native_preview_core_cache_root") is None:
@@ -73,7 +71,7 @@ def variant_dye_preview_source(controller):
         parts,material = prepare_dye_assignments(row,payloads.get(material_path,snapshot.payload(material_path)),
             snapshot.payload(material_path),choice.dyes,imported=choice.custom_model,mask_paths=masks)
         payloads[material_path] = material
-        body,header = replace_table_row(index.pair.payload,index.pair.header,row.key,encode_prefab_dye_row(replace(row,submeshes=parts)))
+        body,header = prepare_dye_preview_table(index,row,parts)
         payloads[index.pair.payload_entry.path],payloads[index.pair.header_entry.path] = body,header
         with TemporaryDirectory(prefix="cdmw-dye-preview-") as directory:
             prepared = []

@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- Applying interface translations or exporting language strings no longer constructs unopened tools through their lazy placeholders.
+
 ## [0.11.0-alpha.11] - 2026-09-08
 
 ### Added
