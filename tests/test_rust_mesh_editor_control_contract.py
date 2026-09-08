@@ -24,6 +24,19 @@ COMPARISON_FIELDS = (
 
 
 def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> None:
+    # A cold CI compile is not part of the control-query response budget.
+    build = subprocess.run(
+        ("cargo", "build", "--locked", "--quiet", "-p", "cdmw_mesh_lab"),
+        cwd=RUST_ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        env=dict(os.environ),
+        text=True,
+        timeout=600,
+        check=False,
+    )
+    assert build.returncode == 0, build.stderr
     with tempfile.TemporaryDirectory(prefix="cdmw-rust-control-contract-") as temporary:
         temporary_root = Path(temporary)
         rust_report = temporary_root / "rust.json"
@@ -45,7 +58,7 @@ def test_rust_v2_contract_is_generated_only_from_compiled_rust_controls() -> Non
             stderr=subprocess.PIPE,
             env=dict(os.environ),
             text=True,
-            timeout=180,
+            timeout=30,
             check=False,
         )
         assert rust.returncode == 0, rust.stderr

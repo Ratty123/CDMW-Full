@@ -41,6 +41,8 @@ nonblocking calls directly instead of imposing wall-clock limits on shared runne
 Dedicated Rust Mesh Editor changes start with the exact owning shadow, embedding,
 control-contract, or output tests. `mesh-contract` covers the Python/Rust helper protocols and runs
 `scripts/test_rust_mesh_lab.ps1`; inspect that script for its current Rust scope.
+The compiled control-contract check budgets cold Rust compilation separately
+from the contract query, so a slow build cannot consume the query's deadline.
 `mesh-native` builds and checks the C++ native interaction ABI and bridge
 contracts. Historical filenames do not identify the production renderer. `-Area mesh-unit` remains
 the explicit broad nonvisual aggregate for CI, release confidence, or a
