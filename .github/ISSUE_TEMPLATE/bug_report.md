@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a crash, preview failure, workflow problem, or regression
+about: Report a problem with CDMW
 title: "[Bug] "
 labels: bug
 assignees: ""
@@ -10,10 +10,9 @@ assignees: ""
 
 Describe the problem in one or two sentences.
 
-## Version
+## CDMW Version
 
-- App version:
-- Portable EXE or source run:
+Version:
 
 ## Steps To Reproduce
 
@@ -29,17 +28,9 @@ What should have happened?
 
 What happened instead?
 
-## Relevant Details
+## Screenshots Or Logs (Optional)
 
-- Workflow or tab involved:
-- File type/path involved:
-- Backend used, if any:
-- Did it happen with archive files, loose files, or both?
+Add screenshots or relevant log output if helpful. Remove personal paths and
+sensitive information before posting.
 
-## Logs / Crash Details
-
-Paste any useful log output, traceback, or crash-report details here.
-
-## Screenshots
-
-If useful, add screenshots here.
+For security-sensitive reports, follow [our security policy](https://github.com/Ratty123/CDMW-Full/security/policy).
