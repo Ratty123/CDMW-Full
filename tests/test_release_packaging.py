@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+from fnmatch import fnmatchcase
 from importlib import metadata
 from pathlib import Path
 
@@ -27,6 +28,7 @@ SPEC = ROOT / "CrimsonDesertModWorkbench.spec"
 STARTUP_VERIFIER = ROOT / "scripts" / "verify_packaged_startup.ps1"
 ARCHIVE_BACKEND_RELEASE_HELPER = ROOT / "scripts" / "full_archive_backend_release.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-build.yml"
+CODEQL_WORKFLOW = ROOT / ".github" / "workflows" / "codeql.yml"
 POWERSHELL = shutil.which("powershell.exe")
 
 
@@ -316,6 +318,44 @@ def test_windows_workflow_runs_only_for_code_events_or_manual_dispatch() -> None
     assert '    tags:\n      - "v*"' in triggers
 
 
+@pytest.mark.parametrize("workflow", (WORKFLOW, CODEQL_WORKFLOW), ids=("windows", "codeql"))
+def test_ci_path_filters_skip_docs_and_templates_but_keep_code(workflow: Path) -> None:
+    source = workflow.read_text(encoding="utf-8")
+    for event in ("push", "pull_request"):
+        event_body = source.split(f"  {event}:\n", 1)[1]
+        event_body = re.split(r"^  [a-z_]+:", event_body, maxsplit=1, flags=re.MULTILINE)[0]
+        filters = event_body.split("    paths-ignore:\n", 1)[1]
+        patterns = re.findall(r'^      - "([^"]+)"$', filters, flags=re.MULTILINE)
+        assert patterns
+
+        def ignored(path: str) -> bool:
+            return any(
+                fnmatchcase(path, pattern) or
+                (pattern.startswith("**/") and fnmatchcase(path, pattern[3:]))
+                for pattern in patterns
+            )
+
+        for path in ("README.md", "tests/README.md", "docs/example.rst",
+                     ".github/ISSUE_TEMPLATE/bug_report.md", ".github/ISSUE_TEMPLATE/config.yml",
+                     ".github/PULL_REQUEST_TEMPLATE/change.yml"):
+            assert ignored(path), path
+        for path in ("cdmw/ui/bug_report_dialog.py", "native/helper.cpp", "tools/editor.rs",
+                     "tools/worker.cs", "requirements.txt", "native/CMakeLists.txt",
+                     "build_pyside6_app.ps1", ".github/workflows/codeql.yml"):
+            assert not ignored(path), path
+            assert not all(map(ignored, ("README.md", path)))
+
+
+def test_codeql_workflow_preserves_security_coverage_without_compilation() -> None:
+    source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+    assert "language: [actions, c-cpp, csharp, python, rust]" in source
+    assert "build-mode: none" in source
+    assert "security-events: write" in source
+    assert "  workflow_dispatch:" in source
+    assert "  schedule:" in source
+    assert "pull_request_target" not in source
+
+
 def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
     """Pushes, PRs and releases must not implicitly run the exhaustive matrix."""
 
@@ -496,7 +536,7 @@ def test_focused_validation_preserves_gate_failure(
 
 
 def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
-    source = WORKFLOW.read_text(encoding="utf-8")
+    source = "\n".join(path.read_text(encoding="utf-8") for path in (WORKFLOW, CODEQL_WORKFLOW))
     approved = {
         "actions/cache": "0057852bfaa89a56745cba8c7296529d2fc39830",
         "actions/checkout": "fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09",
@@ -504,6 +544,8 @@ def test_windows_workflow_uses_only_approved_action_commit_shas() -> None:
         "actions/setup-dotnet": "26b0ec14cb23fa6904739307f278c14f94c95bf1",
         "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
         "actions/upload-artifact": "b7c566a772e6b6bfb58ed0dc250532a479d7789f",
+        "github/codeql-action/init": "cdf488f595d80d6e07e03d4674febd5ab45fa938",
+        "github/codeql-action/analyze": "cdf488f595d80d6e07e03d4674febd5ab45fa938",
         "signpath/github-action-submit-signing-request": "c92b958760219087e01f8d67a1669ed57afe2627",
     }
     references = re.findall(r"^\s*uses:\s+([^@\s]+)@([^#\s]+)", source, flags=re.MULTILINE)
