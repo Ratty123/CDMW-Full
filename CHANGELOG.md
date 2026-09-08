@@ -96,6 +96,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- **New Item cancels queued callbacks when their widgets are destroyed.** Pending effect-toolbar resize and post-install refresh callbacks no longer access deleted controls during shutdown.
 - **Effect variant filtering handles crafted names without freezing the interface.** Family grouping now scans suffixes once while preserving existing results. Build dependencies use pip 26.2 to fix doubly decoded package download paths (CVE-2026-13346).
 - **Upscale controls fit expanded sections and larger interface fonts.** The sidebar can grow past its old width cap, and the preview yields space in narrow windows.
 - New Item Distribution sizes itself to the active route tab, so hidden reward controls no longer force unnecessary outer scrolling on the Shops and groups page at 1280x720.

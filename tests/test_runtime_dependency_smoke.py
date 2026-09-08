@@ -153,7 +153,9 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
 
     def test_gui_startup_smoke_lock_collision_is_not_success(self) -> None:
         from cdmw.app import bootstrap
+        from cdmw.services.process_job_service import app_lifetime_job_is_bound
 
+        job_was_bound = app_lifetime_job_is_bound()
         with tempfile.TemporaryDirectory() as temp_dir:
             result_path = Path(temp_dir) / "gui-startup-result.json"
             with (
@@ -168,11 +170,14 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
                 patch("cdmw.app.bootstrap.acquire_single_instance_guard", return_value=False),
                 patch("cdmw.app.bootstrap.request_existing_instance_activation") as activate,
                 patch("cdmw.app.bootstrap.update_pyinstaller_boot_splash"),
+                patch("cdmw.app.bootstrap.bind_process_tree_to_app_lifetime"),
+                patch("cdmw.app.bootstrap._reap_stranded_helpers"),
             ):
                 exit_code = bootstrap.main([])
             payload = json.loads(result_path.read_text(encoding="utf-8"))
 
         self.assertEqual(3, exit_code)
+        self.assertEqual(job_was_bound, app_lifetime_job_is_bound())
         self.assertIs(False, payload.get("ok"))
         self.assertEqual("single_instance_guard", payload.get("stage"))
         activate.assert_not_called()

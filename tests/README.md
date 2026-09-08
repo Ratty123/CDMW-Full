@@ -35,6 +35,13 @@ runs only for tags or manual dispatch. There is no nightly schedule. CI excludes
 Each gate's exit code is checked before continuing, so a later successful gate
 cannot hide an earlier failure. Async shutdown tests verify worker ownership and
 nonblocking calls directly instead of imposing wall-clock limits on shared runners.
+The shared pytest teardown drains requested Qt deletions and shuts down
+QApplication before Python exits. A subprocess regression checks both the
+session cleanup and the final process status, since a passing pytest summary
+does not rule out a later crash in the offscreen platform plugin.
+Smoke and Mesh unit gates run each complete test module in a fresh interpreter
+to contain accumulated Qt state. Every module's process exit must succeed
+before the next module starts; no tests are skipped or failures retried.
 
 ## Mesh Editor gates
 

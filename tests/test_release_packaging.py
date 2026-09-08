@@ -375,7 +375,43 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
     assert "test_dotnet_mesh_editor_control_contract.py" not in source
     assert "test_dotnet_native_mesh_interaction_abi.py" not in source
     assert "$NeedsDotNetHelper" not in source
-    assert '$Area -in @("smoke", "mesh-unit")' not in source
+    assert '$NeedsMeshCore = $Area -in @("mesh-native", "mesh-unit")' in source
+
+
+@pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
+@pytest.mark.parametrize("fail_second_module", (False, True))
+def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_path, fail_second_module):
+    source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
+    smoke = source.split("    smoke = @(\n", 1)[1].split("    )", 1)[0]
+    modules = re.findall(r'"(tests/[^"\n]+\.py)"', smoke)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "codex_check.ps1").write_text(source, encoding="utf-8")
+    for module in modules:
+        target = tmp_path / module
+        target.parent.mkdir(exist_ok=True)
+        target.touch()
+    failure_path = modules[1] if fail_second_module else ""
+    runner = tmp_path / "run.ps1"
+    runner.write_text(
+        "$global:moduleCalls = Join-Path $PSScriptRoot 'calls.jsonl'\n"
+        "function global:python {\n"
+        "    $modules = @($args | Where-Object { $_ -like 'tests/*.py' })\n"
+        "    ConvertTo-Json -InputObject $modules -Compress | Add-Content -LiteralPath $global:moduleCalls\n"
+        f"    $global:LASTEXITCODE = if ($modules -contains '{failure_path}') {{ 47 }} else {{ 0 }}\n"
+        "}\n"
+        "& (Join-Path $PSScriptRoot 'scripts/codex_check.ps1') -Area smoke\n"
+        "exit $LASTEXITCODE\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(runner)],
+        cwd=tmp_path, text=True, capture_output=True, timeout=20,
+    )
+    calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text(encoding="utf-8-sig").splitlines()]
+    expected_modules = modules[:2] if fail_second_module else modules
+    assert calls == [[module] for module in expected_modules]
+    assert result.returncode == (47 if fail_second_module else 0), result.stdout + result.stderr
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")

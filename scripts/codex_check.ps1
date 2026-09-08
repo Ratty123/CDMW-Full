@@ -12,6 +12,7 @@ $Python = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python
 
 $TestsByArea = @{
     smoke = @(
+        "tests/test_qt_test_cleanup.py",
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_restructure_runtime_regression_smoke.py",
         # Exact, Free Edit, and Read Only policy routing plus atomic non-exact
@@ -316,14 +317,15 @@ $AreaMarkerArgs = @()
 if ($Area -eq "responsiveness") {
     $AreaMarkerArgs = @("-m", "not visual and not real_game")
 }
-if ($Area -eq "mesh-unit") {
+if ($Area -in @("smoke", "mesh-unit")) {
     # PySide6 on Python 3.14 can terminate a very long-lived pytest interpreter
-    # in pyside6.abi3.dll after hundreds of independently destroyed Qt forms.
+    # in pyside6.abi3.dll or qoffscreen.dll after hundreds of Qt forms, including
+    # after pytest has already printed an all-passing test summary.
     # Isolate modules so one module cannot leave a stale Qt wrapper for the next;
     # the real helper open/close soak below remains the product lifetime gate.
     foreach ($TestPath in $ConfiguredTests) {
-        Write-Host "Running mesh-unit module $TestPath"
-        & $Python -m pytest @PytestTempArgs @AreaMarkerArgs $TestPath
+        Write-Host "Running $Area module $TestPath"
+        & $Python -X faulthandler -m pytest @PytestTempArgs @AreaMarkerArgs $TestPath
         $PytestExitCode = $LASTEXITCODE
         if ($PytestExitCode -ne 0) {
             exit $PytestExitCode

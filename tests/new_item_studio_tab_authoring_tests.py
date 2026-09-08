@@ -818,8 +818,6 @@ class _TabAuthoringMixin:
         self.app.setPalette(build_app_palette("graphite"))
         self.app.setStyleSheet(build_app_stylesheet("graphite"))
         tab = self._tab()
-        self.addCleanup(tab.deleteLater)
-        self.addCleanup(tab.close)
         package_start = patch("cdmw.ui.new_item.item_preview.ItemPreviewFrame._start_package", lambda *_args, **_kwargs: None)
         package_start.start()
         self.addCleanup(package_start.stop)

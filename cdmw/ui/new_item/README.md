@@ -39,6 +39,8 @@ worker, never UI callbacks. Shutdown requests cancellation and leaves live
 threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
+Queued effect-toolbar resize and post-install refresh callbacks are tied to
+their owning widgets, so destroying the workspace cancels pending delivery.
 The Template panel searches internal IDs, every available localized item name, equipment types and
 item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
 Its result table separates the internal name, English item name, numeric key and equipment

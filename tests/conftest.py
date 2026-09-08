@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 
@@ -71,6 +72,17 @@ def pytest_configure() -> None:
 
 
 def pytest_unconfigure() -> None:
+    # Pytest can retain test instances and Qt wrappers until interpreter teardown.
+    # Destroy the application explicitly while Python callbacks are still usable;
+    # otherwise qoffscreen can crash after the successful terminal summary.
+    qt_widgets = sys.modules.get("PySide6.QtWidgets")
+    if qt_widgets is not None:
+        app = qt_widgets.QApplication.instance()
+        if app is not None:
+            from PySide6.QtCore import QCoreApplication, QEvent
+
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            app.shutdown()
     if _original_cache_root is None:
         os.environ.pop(_CACHE_ENV, None)
     else:

@@ -84,6 +84,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self) -> None:
+        self._tabs = []
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
         files = synthetic_files()
@@ -97,10 +98,21 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self._backup_patch.start()
 
     def tearDown(self) -> None:
-        self._backup_patch.stop()
+        from PySide6.QtCore import QCoreApplication, QEvent
         from PySide6.QtWidgets import QApplication
+        from shiboken6 import isValid
 
+        # Keep wrappers alive until their native trees have been destroyed, while
+        # this case's files and patches still exist. processEvents alone does not
+        # deliver deleteLater requests in these headless tests.
+        for tab in self._tabs:
+            if isValid(tab):
+                tab.close()
+                tab.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         QApplication.processEvents()
+        self._tabs.clear()
+        self._backup_patch.stop()
         self._temp.cleanup()
 
     def _tab(self, window=None, **kwargs):
@@ -111,7 +123,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             window.archive = window
             window.shell = window
         controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
-        return NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries, **kwargs)
+        tab = NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries, **kwargs)
+        self._tabs.append(tab)
+        return tab
 
     def test_construction_before_any_snapshot_is_cheap_and_quiet(self) -> None:
         tab = self._tab()
@@ -121,6 +135,24 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.shutdown()
         tab.close()
         tab.deleteLater()
+
+    def test_pending_post_install_refresh_is_cancelled_when_tab_is_deleted(self) -> None:
+        from PySide6.QtCore import QCoreApplication, QEvent
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.controller.install_finished.disconnect(tab.output_panel._install_finished)
+        refreshed = []
+        tab._reread_after_install = lambda: refreshed.append(True)
+        tab.controller.install_finished.emit(None)
+        self.app.processEvents()
+        self.assertEqual(refreshed, [True])
+        tab.controller.install_finished.emit(None)
+        tab.close()
+        tab.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        self.assertEqual(refreshed, [True])
 
     def test_an_empty_entry_list_is_read_from_the_package_root(self) -> None:
         """The shell's catalogue backend shows the browser without filling the legacy

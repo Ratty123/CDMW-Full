@@ -41,7 +41,7 @@ class _GuidedToolbarPanel(QWidget):
         super().resizeEvent(event)
         width = self.width()
         self.resized.emit(width)
-        QTimer.singleShot(0, lambda: self.resized.emit(width))
+        QTimer.singleShot(0, self, lambda: self.resized.emit(width))
 
 
 class EffectPlacementGuidedMixin:

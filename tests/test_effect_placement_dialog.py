@@ -206,6 +206,29 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
+    def test_guided_toolbar_pending_resize_is_cancelled_when_panel_is_deleted(self) -> None:
+        from unittest.mock import patch
+        from PySide6.QtCore import QCoreApplication, QEvent, QSize
+        from PySide6.QtGui import QResizeEvent
+        from cdmw.ui.new_item.effect_placement_guided import _GuidedToolbarPanel
+
+        panel = _GuidedToolbarPanel()
+        panel.resize(400, 50)
+        widths = []
+        panel.resized.connect(widths.append)
+        event = QResizeEvent(QSize(400, 50), QSize(300, 50))
+        QCoreApplication.sendEvent(panel, event)
+        self.app.processEvents()
+        self.assertEqual(widths, [400, 400])
+        QCoreApplication.sendEvent(panel, event)
+        panel.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        errors = []
+        with patch("sys.excepthook", lambda *args: errors.append(args)):
+            self.app.processEvents()
+        self.assertEqual(errors, [])
+        self.assertEqual(widths, [400, 400, 400])
+
     def test_content_failure_retains_the_scene_and_marks_only_the_current_request_for_retry(self) -> None:
         from dataclasses import replace
         from unittest.mock import patch

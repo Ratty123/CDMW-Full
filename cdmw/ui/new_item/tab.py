@@ -383,7 +383,7 @@ class NewItemStudioTab(QWidget):
         self.placement_panel.recipes_requested.connect(lambda: (self.show_step(3), self.stats_panel.views.setCurrentIndex(1)))
         self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
-        controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self._reread_after_install))
+        controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self, self._reread_after_install))
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
         controller.model_import_changed.connect(self._model_part_editor_source_changed)
