@@ -161,20 +161,14 @@ def _setup_options_transform_step_016(_state):
     _state.transform_hint.setWordWrap(True)
     _state.transform_hint.setTextFormat(_state.Qt.RichText)
     _state.transform_hint.setObjectName('HintLabel')
-    _state.transform_layout.addWidget(_state.transform_hint, 7, 0, 1, 3)
-    _state.transform_section = _state.CollapsibleSection(_state.alignment_transform_control_text['section_title'], expanded=True)
-    _state.transform_section.body_layout.addWidget(_state.transform_group)
-    _state.setup_layout.addWidget(_state.transform_section)
-    # The complete-swap switch lives in Material Authority, beside the runtime
-    # profile it applies to, and opens armed for an external model.
-    _state.setup_layout.addWidget(_state.item_icon_section)
-    if _state.advanced_setup_section is not None:
-        _state.setup_layout.addWidget(_state.advanced_setup_section)
+    _state.transform_hint.setParent(_state.transform_group)
+    _state.transform_hint.hide()
+    _state.transform_group.setToolTip(_state.alignment_transform_control_text['hint_html'])
+    _state.transform_section = getattr(_state.dialog, '_mesh_editor_part_setup_section')
+    _state.transform_section.body_layout.insertWidget(0, _state.transform_group)
+    _state.setup_layout.insertWidget(2, _state.item_icon_section)
     if _state.modify_original_clone_mode:
-        # One Advanced, not an empty Advanced beside an "Advanced Texture
-        # Tuning" that needed a tick. Material Authority is hidden for a
-        # clone, so the tuning group is what Advanced holds here. The section
-        # object stays constructed and unshown; consumers resolve it by name.
+        # Keep clone-only tuning controls with the hidden expert controls.
         if _state.setup_advanced_layout is not None:
             _state.setup_advanced_layout.addWidget(_state.manual_profile_group)
             _state.modify_original_texture_tuning_section.setVisible(False)

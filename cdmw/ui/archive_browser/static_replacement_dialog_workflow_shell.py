@@ -16,6 +16,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     QSizePolicy = context.get("QSizePolicy")
     QTabWidget = context.get("QTabWidget")
     QVBoxLayout = context.get("QVBoxLayout")
+    QWidget = context.get("QWidget")
     Qt = context.get("Qt")
     SceneImportResult = context.get("SceneImportResult")
     _alignment_context_summary_facts_helper = context.get("_alignment_context_summary_facts_helper")
@@ -126,18 +127,18 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     selection_context_label.setObjectName("SelectionContextLabel")
     selection_context_label.setVisible(False)
     layout.addWidget(control_tabs, 1)
-    intro = QLabel(_alignment_setup_intro_html_helper())
+    intro = QLabel(_alignment_setup_intro_html_helper(), setup_page)
     intro.setWordWrap(True)
     intro.setTextFormat(Qt.RichText)
     intro.setObjectName("HintLabel")
     intro.setVisible(False)
-    setup_layout.addWidget(intro)
     summary_section = CollapsibleSection("Options", expanded=False)
     setup_summary_layout = summary_section.body_layout
     setup_layout.addWidget(summary_section)
-    advanced_setup_section = CollapsibleSection("Advanced", expanded=False)
-    advanced_setup_section.setParent(setup_page)
-    setup_advanced_layout = advanced_setup_section.body_layout
+    # Retain callback-owned expert controls outside the product layout.
+    advanced_setup_section = QWidget(setup_page)
+    advanced_setup_section.hide()
+    setup_advanced_layout = QVBoxLayout(advanced_setup_section)
     placement_note = None
     source_mix_control_text = _alignment_source_mix_control_text_helper()
     source_mix_tray = QGroupBox(source_mix_control_text["group_title"])
@@ -181,10 +182,15 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     modify_original_parity_label.setToolTip(modify_original_parity_presentation.tooltip)
     modify_original_parity_label.setMaximumHeight(28)
     source_mix_layout.addWidget(modify_original_parity_label)
-    setup_advanced_layout.addWidget(source_mix_tray)
+    source_mix_section = CollapsibleSection(source_mix_control_text["group_title"], expanded=False)
+    source_mix_tray.setTitle("")
+    source_mix_tray.setFlat(True)
+    source_mix_section.body_layout.addWidget(source_mix_tray)
+    setup_layout.addWidget(source_mix_section)
     # Shown only once parented; visible-while-parentless briefly makes the tray
     # its own top-level window during construction.
     source_mix_tray.setVisible(static_replacement_workflow_mode == "import_mesh")
+    source_mix_section.setVisible(static_replacement_workflow_mode == "import_mesh")
 
     alignment_source_mix_callbacks = create_alignment_source_mix_callbacks({**context, **locals()})
     _choose_loaded_archive_mesh_source_for_alignment = alignment_source_mix_callbacks._choose_loaded_archive_mesh_source_for_alignment

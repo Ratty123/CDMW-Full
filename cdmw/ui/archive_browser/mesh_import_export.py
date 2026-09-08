@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -31,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.widgets import CollapsibleSection
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.domain.archives.mesh_contracts import MeshExportResult
 from cdmw.services.archive_workflow_service import export_archive_mesh
@@ -48,7 +48,6 @@ from cdmw.ui.archive_browser.mesh_import_preflight_controller import (
 from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_continue_button_text as _mesh_import_continue_button_text,
     mesh_import_placement_status_chips as _mesh_import_placement_status_chips,
-    mesh_import_replacement_status_chip as _mesh_import_replacement_status_chip,
     mesh_import_setup_control_text as _mesh_import_setup_control_text,
     mesh_import_static_guidance_text as _mesh_import_static_guidance_text,
 )
@@ -121,7 +120,7 @@ class ArchiveMeshImportExportMixin:
         dialog = QDialog(self)
         dialog.setObjectName("MeshImportSetupDialog")
         dialog.setWindowTitle(title)
-        dialog.setMinimumSize(760, 460)
+        dialog.setMinimumSize(640, 300)
         root_layout = QVBoxLayout(dialog)
         root_layout.setContentsMargins(12, 10, 12, 10)
         root_layout.setSpacing(8)
@@ -135,45 +134,27 @@ class ArchiveMeshImportExportMixin:
         layout = QVBoxLayout(content_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignTop)
         content_scroll.setWidget(content_widget)
         root_layout.addWidget(content_scroll, 1)
 
-        intro_text = (
-            "Review the archive source, then continue to placement and Mesh Replacement Alignment."
-            if force_static_replacement
-            else "Review the import source, pick import mode, then continue to Mesh Replacement Alignment."
-        )
-        intro = QLabel(intro_text)
-        intro.setWordWrap(True)
-        intro.setObjectName("HintLabel")
-        layout.addWidget(intro)
-
-        summary_group = QGroupBox("Import Summary")
+        summary_group = QWidget()
         summary_layout = QVBoxLayout(summary_group)
-        summary_layout.setContentsMargins(10, 8, 10, 8)
-        summary_layout.setSpacing(7)
+        summary_layout.setContentsMargins(4, 4, 4, 4)
+        summary_layout.setSpacing(12)
         layout.addWidget(summary_group)
-
-        def _compact_path(raw_path: str, *, keep: int = 86) -> str:
-            text = str(raw_path or "").replace("\\", "/").strip()
-            if len(text) <= keep:
-                return text
-            tail = text[-max(16, keep - 3) :]
-            slash_index = tail.find("/")
-            if slash_index > 0:
-                tail = tail[slash_index + 1 :]
-            return f".../{tail}"
 
         def _chip(text: str, role: str = "info") -> QLabel:
             display_text = str(text or "").strip() or "-"
             chip = QLabel(display_text)
             chip.setObjectName("MetricChip")
             chip.setProperty("chipRole", role)
+            chip.setWordWrap(True)
             chip.setTextInteractionFlags(Qt.TextSelectableByMouse)
             return chip
 
         def _path_value(text: str) -> QLabel:
-            label = QLabel(_compact_path(text))
+            label = QLabel(PurePosixPath(text.replace("\\", "/")).name)
             label.setObjectName("CompactPathValue")
             label.setToolTip(text)
             label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -194,27 +175,30 @@ class ArchiveMeshImportExportMixin:
         source_layout.addWidget(_row_label("Source"), 0, 0)
         source_value_label = _path_value(source_display_label)
         source_layout.addWidget(source_value_label, 0, 1)
-        source_layout.addWidget(_row_label("Detected"), 1, 0)
-        detected_row = QHBoxLayout()
-        detected_row.setSpacing(6)
+        source_layout.addWidget(_row_label("Target"), 1, 0)
+        source_layout.addWidget(_path_value(entry.path), 1, 1)
         mesh_format_text = str(getattr(scene_import_result.mesh, "format", "") or "").strip().upper()
         if not mesh_format_text:
             mesh_format_text = scene_path.suffix.lower().lstrip(".").upper()
-        format_chip = _chip(mesh_format_text or "Format unknown", "format" if mesh_format_text else "warn")
-        format_chip.setToolTip("Detected import format. Falls back to the source file extension when external mesh metadata is absent.")
-        detected_row.addWidget(format_chip)
-        detected_row.addWidget(_chip(f"{len(scene_import_result.mesh.submeshes):,} submesh(es)", "info"))
-        detected_row.addWidget(_chip(f"{scene_import_result.mesh.total_vertices:,} vertices", "info"))
-        detected_row.addWidget(_chip(f"{scene_import_result.mesh.total_faces:,} faces", "info"))
-        detected_row.addStretch(1)
-        source_layout.addLayout(detected_row, 1, 1)
+        mesh_summary = QLabel(
+            f"{mesh_format_text} · {len(scene_import_result.mesh.submeshes):,} parts · "
+            f"{scene_import_result.mesh.total_faces:,} faces"
+        )
+        mesh_summary.setObjectName("HintLabel")
+        source_layout.addWidget(mesh_summary, 2, 1)
+        source_layout.setColumnStretch(1, 1)
+        summary_layout.addWidget(source_group)
+
+        details_section = CollapsibleSection("Details", expanded=False)
+        details_section.setObjectName("MeshImportDetails")
+        details_layout = details_section.body_layout
         external_audit = getattr(scene_import_result, "external_audit", None)
         if external_audit is not None:
             audit_label = _row_label("Asset check")
             audit_label.setToolTip("Best-effort read-only classification of the imported model source.")
-            source_layout.addWidget(audit_label, 2, 0)
-            audit_row = QHBoxLayout()
+            audit_row = QGridLayout()
             audit_row.setSpacing(6)
+            audit_row.addWidget(audit_label, 0, 0)
             audit_category = str(getattr(external_audit, "verified_category", "") or "unknown")
             audit_confidence = float(getattr(external_audit, "confidence", 0.0) or 0.0)
             if audit_category == "unknown":
@@ -226,24 +210,24 @@ class ArchiveMeshImportExportMixin:
             else:
                 audit_chip = _chip(f"{audit_category} ({audit_confidence:.0%} match)", "ready")
                 audit_chip.setToolTip("Best-effort detected asset category from the optional external model audit.")
-            audit_row.addWidget(audit_chip)
+            audit_row.addWidget(audit_chip, 0, 1)
             texture_slots = tuple(getattr(external_audit, "texture_slots", ()) or ())
             if texture_slots:
-                audit_row.addWidget(_chip("textures: " + ", ".join(str(slot) for slot in texture_slots[:4]), "info"))
+                audit_row.addWidget(_chip("textures: " + ", ".join(str(slot) for slot in texture_slots[:4]), "info"), 1, 1)
             workflows = tuple(getattr(external_audit, "pbr_workflows", ()) or ())
             if workflows:
-                audit_row.addWidget(_chip("PBR: " + ", ".join(str(workflow) for workflow in workflows[:2]), "info"))
+                audit_row.addWidget(_chip("PBR: " + ", ".join(str(workflow) for workflow in workflows[:2]), "info"), 2, 1)
             if bool(getattr(external_audit, "false_positive", False)) or bool(getattr(external_audit, "mixed_model", False)):
-                audit_row.addWidget(_chip("review subparts", "warn"))
-            audit_row.addStretch(1)
-            source_layout.addLayout(audit_row, 2, 1)
-        summary_layout.addWidget(source_group)
+                audit_row.addWidget(_chip("review subparts", "warn"), 3, 1)
+            audit_row.setColumnStretch(1, 1)
+            details_layout.addLayout(audit_row)
 
         mode_group = QWidget()
         mode_layout = QVBoxLayout(mode_group)
         mode_layout.setContentsMargins(0, 0, 0, 0)
         mode_layout.setSpacing(5)
         mode_choice_row = QHBoxLayout()
+        mode_choice_row.addWidget(_row_label("Mode"))
         roundtrip_radio = QRadioButton("Round-trip edit")
         roundtrip_radio.setToolTip(
             "OBJ-only path for meshes exported by this app. Keeps original mesh structure and uses OBJ sidecar metadata when available."
@@ -262,7 +246,6 @@ class ArchiveMeshImportExportMixin:
             static_supported=bool(profile is None or profile.export_supported),
         )
         if force_static_replacement:
-            force_label = "Auto clone source" if suffix == ".obj" else "Archive source"
             availability = MeshImportModeAvailability(
                 roundtrip_enabled=False,
                 static_enabled=availability.static_enabled,
@@ -276,34 +259,17 @@ class ArchiveMeshImportExportMixin:
                     )
                 ),
             )
-        else:
-            force_label = ""
         if not availability.roundtrip_enabled:
             roundtrip_radio.setEnabled(False)
+            roundtrip_radio.hide()
             roundtrip_radio.setToolTip("Round-trip edit is OBJ-only and requires a local OBJ source.")
         if not availability.static_enabled:
             static_radio.setEnabled(False)
             static_radio.setToolTip("\n".join(profile.errors) or "Mesh replacement is not enabled for this target asset.")
-        mode_status_row = QHBoxLayout()
-        mode_status_row.setSpacing(6)
-        mode_status_row.addWidget(
-            _chip(
-                force_label if force_static_replacement else setup_control_text["local_source"],
-                "format" if force_static_replacement else "info",
-            )
-        )
-        replacement_status_text, replacement_status_tone = _mesh_import_replacement_status_chip(
-            static_enabled=availability.static_enabled
-        )
-        mode_status_row.addWidget(_chip(replacement_status_text, replacement_status_tone))
-        if not availability.roundtrip_enabled:
-            mode_status_row.addWidget(_chip(setup_control_text["roundtrip_unavailable"], "warn"))
-        mode_status_row.addStretch(1)
-        mode_layout.addLayout(mode_status_row)
         static_limits_label = QLabel(_mesh_import_static_guidance_text(availability.guidance))
         static_limits_label.setWordWrap(True)
         static_limits_label.setObjectName("HintLabel")
-        mode_layout.addWidget(static_limits_label)
+        details_layout.addWidget(static_limits_label)
         if availability.default_mode == "roundtrip":
             roundtrip_radio.setChecked(True)
         elif availability.default_mode == "static_replacement":
@@ -314,7 +280,7 @@ class ArchiveMeshImportExportMixin:
         material_choice_layout = QHBoxLayout(material_choice)
         material_choice_layout.setContentsMargins(0, 0, 0, 0)
         material_choice_layout.setSpacing(8)
-        material_choice_layout.addWidget(QLabel("Materials and textures"))
+        material_choice_layout.addWidget(_row_label("Materials"))
         material_mode_combo = QComboBox()
         material_mode_combo.setObjectName("MeshImportMaterialMode")
         material_mode_combo.addItem("Keep target materials and textures", False)
@@ -344,53 +310,17 @@ class ArchiveMeshImportExportMixin:
             placement_note_label.setWordWrap(True)
             placement_note_label.setObjectName("HintLabel")
             placement_layout.addWidget(placement_note_label)
-            summary_layout.addWidget(placement_group)
+            details_layout.addWidget(placement_group)
 
         diagnostics = list(scene_import_result.diagnostics)
         if profile is not None:
             diagnostics.append(f"Target compatibility: {profile.support_level} ({profile.category_hint}).")
             diagnostics.extend(profile.errors[:3])
             diagnostics.extend(profile.warnings[:3])
-        if diagnostics:
-            diagnostics_group = QWidget()
-            diagnostics_layout = QVBoxLayout(diagnostics_group)
-            diagnostics_layout.setContentsMargins(0, 0, 0, 0)
-            diagnostics_layout.setSpacing(3)
-            for line in diagnostics[:6]:
-                line_text = str(line)
-                line_label = QLabel(line_text)
-                line_label.setWordWrap(True)
-                line_label.setObjectName("HintLabel")
-                if "supported" in line_text.lower():
-                    line_label.setProperty("healthState", "healthy")
-                elif "warning" in line_text.lower() or "error" in line_text.lower():
-                    line_label.setProperty(
-                        "healthState",
-                        "unhealthy" if "error" in line_text.lower() else "stale",
-                    )
-                diagnostics_layout.addWidget(line_label)
-            summary_layout.addWidget(diagnostics_group)
-
-        payload_group = QGroupBox(setup_control_text["payload_group"])
-        payload_layout = QVBoxLayout(payload_group)
-        payload_layout.setContentsMargins(10, 8, 10, 8)
-        payload_layout.setSpacing(7)
-        layout.addWidget(payload_group)
-
         preflight_group = QWidget()
         preflight_layout = QVBoxLayout(preflight_group)
         preflight_layout.setContentsMargins(0, 0, 0, 0)
         preflight_layout.setSpacing(5)
-        preflight_summary_row = QHBoxLayout()
-        preflight_summary_row.setSpacing(6)
-        preflight_summary_row.addWidget(
-            _chip(
-                preflight.summary,
-                "warn" if preflight.severity == "warning" else "ready",
-            )
-        )
-        preflight_summary_row.addStretch(1)
-        preflight_layout.addLayout(preflight_summary_row)
         preflight_tree = QTreeWidget()
         preflight_tree.setColumnCount(2)
         preflight_tree.setHeaderLabels(["Check", "Value"])
@@ -401,7 +331,8 @@ class ArchiveMeshImportExportMixin:
         preflight_tree.setMaximumHeight(128)
         preflight_tree.header().setStretchLastSection(True)
         preflight_tree.header().resizeSection(0, 180)
-        for line in preflight.detail_lines:
+        detail_lines = dict.fromkeys((*preflight.detail_lines, *diagnostics))
+        for line in detail_lines:
             line_text = str(line)
             if ":" in line_text:
                 key, value = line_text.split(":", 1)
@@ -416,17 +347,13 @@ class ArchiveMeshImportExportMixin:
                 item.setBackground(1, QBrush(QColor("#48bfdbfe")))
             preflight_tree.addTopLevelItem(item)
         preflight_layout.addWidget(preflight_tree)
-        payload_layout.addWidget(preflight_group)
+        details_layout.addWidget(preflight_group)
 
-        supplemental_group = QWidget()
-        supplemental_layout = QVBoxLayout(supplemental_group)
-        supplemental_layout.setContentsMargins(0, 0, 0, 0)
-        supplemental_layout.setSpacing(5)
-        supplemental_hint = QLabel("Checked files are included with the import. Add local DDS/images or material sidecars only when needed.")
-        supplemental_hint.setWordWrap(True)
-        supplemental_hint.setObjectName("HintLabel")
-        supplemental_layout.addWidget(supplemental_hint)
+        files_section = CollapsibleSection("Files", expanded=False)
+        files_section.setObjectName("MeshImportFiles")
+        supplemental_layout = files_section.body_layout
         supplemental_list = QListWidget()
+        supplemental_list.setToolTip("Checked files are included with the import. Add local DDS/images or material sidecars only when needed.")
         supplemental_list.setMinimumHeight(76)
         supplemental_list.setMaximumHeight(112)
         supplemental_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -458,6 +385,17 @@ class ArchiveMeshImportExportMixin:
             supplemental_list.addItem(item)
 
         def _refresh_supplemental_warning() -> None:
+            checked_count = sum(
+                supplemental_list.item(index).checkState() == Qt.Checked
+                for index in range(supplemental_list.count())
+            )
+            files_section.toggle_button.setText(f"Files ({checked_count} included)")
+            if folder_scan_state["blocked"]:
+                return
+            if roundtrip_radio.isChecked() or not (material_mode_combo.currentData() or full_import_model_replacement or materials_and_textures_only):
+                supplemental_warning_label.clear()
+                supplemental_warning_label.hide()
+                return
             texture_count = 0
             checked_texture_count = 0
             for index in range(supplemental_list.count()):
@@ -472,13 +410,13 @@ class ArchiveMeshImportExportMixin:
                     checked_texture_count += 1
             if texture_count <= 0:
                 supplemental_warning_label.setText(
-                    "No local texture files were found for this source. Continue only if a geometry-only import is intended, or add a texture folder."
+                    "No source textures found. Check the source materials in the builder."
                 )
                 supplemental_warning_label.setVisible(True)
                 return
             if checked_texture_count <= 0:
                 supplemental_warning_label.setText(
-                    "Texture files are available, but none are checked. The import will continue without local textures unless files are selected."
+                    "Textures are available but none are included."
                 )
                 supplemental_warning_label.setVisible(True)
                 return
@@ -494,7 +432,6 @@ class ArchiveMeshImportExportMixin:
             _add_supplemental_path(auto_path, checked=True)
 
         supplemental_layout.addWidget(supplemental_list)
-        supplemental_layout.addWidget(supplemental_warning_label)
         supplemental_buttons = QHBoxLayout()
         add_files_button = QPushButton("Add Files")
         add_folder_button = QPushButton("Add Folder")
@@ -505,7 +442,14 @@ class ArchiveMeshImportExportMixin:
         supplemental_buttons.addStretch(1)
         supplemental_buttons.addWidget(clear_button)
         supplemental_layout.addLayout(supplemental_buttons)
-        payload_layout.addWidget(supplemental_group)
+        layout.addWidget(files_section)
+        layout.addWidget(details_section)
+        layout.addWidget(supplemental_warning_label)
+        if not (availability.roundtrip_enabled or availability.static_enabled):
+            blocker = QLabel("\n".join(profile.errors) if profile is not None and profile.errors else "Mesh replacement is not enabled for this target asset.")
+            blocker.setObjectName("WarningLabel")
+            blocker.setWordWrap(True)
+            layout.addWidget(blocker)
 
         def _add_files() -> None:
             selected_files, _selected_filter = QFileDialog.getOpenFileNames(
@@ -553,6 +497,7 @@ class ArchiveMeshImportExportMixin:
             supplemental_list.clear()
             seen_paths.clear()
             _refresh_supplemental_warning()
+            _refresh_continue_state()
 
         add_files_button.clicked.connect(_add_files)
         add_folder_button.clicked.connect(_add_folder)
@@ -561,6 +506,7 @@ class ArchiveMeshImportExportMixin:
         folder_scan.error.connect(_fail_folder_scan)
         clear_button.clicked.connect(_clear_supplemental)
         supplemental_list.itemChanged.connect(lambda _item: _refresh_supplemental_warning())
+        material_mode_combo.currentIndexChanged.connect(lambda _index: _refresh_supplemental_warning())
         _refresh_supplemental_warning()
 
         button_row = QHBoxLayout()
@@ -576,6 +522,7 @@ class ArchiveMeshImportExportMixin:
 
         def _refresh_continue_state() -> None:
             material_choice.setVisible(show_material_choice and static_radio.isChecked())
+            _refresh_supplemental_warning()
             continue_button.setEnabled(
                 not folder_scan.is_running()
                 and not folder_scan_state["blocked"]
@@ -598,15 +545,18 @@ class ArchiveMeshImportExportMixin:
         def _fit_mesh_import_setup_dialog_to_screen() -> None:
             screen = dialog.screen() or self.screen() or QApplication.primaryScreen()
             if screen is None:
-                dialog.resize(980, 720)
+                dialog.resize(680, 360)
                 return
             available = screen.availableGeometry()
-            max_width = min(1180, max(760, int(float(available.width()) * 0.92)))
-            max_height = min(820, max(460, int(float(available.height()) * 0.86)))
+            max_width = min(900, max(640, int(float(available.width()) * 0.92)))
+            max_height = min(720, max(300, int(float(available.height()) * 0.86)))
             dialog.setMaximumSize(max_width, max_height)
-            size_hint = dialog.sizeHint()
-            target_width = min(max_width, max(760, int(size_hint.width())))
-            target_height = min(max_height, max(460, int(size_hint.height())))
+            layout.activate()
+            margins = root_layout.contentsMargins()
+            content_height = layout.sizeHint().height() + button_row.sizeHint().height()
+            content_height += margins.top() + margins.bottom() + root_layout.spacing() + 6
+            target_width = min(max_width, max(640, dialog.width()))
+            target_height = min(max_height, max(300, content_height))
             dialog.resize(target_width, target_height)
             frame = dialog.frameGeometry()
             frame.moveCenter(available.center())
@@ -614,7 +564,9 @@ class ArchiveMeshImportExportMixin:
             top = max(available.top(), min(frame.top(), available.bottom() - frame.height() + 1))
             dialog.move(left, top)
 
-        dialog.adjustSize()
+        files_section.toggled.connect(lambda _expanded: QTimer.singleShot(0, _fit_mesh_import_setup_dialog_to_screen))
+        details_section.toggled.connect(lambda _expanded: QTimer.singleShot(0, _fit_mesh_import_setup_dialog_to_screen))
+        dialog.resize(680, 360)
         _fit_mesh_import_setup_dialog_to_screen()
         QTimer.singleShot(0, _fit_mesh_import_setup_dialog_to_screen)
 

@@ -5015,11 +5015,6 @@
       "key": "Advanced",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/static_replacement_dialog_workflow_shell.py",
-          "line": 138,
-          "sink": "CollapsibleSection"
-        },
-        {
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 194,
           "sink": "setText"
@@ -10450,11 +10445,6 @@
       "key": "Archive source",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 289,
-          "sink": "_chip"
-        },
-        {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 289,
           "sink": "_preview_panel"
@@ -11778,16 +11768,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 521,
           "sink": "_uv_action_button"
-        }
-      ]
-    },
-    {
-      "key": "Auto clone source",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 289,
-          "sink": "_chip"
         }
       ]
     },
@@ -18231,8 +18211,8 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 405,
-          "sink": "QLabel"
+          "line": 356,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -26995,6 +26975,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 192,
+          "sink": "CollapsibleSection"
+        },
+        {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 628,
           "sink": "addTab"
@@ -27057,31 +27042,11 @@
       ]
     },
     {
-      "key": "Detected",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 196,
-          "sink": "_row_label"
-        }
-      ]
-    },
-    {
       "key": "Detected from {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 630,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Detected import format. Falls back to the source file extension when external mesh metadata is absent.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 203,
           "sink": "setToolTip"
         }
       ]
@@ -35445,6 +35410,11 @@
           "sink": "FlatSectionPanel"
         },
         {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 352,
+          "sink": "CollapsibleSection"
+        },
+        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 636,
           "sink": "addTab"
@@ -35453,6 +35423,16 @@
           "path": "tools/format_explorer/tab.py",
           "line": 178,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Files ({value_0} included)",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 392,
+          "sink": "setText"
         }
       ]
     },
@@ -37693,16 +37673,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 481,
           "sink": "python-return:_build_utility_sections"
-        }
-      ]
-    },
-    {
-      "key": "Format unknown",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 202,
-          "sink": "_chip"
         }
       ]
     },
@@ -42043,16 +42013,6 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 233,
           "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Import Summary",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 150,
-          "sink": "QGroupBox"
         }
       ]
     },
@@ -50360,19 +50320,14 @@
       "key": "Materials",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 283,
+          "sink": "_row_label"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 312,
           "sink": "QTreeWidgetItem"
-        }
-      ]
-    },
-    {
-      "key": "Materials and textures",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 317,
-          "sink": "QLabel"
         }
       ]
     },
@@ -53696,8 +53651,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 285,
+          "line": 268,
           "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 449,
+          "sink": "QLabel"
         }
       ]
     },
@@ -54559,6 +54519,11 @@
     {
       "key": "Mode",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 230,
+          "sink": "_row_label"
+        },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
           "line": 155,
@@ -59327,16 +59292,6 @@
       ]
     },
     {
-      "key": "No local texture files were found for this source. Continue only if a geometry-only import is intended, or add a texture folder.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 454,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "No localized item name. The internal identifier is shown separately.",
       "origins": [
         {
@@ -60772,6 +60727,16 @@
         {
           "path": "cdmw/ui/safe_upscale_wizard.py",
           "line": 601,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No source textures found. Check the source materials in the builder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 412,
           "sink": "setText"
         }
       ]
@@ -67158,16 +67123,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 145,
           "sink": "addTab"
-        }
-      ]
-    },
-    {
-      "key": "Part Setup",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_preview_model_part_01.py",
-          "line": 332,
-          "sink": "CollapsibleSection"
         }
       ]
     },
@@ -80641,8 +80596,13 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 321,
+          "line": 287,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
+          "line": 726,
+          "sink": "setText"
         }
       ]
     },
@@ -83858,26 +83818,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 190,
           "sink": "python-return:_build_workflow_planning_sections"
-        }
-      ]
-    },
-    {
-      "key": "Review the archive source, then continue to placement and Mesh Replacement Alignment.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 145,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "Review the import source, pick import mode, then continue to Mesh Replacement Alignment.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 145,
-          "sink": "QLabel"
         }
       ]
     },
@@ -97715,6 +97655,11 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 178,
+          "sink": "_row_label"
+        },
+        {
           "path": "cdmw/ui/archive_browser/source_mix_overlay.py",
           "line": 135,
           "sink": "setHeaderLabels"
@@ -99357,16 +99302,6 @@
       ]
     },
     {
-      "key": "Texture files are available, but none are checked. The import will continue without local textures unless files are selected.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 460,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Texture files: {value_0}",
       "origins": [
         {
@@ -99978,6 +99913,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 52,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Textures are available but none are included.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 418,
+          "sink": "setText"
         }
       ]
     },
@@ -103923,6 +103868,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 320,
           "sink": "MeshEditorAction"
+        }
+      ]
+    },
+    {
+      "key": "Transform and Parts",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_preview_model_part_01.py",
+          "line": 332,
+          "sink": "CollapsibleSection"
         }
       ]
     },
@@ -117615,16 +117570,6 @@
       "key": "format",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 202,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 289,
-          "sink": "_chip"
-        },
-        {
           "path": "cdmw/ui/model_library/panels.py",
           "line": 437,
           "sink": "addItem"
@@ -118521,32 +118466,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 205,
+          "line": 216,
           "sink": "_chip"
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 206,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 207,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 231,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 234,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 289,
+          "line": 219,
           "sink": "_chip"
         },
         {
@@ -123331,12 +123256,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 226,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 367,
+          "line": 211,
           "sink": "_chip"
         },
         {
@@ -128191,27 +128111,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 202,
+          "line": 205,
           "sink": "_chip"
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 220,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 236,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 299,
-          "sink": "_chip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 367,
+          "line": 221,
           "sink": "_chip"
         }
       ]
@@ -130712,16 +130617,6 @@
       ]
     },
     {
-      "key": "{value_0} faces",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 207,
-          "sink": "_chip"
-        }
-      ]
-    },
-    {
       "key": "{value_0} failed.",
       "origins": [
         {
@@ -131897,16 +131792,6 @@
       ]
     },
     {
-      "key": "{value_0} submesh(es)",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 205,
-          "sink": "_chip"
-        }
-      ]
-    },
-    {
       "key": "{value_0} summary | Select a file for asset relationships.",
       "origins": [
         {
@@ -132048,16 +131933,6 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 114,
           "sink": "python-return:unknown_group_ready_status_text"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} vertices",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 206,
-          "sink": "_chip"
         }
       ]
     },
@@ -132618,6 +132493,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 493,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} · {value_1} parts · {value_2} faces",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 183,
+          "sink": "QLabel"
         }
       ]
     },

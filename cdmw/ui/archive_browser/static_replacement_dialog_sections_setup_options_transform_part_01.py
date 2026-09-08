@@ -723,10 +723,10 @@ def _setup_options_transform_step_009(_state):
         _state.custom_icon_target_combo.addItem(_state.icon_entry.path, _state.icon_entry)
     _state.form.addWidget(_state.scale_to_length_checkbox, 1, 0, 1, 2)
     _state.form.addWidget(_state.flip_direction_checkbox, 2, 0, 1, 2)
+    _state.complete_external_swap_checkbox.setText('Replace materials and textures too')
+    _state.form.addWidget(_state.complete_external_swap_checkbox, 3, 0, 1, 2)
     _state.material_authority_section = _state.CollapsibleSection('Material Authority', expanded=True)
-    # Directly inside Advanced rather than a section within a group within it.
-    # The section object stays because two shortcuts are scoped to it and
-    # every consumer resolves it by this name; only its header is hidden.
+    # Retain the hidden section because callbacks and shortcuts own it.
     _state.material_authority_section.toggle_button.setVisible(False)
     _state.material_authority_widget = _state.QWidget()
     _state.material_authority_form = _state.QGridLayout(_state.material_authority_widget)
@@ -740,14 +740,8 @@ def _setup_options_transform_step_009(_state):
         _state.options_layout.addWidget(_state.material_authority_section)
     _state.material_authority_section.setVisible(not _state.modify_original_clone_mode)
     _state.material_authority_form.addWidget(_state.material_route_summary_label, 0, 0, 1, 2)
-    # One switch decides material ownership: the complete source-owned swap,
-    # beside the runtime profile it applies to. When it is on, the five
-    # routing checkboxes it used to sit among are all on underneath -- the
-    # operation classification already forces them for an imported-material
-    # authority -- so they are not shown. What stays visible below is the
-    # one acknowledgement that means something on its own: allowing an
-    # export the material preflight would otherwise block.
-    _state.material_authority_form.addWidget(_state.complete_external_swap_checkbox, 1, 0, 1, 2)
+    # Options owns the material switch. Its dependent routing controls stay
+    # available to the acceptance and validation callbacks in this hidden form.
     _state.runtime_material_profile_label = _state.QLabel(_state.material_authority_setup_labels['runtime_material_profile'])
     _state.material_authority_form.addWidget(_state.runtime_material_profile_label, 2, 0)
 

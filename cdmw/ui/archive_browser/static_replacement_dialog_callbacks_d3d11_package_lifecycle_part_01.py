@@ -594,9 +594,25 @@ def _d3d11_package_lifecycle_step_041(_state):
 def _d3d11_package_lifecycle_step_042(_state):
 
     def _queue_alignment_d3d11_preview(model: object, *, label: str='Live alignment preview', reason: str='') -> bool:
-        del model, label
-        _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='dotnet_authoritative', requested_reason=str(reason or ''), modify_original_clone=_state.modify_original_clone_mode)
-        return False
+        if _state.context.get('embedded_alignment_builder'):
+            _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='dotnet_authoritative', requested_reason=str(reason or ''), modify_original_clone=_state.modify_original_clone_mode)
+            return False
+        if (not _state._alignment_dialog_widgets_live()
+                or not _state._alignment_d3d11_preview_active()
+                or not isinstance(model, _state.ModelPreviewData)
+                or not model.meshes):
+            return False
+        rebuild_reason = str(reason or _state.alignment_d3d11_state.get('next_rebuild_reason') or 'geometry')
+        _, _, _, package_quality = _state._alignment_d3d11_package_quality(label, model, reason=rebuild_reason)
+        _state._alignment_d3d11_queue_preview_request_helper(
+            _state.alignment_d3d11_state, model=model, label=label,
+            display_mode=str(_state.preview_mode_combo.currentData() or 'side_by_side'),
+            reason=rebuild_reason,
+            transform_generation=_state._current_alignment_transform_generation_value(),
+            package_quality=package_quality,
+        )
+        _state._safe_start_alignment_timer(_state.alignment_d3d11_reload_timer)
+        return True
     _state._queue_alignment_d3d11_preview = _queue_alignment_d3d11_preview
 
 def _d3d11_package_lifecycle_step_043(_state):

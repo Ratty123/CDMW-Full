@@ -32,7 +32,7 @@ def _legacy_preview_rows(QWidget, QHBoxLayout, parent):
 
 
 def _prewarm_alignment_dotnet_host(host) -> bool:
-    """Start the resident authoring helper before the first Edit Mesh click.
+    """Warm the resident Rust helper while the builder prepares its model.
 
     Best effort by definition: the dialog can be gone by the time this fires, the
     cache root can be unset, and a helper that will not start is reported through
@@ -233,11 +233,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_part_pick_checkbox.setObjectName("MeshAlignmentPartPickCheckbox")
     preview_part_pick_checkbox.setChecked(False)
     preview_part_pick_checkbox.setVisible(False)
-    preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")
+    preview_mesh_edit_checkbox = QCheckBox("Edit Mesh", preview_panel)
     preview_mesh_edit_checkbox.setObjectName("MeshEditModeCheckbox")
     preview_mesh_edit_checkbox.setChecked(False)
     preview_mesh_edit_checkbox.setToolTip("Enable viewport mesh editing tools for the current replacement preview.")
-    preview_controls_row.addWidget(preview_mesh_edit_checkbox)
+    preview_mesh_edit_checkbox.setVisible(False)
     mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
     preview_controls_row.addWidget(_control_group_separator(QFrame, preview_panel))
     preview_mesh_view_combo = QComboBox()
@@ -505,7 +505,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_layout.setSpacing(3)
     alignment_d3d11_preview_host = RustPreviewHostFrame(
         alignment_d3d11_preview_page,
-        profile=DotNetPreviewProfile.AUTHORING,
+        profile=(DotNetPreviewProfile.AUTHORING if embedded_alignment_builder else DotNetPreviewProfile.PREVIEW),
         terminate_on_close=True,
     )
     alignment_d3d11_preview_host.setObjectName("AlignmentDotNetVorticePreviewHost")
@@ -523,13 +523,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         "cdmwPreviewPrewarmCacheRoot",
         str(self._native_preview_package_cache_root()),
     )
-    # Start the helper now rather than on the first Edit Mesh.  This used to be
-    # unsafe -- an authoring handshake made before the edit session existed
-    # latched a throwaway id that the real package could not supersede -- so the
-    # prewarm waited for the session and could only overlap the package build.
-    # The handshake is provisional now (`authoring_provisional_session_v1`), so
-    # the real session adopts the warm process instead of being refused by it,
-    # and the process start, JIT and D3D device are all paid before the click.
+    # Standalone alignment loads successive Rust preview packages. It must
+    # follow their scene identities instead of locking an authoring session.
     QTimer.singleShot(
         750,
         lambda: _prewarm_alignment_dotnet_host(alignment_d3d11_preview_host),

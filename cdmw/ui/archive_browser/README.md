@@ -16,9 +16,18 @@ any active Mesh Editor session.
 The setup dialog defaults to **Keep target materials and textures**, so a
 geometry-only OBJ does not need an MTL. Choose **Replace materials and textures
 too** to use the imported model's material files and textures. This choice sets
-**Complete source-owned mesh/material swap** in the builder and can be changed
-there. Dedicated full-replacement and materials-only workflows keep their presets.
+**Replace materials and textures too** under the builder's **Options** and can
+be changed there. Dedicated full-replacement and materials-only workflows keep their presets.
 Missing final textures still block export.
+
+Mesh Import Setup shows the source, target, mesh size, mode and material choice.
+**Files** and **Details** start collapsed; Files shows the included file count.
+Blocking scan errors and missing-texture warnings remain visible when relevant.
+The builder groups global transforms, part selection and routing in **Transform
+and Parts**, with separate **Options**, **Item Icon** and **Source Mixing**
+sections. Advanced controls and the Edit Mesh toggle are hidden. Its standalone
+viewport uses Rust/DX12 preview packages and accepts fresh scene identities for
+subsequent alignment updates. Reference-material completion rebuilds the preview.
 
 When a PAM has an indexed PAMLOD companion, both meshes must rebuild successfully.
 A failed companion rebuild stops the build with the companion path and error;

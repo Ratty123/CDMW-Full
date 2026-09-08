@@ -10,7 +10,8 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtWidgets import QApplication, QDialog, QGroupBox, QPushButton, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QListWidget, QPushButton, QRadioButton, QTreeWidget, QWidget
 
 from cdmw.core.archive_mesh_import_preview import build_mesh_import_preview
 from cdmw.core.mesh_preflight import MeshImportPreflight
@@ -34,6 +35,8 @@ from cdmw.ui.archive_browser.mesh_swap_scope_preflight import (
 )
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+from cdmw.ui.archive_browser.directory_scan_controller import DirectoryScanController
+from cdmw.ui.widgets import CollapsibleSection
 
 
 def _entry(path: str, offset: int) -> ArchiveEntry:
@@ -135,33 +138,63 @@ def _wait(thread: threading.Thread) -> None:
     assert not thread.is_alive()
 
 
-def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mesh_import_setup_dialog_constructs_with_shared_control_text(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     owner = _ImportDialogOwner()
     captured: dict[str, object] = {}
+    texture = tmp_path / "source.png"
+    texture.write_bytes(b"owned file-list fixture")
 
     def reject(dialog: QDialog) -> int:
-        captured["groups"] = [group.title() for group in dialog.findChildren(QGroupBox)]
         captured["buttons"] = [button.text() for button in dialog.findChildren(QPushButton)]
+        sections = dialog.findChildren(CollapsibleSection)
+        assert {section.objectName() for section in sections} == {"MeshImportDetails", "MeshImportFiles"}
+        assert all(section.body_frame.isHidden() for section in sections)
+        assert dialog.height() <= 400 and dialog.width() <= 760
+        labels = {label.text(): label.toolTip() for label in dialog.findChildren(QLabel) if label.objectName() == "CompactPathValue"}
+        assert Path(labels["source.gltf"]).as_posix() == "models/imports/source.gltf"
+        assert labels["target.pac"] == "character/model/target.pac"
+        roundtrip = next(button for button in dialog.findChildren(QRadioButton) if button.text() == "Round-trip edit")
+        assert roundtrip.isHidden()
+        files = dialog.findChild(CollapsibleSection, "MeshImportFiles")
+        assert files.toggle_button.text() == "Files (1 included)"
+        files.toggle_button.click()
+        assert not files.body_frame.isHidden()
+        dialog.findChild(QListWidget).item(0).setCheckState(Qt.Unchecked)
+        assert files.toggle_button.text() == "Files (0 included)"
+        details = dialog.findChild(CollapsibleSection, "MeshImportDetails")
+        details.toggle_button.click()
+        assert not details.body_frame.isHidden()
+        tree = dialog.findChild(QTreeWidget)
+        assert tree.topLevelItemCount() == 1
+        assert tree.topLevelItem(0).text(1) == "Owned diagnostic"
+        continue_button = next(button for button in dialog.findChildren(QPushButton) if button.text() == "Continue")
+        assert continue_button.isEnabled()
+        dialog.findChild(DirectoryScanController).error.emit(1, "Owned scan error")
+        assert not continue_button.isEnabled()
+        assert any("Owned scan error" in label.text() and not label.isHidden() for label in dialog.findChildren(QLabel))
+        next(button for button in dialog.findChildren(QPushButton) if button.text() == "Clear").click()
+        assert continue_button.isEnabled()
+        app.processEvents()
+        dialog.reject()
         return QDialog.Rejected
 
     monkeypatch.setattr(QDialog, "exec", reject)
     result = owner._prompt_archive_mesh_import_setup(
         _entry("character/model/target.pac", 1),
-        Path("source.gltf"),
+        Path("models/imports/source.gltf"),
         title="Mesh Import Setup",
         prepared_preflight=MeshImportSetupPreflightResult(
             request_id=1,
-            scene_import_result=SceneImportResult(mesh=ParsedMesh(path="source.gltf")),
+            scene_import_result=SceneImportResult(mesh=ParsedMesh(path="source.gltf"), discovered_texture_files=(texture,), diagnostics=("Owned diagnostic",)),
             original_mesh=None,
             profile=None,
-            preflight=MeshImportPreflight("ready"),
+            preflight=MeshImportPreflight("ready", detail_lines=("Owned diagnostic",)),
             has_roundtrip_sidecar=False,
         ),
     )
 
     assert result is None
-    assert "Preflight & Files" in captured["groups"]
     assert "Cancel" in captured["buttons"]
     assert app is QApplication.instance()
 

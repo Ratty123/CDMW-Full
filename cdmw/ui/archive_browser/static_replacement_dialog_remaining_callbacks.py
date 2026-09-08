@@ -390,6 +390,11 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
             original_dialog_preview.set_high_quality_textures(True)
         _alignment_d3d11_clear_archive_parity_upgrade_helper(alignment_d3d11_state)
         _set_preview_performance_status(ready_state.loaded_performance.summary, details=ready_state.loaded_performance.details)
+        if not context.get('embedded_alignment_builder'):
+            # The standalone Rust preview owns a package queue. Completing the
+            # reference pass invalidated that queue above, so rebuild it with
+            # the now-resolved original materials.
+            _queue_static_preview_refresh()
     class _OriginalTexturePreviewWorkerReceiver(QObject):
         def __init__(self, *args: object, **kwargs: object) -> None:
             super().__init__(*args, **kwargs)

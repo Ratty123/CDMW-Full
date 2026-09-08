@@ -161,20 +161,6 @@ def test_dotnet_launch_exposes_only_shared_vortice_shutdown() -> None:
     assert "_mesh_editor_embedded_stop_native_d3d11_preview" not in source
 
 
-def test_alignment_native_preview_queue_is_unconditionally_disabled() -> None:
-    source = (MESH_OWNER_ROOT / "static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_01.py").read_text(
-        encoding="utf-8"
-    )
-    start = source.index("def _queue_alignment_d3d11_preview(")
-    body = source[start : source.index("_state._queue_alignment_d3d11_preview =", start)]
-
-    assert "reason='dotnet_authoritative'" in body
-    assert "return False" in body
-    assert "_mesh_editor_auto_dotnet_preview" not in body
-    assert "_alignment_d3d11_queue_preview_request_helper" not in body
-    assert "_safe_start_alignment_timer" not in body
-
-
 def test_skipped_native_queue_does_not_report_a_queued_preview() -> None:
     source = (
         MESH_OWNER_ROOT

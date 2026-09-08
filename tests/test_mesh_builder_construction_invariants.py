@@ -13,12 +13,40 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDoubleSpinBox, QPushButton, QTabWidget, QWidget
 
 from tests.mesh_builder_driver import open_mesh_builder
+from cdmw.ui.widgets import CollapsibleSection
+from cdmw.ui.preview.profile import DotNetPreviewProfile
 
 
 _MODES = pytest.mark.parametrize(
     ("modify_original_clone_mode", "mode_name"),
     ((False, "Import Mesh"), (True, "Modify Original")),
 )
+
+
+@_MODES
+def test_builder_has_compact_sections_and_a_standalone_rust_preview(
+    modify_original_clone_mode: bool, mode_name: str,
+) -> None:
+    with open_mesh_builder(modify_original_clone_mode=modify_original_clone_mode) as builder:
+        layout = builder.control('setup_layout')
+        sections = [layout.itemAt(i).widget() for i in range(layout.count())]
+        sections = [widget for widget in sections if isinstance(widget, CollapsibleSection) and not widget.isHidden()]
+        expected = ['Options', 'Transform and Parts', 'Item Icon']
+        if not modify_original_clone_mode:
+            expected.append('Source Mixing')
+        assert [section.toggle_button.text() for section in sections] == expected
+        assert all(not section.toggle_button.isChecked() for section in sections)
+        assert builder.control('advanced_setup_section').isHidden()
+        assert builder.control('mesh_edit_enabled_checkbox').isHidden()
+        assert builder.control('alignment_d3d11_preview_host').profile is DotNetPreviewProfile.PREVIEW
+        sections[0].set_expanded(True)
+        if not modify_original_clone_mode:
+            assert builder.control('complete_external_swap_checkbox').isVisibleTo(builder.dialog)
+            sections[-1].set_expanded(True)
+            assert builder.control('add_archive_source_button').isVisibleTo(builder.dialog)
+        sections[1].set_expanded(True)
+        for name in ('offset_x_spin', 'rotate_y_spin', 'scale_z_spin', 'part_source_combo'):
+            assert builder.control(name).isVisibleTo(builder.dialog), name
 
 
 @_MODES

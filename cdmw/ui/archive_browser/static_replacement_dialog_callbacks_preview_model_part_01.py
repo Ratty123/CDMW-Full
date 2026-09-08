@@ -329,19 +329,15 @@ def _preview_model_step_013(_state):
     _state.parts_outliner_layout = _state.QVBoxLayout(_state.parts_outliner_panel)
     _state.parts_outliner_layout.setContentsMargins(0, 0, 0, 0)
     _state.parts_outliner_layout.setSpacing(3)
-    _state.advanced_part_tools_section = _state.CollapsibleSection('Part Setup', expanded=False)
-    # Part Setup owns everything per-part now. The inspector (pick a part,
-    # its target, role, transform, colours) comes first; the routing overview
-    # that used to be the whole Parts & Routing tab -- the source, original
-    # and mapping trees with their bulk actions -- follows it, so one section
-    # answers both "which part" and "where does it go". Nothing was
-    # removed: every tree and button the callbacks resolve is still here.
+    _state.advanced_part_tools_section = _state.CollapsibleSection('Transform and Parts', expanded=False)
+    # The transform factory inserts the whole-model controls before this
+    # per-part inspector and routing overview in the same section.
     _state.advanced_part_tools_section.body_layout.addWidget(_state.part_inspector)
     if _state.setup_layout is not None:
         _state.advanced_part_tools_section.body_layout.addWidget(_state.mapping_group)
-        _state.setup_layout.addWidget(_state.advanced_part_tools_section)
+        _state.setup_layout.insertWidget(1, _state.advanced_part_tools_section)
         # The mapping table used to build lazily when the Parts tab was
-        # shown. That tab is hidden now, so opening Part Setup is what a
+        # shown. That tab is hidden now, so opening Transform and Parts is what a
         # reader does to see the routing overview. The trigger lives in the
         # outliner callbacks, created before this section exists, so the
         # section is published on the dialog for them to find.

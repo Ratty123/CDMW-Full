@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import struct
 import threading
@@ -35,6 +36,8 @@ from cdmw.ui.archive_browser import mesh_patch_flow
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import configure_synthetic_archive_context
 from cdmw.ui.main_window import MainWindow
 from cdmw.ui.shell.app_context import AppContext
+from cdmw.ui.preview.rust_session import RustPreviewSessionController
+from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER
 from tests.test_static_mesh_replacer_preview import _minimal_pac_original, _minimal_two_part_pac_original
 
 
@@ -218,6 +221,7 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
 ) -> None:
     window, entry = archive_window
     source = tmp_path / "replacement.obj"
+    monkeypatch.setattr(RustPreviewSessionController, '_launch_if_needed', lambda self: None)
     source.write_text(
         "o replacement\nv 0 0 0\nv 2 0 0\nv 2 2 0\nv 0 2 0\n"
         "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nf 1/1 2/2 3/3\nf 1/1 3/3 4/4\n",
@@ -277,6 +281,13 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
     assert dialog._source_mix_task_controller._owner is window
     assert dialog.parentWidget() is window.archive
     assert opened == []
+
+    controller = context['alignment_d3d11_preview_host'].controller
+    wait_for(lambda: bool(controller.desired_package_path))
+    assert controller._desired_package.manifest_path.is_file()
+    manifest = json.loads(controller._desired_package.manifest_path.read_text(encoding='utf-8'))
+    assert manifest['renderer'] == RUST_MESH_RENDERER
+    assert manifest['interaction_profile'] == 'static_replacement'
 
     exported, preflight_results, build_summaries = [], [], []
     real_final_preview = mesh_patch_flow.build_final_package_preview
