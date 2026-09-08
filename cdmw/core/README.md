@@ -19,6 +19,10 @@ corpus reporting from bounded `archive_binary_preview_{analysis,corpus}.py`
 owners. Keep their output and cancellation contracts exact when decomposing
 the remaining format decoders.
 
+`common.py` validates Windows process creation times when following parent IDs
+for helper cleanup. Reused IDs and unavailable identity data must not make
+older or unrelated processes descendants of a helper.
+
 `temp_cache.py` owns process-local keyed build serialization and scoped cache
 leases. Builders publish complete units before returning; readers hold a lease
 while consuming paths, and pruning skips active or just-returned units.

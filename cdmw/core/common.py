@@ -204,6 +204,28 @@ def _windows_descendant_pids(root_pid: int) -> Tuple[int, ...]:
     close_handle = kernel32.CloseHandle
     close_handle.argtypes = (wintypes.HANDLE,)
     close_handle.restype = wintypes.BOOL
+    open_process = kernel32.OpenProcess
+    open_process.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    open_process.restype = wintypes.HANDLE
+    get_process_times = kernel32.GetProcessTimes
+    get_process_times.argtypes = (wintypes.HANDLE, *([ctypes.POINTER(wintypes.FILETIME)] * 4))
+    get_process_times.restype = wintypes.BOOL
+
+    def creation_time(process_id: int) -> int | None:
+        handle = open_process(0x1000, False, process_id)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return None
+        try:
+            created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+            if not get_process_times(handle, ctypes.byref(created), ctypes.byref(exited), ctypes.byref(kernel), ctypes.byref(user)):
+                return None
+            return (int(created.dwHighDateTime) << 32) | int(created.dwLowDateTime)
+        finally:
+            close_handle(handle)
+
+    root_created = creation_time(int(root_pid))
+    if root_created is None:
+        return ()
 
     snapshot = create_snapshot(0x00000002, 0)
     if ctypes.cast(snapshot, ctypes.c_void_p).value == ctypes.c_void_p(-1).value:
@@ -221,13 +243,18 @@ def _windows_descendant_pids(root_pid: int) -> Tuple[int, ...]:
         close_handle(snapshot)
 
     descendants: List[int] = []
-    pending = list(children_by_parent.get(int(root_pid), ()))
+    pending = [(process_id, root_created) for process_id in children_by_parent.get(int(root_pid), ())]
     while pending:
-        process_id = pending.pop(0)
-        if process_id in descendants:
+        process_id, parent_created = pending.pop(0)
+        if process_id == root_pid or process_id in descendants:
+            continue
+        # Windows retains the numeric parent ID after a parent exits. Reuse of
+        # that ID must not turn an older host into a new helper's descendant.
+        child_created = creation_time(process_id)
+        if child_created is None or child_created < parent_created:
             continue
         descendants.append(process_id)
-        pending.extend(children_by_parent.get(process_id, ()))
+        pending.extend((child_id, child_created) for child_id in children_by_parent.get(process_id, ()))
     return tuple(descendants)
 
 

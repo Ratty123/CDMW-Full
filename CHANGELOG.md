@@ -16,6 +16,7 @@ The format is intentionally simple:
 ### Fixed
 - Applying interface translations or exporting language strings no longer constructs unopened tools through their lazy placeholders.
 - Mesh temporary-file cleanup stops when its time budget is exhausted, including when the clock has not advanced at a zero-length budget.
+- Helper shutdown checks process creation times before following Windows parent IDs, preventing reused IDs from making older processes cleanup targets.
 
 ## [0.11.0-alpha.11] - 2026-09-08
 
