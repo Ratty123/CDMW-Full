@@ -72,11 +72,11 @@ def test_material_authority_complete_swap_defaults_on_for_external_models_only()
     external = ("sword.obj", "sword.dae", "scene.gltf", "sword.glb", r"E:\x\.cdmw_extracted\wolf\scene.gltf")
     for source in external:
         assert material_authority_complete_swap_default(
-            source, modify_original_clone_mode=False, preferred_complete_source_swap=False
+            source, modify_original_clone_mode=False, preferred_complete_source_swap=None
         ), source
     for source in ("_in_game_mesh_sources/character/x.pac", "clone.pam", "lod.pamlod", ""):
         assert not material_authority_complete_swap_default(
-            source, modify_original_clone_mode=False, preferred_complete_source_swap=False
+            source, modify_original_clone_mode=False, preferred_complete_source_swap=None
         ), source
     # The In-Game Mesh Swap flow decides for itself; Modify Original never routes.
     assert material_authority_complete_swap_default(
@@ -85,6 +85,13 @@ def test_material_authority_complete_swap_defaults_on_for_external_models_only()
     assert not material_authority_complete_swap_default(
         "sword.obj", modify_original_clone_mode=True, preferred_complete_source_swap=True
     )
+
+
+def test_material_authority_respects_explicit_geometry_only_choice() -> None:
+    for source in ("sword.obj", "scene.glb", "model.pam"):
+        assert not material_authority_complete_swap_default(
+            source, modify_original_clone_mode=False, preferred_complete_source_swap=False
+        )
 
 
 def test_material_authority_basic_controls_profile_gate() -> None:

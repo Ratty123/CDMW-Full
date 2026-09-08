@@ -137,7 +137,7 @@ def _setup_options_transform_step_002(_state):
         and _state._material_authority_complete_swap_default_helper(
             _state.context.get('obj_path'),
             modify_original_clone_mode=_state.modify_original_clone_mode,
-            preferred_complete_source_swap=bool(_state.preferred_complete_source_swap),
+            preferred_complete_source_swap=_state.preferred_complete_source_swap,
         )
     )
     _state.alignment_setup_options_control_text = _state._alignment_setup_options_control_text_helper()

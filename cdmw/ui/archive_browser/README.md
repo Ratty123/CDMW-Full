@@ -13,11 +13,16 @@ CDMW whose original mesh structure is preserved. Unsupported target formats
 remain blocked by preflight. Replacement opens its own window and preserves
 any active Mesh Editor session.
 
-For a geometry-only OBJ without MTL/textures, turn off **Complete source-owned
-mesh/material swap** in the builder to keep the target's existing materials. A
-missing source colour remains a review warning in this mode; missing final textures still
-block export. Keep the complete-swap mode enabled when replacing materials too,
-and provide the model's MTL/textures alongside its OBJ.
+The setup dialog defaults to **Keep target materials and textures**, so a
+geometry-only OBJ does not need an MTL. Choose **Replace materials and textures
+too** to use the imported model's material files and textures. This choice sets
+**Complete source-owned mesh/material swap** in the builder and can be changed
+there. Dedicated full-replacement and materials-only workflows keep their presets.
+Missing final textures still block export.
+
+When a PAM has an indexed PAMLOD companion, both meshes must rebuild successfully.
+A failed companion rebuild stops the build with the companion path and error;
+it cannot produce a package containing only the PAM.
 
 **Import Loose Mod Folder...** scans already prepared game-format mod files and
 matches them to archive entries; it does not convert OBJ models. Source scans

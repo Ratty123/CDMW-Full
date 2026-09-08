@@ -899,7 +899,7 @@ class ArchiveMeshPatchFlowMixin:
                 source_skeleton=setup.source_skeleton,
                 original_mesh=setup.original_mesh,
                 preferred_rebuild_material_sidecar=setup.preferred_rebuild_material_sidecar,
-                preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
+                preferred_complete_source_swap=setup.preferred_complete_source_swap,
                 dialog_title=setup.placement_review_title or alignment_builder_window_title(),
                 placement_context_note=setup.placement_context_note,
                 source_texture_evidence=setup.source_texture_evidence,

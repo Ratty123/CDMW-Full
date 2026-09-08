@@ -31,7 +31,8 @@ class MeshImportSetupSelection:
     defer_original_texture_preview: bool = False
     runtime_target_entry: Optional[ArchiveEntry] = None
     source_skeleton: object | None = None
-    preferred_complete_source_swap: bool = False
+    # None preserves a caller's default; False explicitly keeps target materials.
+    preferred_complete_source_swap: bool | None = None
     full_import_model_replacement: bool = False
     materials_and_textures_only: bool = False
 

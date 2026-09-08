@@ -45737,12 +45737,32 @@
       ]
     },
     {
+      "key": "Keep target materials and textures",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 320,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
       "key": "Keep template perks",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 131,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Keep the game's materials for a geometry-only replacement. To replace materials too, include the imported model's MTL and textures. You can change this in the builder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 322,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -50343,6 +50363,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 312,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Materials and textures",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 317,
+          "sink": "QLabel"
         }
       ]
     },
@@ -80603,6 +80633,16 @@
           "path": "cdmw/ui/mesh_editor/replace_from_archive_flow.py",
           "line": 58,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Replace materials and textures too",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_import_export.py",
+          "line": 321,
+          "sink": "addItem"
         }
       ]
     },

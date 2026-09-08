@@ -512,7 +512,7 @@ class ArchiveMeshLaunchFlowMixin:
                 source_skeleton=setup.source_skeleton,
                 original_mesh=setup.original_mesh,
                 preferred_rebuild_material_sidecar=setup.preferred_rebuild_material_sidecar,
-                preferred_complete_source_swap=bool(setup.preferred_complete_source_swap),
+                preferred_complete_source_swap=setup.preferred_complete_source_swap,
                 source_texture_evidence=setup.source_texture_evidence,
                 extra_supplemental_specs=setup.extra_supplemental_specs,
                 embedded_host=self.shell.mesh_editor_tab.builder_host() if hasattr(self.shell, "mesh_editor_tab") else None,

@@ -10,6 +10,7 @@ from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -309,6 +310,25 @@ class ArchiveMeshImportExportMixin:
             static_radio.setChecked(True)
         summary_layout.addWidget(mode_group)
 
+        material_choice = QWidget()
+        material_choice_layout = QHBoxLayout(material_choice)
+        material_choice_layout.setContentsMargins(0, 0, 0, 0)
+        material_choice_layout.setSpacing(8)
+        material_choice_layout.addWidget(QLabel("Materials and textures"))
+        material_mode_combo = QComboBox()
+        material_mode_combo.setObjectName("MeshImportMaterialMode")
+        material_mode_combo.addItem("Keep target materials and textures", False)
+        material_mode_combo.addItem("Replace materials and textures too", True)
+        material_mode_combo.setToolTip(
+            "Keep the game's materials for a geometry-only replacement. To replace materials too, "
+            "include the imported model's MTL and textures. You can change this in the builder."
+        )
+        material_choice_layout.addWidget(material_mode_combo, 1)
+        summary_layout.addWidget(material_choice)
+        show_material_choice = not (
+            force_static_replacement or full_import_model_replacement or materials_and_textures_only
+        )
+
         if placement_context_note.strip():
             placement_group = QWidget()
             placement_layout = QVBoxLayout(placement_group)
@@ -555,6 +575,7 @@ class ArchiveMeshImportExportMixin:
         root_layout.addLayout(button_row)
 
         def _refresh_continue_state() -> None:
+            material_choice.setVisible(show_material_choice and static_radio.isChecked())
             continue_button.setEnabled(
                 not folder_scan.is_running()
                 and not folder_scan_state["blocked"]
@@ -608,12 +629,18 @@ class ArchiveMeshImportExportMixin:
             for item in checked_items
             if item is not None and item.checkState() == Qt.Checked and str(item.data(Qt.UserRole) or "")
         ]
+        preferred_complete_source_swap = None
+        if full_import_model_replacement or materials_and_textures_only:
+            preferred_complete_source_swap = True
+        elif show_material_choice and import_mode == "static_replacement":
+            preferred_complete_source_swap = bool(material_mode_combo.currentData())
         return MeshImportSetupSelection(
             scene_path=scene_path,
             import_mode=import_mode,
             supplemental_files=tuple(supplemental_files),
             scene_import_result=scene_import_result,
             source_skeleton=source_skeleton,
+            preferred_complete_source_swap=preferred_complete_source_swap,
             original_mesh=original_mesh_for_setup,
             preflight=preflight,
             source_label=source_display_label,

@@ -15,7 +15,7 @@ class ArchiveStaticReplacementDialogMixin:
         source_skeleton: object | None = None,
         original_mesh: Optional[ParsedMesh] = None,
         preferred_rebuild_material_sidecar: Optional[bool] = None,
-        preferred_complete_source_swap: bool = False,
+        preferred_complete_source_swap: bool | None = None,
         dialog_title: str = "",
         placement_context_note: str = "",
         source_texture_evidence: Sequence[Mapping[str, object]] = (),

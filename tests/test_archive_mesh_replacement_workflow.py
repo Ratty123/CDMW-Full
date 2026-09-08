@@ -14,24 +14,28 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
 import pytest
+from PIL import Image
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QDialog, QFileDialog, QLabel, QMenu,
+    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QLabel, QMenu,
     QMessageBox, QPlainTextEdit, QRadioButton, QTabWidget,
 )
 
 from cdmw.app.events import AppEventBus
+from cdmw.core import archive_mesh_import_preview
 from cdmw.models import ArchiveEntry, ModPackageInfo
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
 from cdmw.modding.mesh_parser import parse_pac
+from cdmw.modding.static_mesh_replacer import build_static_replacement_preview_mesh
 from cdmw.services.service_container import ServiceContainer
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.archive_browser import source_mix_overlay
 from cdmw.ui.archive_browser import actions as archive_actions
+from cdmw.ui.archive_browser import mesh_patch_flow
 from cdmw.ui.archive_browser.mesh_builder_startup_smoke import configure_synthetic_archive_context
 from cdmw.ui.main_window import MainWindow
 from cdmw.ui.shell.app_context import AppContext
-from tests.test_static_mesh_replacer_preview import _minimal_pac_original
+from tests.test_static_mesh_replacer_preview import _minimal_pac_original, _minimal_two_part_pac_original
 
 
 APP = QApplication.instance() or QApplication([])
@@ -49,7 +53,7 @@ def wait_for(predicate, timeout: float = 10.0) -> None:
 
 
 @pytest.fixture
-def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request):
     settings = create_settings(settings_file_path=tmp_path / "settings.cfg")
     window = MainWindow(app_context=AppContext(
         settings=settings,
@@ -57,14 +61,15 @@ def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         event_bus=AppEventBus(),
     ))
     window.settings_file_path = tmp_path / "settings.cfg"
-    original, _mesh = _minimal_pac_original()
+    multipart = getattr(request, "param", False)
+    original, _mesh = (_minimal_two_part_pac_original if multipart else _minimal_pac_original)()
     # The shared fixture leaves its 40-byte PAC influence rows empty. Populate
     # valid rigid influences so the real importer can prove donor-weight reuse.
     original = bytearray(original)
     cursor = 0x50
     for section_index in range(5):
         if section_index:
-            for vertex_index in range(3):
+            for vertex_index in range(6 if multipart else 3):
                 original[cursor + vertex_index * 40 + 28] = 255
         cursor += struct.unpack_from("<I", original, 0x14 + section_index * 8)[0]
     pamt, paz = tmp_path / "0.pamt", tmp_path / "0.paz"
@@ -72,8 +77,41 @@ def archive_window(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     paz.write_bytes(original)
     entry = ArchiveEntry("object/model/target.pac", pamt, paz, 0, len(original), len(original), 0, 0)
     configure_synthetic_archive_context(window, entry)
+    archive_paths = [pamt, paz]
+    if multipart:
+        wrappers = "".join(
+            f'<SkinnedMeshMaterialWrapper _subMeshName="target{index}">'
+            '<Material Name="_resourceMaterial" _materialName="SkinnedMeshCloth_Ver2">'
+            '<Vector Name="_parameters"><MaterialParameterTexture StringItemID="_overlayColorTexture" '
+            '_name="_overlayColorTexture" Index="0">'
+            f'<ResourceReferencePath_ITexture Name="_value" _path="object/texture/target{index}.dds"/>'
+            '</MaterialParameterTexture></Vector></Material></SkinnedMeshMaterialWrapper>'
+            for index in range(2)
+        )
+        sidecar = ('<Root><SkinnedMeshProperty><Vector Name="_subMeshResources">' + wrappers
+                   + '</Vector></SkinnedMeshProperty></Root>').encode()
+        sidecar_paz = tmp_path / "sidecar.paz"
+        sidecar_paz.write_bytes(sidecar)
+        sidecar_entry = ArchiveEntry(
+            "object/modelproperty/target.pac_xml", pamt, sidecar_paz, 0, len(sidecar), len(sidecar), 0, 0,
+        )
+        window.archive.archive_entries.append(sidecar_entry)
+        window.archive.archive_entries_by_normalized_path[sidecar_entry.path.casefold()] = (sidecar_entry,)
+        window.archive.archive_entries_by_basename[sidecar_entry.basename.casefold()] = (sidecar_entry,)
+        archive_paths.append(sidecar_paz)
+        for index in range(2):
+            texture_paz = tmp_path / f"target{index}.dds.paz"
+            Image.new("RGBA", (8, 8), (128, 128, 128, 255)).save(texture_paz, format="DDS")
+            texture_size = texture_paz.stat().st_size
+            texture_entry = ArchiveEntry(
+                f"object/texture/target{index}.dds", pamt, texture_paz, 0, texture_size, texture_size, 0, 0,
+            )
+            window.archive.archive_entries.append(texture_entry)
+            window.archive.archive_entries_by_normalized_path[texture_entry.path] = (texture_entry,)
+            window.archive.archive_entries_by_basename[texture_entry.basename] = (texture_entry,)
+            archive_paths.append(texture_paz)
     monkeypatch.setattr(window.archive, "_current_archive_entry", lambda: entry)
-    before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in (pamt, paz)}
+    before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in archive_paths}
     try:
         yield window, entry
     finally:
@@ -174,8 +212,9 @@ def test_replacement_context_menu_uses_clicked_target(archive_window, monkeypatc
     assert calls == [entry]
 
 
+@pytest.mark.parametrize("archive_window,case", [(False, "geometry"), (False, "transformed"), (True, "textured")], indirect=["archive_window"])
 def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor(
-    archive_window, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    archive_window, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case,
 ) -> None:
     window, entry = archive_window
     source = tmp_path / "replacement.obj"
@@ -184,6 +223,19 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
         "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nf 1/1 2/2 3/3\nf 1/1 3/3 4/4\n",
         encoding="utf-8",
     )
+    if case == "textured":
+        source.write_text(
+            "mtllib replacement.mtl\nv 0 0 0\nv 2 0 0\nv 2 2 0\nv 0 2 0\n"
+            "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n"
+            "o red\nusemtl red\nf 1/1 2/2 3/3\no blue\nusemtl blue\nf 1/1 3/3 4/4\n",
+            encoding="utf-8",
+        )
+        source.with_suffix(".mtl").write_text(
+            "newmtl red\nKd 1 1 1\nmap_Kd red.png\nnewmtl blue\nKd 1 1 1\nmap_Kd blue.png\n",
+            encoding="utf-8",
+        )
+        Image.new("RGB", (8, 8), (220, 20, 20)).save(tmp_path / "red.png")
+        Image.new("RGB", (8, 8), (20, 20, 220)).save(tmp_path / "blue.png")
     source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_k: (str(source), ""))
     opened, warnings, setup_modes = [], [], []
@@ -200,6 +252,11 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
         setup_modes.append(selected.text())
         assert selected.text() == "Mesh Replacement"
         assert selected.isEnabled()
+        material_mode = dialog.findChild(QComboBox, "MeshImportMaterialMode")
+        assert material_mode.currentData() is False
+        assert material_mode.currentText() == "Keep target materials and textures"
+        if case == "textured":
+            material_mode.setCurrentIndex(material_mode.findData(True))
         dialog.accept()
         return QDialog.Accepted
 
@@ -215,13 +272,22 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
     context = dialog._cdmw_builder_construction_context
     assert context["entry"] == entry
     assert context["scene_import_result"].mesh.total_faces == 2
-    assert context["original_mesh"].total_faces == 1
+    assert context["original_mesh"].total_faces == (2 if case == "textured" else 1)
     assert callable(context["continue_build_callback"])
     assert dialog._source_mix_task_controller._owner is window
     assert dialog.parentWidget() is window.archive
     assert opened == []
 
-    exported = []
+    exported, preflight_results, build_summaries = [], [], []
+    real_final_preview = mesh_patch_flow.build_final_package_preview
+
+    def record_final_preview(*args, **kwargs):
+        build_summaries.append(args[0].summary_lines)
+        result = real_final_preview(*args, **kwargs)
+        preflight_results.append(result)
+        return result
+
+    monkeypatch.setattr(mesh_patch_flow, "build_final_package_preview", record_final_preview)
     monkeypatch.setattr(window.archive, "_collect_archive_mod_ready_export_target", lambda **_kw: (
         tmp_path / "output", ModPackageInfo(title="Replacement regression"), True, False,
         ModPackageExportOptions(),
@@ -231,13 +297,28 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
     monkeypatch.setattr(QMessageBox, "exec", lambda _self: QMessageBox.Ok)
     wait_for(lambda: window.worker_thread is None)
     complete_swap = dialog.findChild(QCheckBox, "MeshAlignmentCompleteExternalSwapCheckbox")
-    complete_swap.setChecked(False)
+    assert complete_swap.isChecked() == (case == "textured")
+    transformed_preview = []
+    if case == "transformed":
+        context["alignment_mode_combo"].setCurrentIndex(context["alignment_mode_combo"].findData("manual"))
+        context["scale_to_length_checkbox"].setChecked(False)
+        for axis, value in zip("xyz", (3, 4, 1)):
+            context[f"offset_{axis}_spin"].setValue(value)
+            context[f"scale_{axis}_spin"].setValue(2)
+        context["rotate_z_spin"].setValue(90)
+        real_build = archive_mesh_import_preview.build_static_mesh_replacement
+
+        def record_preview(original_data, original, replacement, options):
+            transformed_preview.append(build_static_replacement_preview_mesh(original, replacement, options))
+            return real_build(original_data, original, replacement, options)
+
+        monkeypatch.setattr(archive_mesh_import_preview, "build_static_mesh_replacement", record_preview)
     build_button = dialog._material_authority_build_button
     status = dialog.findChild(QLabel, "MeshReplacementBuilderStatus")
     assert build_button.isEnabled()
     build_button.click()
     wait_for(lambda: exported or warnings or "failed" in status.text().lower())
-    assert warnings == []
+    assert warnings == [], str(warnings) + str(build_summaries)
     assert "failed" not in status.text().lower(), status.text()
     wait_for(lambda: "Wrote rebuilt" in status.text())
     assert len(exported) == 1
@@ -249,10 +330,28 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
     assert len(output_files) == 1
     assert output_files[0].read_bytes() == result.rebuilt_data
     rebuilt = parse_pac(output_files[0].read_bytes(), entry.path)
-    assert len(rebuilt.submeshes[0].vertices) == 4
-    assert len(rebuilt.submeshes[0].faces) == 2
-    assert len(rebuilt.submeshes[0].bone_weights) == 4
-    assert all(sum(weights) == pytest.approx(1.0) for weights in rebuilt.submeshes[0].bone_weights)
+    assert rebuilt.total_faces == 2
+    assert len(rebuilt.submeshes) == (2 if case == "textured" else 1)
+    for part in rebuilt.submeshes:
+        assert len(part.bone_weights) == len(part.vertices)
+        assert all(sum(weights) == pytest.approx(1.0) for weights in part.bone_weights)
+    if case == "transformed":
+        expected = [(3, 4, 1), (3, 8, 1), (-1, 8, 1), (-1, 4, 1)]
+        assert len(rebuilt.submeshes[0].vertices) == len(expected)
+        assert len(transformed_preview) == 1
+        for part in (rebuilt.submeshes[0], transformed_preview[0].submeshes[0]):
+            for actual, point in zip(part.vertices, expected):
+                assert actual == pytest.approx(point, abs=5e-4)
+    if case == "textured":
+        assert len(result.source_owned_output_draw_sections) == 2
+        sidecars = list(package_root.rglob("*.pac_xml"))
+        assert len(sidecars) == 1
+        assert "target0" in sidecars[0].read_text() and "target1" in sidecars[0].read_text()
+        texture_files = list(package_root.rglob("*.dds"))
+        assert len(texture_files) >= 2
+        colors = [Image.open(path).convert("RGB").getpixel((4, 4)) for path in texture_files]
+        assert any(red > blue + 100 for red, _green, blue in colors)
+        assert any(blue > red + 100 for red, _green, blue in colors)
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_hash
     assert opened == []
 

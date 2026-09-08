@@ -3674,7 +3674,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("preferred_rebuild_material_sidecar", source)
         self.assertIn("preferred_complete_source_swap", source)
         self.assertIn("setup.preferred_complete_source_swap = bool(swap_scope.complete_swap)", source)
-        self.assertIn("preferred_complete_source_swap=bool(setup.preferred_complete_source_swap)", source)
+        self.assertIn("preferred_complete_source_swap=setup.preferred_complete_source_swap", source)
         self.assertIn("if _state.preferred_complete_source_swap:", setup_ui_source)
         self.assertIn("_state._select_complete_swap_material_profile('material_authority_detail_mask', persist=False)", setup_ui_source)
         self.assertIn("def _archive_model_source_texture_entries_for_swap", source)

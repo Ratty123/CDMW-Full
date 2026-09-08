@@ -62,20 +62,18 @@ def material_authority_complete_swap_default(
     source_path: object,
     *,
     modify_original_clone_mode: bool,
-    preferred_complete_source_swap: bool,
+    preferred_complete_source_swap: bool | None,
 ) -> bool:
     """Whether the Builder opens with the complete source-owned swap armed.
 
-    An external model (OBJ, DAE, glTF, GLB, or a ZIP of one) is imported to
-    replace the item outright, so it opens on the source-owned route rather than
-    the legacy overwrite route that keeps the target's shader layers. A game mesh
-    used as the source keeps whatever its swap flow chose, and Modify Original
-    never routes materials this way.
+    Respect an explicit import choice, including keeping the target's materials.
+    Callers without a choice retain their existing external-model default.
+    Modify Original never routes materials this way.
     """
     if modify_original_clone_mode:
         return False
-    if preferred_complete_source_swap:
-        return True
+    if preferred_complete_source_swap is not None:
+        return bool(preferred_complete_source_swap)
     suffix = Path(str(source_path or "")).suffix.casefold()
     return bool(suffix) and suffix not in MATERIAL_AUTHORITY_GAME_MESH_SOURCE_SUFFIXES
 

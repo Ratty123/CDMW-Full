@@ -392,7 +392,10 @@ def prepare_mesh_import_paired_lod(state: MeshImportBuildState) -> None:
             state.summary_lines.append(f"Paired LOD donor: {baseline.message}")
     except Exception as exc:
         raise_if_cancelled(state.stop_event, "Mesh import preview cancelled.")
-        state.summary_lines.append(f"Paired PAMLOD rebuild could not be prepared: {exc}")
+        raise ValueError(
+            f"Cannot export {state.entry.path}: required companion {paired_entry.path} "
+            f"could not be rebuilt. No replacement package was written. {exc}"
+        ) from exc
 
 
 def finish_mesh_import_preview(state: MeshImportBuildState):
