@@ -28,7 +28,12 @@ prepare the native helpers and archive worker using the root README's source
 setup first. Full-suite and native tests require those real helpers.
 
 GitHub's Windows Build defaults to the ten-module `smoke` gate on Python 3.14
-for pushes, pull requests, tags and manual runs. It covers startup/tool
+for code pushes, pull requests, tags and manual runs. Documentation and GitHub
+issue/pull-request template-only pushes and pull requests skip both Windows
+Build and CodeQL; mixed code/documentation changes still run. The CodeQL
+workflow owns its triggers instead of GitHub's automatic default setup and
+retains the existing five-language coverage and weekly security refresh.
+The smoke gate covers startup/tool
 construction, archive confirmation/backup/rollback, output path safety,
 helper cleanup, metadata and localization without building native helpers.
 Manual `exhaustive_tests` opts into native builds and the full nonvisual suite

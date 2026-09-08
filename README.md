@@ -480,6 +480,15 @@ Automation can also call `build_pyside6_app.ps1` directly with `-Mode` and
 requests, and can be started manually. There is no nightly schedule, so unchanged
 code does not produce another daily run or failure notification.
 
+Documentation and GitHub issue/pull-request template changes skip both Windows
+Build and CodeQL on pushes and pull requests. A change that also includes code,
+dependencies or build/workflow files still runs the checks. Version tags and
+manual Windows builds remain explicit release routes.
+
+CodeQL uses the [repository workflow](.github/workflows/codeql.yml), with GitHub's
+automatic default setup disabled. It retains scans for Actions, C/C++, C#,
+Python and Rust, a weekly security refresh, and manual runs.
+
 Pushes, pull requests, version tags and default manual runs use a short `smoke`
 suite on Python 3.14: startup, tool construction, archive confirmation/backup/
 rollback, output path safety, helper cleanup, metadata and localization checks.
