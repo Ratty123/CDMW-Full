@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import replace
 
 from PySide6.QtCore import QSize, QTimer
@@ -73,8 +72,31 @@ class EffectWorkspaceAuthoringMixin:
 
     @staticmethod
     def _effect_family(stem):
-        # Shipped variants commonly use numeric suffixes; retain the descriptive family.
-        return re.sub(r'(?:[_-]?\d+[a-z]?|__(?:\d+|[a-z]))+$', '', stem.casefold())
+        # Consume variant suffixes once from the right; ambiguous regex repetitions
+        # can stall the UI on catalogue names that almost match the suffix grammar.
+        text = stem.casefold()
+        stop = len(text) - int(text.endswith('\n'))
+        end = stop
+        while end:
+            start = end
+            letter = 'a' <= text[start - 1] <= 'z'
+            if letter:
+                start -= 1
+                if start >= 2 and text[start - 2:start] == '__':
+                    end = start - 2
+                    continue
+            digit_end = start
+            while start and text[start - 1].isdecimal():
+                start -= 1
+            if start == digit_end:
+                break
+            # '__1a' leaves one underscore, but '__12a' can be '__1' + '2a'.
+            if (not letter or digit_end - start > 1) and start >= 2 and text[start - 2:start] == '__':
+                start -= 2
+            elif start and text[start - 1] in '_-':
+                start -= 1
+            end = start
+        return text[:end] + text[stop:]
 
     def _sync_library_tools(self, stem):
         self.favourite.setText('★' if stem in self.user_library.favourites else '☆')

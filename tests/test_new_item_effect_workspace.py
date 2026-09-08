@@ -720,6 +720,18 @@ class EffectWorkspaceTests(unittest.TestCase):
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"], "the current selection stays visible")
 
+    def test_variants_filter_preserves_grouping_and_a_selection_outside_the_catalogue(self) -> None:
+        controller = _Controller()
+        controller.stems = ("fx_fire_01", "fx_fire__02a", "fx_fire__a", "fx_frost_01", "fx_fire_000!")
+        workspace, _, _ = self._workspace(controller)
+        workspace.choose_effect("fx_fire-03")
+        workspace.family_only.click()
+        stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
+        self.assertEqual(stems, ["", "fx_fire-03", "fx_fire_01", "fx_fire__02a", "fx_fire__a"])
+        workspace.search.setText("no match")
+        stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
+        self.assertEqual(stems, ["", "fx_fire-03"], "the current selection stays visible")
+
     def test_readable_search_reset_and_discard_preserve_the_committed_effect(self) -> None:
         workspace, controller, _ = self._workspace()
         workspace.choose_effect("fx_fire_hit")

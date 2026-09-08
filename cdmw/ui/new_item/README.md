@@ -186,7 +186,9 @@ prepared in short event-loop slices and reused across filtering and placement
 changes. Unchanged rows retain their selection and layout, and metadata column
 sizing samples a bounded number of rows even while the page is hidden. Returning
 to Effects keeps the resident scene; changed inputs and failed updates still retry.
-Favourites and Variants narrow the library. **Thumbnail** captures the current preview
+Favourites and Variants narrow the library. Variant families remove numeric and
+letter suffixes in one scan, so long or malformed names cannot trigger regex
+backtracking during filtering. **Thumbnail** captures the current preview
 frame into the local library; **Large thumbnails** expands the rows, loading only the
 visible cached images. Saved recipes contain references and settings, never game assets.
 A replaced snapshot or catalogue cancels the previous preparation;

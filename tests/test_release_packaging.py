@@ -80,6 +80,24 @@ def test_release_verifier_rejects_an_unhashed_or_incomplete_lock(tmp_path: Path)
     assert "py7zr: active dependency texttable is not pinned in the release lock" in errors
 
 
+@pytest.mark.parametrize(
+    ("url_name", "filename"),
+    (
+        ("a%252Fb.whl", "a%2Fb.whl"),
+        ("%252e%252e%252fb.whl", "%2e%2e%2fb.whl"),
+        ("a%255Cb.whl", "a%5Cb.whl"),
+        ("safe-1.0-py3-none-any.whl", "safe-1.0-py3-none-any.whl"),
+        ("safe-1.0%2Blocal-py3-none-any.whl", "safe-1.0+local-py3-none-any.whl"),
+    ),
+)
+def test_release_pip_decodes_package_urls_only_once(url_name: str, filename: str) -> None:
+    from pip._internal.models.link import Link
+
+    actual = Link(f"https://example.invalid/{url_name}").filename
+    assert actual == filename
+    assert Path(actual).name == actual
+
+
 def test_release_dependency_verifier_reports_missing_and_wrong_versions() -> None:
     pins = {
         "available": ("available", "1.2.3"),

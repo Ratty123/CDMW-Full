@@ -96,6 +96,7 @@ The format is intentionally simple:
 - **Compact Workspace is now the first-run application layout.** A new settings file opens with the rail-based workspace, while an existing saved Classic or Compact choice remains authoritative and an explicit invalid value still fails closed to Classic.
 
 ### Fixed
+- **Effect variant filtering handles crafted names without freezing the interface.** Family grouping now scans suffixes once while preserving existing results. Build dependencies use pip 26.2 to fix doubly decoded package download paths (CVE-2026-13346).
 - **Upscale controls fit expanded sections and larger interface fonts.** The sidebar can grow past its old width cap, and the preview yields space in narrow windows.
 - New Item Distribution sizes itself to the active route tab, so hidden reward controls no longer force unnecessary outer scrolling on the Shops and groups page at 1280x720.
 - **Mesh Editor keeps the full mesh visible after framing a small selection and zooming out.** Panel scrolling no longer leaks into camera zoom or interrupts the next selection click. Body/armor loading shows its blocking requirement with a Free Edit shortcut, and file pickers are attached to the editor window.
