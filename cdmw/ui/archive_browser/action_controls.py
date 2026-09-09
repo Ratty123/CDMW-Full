@@ -136,7 +136,7 @@ class ArchiveBrowserActionControlsMixin:
         )
         self._set_action_button_state(
             self.archive_model_import_mesh_button,
-            controls_enabled and can_mesh_actions,
+            False,  # Mesh Replacement is held back from the release UI.
             "Import an OBJ, DAE, GLB or glTF model to replace the selected game mesh. Review alignment and build a loose mod package.",
             mesh_reason,
         )

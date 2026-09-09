@@ -42105,11 +42105,6 @@
           "sink": "_set_action_button_state"
         },
         {
-          "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 481,
-          "sink": "setToolTip"
-        },
-        {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 224,
           "sink": "setToolTip"
@@ -80389,11 +80384,6 @@
     {
       "key": "Replace Mesh from File...",
       "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 480,
-          "sink": "addAction"
-        },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 223,

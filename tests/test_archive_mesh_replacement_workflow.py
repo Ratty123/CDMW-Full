@@ -168,29 +168,35 @@ def test_loose_folder_button_scans_on_shell_worker_and_opens_review(
     assert window.worker_thread is None
 
 
-def test_replacement_import_menu_tracks_target_and_busy_state(archive_window, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_replacement_import_stays_disabled_for_release(archive_window, monkeypatch: pytest.MonkeyPatch) -> None:
     window, entry = archive_window
     archive = window.archive
     archive._update_archive_model_action_controls(None)
-    action = next(a for a in archive.archive_import_menu_button.menu().actions() if a.text().rstrip(".") == REPLACE_LABEL.rstrip("."))
+    assert all(
+        a.text().rstrip(".") != REPLACE_LABEL.rstrip(".")
+        for a in archive.archive_import_menu_button.menu().actions()
+    )
     calls = []
     monkeypatch.setattr(archive, "_start_archive_mesh_patch", calls.append)
     archive._update_archive_model_action_controls(None)
-    assert action.isEnabled()
-    action.trigger()
-    assert calls == [entry]
+    assert not archive.archive_model_import_mesh_button.isEnabled()
+    assert archive.archive_model_open_mesh_editor_button.isEnabled()
+    archive.archive_model_import_mesh_button.click()
+    assert calls == []
     window.worker_thread = object()
     try:
         archive._update_archive_model_action_controls(None)
-        assert not action.isEnabled()
+        assert not archive.archive_model_import_mesh_button.isEnabled()
     finally:
         window.worker_thread = None
+    archive._update_archive_model_action_controls(None)
+    assert not archive.archive_model_import_mesh_button.isEnabled()
     monkeypatch.setattr(archive, "_current_archive_entry", lambda: None)
     archive._update_archive_model_action_controls(None)
-    assert not action.isEnabled()
+    assert not archive.archive_model_import_mesh_button.isEnabled()
 
 
-def test_replacement_context_menu_uses_clicked_target(archive_window, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_replacement_context_menu_is_hidden_for_release(archive_window, monkeypatch: pytest.MonkeyPatch) -> None:
     window, entry = archive_window
     archive = window.archive
     item = SimpleNamespace(isSelected=lambda: True)
@@ -205,14 +211,14 @@ def test_replacement_context_menu_uses_clicked_target(archive_window, monkeypatc
 
     class Menu(QMenu):
         def exec(self, *_args):
-            action = next(a for a in self.actions() if a.text() == REPLACE_LABEL)
-            assert action.isEnabled()
-            action.trigger()
-            return action
+            labels = [a.text() for a in self.actions()]
+            assert REPLACE_LABEL not in labels
+            assert "Open in Mesh Editor" in labels
+            return None
 
     monkeypatch.setattr(archive_actions, "QMenu", Menu)
     archive._show_archive_tree_context_menu(QPoint())
-    assert calls == [entry]
+    assert calls == []
 
 
 @pytest.mark.parametrize("archive_window,case", [(False, "geometry"), (False, "transformed"), (True, "textured")], indirect=["archive_window"])
@@ -265,8 +271,8 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
         return QDialog.Accepted
 
     monkeypatch.setattr(QDialog, "exec", accept_setup)
-    window.archive._update_archive_model_action_controls(None)
-    window.archive.archive_model_import_mesh_button.click()
+    # Retain implementation coverage while its public release entry is disabled.
+    window.archive._start_archive_mesh_patch(entry)
     wait_for(lambda: window._modeless_alignment_dialogs or warnings)
     assert warnings == []
     assert opened == []
@@ -368,12 +374,11 @@ def test_obj_import_builds_reparseable_loose_pac_without_opening_original_editor
 
 
 def test_cancel_file_picker_preserves_editor_and_starts_no_worker(archive_window, monkeypatch: pytest.MonkeyPatch) -> None:
-    window, _entry = archive_window
+    window, entry = archive_window
     opened = []
     monkeypatch.setattr(window, "_open_mesh_editor_for_entry", lambda *a, **kw: opened.append((a, kw)))
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_k: ("", ""))
-    window.archive._update_archive_model_action_controls(None)
-    window.archive.archive_model_import_mesh_button.click()
+    window.archive._start_archive_mesh_patch(entry)
     assert opened == []
     assert window.worker_thread is None
     assert not window._modeless_alignment_dialogs

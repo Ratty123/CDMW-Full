@@ -4,11 +4,15 @@ Owns archive listing, filtering, preview coordination, item icons, and archive
 browser actions. Keep virtual model behavior in `model.py`; keep UI assembly and
 feature coordination in focused modules as they are extracted from the shell.
 
-To replace an existing mesh, select its PAC/PAM/PAMLOD in Browse Archives, then
-choose **Import > Replace Mesh from File...** (also available by right-clicking
-the mesh). Choose the OBJ, DAE, GLB or glTF source, use **Mesh Replacement** in
-the setup dialog, review alignment/mapping in Mesh Replacement Builder, and
-build a mod-ready loose package. **Round-trip edit** is for an OBJ exported by
+**Mesh Replacement is temporarily disabled for release review.** Its
+**Replace Mesh from File...** action is absent from the Import and mesh context
+menus, and its retained action button stays disabled as selection and busy state
+change. The builder implementation remains available for development.
+
+The retained workflow takes a PAC/PAM/PAMLOD target and an OBJ, DAE, GLB or glTF
+source. **Mesh Replacement** in the setup dialog opens alignment/mapping review
+in Mesh Replacement Builder to build a mod-ready loose package.
+**Round-trip edit** is for an OBJ exported by
 CDMW whose original mesh structure is preserved. Unsupported target formats
 remain blocked by preflight. Replacement opens its own window and preserves
 any active Mesh Editor session.

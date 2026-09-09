@@ -377,7 +377,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_import_menu_button = _make_archive_action_menu_button(
             "Import",
             (
-                ("Replace Mesh from File", self.archive_model_import_mesh_button),
                 ("Import Loose Mod Folder", self.archive_import_loose_mod_button),
                 ("Import HKX JSON", self.archive_hkx_import_json_button),
                 ("Import HKX XML", self.archive_hkx_import_xml_button),

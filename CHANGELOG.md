@@ -12,6 +12,7 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Changed
+- Mesh Replacement is temporarily disabled while its release scope is reviewed. The Import and mesh context menus no longer offer Replace Mesh from File; the builder implementation is retained.
 - Mesh Import Setup opens compactly with expandable Files and Details. Mesh Replacement Builder combines transforms and part setup, keeps Source Mixing accessible, and hides Advanced controls and Edit Mesh.
 - Mesh replacement setup offers an explicit material choice and defaults to keeping the target's materials and textures. Dedicated full-replacement and materials-only workflows retain their presets.
 - Placement & Animation previews target 60 FPS with interpolated poses and pacing that accounts for completed painting. Timeline scrubbing combines intermediate updates and restores full detail on release; unchanged body and armour pieces are reused through a bounded cache.
@@ -26,7 +27,6 @@ The format is intentionally simple:
 - Standalone Mesh Replacement Builder sends its models to the Rust/DX12 preview again and accepts subsequent alignment updates after the initial load.
 - Mesh Editor shows character heads in their resolved neutral shape, matching Archive Browser. Move and sculpt edits, selection, and Undo/Redo use that face; Finish converts edits back to the original PAC coordinates before validation and saving, avoiding a second deformation in game.
 - PAM replacement stops before export if its indexed PAMLOD companion cannot be rebuilt, reporting the companion path and cause instead of silently omitting it.
-- Browse Archives exposes **Replace Mesh from File...** in its Import menu and mesh context menu. OBJ and other supported model imports open the replacement builder without replacing an active Mesh Editor session.
 - **Import Loose Mod Folder...** and replacement source pickers use the main window's background task runner, fixing the erroneous "Background source processing is unavailable in this window" failure.
 - Geometry-only mesh replacements can retain the target's materials when the imported OBJ has no MTL or base colour. Full material replacement and missing final-texture checks remain enforced.
 - Switching animation clips stops the previous playback timer. Clip-index cache reads and decompression, archive scans and local clip loading run in the background, preserving cancellation and the last usable preview.
