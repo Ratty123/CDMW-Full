@@ -561,7 +561,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             )
         )
 
-        self.assertIn("resolve_skeleton_for_obj: bool = True", archive_modding_source)
+        self.assertIn("resolve_skeleton_for_obj: bool = False", archive_modding_source)
         self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)
         self.assertIn("resolve_skeleton_for_obj=create_workspace", main_window_source)
         self.assertIn("source_skeleton = None", main_window_source)

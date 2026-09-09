@@ -409,9 +409,13 @@ def test_archive_obj_source_export_only_recovers_unresolved_palette(tmp_path, mo
     monkeypatch.setattr('cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance', unavailable)
     if not missing_palette:
         with pytest.raises(ValueError, match='unresolved transform'):
-            archive_mesh_export.export_archive_mesh(entry, tmp_path / 'export', 'obj', build_preview_context=False)
+            archive_mesh_export.export_archive_mesh(
+                entry, tmp_path / 'export', 'obj', resolve_skeleton_for_obj=True, build_preview_context=False,
+            )
         return
-    result = archive_mesh_export.export_archive_mesh(entry, tmp_path / 'export', 'obj', build_preview_context=False)
+    result = archive_mesh_export.export_archive_mesh(
+        entry, tmp_path / 'export', 'obj', resolve_skeleton_for_obj=True, build_preview_context=False,
+    )
     obj = next(path for path in result.output_paths if path.suffix == '.obj')
     assert any('source coordinates' in line and 'unresolved' in line for line in result.summary_lines)
     assert build_mesh(import_obj(str(obj)), raw) == raw

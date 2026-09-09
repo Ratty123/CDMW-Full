@@ -12587,6 +12587,16 @@
       ]
     },
     {
+      "key": "Bake the character's neutral appearance into the OBJ.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 463,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Balanced",
       "origins": [
         {
@@ -32907,6 +32917,16 @@
       ]
     },
     {
+      "key": "Export OBJ (Neutral Appearance)...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 462,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Export OBJ...",
       "origins": [
         {
@@ -45722,6 +45742,16 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 322,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Keep the mesh's original vertex positions.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 459,
           "sink": "setToolTip"
         }
       ]

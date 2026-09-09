@@ -367,13 +367,13 @@ def export_archive_mesh(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
-    resolve_skeleton_for_obj: bool = True,
+    resolve_skeleton_for_obj: bool = False,
     model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
     asset_family_graph: object = None,
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
 ) -> MeshExportResult:
-    """Prepare every selected output before replacing an existing export."""
+    """Publish a complete export; OBJ keeps source coordinates unless appearance is requested."""
     raise_if_cancelled(stop_event)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -612,7 +612,7 @@ def _export_archive_mesh_staged(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
-    resolve_skeleton_for_obj: bool = True,
+    resolve_skeleton_for_obj: bool = False,
     model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
     asset_family_graph: object = None,
     build_preview_context: bool = True,

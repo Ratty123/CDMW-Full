@@ -134,10 +134,13 @@ as original files; only the primary mesh is converted. The mesh, materials,
 selected companions, and manifest are staged together. A preparation failure or
 cancellation preserves the previous export, and publication rolls back on failure.
 
-Character OBJ exports bake the same neutral skeleton variation used by FBX.
-The matching `.meta.json` stores the source identity and reversible appearance
-transform. **Round-trip edit** converts neutral OBJ positions and normals back
-to PAC coordinates, retains donor skin weights and lower LODs, and restores part
+**Export OBJ...** preserves the PAC's original positions and normals, including
+embedded head and ear geometry. To bake the same neutral skeleton variation
+used by FBX, right-click a PAC and choose **Export OBJ (Neutral Appearance)...**.
+The matching `.meta.json` stores the source identity and, for neutral exports,
+the reversible appearance transform. **Round-trip edit** converts neutral OBJ
+positions and normals back to PAC coordinates, retains donor skin weights and
+lower LODs, and restores part
 order and duplicate triangles removed by Blender. Keep vertex order and counts;
 topology or rig changes require their separate replacement/authoring workflows.
 Blender corner-normal splits can recover the original vertex slots when positions,

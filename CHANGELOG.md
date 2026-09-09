@@ -15,6 +15,7 @@ The format is intentionally simple:
 - Mesh Import Setup opens compactly with expandable Files and Details. Mesh Replacement Builder combines transforms and part setup, keeps Source Mixing accessible, and hides Advanced controls and Edit Mesh.
 
 ### Fixed
+- Archive Browser **Export OBJ...** preserves original PAC coordinates, fixing the 247 displaced ear vertices on Damian's embedded head. **Export OBJ (Neutral Appearance)...** explicitly selects baked character appearance.
 - PAC rebuilds preserve the tangent bits shared with packed normals, correctly encode normal Z signs and round half-float UVs. OBJ imports recover serialization noise, validate neutral normal accuracy and retain position bounds for normal/UV edits; expanded bounds compensate lower LODs within their quantization precision.
 - PAC interchange preserves source skin data and neutral appearance through OBJ/Blender round trips, including renamed or reordered parts, normal splits and duplicate faces. Unresolved palettes retain source coordinates, and reconstruction rejects edits beyond PAC position precision. FBX links resolved diffuse textures, omits placeholder images and preserves repeated bone influences.
 - Standalone Mesh Replacement Builder sends its models to the Rust/DX12 preview again and accepts subsequent alignment updates after the initial load.
