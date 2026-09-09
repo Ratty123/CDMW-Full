@@ -8305,6 +8305,7 @@
     "Template": "Plantilla",
     "Template assignments inherited.": "Se heredan las asignaciones de la plantilla.",
     "Template cloth / physics": "Tela / física de la plantilla",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "Se han omitido los tintes de la plantilla para {value_0}: los materiales importados no admiten la configuración de tintes de la plantilla. Añade asignaciones explícitas para activar los tintes.",
     "Template model": "Modelo de plantilla",
     "Template only": "Solo la plantilla",
     "Template part:": "Parte de la plantilla:",

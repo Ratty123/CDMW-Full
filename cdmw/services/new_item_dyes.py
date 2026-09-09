@@ -61,15 +61,17 @@ def prepare_dye_preview_table(index, row, parts):
 
 
 def prepare_dye_assignments(source_row, material, source_material, assignments, *, imported, mask_paths=None):
+    if assignments == ():
+        return (),material
     bindings = material_dye_bindings(material)
     targets = {name for _index,name in bindings}
     if assignments is None:
         for part in source_row.submeshes:
             if part.name not in targets or any(not has_dye_wiring(wrapper) for (index,name),wrapper in bindings.items() if name == part.name):
+                if imported:
+                    return (),material
                 raise ValueError("Map the imported dye parts explicitly or clear dye assignments; the template wiring is incompatible.")
         return source_row.submeshes,material
-    if not assignments:
-        return (),material
     if len({entry.target_submesh for entry in assignments}) != len(assignments):
         raise ValueError("A target submesh has more than one dye assignment.")
     sources = {part.name:part for part in source_row.submeshes}
@@ -89,7 +91,7 @@ def prepare_dye_assignments(source_row, material, source_material, assignments, 
 def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
     snapshot = planner.snapshot
     if snapshot.sources is None or "partprefabdyeslotinfo" not in snapshot.sources.tables:
-        if choice is not None and choice.dyes is not None:
+        if choice is not None and choice.dyes != ():
             raise ValueError("The active game generation has no complete dye table.")
         return material
     index = load_dye_index(snapshot,stop_event=planner.stop_event)
@@ -110,6 +112,10 @@ def plan_variant_dye(planner,old_model,new_model,material,choice,imported):
         planner.add(snapshot.entry(old_model),target,data,f"Dye mask: {target}")
         masks[assignment.target_submesh] = target
     submeshes,material = prepare_dye_assignments(source,material,source_material,assignments,imported=imported,mask_paths=masks)
+    if imported and assignments is None and source.submeshes and not submeshes:
+        warning = f"Template dyes were omitted for {old_model}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes."
+        planner.warnings.append(warning)
+        planner.log(warning)
     row = source.for_model(new_model,submeshes=submeshes)
     pair = index.pair
     body,header = planner.table_data(pair)

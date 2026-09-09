@@ -7,7 +7,11 @@ import math
 from typing import Sequence
 
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
-from .mesh_skinning import ensure_final_target_skin_weights, finalize_merged_skin_provenance
+from .mesh_skinning import (
+    SOURCE_VERTEX_MAP_TOPOLOGY,
+    ensure_final_target_skin_weights,
+    finalize_merged_skin_provenance,
+)
 from .static_mesh_clone import _clone_parsed_mesh_fast, _clone_submesh_fast
 from .static_mesh_geometry import (
     _apply_alignment_roll,
@@ -152,6 +156,14 @@ def _build_mapped_replacement_mesh(
         replacement_mesh,
         options.original_part_copies,
     )
+    rigid_attachment_import = bool(options.complete_external_swap and effective_replacement_mesh.submeshes) and all(
+        len(part.bone_indices) == len(part.vertices) and len(part.bone_weights) == len(part.vertices)
+        and all(
+            tuple((index, weight) for index, weight in zip(indices, weights) if weight > 0) == ((0, 1.0),)
+            for indices, weights in zip(part.bone_indices, part.bone_weights)
+        )
+        for part in effective_replacement_mesh.submeshes
+    )
     preserve_source_indices = set(preserve_source_indices)
     for index in getattr(options, "global_transform_exempt_source_indices", []) or []:
         try:
@@ -249,6 +261,13 @@ def _build_mapped_replacement_mesh(
             and enforce_vertex_limit
         ):
             merged = _build_removed_runtime_placeholder_submesh(target)
+            if rigid_attachment_import:
+                # Unused accessory slots belong to the new rigid item too;
+                # retaining their donor skin would invent a skeleton requirement.
+                merged.bone_indices = [(0,)] * len(merged.vertices)
+                merged.bone_weights = [(1.0,)] * len(merged.vertices)
+                merged.source_vertex_map = []
+                merged.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
         else:
             merged = _merge_source_submeshes(source_parts, target)
         if enforce_vertex_limit:

@@ -8305,6 +8305,7 @@
     "Template": "Şablon",
     "Template assignments inherited.": "Şablon atamaları devralındı.",
     "Template cloth / physics": "Şablon kumaşı / fizik",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "{value_0} için şablon boya ayarları atlandı: içe aktarılan malzemeler şablonun boya ayarlarını desteklemiyor. Boyaları etkinleştirmek için açık eşleştirmeler ekleyin.",
     "Template model": "Şablon modeli",
     "Template only": "Yalnız şablon",
     "Template part:": "Şablon parçası:",

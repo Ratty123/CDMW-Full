@@ -66,6 +66,80 @@ def test_preview_table_replaces_only_the_selected_dye_row():
     assert parse_prefab_dye_table(payload, header) == (row, other)
 
 
+def test_incompatible_inherited_dyes_are_optional_only_for_imported_materials():
+    row = dye_row()
+    imported_material = material("custom")
+    assert prepare_dye_assignments(row, imported_material, material(), None, imported=True) == ((), imported_material)
+    with pytest.raises(ValueError, match="template wiring is incompatible"):
+        prepare_dye_assignments(row, imported_material, material(), None, imported=False)
+
+
+@pytest.mark.parametrize("imported_name", ["blade", "custom"])
+def test_explicit_template_dyes_apply_when_compatible_and_warn_otherwise(tmp_path, imported_name):
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_service import NewItemService
+    from tests.test_new_item_variant_rig import _pac
+
+    files = current_files()
+    files[PAC], files[PAC_XML] = _pac(), material()
+    base = "gamedata/binarystaticinfo__/bin/partprefabdyeslotinfo"
+    row = dye_row()
+    files[base+".staticinfobody"], files[base+".staticinfoheader"] = _table([(row.key, encode_prefab_dye_row(row))])
+    service = NewItemService()
+    snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path/"game", files)), read_entry=_read)
+    choice = replace(selections(snapshot)[0], custom_model=True, dyes=None)
+    model = ModelFiles(files[PAC], {PAC_XML: material(imported_name)})
+    messages = []
+
+    plan = service.plan(replace(spec(), variants=(choice,)), snapshot,
+                        variant_models={choice.identity: model}, on_log=messages.append)
+
+    output = next(value["output_model"] for value in plan.manifest["variants"] if "output_model" in value)
+    rows = parse_prefab_dye_table(plan.loose_files[base+".staticinfobody"], plan.loose_files[base+".staticinfoheader"])
+    assert row in rows
+    expected = row.submeshes if imported_name == "blade" else ()
+    assert next(value for value in rows if value.model_path == output).submeshes == expected
+    assert plan.loose_files[xml_path(output)] == material(imported_name)
+    if imported_name == "custom":
+        warning = next(message for message in plan.warnings if "Template dyes were omitted" in message)
+        assert PAC in warning and warning in messages
+    else:
+        assert not plan.warnings
+
+
+@pytest.mark.parametrize("imported_name", ["blade", "custom"])
+@pytest.mark.parametrize("legacy_adapter", [False, True])
+def test_imported_plan_never_inherits_dyes_by_default(tmp_path, imported_name, legacy_adapter):
+    from cdmw.core.archive_format import parse_archive_pamt
+    from cdmw.services.new_item_planning import ModelFiles
+    from cdmw.services.new_item_service import NewItemService
+    from tests.test_new_item_variant_rig import _pac
+
+    files = current_files()
+    files[PAC], files[PAC_XML] = _pac(), material()
+    base = "gamedata/binarystaticinfo__/bin/partprefabdyeslotinfo"
+    original = dye_row()
+    files[base+".staticinfobody"], files[base+".staticinfoheader"] = _table([(original.key, encode_prefab_dye_row(original))])
+    service = NewItemService()
+    snapshot = service.build_snapshot(parse_archive_pamt(build_package(tmp_path/"game", files)), read_entry=_read)
+    choice = replace(selections(snapshot)[0], custom_model=True)
+    model = ModelFiles(files[PAC], {PAC_XML: material(imported_name)})
+    assert choice.dyes == ()
+    if legacy_adapter:
+        plan = service.plan(spec(), snapshot, model=model)
+    else:
+        plan = service.plan(replace(spec(), variants=(choice,)), snapshot, variant_models={choice.identity: model})
+
+    output = next(value["output_model"] for value in plan.manifest["variants"] if "output_model" in value)
+    rows = parse_prefab_dye_table(plan.loose_files[base+".staticinfobody"], plan.loose_files[base+".staticinfoheader"])
+    assert original in rows
+    assert next(value for value in rows if value.model_path == output).submeshes == ()
+    assert plan.loose_files[xml_path(output)] == material(imported_name)
+    assert not plan.warnings
+    assert prepare_dye_assignments(original, b"unused material boundary", material(), (), imported=True) == ((), b"unused material boundary")
+
+
 def test_dye_variant_export_survives_second_item_base(tmp_path):
     from cdmw.core.archive_format import parse_archive_pamt
     from cdmw.services.new_item_service import NewItemService

@@ -78,7 +78,8 @@ class VariantAppearance:
     custom_model: bool = False
     material_route: str = "plain_pbr"
     keep_template_physics: bool = False
-    dyes: tuple[DyeAssignment, ...] | None = None
+    # Empty disables dyes; None is an explicit request to inherit template dyes.
+    dyes: tuple[DyeAssignment, ...] | None = ()
     glow_parts: tuple[str, ...] = ()
     glow_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     glow_intensity: float = 4.0

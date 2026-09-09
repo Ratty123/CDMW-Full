@@ -8305,6 +8305,7 @@
     "Template": "Modelo",
     "Template assignments inherited.": "Atribuições do template herdadas.",
     "Template cloth / physics": "Tecido / física de referência",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "As tinturas do modelo foram omitidas para {value_0}: os materiais importados não aceitam a configuração de tinturas do modelo. Adicione mapeamentos explícitos para ativar as tinturas.",
     "Template model": "Modelo de referência",
     "Template only": "Só o modelo base",
     "Template part:": "Parte de referência:",

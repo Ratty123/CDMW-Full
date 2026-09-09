@@ -11,6 +11,11 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+
+- New Item weapon imports keep unused template mesh sections on the rigid attachment and remove residual donor skin influences from full replacements. Templates with weighted accessories no longer cause a false missing-or-ambiguous-skeleton block.
+- New Item dye assignments are off by default. The checkbox now controls the applied settings, and replacing an import resets its dye choices. Explicitly requested but incompatible template dyes produce a warning and are omitted.
+
 ## [0.11.0-alpha.14] - 2026-09-09
 
 ### Changed

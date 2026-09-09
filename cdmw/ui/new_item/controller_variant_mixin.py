@@ -31,7 +31,7 @@ class NewItemVariantControllerMixin:
             identity = part.prefab_path.casefold(),path.casefold()
             state = self._variant_states.get(identity)
             appearance = "custom model" if state and state.appearance.custom_model else "template"
-            if state and state.appearance.dyes is not None:
+            if state and state.appearance.dyes != ():
                 appearance += " · custom dyes"
             result.append((identity,f"{part.stem} · {path.rsplit('/',1)[-1]} · {appearance}"))
         return tuple(result)
@@ -52,6 +52,11 @@ class NewItemVariantControllerMixin:
             return
         prior = self._variant_states.get(identity)
         appearance = prior.appearance if prior else VariantAppearance(*identity)
+        if prior and (prior.source is not self.model_import
+                      or (self.model_import is None and prior.result is not self.model_result)):
+            # Dye consent belongs to this import. Replacing it starts disabled,
+            # even when the new file has the same path or material names.
+            appearance = replace(appearance,dyes=())
         appearance = replace(appearance,custom_model=self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None),
                              material_route=self.draft.material_route.value,keep_template_physics=self.draft.keep_template_physics,
                              glow_parts=tuple(self.draft.glow_parts),glow_color=tuple(self.draft.glow_color),

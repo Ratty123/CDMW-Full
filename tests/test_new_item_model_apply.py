@@ -182,3 +182,46 @@ def test_dye_assignments_are_unchecked_in_the_assembled_model_panel(studio):
     assert not dyes.isChecked()
     dyes.setChecked(True)
     assert not dyes.contents.isHidden()
+
+
+def test_import_dye_consent_is_explicit_and_does_not_follow_other_imports(studio):
+    from cdmw.domain.new_item.authoring import DyeAssignment
+    from cdmw.ui.new_item.model_import import ModelPlacement
+
+    _, tab = studio
+    controller, dyes = tab.controller, tab.model_panel.dyes
+    source = _import(tab)
+    first = controller.current_variant_identity()
+    second = next(identity for identity, _label in controller.variant_choices() if identity != first)
+    assert not dyes.isChecked()
+    assert controller.current_spec().variants[0].dyes == ()
+
+    dyes.setChecked(True)
+    assert controller._variant_states[first].appearance.dyes is None
+    mapping = (DyeAssignment("blade", "blade", (1, 2, 0)),)
+    controller.set_variant_dyes(mapping)
+    controller.set_imported_model(None, ModelFiles(b"applied to the same import"))
+    controller.set_model_placement(ModelPlacement(offset=(1, 0, 0)))
+    assert controller._variant_states[first].appearance.dyes == mapping
+    dyes.mask.setText("old-mask.dds")
+    dyes.preview.setChecked(True)
+
+    controller.select_variant(second)
+    assert not dyes.isChecked() and not dyes.preview.isChecked()
+    assert not dyes.mask.text()
+    controller.select_variant(first)
+    assert controller.model_import is source and dyes.isChecked()
+    assert controller._variant_states[first].appearance.dyes == mapping
+
+    dyes.setChecked(False)
+    assert controller._variant_states[first].appearance.dyes == ()
+    assert dyes.contents.isHidden() and not dyes.preview.isChecked()
+    dyes.setChecked(True)
+    assert _import(tab) is not source
+    assert not dyes.isChecked()
+    assert controller._variant_states[first].appearance.dyes == ()
+
+    dyes.setChecked(True)
+    controller.set_template(TEMPLATE)
+    assert not dyes.isChecked()
+    assert dyes.contents.isHidden()

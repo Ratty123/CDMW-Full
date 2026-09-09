@@ -8305,6 +8305,7 @@
     "Template": "Vorlage",
     "Template assignments inherited.": "Zuweisungen der Vorlage übernommen.",
     "Template cloth / physics": "Vorlagenstoff / Physik",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "Vorlageneinfärbungen wurden für {value_0} ausgelassen: Die importierten Materialien unterstützen die Einfärbungseinstellungen der Vorlage nicht. Füge explizite Einfärbungszuordnungen hinzu, um Einfärbungen zu aktivieren.",
     "Template model": "Vorlagenmodell",
     "Template only": "Nur die Vorlage",
     "Template part:": "Vorlagenteil:",

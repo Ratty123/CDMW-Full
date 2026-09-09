@@ -10,6 +10,7 @@ class DyeEditor(QGroupBox):
     def __init__(self,controller,panel):
         super().__init__("Dye assignments",panel)
         self.controller,self.panel,self.index = controller,panel,None
+        self._context = None
         self.setCheckable(True)
         self.setChecked(False)
         outer = QVBoxLayout(self)
@@ -21,6 +22,7 @@ class DyeEditor(QGroupBox):
         layout.setSpacing(4)
         self.contents.setVisible(False)
         self.toggled.connect(self.contents.setVisible)
+        self.toggled.connect(lambda checked:self._set(None if checked else ()))
         self.load = QPushButton("Load dye presets")
         self.load.clicked.connect(lambda:controller.start_authoring_index("dyes"))
         from PySide6.QtCore import Qt
@@ -88,6 +90,8 @@ class DyeEditor(QGroupBox):
         controller.snapshot_ready.connect(self._snapshot)
         controller.template_changed.connect(self.refresh)
         controller.variant_changed.connect(self.refresh)
+        controller.model_import_changed.connect(self.refresh)
+        controller.model_changed.connect(self.refresh)
         controller.busy_changed.connect(lambda busy:self.load.setEnabled(not busy))
         self.refresh()
 
@@ -98,7 +102,7 @@ class DyeEditor(QGroupBox):
     def _values(self):
         identity = self.controller.current_variant_identity()
         state = self.controller._variant_states.get(identity)
-        return state.appearance.dyes if state else None
+        return state.appearance.dyes if state else ()
 
     def _ready(self,kind,index):
         if kind=="dyes":
@@ -114,6 +118,23 @@ class DyeEditor(QGroupBox):
         self.refresh()
 
     def refresh(self,*_):
+        identity = self.controller.current_variant_identity()
+        state = self.controller._variant_states.get(identity)
+        context = (identity,id(state.source) if state and state.source is not None
+                   else id(state.result) if state else None)
+        values = self._values()
+        enabled = values != ()
+        self.blockSignals(True)
+        self.setChecked(enabled)
+        self.blockSignals(False)
+        self.contents.setVisible(enabled)
+        if context != self._context:
+            self.mask.clear()
+        if context != self._context or not enabled:
+            self.preview.blockSignals(True)
+            self.preview.setChecked(False)
+            self.preview.blockSignals(False)
+        self._context = context
         row = self._row()
         self.source.clear()
         self.target.clear()
@@ -142,7 +163,6 @@ class DyeEditor(QGroupBox):
                     self.target.addItem(name)
         self._preset()
         self.mappings.clear()
-        values=self._values()
         for value in values or ():
             self.mappings.addItem(f"{value.target_submesh} ← {value.source_submesh} · RGB {value.slots}")
         self.add.setEnabled(row is not None)

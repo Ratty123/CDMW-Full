@@ -13,7 +13,7 @@ MODEL = "character/model/1_pc/1_phm/weapon/1_onehandweapon/test.pac"
 PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/test_r.prefab"
 
 
-def _pac(*, weighted_accessory=False, attachment_slot=0):
+def _pac(*, weighted_accessory=False, attachment_slot=0, extra_accessory=False):
     from tests.test_pac_skin_extra_influences import _record
     from tests.test_static_mesh_replacer_preview import _minimal_two_part_pac_original
 
@@ -24,14 +24,17 @@ def _pac(*, weighted_accessory=False, attachment_slot=0):
             weighted = weighted_accessory and part_index == 1 and vertex_index == 0
             record = _record(
                 palette=(0, 43, 0, 0, 0, 0) if weighted else (attachment_slot, 0, 0, 0, 0, 0),
-                weights=(128, 127, 0, 0, 0, 0, 0, 0) if weighted else (255, 0, 0, 0, 0, 0, 0, 0),
+                weights=(128, 127, 0, 0, 0, 0, 40, 60) if weighted and extra_accessory
+                else (128, 127, 0, 0, 0, 0, 0, 0) if weighted else (255, 0, 0, 0, 0, 0, 0, 0),
+                extra=(20.0, 19.0) if weighted and extra_accessory else (0.0, 1.0),
+                gate=0 if weighted and extra_accessory else 63,
             )
             for start, end in ((12, 16), (20, 36), (39, 40)):
                 result[offset + start:offset + end] = record[start:end]
     return bytes(result)
 
 
-def _snapshot(*, prefab_model=MODEL, attached="RHand_Socket", pivot="Basic_ChildSocket"):
+def _snapshot(*, prefab_model=MODEL, attached="RHand_Socket", pivot="Basic_ChildSocket", extra_accessory=False):
     from tests.test_archive_relationships import ArchiveRelationshipTests
 
     prefab = ArchiveRelationshipTests()._minimal_prefab_profile_payload(
@@ -41,7 +44,7 @@ def _snapshot(*, prefab_model=MODEL, attached="RHand_Socket", pivot="Basic_Child
         model=prefab_model,
         socket_file="character/descriptors/socketbonedata/test.sockets.xml",
     )
-    files = {MODEL: _pac(weighted_accessory=True), PREFAB: prefab}
+    files = {MODEL: _pac(weighted_accessory=True, extra_accessory=extra_accessory), PREFAB: prefab}
     return SimpleNamespace(entries=files, payload=files.__getitem__)
 
 
@@ -84,19 +87,24 @@ def test_rigid_template_still_rejects_a_different_attachment_slot():
 
 
 @pytest.mark.parametrize("attachment_supplied", [False, True])
-def test_static_import_build_does_not_inherit_a_socket_weapons_accessory_weights(attachment_supplied):
+@pytest.mark.parametrize("source_part_count", [1, 2])
+@pytest.mark.parametrize("extra_accessory", [False, True])
+def test_static_import_build_does_not_inherit_a_socket_weapons_accessory_weights(
+    attachment_supplied, source_part_count, extra_accessory,
+):
     from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
     from cdmw.modding.scene_import_result_ops import SceneImportResult
     from cdmw.modding.static_mesh_replacer import build_static_mesh_replacement
     from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import
 
-    snapshot = _snapshot()
+    snapshot = _snapshot(extra_accessory=extra_accessory)
     original = snapshot.payload(MODEL)
     target = parse_pac(original, MODEL)
-    mesh = ParsedMesh(path="multi_part.obj", format="obj", total_vertices=target.total_vertices, submeshes=[
+    source_parts = target.submeshes[:source_part_count]
+    mesh = ParsedMesh(path="multi_part.obj", format="obj", total_vertices=sum(len(part.vertices) for part in source_parts), submeshes=[
         SubMesh(name=part.name, material=part.material, vertices=list(part.vertices),
                 faces=list(part.faces), normals=list(part.normals), uvs=list(part.uvs))
-        for part in target.submeshes
+        for part in source_parts
     ])
     source = ModelImportSource(Path(mesh.path), Path(mesh.path), SceneImportResult(mesh=mesh), None, None)
 
@@ -117,8 +125,9 @@ def test_static_import_build_does_not_inherit_a_socket_weapons_accessory_weights
     if attachment_supplied:
         assert validate_variant_rig(snapshot, MODEL, payload, prefab_path=PREFAB) == "rigid prefab attachment"
         rebuilt = parse_pac(payload, MODEL)
-        assert rebuilt.total_vertices == mesh.total_vertices
-        assert [part.faces for part in rebuilt.submeshes] == [part.faces for part in mesh.submeshes]
+        assert rebuilt.total_vertices == mesh.total_vertices + 3 * (len(target.submeshes) - source_part_count)
+        assert [part.faces for part in rebuilt.submeshes[:source_part_count]] == [part.faces for part in mesh.submeshes]
+        assert all(len(part.vertices) == 3 and len(part.faces) == 1 for part in rebuilt.submeshes[source_part_count:])
     else:
         with pytest.raises(ValueError, match="skeleton is missing or ambiguous"):
             validate_variant_rig(snapshot, MODEL, payload, prefab_path=PREFAB)

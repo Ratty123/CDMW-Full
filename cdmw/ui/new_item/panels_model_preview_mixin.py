@@ -46,7 +46,7 @@ class ModelPanelPreviewMixin:
         window = self.window()
         if not (self.isVisible() or (window is not None and window.isVisible())):
             return
-        if hasattr(self,"dyes") and self.dyes.preview.isChecked():
+        if hasattr(self,"dyes") and self.dyes.isChecked() and self.dyes.preview.isChecked():
             from cdmw.ui.new_item.dye_preview import variant_dye_preview_source
             try:
                 token,build=variant_dye_preview_source(self._controller)

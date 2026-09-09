@@ -8305,6 +8305,7 @@
     "Template": "템플릿",
     "Template assignments inherited.": "템플릿 할당을 상속합니다.",
     "Template cloth / physics": "템플릿 천 / 물리",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "{value_0}의 템플릿 염색 설정을 생략했습니다. 가져온 머티리얼이 템플릿의 염색 설정을 지원하지 않습니다. 염색을 활성화하려면 명시적인 염색 매핑을 추가하세요.",
     "Template model": "템플릿 모델",
     "Template only": "템플릿만",
     "Template part:": "템플릿 부품:",

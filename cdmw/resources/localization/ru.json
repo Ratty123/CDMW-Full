@@ -8305,6 +8305,7 @@
     "Template": "Шаблон",
     "Template assignments inherited.": "Унаследованы назначения шаблона.",
     "Template cloth / physics": "Ткань / физика шаблона",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "Настройки окрашивания шаблона пропущены для {value_0}: импортированные материалы не поддерживают эти настройки. Добавьте явные сопоставления, чтобы включить окрашивание.",
     "Template model": "Модель шаблона",
     "Template only": "Только шаблон",
     "Template part:": "Часть шаблона:",

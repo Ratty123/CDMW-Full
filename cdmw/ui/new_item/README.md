@@ -480,7 +480,11 @@ can also retain the selected prefab's exact model/socket binding when the origin
 weapon includes weighted accessories; those discarded accessories do not require a
 character skeleton for the new rigid mesh. An unrigged source is bound to that exact
 socket before conversion, so mapping its parts onto a flexible template accessory
-does not transfer the accessory's skin weights. Authored source skin is preserved.
+does not transfer the accessory's skin weights. Unused runtime slots retain their
+small placeholder draws but follow the same rigid attachment. Full replacement
+records authored with up to six influences clear the donor's two additional weight
+lanes before encoding, so discarded accessory influences cannot leak into the new
+mesh. Authored source skin remains subject to rig validation.
 Byte-identical models retain their existing
 template binding. Changed skinned imports require a resolved target skeleton and matching
 bone palette; an unresolved or ambiguous rig is blocked rather than borrowed from another
@@ -488,14 +492,41 @@ character.
 Palette discovery follows the declared PAC metadata boundary, including palettes
 beyond the former 4 KB scan window, and excludes the geometry sections.
 
-**Dye assignments** starts unchecked and collapsed. It copies exact shipped material/property wiring and supports
-explicit RGB channel-to-slot mappings. Imported renamed parts require an explicit
-mask fitted to their UVs. No fuzzy name matching or inferred shader flags are used.
+**Dye assignments** starts unchecked and collapsed, with dyes disabled in the draft
+and output. Enabling the checkbox explicitly requests template dye inheritance;
+unchecking it clears the assignments. Exact RGB channel-to-slot mappings can then
+replace the inherited setup. Replacing an import or changing the template resets
+dyes to off. Switching variants restores only that variant's choices, and clears
+the mask entry and dye-preview toggle. Moving or reapplying the same import retains
+its explicit dye choices. Unselected template resources remain unchanged.
+Imported renamed parts require an explicit mask fitted to their UVs. No fuzzy name
+matching or inferred shader flags are used. If explicitly requested template dyes
+are incompatible with imported materials, preview/export omit them and Build plan
+records an actionable warning. Explicit mappings are still validated.
 Material preview and export call the same preparation function. The preview is a
 material inspection; it does not simulate a chosen in-game pigment or prove dye
 station behavior. Mask revisions form part of the preview identity and immutable
 worker request. A replaced mask invalidates cached previews and export plans;
 changing it during preparation is rejected.
+
+**Imported armour follow-up:** the existing components can support this, but this
+weapon fix does not establish arbitrary armour import support. The next integration
+should resolve the template's declared skeleton through
+`cdmw/core/skeleton_resolver.py`, including descriptors outside the model folder;
+the current variant validator only scans PABs under the character's model directory.
+An unrigged garment needs fitting in the character's bind pose and transfer of
+weights from the matching template armour/body surface using
+`ensure_final_target_skin_weights`. An already rigged import needs bone-name mapping
+into the target PAC palette before its numeric influences are accepted.
+Rigid headgear should use its declared attachment when available; a helmet label
+alone does not prove a rigid binding. Deforming pieces need the character rig.
+Read-only checks resolved `cd_phm_00_hel_0001.pac` (12 palette entries) and
+`cd_phm_00_lb_0002.pac` (40 entries) against `phm_01.pab`.
+The animation and armour skinning in `tools/placement_studio/` provide reusable
+playback for checking shoulders, elbows, knees and neck motion. Fit/clipping quality
+can warn after a valid mesh is produced; missing usable weights or an unencodable
+palette still needs an actionable correction. Body coverage, companion pieces and
+cloth/physics require their own checks before claiming in-game support.
 
 Optional bonus, recipe, dye and reward indexes load in the bounded worker lane.
 Requests capture their variant and source state. Source leases cover all selected

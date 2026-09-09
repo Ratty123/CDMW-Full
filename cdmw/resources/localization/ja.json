@@ -8305,6 +8305,7 @@
     "Template": "テンプレート",
     "Template assignments inherited.": "テンプレートの割り当てを継承。",
     "Template cloth / physics": "テンプレートの布 / 物理",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "{value_0} ではテンプレートの染色設定を省略しました。インポートしたマテリアルはテンプレートの染色設定に対応していません。染色を有効にするには、明示的な染色マッピングを追加してください。",
     "Template model": "テンプレートモデル",
     "Template only": "テンプレートのみ",
     "Template part:": "テンプレートのパーツ:",

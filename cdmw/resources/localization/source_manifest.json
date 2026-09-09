@@ -3201,7 +3201,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 79,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -3436,7 +3436,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 83,
+          "line": 85,
           "sink": "ValueError"
         }
       ]
@@ -3496,7 +3496,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 74,
+          "line": 76,
           "sink": "ValueError"
         }
       ]
@@ -9281,7 +9281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 528,
+          "line": 520,
           "sink": "append_archive_log"
         }
       ]
@@ -11476,7 +11476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 516,
+          "line": 508,
           "sink": "_add_menu_section"
         },
         {
@@ -13776,7 +13776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 497,
+          "line": 489,
           "sink": "setToolTip"
         }
       ]
@@ -14016,7 +14016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 596,
+          "line": 588,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -23016,7 +23016,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 553,
+          "line": 545,
           "sink": "set_status_message"
         }
       ]
@@ -23151,7 +23151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 549,
+          "line": 541,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -24316,7 +24316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 508,
+          "line": 500,
           "sink": "setToolTip"
         }
       ]
@@ -24996,7 +24996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 465,
+          "line": 464,
           "sink": "setToolTip"
         }
       ]
@@ -26981,7 +26981,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 635,
+          "line": 634,
           "sink": "addTab"
         },
         {
@@ -29046,7 +29046,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 81,
+          "line": 83,
           "sink": "ValueError"
         }
       ]
@@ -29071,7 +29071,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 110,
+          "line": 112,
           "sink": "add"
         }
       ]
@@ -29596,7 +29596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 507,
+          "line": 499,
           "sink": "addAction"
         }
       ]
@@ -32371,7 +32371,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 559,
+          "line": 551,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -32441,7 +32441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 602,
+          "line": 594,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -32556,7 +32556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 493,
+          "line": 485,
           "sink": "addAction"
         }
       ]
@@ -32676,7 +32676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 590,
+          "line": 582,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -32711,7 +32711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 556,
+          "line": 548,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -32971,7 +32971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 501,
+          "line": 493,
           "sink": "addAction"
         }
       ]
@@ -33131,7 +33131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 517,
+          "line": 509,
           "sink": "addAction"
         }
       ]
@@ -34356,7 +34356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 562,
+          "line": 554,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -34646,12 +34646,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 571,
+          "line": 563,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 577,
+          "line": 569,
           "sink": "_run_archive_extract"
         }
       ]
@@ -35926,7 +35926,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 584,
+          "line": 576,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -41976,7 +41976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 503,
+          "line": 495,
           "sink": "addAction"
         }
       ]
@@ -42031,7 +42031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 522,
+          "line": 514,
           "sink": "addAction"
         }
       ]
@@ -43791,7 +43791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 491,
+          "line": 483,
           "sink": "addAction"
         }
       ]
@@ -49231,7 +49231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 69,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -63046,7 +63046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 496,
+          "line": 488,
           "sink": "addAction"
         }
       ]
@@ -63076,7 +63076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 543,
+          "line": 535,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -64486,7 +64486,7 @@
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 862,
+          "line": 873,
           "sink": "RunCancelled"
         }
       ]
@@ -72026,7 +72026,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 537,
+          "line": 529,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -72046,12 +72046,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 598,
+          "line": 597,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 634,
+          "line": 633,
           "sink": "addTab"
         },
         {
@@ -88981,7 +88981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 569,
+          "line": 561,
           "sink": "set_status_message"
         }
       ]
@@ -89031,12 +89031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 546,
+          "line": 545,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 602,
+          "line": 601,
           "sink": "MediaPreviewWidget"
         },
         {
@@ -96901,7 +96901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 490,
+          "line": 482,
           "sink": "_add_menu_section"
         }
       ]
@@ -98473,6 +98473,16 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 785,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_dyes.py",
+          "line": 118,
+          "sink": "log"
         }
       ]
     },
@@ -100176,12 +100186,12 @@
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 943,
+          "line": 954,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 945,
+          "line": 956,
           "sink": "ValueError"
         }
       ]
@@ -100231,7 +100241,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 93,
+          "line": 95,
           "sink": "ValueError"
         }
       ]
@@ -101411,7 +101421,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 118,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -103186,7 +103196,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 100,
+          "line": 102,
           "sink": "ValueError"
         }
       ]
@@ -103636,7 +103646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 386,
+          "line": 385,
           "sink": "_make_sectioned_archive_action_menu_button"
         },
         {
@@ -113106,7 +113116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 516,
+          "line": 508,
           "sink": "_add_menu_section"
         }
       ]
@@ -114371,7 +114381,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 110,
+          "line": 112,
           "sink": "add"
         }
       ]
@@ -115251,7 +115261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 490,
+          "line": 482,
           "sink": "_add_menu_section"
         }
       ]
@@ -130781,7 +130791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1049,
+          "line": 1060,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -130791,7 +130801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1045,
+          "line": 1056,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -130886,7 +130896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1055,
+          "line": 1066,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]

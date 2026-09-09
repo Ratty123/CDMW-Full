@@ -111,6 +111,34 @@ def test_pac_skin_weights_encode_and_reparse_with_exact_unorm_sum() -> None:
     assert sum(weights.values()) == pytest.approx(1.0)
 
 
+def test_full_replacement_does_not_add_donor_extra_influences_to_authored_skin() -> None:
+    from tests.test_pac_skin_extra_influences import _record
+
+    raw, original = _skinned_pac()
+    donor = bytearray(raw)
+    record = _record(
+        palette=(0, 1, 0, 0, 0, 0), weights=(150, 105, 0, 0, 0, 0, 40, 60),
+        extra=(2.0, 3.0), gate=0,
+    )
+    for offset in original.submeshes[0].source_vertex_offsets:
+        for start, end in ((12, 16), (20, 36), (39, 40)):
+            donor[offset + start:offset + end] = record[start:end]
+    raw = bytes(donor)
+    original = parse_pac(raw, "target.pac")
+    replacement = _replacement(list(original.submeshes[0].vertices))
+    replacement.submeshes[0].bone_indices = [(1, 2)] * 3
+    replacement.submeshes[0].bone_weights = [(0.25, 0.75)] * 3
+    options = _static_options()
+    options.complete_external_swap = True
+
+    output, report = build_static_mesh_replacement(raw, original, replacement, options)
+
+    assert not report.errors
+    reparsed = parse_pac(output, "target.pac")
+    for vertex in range(3):
+        assert _weight_map(reparsed.submeshes[0], vertex) == pytest.approx({1: 64 / 255, 2: 191 / 255})
+
+
 def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
     # Slots are per-mesh palette tokens in a 10-bit field, so they reach 1023 --
     # well past anything the old u8 lane could hold. They must survive verbatim.

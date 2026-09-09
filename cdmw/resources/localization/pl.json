@@ -8305,6 +8305,7 @@
     "Template": "Szablon",
     "Template assignments inherited.": "Odziedziczono przypisania szablonu.",
     "Template cloth / physics": "Tkanina / fizyka szablonu",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "Pominięto barwniki szablonu dla {value_0}: importowane materiały nie obsługują konfiguracji barwników szablonu. Dodaj jawne przypisania, aby włączyć barwniki.",
     "Template model": "Model szablonu",
     "Template only": "Tylko szablon",
     "Template part:": "Część szablonu:",

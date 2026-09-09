@@ -8305,6 +8305,7 @@
     "Template": "模板",
     "Template assignments inherited.": "已继承模板分配。",
     "Template cloth / physics": "模板布料 / 物理",
+    "Template dyes were omitted for {value_0}: the imported materials do not support the template dye setup. Add explicit dye mappings to enable dyes.": "已省略 {value_0} 的模板染色设置：导入的材质不支持模板的染色配置。请添加明确的染色映射以启用染色。",
     "Template model": "模板模型",
     "Template only": "仅模板",
     "Template part:": "模板部件：",
