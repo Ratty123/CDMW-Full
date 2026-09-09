@@ -140,6 +140,8 @@ class _Planner(EffectPlanningMixin):
     #: What the graft names: the shipped effect, or the clone with the item's look.
     effect_reference: str = ""
     effect_outputs: List[tuple] = field(default_factory=list)
+    price_perks: tuple = ()
+    reserved_item_keys: tuple = ()
 
     # ------------------------------------------------------------------ helpers
 
@@ -324,19 +326,24 @@ class _Planner(EffectPlanningMixin):
             replace_hashes=hashes or None,
         )
         row_bytes = self._apply_row_edits(row_bytes)
+        if not self.spec.include_perk_prices:
+            from cdmw.services.new_item_prices import own_zero_price_perks
+            row_bytes, self.price_perks = own_zero_price_perks(row_bytes, self.snapshot, self.reserved_item_keys)
+            self.manifest["owned_price_perks"] = [{"source_key": source.key, "item_key": clone.key} for source, clone in self.price_perks]
+            self.summary.append(f"Shop price: {len(self.price_perks)} owned perk copies with zero price contribution; bonuses retained")
         if self.recipe_keys is not None:
             from cdmw.services.new_item_recipes import replace_recipe_references
             cloned = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(self.spec.item_key)})
             row_bytes = replace_recipe_references(cloned, self.snapshot.multichange_rows, self.recipe_keys,
                                                  source_keys=self.recipe_source_keys)
         pair = self.snapshot.iteminfo
-        payload, header = append_table_rows(*self.table_data(pair), [row_bytes])
+        payload, header = append_table_rows(*self.table_data(pair), [row_bytes, *(clone.raw for _source, clone in self.price_perks)])
         self.manifest["iteminfo"] = {
             "template_key": template.key, "template_name": template.string_key,
             "item_key": int(self.spec.item_key), "internal_name": self.spec.internal_name,
             "name_key": self.spec.name_key, "desc_key": self.spec.desc_key,
             "hash_swaps": {f"0x{old:08X}": f"0x{new:08X}" for old, new in hashes.items()},
-            "rows_before": len(self.snapshot.rows), "rows_after": len(self.snapshot.rows) + 1,
+            "rows_before": len(self.snapshot.rows), "rows_after": len(self.snapshot.rows) + 1 + len(self.price_perks),
         }
         self.patch(pair.payload_entry, payload, f"ItemInfo: row {self.spec.item_key} {self.spec.internal_name} appended (template {template.string_key})")
         self.patch(pair.header_entry, header, "ItemInfo directory")
@@ -524,6 +531,15 @@ class _Planner(EffectPlanningMixin):
             new_entries = entries_like(table, template.name_key, {str(self.spec.name_key): texts[str(self.spec.name_key)]})
             if len(texts) == 2:
                 new_entries += entries_like(table, template.desc_key, {str(self.spec.desc_key): texts[str(self.spec.desc_key)]})
+            for source, clone in self.price_perks:
+                for old_key, new_key in ((source.name_key, clone.name_key), (source.desc_key, clone.desc_key)):
+                    if not old_key:
+                        continue
+                    original = index.get(old_key)
+                    if original is None:
+                        raise NewItemPlanError(f"The {language} table has no localization for perk {source.string_key}: {old_key}")
+                    new_entries += entries_like(table, old_key, {new_key: original.text})
+                    texts[new_key] = original.text
             grown = add_localization_entries(table, new_entries)
             entry = self.snapshot.paloc_entries[language]
             self.patch(entry, encode_paloc(grown), f"{language}: {len(new_entries)} localisation record(s)")
@@ -728,6 +744,7 @@ def build_plan(
     issues: Sequence[ValidationIssue] = (),
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
+    reserved_item_keys: Sequence[int] = (),
 ) -> NewItemPlan:
     """Compose the plan for an allocated, validated spec."""
 
@@ -737,6 +754,7 @@ def build_plan(
     if spec.needs_new_stem and not spec.stem:
         raise NewItemPlanError("the spec needs a stem and none is allocated")
     planner = _Planner(spec=spec, snapshot=snapshot, model=model, icon=icon, on_log=on_log, stop_event=stop_event)
+    planner.reserved_item_keys = tuple(reserved_item_keys)
     from cdmw.services.new_item_variants import prepare_variant_plan
     planner.variant_models = dict(variant_models or {})
     planner.variant_plan = prepare_variant_plan(planner)

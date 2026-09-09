@@ -202,6 +202,9 @@ class NewItemSpec:
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()
     price_edits: Tuple[PriceEdit, ...] = ()
+    #: False gives the item owned, zero-priced copies of its embedded perks.
+    #: Their bonuses and localized names remain intact; shipped perk rows are untouched.
+    include_perk_prices: bool = True
     max_stack_count: Optional[int] = None
     placement: Placement = field(default_factory=Placement)
     shop_placements: Optional[Tuple[Placement, ...]] = None

@@ -331,15 +331,22 @@ class _TabOutputMixin:
         overlay = self.root / mounted[0]
         self.assertTrue((overlay / "0.pamt").is_file())
 
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.No):
-            tab.output_panel.overlay_removal_button.click()
+        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
+        tab.output_panel.overlay_removal_button.click()
+        self.app.processEvents()
+        dialog = tab.findChild(OverlayManagerDialog)
+        self.assertIsNotNone(dialog)
+        self.assertEqual(dialog.table.rowCount(), 1)
+        with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.No):
+            dialog.remove_button.click()
         self.assertTrue((overlay / "0.pamt").is_file(), "declining leaves it alone")
 
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
-                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
-            tab.output_panel.overlay_removal_button.click()
+        with patch("cdmw.ui.new_item.overlay_manager_dialog.QMessageBox.question", return_value=QMessageBox.Yes), \
+                patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            dialog.remove_button.click()
         self.assertFalse(overlay.exists(), "and accepting deletes it")
         self.assertNotIn(overlay.name, [item.name for item in parse_papgt((self.root / "meta" / "0.papgt").read_bytes())])
+        dialog.reject()
         tab.close()
         tab.deleteLater()
 

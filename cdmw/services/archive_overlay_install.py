@@ -109,6 +109,8 @@ def prepare_overlay_install(
     """Compose and validate a complete overlay without changing the install."""
 
     root = Path(package_root).expanduser().resolve()
+    if (root / '.cdmw' / 'overlays.json').is_file():
+        raise ValueError('This game folder has individually managed overlays. Install through New Item or manage them in Installed overlays.')
     papgt_path = root / "meta" / "0.papgt"
     if not papgt_path.is_file():
         raise FileNotFoundError(f"Could not find the archive mount list at {papgt_path}.")
@@ -388,6 +390,8 @@ def restore_last_overlay_install(
         raise ValueError("Unsupported overlay install receipt")
     root = Path(str(payload.get("package_root") or "")).expanduser().resolve()
     expected_receipt = root / ".cdmw" / "last-overlay-install.json"
+    if (root / '.cdmw' / 'overlays.json').is_file():
+        raise ValueError('This overlay now has individual ownership records. Remove the selected install from Installed overlays.')
     if receipt != expected_receipt:
         raise ValueError("Overlay receipt package root does not match the receipt location")
     overlay_name = str(payload.get("overlay_directory") or "")

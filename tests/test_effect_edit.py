@@ -81,6 +81,25 @@ class RenameTests(unittest.TestCase):
 
 
 class PresetTests(unittest.TestCase):
+    def test_a_colour_reaches_the_render_presets_temperature_material(self) -> None:
+        source = PRESET.read_bytes()
+        edited, report = apply_effect_look(source, EffectLook(color=(0.0, 0.0, 1.0)))
+        self.assertGreater(report.edited.get(TEMPERATURE_RAMP, 0), 0)
+        document = decode_effect_binary(edited)
+        self.assertTrue(document.walk_complete, document.walk_note)
+        self.assertEqual(len(edited), len(source))
+        ramp = next(node for node in document.root.walk()
+                    if node.value("_name") is not None and node.value("_name").value == TEMPERATURE_RAMP)
+        components = ramp.child("_value").child("_splineDataInstance").child("_dataForSerialize")
+        for component in components[:2]:
+            for point in component.child("_pointListForSerialize"):
+                position = point.value("_position")
+                if position is not None:
+                    self.assertEqual(position.value[1], 0.0)
+        self.assertTrue(any(point.value("_position").value[1] > 0
+                            for point in components[2].child("_pointListForSerialize")
+                            if point.value("_position") is not None))
+
     def test_the_effect_names_its_render_preset_and_the_preset_decodes(self) -> None:
         doc = decode_effect_binary(EFFECT.read_bytes())
         self.assertIn(("render", "fx_fire_uber_ember_01"), preset_names_of(doc))

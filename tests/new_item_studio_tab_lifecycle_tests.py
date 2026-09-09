@@ -12,7 +12,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -43,13 +43,20 @@ class _TabLifecycleMixin:
         """The installed item is only in the snapshot after a re-read, so the studio does
         one itself; without it the next item would be allocated the same key."""
 
-        tab = self._tab()
+        tab = self._tab(get_package_root=lambda: str(self.root))
         tab.prefill_template(TEMPLATE)
         reread = []
         with patch.object(tab.controller, "start_snapshot", side_effect=lambda entries, **kwargs: reread.append((tuple(entries), kwargs)) or True):
-            tab._reread_after_install()
+            with patch.object(type(tab.controller), 'busy', new_callable=PropertyMock, return_value=True):
+                tab._after_install_finished(object())
+                self.app.processEvents()
+                self.assertFalse(reread, 'wait for the install worker to finish')
+            tab._resume_install_refresh(False)
+            self.app.processEvents()
         self.assertEqual(len(reread), 1)
-        self.assertTrue(reread[0][0], "the mounted studio refreshes even though a snapshot is already ready")
+        self.assertEqual(reread[0][0], (), 'discover the current mounted archives instead of stale shell entries')
+        self.assertEqual(reread[0][1]['package_root'], self.root)
+        self.assertIsNone(reread[0][1]['entries_by_normalized_path'])
         self.assertIn("own key and stem", tab.output_panel.log.toPlainText())
         tab.close()
         tab.deleteLater()
@@ -57,7 +64,7 @@ class _TabLifecycleMixin:
     def test_post_install_snapshot_completion_preserves_group_picker_items(self) -> None:
         """A reread updates archive data without rebuilding the unchanged group picker."""
 
-        tab = self._tab()
+        tab = self._tab(get_package_root=lambda: str(self.root))
         tab.prefill_template(TEMPLATE)
         group_list = tab.placement_panel.group_list
         original_snapshot = tab.controller.snapshot
@@ -65,7 +72,8 @@ class _TabLifecycleMixin:
         original_items = tuple(group_list.item(row) for row in range(group_list.count()))
         self.assertTrue(original_items)
 
-        tab._reread_after_install()
+        tab._after_install_finished(object())
+        self.app.processEvents()
 
         self.assertIsNot(tab.controller.snapshot, original_snapshot, "the real snapshot task completed")
         self.assertEqual(

@@ -217,6 +217,8 @@ def migrate_into_overlay(
     root = Path(package_root).resolve()
     if game_running is not None and game_running():
         raise RuntimeError("CrimsonDesert.exe is running; close the game before installing, its archives are open.")
+    if (root / '.cdmw' / 'overlays.json').is_file():
+        raise ValueError('Use Installed overlays to manage this folder before migrating older archive edits.')
     migration = plan if plan is not None else plan_migration(root, stop_event=stop_event)
     if migration.is_empty:
         raise ValueError("Nothing in the shipped archives differs from the oldest backup of it.")
@@ -319,6 +321,8 @@ def remove_overlay(
     """
 
     root = Path(package_root).resolve()
+    if (root / '.cdmw' / 'overlays.json').is_file():
+        raise ValueError('Use Installed overlays to remove individual managed installs.')
     if game_running is not None and game_running():
         raise RuntimeError("CrimsonDesert.exe is running; close the game before installing, its archives are open.")
     papgt_path = root / "meta" / "0.papgt"

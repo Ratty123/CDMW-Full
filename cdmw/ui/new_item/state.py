@@ -194,6 +194,7 @@ class NewItemDraft:
     #: StatusInfo keys added as stat columns the template's ladder lacks, in the order added
     extra_stat_keys: List[int] = field(default_factory=list)
     price_values: Dict[int, int] = field(default_factory=dict)
+    include_perk_prices: bool = True
     max_stack_count: Optional[int] = None
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
@@ -242,6 +243,7 @@ class NewItemDraft:
         self.grid_values = {}
         self.extra_levels = 0
         self.price_values = {}
+        self.include_perk_prices = True
         self.max_stack_count = None
         self.stem = ""
         self.item_key = None
@@ -420,6 +422,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         stat_edits=stats,
         buy_price_edits=buy_prices,
         price_edits=price_edits,
+        include_perk_prices=draft.include_perk_prices,
         max_stack_count=draft.max_stack_count,
         placement=placement,
         shop_placements=draft.shop_placements,

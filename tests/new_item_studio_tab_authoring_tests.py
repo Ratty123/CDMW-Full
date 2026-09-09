@@ -222,10 +222,12 @@ class _TabAuthoringMixin:
         spec = tab.controller.current_spec()
         self.assertTrue(spec.buy_price_edits and all(e.price == 1 for e in spec.buy_price_edits), spec.buy_price_edits)
         self.assertTrue(spec.price_edits and all(e.price == 1 for e in spec.price_edits), spec.price_edits)
+        self.assertFalse(spec.include_perk_prices)
         stats.advanced_toggle.setChecked(True)
         self.assertTrue(stats.advanced.isVisibleTo(stats))
         stats.reset_button.click()
         self.assertEqual(tab.controller.current_spec().price_edits, ())
+        self.assertTrue(tab.controller.current_spec().include_perk_prices)
         # the step navigator: one page at a time, Back/Next, the rail's "item so far" names
         # the template and tints what still wants a decision
         self.assertEqual(tab.steps.count(), 7)

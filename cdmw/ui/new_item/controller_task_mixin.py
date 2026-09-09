@@ -224,6 +224,8 @@ class NewItemTaskControllerMixin:
                 self.plan = result
                 self._plan_revision = revision
                 self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
+                for perk in result.manifest.get("owned_price_perks", ()):
+                    self.remember_issued_identity(int(perk["item_key"]))
                 self.plan_ready.emit(result)
             else:
                 self.plan_failed.emit("The plan finished with an unexpected result.", ())

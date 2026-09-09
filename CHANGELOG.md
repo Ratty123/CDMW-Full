@@ -13,10 +13,15 @@ The format is intentionally simple:
 
 ### Added
 
+- New Item's **Installed overlays** lists individual installs and removes a selected one while preserving the remaining items, shops, localisation and asset registries. Shared edits are composed by record, conflicting ownership is refused, and earlier installs remain identifiable as one legacy bundle.
 - New Item armour imports transfer weights across template material sections and can use the matching verified character body when the template's influences exceed its resolved palette. Build plan names the body donor and reports fit/deformation warnings; template physics must be off for this transfer.
 
 ### Fixed
 
+- **Set price to 1 Copper** now removes embedded perk price contributions with owned zero-price perk copies while retaining their bonuses and translated names. Normal price editing can retain the original perk values.
+- Effect colour changes now reach temperature-colour material ramps in cloned render presets. Particle billboards use the authored full size in the preview, correcting their doubled extent.
+- Full mesh replacements disable the donor's extra-influence gate and reset its extra bone indices, preventing discarded accessory bones from affecting imported parts such as Frostmourne's skull.
+- After overlay installation or removal, New Item waits for the worker to finish and refreshes the current mounted archives before allocating another item.
 - Wearable imports and Fit to template preserve the template's body orientation. Variant rig checks follow declared skeletons outside the model folder, and Build plan retains skin-transfer notes and material warnings.
 - New Item weapon imports keep unused template mesh sections on the rigid attachment and remove residual donor skin influences from full replacements. Templates with weighted accessories no longer cause a false missing-or-ambiguous-skeleton block.
 - New Item dye assignments are off by default. The checkbox now controls the applied settings, and replacing an import resets its dye choices. Explicitly requested but incompatible template dyes produce a warning and are omitted.

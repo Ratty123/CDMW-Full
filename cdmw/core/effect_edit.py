@@ -281,7 +281,7 @@ def apply_effect_look(
     report: Optional[EffectEditReport] = None,
     emitter_layouts: Optional[Mapping[str, EmitterLayout]] = None,
 ) -> Tuple[bytes, EffectEditReport]:
-    """Return `data` (a `.pae` or `.paem`) with the look applied in place.
+    """Return an effect, emitter or preset with the look applied in place.
 
     `look` carries `color` (an RGB triple or None), `intensity`, `size`, `rate` and
     `lifetime` (factors, 1.0 for as shipped). Values the file does not carry are not
@@ -318,7 +318,9 @@ def _edit_curves_and_material_parameters(out: bytes, document: EffectDocument, l
     color = look.color
     intensity = float(look.intensity)
     for node in document.root.walk():
-        if node.type_name == "EmitterData":
+        # Render presets own their material and curves at the document root.
+        # Editing only EmitterData left cloned presets' temperature ramps warm.
+        if node.type_name == "EmitterData" or node is document.root:
             layout = _layout_of_node(node)
         elif node.type_name.endswith(".paem"):
             layout = layouts.get(node.type_name.lstrip("/")) or layouts.get(node.type_name) or EmitterLayout()

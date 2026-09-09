@@ -1666,12 +1666,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         },
         {
@@ -1751,7 +1751,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 404,
+          "line": 401,
           "sink": "setPlainText"
         },
         {
@@ -1991,7 +1991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 160,
+          "line": 162,
           "sink": "QGroupBox"
         }
       ]
@@ -2071,7 +2071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 131,
+          "line": 133,
           "sink": "QGroupBox"
         }
       ]
@@ -2156,7 +2156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 173,
+          "line": 175,
           "sink": "QGroupBox"
         }
       ]
@@ -3061,7 +3061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -3231,7 +3231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 198,
+          "line": 200,
           "sink": "setToolTip"
         }
       ]
@@ -3353,6 +3353,26 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 187,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "A prepared overlay change targets a file outside its ownership.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 553,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "A prepared overlay removal names an unowned file.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 557,
+          "sink": "ValueError"
         }
       ]
     },
@@ -4911,7 +4931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 197,
+          "line": 199,
           "sink": "QCheckBox"
         }
       ]
@@ -4941,7 +4961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 329,
+          "line": 334,
           "sink": "setText"
         }
       ]
@@ -6547,6 +6567,16 @@
       ]
     },
     {
+      "key": "An active overlay composed no archive changes.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 432,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "An app profile is one app-wide snapshot, not a separate profile per tab. It includes per-tool preferences and detached window layout inside that one profile file.",
       "origins": [
         {
@@ -6621,7 +6651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 299,
+          "line": 301,
           "sink": "on_error"
         }
       ]
@@ -6637,11 +6667,31 @@
       ]
     },
     {
+      "key": "An overlay dependency is missing from the inventory.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 100,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "An overlay install needs at least one requested file.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 181,
+          "line": 183,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "An overlay source archive is outside the selected game folder.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 259,
           "sink": "ValueError"
         }
       ]
@@ -7062,6 +7112,16 @@
       ]
     },
     {
+      "key": "Another CDMW archive group was installed outside this inventory. Remove or consolidate it before changing managed overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 146,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Another archive export is already running.",
       "origins": [
         {
@@ -7186,7 +7246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 761,
+          "line": 774,
           "sink": "set_part_editor_state"
         },
         {
@@ -7586,7 +7646,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 535,
+          "line": 539,
           "sink": "addButton"
         },
         {
@@ -7821,7 +7881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 533,
+          "line": 537,
           "sink": "setWindowTitle"
         }
       ]
@@ -9341,7 +9401,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 329,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -9351,7 +9411,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 142,
+          "line": 144,
           "sink": "ValueError"
         }
       ]
@@ -9361,7 +9421,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 136,
+          "line": 138,
           "sink": "ValueError"
         }
       ]
@@ -9916,12 +9976,12 @@
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 262,
+          "line": 264,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 365,
+          "line": 369,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -10277,6 +10337,16 @@
       ]
     },
     {
+      "key": "Archive recovery",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 278,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Archive refresh cancelled. The previous catalogue remains available.",
       "origins": [
         {
@@ -10618,6 +10688,26 @@
           "path": "cdmw/ui/archive_browser/remote_related_export.py",
           "line": 130,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Archive {value_0} is not owned by CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 327,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive {value_0} is reserved by the mount list.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 329,
+          "sink": "ValueError"
         }
       ]
     },
@@ -11796,7 +11886,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 219,
+          "line": 221,
           "sink": "setPlaceholderText"
         }
       ]
@@ -11886,7 +11976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 225,
           "sink": "setToolTip"
         }
       ]
@@ -12386,7 +12476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 453,
+          "line": 457,
           "sink": "QPushButton"
         },
         {
@@ -12596,17 +12686,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 296,
+          "line": 298,
           "sink": "on_log"
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 258,
+          "line": 260,
           "sink": "on_log"
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 358,
+          "line": 362,
           "sink": "on_log"
         }
       ]
@@ -13276,7 +13366,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 405,
+          "line": 402,
           "sink": "set_note"
         },
         {
@@ -13555,6 +13645,11 @@
           "sink": "addItem"
         }
       ]
+    },
+    {
+      "key": "Both table files are required to compose {value_0}.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Bounds",
@@ -13916,7 +14011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 809,
+          "line": 822,
           "sink": "set_part_editor_state"
         }
       ]
@@ -14611,7 +14706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 162,
+          "line": 164,
           "sink": "QPushButton"
         }
       ]
@@ -14671,7 +14766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 147,
+          "line": 149,
           "sink": "setToolTip"
         }
       ]
@@ -14681,22 +14776,22 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 245,
+          "line": 247,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 252,
+          "line": 254,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 261,
+          "line": 263,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 355,
+          "line": 352,
           "sink": "information"
         }
       ]
@@ -15161,7 +15256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 319,
+          "line": 316,
           "sink": "setPlainText"
         }
       ]
@@ -15171,7 +15266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 426,
+          "line": 424,
           "sink": "set_note"
         }
       ]
@@ -15236,7 +15331,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 320,
+          "line": 317,
           "sink": "set_note"
         }
       ]
@@ -16731,7 +16826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 365,
+          "line": 367,
           "sink": "emit"
         },
         {
@@ -16797,6 +16892,16 @@
         {
           "path": "cdmw/workers/new_item_workers.py",
           "line": 73,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cannot remove the price contribution of undecoded perk {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_prices.py",
+          "line": 21,
           "sink": "ValueError"
         }
       ]
@@ -17026,7 +17131,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 145,
+          "line": 147,
           "sink": "on_log"
         }
       ]
@@ -18582,6 +18687,16 @@
       ]
     },
     {
+      "key": "Choose Auto or {value_0} to retain and manage the existing overlay.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 324,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose Body Appearance Context",
       "origins": [
         {
@@ -19316,7 +19431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 390,
+          "line": 392,
           "sink": "ValueError"
         }
       ]
@@ -19831,7 +19946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 352,
+          "line": 349,
           "sink": "information"
         }
       ]
@@ -19851,7 +19966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 345,
+          "line": 342,
           "sink": "getExistingDirectory"
         }
       ]
@@ -20997,6 +21112,16 @@
       ]
     },
     {
+      "key": "Close Crimson Desert before changing overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 546,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Close Session",
       "origins": [
         {
@@ -21461,7 +21586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 818,
+          "line": 829,
           "sink": "python-return:summary_text"
         }
       ]
@@ -21471,7 +21596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 832,
+          "line": 843,
           "sink": "python-return:summary_text"
         }
       ]
@@ -21987,6 +22112,16 @@
       ]
     },
     {
+      "key": "Composing {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 412,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Composite Appearance: {value_0}",
       "origins": [
         {
@@ -22281,7 +22416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 214,
+          "line": 216,
           "sink": "setToolTip"
         }
       ]
@@ -22791,7 +22926,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 455,
+          "line": 459,
           "sink": "QPushButton"
         },
         {
@@ -23751,7 +23886,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 114,
+          "line": 116,
           "sink": "FileNotFoundError"
         }
       ]
@@ -24316,7 +24451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 157,
+          "line": 158,
           "sink": "QLabel"
         }
       ]
@@ -24757,6 +24892,16 @@
       ]
     },
     {
+      "key": "Crimson Desert started during backup. Close it before changing overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 574,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Crimson Sharp / Browser",
       "origins": [
         {
@@ -24801,7 +24946,7 @@
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 323,
+          "line": 327,
           "sink": "RuntimeError"
         }
       ]
@@ -24891,7 +25036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 522,
+          "line": 527,
           "sink": "note"
         }
       ]
@@ -26616,7 +26761,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 372,
+          "line": 376,
           "sink": "on_log"
         }
       ]
@@ -27871,7 +28016,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 536,
+          "line": 540,
           "sink": "addButton"
         }
       ]
@@ -28016,7 +28161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -28026,7 +28171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -29070,6 +29215,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Duplicate primary keys in an overlay table.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Duplicate this object",
@@ -31246,7 +31396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 900,
+          "line": 913,
           "sink": "warning"
         }
       ]
@@ -32048,6 +32198,21 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 355,
           "sink": "_make_help_button"
+        }
+      ]
+    },
+    {
+      "key": "Existing overlay inspection cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 345,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 352,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -35495,6 +35660,11 @@
           "sink": "CollapsibleSection"
         },
         {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 29,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 636,
           "sink": "addTab"
@@ -37225,6 +37395,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 29,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/research/models.py",
           "line": 186,
           "sink": "QTreeWidgetItem"
@@ -37321,7 +37496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 183,
+          "line": 185,
           "sink": "setPlaceholderText"
         }
       ]
@@ -37361,7 +37536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 186,
+          "line": 188,
           "sink": "QPushButton"
         }
       ]
@@ -37546,7 +37721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 286,
+          "line": 290,
           "sink": "setToolTip"
         }
       ]
@@ -38541,7 +38716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 251,
+          "line": 253,
           "sink": "tr"
         },
         {
@@ -41006,7 +41181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 259,
+          "line": 263,
           "sink": "setToolTip"
         }
       ]
@@ -42121,7 +42296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 758,
+          "line": 771,
           "sink": "set_part_editor_state"
         }
       ]
@@ -43132,6 +43307,16 @@
       ]
     },
     {
+      "key": "Include perk value in shop price",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 244,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Include policy: {value_0}",
       "origins": [
         {
@@ -43275,6 +43460,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Incomplete table row directory.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Index Source",
@@ -44036,17 +44226,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 102,
+          "line": 104,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 108,
+          "line": 110,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 906,
+          "line": 919,
           "sink": "warning"
         }
       ]
@@ -44056,7 +44246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 227,
+          "line": 229,
           "sink": "QPushButton"
         }
       ]
@@ -44066,7 +44256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 910,
+          "line": 923,
           "sink": "question"
         }
       ]
@@ -44076,17 +44266,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 115,
+          "line": 117,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 875,
+          "line": 888,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 879,
+          "line": 892,
           "sink": "question"
         }
       ]
@@ -44096,7 +44286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 213,
+          "line": 215,
           "sink": "QPushButton"
         }
       ]
@@ -44108,6 +44298,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 406,
           "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Install this item as a separately tracked overlay. CDMW combines shared tables, preserves other installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 230,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -44126,7 +44326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 910,
+          "line": 923,
           "sink": "question"
         }
       ]
@@ -44136,7 +44336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 879,
+          "line": 892,
           "sink": "question"
         }
       ]
@@ -44210,6 +44410,11 @@
       "key": "Installed",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 29,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "tools/placement_studio/move_weapon.py",
           "line": 269,
           "sink": "setHorizontalHeaderLabels"
@@ -44221,7 +44426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 102,
+          "line": 104,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -44231,8 +44436,38 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 108,
+          "line": 110,
           "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Installed overlays",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 20,
+          "sink": "setWindowTitle"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 63,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 989,
+          "sink": "_overlay_services"
+        }
+      ]
+    },
+    {
+      "key": "Installed overlays...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 273,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -44256,7 +44491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 115,
+          "line": 117,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -44276,7 +44511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 430,
+          "line": 428,
           "sink": "set_note"
         }
       ]
@@ -44392,6 +44627,16 @@
       ]
     },
     {
+      "key": "Invalid archive storage flags.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 225,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid built-in UI translation {value_0}/{value_1}: {value_2}",
       "origins": [
         {
@@ -44437,6 +44682,76 @@
         {
           "path": "tools/placement_studio/event_timeline.py",
           "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid or repeated overlay journal path.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 219,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid overlay dependency list.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 98,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid overlay entry in the inventory.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 94,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid overlay identity in the inventory.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 91,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid overlay path: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 49,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid overlay payload checksum.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 232,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid owned item identity in the inventory.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -45212,6 +45527,16 @@
       ]
     },
     {
+      "key": "Item identity conflicts with {value_0}. Build a new plan from the current installed tables.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 498,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "Item key 0 means the new item. Ingredient costs are separate from purchase prices.",
       "origins": [
         {
@@ -45266,7 +45591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         }
       ]
@@ -45444,6 +45769,11 @@
     {
       "key": "Items",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 29,
+          "sink": "setHorizontalHeaderLabels"
+        },
         {
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 491,
@@ -46686,7 +47016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 338,
+          "line": 343,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -46696,7 +47026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 338,
+          "line": 343,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -46706,7 +47036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 509,
+          "line": 514,
           "sink": "note"
         }
       ]
@@ -47241,7 +47571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 298,
+          "line": 301,
           "sink": "setText"
         }
       ]
@@ -48946,7 +49276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 411,
+          "line": 408,
           "sink": "append_log"
         }
       ]
@@ -48986,12 +49316,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 508,
+          "line": 506,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 510,
+          "line": 508,
           "sink": "ValueError"
         },
         {
@@ -49152,12 +49482,12 @@
       ]
     },
     {
-      "key": "Manage existing overlays",
+      "key": "Managed installs share archive {value_0}. Choose Auto or that folder so their shared tables stay composed.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 274,
-          "sink": "setText"
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 316,
+          "sink": "ValueError"
         }
       ]
     },
@@ -50456,7 +50786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 261,
+          "line": 265,
           "sink": "addRow"
         }
       ]
@@ -51406,7 +51736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 787,
+          "line": 800,
           "sink": "set_part_editor_state"
         }
       ]
@@ -51676,12 +52006,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 780,
+          "line": 793,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 803,
+          "line": 816,
           "sink": "set_part_editor_state"
         }
       ]
@@ -51916,12 +52246,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 750,
+          "line": 763,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 783,
+          "line": 796,
           "sink": "set_part_editor_state"
         }
       ]
@@ -54446,7 +54776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 176,
+          "line": 178,
           "sink": "QLabel"
         }
       ]
@@ -55266,7 +55596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         }
       ]
@@ -55286,7 +55616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -55296,7 +55626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 603,
+          "line": 607,
           "sink": "note"
         }
       ]
@@ -55316,7 +55646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 601,
+          "line": 605,
           "sink": "note"
         }
       ]
@@ -55326,7 +55656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 599,
+          "line": 603,
           "sink": "note"
         }
       ]
@@ -55336,7 +55666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -55346,7 +55676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -56006,7 +56336,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 356,
+          "line": 358,
           "sink": "on_log"
         }
       ]
@@ -56096,32 +56426,32 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 83,
+          "line": 85,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 90,
+          "line": 92,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 942,
+          "line": 955,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 951,
+          "line": 964,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 954,
+          "line": 967,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 971,
           "sink": "question"
         }
       ]
@@ -56131,7 +56461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 285,
+          "line": 289,
           "sink": "QPushButton"
         }
       ]
@@ -56191,7 +56521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 958,
+          "line": 971,
           "sink": "question"
         }
       ]
@@ -56231,7 +56561,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 293,
+          "line": 295,
           "sink": "on_log"
         }
       ]
@@ -56241,7 +56571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 83,
+          "line": 85,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -56318,6 +56648,16 @@
           "path": "cdmw/ui/archive_browser/character_dependency_export.py",
           "line": 97,
           "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Multiple earlier CDMW archive groups need consolidation before individual item management can begin.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 320,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -56781,7 +57121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 592,
+          "line": 596,
           "sink": "note"
         }
       ]
@@ -56791,7 +57131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -56801,7 +57141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 590,
+          "line": 594,
           "sink": "note"
         }
       ]
@@ -56811,7 +57151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 590,
+          "line": 594,
           "sink": "note"
         }
       ]
@@ -57546,17 +57886,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 315,
+          "line": 316,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 384,
+          "line": 385,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 512,
+          "line": 510,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 515,
           "sink": "raise_if_cancelled"
         },
         {
@@ -57566,12 +57911,7 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 519,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_service.py",
-          "line": 577,
+          "line": 575,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -57606,7 +57946,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 151,
+          "line": 153,
           "sink": "raise_if_cancelled"
         },
         {
@@ -57616,7 +57956,7 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 253,
+          "line": 254,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -57783,6 +58123,16 @@
           "path": "cdmw/ui/archive_browser/appearance_swap.py",
           "line": 55,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "No CDMW overlays are installed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 114,
+          "sink": "setText"
         }
       ]
     },
@@ -59111,7 +59461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 239,
+          "line": 241,
           "sink": "emit"
         },
         {
@@ -60576,7 +60926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 611,
+          "line": 616,
           "sink": "set_note"
         }
       ]
@@ -60601,7 +60951,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 390,
+          "line": 395,
           "sink": "set_note"
         }
       ]
@@ -61566,12 +61916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 167,
+          "line": 169,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 371,
+          "line": 368,
           "sink": "set_note"
         }
       ]
@@ -61696,7 +62046,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         }
       ]
@@ -61846,7 +62196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 954,
+          "line": 967,
           "sink": "information"
         }
       ]
@@ -61856,7 +62206,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 222,
+          "line": 224,
           "sink": "ValueError"
         }
       ]
@@ -61951,7 +62301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 90,
+          "line": 92,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -62668,6 +63018,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 376,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Only the texture registry is supported as overlay metadata.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 477,
+          "sink": "ValueError"
         }
       ]
     },
@@ -63896,12 +64256,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 821,
+          "line": 834,
           "sink": "set_part_editor_state"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 825,
+          "line": 838,
           "sink": "set_part_editor_state"
         }
       ]
@@ -64531,12 +64891,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 384,
+          "line": 386,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 395,
+          "line": 397,
           "sink": "emit"
         },
         {
@@ -65486,7 +65846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -65496,7 +65856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -65540,6 +65900,11 @@
       "key": "Overlay",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 29,
+          "sink": "setHorizontalHeaderLabels"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 492,
           "sink": "addItem"
@@ -65561,8 +65926,118 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 280,
+          "line": 282,
           "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay archive preparation cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 416,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay change cancelled before backup.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 570,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay change cancelled before publication.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 600,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay change cancelled; restoring the backup.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 589,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay change capture cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 460,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay change failed; recovery requires backup {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 614,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay changes require a prepared change.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 537,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay changes require explicit confirmation.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 539,
+          "sink": "PermissionError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay composition cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 406,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay conflict in {value_0}; both installs change the same record.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Overlay conflict in {value_0}; overlapping file edits cannot be separated safely.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 144,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 467,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -65571,12 +66046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 217,
+          "line": 219,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 900,
+          "line": 913,
           "sink": "warning"
         }
       ]
@@ -65586,7 +66061,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 131,
+          "line": 133,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 63,
           "sink": "ValueError"
         }
       ]
@@ -65596,7 +66076,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 299,
+          "line": 301,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65606,7 +66086,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 313,
+          "line": 315,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65616,7 +66096,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 308,
+          "line": 310,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65626,7 +66106,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 310,
+          "line": 312,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65636,7 +66116,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 285,
+          "line": 287,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65646,7 +66126,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 337,
+          "line": 339,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65656,7 +66136,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 318,
+          "line": 320,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65681,7 +66161,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 349,
+          "line": 351,
           "sink": "RuntimeError"
         }
       ]
@@ -65691,8 +66171,48 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 282,
+          "line": 284,
           "sink": "PermissionError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay journal loading cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 216,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Overlay journal metadata is too large.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 210,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay journal payload failed its checksum.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 239,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay journal payloads exceed the supported size.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 236,
+          "sink": "ValueError"
         }
       ]
     },
@@ -65701,7 +66221,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 198,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -65711,7 +66231,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 283,
+          "line": 285,
           "sink": "RuntimeError"
         }
       ]
@@ -65772,11 +66292,21 @@
       ]
     },
     {
+      "key": "Overlay path escapes the game folder.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 56,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Overlay preparation cancelled before confirmation.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 215,
+          "line": 217,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65786,7 +66316,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 115,
+          "line": 117,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65796,7 +66326,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 166,
+          "line": 168,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65806,7 +66336,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 150,
+          "line": 152,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -65816,7 +66346,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 424,
+          "line": 428,
           "sink": "ValueError"
         }
       ]
@@ -65826,7 +66356,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 415,
+          "line": 419,
           "sink": "ValueError"
         }
       ]
@@ -65836,7 +66366,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 403,
+          "line": 407,
           "sink": "ValueError"
         }
       ]
@@ -65846,7 +66376,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 427,
+          "line": 431,
           "sink": "ValueError"
         }
       ]
@@ -65856,7 +66386,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 406,
+          "line": 410,
           "sink": "ValueError"
         }
       ]
@@ -65876,7 +66406,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 398,
+          "line": 402,
           "sink": "ValueError"
         }
       ]
@@ -65886,7 +66416,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 395,
+          "line": 399,
           "sink": "ValueError"
         }
       ]
@@ -65896,7 +66426,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 392,
+          "line": 396,
           "sink": "ValueError"
         }
       ]
@@ -65906,12 +66436,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 429,
+          "line": 433,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 452,
+          "line": 456,
           "sink": "ValueError"
         }
       ]
@@ -65921,7 +66451,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 388,
+          "line": 392,
           "sink": "RuntimeError"
         }
       ]
@@ -65931,8 +66461,18 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 382,
+          "line": 384,
           "sink": "PermissionError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay verification cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 117,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -65941,8 +66481,18 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 140,
+          "line": 142,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay {value_0}: {value_1}. {value_2} installed. Backup: {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 623,
+          "sink": "on_log"
         }
       ]
     },
@@ -69636,7 +70186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 618,
+          "line": 622,
           "sink": "note"
         }
       ]
@@ -69646,7 +70196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 616,
+          "line": 620,
           "sink": "note"
         }
       ]
@@ -69876,7 +70426,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 759,
+          "line": 777,
           "sink": "log"
         }
       ]
@@ -69991,7 +70541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 936,
+          "line": 949,
           "sink": "warning"
         }
       ]
@@ -70851,8 +71401,18 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 192,
+          "line": 194,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Prepared overlay targets do not match their original files.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 555,
+          "sink": "ValueError"
         }
       ]
     },
@@ -71622,6 +72182,16 @@
       ]
     },
     {
+      "key": "Preparing removal and checking the remaining overlays…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 122,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "Preparing replacement audio for {value_0}...",
       "origins": [
         {
@@ -71726,7 +72296,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 841,
+          "line": 854,
           "sink": "set_part_editor_state"
         }
       ]
@@ -71861,7 +72431,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 776,
+          "line": 794,
           "sink": "add"
         }
       ]
@@ -75736,7 +76306,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 378,
+          "line": 382,
           "sink": "on_log"
         }
       ]
@@ -76191,7 +76761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 163,
+          "line": 164,
           "sink": "QPushButton"
         }
       ]
@@ -76532,6 +77102,21 @@
       ]
     },
     {
+      "key": "Reading installed overlays…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 24,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 101,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "Reading material sidecar {value_0}...",
       "origins": [
         {
@@ -76686,12 +77271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 291,
-          "sink": "append_log"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 731,
+          "line": 294,
           "sink": "append_log"
         }
       ]
@@ -76731,7 +77311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 432,
+          "line": 430,
           "sink": "set_note"
         }
       ]
@@ -76771,7 +77351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 296,
+          "line": 299,
           "sink": "setText"
         }
       ]
@@ -77111,7 +77691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 374,
+          "line": 371,
           "sink": "set_note"
         }
       ]
@@ -79080,6 +79660,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 48,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 46,
           "sink": "QPushButton"
@@ -79832,6 +80417,16 @@
       ]
     },
     {
+      "key": "Removal cancelled. The installed overlays are unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 135,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Remove",
       "origins": [
         {
@@ -79951,7 +80546,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 556,
+          "line": 561,
           "sink": "setText"
         }
       ]
@@ -79997,11 +80592,31 @@
       ]
     },
     {
+      "key": "Remove selected overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 129,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Remove selected route",
       "origins": [
         {
           "path": "cdmw/ui/new_item/reward_editor.py",
           "line": 55,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Remove selected…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 45,
           "sink": "QPushButton"
         }
       ]
@@ -80031,38 +80646,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 65,
+          "line": 67,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 68,
+          "line": 70,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 74,
+          "line": 76,
           "sink": "python-return:install_result_report"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 976,
-          "sink": "_overlay_services"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 980,
-          "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Remove the overlay...",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 293,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -80081,7 +80676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 553,
+          "line": 558,
           "sink": "setText"
         }
       ]
@@ -80112,6 +80707,16 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
           "line": 106,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Remove {value_0}?\n\nGame folder: {value_1}\n\nOverlays that will remain:\n{value_2}\n\nFiles to update:\n{value_3}\n\nA verified backup is created first. Close Crimson Desert before continuing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 129,
           "sink": "question"
         }
       ]
@@ -80161,7 +80766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 68,
+          "line": 70,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -80171,7 +80776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 74,
+          "line": 76,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -80213,6 +80818,36 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 181,
           "sink": "python-return:unknown_removed_family_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Removed {value_0}. {value_1} overlay(s) remain.\n\nBackup: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 63,
+          "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Removed {value_0}. {value_1} overlay(s) remain. Backup: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 149,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Removing one overlay preserves the shared tables and files used by the remaining overlays.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 70,
+          "sink": "setText"
         }
       ]
     },
@@ -83081,7 +83716,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 267,
+          "line": 269,
           "sink": "on_log"
         }
       ]
@@ -84253,6 +84888,16 @@
           "path": "cdmw/ui/archive_browser/model.py",
           "line": 507,
           "sink": "python-return:headerData"
+        }
+      ]
+    },
+    {
+      "key": "Rollback did not restore {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 612,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -87926,7 +88571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 499,
+          "line": 504,
           "sink": "set_note"
         }
       ]
@@ -88701,7 +89346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 730,
+          "line": 740,
           "sink": "emit"
         }
       ]
@@ -90822,12 +91467,12 @@
       ]
     },
     {
-      "key": "Set all prices here to 1",
+      "key": "Set all level and base prices to 1 and remove embedded perk price contributions using owned perk copies. Their bonuses are preserved.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 114,
-          "sink": "QPushButton"
+          "line": 115,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -90838,16 +91483,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 190,
           "sink": "python-return:_build_workflow_planning_sections"
-        }
-      ]
-    },
-    {
-      "key": "Set every stored level-up and base-price field on this page to 1. Embedded perk prices may still contribute to the final shop cost.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 115,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -90891,7 +91526,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 248,
+          "line": 114,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 252,
           "sink": "QPushButton"
         }
       ]
@@ -90906,7 +91546,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 549,
+          "line": 554,
           "sink": "setText"
         }
       ]
@@ -90976,7 +91616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 546,
+          "line": 551,
           "sink": "setText"
         }
       ]
@@ -91431,7 +92071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 614,
+          "line": 619,
           "sink": "set_note"
         }
       ]
@@ -91441,7 +92081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 526,
+          "line": 531,
           "sink": "note"
         }
       ]
@@ -91451,7 +92091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 532,
+          "line": 537,
           "sink": "note"
         }
       ]
@@ -91461,7 +92101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 530,
+          "line": 535,
           "sink": "note"
         }
       ]
@@ -91497,6 +92137,11 @@
       ]
     },
     {
+      "key": "Shop price: {value_0} owned perk copies with zero price contribution; bonuses retained",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Shop:",
       "origins": [
         {
@@ -91511,7 +92156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 614,
+          "line": 618,
           "sink": "note"
         }
       ]
@@ -91521,7 +92166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 612,
+          "line": 616,
           "sink": "note"
         }
       ]
@@ -95412,11 +96057,21 @@
       ]
     },
     {
+      "key": "Staged overlay bytes differ from the preparation: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 592,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "Staged overlay bytes do not match the confirmed preparation",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 257,
+          "line": 259,
           "sink": "RuntimeError"
         }
       ]
@@ -95426,7 +96081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 261,
+          "line": 263,
           "sink": "RuntimeError"
         }
       ]
@@ -95436,7 +96091,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 264,
+          "line": 266,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Staged overlay paths differ from the prepared archive.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 599,
           "sink": "RuntimeError"
         }
       ]
@@ -96491,7 +97156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 537,
+          "line": 541,
           "sink": "addButton"
         }
       ]
@@ -96511,7 +97176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 527,
+          "line": 531,
           "sink": "setText"
         }
       ]
@@ -96521,7 +97186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 703,
+          "line": 707,
           "sink": "setAccessibleText"
         }
       ]
@@ -96581,7 +97246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 291,
+          "line": 293,
           "sink": "emit"
         }
       ]
@@ -97617,6 +98282,11 @@
       ]
     },
     {
+      "key": "Table layout changed in {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Tagging And Notes",
       "origins": [
         {
@@ -98621,7 +99291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 587,
+          "line": 591,
           "sink": "note"
         }
       ]
@@ -98631,7 +99301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 511,
+          "line": 516,
           "sink": "note"
         }
       ]
@@ -98641,17 +99311,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 418,
+          "line": 423,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 587,
+          "line": 591,
           "sink": "note"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -98661,7 +99331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 520,
+          "line": 525,
           "sink": "note"
         }
       ]
@@ -98671,7 +99341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 518,
+          "line": 523,
           "sink": "note"
         }
       ]
@@ -98681,7 +99351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 513,
+          "line": 518,
           "sink": "note"
         }
       ]
@@ -100166,7 +100836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 534,
+          "line": 538,
           "sink": "setText"
         }
       ]
@@ -100421,12 +101091,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 285,
+          "line": 288,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 287,
+          "line": 290,
           "sink": "setText"
         }
       ]
@@ -100456,7 +101126,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 287,
+          "line": 289,
           "sink": "RuntimeError"
         }
       ]
@@ -100466,17 +101136,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 875,
+          "line": 888,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 906,
+          "line": 919,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 932,
+          "line": 945,
           "sink": "warning"
         },
         {
@@ -100666,12 +101336,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 323,
+          "line": 327,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 329,
+          "line": 333,
           "sink": "setText"
         }
       ]
@@ -100681,7 +101351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 951,
+          "line": 964,
           "sink": "warning"
         }
       ]
@@ -100937,6 +101607,16 @@
       ]
     },
     {
+      "key": "The earlier overlay has unsupported metadata; its backup needs review.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 359,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The edit session closed while the archive picker was open",
       "origins": [
         {
@@ -101057,6 +101737,16 @@
       ]
     },
     {
+      "key": "The existing overlay differs from its mount-list checksum. Restore its backup before changing it.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 334,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The extension appears nowhere in any shipped binary, though pac, pab and paseq all do.",
       "origins": [
         {
@@ -101126,7 +101816,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 284,
+          "line": 286,
           "sink": "RuntimeError"
         }
       ]
@@ -101136,7 +101826,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 384,
+          "line": 386,
           "sink": "RuntimeError"
         }
       ]
@@ -101251,8 +101941,28 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 249,
+          "line": 253,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The journal for {value_0} changed. Restore its backup before changing overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 206,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The journal for {value_0} is missing or too large.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 203,
+          "sink": "ValueError"
         }
       ]
     },
@@ -101322,6 +102032,26 @@
       ]
     },
     {
+      "key": "The managed overlay checksum differs from the mount list.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 134,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The managed overlay is no longer mounted as prepared.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 131,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
       "key": "The material preview ended without a package.",
       "origins": [
         {
@@ -101366,7 +102096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 239,
+          "line": 241,
           "sink": "emit"
         }
       ]
@@ -101376,7 +102106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 179,
+          "line": 181,
           "sink": "setToolTip"
         }
       ]
@@ -101461,12 +102191,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 242,
+          "line": 244,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 346,
+          "line": 350,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -101522,11 +102252,51 @@
       ]
     },
     {
+      "key": "The overlay backup contains an invalid file entry.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 529,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The overlay backup did not preserve every confirmed original file.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 532,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The overlay backup manifest is missing or invalid.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 523,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The overlay change needs backup and restore services.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 541,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The overlay install backup does not contain the archive mount list",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 454,
+          "line": 458,
           "sink": "ValueError"
         }
       ]
@@ -101536,7 +102306,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 440,
+          "line": 444,
           "sink": "ValueError"
         }
       ]
@@ -101546,7 +102316,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 448,
+          "line": 452,
           "sink": "ValueError"
         }
       ]
@@ -101556,7 +102326,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 436,
+          "line": 440,
           "sink": "ValueError"
         }
       ]
@@ -101566,7 +102336,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 432,
+          "line": 436,
           "sink": "FileNotFoundError"
         }
       ]
@@ -101576,7 +102346,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 446,
+          "line": 450,
           "sink": "ValueError"
         }
       ]
@@ -101586,7 +102356,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 444,
+          "line": 448,
           "sink": "ValueError"
         }
       ]
@@ -101596,8 +102366,28 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 418,
+          "line": 422,
           "sink": "FileNotFoundError"
+        }
+      ]
+    },
+    {
+      "key": "The overlay inventory is too large to read safely.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 82,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The overlay plan changes nothing.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 480,
+          "sink": "ValueError"
         }
       ]
     },
@@ -101646,7 +102436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 404,
+          "line": 401,
           "sink": "setPlainText"
         }
       ]
@@ -101656,7 +102446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 322,
+          "line": 319,
           "sink": "set_note"
         }
       ]
@@ -101666,7 +102456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 229,
+          "line": 231,
           "sink": "emit"
         }
       ]
@@ -101676,7 +102466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 135,
+          "line": 137,
           "sink": "setPlaceholderText"
         }
       ]
@@ -102017,6 +102807,16 @@
       ]
     },
     {
+      "key": "The selected overlay is no longer installed. Refresh the list.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 515,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The selected placement source is outside the prepared attachment candidate set.",
       "origins": [
         {
@@ -102138,6 +102938,31 @@
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
           "line": 112,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "The source archive {value_0} changed after preparation.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 569,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 583,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "The source archive {value_0} changed. Existing overlay baselines need review before removal.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 125,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -102276,7 +103101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 329,
+          "line": 334,
           "sink": "setText"
         }
       ]
@@ -102296,7 +103121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 416,
+          "line": 421,
           "sink": "setToolTip"
         }
       ]
@@ -102407,6 +103232,11 @@
       ]
     },
     {
+      "key": "The {value_0} table has no localization for perk {value_1}: {value_2}",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Theme",
       "origins": [
         {
@@ -102451,7 +103281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 65,
+          "line": 67,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -102656,12 +103486,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 483,
+          "line": 488,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 507,
+          "line": 512,
           "sink": "set_note"
         }
       ]
@@ -102707,6 +103537,16 @@
       ]
     },
     {
+      "key": "This earlier install has no separate ownership history. Its contents are managed as one bundle.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 70,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This editor contains changes that have not been exported to a mod package. Discard them and close?",
       "origins": [
         {
@@ -102743,6 +103583,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 607,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "This game folder has individually managed overlays. Install through New Item or manage them in Installed overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_install.py",
+          "line": 113,
+          "sink": "ValueError"
         }
       ]
     },
@@ -102883,6 +103733,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 458,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "This overlay now has individual ownership records. Remove the selected install from Installed overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_install.py",
+          "line": 394,
+          "sink": "ValueError"
         }
       ]
     },
@@ -103206,7 +104066,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 390,
+          "line": 395,
           "sink": "set_note"
         }
       ]
@@ -104266,7 +105126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 328,
+          "line": 332,
           "sink": "setText"
         },
         {
@@ -104323,6 +105183,16 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 150,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Turn off to keep the selected perks with zero price contribution. Only this item's owned perk copies change.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 245,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -105231,7 +106101,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 298,
+          "line": 299,
           "sink": "ValueError"
         }
       ]
@@ -105332,31 +106202,11 @@
       ]
     },
     {
-      "key": "Unmount the overlay directory and delete it. Everything it holds leaves the game with it; anything installed into the shipped archives stays where it is.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 294,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Unmount the overlay directory and delete it?\n\nEvery item that lives only in the overlay leaves the game with it. Items written into the shipped archives stay where they are. The game must not be running.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 980,
-          "sink": "question"
-        }
-      ]
-    },
-    {
       "key": "Unmounted {value_0} from meta/0.papgt; {value_1} directories left.",
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 368,
+          "line": 372,
           "sink": "on_log"
         }
       ]
@@ -105577,6 +106427,11 @@
       ]
     },
     {
+      "key": "Unsupported icon registry in {value_0}.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Unsupported initial weight mode: {value_0}",
       "origins": [],
       "manual": true
@@ -105671,7 +106526,37 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 388,
+          "line": 390,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported overlay inventory. Restore its backup before changing overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 85,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported overlay journal.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 213,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported overlay metadata target.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 222,
           "sink": "ValueError"
         }
       ]
@@ -105755,6 +106640,11 @@
           "sink": "ValueError"
         }
       ]
+    },
+    {
+      "key": "Unsupported table directory layout.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Unused sockets",
@@ -105983,6 +106873,16 @@
           "path": "cdmw/ui/shell/theme_controller.py",
           "line": 532,
           "sink": "_queue_appearance_apply_step"
+        }
+      ]
+    },
+    {
+      "key": "Updating installed overlays…",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 146,
+          "sink": "_run"
         }
       ]
     },
@@ -106433,6 +107333,26 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 230,
           "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Use Installed overlays to manage this folder before migrating older archive edits.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 221,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Use Installed overlays to remove individual managed installs.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 325,
+          "sink": "ValueError"
         }
       ]
     },
@@ -107366,7 +108286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 848,
+          "line": 861,
           "sink": "set_part_editor_state"
         }
       ]
@@ -107476,7 +108396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 164,
+          "line": 166,
           "sink": "setToolTip"
         }
       ]
@@ -108212,6 +109132,16 @@
       ]
     },
     {
+      "key": "View CDMW's installed overlays and remove an individual install while preserving the others.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 274,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "View images, color-coded text/XML/HKX summaries, binary summaries, audio/video, 3D models, and sidecar-derived material context.",
       "origins": [
         {
@@ -108716,7 +109646,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 832,
+          "line": 845,
           "sink": "set_part_editor_state"
         }
       ]
@@ -108758,6 +109688,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_workers.py",
           "line": 213,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Wait for the current operation to finish, then refresh.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 98,
+          "sink": "failed"
         }
       ]
     },
@@ -109156,7 +110096,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         }
       ]
@@ -110576,7 +111516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 432,
+          "line": 436,
           "sink": "QGroupBox"
         }
       ]
@@ -110641,7 +111581,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 434,
+          "line": 432,
           "sink": "set_note"
         },
         {
@@ -111051,17 +111991,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 349,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
           "line": 352,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 355,
-          "sink": "information"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 412,
+          "line": 409,
           "sink": "information"
         }
       ]
@@ -111071,7 +112011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 189,
+          "line": 191,
           "sink": "QPushButton"
         }
       ]
@@ -111132,16 +112072,6 @@
       ]
     },
     {
-      "key": "Write the item into an archive directory of its own and name that directory first in the game's mount list, which is where the game looks first. The archives the game shipped are not written to at all, so the backup is the mount list rather than a gigabyte of payload files, and removing the mod is deleting the directory. New in this build and not yet confirmed in game.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 228,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Write the package",
       "origins": [
         {
@@ -111156,7 +112086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 190,
+          "line": 192,
           "sink": "setToolTip"
         }
       ]
@@ -111331,7 +112261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 428,
+          "line": 426,
           "sink": "set_note"
         }
       ]
@@ -111401,7 +112331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 412,
+          "line": 409,
           "sink": "information"
         }
       ]
@@ -112816,7 +113746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 438,
+          "line": 442,
           "sink": "tinted"
         }
       ]
@@ -116101,7 +117031,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 795,
+          "line": 808,
           "sink": "open_mesh_session"
         },
         {
@@ -116861,7 +117791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 248,
+          "line": 250,
           "sink": "_run"
         }
       ]
@@ -118361,7 +119291,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 652,
+          "line": 668,
           "sink": "add"
         }
       ]
@@ -118611,12 +119541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 255,
+          "line": 257,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 264,
+          "line": 266,
           "sink": "_run"
         }
       ]
@@ -121021,7 +121951,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 491,
+          "line": 495,
           "sink": "ValueError"
         }
       ]
@@ -121761,12 +122691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 270,
+          "line": 272,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 276,
+          "line": 278,
           "sink": "_run"
         },
         {
@@ -122241,7 +123171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 241,
+          "line": 243,
           "sink": "_run"
         }
       ]
@@ -125496,7 +126426,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 613,
+          "line": 629,
           "sink": "add"
         }
       ]
@@ -126671,7 +127601,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 601,
+          "line": 617,
           "sink": "add"
         }
       ]
@@ -130026,7 +130956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 338,
+          "line": 335,
           "sink": "setText"
         }
       ]
@@ -130056,7 +130986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 341,
+          "line": 338,
           "sink": "setText"
         }
       ]
@@ -130398,6 +131328,31 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 422,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} changed after preparation. Refresh and prepare again.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 563,
+          "sink": "OverlayConflict"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 579,
+          "sink": "OverlayConflict"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} changed outside the overlay manager. Restore or refresh the install before changing overlays.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 121,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -130927,6 +131882,16 @@
       ]
     },
     {
+      "key": "{value_0} installed overlay(s).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/overlay_manager_dialog.py",
+          "line": 114,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0} invalid rows | {value_1} unnormalized vertices",
       "origins": [
         {
@@ -130968,6 +131933,16 @@
           "path": "cdmw/ui/new_item/model_import.py",
           "line": 1070,
           "sink": "python-return:fbx_needs_blender_message"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} is both added and replaced.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 472,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -131776,7 +132751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 439,
+          "line": 443,
           "sink": "setToolTip"
         }
       ]
@@ -131876,7 +132851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 397,
+          "line": 394,
           "sink": "setPlainText"
         }
       ]
@@ -131931,7 +132906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 595,
+          "line": 599,
           "sink": "note"
         }
       ]
@@ -132003,6 +132978,16 @@
           "path": "cdmw/ui/research/classification_review_state.py",
           "line": 114,
           "sink": "python-return:unknown_group_ready_status_text"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} uses an item or asset from the selected overlay. Remove the dependent overlay first.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_manager.py",
+          "line": 410,
+          "sink": "OverlayConflict"
         }
       ]
     },
@@ -132616,7 +133601,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 593,
+          "line": 598,
           "sink": "addItem"
         }
       ]
@@ -132626,7 +133611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 332,
+          "line": 337,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -132961,7 +133946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 456,
+          "line": 459,
           "sink": "python-return:effect_reference"
         }
       ]
@@ -132981,12 +133966,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 588,
+          "line": 604,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 601,
+          "line": 617,
           "sink": "add"
         },
         {
@@ -133301,7 +134286,7 @@
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 588,
+          "line": 604,
           "sink": "add"
         },
         {
@@ -133881,7 +134866,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 702,
+          "line": 706,
           "sink": "setToolTip"
         }
       ]
@@ -134303,6 +135288,12 @@
     }
   ],
   "exclusions": [
+    {
+      "path": "cdmw/services/archive_overlay_manager.py",
+      "symbol": "read",
+      "source": "changes.json",
+      "reason": "Fixed member name inside the owned overlay journal ZIP; this is file format syntax."
+    },
     {
       "path": "cdmw/services/mesh_rust_authoring.py",
       "symbol": "_rust_texture_candidate_basenames",

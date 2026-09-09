@@ -111,9 +111,9 @@ class StatsPanel(QGroupBox):
         self.selection_note = NoteLabel("")
         ladder_layout.addWidget(self.selection_note)
         quick = QHBoxLayout()
-        self.one_copper_button = QPushButton("Set all prices here to 1")
+        self.one_copper_button = QPushButton("Set price to 1 Copper")
         self.one_copper_button.setToolTip(
-            "Set every stored level-up and base-price field on this page to 1. Embedded perk prices may still contribute to the final shop cost."
+            "Set all level and base prices to 1 and remove embedded perk price contributions using owned perk copies. Their bonuses are preserved."
         )
         self.one_copper_button.clicked.connect(self._one_copper)
         quick.addWidget(self.one_copper_button)
@@ -241,6 +241,10 @@ class StatsPanel(QGroupBox):
         self.price_table.setToolTip("The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.")
         self.price_table.cellChanged.connect(self._price_changed)
         base_layout.addWidget(self.price_table, 1)
+        self.include_perk_prices = QCheckBox("Include perk value in shop price")
+        self.include_perk_prices.setToolTip("Turn off to keep the selected perks with zero price contribution. Only this item's owned perk copies change.")
+        self.include_perk_prices.toggled.connect(self._perk_prices_changed)
+        base_layout.addWidget(self.include_perk_prices)
         price_action = QHBoxLayout()
         self.price_state = NoteLabel("")
         self.price_state.setVisible(False)
@@ -309,6 +313,7 @@ class StatsPanel(QGroupBox):
     def _fill_tables(self) -> None:
         grid = self._grid
         draft = self._controller.draft
+        self.include_perk_prices.setChecked(draft.include_perk_prices)
         self.table.clear()
         if grid is None:
             self._table_resize_pending = False
@@ -693,6 +698,7 @@ class StatsPanel(QGroupBox):
         if self._grid is None or not self._stat_block_editable():
             return
         draft = self._controller.draft
+        draft.include_perk_prices = False
         rows = self._grid.level_count + draft.extra_levels
         for column_index, column in enumerate(self._grid.columns):
             if column.kind == BUY_PRICE_KIND:
@@ -710,10 +716,14 @@ class StatsPanel(QGroupBox):
 
         if not self._stat_block_editable():
             return False
-        self._controller.draft.price_values[_COPPER_ITEM_KEY] = 1
-        self._draft_changed(rebuild=True)
-        self.price_state_changed.emit()
+        self._one_copper()
         return True
+
+    def _perk_prices_changed(self, checked: bool) -> None:
+        if not self._syncing:
+            self._controller.draft.include_perk_prices = bool(checked)
+            self._draft_changed(rebuild=False)
+            self.price_state_changed.emit()
 
     def _apply_scale(self) -> None:
         if self._grid is None:
@@ -779,6 +789,7 @@ class StatsPanel(QGroupBox):
         had_base_price_changes = bool(draft.price_values)
         draft.grid_values.clear()
         draft.price_values.clear()
+        draft.include_perk_prices = True
         draft.extra_levels = 0
         draft.extra_stat_keys.clear()
         draft.max_stack_count = None

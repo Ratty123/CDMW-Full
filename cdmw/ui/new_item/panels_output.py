@@ -59,6 +59,8 @@ def install_result_report(result: object) -> tuple:
     backup = getattr(result, "backup_dir", "") or ""
     directory = getattr(result, "directory", None)
     name = getattr(directory, "name", "") if directory is not None else ""
+    if hasattr(result, 'removed_overlay_id'):
+        return ('Installed overlays', f'Removed {result.label}. {result.remaining} overlay(s) remain.\n\nBackup: {backup}')
 
     if hasattr(result, "removed_files"):  # the overlay taken away
         if not getattr(result, "unmounted", False):
@@ -226,10 +228,8 @@ class OutputPanel(QGroupBox):
         install.addWidget(self.overlay_directory)
         self.install_overlay_button = QPushButton("Install as an overlay...")
         self.install_overlay_button.setToolTip(
-            "Write the item into an archive directory of its own and name that directory first in the game's mount "
-            "list, which is where the game looks first. The archives the game shipped are not written to at all, so "
-            "the backup is the mount list rather than a gigabyte of payload files, and removing the mod is deleting "
-            "the directory. New in this build and not yet confirmed in game."
+            "Install this item as a separately tracked overlay. CDMW combines shared tables, preserves other "
+            "installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install."
         )
         self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
         install.addWidget(self.install_overlay_button)
@@ -270,8 +270,12 @@ class OutputPanel(QGroupBox):
         self._busy_changed(False)
 
     def _build_overlay_tools(self, write_layout: QVBoxLayout) -> None:
+        self.overlay_removal_button = QPushButton("Installed overlays...")
+        self.overlay_removal_button.setToolTip("View CDMW's installed overlays and remove an individual install while preserving the others.")
+        self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
+        write_layout.addWidget(self.overlay_removal_button)
         self.overlay_tools_toggle = QToolButton()
-        self.overlay_tools_toggle.setText("Manage existing overlays")
+        self.overlay_tools_toggle.setText("Archive recovery")
         self.overlay_tools_toggle.setCheckable(True)
         self.overlay_tools_toggle.setArrowType(Qt.ArrowType.RightArrow)
         self.overlay_tools_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -290,13 +294,6 @@ class OutputPanel(QGroupBox):
         )
         self.overlay_migration_button.clicked.connect(self.overlay_migration_requested.emit)
         overlay_row.addWidget(self.overlay_migration_button)
-        self.overlay_removal_button = QPushButton("Remove the overlay...")
-        self.overlay_removal_button.setToolTip(
-            "Unmount the overlay directory and delete it. Everything it holds leaves the game with it; anything "
-            "installed into the shipped archives stays where it is."
-        )
-        self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
-        overlay_row.addWidget(self.overlay_removal_button)
         write_layout.addWidget(self.overlay_tools)
 
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
@@ -414,7 +411,8 @@ class OutputPanel(QGroupBox):
     def _install_finished(self, result: object) -> None:
         title, message = install_result_report(result)
         self.append_log(message.replace("\n\n", " "))
-        QMessageBox.information(self, title, message)
+        if not hasattr(result, 'removed_overlay_id'):
+            QMessageBox.information(self, title, message)
 
     def _busy_changed(self, busy: bool) -> None:
         lane = str(getattr(self._controller, "_lane", "") or "")

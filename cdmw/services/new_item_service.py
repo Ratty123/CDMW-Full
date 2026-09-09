@@ -237,6 +237,7 @@ class NewItemService:
         issues = self.validate(spec, snapshot)
         if has_errors(issues):
             raise NewItemPlanError("; ".join(issue.message for issue in issues if issue.is_error), issues)
+        reserved_keys = tuple(reserved_keys)
         allocated = self.allocate(spec, snapshot, reserved_keys=reserved_keys, reserved_stems=reserved_stems)
         more = validate_against_context(allocated, build_context(snapshot, allocated.template_key))
         if has_errors(more):
@@ -270,7 +271,7 @@ class NewItemService:
             if icon_source_path is None:
                 raise NewItemPlanError("the spec asks for a generated icon; give an icon or an image to build one from")
             built = self.build_icon(allocated, snapshot, icon_source_path, on_log=on_log, stop_event=stop_event)
-        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=on_log, stop_event=stop_event)
+        return build_plan(allocated, snapshot, model=files, variant_models=prepared_variants, icon=built, issues=tuple(issues) + tuple(more), on_log=on_log, stop_event=stop_event, reserved_item_keys=tuple(reserved_keys))
 
     # ------------------------------------------------------------------ writing
 
@@ -450,11 +451,11 @@ class NewItemService:
 
         The shipped archives are not opened for writing at all: what changes is a new
         directory beside them, `meta/0.papgt` naming it first, and the texture registry.
-        The backup is those two files and whatever the workbench's own overlay held
-        before, so an install is kilobytes of backup instead of gigabytes.
+        The backup covers changed metadata, ownership history, and the existing
+        CDMW overlay. Each install can be removed separately through its journal.
         """
 
-        from cdmw.services.archive_overlay_install import install_overlay as write_overlay
+        from cdmw.services.archive_overlay_manager import prepare_item_overlay, apply_overlay_change
 
         if not confirmed:
             raise NewItemInstallRefused("Installing a new item into the game archives requires explicit confirmation.")
@@ -476,12 +477,9 @@ class NewItemService:
         def restore(path):
             return mutation_service.restore_backup(path, confirmed=True, on_log=on_log)
 
-        return write_overlay(
-            plan.patches,
-            plan.additions,
-            package_root=package_root,
-            directory_name=directory_name,
-            meta_files=[(write.path, write.payload_data) for write in plan.meta_files],
+        preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name, on_log=on_log, stop_event=stop_event)
+        return apply_overlay_change(
+            preparation,
             backup=backup,
             restore_backup=restore,
             game_running=running,

@@ -586,8 +586,10 @@ pub(crate) fn effect_emitter_billboards_with_limit(
                 }
                 instances.push(EffectBillboardInstance {
                     center: center.to_array(),
-                    axis_right: (right_direction * size.x * scene_scale).to_array(),
-                    axis_up: (up_direction * size.y * scene_scale * stretch.clamp(1.0, 20.0))
+                    // Authored particle scale is the full quad size. The draw
+                    // shader expands these axes with corners at -1 and +1.
+                    axis_right: (right_direction * size.x * scene_scale * 0.5).to_array(),
+                    axis_up: (up_direction * size.y * scene_scale * stretch.clamp(1.0, 20.0) * 0.5)
                         .to_array(),
                     colour,
                     uv_rect,
@@ -1045,8 +1047,8 @@ mod tests {
         let p = draw(&e, 0.5);
         assert_eq!(p.len(), 1);
         assert_eq!(p[0].center, [1., 0., 0.]);
-        assert_eq!(p[0].axis_right, [0.1, 0., 0.]);
-        assert_eq!(p[0].axis_up, [0., 0.4, 0.]);
+        assert_eq!(p[0].axis_right, [0.05, 0., 0.]);
+        assert_eq!(p[0].axis_up, [0., 0.2, 0.]);
         assert_eq!(p[0].colour, [1., 0.3, 0.1, 1.]);
     }
     #[test]
@@ -1057,6 +1059,22 @@ mod tests {
         e["scale_over_life"] = json!([1.]);
         e["alpha_over_life"] = json!([0.]);
         assert!(draw(&e, 0.5).is_empty());
+    }
+    #[test]
+    fn billboard_full_extent_includes_placement_scale_once() {
+        let p = effect_emitter_billboards(
+            &emitter(),
+            0,
+            0.5,
+            0.15,
+            0,
+            Mat4::from_scale(Vec3::splat(0.15)),
+            Vec3::X,
+            Vec3::Y,
+            -Vec3::Z,
+        );
+        assert!((2.0 * Vec3::from(p[0].axis_right).length() - 0.015).abs() < 1.0e-6);
+        assert!((2.0 * Vec3::from(p[0].axis_up).length() - 0.06).abs() < 1.0e-6);
     }
     #[test]
     fn speed_limit_bounds_displacement_as_well_as_reported_velocity() {

@@ -147,6 +147,7 @@ class NewItemStudioTab(QWidget):
         ).native_preview_cache_mode
         self._refreshing_checks = False
         self._effect_staged_dirty = False
+        self._refresh_after_install = False
         self._model_part_editor_source: object | None = None
         self._model_part_editor_widget: object | None = None
         self._model_part_editor_controller: object | None = None
@@ -180,6 +181,7 @@ class NewItemStudioTab(QWidget):
         self.controller.snapshot_failed.connect(self._snapshot_failed)
         self.controller.status_message.connect(self.status_message_requested.emit)
         self.controller.busy_changed.connect(self._bootstrap_busy_changed)
+        self.controller.busy_changed.connect(self._resume_install_refresh)
         preview_settings_signal = getattr(
             getattr(getattr(window, "shell", None), "settings_tab", None),
             "model_preview_settings_changed",
@@ -274,7 +276,8 @@ class NewItemStudioTab(QWidget):
     def start_snapshot(self) -> None:
         if self.controller.busy:
             return
-        entries = tuple(self._get_entries() or ())
+        fresh_install = self._refresh_after_install
+        entries = () if fresh_install else tuple(self._get_entries() or ())
         package_root: Optional[Path] = None
         if not entries:
             # the shell's catalogue backend shows the browser without filling the legacy
@@ -297,9 +300,10 @@ class NewItemStudioTab(QWidget):
             else:
                 self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
             self.controller.log_message.connect(self._status.setText)
-        entries_by_normalized_path = getattr(self._window, "archive_entries_by_normalized_path", None)
-        entries_by_basename = getattr(self._window, "archive_entries_by_basename", None)
-        entries_by_extension = getattr(self._window, "archive_entries_by_extension", None)
+        entries_by_normalized_path = None if fresh_install else getattr(self._window, "archive_entries_by_normalized_path", None)
+        entries_by_basename = None if fresh_install else getattr(self._window, "archive_entries_by_basename", None)
+        entries_by_extension = None if fresh_install else getattr(self._window, "archive_entries_by_extension", None)
+        self._refresh_after_install = False
         if not self.controller.start_snapshot(
             entries,
             package_root=package_root,
@@ -383,7 +387,7 @@ class NewItemStudioTab(QWidget):
         self.placement_panel.recipes_requested.connect(lambda: (self.show_step(3), self.stats_panel.views.setCurrentIndex(1)))
         self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
-        controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self, self._reread_after_install))
+        controller.install_finished.connect(self._after_install_finished)
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
         controller.model_import_changed.connect(self._model_part_editor_source_changed)
@@ -728,8 +732,17 @@ class NewItemStudioTab(QWidget):
         """After an install the archives hold the new item: read them again, so the next
         item is allocated its own key and stem instead of the one just written."""
 
-        self.output_panel.append_log("Reading the archives again so the next item gets its own key and stem...")
-        self.start_snapshot()
+        if self._refresh_after_install and not self.controller.busy:
+            self.start_snapshot()
+
+    def _after_install_finished(self, _result: object) -> None:
+        self.controller.invalidate_plan()
+        self._refresh_after_install = True
+        QTimer.singleShot(0, self, self._reread_after_install)
+
+    def _resume_install_refresh(self, busy: bool) -> None:
+        if not busy and self._refresh_after_install:
+            QTimer.singleShot(0, self, self._reread_after_install)
 
     def receive_imported_model(self, entry: Optional[ArchiveEntry], result: object, scene: object | None = None) -> None:
         """Take a Builder result for the current template's mesh, with the scene import
@@ -972,25 +985,19 @@ class NewItemStudioTab(QWidget):
         self.controller.start_overlay_migration(mutations, root)
 
     def _remove_overlay(self) -> None:
-        title = "Remove the overlay"
+        title = "Installed overlays"
         found = self._overlay_services(title)
         if found is None:
             return
         mutations, root = found
-        confirmation = QMessageBox.question(
-            self,
-            title,
-            (
-                "Unmount the overlay directory and delete it?\n\n"
-                "Every item that lives only in the overlay leaves the game with it. Items written into the shipped "
-                "archives stay where they are. The game must not be running."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
+        from cdmw.ui.new_item.overlay_manager_dialog import OverlayManagerDialog
+        existing = self.findChild(OverlayManagerDialog)
+        if existing is not None and not existing._closed:
+            existing.raise_()
+            existing.activateWindow()
             return
-        self.controller.start_overlay_removal(mutations, root)
+        dialog = OverlayManagerDialog(self.controller, root, mutations, self)
+        dialog.open()
 
     # ------------------------------------------------------------------ lifecycle
 

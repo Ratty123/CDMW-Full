@@ -132,17 +132,29 @@ compatible rig. Map incompatible inherited dyes explicitly or clear them. A mesh
 section may contain at most 65,535 vertices. A successful plan or game startup
 does not establish equipping, appearance, or gameplay behavior in a save.
 
+**Set price to 1 Copper** sets base and enhancement prices to one and creates
+zero-price copies of embedded perks, retaining their bonuses and localized names.
+**Include perk value in shop price** restores their normal price contributions.
+The shop may still apply its own modifiers.
+
 Effects are visual-only authoring. CDMW can decode `.pae` and `.paem` completely,
 clone compatible fixed-layout effect data, edit fixed-size colour, brightness,
 particle-size, spawn-rate and lifetime values, and show an explicitly approximate
 particle preview against the selected item and a preview-only Kliff or Damian
 reference. The preview does not reproduce the game's GPU vector fields, post
 effects, animation clipping, or final gameplay appearance.
+Colour edits include cloned render-preset temperature ramps. Billboard particle
+size represents its full dimensions, with placement scale applied once.
 
 Output can be a loose manager package, a CDMW-owned archive-group overlay, or the
-confirmed archive-install path. Planning and preview are read-only; every game
-write goes through `ArchiveMutationService` with preflight, backup or receipt,
-rollback, and restore. The part-prefab reader preserves both the original and
+confirmed archive-install path. **Output → Installed overlays** lists individual
+CDMW installs and removes a selected one while preserving the others. Shared
+tables and registries are composed by record; conflicts and dependencies block
+unsafe removal. Earlier installs without ownership history appear as one bundle.
+Keep `.cdmw/overlays.json` and `.cdmw/overlays/` with the game installation: they
+retain the ownership and before/after history needed for individual removal.
+Planning and preview are read-only; game writes require service-owned preflight,
+confirmation, verified backups and rollback. The part-prefab reader preserves both the original and
 Crimson Desert 2.00.00 layouts byte-for-byte.
 
 ## Mesh Editor

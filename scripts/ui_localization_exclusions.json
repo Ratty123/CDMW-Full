@@ -1,5 +1,11 @@
 [
   {
+    "path": "cdmw/services/archive_overlay_manager.py",
+    "symbol": "read",
+    "source": "changes.json",
+    "reason": "Fixed member name inside the owned overlay journal ZIP; this is file format syntax."
+  },
+  {
     "path": "cdmw/services/mesh_rust_authoring.py",
     "symbol": "_rust_texture_candidate_basenames",
     "source": "{value_0}_disp.dds",

@@ -12,6 +12,11 @@ from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts
 from .logging import get_logger
 from .mesh_builder_common import _align_submesh_order_like_original, _compute_bbox
 from .mesh_parser import (
+    PAC_SKIN_EXTRA_INDEX_OFFSET,
+    PAC_SKIN_EXTRA_INDEX_SENTINEL,
+    PAC_SKIN_GATE_DISABLED,
+    PAC_SKIN_GATE_MASK,
+    PAC_SKIN_GATE_OFFSET,
     PAC_SKIN_INFLUENCES,
     PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_WEIGHT_OFFSET,
@@ -1161,13 +1166,18 @@ def _build_pac_full_rebuild(
 
                 if prepared["skin_export"]:
                     if preserve_runtime_abi and len(prepared["submesh"].bone_indices[skin_vi]) <= PAC_SKIN_PALETTE_SLOTS:
-                        # A full replacement authors these influences in the six
-                        # palette lanes. Extra donor weights must not survive and
-                        # blend the new mesh back onto a discarded accessory rig.
+                        # A complete import owns six influences. Disable the extra
+                        # matrix fetches as well as their weights: an open gate can
+                        # still read a discarded accessory rig at zero weight.
                         donor_rec[PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS:
                                   PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
                             PAC_SKIN_INFLUENCES - PAC_SKIN_PALETTE_SLOTS
                         )
+                        donor_rec[PAC_SKIN_EXTRA_INDEX_OFFSET:PAC_SKIN_EXTRA_INDEX_OFFSET + 4] = PAC_SKIN_EXTRA_INDEX_SENTINEL
+                        if len(donor_rec) > PAC_SKIN_GATE_OFFSET:
+                            donor_rec[PAC_SKIN_GATE_OFFSET] = (
+                                donor_rec[PAC_SKIN_GATE_OFFSET] & ~PAC_SKIN_GATE_MASK
+                            ) | PAC_SKIN_GATE_DISABLED
                     patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, sm_idx)
 
                 verts_buf.extend(donor_rec)
