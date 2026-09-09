@@ -475,8 +475,8 @@ def route_plain_pbr(
     replacements: Dict[str, PlainMaterial] = {}
     new_files: Dict[str, bytes] = {}
     emissive_done: Dict[str, Tuple[str, str]] = {}
-    lines = []
-    warnings = []
+    lines = list(files.notes)
+    warnings = list(files.warnings)
     encoded = []
     for wrapper in wrappers:
         owned = {name: path for name, path in wrapper.textures.items() if path.replace("\\", "/").casefold() in by_lower}
@@ -622,7 +622,7 @@ def route_model_files(
         return route_plain_pbr(files, sources=sources, glow=glow, on_log=on_log).files
     return ModelFiles(
         pac_data=files.pac_data, side_files=files.side_files, material_route=MaterialRoute.BUILDER.value,
-        notes=("the Builder's material sidecar as it came (Material Authority)",), warnings=files.warnings,
+        notes=(*files.notes, "the Builder's material sidecar as it came (Material Authority)"), warnings=files.warnings,
     )
 
 

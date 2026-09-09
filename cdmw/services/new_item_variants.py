@@ -10,6 +10,10 @@ from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
 from cdmw.domain.new_item.spec import MaterialRoute
 
 
+class _SkinPaletteBoundsError(ValueError):
+    """A resolved palette cannot represent the imported influence rows."""
+
+
 def xml_path(model_path):
     return model_path.replace("character/model/", "character/modelproperty/").removesuffix(".pac") + ".pac_xml"
 
@@ -75,13 +79,27 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
                                       scene=scenes.get(appearance.identity), glow=appearance.glow_choice(), on_log=on_log)
-        validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
+        try:
+            validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
+        except _SkinPaletteBoundsError:
+            source = getattr(scenes.get(appearance.identity), "mesh", None)
+            if (isinstance(model, ModelFiles) or "/armor/" not in appearance.model_path.replace("\\", "/").casefold()
+                    or source is None or source.has_bones or not source.submeshes
+                    or any(part.bone_indices or part.bone_weights or part.source_bone_palette
+                           or part.source_skin_weight_layout for part in source.submeshes)):
+                raise
+            if appearance.keep_template_physics:
+                raise ValueError("Turn off Template cloth / physics to transfer this armour's weights from the character body.") from None
+            from cdmw.services.new_item_skinning import rebind_armour_from_body
+            files = rebind_armour_from_body(snapshot, appearance.model_path, files, stop_event=stop_event)
+            validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
         result[appearance.identity] = files
     return result
 
 
 def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
     """Preserve an exact attachment or require the target's actual skin palette."""
+    from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
     from cdmw.modding.mesh_parser import parse_pac, resolve_pac_bone_palette
     from cdmw.modding.skeleton_parser import parse_pab
     original = snapshot.payload(target_path)
@@ -109,30 +127,26 @@ def validate_variant_rig(snapshot, target_path, payload, *, prefab_path=""):
         # the discarded accessory weights do not give the import a body rig.
         if _has_exact_socket_attachment(snapshot.payload(prefab_path), target_path):
             return "rigid prefab attachment"
-    parts = target_path.replace("\\", "/").split("/")
-    if "1_pc" not in parts:
-        raise ValueError("This skinned target has no proven playable-character rig binding.")
-    marker = parts.index("1_pc")
-    prefix = "/".join(parts[:marker+2]) + "/"
-    matches = []
-    for path in snapshot.entries:
-        if path.startswith(prefix.casefold()) and path.endswith(".pab"):
-            skeleton = parse_pab(snapshot.payload(path), path)
-            if skeleton.parser_mode != "fixed" or skeleton.parse_warning:
-                continue
-            palette = resolve_pac_bone_palette(original,skeleton)
-            if palette:
-                if resolve_pac_bone_palette(payload,skeleton) != palette:
-                    raise ValueError("The import's skin palette differs from the selected variant's target rig.")
-                matches.append((path,palette))
-    if len(matches) != 1:
+    by_path, by_basename = snapshot.archive_index_maps()
+    selected, _report = resolve_skeleton_for_model(
+        snapshot.entry(target_path), archive_entries_by_normalized_path=by_path,
+        archive_entries_by_basename=by_basename, pac_data=original,
+        read_entry_data=lambda entry: snapshot.payload(entry.path),
+    )
+    if selected is None:
         raise ValueError("The selected variant's skeleton is missing or ambiguous.")
-    limit = len(matches[0][1])
+    skeleton = parse_pab(snapshot.payload(selected.path), selected.path)
+    palette = resolve_pac_bone_palette(original, skeleton)
+    if skeleton.parser_mode != "fixed" or skeleton.parse_warning or not palette:
+        raise ValueError("The selected variant's skeleton is missing or ambiguous.")
+    if resolve_pac_bone_palette(payload, skeleton) != palette:
+        raise ValueError("The import's skin palette differs from the selected variant's target rig.")
+    limit = len(palette)
     for part in mesh.submeshes:
         for indices, weights in zip(part.bone_indices,part.bone_weights):
             if any(weight > 0 and not 0 <= index < limit for index,weight in zip(indices,weights)):
-                raise ValueError("The imported skin weights reference bones outside the target palette.")
-    return matches[0][0]
+                raise _SkinPaletteBoundsError("The imported skin weights reference bones outside the target palette.")
+    return selected.path
 
 
 @dataclass
@@ -239,6 +253,9 @@ def plan_variant_files(planner):
             imported = choice is not None and choice.custom_model
             if imported and model is None:
                 raise ValueError(f"No applied model for {old}")
+            if imported:
+                planner.summary.extend(f"  {old}: {note}" for note in model.notes)
+                planner.warnings.extend(f"{old}: {warning}" for warning in model.warnings)
             payload = model.pac_data if imported else snapshot.payload(old)
             planner.add(snapshot.entry(old),new,payload,f"Variant model: {new}")
             written.append(new)

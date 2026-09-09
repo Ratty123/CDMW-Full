@@ -306,12 +306,12 @@ and the same cancellable worker reads the template geometry, retains its bounds 
 centroid for later re-fit, and prepares the fitted mesh before publishing the import.
 The first UI read of the fitted bounds reuses that mesh. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
-weapons. Import and **Fit to template** level the model's broad plane against the
-placement grid while matching the template's direction within that plane and keeping
-its grip or centre as the placement anchor. This removes authored and template-derived
-tilt for elongated and broad shapes; shapes without a clear axis or plane retain the
-bounding-box fit. The template stays fixed, and manual rotation remains available.
-The level fit is baked into the mesh shared by the preview and **Apply placement**.
+weapons. Import and **Fit to template** level held models against the placement grid,
+retaining their heading and grip anchor. Wearables retain the template's authored
+body orientation and centre, so a garment already aligned to the body stays aligned.
+Shapes without a clear axis or plane retain the bounding-box fit. The template stays
+fixed, and manual rotation remains available. The fit is baked into the mesh shared
+by the preview and **Apply placement**.
 `item_preview.py` owns the resident frame and publishes fitted geometry, direct
 DDS textures, and then the complete synthesized material tier without resetting
 the resident camera;
@@ -509,24 +509,31 @@ station behavior. Mask revisions form part of the preview identity and immutable
 worker request. A replaced mask invalidates cached previews and export plans;
 changing it during preparation is rejected.
 
-**Imported armour follow-up:** the existing components can support this, but this
-weapon fix does not establish arbitrary armour import support. The next integration
-should resolve the template's declared skeleton through
-`cdmw/core/skeleton_resolver.py`, including descriptors outside the model folder;
-the current variant validator only scans PABs under the character's model directory.
-An unrigged garment needs fitting in the character's bind pose and transfer of
-weights from the matching template armour/body surface using
-`ensure_final_target_skin_weights`. An already rigged import needs bone-name mapping
-into the target PAC palette before its numeric influences are accepted.
-Rigid headgear should use its declared attachment when available; a helmet label
-alone does not prove a rigid binding. Deforming pieces need the character rig.
-Read-only checks resolved `cd_phm_00_hel_0001.pac` (12 palette entries) and
-`cd_phm_00_lb_0002.pac` (40 entries) against `phm_01.pab`.
-The animation and armour skinning in `tools/placement_studio/` provide reusable
-playback for checking shoulders, elbows, knees and neck motion. Fit/clipping quality
-can warn after a valid mesh is produced; missing usable weights or an unencodable
-palette still needs an actionable correction. Body coverage, companion pieces and
-cloth/physics require their own checks before claiming in-game support.
+**Imported armour:** complete wearable replacements transfer weights from the whole
+compatible template surface, independently of its material sections. Partial edits
+retain their selected part's donor. Build plan resolves the template's declared PAB
+through `cdmw/core/skeleton_resolver.py`, including descriptors outside the model
+folder, and checks the rebuilt palette and every weighted index. Rigid helmets keep
+their prefab attachment; deforming headgear uses its character rig.
+
+Some torso templates carry influences beyond their resolved character palette. For
+an unrigged scene import with **Template cloth / physics** off, Build plan can rebuild
+those weights from the matching, verified character body used by the existing
+character preview. `cdmw/services/new_item_skinning.py` maps body bones into the
+armour's own palette before transferring weights. Body triangles with no compatible
+influences are excluded. The body and PAB are tracked snapshot inputs and stay
+unchanged. The plan names the donor and warns to check fit and deformation; distant
+surface matches also warn. Valid imported bindings stay intact. Authored source
+weights, a changed palette, retained template physics, or a missing usable body do
+not receive this automatic transfer.
+
+The normal scene-import path supplies geometry for template/body weighting; this
+does not add external bone-name or animation retargeting. New topology does not
+rebuild cloth simulation. Body coverage, clipping and companion appearance still
+need inspection. The existing animation/skinning tools can check the planned PAC
+against PAB/PAA motion; headless deformation is not proof of in-game equipment or
+physics behavior. Skin-transfer notes and fit/material warnings survive material
+routing and appear in Build plan for their own variant.
 
 Optional bonus, recipe, dye and reward indexes load in the bounded worker lane.
 Requests capture their variant and source state. Source leases cover all selected
@@ -554,6 +561,14 @@ The sampled `cd_phm_00_lb_0002.pac` garment now resolves its 40-entry palette ag
 `phm_01.pab`; a rebuilt garment passes target-rig validation. Existing item-use
 containers are the supported reward consumer path. Generic world-object/quest
 consumer rewiring and new world placement are not supported.
+
+The September 9 wearable import check combines template materials and changes mesh
+topology before importing an unrigged OBJ. Nine variants pass Apply and Build plan:
+weighted and rigid helmets, gloves, boots, lower body, a cloak and three torso
+armours. Eight final planned PACs pass exact PAB binding and nine sampled frames of a PAA walking clip,
+including deformation beyond root translation; the rigid helmet keeps its prefab
+attachment and has no CPU socket-animation claim. The torso plans use the verified
+body donor. These are read-only headless checks, with unchanged source archives.
 
 Synthetic fixtures cover edited round trips, ownership, empty/inherited overrides,
 exact duplicate-shop selection, multiple imports, cancellation/leases and second-item

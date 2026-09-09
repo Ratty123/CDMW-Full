@@ -833,7 +833,12 @@ def model_files_from_import(result: object, *, family: ItemModelFamily) -> Model
                 payload = Path(source).read_bytes()
         if payload:
             side[target] = payload
-    return ModelFiles(pac_data=data, side_files=side)
+    lines = tuple(str(line).strip() for line in getattr(result, "summary_lines", ()))
+    return ModelFiles(
+        pac_data=data, side_files=side,
+        notes=tuple(line for line in lines if line.startswith("Skin weights ")),
+        warnings=tuple(line.removeprefix("Warning: ") for line in lines if line.startswith("Warning: skin weights ")),
+    )
 
 
 __all__ = [

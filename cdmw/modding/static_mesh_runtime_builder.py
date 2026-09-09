@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+from dataclasses import replace
 from typing import Sequence
 
 from .mesh_parser import ParsedMesh, SubMesh, _compute_smooth_normals
@@ -11,6 +12,8 @@ from .mesh_skinning import (
     SOURCE_VERTEX_MAP_TOPOLOGY,
     ensure_final_target_skin_weights,
     finalize_merged_skin_provenance,
+    has_valid_target_skin_weights,
+    source_vertex_map_is_target_donor_lineage,
 )
 from .static_mesh_clone import _clone_parsed_mesh_fast, _clone_submesh_fast
 from .static_mesh_geometry import (
@@ -228,6 +231,8 @@ def _build_mapped_replacement_mesh(
                 )
                 for target_index, target in enumerate(original_mesh.submeshes)
             ]
+    skin_surfaces: dict[tuple, SubMesh] = {}
+    complete_wearable_swap = options.complete_external_swap and "/armor/" in original_mesh.path.replace("\\", "/").casefold()
     for section in sections:
         target_index = int(section.target_submesh_index)
         if target_index < 0 or target_index >= len(original_mesh.submeshes):
@@ -271,7 +276,15 @@ def _build_mapped_replacement_mesh(
         else:
             merged = _merge_source_submeshes(source_parts, target)
         if enforce_vertex_limit:
-            ensure_final_target_skin_weights(merged, target, target_index=target_index, summary=getattr(options, "_skin_weight_transfer_summary", None))
+            skin_target = target
+            if (complete_wearable_swap and source_parts
+                    and not has_valid_target_skin_weights(merged)
+                    and not source_vertex_map_is_target_donor_lineage(target, merged)):
+                key = (target.source_skin_weight_layout, target.source_vertex_stride, tuple(target.source_bone_palette))
+                if key not in skin_surfaces:
+                    skin_surfaces[key] = _template_skin_surface(original_mesh, target)
+                skin_target = skin_surfaces[key]
+            ensure_final_target_skin_weights(merged, skin_target, target_index=target_index, summary=getattr(options, "_skin_weight_transfer_summary", None))
         section_label = str(section.target_submesh_name or "").strip()
         if section_label:
             if bool(getattr(options, "complete_external_swap", False)):
@@ -1096,6 +1109,25 @@ def source_distance_for_transformed_distance(
     if not scales:
         return distance
     return distance / (sum(scales) / float(len(scales)))
+
+
+def _template_skin_surface(original_mesh: ParsedMesh, target: SubMesh) -> SubMesh:
+    # A complete import may combine a torso and sleeves into one material. Skin
+    # comes from the whole compatible surface, independently of the draw slot.
+    parts = [part for part in original_mesh.submeshes
+             if part.vertices and len(part.bone_indices) == len(part.vertices)
+             and len(part.bone_weights) == len(part.vertices)
+             and part.source_skin_weight_layout == target.source_skin_weight_layout
+             and part.source_vertex_stride == target.source_vertex_stride
+             and part.source_bone_palette == target.source_bone_palette]
+    if len(parts) <= 1:
+        return target
+    surface = _merge_source_submeshes(parts, target)
+    return replace(target, vertices=surface.vertices, faces=surface.faces,
+                   bone_indices=surface.bone_indices, bone_weights=surface.bone_weights,
+                   vertex_count=len(surface.vertices), face_count=len(surface.faces),
+                   uvs=[], normals=[], tangents=[], source_vertex_offsets=[], source_vertex_map=[],
+                   source_vertex_map_authority=SOURCE_VERTEX_MAP_TOPOLOGY)
 
 
 def _merge_source_submeshes(submeshes: list[SubMesh], target: SubMesh) -> SubMesh:

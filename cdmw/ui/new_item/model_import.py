@@ -55,7 +55,7 @@ __all__ = [
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
 MODEL_IMPORTER_SCHEMA_VERSION = 2
-MODEL_FIT_VERSION = 3
+MODEL_FIT_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -422,14 +422,16 @@ def fitted_placement(
     source_centroid: Optional[Vec3] = None,
     template_centroid: Optional[Vec3] = None,
     match_grip: bool = True,
+    level_to_grid: bool = True,
     source_frame: Optional[MeshPrincipalFrame] = None,
     template_frame: Optional[MeshPrincipalFrame] = None,
 ) -> ModelPlacement:
     """Scale to the template and align the source's broad plane with the placement grid.
 
     Stable oriented frames retain the template's heading within that plane, without
-    copying its tilt. Ambiguous shapes keep the right-angle bounding-box fit. Weapon
-    families additionally match heavy ends and grips; other families stay centred.
+    copying its tilt. Wearables disable grid levelling to retain the template's
+    authored body orientation. Ambiguous shapes keep the right-angle bounding-box
+    fit. Weapon families additionally match heavy ends and grips; other families stay centred.
     The user can adjust the fitted placement afterwards.
     """
 
@@ -454,7 +456,7 @@ def fitted_placement(
             template_centroid=template_centroid,
             match_grip=match_grip,
             # Match flat_preview_normal_axis, including its Z-first tie break.
-            grid_axis=min((2, 0, 1), key=lambda index: t_ext[index]),
+            grid_axis=min((2, 0, 1), key=lambda index: t_ext[index]) if level_to_grid else None,
         )
     s_long = max(s_ext)
     t_long = max(t_ext)
@@ -542,25 +544,27 @@ def _fitted_principal_placement(
     source_centroid: Optional[Vec3],
     template_centroid: Optional[Vec3],
     match_grip: bool,
-    grid_axis: int,
+    grid_axis: Optional[int],
 ) -> ModelPlacement:
     """Level the source to the grid while retaining template heading and anchors."""
 
-    normal_sign = 1.0 if template.axes[2][grid_axis] >= 0.0 else -1.0
-    normal = tuple(normal_sign if index == grid_axis else 0.0 for index in range(3))
-    long = tuple(0.0 if index == grid_axis else value for index, value in enumerate(template.axes[0]))
-    length = math.sqrt(_dot(long, long))
-    if length < 1e-9:
-        # A degenerate projection has no heading on the grid.
-        long = tuple(1.0 if index == (grid_axis + 1) % 3 else 0.0 for index in range(3))
-    else:
-        long = tuple(value / length for value in long)
-    middle = (
-        normal[1] * long[2] - normal[2] * long[1],
-        normal[2] * long[0] - normal[0] * long[2],
-        normal[0] * long[1] - normal[1] * long[0],
-    )
-    target_axes = (long, middle, normal)
+    target_axes = template.axes
+    if grid_axis is not None:
+        normal_sign = 1.0 if template.axes[2][grid_axis] >= 0.0 else -1.0
+        normal = tuple(normal_sign if index == grid_axis else 0.0 for index in range(3))
+        long = tuple(0.0 if index == grid_axis else value for index, value in enumerate(template.axes[0]))
+        length = math.sqrt(_dot(long, long))
+        if length < 1e-9:
+            # A degenerate projection has no heading on the grid.
+            long = tuple(1.0 if index == (grid_axis + 1) % 3 else 0.0 for index in range(3))
+        else:
+            long = tuple(value / length for value in long)
+        middle = (
+            normal[1] * long[2] - normal[2] * long[1],
+            normal[2] * long[0] - normal[0] * long[2],
+            normal[0] * long[1] - normal[1] * long[0],
+        )
+        target_axes = (long, middle, normal)
 
     source_lean = source.direction_hint or (
         tuple(source_centroid[index] - source.center[index] for index in range(3))

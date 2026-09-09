@@ -3576,7 +3576,47 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 187,
+          "line": 201,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "A verified character body with compatible skin weights is required for this armour import.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 18,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 25,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 30,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 46,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 70,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 74,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -7821,7 +7861,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 71,
+          "line": 75,
           "sink": "ValueError"
         }
       ]
@@ -10695,6 +10735,36 @@
           "sink": "setText"
         }
       ]
+    },
+    {
+      "key": "Armour weight donor: {value_0}",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Armour weight transfer cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 60,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 87,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_skinning.py",
+          "line": 96,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Armour: {value_0} mesh(es) bound to the rig",
@@ -15151,7 +15221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 312,
+          "line": 314,
           "sink": "log"
         }
       ]
@@ -19051,7 +19121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 161,
+          "line": 181,
           "sink": "getOpenFileName"
         }
       ]
@@ -19236,7 +19306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 165,
+          "line": 166,
           "sink": "emit"
         }
       ]
@@ -20411,7 +20481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 74,
+          "line": 76,
           "sink": "QPushButton"
         }
       ]
@@ -25706,7 +25776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 161,
+          "line": 181,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -25716,7 +25786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 161,
+          "line": 181,
           "sink": "getOpenFileName"
         }
       ]
@@ -25776,7 +25846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 52,
+          "line": 54,
           "sink": "QPushButton"
         }
       ]
@@ -29036,7 +29106,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 265,
+          "line": 282,
           "sink": "ValueError"
         }
       ]
@@ -42071,7 +42141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 300,
+          "line": 302,
           "sink": "emit"
         }
       ]
@@ -43671,7 +43741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 71,
+          "line": 73,
           "sink": "QPushButton"
         }
       ]
@@ -47531,7 +47601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 24,
+          "line": 26,
           "sink": "QPushButton"
         }
       ]
@@ -49231,7 +49301,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_dyes.py",
-          "line": 71,
+          "line": 73,
           "sink": "ValueError"
         }
       ]
@@ -49291,7 +49361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 57,
+          "line": 59,
           "sink": "addRow"
         }
       ]
@@ -50346,7 +50416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 158,
+          "line": 178,
           "sink": "setToolTip"
         }
       ]
@@ -51511,12 +51581,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 421,
+          "line": 423,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 422,
+          "line": 424,
           "sink": "emit"
         }
       ]
@@ -55016,7 +55086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 203,
+          "line": 204,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55176,7 +55246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 232,
+          "line": 234,
           "sink": "progress"
         }
       ]
@@ -58036,7 +58106,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 241,
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -58426,7 +58496,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 178,
+          "line": 192,
           "sink": "ValueError"
         }
       ]
@@ -63821,7 +63891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 357,
+          "line": 359,
           "sink": "emit"
         },
         {
@@ -64486,7 +64556,7 @@
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 873,
+          "line": 877,
           "sink": "RunCancelled"
         }
       ]
@@ -64606,7 +64676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 51,
+          "line": 53,
           "sink": "setPlaceholderText"
         }
       ]
@@ -69206,7 +69276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 332,
+          "line": 334,
           "sink": "emit"
         }
       ]
@@ -71646,7 +71716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 375,
+          "line": 377,
           "sink": "log"
         },
         {
@@ -73051,7 +73121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 78,
+          "line": 80,
           "sink": "QPushButton"
         }
       ]
@@ -76741,7 +76811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 200,
+          "line": 201,
           "sink": "report"
         }
       ]
@@ -79911,7 +79981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 63,
+          "line": 65,
           "sink": "QPushButton"
         }
       ]
@@ -89131,7 +89201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 74,
+          "line": 79,
           "sink": "ValueError"
         }
       ]
@@ -90786,7 +90856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 60,
+          "line": 62,
           "sink": "QPushButton"
         }
       ]
@@ -98066,7 +98136,7 @@
         },
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 41,
+          "line": 43,
           "sink": "addRow"
         }
       ]
@@ -98461,7 +98531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 149,
+          "line": 169,
           "sink": "setText"
         }
       ]
@@ -98511,7 +98581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 35,
+          "line": 37,
           "sink": "addRow"
         }
       ]
@@ -100166,32 +100236,32 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 367,
-          "sink": "RuntimeError"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 369,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 374,
+          "line": 371,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 391,
+          "line": 376,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 393,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 954,
+          "line": 958,
           "sink": "TypeError"
         },
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 956,
+          "line": 960,
           "sink": "ValueError"
         }
       ]
@@ -101141,20 +101211,15 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 126,
+          "line": 143,
           "sink": "ValueError"
         }
       ]
     },
     {
       "key": "The imported skin weights reference bones outside the target palette.",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_variants.py",
-          "line": 134,
-          "sink": "ValueError"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The internal name for the tables, and the name and description players read, per language.",
@@ -101331,12 +101396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 261,
+          "line": 263,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 262,
+          "line": 264,
           "sink": "emit"
         }
       ]
@@ -101366,7 +101431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 240,
+          "line": 242,
           "sink": "emit"
         }
       ]
@@ -101541,17 +101606,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 336,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
-          "line": 337,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_model_mixin.py",
           "line": 338,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 339,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller_model_mixin.py",
+          "line": 340,
           "sink": "emit"
         }
       ]
@@ -101861,7 +101926,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 104,
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -102016,7 +102081,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 24,
+          "line": 28,
           "sink": "ValueError"
         }
       ]
@@ -102026,7 +102091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 277,
+          "line": 294,
           "sink": "ValueError"
         }
       ]
@@ -102036,7 +102101,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 129,
+          "line": 137,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/new_item_variants.py",
+          "line": 141,
           "sink": "ValueError"
         }
       ]
@@ -102286,7 +102356,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 90,
+          "line": 108,
           "sink": "ValueError"
         }
       ]
@@ -103077,16 +103147,6 @@
       ]
     },
     {
-      "key": "This skinned target has no proven playable-character rig binding.",
-      "origins": [
-        {
-          "path": "cdmw/services/new_item_variants.py",
-          "line": 114,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
       "key": "This socket name does not exist in the current XML. Select a target socket and use Copy To Selected Socket.",
       "origins": [
         {
@@ -103121,7 +103181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_variant_mixin.py",
-          "line": 101,
+          "line": 106,
           "sink": "ValueError"
         }
       ]
@@ -104243,6 +104303,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 228,
           "sink": "setAccessibleName"
+        }
+      ]
+    },
+    {
+      "key": "Turn off Template cloth / physics to transfer this armour's weights from the character body.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_variants.py",
+          "line": 92,
+          "sink": "ValueError"
         }
       ]
     },
@@ -107036,7 +107106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 40,
+          "line": 42,
           "sink": "setToolTip"
         }
       ]
@@ -107811,7 +107881,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 262,
+          "line": 279,
           "sink": "add"
         }
       ]
@@ -107821,7 +107891,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 243,
+          "line": 260,
           "sink": "add"
         }
       ]
@@ -107831,7 +107901,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 269,
+          "line": 286,
           "sink": "add"
         }
       ]
@@ -107841,7 +107911,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 279,
+          "line": 296,
           "sink": "add"
         }
       ]
@@ -107851,7 +107921,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 65,
+          "line": 69,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -107861,7 +107931,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 255,
+          "line": 272,
           "sink": "add"
         }
       ]
@@ -130601,7 +130671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 149,
+          "line": 169,
           "sink": "setText"
         }
       ]
@@ -130791,7 +130861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1060,
+          "line": 1064,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -130801,7 +130871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1056,
+          "line": 1060,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -130896,7 +130966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 1066,
+          "line": 1070,
           "sink": "python-return:fbx_needs_blender_message"
         }
       ]
@@ -132636,7 +132706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/dye_editor.py",
-          "line": 147,
+          "line": 167,
           "sink": "addItem"
         }
       ]
@@ -132801,7 +132871,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 14,
+          "line": 18,
           "sink": "python-return:xml_path"
         },
         {
@@ -133966,7 +134036,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 173,
+          "line": 187,
           "sink": "add"
         }
       ]
@@ -133976,7 +134046,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_variants.py",
-          "line": 173,
+          "line": 187,
           "sink": "add"
         }
       ]

@@ -119,6 +119,7 @@ class NewItemModelControllerMixin:
             source_centroid=source.centroid,
             template_centroid=source.fit_template_centroid,
             match_grip=source.fit_match_grip,
+            level_to_grid=source.fit_match_grip,
             source_frame=source.principal_frame,
             template_frame=source.fit_template_frame,
         )
@@ -221,6 +222,7 @@ class NewItemModelControllerMixin:
                         source_centroid=result.centroid,
                         template_centroid=result.fit_template_centroid,
                         match_grip=result.fit_match_grip,
+                        level_to_grid=result.fit_match_grip,
                         source_frame=result.principal_frame,
                         template_frame=result.fit_template_frame,
                     )

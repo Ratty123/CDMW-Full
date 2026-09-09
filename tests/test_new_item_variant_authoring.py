@@ -41,7 +41,8 @@ def test_selected_binding_gets_owned_resources_unselected_keeps_template(tmp_pat
 def test_two_variant_imports_keep_distinct_assets_and_missing_build_is_rejected(tmp_path):
     service,snapshot,_ = setup_game(tmp_path)
     choices = tuple(replace(value,custom_model=True) for value in selections(snapshot)[:2])
-    builds = {choices[0].identity:ModelFiles(b"import A"),choices[1].identity:ModelFiles(b"import B")}
+    builds = {choices[0].identity:ModelFiles(b"import A", notes=("Transferred armour weights",), warnings=("Check fit A",)),
+              choices[1].identity:ModelFiles(b"import B", warnings=("Check fit B",))}
     with patch("cdmw.services.new_item_variants.validate_variant_rig") as validate:
         plan = service.plan(replace(spec(),variants=choices),snapshot,variant_models=builds)
     assert validate.call_count==2
@@ -49,6 +50,9 @@ def test_two_variant_imports_keep_distinct_assets_and_missing_build_is_rejected(
     paths = [entry["output_model"] for entry in plan.manifest["variants"] if "output_model" in entry]
     assert len(paths)==2 and len(set(paths))==2
     assert {plan.loose_files[path] for path in paths}=={b"import A",b"import B"}
+    assert any("Transferred armour weights" in line for line in plan.summary_lines)
+    assert f"{choices[0].model_path}: Check fit A" in plan.warnings
+    assert f"{choices[1].model_path}: Check fit B" in plan.warnings
     with pytest.raises(ValueError,match="Apply the imported model"):
         prepare_variant_models(replace(spec(),variants=(choices[0],)),snapshot,{}, {})
 

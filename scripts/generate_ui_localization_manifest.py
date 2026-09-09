@@ -56,6 +56,10 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Verts", "Wire+V",
         # Lazy shell registration supplies this title through a factory call.
         "Texture Recolor",
+        # New Item reports use deferred ModelFiles fields and a typed rig error.
+        "The imported skin weights reference bones outside the target palette.",
+        "Armour weight donor: {value_0}",
+        "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.",
         # Placement's model headers and prepared checks are indirect data sinks.
         "Use", "Target file", "Replacement", "Action", "Rig", "Variant", "Checks", "Shared impact",
         "Passed", "Warning", "Unverified", "Blocked", "Scope", "Payload", "Timing", "File set",

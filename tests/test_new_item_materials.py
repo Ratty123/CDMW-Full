@@ -124,7 +124,10 @@ class RouteTests(unittest.TestCase):
 
     def test_rewrites_owned_wrappers_with_a_source_sp_and_drops_the_orphaned_mask(self) -> None:
         sources = {"cd_phm_02_sword_0003": SourceMaterialTextures(name="lambert1", material=self.mr)}
-        route = route_plain_pbr(builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive)
+        imported = builder_files()
+        imported.notes = ("Skin weights transferred",)
+        imported.warnings = ("Check armour fit",)
+        route = route_plain_pbr(imported, sources=sources, encode=self._encode, encode_emissive=self._encode_emissive)
         self.assertEqual(route.rewritten, ("cd_phm_02_sword_0003", "cd_phm_02_sword_handle_0003"))
         sp = f"{TEX}/cd_phm_02_sword_0003_lambert1_sp.dds"
         self.assertEqual(route.encoded, (sp,))
@@ -155,6 +158,8 @@ class RouteTests(unittest.TestCase):
         self.assertTrue(any("gem" not in w and "handle" in w for w in route.warnings), route.warnings)
         self.assertEqual(files.notes, route.lines)
         self.assertEqual(files.warnings, route.warnings)
+        self.assertIn("Skin weights transferred", files.notes)
+        self.assertIn("Check armour fit", files.warnings)
 
     def test_source_emissive_is_encoded_with_its_colour(self) -> None:
         sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Gem", emissive=self.emi, roughness_factor=0.3, metallic_factor=0.9)}

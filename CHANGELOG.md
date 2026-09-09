@@ -11,8 +11,13 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- New Item armour imports transfer weights across template material sections and can use the matching verified character body when the template's influences exceed its resolved palette. Build plan names the body donor and reports fit/deformation warnings; template physics must be off for this transfer.
+
 ### Fixed
 
+- Wearable imports and Fit to template preserve the template's body orientation. Variant rig checks follow declared skeletons outside the model folder, and Build plan retains skin-transfer notes and material warnings.
 - New Item weapon imports keep unused template mesh sections on the rigid attachment and remove residual donor skin influences from full replacements. Templates with weighted accessories no longer cause a false missing-or-ambiguous-skeleton block.
 - New Item dye assignments are off by default. The checkbox now controls the applied settings, and replacing an import resets its dye choices. Explicitly requested but incompatible template dyes produce a warning and are omitted.
 

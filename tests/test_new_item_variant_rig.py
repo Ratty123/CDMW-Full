@@ -45,7 +45,19 @@ def _snapshot(*, prefab_model=MODEL, attached="RHand_Socket", pivot="Basic_Child
         socket_file="character/descriptors/socketbonedata/test.sockets.xml",
     )
     files = {MODEL: _pac(weighted_accessory=True, extra_accessory=extra_accessory), PREFAB: prefab}
-    return SimpleNamespace(entries=files, payload=files.__getitem__)
+    return _snapshot_files(files)
+
+
+def _snapshot_files(files):
+    from tests.test_release_inspired_improvements import _entry
+
+    entries = {path: _entry(path) for path in files}
+    by_path = {path.casefold(): (entry,) for path, entry in entries.items()}
+    by_name = {}
+    for entry in entries.values():
+        by_name.setdefault(entry.basename.casefold(), []).append(entry)
+    return SimpleNamespace(entries=files, payload=files.__getitem__, entry=entries.__getitem__,
+                           archive_index_maps=lambda: (by_path, by_name))
 
 
 def test_rigid_weapon_import_uses_its_exact_prefab_attachment():
