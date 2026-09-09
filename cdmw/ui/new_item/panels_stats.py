@@ -48,6 +48,7 @@ class StatsPanel(QGroupBox):
     """
 
     price_state_changed = Signal()
+    recipes_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("4. Combat stats and prices", parent)
@@ -70,8 +71,11 @@ class StatsPanel(QGroupBox):
         layout.addWidget(self.carries)
         tables = QHBoxLayout()
         self.tables_layout = tables
-        tables.addWidget(self._build_ladder_group(), 3, Qt.AlignmentFlag.AlignTop)
-        tables.addWidget(self._build_base_group(), 1, Qt.AlignmentFlag.AlignTop)
+        self.ladder_group = self._build_ladder_group()
+        self.base_group = self._build_base_group()
+        self.base_group.setMaximumWidth(380)
+        tables.addWidget(self.ladder_group, 3, Qt.AlignmentFlag.AlignTop)
+        tables.addWidget(self.base_group, 1, Qt.AlignmentFlag.AlignTop)
         stats_page = QWidget()
         stats_layout = QVBoxLayout(stats_page)
         stats_layout.setContentsMargins(0,0,0,0)
@@ -83,12 +87,26 @@ class StatsPanel(QGroupBox):
         self.recipes = RecipeEditor(controller)
         self.views.addTab(self.recipes, "Enhancement and crafting recipes")
         layout.addWidget(self.views, 1)
+        self.recipe_button = QPushButton("Edit crafting and enhancement recipes")
+        self.recipe_button.clicked.connect(self.recipes_requested.emit)
+        recipe_row = QHBoxLayout()
+        layout.removeWidget(self.experimental)
+        recipe_row.addWidget(self.experimental)
+        recipe_row.addStretch(1)
+        recipe_row.addWidget(self.recipe_button)
+        layout.insertLayout(0, recipe_row)
         controller.template_changed.connect(self.rebuild)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Expanded controls and larger UI fonts need one column at compact widths.
-        direction = QHBoxLayout.TopToBottom if self.width() < 1400 else QHBoxLayout.LeftToRight
+        self._fit_tables()
+
+    def _fit_tables(self) -> None:
+        # Reserve room for readable data columns and the actual price form, rather
+        # than stacking all supported laptop widths below a fixed 1400 px threshold.
+        needed = max(500, self.ladder_group.minimumSizeHint().width(), self.table.columnCount() * 100) + self.base_group.minimumSizeHint().width() + 48
+        available = min(self.width(), self.parentWidget().width()) if self.parentWidget() else self.width()
+        direction = QHBoxLayout.TopToBottom if available < needed else QHBoxLayout.LeftToRight
         self.tables_layout.setDirection(direction)
 
     # ------------------------------------------------------------------ construction
@@ -270,6 +288,7 @@ class StatsPanel(QGroupBox):
     def _toggle_advanced(self, checked: bool) -> None:
         self.advanced.setVisible(bool(checked))
         self.advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+        self._fit_tables()
 
     # ------------------------------------------------------------------ building
 

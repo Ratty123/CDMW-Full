@@ -151,7 +151,11 @@ class _DialogPresentationMixin:
         self.assertEqual(visible_scrolls, ["effect_inspector_scroll"])
         inspector_scroll = workspace.findChild(QScrollArea, "effect_inspector_scroll")
         self.assertEqual(inspector_scroll.horizontalScrollBar().maximum(), 0)
-        self.assertIs(character_control.parentWidget(), workspace.inspector_widget)
+        self.assertIs(character_control.parentWidget(), workspace.preview_options)
+        self.assertFalse(workspace.preview_options.isVisibleTo(workspace))
+        workspace.preview_options_toggle.click()
+        self.app.processEvents()
+        self.assertTrue(workspace.preview_options.isVisibleTo(workspace))
         self.assertEqual(workspace.show_character.text(), "Character")
         character_center_y = character_control.mapTo(
             workspace.inspector_widget,
@@ -240,6 +244,7 @@ class _DialogPresentationMixin:
         self.app.processEvents()
         self.assertEqual(workspace.apply_button.mapTo(workspace, workspace.apply_button.rect().center()), before)
         self.assertLess(before.y(), workspace.height())
+        workspace.preview_options_toggle.click()
         self.assertTrue(workspace.show_particles.isVisibleTo(workspace))
         original = (workspace.scale, workspace.offset, workspace.rotation)
         workspace.show_particles.setChecked(False)

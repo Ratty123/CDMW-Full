@@ -96,6 +96,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.entries = tuple(parse_archive_pamt(self.pamt_path))
         self._backup_patch = patch("cdmw.core.archive_patching.ARCHIVE_PATCH_BACKUP_ROOT", self.root / "backups")
         self._backup_patch.start()
+        # These UI tests use placeholder PAC data and do not own native renderer
+        # startup. Tests of the resident host can override this with their fake.
+        self._preview_package_patch = patch("cdmw.ui.new_item.item_preview.ItemPreviewFrame._start_package", lambda *_args, **_kwargs: None)
+        self._preview_package_patch.start()
 
     def tearDown(self) -> None:
         from PySide6.QtCore import QCoreApplication, QEvent
@@ -112,6 +116,7 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         QApplication.processEvents()
         self._tabs.clear()
+        self._preview_package_patch.stop()
         self._backup_patch.stop()
         self._temp.cleanup()
 
@@ -288,12 +293,14 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertFalse(groups.store.isVisibleTo(groups), "no shop, no shop picker")
         groups.explicit.setChecked(True)
         groups.swap.setChecked(True)
-        self.assertTrue(groups.group_list.isVisibleTo(groups))
         self.assertTrue(groups.store.isVisibleTo(groups))
+        groups.routes_view.setCurrentWidget(groups.groups_page)
+        self.assertTrue(groups.group_list.isVisibleTo(groups))
+        groups.routes_view.setCurrentIndex(0)
         for index in range(tab.steps.count()):
             tab.show_step(index)
             self.app.processEvents()
-            if index in {2, 4}:
+            if index in {1, 2, 4}:
                 self.assertNotIsInstance(tab.pages.currentWidget(), QScrollArea)
             else:
                 self.assertIsInstance(tab.pages.currentWidget(), QScrollArea)
@@ -474,8 +481,15 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
 
         with patch.object(ItemPreviewFrame, "_start_package", fake_start):
             tab.template_panel.prefill(TEMPLATE)
+            self.app.processEvents()
+            self.assertTrue(preview._ensure_host(), "seed the fake resident renderer before moving it")
             resident_host = preview.host
             self.assertIs(preview.parentWidget(), tab.template_panel.preview_holder)
+            self.assertEqual(len(started), 1)
+            tab.show_step(1)
+            self.app.processEvents()
+            self.assertIs(preview.parentWidget(), tab.identity_panel.preview_holder)
+            self.assertIs(preview.host, resident_host)
             self.assertEqual(len(started), 1)
             tab.show_step(2)
             self.app.processEvents()
@@ -534,7 +548,9 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertLess(selection.right(), preview.left(), "selection stays left of the preview")
         self.assertLessEqual(abs(selection.top() - preview.top()), 1)
         self.assertLessEqual(abs(selection.bottom() - preview.bottom()), 1)
-        self.assertGreater(preview.width(), selection.width(), "the preview receives the wider column")
+        self.assertGreater(selection.width(), preview.width(), "readable template names receive the wider column")
+        self.assertEqual(panel.matches.header().visualIndex(1), 0)
+        self.assertGreater(panel.matches.columnWidth(1), panel.matches.columnWidth(0))
 
         tab.shutdown()
         tab.close()
@@ -638,12 +654,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                     f"Distribution has an outer scroll at {width}x{height}",
                 )
                 self.assertEqual(placement.group_list.minimumHeight(), 96)
-                self.assertTrue(placement.group_list.isVisibleTo(placement))
+                self.assertFalse(placement.group_list.isVisibleTo(placement))
                 self.assertTrue(placement.store.isVisibleTo(placement))
-                if width == 1280:
-                    self.assertLessEqual(placement.group_list.height(), 140)
-                else:
-                    self.assertGreater(placement.group_list.height(), 140)
+                placement.routes_view.setCurrentWidget(placement.groups_page)
+                self.assertTrue(placement.group_list.isVisibleTo(placement))
+                placement.routes_view.setCurrentIndex(0)
 
                 tab.show_step(6)
                 for _ in range(3):
@@ -656,10 +671,11 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                     f"Output has an outer scroll at {width}x{height}",
                 )
                 self.assertEqual(output.summary.minimumHeight(), 120)
-                if width == 1280:
-                    self.assertLessEqual(output.summary.height(), 120)
-                else:
-                    self.assertGreater(output.summary.height(), 120, "the larger viewport still gives the review room")
+                self.assertTrue(output.actions.isVisibleTo(tab))
+                self.assertFalse(page.isAncestorOf(output.actions))
+                self.assertFalse(tab.continue_button.isVisibleTo(tab))
+                self.assertTrue(output.export_button.isVisibleTo(tab))
+                self.assertFalse(output.install_overlay_button.isVisibleTo(tab))
         finally:
             tab.request_shutdown()
             tab.shutdown()
@@ -668,6 +684,36 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             self.app.setStyleSheet(old_stylesheet)
             self.app.setPalette(old_palette)
             self.app.processEvents()
+
+    def test_identity_checks_and_recipe_shortcut_follow_their_owning_steps(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.display_name.setText("A named item")
+        tab.show_step(1)
+        identity = tab.identity_panel
+        self.assertFalse(identity.identifier_fields.isVisibleTo(identity))
+        self.assertTrue(identity.issues_ok.isVisibleTo(identity))
+        self.assertNotIn("shop", identity.issues.text().casefold())
+        identity.language.setCurrentIndex(identity.language.findData("ger"))
+        identity.display_name.setText("Ein Schwert")
+        identity.description.setPlainText("<b>Literal item text</b>")
+        self.assertEqual(identity.presentation_name.text(), "Ein Schwert")
+        self.assertEqual(identity.presentation_description.text(), "<b>Literal item text</b>")
+        identity.language.setCurrentIndex(identity.language.findData("eng"))
+        self.assertEqual(identity.presentation_name.text(), "A named item")
+        self.assertEqual(identity.presentation_description.text(), "")
+        identity.identifiers_toggle.click()
+        identity.internal_name.setText("My_Recipe_Item")
+        identity.identifiers_toggle.click()
+        self.assertEqual(tab.controller.draft.internal_name, "My_Recipe_Item")
+        recipe = tab.stats_panel.recipes
+        recipe.search.setText("keep this search")
+        tab.show_step(3)
+        tab.stats_panel.recipe_button.click()
+        self.assertEqual(tab.pages.currentIndex(), 5)
+        self.assertIs(tab.placement_panel.routes_view.currentWidget(), recipe)
+        self.assertEqual(recipe.search.text(), "keep this search")
+        self.assertEqual(tab.stats_panel.views.indexOf(recipe), -1)
 
     def test_custom_perks_use_the_available_workspace_instead_of_short_fixed_lists(self) -> None:
         from PySide6.QtWidgets import QTabWidget

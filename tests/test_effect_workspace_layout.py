@@ -45,7 +45,12 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
     )
     outer.addTab(workspace, "Effects")
     recipe = EffectRecipePanel(EffectUserLibrary(), workspace.inspector_widget)
-    workspace.inspector_widget.layout().insertWidget(0, recipe)
+    recipe.hide()
+    while recipe.tabs.count():
+        page, title = recipe.tabs.widget(0), recipe.tabs.tabText(0)
+        recipe.tabs.removeTab(0)
+        page.layout().setContentsMargins(10, 8, 10, 8)
+        workspace._add_inspector_tab(page, title)
     recipe.set_state(EffectWorkspaceState.from_layers((EffectLayer("fx_fire"), EffectLayer("fx_sparks"))))
     workspace.setFont(root.font())
     root.resize(width, height)
@@ -57,14 +62,15 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
         assert recipe.emitter.font().pointSize() == font_size
         scroll = workspace.findChild(QScrollArea, "effect_inspector_scroll")
         assert scroll.horizontalScrollBar().maximum() == 0
-        tabs = recipe.findChild(QTabWidget)
-        layers_height = recipe.height()
-        assert layers_height < 240
-        add = next(button for button in tabs.currentWidget().findChildren(QPushButton) if button.text() == "Add")
+        tabs = workspace.inspector_tabs
+        tabs.setCurrentIndex(2)
+        _APP.processEvents()
+        layers_page = tabs.currentWidget().widget()
+        add = next(button for button in layers_page.findChildren(QPushButton) if button.text() == "Add")
         assert 0 <= add.y() - recipe.layers.geometry().bottom() <= 10
         assert add.width() <= add.sizeHint().width() + 4
-        heading = workspace.findChild(QLabel, "effect_inspector_heading")
-        assert 0 <= heading.y() - recipe.geometry().bottom() <= 12
+        assert not recipe.isVisibleTo(workspace)
+        assert recipe.layers.isVisibleTo(workspace)
         for button in workspace._guided_toolbar_buttons:
             assert button.width() <= button.sizeHint().width() + 4
             assert button.height() < 38
@@ -79,29 +85,27 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
             assert workspace.playback_controls._columns == 5
             assert workspace.playback_controls.height() < 40
 
-        tabs.setCurrentIndex(1)
+        tabs.setCurrentIndex(3)
         recipe.set_preview(SimpleNamespace(editor_emitters=({
             "name": "Sparks", "enabled": True, "resolved": True,
             "fields": ("_spawnCountMin",), "values": {"_spawnCountMin": (3,)},
         },)))
         for _ in range(3):
             _APP.processEvents()
-        assert recipe.height() > layers_height
-        assert scroll.horizontalScrollBar().maximum() == 0
+        assert tabs.currentWidget().horizontalScrollBar().maximum() == 0
         for row in range(recipe.parameters.rowCount()):
             holder = recipe.parameters.cellWidget(row, 2)
             for spin in holder.findChildren(type(workspace.scale_spin)):
                 assert holder.rect().contains(spin.geometry()), (row, spin.geometry(), holder.rect())
 
-        for index in (2, 0):
+        for index in (4, 2):
             tabs.setCurrentIndex(index)
             for _ in range(3):
                 _APP.processEvents()
-            assert recipe.height() < 240
-            assert 0 <= heading.y() - recipe.geometry().bottom() <= 12
-            buttons = tabs.currentWidget().findChildren(QPushButton)
+            page = tabs.currentWidget().widget()
+            buttons = page.findChildren(QPushButton)
             for button in buttons:
-                assert tabs.currentWidget().rect().contains(button.geometry())
+                assert page.rect().contains(button.geometry())
 
         assert not scroll.isAncestorOf(workspace.apply_button)
         before = workspace.apply_button.mapTo(workspace, QPoint())
@@ -113,7 +117,7 @@ def test_styled_effect_tools_are_compact_and_do_not_overlap(monkeypatch, width, 
             scroll.verticalScrollBar().setValue(0)
             _APP.processEvents()
             root.grab().save(capture)
-            tabs.setCurrentIndex(1)
+            tabs.setCurrentIndex(3)
             for _ in range(3):
                 _APP.processEvents()
             scroll.verticalScrollBar().setValue(0)

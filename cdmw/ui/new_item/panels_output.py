@@ -1,4 +1,4 @@
-"""New Item Studio, panel 6: build the plan, write a loose mod, or install."""
+"""New Item Studio, panel 7: choose output, review the plan, and write it."""
 
 from __future__ import annotations
 
@@ -13,14 +13,19 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QGridLayout,
     QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QTabWidget,
     QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -31,9 +36,7 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
 
-# Keep the review editor compact in the small shell viewport. It has its own scroll
-# bar, so the plan remains available without making the whole Output step scroll.
-_COMPACT_PAGE_HEIGHT = 650
+# Both review tabs scroll locally inside the remaining workspace height.
 _COMPACT_SUMMARY_HEIGHT = 120
 
 CHECKLIST = (
@@ -122,22 +125,32 @@ class OutputPanel(QGroupBox):
     overlay_removal_requested = Signal()
 
     def _build_plan_review(self, content):
-        review = QGroupBox("2. What the plan will change")
+        review = QGroupBox("3. Review the plan")
         review_layout = QVBoxLayout(review)
+        self.review_tabs = QTabWidget()
+        self.file_changes = QTreeWidget()
+        self.file_changes.setHeaderLabels(["File", "Change"])
+        self.file_changes.header().setStretchLastSection(False)
+        self.file_changes.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.file_changes.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_changes.setRootIsDecorated(False)
+        self.file_changes.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
+        self.review_tabs.addTab(self.file_changes, "File changes")
         self.summary = QPlainTextEdit()
         self.summary.setReadOnly(True)
         self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
         self.summary.setMinimumHeight(_COMPACT_SUMMARY_HEIGHT)
-        self._summary_default_maximum = self.summary.maximumHeight()
-        self._summary_compact = None
-        review_layout.addWidget(self.summary)
-        content.addWidget(review, 1, 0)
+        self.review_tabs.addTab(self.summary, "Details and warnings")
+        review_layout.addWidget(self.review_tabs)
+        content.addWidget(review, 2, 0)
 
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
         self.setToolTip("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.")
 
         self.busy_bar = QProgressBar()
@@ -150,8 +163,9 @@ class OutputPanel(QGroupBox):
         layout.addWidget(self.busy_state)
         content = QGridLayout()
         content.setContentsMargins(0, 0, 0, 0)
+        content.setVerticalSpacing(4)
 
-        build = QGroupBox("1. Build the plan")
+        build = QGroupBox("2. Build the plan")
         build_layout = QHBoxLayout(build)
         self.build_button = QPushButton("Build plan")
         self.build_button.setProperty("newItemPrimary", True)
@@ -160,13 +174,28 @@ class OutputPanel(QGroupBox):
         build_layout.addWidget(self.build_button)
         self.plan_state = NoteLabel("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
         build_layout.addWidget(self.plan_state, 1)
-        content.addWidget(build, 0, 0)
+        content.addWidget(build, 1, 0)
 
         self._build_plan_review(content)
 
-        write = QGroupBox("3. Write it")
+        write = QGroupBox("1. Destination")
         write_layout = QVBoxLayout(write)
-        export = QHBoxLayout()
+        mode_row = QHBoxLayout()
+        self.output_mode = QComboBox()
+        self.output_mode.addItem("Mod folder", "folder")
+        self.output_mode.addItem("Game overlay", "overlay")
+        mode_row.addWidget(self.output_mode)
+        mode_row.addStretch(1)
+        self.tools_button = QToolButton()
+        self.tools_button.setText("Draft tools")
+        self.tools_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.tools_menu = QMenu(self.tools_button)
+        self.tools_button.setMenu(self.tools_menu)
+        mode_row.addWidget(self.tools_button)
+        write_layout.addLayout(mode_row)
+        self.folder_controls = QWidget()
+        export = QHBoxLayout(self.folder_controls)
+        export.setContentsMargins(0, 0, 0, 0)
         export.addWidget(QLabel("Mod folder for:"))
         self.manager = QComboBox()
         self.manager.addItems(list(MANAGERS))
@@ -183,8 +212,8 @@ class OutputPanel(QGroupBox):
         self.export_button = QPushButton("Write mod folder")
         self.export_button.setToolTip("Write the plan as a loose mod folder for the manager chosen on the left; the game is not touched.")
         self.export_button.clicked.connect(self._export)
-        export.addWidget(self.export_button)
-        write_layout.addLayout(export)
+        self.export_button.setProperty("newItemPrimary", True)
+        write_layout.addWidget(self.folder_controls)
         # A loose mod carries whole tables, so two of them cannot both be enabled: the one
         # the manager mounts last owns the table and the other item is not in it. Planned
         # on the folder's own tables instead, the next item joins the ones already there.
@@ -203,7 +232,9 @@ class OutputPanel(QGroupBox):
         self.mod_base_note.setVisible(False)
         write_layout.addWidget(self.mod_base_note)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
-        install = QHBoxLayout()
+        self.overlay_controls = QWidget()
+        install = QHBoxLayout(self.overlay_controls)
+        install.setContentsMargins(0, 0, 0, 0)
         install.addWidget(QLabel("Overlay folder"))
         self.overlay_directory = QLineEdit()
         self.overlay_directory.setPlaceholderText("Auto")
@@ -220,33 +251,54 @@ class OutputPanel(QGroupBox):
             "installed overlays, and backs up the files it changes. Use Installed overlays to remove an individual install."
         )
         self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
-        install.addWidget(self.install_overlay_button)
+        self.install_overlay_button.setProperty("newItemPrimary", True)
         install.addStretch(1)
-        write_layout.addLayout(install)
+        write_layout.addWidget(self.overlay_controls)
         write.setToolTip(
             "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact."
         )
-        self.merge_button = QPushButton("Merge mods...")
+        self.merge_button = QPushButton("Merge mods...", self)
         self.merge_button.clicked.connect(self.merge_requested.emit)
-        write_layout.addWidget(self.merge_button)
+        self.merge_button.hide()
+        self.tools_menu.addAction(self.merge_button.text(), self.merge_button.click)
         self._build_overlay_tools(write_layout)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",
         )
-        write_layout.addWidget(self.checklist)
-        write_layout.addStretch(1)
-        content.addWidget(write, 0, 1, 2, 1)
+        content.addWidget(write, 0, 0)
         content.setColumnStretch(0, 1)
-        content.setColumnStretch(1, 1)
-        content.setRowStretch(1, 1)
+        content.setRowStretch(2, 1)
         layout.addLayout(content, 1)
+        layout.addWidget(self.checklist)
 
+        self.log_toggle = QToolButton()
+        self.log_toggle.setText("Activity log")
+        self.log_toggle.setCheckable(True)
+        self.log_toggle.setAutoRaise(True)
+        self.log_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.log_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        layout.addWidget(self.log_toggle, 0, Qt.AlignmentFlag.AlignLeft)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setPlaceholderText("What happened: exports, installs, messages.")
         self.log.setMaximumHeight(90)
         layout.addWidget(self.log)
+        self.log.hide()
+        self.log_toggle.toggled.connect(self.log.setVisible)
+        self.log_toggle.toggled.connect(
+            lambda expanded: self.log_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
+        )
+        self.actions = QWidget()
+        actions = QHBoxLayout(self.actions)
+        actions.setContentsMargins(0, 0, 0, 0)
+        actions.addWidget(self.export_button)
+        actions.addWidget(self.install_overlay_button)
+        layout.addWidget(self.actions, 0, Qt.AlignmentFlag.AlignRight)
+        self.output_mode.currentIndexChanged.connect(self._output_mode_changed)
+        self.manager.currentIndexChanged.connect(controller.invalidate_plan)
+        self.overlay_directory.textChanged.connect(controller.invalidate_plan)
+        self._output_mode_changed()
 
         controller.log_message.connect(self.append_log)
         controller.plan_ready.connect(self._show_plan)
@@ -255,21 +307,26 @@ class OutputPanel(QGroupBox):
         controller.export_finished.connect(self._export_finished)
         controller.install_finished.connect(self._install_finished)
         controller.busy_changed.connect(self._busy_changed)
+        controller.status_message.connect(self._operation_message)
         controller.template_changed.connect(lambda _key: self._show_plan(None))
         self._busy_changed(False)
 
     def _build_overlay_tools(self, write_layout: QVBoxLayout) -> None:
-        self.overlay_removal_button = QPushButton("Installed overlays...")
+        self.overlay_removal_button = QPushButton("Installed overlays...", self)
         self.overlay_removal_button.setToolTip("View CDMW's installed overlays and remove an individual install while preserving the others.")
         self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
-        write_layout.addWidget(self.overlay_removal_button)
-        self.overlay_tools_toggle = QToolButton()
+        self.overlay_removal_button.hide()
+        self.tools_menu.addAction(self.overlay_removal_button.text(), self.overlay_removal_button.click)
+        self.overlay_tools_toggle = QToolButton(self)
         self.overlay_tools_toggle.setText("Archive recovery")
         self.overlay_tools_toggle.setCheckable(True)
         self.overlay_tools_toggle.setArrowType(Qt.ArrowType.RightArrow)
         self.overlay_tools_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.overlay_tools_toggle.setAutoRaise(True)
-        write_layout.addWidget(self.overlay_tools_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        self.overlay_tools_toggle.hide()
+        recovery_action = self.tools_menu.addAction("Archive recovery")
+        recovery_action.setCheckable(True)
+        recovery_action.toggled.connect(self.overlay_tools_toggle.setChecked)
         self.overlay_tools = QWidget()
         self.overlay_tools.setVisible(False)
         self.overlay_tools_toggle.toggled.connect(self._toggle_overlay_tools)
@@ -285,17 +342,15 @@ class OutputPanel(QGroupBox):
         overlay_row.addWidget(self.overlay_migration_button)
         write_layout.addWidget(self.overlay_tools)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        super().resizeEvent(event)
-        compact = self.height() <= _COMPACT_PAGE_HEIGHT
-        if compact == self._summary_compact:
-            return
-        self._summary_compact = compact
-        self.summary.setMaximumHeight(
-            _COMPACT_SUMMARY_HEIGHT if compact else self._summary_default_maximum
-        )
-
     # ------------------------------------------------------------------ actions
+
+    def _output_mode_changed(self) -> None:
+        folder = self.output_mode.currentData() == "folder"
+        self.folder_controls.setVisible(folder)
+        self.overlay_controls.setVisible(not folder)
+        self.export_button.setVisible(folder)
+        self.install_overlay_button.setVisible(not folder)
+        self._mod_base_changed()
 
     def _toggle_overlay_tools(self, expanded: bool) -> None:
         self.overlay_tools.setVisible(expanded)
@@ -312,9 +367,10 @@ class OutputPanel(QGroupBox):
         """Follow the folder box: say what is already there, and plan on it when asked."""
 
         text = self.export_root.text().strip()
-        folder = Path(text) if text and Path(text).is_dir() else None
+        folder = Path(text) if self.output_mode.currentData() == "folder" and text and Path(text).is_dir() else None
         self.add_to_mod.setVisible(folder is not None)
         self.mod_base_note.setVisible(folder is not None)
+        self._controller.invalidate_plan()
         if folder is None:
             self.mod_base_note.setText("")
             self._controller.set_mod_base(None)
@@ -347,14 +403,29 @@ class OutputPanel(QGroupBox):
     def append_log(self, message: str) -> None:
         self.log.appendPlainText(str(message))
 
+    def _operation_message(self, message: str, error: bool) -> None:
+        if error:
+            self.append_log(message)
+            self.log_toggle.setChecked(True)
+
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         enabled = plan is not None
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
+        self.file_changes.clear()
         if plan is None:
+            self.build_button.setText(self.tr("Build plan"))
             self.summary.setPlainText("")
             self.plan_state.set_note("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
             return
+        self.build_button.setText(self.tr("Rebuild plan"))
+        for request in plan.patches:
+            QTreeWidgetItem(self.file_changes, [request.entry.path, self.tr("Replace table")])
+        for path in plan.new_paths:
+            QTreeWidgetItem(self.file_changes, [path, self.tr("Add file")])
+        if self.output_mode.currentData() == "overlay":
+            for meta in plan.meta_files:
+                QTreeWidgetItem(self.file_changes, [meta.path, self.tr("Overlay metadata")])
         warnings = len(plan.warnings)
         self.plan_state.set_note(
             f"Ready: item {plan.spec.item_key}, {len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s)"
@@ -380,6 +451,7 @@ class OutputPanel(QGroupBox):
         lines.append(f"{len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s):")
         lines.extend(f"- {path}" for path in plan.new_paths)
         self.summary.setPlainText("\n".join(lines))
+        self.review_tabs.setCurrentWidget(self.summary if plan.warnings else self.file_changes)
 
     def _plan_failed(self, message: str, issues: object) -> None:
         lines = [f"The plan could not be built: {message}"]
@@ -387,6 +459,9 @@ class OutputPanel(QGroupBox):
             lines.append(f"- {issue.field}: {issue.message}")
         self._show_plan(None)
         self.summary.setPlainText("\n".join(lines))
+        self.review_tabs.setCurrentWidget(self.summary)
+        self.append_log("\n".join(lines))
+        self.log_toggle.setChecked(True)
         self.plan_state.set_note(f"Blocked: {message}", BLOCK)
 
     def _export_finished(self, result: object) -> None:
@@ -426,6 +501,8 @@ class OutputPanel(QGroupBox):
         self.overlay_directory.setEnabled(not busy)
         self.overlay_migration_button.setEnabled(not busy)
         self.overlay_removal_button.setEnabled(not busy)
+        for control in (self.output_mode, self.folder_controls, self.add_to_mod, self.tools_button):
+            control.setEnabled(not busy)
 
 
 __all__ = ["CHECKLIST", "OutputPanel", "install_result_report"]

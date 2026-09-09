@@ -144,34 +144,39 @@ class PlacementPanel(QGroupBox):
         groups_layout.addWidget(self.group_list)
         groups_layout.addStretch(1)
         layout.addWidget(groups)
-        # Shop authoring and membership review share the page width at supported sizes.
+        # Acquisition settings share one page family; group membership no longer
+        # occupies a permanent half-width panel beside the shop controls.
         for widget in (shop, self.shop_routes, groups):
             layout.removeWidget(widget)
         columns = QHBoxLayout()
-        shop_column = QVBoxLayout()
-        shop_column.addWidget(shop)
-        shop_column.addWidget(self.shop_routes)
-        shop_column.addStretch(1)
-        columns.addLayout(shop_column, 3)
-        columns.addWidget(groups, 2)
+        columns.addWidget(self.shop_routes, 2, Qt.AlignmentFlag.AlignTop)
+        columns.addWidget(shop, 3, Qt.AlignmentFlag.AlignTop)
         shop_page = QWidget()
         page_layout = QVBoxLayout(shop_page)
         page_layout.addLayout(columns, 1)
         self.routes_view = _DistributionTabs()
         self.routes_view.currentChanged.connect(self.routes_view.updateGeometry)
-        self.routes_view.addTab(shop_page, "Shops and groups")
+        self.routes_view.addTab(shop_page, "Shops")
         from cdmw.ui.new_item.reward_editor import RewardEditor
         self.rewards = RewardEditor(controller)
         self.routes_view.addTab(self.rewards, "Loot and rewards")
+        self.groups_page = groups
+        self.routes_view.addTab(groups, "Item groups")
         layout.addWidget(self.routes_view, 1)
         self.crafting = QPushButton("Edit crafting and enhancement recipes")
         self.crafting.clicked.connect(self.recipes_requested.emit)
-        self.routes_view.setCornerWidget(self.crafting, Qt.TopRightCorner)
+        self.crafting.setParent(self)
+        self.crafting.hide()
         self.explicit.setChecked(controller.draft.item_groups is ItemGroupsChoice.EXPLICIT)
         self._explicit_changed(self.explicit.isChecked())
         self._placement_changed(True)
         controller.snapshot_ready.connect(self._refresh_stores)
         controller.template_changed.connect(self._template_changed)
+
+    def mount_recipes(self, recipes: QWidget) -> None:
+        """Move the existing recipe editor here; keep its controller and signals."""
+        self.recipes = recipes
+        self.routes_view.insertTab(1, recipes, "Recipes")
 
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
         super().resizeEvent(event)

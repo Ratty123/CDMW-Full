@@ -13,14 +13,18 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QScrollArea,
     QSpinBox,
+    QSplitter,
     QStyle,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.domain.new_item.rules import LOCALIZATION_LANGUAGES
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, intro_label, note
+from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, note
 
 LANGUAGE_LABELS = {
     "eng": "English", "kor": "Korean", "jpn": "Japanese", "rus": "Russian", "tur": "Turkish",
@@ -38,8 +42,20 @@ class IdentityPanel(QGroupBox):
         self._suggested_name = ""
         self._manual_item_key = 0
         self._manual_stem = ""
-        layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("The internal name for the tables, and the name and description players read, per language."))
+        outer = QVBoxLayout(self)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        outer.addWidget(self.workspace_splitter, 1)
+        self.editor = QWidget()
+        layout = QVBoxLayout(self.editor)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        editor_scroll = QScrollArea()
+        editor_scroll.setWidgetResizable(True)
+        editor_scroll.setFrameShape(QScrollArea.NoFrame)
+        editor_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        editor_scroll.setWidget(self.editor)
+        self.workspace_splitter.addWidget(editor_scroll)
         form = QFormLayout()
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.internal_name = QLineEdit()
@@ -92,7 +108,26 @@ class IdentityPanel(QGroupBox):
         self.stem_state = self._state_icon()
         stem_row.addWidget(self.stem_state)
         form.addRow("Model stem:", stem_row)
-        layout.addLayout(form)
+        self.identifiers = QGroupBox("Technical identifiers")
+        identifiers_layout = QVBoxLayout(self.identifiers)
+        self.identifier_fields = QWidget()
+        self.identifier_fields.setLayout(form)
+        self.identifiers_toggle = QToolButton()
+        self.identifiers_toggle.setText("Internal name and manual identifiers")
+        self.identifiers_toggle.setCheckable(True)
+        self.identifiers_toggle.setAutoRaise(True)
+        self.identifiers_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.identifiers_toggle.setArrowType(Qt.RightArrow)
+        self.identifiers_toggle.toggled.connect(self.identifier_fields.setVisible)
+        self.identifiers_toggle.toggled.connect(
+            lambda expanded: self.identifiers_toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        )
+        identifiers_layout.addWidget(self.identifiers_toggle)
+        self.identifier_summary = QLabel("")
+        self.identifier_summary.setWordWrap(True)
+        identifiers_layout.addWidget(self.identifier_summary)
+        identifiers_layout.addWidget(self.identifier_fields)
+        self.identifier_fields.hide()
 
         names = QGroupBox("Names and descriptions")
         # one form, so the name and the description carry labels like the fields above them
@@ -114,17 +149,38 @@ class IdentityPanel(QGroupBox):
         self.description.textChanged.connect(self._store_description)
         names_layout.addRow("Description:", self.description)
         layout.addWidget(names)
+        layout.addWidget(self.identifiers)
 
         checks = QGroupBox("Checks")
         checks_layout = QVBoxLayout(checks)
         self.issues = NoteLabel("")
         checks_layout.addWidget(self.issues)
-        self.issues_ok = QLabel("Nothing blocks the plan.")
+        self.issues_ok = QLabel("Identity is ready.")
         self.issues_ok.setObjectName("HintLabel")
         self.issues_ok.setProperty("healthState", "healthy")
         checks_layout.addWidget(self.issues_ok)
         layout.addWidget(checks)
         layout.addStretch(1)
+        self.preview_group = QGroupBox("Item presentation")
+        self.preview_group.setMinimumWidth(320)
+        preview_layout = QVBoxLayout(self.preview_group)
+        self.preview_holder = QWidget(self.preview_group)
+        self.preview_holder_layout = QVBoxLayout(self.preview_holder)
+        self.preview_holder_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.addWidget(self.preview_holder, 1)
+        self.presentation_name = QLabel("")
+        self.presentation_name.setTextFormat(Qt.TextFormat.PlainText)
+        self.presentation_name.setWordWrap(True)
+        self.presentation_description = QLabel("")
+        self.presentation_description.setTextFormat(Qt.TextFormat.PlainText)
+        self.presentation_description.setWordWrap(True)
+        self.display_name.textChanged.connect(self.presentation_name.setText)
+        preview_layout.addWidget(self.presentation_name)
+        preview_layout.addWidget(self.presentation_description)
+        self.workspace_splitter.addWidget(self.preview_group)
+        self.workspace_splitter.setStretchFactor(0, 3)
+        self.workspace_splitter.setStretchFactor(1, 2)
+        self.workspace_splitter.setSizes((720, 480))
         controller.template_changed.connect(self._template_changed)
         self._refresh_identity_states(())
 
@@ -153,6 +209,9 @@ class IdentityPanel(QGroupBox):
         return next((issue for issue in matching if issue.is_error), matching[0] if matching else None)
 
     def _refresh_identity_states(self, issues: tuple) -> None:
+        self.identifier_summary.setText(self.internal_name.text())
+        self.presentation_name.setText(self.display_name.text())
+        self.presentation_description.setText(self.description.toPlainText())
         internal_issue = self._field_issue(issues, "internal_name")
         if internal_issue is not None:
             self._set_identity_state(self.internal_name_state, BLOCK if internal_issue.is_error else WARN, internal_issue.message)
@@ -258,6 +317,8 @@ class IdentityPanel(QGroupBox):
         finally:
             self.display_name.blockSignals(False)
             self.description.blockSignals(False)
+        self.presentation_name.setText(self.display_name.text())
+        self.presentation_description.setText(self.description.toPlainText())
 
     def _store_display_name(self, text: str) -> None:
         self._controller.draft.display_names[self._language] = str(text)
@@ -266,6 +327,7 @@ class IdentityPanel(QGroupBox):
 
     def _store_description(self) -> None:
         self._controller.draft.descriptions[self._language] = self.description.toPlainText()
+        self.presentation_description.setText(self.description.toPlainText())
         self._controller.invalidate_plan()
 
     def _template_changed(self, _key: object) -> None:
@@ -308,22 +370,30 @@ class IdentityPanel(QGroupBox):
         self.refresh_issues()
 
     def refresh_issues(self) -> tuple:
-        """Show the draft's validation issues; returns them, so the tab's rail can read
-        the same validation instead of running a second one."""
+        """Show identity issues and return all issues for the workflow header."""
 
         issues = self._controller.validate()
         self._refresh_identity_states(issues)
-        blocked = [issue for issue in issues if issue.is_error]
+        identity_issues = tuple(
+            issue for issue in issues
+            if issue.field.split(".", 1)[0] in {"internal_name", "item_key", "stem", "display_names", "descriptions"}
+        )
+        blocked = [issue for issue in identity_issues if issue.is_error]
         self.issues_ok.setVisible(not blocked)
-        if not issues:
+        if not identity_issues:
             self.issues.set_lines([])
             return issues
-        ordered = sorted(issues, key=lambda issue: 0 if issue.is_error else 1)
+        ordered = sorted(identity_issues, key=lambda issue: 0 if issue.is_error else 1)
         lines = [note(f"Blocked: {issue.message}", BLOCK) if issue.is_error else note(f"Note: {issue.message}", WARN) for issue in ordered[:8]]
-        if len(issues) > 8:
-            lines.append(note(f"... {len(issues) - 8} more", None))
+        if len(identity_issues) > 8:
+            lines.append(note(f"... {len(identity_issues) - 8} more", None))
         self.issues.set_lines(lines)
         return issues
+
+    def mount_preview(self, preview: QWidget) -> None:
+        """Present the already resident item preview without requesting new content."""
+        if preview.parentWidget() is not self.preview_holder:
+            self.preview_holder_layout.addWidget(preview, 1)
 
     def set_stem_enabled(self, enabled: bool) -> None:
         self.stem_manual.setEnabled(bool(enabled))

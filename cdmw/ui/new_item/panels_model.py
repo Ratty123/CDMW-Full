@@ -204,17 +204,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         preview_column_layout.setContentsMargins(0, 0, 0, 0)
         preview_column_layout.setSpacing(4)
 
-        self.placement_column = QScrollArea(self.workspace_splitter)
-        self.placement_column.setObjectName("new_item_placement_column")
-        self.placement_column.setWidgetResizable(True)
-        self.placement_column.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.placement_column.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.placement_content = QWidget()
-        placement_column_layout = QVBoxLayout(self.placement_content)
-        placement_column_layout.setContentsMargins(0, 0, 0, 0)
-        placement_column_layout.setSpacing(0)
-        self.placement_column.setWidget(self.placement_content)
-
         self.preview = ItemPreviewFrame(
             self,
             native_preview_core_cache_root=native_preview_core_cache_root,
@@ -233,6 +222,9 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         for widget in (self.plain_pbr, self.own_sheath, self.keep_physics):
             appearance_layout.addWidget(widget)
         self._build_model_appearance_controls(model, appearance_layout, import_row)
+        appearance_layout.addWidget(self.import_details)
+        self.blender_details.layout().insertWidget(0, self.blender_details.toggle)
+        appearance_layout.addWidget(self.blender_details)
         appearance_layout.addStretch(1)
 
         self._build_placement_controls()
@@ -241,11 +233,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         self._build_icon_controls()
 
-        model_icon_content_layout.addWidget(self.model_group)
+        outer.insertWidget(0, self.model_group)
         from cdmw.ui.new_item.dye_editor import DyeEditor
         self.dyes = DyeEditor(controller,self)
         self.inspector_tabs = _InspectorTabs()
         self.inspector_tabs.setObjectName("new_item_model_inspector_tabs")
+        self.inspector_tabs.addTab(self.placement_group, "Placement")
         self.inspector_tabs.addTab(self.appearance_page, "Appearance")
         self.inspector_tabs.addTab(self.dyes, "Dyes")
         self.inspector_tabs.addTab(self.icon_group, "Icon")
@@ -253,14 +246,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         model_icon_content_layout.addStretch(1)
         preview_column_layout.addWidget(self.operation_banner)
         preview_column_layout.addWidget(self.preview_group, 1)
-        placement_column_layout.addWidget(self.placement_group)
-        placement_column_layout.addStretch(1)
-        self.workspace_splitter.addWidget(self.model_icon_column)
+        self.preview_layout.addWidget(self.part_editor_holder)
+        model_icon_column_layout.addWidget(self.placement_actions)
         self.workspace_splitter.addWidget(self.preview_column)
-        self.workspace_splitter.addWidget(self.placement_column)
-        for index, factor in enumerate((0, 1, 0)):
+        self.workspace_splitter.addWidget(self.model_icon_column)
+        for index, factor in enumerate((1, 0)):
             self.workspace_splitter.setStretchFactor(index, factor)
-        self.workspace_splitter.setSizes((340, 1000, 320))
+        self.workspace_splitter.setSizes((800, 380))
         from cdmw.ui.new_item.variant_selector import VariantSelector
         self.variants = VariantSelector(controller,self)
         self.variants.choice.setMinimumContentsLength(12)
@@ -310,6 +302,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
     def _set_placement_visible(self, visible: bool) -> None:
         newly_available = bool(visible) and not self._placement_available
         self._placement_available = bool(visible)
+        self.placement_actions.setVisible(self._placement_available)
         self._fit_model_workspace()
         if newly_available and self.inspector_tabs.indexOf(self.placement_group) >= 0:
             self.inspector_tabs.setCurrentWidget(self.placement_group)
@@ -322,49 +315,30 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             scrollbar = self.model_icon_scroll.verticalScrollBar().sizeHint().width()
             for spin in (*self.offset_spins, *self.rotation_spins, *self.scale_spins):
                 spin.setMinimumWidth(max(72, spin.minimumSizeHint().width()))
-            # Measure the regular left pages separately: the temporary Placement tab
-            # must not make the three-column layout think it needs two wide inspectors.
-            left_content_width = max(
-                self.model_group.minimumSizeHint().width(),
+            inspector_content_width = max(
                 self.inspector_tabs.tabBar().minimumSizeHint().width() + 6,
                 *(page.minimumSizeHint().width() + 6
-                  for page in (self.appearance_page, self.dyes, self.icon_group)),
+                  for page in (self.placement_group, self.appearance_page, self.dyes, self.icon_group)),
             )
-            left_width = max(320, left_content_width + scrollbar)
-            right_width = self.placement_group.minimumSizeHint().width() + scrollbar
+            inspector_width = max(340, inspector_content_width + scrollbar)
             preview_width = max(440, self.preview_group.minimumSizeHint().width())
-            self.placement_column.setMinimumWidth(right_width)
             self.preview_column.setMinimumWidth(preview_width)
             available = self.workspace_splitter.width()
             handle = self.workspace_splitter.handleWidth()
-            compact = available < left_width + preview_width + right_width + 2 * handle
-            if compact and self._placement_available:
-                left_width = max(left_width, right_width + 6)
-            self.model_icon_column.setMinimumWidth(left_width)
+            self.model_icon_column.setMinimumWidth(inspector_width)
             index = self.inspector_tabs.indexOf(self.placement_group)
-            moved = compact != (index >= 0)
-            if compact:
-                if index < 0:
-                    index = self.inspector_tabs.addTab(self.placement_group, "Placement")
-                self.inspector_tabs.setTabVisible(index, self._placement_available)
-                self.placement_column.hide()
-            else:
-                if index >= 0:
-                    self.inspector_tabs.removeTab(index)
-                    self.placement_content.layout().insertWidget(0, self.placement_group)
-                self.placement_group.setVisible(self._placement_available)
-                self.placement_column.setVisible(self._placement_available)
-            # Only inspector controls move between containers; the native preview stays resident.
-            orientation = (Qt.Orientation.Vertical if available < left_width + preview_width + handle
+            self.inspector_tabs.setTabVisible(index, self._placement_available)
+            self.placement_actions.setVisible(self._placement_available)
+            # Resizing changes only the splitter direction. Both the inspector and
+            # the native preview retain their widget parents at every width.
+            orientation = (Qt.Orientation.Vertical if available < inspector_width + preview_width + handle
                            else Qt.Orientation.Horizontal)
             if self.workspace_splitter.orientation() != orientation:
                 self.workspace_splitter.setOrientation(orientation)
-                moved = True
-            if moved:
                 if orientation == Qt.Orientation.Vertical:
-                    self.workspace_splitter.setSizes((160, max(300, self.height() - 160), 0))
+                    self.workspace_splitter.setSizes((max(360, self.height() - 250), 250))
                 else:
-                    self.workspace_splitter.setSizes((left_width, max(preview_width, available - left_width - right_width), right_width))
+                    self.workspace_splitter.setSizes((max(preview_width, available - inspector_width), inspector_width))
             self.inspector_tabs.updateGeometry()
         finally:
             self._fitting_workspace = False
@@ -474,6 +448,8 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
     def _build_placement_controls(self) -> None:
         self.placement_group = QGroupBox("Placement")
+        self.placement_group.setTitle("")
+        self.placement_group.setProperty("titlelessSection", True)
         self.placement_group.setAccessibleName("Placement")
         placement_layout = QVBoxLayout(self.placement_group)
         placement_layout.setContentsMargins(8, 4, 8, 6)
@@ -586,9 +562,14 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         )
         self.apply_button.clicked.connect(self._controller.start_model_apply)
         placement_layout.addLayout(action_row)
+        self.placement_actions = QWidget()
+        placement_actions_layout = QVBoxLayout(self.placement_actions)
+        placement_actions_layout.setContentsMargins(8, 4, 8, 6)
+        placement_actions_layout.setSpacing(4)
         self.apply_status = NoteLabel("", None)
-        placement_layout.addWidget(self.apply_status)
-        placement_layout.addWidget(self.apply_button)
+        placement_actions_layout.addWidget(self.apply_status)
+        placement_actions_layout.addWidget(self.apply_button)
+        self.placement_actions.hide()
         self.placement_group.setVisible(False)
 
     def _build_model_appearance_controls(self, model, model_layout, import_row) -> None:
@@ -679,7 +660,6 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
             "Supports glTF, GLB, OBJ, DAE, FBX through Blender, and zip files containing one model."
         )
         source_choices.addWidget(self.import_model)
-        source_choices.addStretch(1)
         model_layout.addLayout(source_choices)
         row = QHBoxLayout()
         row.setContentsMargins(0,0,0,0)
@@ -698,12 +678,13 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         row.addStretch(1)
         import_row = QWidget()
         import_row.setLayout(row)
-        model_layout.addWidget(import_row)
+        source_choices.addWidget(import_row)
         self.import_summary = QLabel("No imported model.")
         self.import_summary.setWordWrap(True)
         self.import_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.import_summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        model_layout.addWidget(self.import_summary)
+        source_choices.addWidget(self.import_summary, 1)
+        source_choices.addStretch(1)
         self.model_status = NoteLabel("No imported model.", None)
         self.import_details = _foldout(self.model_status)
         self.import_details.toggle.setText("Import details")
@@ -711,7 +692,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self.part_editor_holder = QWidget()
         part_editor_layout = QVBoxLayout(self.part_editor_holder)
         part_editor_layout.setContentsMargins(0, 0, 0, 0)
-        part_editor_buttons = QVBoxLayout()
+        part_editor_buttons = QHBoxLayout()
         part_editor_buttons.setSpacing(4)
         self.open_part_editor_button = QPushButton("Open in Mesh Editor")
         self.open_part_editor_button.setToolTip(

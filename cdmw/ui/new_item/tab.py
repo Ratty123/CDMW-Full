@@ -88,7 +88,6 @@ def _workflow_step_for_issue(issue: object) -> int:
         "price_edits",
         "max_stack_count",
         "enhancement",
-        "recipes",
     }:
         return 3
     if code.startswith(("effect.", "socket")) or field in {
@@ -102,7 +101,7 @@ def _workflow_step_for_issue(issue: object) -> int:
         "equipment_bonuses",
     }:
         return 4
-    if code.startswith(("placement.", "item_groups.", "rewards.")) or field in {"placement", "item_groups", "reward_acquisitions"}:
+    if code.startswith(("placement.", "item_groups.", "rewards.")) or field in {"placement", "item_groups", "reward_acquisitions", "recipes"}:
         return 5
     return 1
 
@@ -384,7 +383,11 @@ class NewItemStudioTab(QWidget):
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
         self.placement_panel.set_copper_price_requested.connect(self.stats_panel.set_copper_price)
-        self.placement_panel.recipes_requested.connect(lambda: (self.show_step(3), self.stats_panel.views.setCurrentIndex(1)))
+        self.stats_panel.views.removeTab(self.stats_panel.views.indexOf(self.stats_panel.recipes))
+        self.stats_panel.views.tabBar().hide()
+        self.placement_panel.mount_recipes(self.stats_panel.recipes)
+        self.stats_panel.recipes_requested.connect(self._show_recipes)
+        self.placement_panel.recipes_requested.connect(self._show_recipes)
         self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
         controller.install_finished.connect(self._after_install_finished)
@@ -416,9 +419,9 @@ class NewItemStudioTab(QWidget):
             panel.setObjectName("new_item_step")
             panel.setTitle("")
             panel.setProperty("guidedPage", True)
-            if index in {2, 4}:
+            if index in {1, 2, 4}:
                 panel.setProperty("guidedFullHeight", True)
-                # The Model and Effects workspaces own their local inspector scrollers.
+                # The visual workspaces own their local inspector scrollers.
                 # Wrapping either page here would make its resident viewport move when a
                 # side panel scrolls and can introduce a horizontal bar at 1280 px.
                 page = panel
@@ -466,6 +469,7 @@ class NewItemStudioTab(QWidget):
         self.step_hint.setAlignment(Qt.AlignCenter)
         footer.addWidget(self.step_hint, 1)
         footer.addWidget(self.continue_button)
+        footer.addWidget(self.output_panel.actions)
         body_layout.addLayout(footer)
         self._layout.addWidget(body, 1)
         controller.template_changed.connect(self._refresh_summary)
@@ -520,10 +524,14 @@ class NewItemStudioTab(QWidget):
         self._current_step = row
         if row == 0:
             self.template_panel.mount_preview(self.model_panel.preview)
+        elif row == 1:
+            self.identity_panel.mount_preview(self.model_panel.preview)
         elif row == 2:
             self.model_panel.mount_preview()
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
+        self.continue_button.setVisible(row != 6)
+        self.output_panel.actions.setVisible(row == 6)
         self.continue_button.setEnabled(
             row < self.pages.count() - 1
             and not (row == 4 and self.perks_panel.has_staged_effect_changes())
@@ -571,6 +579,10 @@ class NewItemStudioTab(QWidget):
         if 0 <= int(index) < self.pages.count():
             self.steps.setCurrentRow(int(index))
 
+    def _show_recipes(self) -> None:
+        self.show_step(5)
+        self.placement_panel.routes_view.setCurrentWidget(self.stats_panel.recipes)
+
     def _refresh_summary(self, *_args) -> None:
         """The rail's "item so far": one line per step, tinted by what it still needs; the
         Checks on step 2 read the same draft, so they follow every change too."""
@@ -596,7 +608,7 @@ class NewItemStudioTab(QWidget):
             lines.append(note("Name: not set", WARN))
         blocked = [issue for issue in issues if issue.is_error]
         if blocked:
-            lines.append(note(f"{len(blocked)} thing(s) block the plan (see step 2)", BLOCK))
+            lines.append(note(f"{len(blocked)} thing(s) block the plan (see the marked steps)", BLOCK))
         imported = controller.model_import if draft.model_source is ModelSource.IMPORTED else None
         model_result = controller.model_result if draft.model_source is ModelSource.IMPORTED else None
         if imported is not None and model_result is None:

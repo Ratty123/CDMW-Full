@@ -50,11 +50,11 @@ adds the next 60 rows until every match is visible. Startup and later panel grow
 all available width across the columns instead of leaving an empty strip. An explicit mouse click commits immediately,
 while keyboard row navigation keeps its 180 ms latest-row settle so holding an arrow key
 does not rebuild every dependent step along the way. It mounts the same resident item
-viewport used by Model & Placement, so a selected helmet, armour piece or weapon can
+viewport used by Identity and Model & Placement, so a selected helmet, armour piece or weapon can
 be orbited and zoomed before the workflow inherits it. Template handoffs search the
 catalogue once and select the requested row. Search and results stay in the
-left column while the preview receives the wider right column and the full working
-height. The workflow summary remains the one selected-template status authority, so
+left column, with search and category on one row and readable item names first. The
+resizable list receives more width than the preview by default. The workflow summary remains the one selected-template status authority, so
 Template does not repeat it in another group; its camera help follows the viewport
 instead of separating the viewport from its heading. Every shared preview keeps the
 current orbit, pan and zoom controls in a footer outside the native viewport. Initial
@@ -123,7 +123,10 @@ Item Studio; a later unsupported-layout error mentions a possible game update on
 the executable detector proves a direct transition from that last-known-good hash.
 Hidden Combat stats tables keep their data current but defer
 Qt's content sizing until that workflow step is actually opened.
-The Identity panel keeps item keys and model stems automatic until **Manual** is
+Identity leads with the player-facing name and description, beside the same resident
+item preview. **Technical identifiers** folds the internal name and manual controls;
+its summary remains visible. Checks here show identity issues only; the workflow header
+and Output retain cross-step validation. Item keys and model stems stay automatic until **Manual** is
 chosen; manual mode starts from the same collision-free allocation the planner
 would make. Identifier editors enforce the domain's character and 64-character
 limits, and per-field state icons point at the exact collision or format issue
@@ -152,17 +155,20 @@ price and stat-block issues on **Stats & Prices**. Per-step tooltips and accessi
 text include the exact validation reasons. The Effects preview and in-game verification
 caveats stay in those details and the plan review; they do not mark applied effects
 as unfinished. Unapplied changes and actionable validation issues still mark the step.
-Its footer keeps Back, `Step N of 7` and Continue
-stable. Output keeps Build plan and its review in the
-left column, with every write and install action in the right. Existing-overlay
-migration and removal are grouped under **Manage existing overlays**; opening that
-fold never performs an action. Shared section cards and accent primary buttons keep
+Its footer keeps Back, `Step N of 7` and Continue stable. Output replaces Continue
+with the selected **Write mod folder** or **Install as an overlay** action. Choose
+the destination and existing-mod base first, build the plan, then review its file
+changes and full details. Destination, manager, overlay number and base changes clear
+the plan, including an in-flight result. **Draft tools** contains Merge mods,
+Installed overlays and the Archive recovery fold; opening the menu or recovery fold
+never performs a write. The activity log starts folded and opens for failures.
+Shared section cards and accent primary buttons keep
 Continue, Build plan and Apply placement visually distinct, with palette-based
 hover, pressed, focus and disabled states. Step 5 is a
 non-scrolling full-height page with Perks and Effects tabs. The navigator is a
 compact 46 px row; the outer pages do not
 repeat numbered titles underneath it. Distribution measures the selected route tab,
-so hidden reward controls do not add an outer scrollbar to Shops and groups at
+so hidden reward controls do not add an outer scrollbar to Shops at
 1280x720. Longer active content remains scrollable. Perks & Effects keeps gameplay perks separate
 from visual-only effects. Perks are chosen through searchable Available and Selected
 lists that grow with the workspace rather than a popup catalogue. Perk search, labels
@@ -175,8 +181,9 @@ an all-target success, and never edits a shared borrowed prefab. The Effects tab
 24 px virtualized table rows with neutral stem-derived names, separated numeric suffixes,
 and compact Type and approximate Size columns; the exact stem stays searchable and
 appears in selection details and tooltips instead of being repeated under every row. `No effect` is the
-single empty-state row, so blank
-compatibility and exact-stem labels do not repeat it. Search matches words in the
+empty-state row. **Browse effects** opens the library on demand; the search and category
+selector remain above the viewport, alongside the selected effect name. Compatibility
+messages remain visible when the library is folded. Search matches words in the
 readable name, exact stem, emitter, texture, mesh and preset metadata. The background
 index follows emitter and render/simulation preset dependencies once per definition;
 schema 2 invalidates old caches and includes dependency paths and archive locations.
@@ -201,9 +208,9 @@ while another step is open. `effect_item_source.py` captures the selected import
 placement, glow, snapshot and template key without decoding them. Item parsing and
 baking then run in the existing placement package worker alongside effect preparation;
 cancelled requests cannot publish their item mesh, and source leases last through
-worker teardown. The inspector groups Placement,
-Appearance and Preview, with Apply and Discard pinned below its scroll area. Its
-Layers / Emitters / Saved tabs add up to 16 effect layers with independent placement,
+worker teardown. A single inspector has **Placement**, **Look**, **Layers**, **Emitters**
+and **Saved** tabs, with Apply and Discard pinned below their local scroll areas.
+Preview options fold inside Placement. Layers add up to 16 effects with independent placement,
 visibility and appearance. Selecting another layer does not itself create a draft edit.
 The inspector tabs size to their active contents and keep actions together at the top.
 The compact preview toolbar and playback rows retain natural control widths and wrap
@@ -288,15 +295,15 @@ and the final Builder use; for a wearable, neutral effect placement starts at th
 origin so the gizmo opens on the helmet or armour rather than at the character's feet. A
 feet-at-zero bind-space stand-in is used when the matching archive body is unavailable.
 
-The Model & Placement step places two resizable inspectors around a tall resident preview.
-Model selection and import actions stay on the left above compact Appearance, Dyes and Icon
-tabs. Placement numbers, fit/reset actions and Apply placement stay on the right. The active
-left tab uses its natural height, and captured icon thumbnails stay in the Icon tab so the
+The Model & Placement step puts a tall resident preview beside one resizable inspector.
+Model selection and import actions share a strip above it. Placement, Appearance, Dyes
+and Icon share the right inspector; Apply placement stays fixed beneath its scroll area.
+The active tab uses its natural height, and captured icon thumbnails stay in Icon so the
 preview footer remains compact. Controls retain their values when switching tabs or resizing.
-When the three columns cannot fit, Placement joins the left tabs; very narrow pages stack
-that inspector above the preview. Both inspectors scroll locally, leaving the viewport fixed.
+When the two columns cannot fit, the inspector stacks below the preview. Neither widget
+changes parent on resize, preserving the resident renderer and current control values.
 Full import notes, FBX setup and Quick turn expand on demand; Glow details collapse while off.
-The default inspector pages fit a 1280 × 720 window without scrolling.
+Long or expanded inspector content scrolls locally while Apply placement remains visible.
 Quick turn buttons add −90°, +90° or 180° to the X, Y or Z placement rotation around the
 fitted model pivot, retaining position and scale. **Reset rotation** restores the fitted
 orientation; **Fit to template** restores the complete fit. These actions move only the
@@ -321,7 +328,7 @@ DDS textures, and then the complete synthesized material tier without resetting
 the resident camera;
 `item_preview_materials.py` owns placement-scene composition and the copied-package
 canonical-material upgrade, without restarting the renderer, re-exporting geometry or resetting
-the camera. `panels_model.py` builds the three-column surface while
+the camera. `panels_model.py` builds the preview and tabbed inspector while
 `panels_model_preview_mixin.py` owns its preview, placement, import and icon interactions.
 FBX conversion relinks an explicitly referenced missing image by exact basename
 from the extracted package's nearby texture folders; the shared preview then supplements an
@@ -459,7 +466,9 @@ levels. Omitted overrides inherit; empty overrides clear. Reducing socket capaci
 never silently removes perks. Normal limits remain four embedded perks and five
 slots, with the existing eight-entry experimental limit visibly separate.
 
-**Stats & Prices** also contains enhancement/crafting recipe authoring. A selected
+**Distribution → Recipes** owns enhancement/crafting recipe authoring, alongside
+Shops, Loot and rewards, and Item groups. Stats & Prices has a shortcut to the same
+recipe editor, retaining its current selection and edits. A selected
 recipe is copied with owned DropSet outputs and reconnected to the new item.
 On the current generation, inheriting recipes automatically creates those owned
 connections while preserving costs and requirements, even when the recipe editor

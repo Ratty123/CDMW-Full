@@ -759,7 +759,7 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_guided_shell_geometry_matches_the_three_pane_contract(self) -> None:
+    def test_guided_shell_keeps_one_inspector_and_an_optional_library(self) -> None:
         tab = self._tab()
         tab.start_snapshot()
         effects = tab.perks_panel.effects_workspace
@@ -787,15 +787,15 @@ class _TabAuthoringMixin:
             placement = effects.placement
             self.assertIsNotNone(placement)
             inner = placement.preview_splitter.sizes()
-            total = float(sum(outer))
-            left = outer[0] / total
-            centre = outer[1] / total * inner[0] / sum(inner)
-            self.assertAlmostEqual(left, 0.29, delta=0.035)
-            self.assertAlmostEqual(centre, 0.43, delta=0.045)
+            self.assertEqual(outer[0], 0)
+            self.assertGreater(inner[0], inner[1])
+            self.assertEqual(
+                [placement.inspector_tabs.tabText(i) for i in range(placement.inspector_tabs.count())],
+                ["Placement", "Look", "Layers", "Emitters", "Saved"],
+            )
             # The inspector retains its natural width; the viewport receives
             # extra width on larger windows instead of scaling every pane.
             self.assertEqual(placement.preview_splitter.widget(1).sizePolicy().horizontalStretch(), 0)
-            self.assertGreaterEqual(effects.splitter.widget(0).width(), 300)
             self.assertGreaterEqual(placement.preview_splitter.widget(0).width(), 480)
             self.assertGreaterEqual(placement.preview_splitter.widget(1).width(), 340)
             if width == 1280:
@@ -812,8 +812,7 @@ class _TabAuthoringMixin:
                     self.assertGreaterEqual(button.width(), required, button.text())
                     self.assertLessEqual(button.height(), 36, button.text())
                 rows = [button.y() for button in toolbar_buttons]
-                self.assertEqual(len(set(rows)), 2, f"toolbar width={placement.guided_toolbar_panel.width()}")
-                self.assertEqual(sorted(rows.count(row) for row in set(rows)), [4, 4])
+                self.assertLessEqual(len(set(rows)), 2, f"toolbar width={placement.guided_toolbar_panel.width()}")
             else:
                 self.assertEqual(
                     len({button.y() for button in placement._guided_toolbar_buttons}),
@@ -825,6 +824,11 @@ class _TabAuthoringMixin:
                     ),
                 )
         resident = effects.placement
+        effects.library_toggle.setChecked(True)
+        self.app.processEvents()
+        self.assertTrue(effects.library_panel.isVisibleTo(effects))
+        effects.library_toggle.setChecked(False)
+        self.assertIs(effects.placement, resident)
         tab.show_step(5)
         tab.show_step(4)
         self.assertIs(effects.placement, resident, "returning to Step 5 reuses the resident placement workspace")
@@ -832,7 +836,7 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_model_workspace_keeps_two_inspectors_around_the_resident_preview(self) -> None:
+    def test_model_workspace_keeps_one_inspector_beside_the_resident_preview(self) -> None:
         from PySide6.QtGui import QFont, QFontDatabase, QPalette
         from PySide6.QtWidgets import QAbstractButton
         from cdmw.ui.themes import build_app_palette, build_app_stylesheet
@@ -864,14 +868,14 @@ class _TabAuthoringMixin:
         panel.model_status.set_note("Full import notes and material warnings stay available.")
         panel.keep_physics.show()
         panel.flip_texture_v.show()
-        self.assertEqual(panel.workspace_splitter.count(), 3)
-        self.assertIs(panel.workspace_splitter.widget(0), panel.model_icon_column)
-        self.assertIs(panel.workspace_splitter.widget(1), panel.preview_column)
-        self.assertIs(panel.workspace_splitter.widget(2), panel.placement_column)
+        self.assertEqual(panel.workspace_splitter.count(), 2)
+        self.assertIs(panel.workspace_splitter.widget(0), panel.preview_column)
+        self.assertIs(panel.workspace_splitter.widget(1), panel.model_icon_column)
         self.assertIs(panel.preview.parentWidget(), panel.preview_group)
         self.assertIs(panel.icon_thumbnail.parentWidget(), panel.icon_group)
         self.assertTrue(panel.quick_turn_section.contents.isHidden())
         self.assertLess(panel.preview_layout.indexOf(panel.view_toolbar), panel.preview_layout.indexOf(panel.preview))
+        panel.inspector_tabs.setCurrentWidget(panel.appearance_page)
         self.assertFalse(panel.model_status.isVisibleTo(panel))
         panel.import_details.toggle.click()
         self.assertTrue(panel.model_status.isVisibleTo(panel))
@@ -890,20 +894,15 @@ class _TabAuthoringMixin:
             self.assertIs(panel.preview.parentWidget(), panel.preview_group)
             self.assertGreaterEqual(panel.preview.height(), 300)
             if width >= 1280:
-                self.assertTrue(panel.placement_column.isVisibleTo(panel))
-                self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), -1)
+                self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), 0)
                 self.assertGreater(panel.preview_column.width(), panel.model_icon_column.width())
-                self.assertGreater(panel.preview_column.width(), panel.placement_column.width())
-                self.assertEqual(panel.placement_column.horizontalScrollBar().maximum(), 0)
-                self.assertLessEqual(panel.placement_group.geometry().bottom(), panel.placement_column.height())
-            for index, page in enumerate((panel.appearance_page, panel.dyes, panel.icon_group)):
+            for index, page in enumerate((panel.placement_group, panel.appearance_page, panel.dyes, panel.icon_group)):
                 panel.inspector_tabs.setCurrentIndex(index)
                 self.app.processEvents()
                 self.assertTrue(page.isVisibleTo(panel))
                 self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
-                if width >= 1280:
-                    self.assertEqual(panel.model_icon_scroll.verticalScrollBar().maximum(), 0,
-                                     f"inspector tab {index} should fit at {width}x{height}")
+                self.assertFalse(panel.model_icon_scroll.isAncestorOf(panel.apply_button))
+                self.assertTrue(panel.apply_button.isVisibleTo(panel))
                 for button in page.findChildren(QAbstractButton):
                     if button.isVisibleTo(panel):
                         self.assertLessEqual(button.height(), 36, button.text())
@@ -955,22 +954,14 @@ class _TabAuthoringMixin:
             self.assertEqual(panel.size().toTuple(), (width, height))
             self.assertIs(panel.preview, resident)
             self.assertIs(panel.preview.parentWidget(), panel.preview_group)
-            if width < 1280:
-                self.assertFalse(panel.placement_column.isVisibleTo(panel))
-                panel.inspector_tabs.setCurrentWidget(panel.placement_group)
-                panel.quick_turn_section.toggle.setChecked(True)
-                self.app.processEvents()
-                self.assertTrue(panel.apply_button.isVisibleTo(panel))
-                self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
-                panel.model_icon_scroll.ensureWidgetVisible(panel.apply_button)
-                self.app.processEvents()
-                panel.model_icon_scroll.verticalScrollBar().setValue(panel.model_icon_scroll.verticalScrollBar().maximum())
-                bounds = panel.apply_button.rect().translated(panel.apply_button.mapTo(panel.model_icon_scroll.viewport(), panel.apply_button.rect().topLeft()))
-                self.assertTrue(panel.model_icon_scroll.viewport().rect().contains(bounds),
-                                f"{width}x{height} {point_size}pt: button={bounds}, viewport={panel.model_icon_scroll.viewport().rect()}, scroll={panel.model_icon_scroll.verticalScrollBar().value()}/{panel.model_icon_scroll.verticalScrollBar().maximum()}")
-            else:
-                self.assertTrue(panel.placement_column.isVisibleTo(panel))
-                self.assertEqual(panel.inspector_tabs.indexOf(panel.placement_group), -1)
+            panel.inspector_tabs.setCurrentWidget(panel.placement_group)
+            panel.quick_turn_section.toggle.setChecked(True)
+            self.app.processEvents()
+            self.assertTrue(panel.apply_button.isVisibleTo(panel))
+            self.assertEqual(panel.model_icon_scroll.horizontalScrollBar().maximum(), 0)
+            self.assertFalse(panel.model_icon_scroll.isAncestorOf(panel.apply_button))
+            bounds = panel.apply_button.rect().translated(panel.apply_button.mapTo(panel, panel.apply_button.rect().topLeft()))
+            self.assertTrue(panel.rect().contains(bounds), f"{width}x{height} {point_size}pt: {bounds}")
             panel.quick_turn_section.toggle.setChecked(False)
 
     def test_import_appearance_hides_template_specific_controls_when_they_cannot_apply(self) -> None:

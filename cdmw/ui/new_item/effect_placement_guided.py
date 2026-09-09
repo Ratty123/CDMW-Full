@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QSplitter,
+    QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -179,30 +181,46 @@ class EffectPlacementGuidedMixin:
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(0, 0, 0, 0)
         panel_layout.setSpacing(0)
-        scroll = QScrollArea(panel)
-        scroll.setObjectName("effect_inspector_scroll")
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(panel.minimumWidth())
-        panel_layout.addWidget(scroll, 1)
+        self.inspector_tabs = QTabWidget(panel)
+        self.inspector_tabs.setObjectName("effect_recipe_tabs")
+        panel_layout.addWidget(self.inspector_tabs, 1)
         inspector = QWidget()
         inspector.setObjectName("effect_inspector")
         layout = QVBoxLayout(inspector)
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(6)
-        scroll.setWidget(inspector)
         self.inspector_widget = inspector
+        self._add_inspector_tab(inspector, self.tr("Placement"), "effect_inspector_scroll")
 
         heading = QLabel("Placement")
         heading.setObjectName("effect_inspector_heading")
         layout.addWidget(heading)
         self._add_guided_transform_controls(layout)
-        self._add_guided_section_heading(layout, self.tr("Appearance"))
-        self._add_guided_look_controls(layout)
-        self._add_guided_section_heading(layout, self.tr("Preview"))
-        self._add_guided_scene_controls(layout)
+        self.preview_options_toggle = QToolButton()
+        self.preview_options_toggle.setText("Preview options")
+        self.preview_options_toggle.setCheckable(True)
+        self.preview_options_toggle.setAutoRaise(True)
+        self.preview_options_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.preview_options_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        layout.addWidget(self.preview_options_toggle)
+        self.preview_options = QWidget()
+        preview_layout = QVBoxLayout(self.preview_options)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        self._add_guided_scene_controls(preview_layout)
+        layout.addWidget(self.preview_options)
+        self.preview_options.hide()
+        self.preview_options_toggle.toggled.connect(self.preview_options.setVisible)
+        self.preview_options_toggle.toggled.connect(
+            lambda expanded: self.preview_options_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
+        )
         layout.addStretch(1)
+        look = QWidget()
+        look_layout = QVBoxLayout(look)
+        look_layout.setContentsMargins(10, 8, 10, 8)
+        look_layout.setSpacing(6)
+        self._add_guided_look_controls(look_layout)
+        look_layout.addStretch(1)
+        self._add_inspector_tab(look, self.tr("Look"))
         action_bar = QWidget(panel)
         action_bar.setObjectName("effect_action_bar")
         actions = QVBoxLayout(action_bar)
@@ -221,6 +239,15 @@ class EffectPlacementGuidedMixin:
         actions.addLayout(buttons)
         panel_layout.addWidget(action_bar)
         return panel
+
+    def _add_inspector_tab(self, widget: QWidget, title: str, name: str = "") -> None:
+        scroll = QScrollArea()
+        scroll.setObjectName(name)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(widget)
+        self.inspector_tabs.addTab(scroll, title)
 
     @staticmethod
     def _add_guided_section_heading(layout: QVBoxLayout, title: str) -> None:

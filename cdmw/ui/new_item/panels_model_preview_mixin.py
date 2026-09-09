@@ -268,6 +268,7 @@ class ModelPanelPreviewMixin:
     def _refresh_placement_enabled(self) -> None:
         ready = bool(getattr(self.preview, "showing_placement", False)) and not self._controller.busy
         self.placement_group.setEnabled(ready)
+        self.placement_actions.setEnabled(ready)
         widgets = (
             *self.offset_spins,
             *self.rotation_spins,

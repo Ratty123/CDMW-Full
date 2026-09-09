@@ -76,6 +76,7 @@ class EffectRecipePanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         tabs = _RecipeTabs()
+        self.tabs = tabs
         tabs.setObjectName('effect_recipe_tabs')
         tabs.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         tabs.currentChanged.connect(tabs.updateGeometry)

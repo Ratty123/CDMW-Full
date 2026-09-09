@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QSplitter,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -46,20 +47,26 @@ class TemplatePanel(QGroupBox):
         layout = QVBoxLayout(self)
         self.workspace_layout = QHBoxLayout()
         self.workspace_layout.setContentsMargins(0, 0, 0, 0)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_layout.addWidget(self.workspace_splitter)
         self.selection_column = QWidget(self)
         selection_layout = QVBoxLayout(self.selection_column)
         selection_layout.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
         row.addWidget(QLabel("Find:"))
         self.filter_edit = QLineEdit()
-        self.filter_edit.setPlaceholderText("Internal name or item key")
+        self.filter_edit.setPlaceholderText("Item name, internal name or key")
         self.filter_edit.textChanged.connect(self._refresh_matches)
         row.addWidget(self.filter_edit, 1)
-        selection_layout.addLayout(row)
         self.category = QComboBox()
+        self.category.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.category.setMinimumContentsLength(16)
+        self.category.setMaximumWidth(260)
         self.category.setToolTip("Filter by the game's equipment category or an explicit equipment subcategory. All equipment includes equipment outside those groups.")
         self.category.currentIndexChanged.connect(self._refresh_matches)
-        selection_layout.addWidget(self.category)
+        row.addWidget(self.category)
+        selection_layout.addLayout(row)
         self.compatibility = QLabel()
         self.compatibility.setWordWrap(True)
         selection_layout.addWidget(self.compatibility)
@@ -74,6 +81,9 @@ class TemplatePanel(QGroupBox):
         self.matches.setProperty("cdmw_disable_auto_column_fill", True)
         header = self.matches.header()
         header.setStretchLastSection(False)
+        # Keep logical columns and their data/sort contracts; lead visually with the
+        # readable item name rather than the internal table identifier.
+        header.moveSection(header.visualIndex(1), 0)
         for column in range(self.matches.columnCount()):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
         header.setSectionsClickable(True)
@@ -102,7 +112,7 @@ class TemplatePanel(QGroupBox):
         self._pick_timer.timeout.connect(self._apply_pick)
         self._pending_key: Optional[int] = None
         selection_layout.addWidget(self.matches, 1)
-        self.workspace_layout.addWidget(self.selection_column, 2)
+        self.workspace_splitter.addWidget(self.selection_column)
         self.preview_group = QGroupBox("Preview")
         self.preview_group.setMinimumHeight(340)
         preview_layout = QVBoxLayout(self.preview_group)
@@ -121,7 +131,10 @@ class TemplatePanel(QGroupBox):
         self.preview_status.setObjectName("new_item_intro")
         self.preview_status.setWordWrap(True)
         preview_layout.addWidget(self.preview_status)
-        self.workspace_layout.addWidget(self.preview_group, 3)
+        self.workspace_splitter.addWidget(self.preview_group)
+        self.workspace_splitter.setStretchFactor(0, 3)
+        self.workspace_splitter.setStretchFactor(1, 2)
+        self.workspace_splitter.setSizes((720, 480))
         layout.addLayout(self.workspace_layout, 1)
         self._preview = None
         controller.snapshot_ready.connect(self._refresh_matches)
@@ -295,7 +308,7 @@ class TemplatePanel(QGroupBox):
                 type_width = max(110, round(available * 0.17))
                 capability_width = max(90, round(available * 0.12))
                 name_width = max(120, available - key_width - type_width - capability_width)
-                internal_width = round(name_width * 0.56)
+                internal_width = round(name_width * 0.30)
                 widths = (internal_width, name_width - internal_width, key_width, type_width, capability_width)
                 for column, width in enumerate(widths):
                     header.resizeSection(column, width)

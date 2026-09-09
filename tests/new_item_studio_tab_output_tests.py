@@ -206,6 +206,8 @@ class _TabOutputMixin:
         # export through the panel
         out = self.root / "export"
         tab.output_panel.export_root.setText(str(out))
+        self.assertIsNone(tab.controller.plan, "a changed destination requires a fresh plan")
+        tab.output_panel.build_button.click()
         with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
             tab.output_panel.export_button.click()
         self.assertTrue((out / "files" / "gamedata" / "binary__" / "client" / "bin" / "iteminfo.pabgb").is_file())
@@ -239,7 +241,7 @@ class _TabOutputMixin:
         initial_plan = tab.controller.plan
         self.assertIsNotNone(initial_plan, output.summary.toPlainText())
         output.manager.setCurrentText("DMM")
-        self.assertIs(tab.controller.plan, initial_plan, "the manager selects an output layout")
+        self.assertIsNone(tab.controller.plan, "a changed output layout requires a fresh plan")
 
         folder = self.root / "dmm_mod"
         folder.mkdir()
@@ -954,7 +956,7 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
-    def test_output_places_plan_and_review_left_of_write_actions(self) -> None:
+    def test_output_orders_destination_plan_and_review_with_fixed_actions(self) -> None:
         from PySide6.QtWidgets import QGridLayout, QGroupBox
 
         tab = self._tab()
@@ -972,9 +974,63 @@ class _TabOutputMixin:
             content.itemAt(index).widget(): content.getItemPosition(index)
             for index in range(content.count())
         }
-        self.assertEqual(positions[sections["1. Build the plan"]], (0, 0, 1, 1))
-        self.assertEqual(positions[sections["2. What the plan will change"]], (1, 0, 1, 1))
-        self.assertEqual(positions[sections["3. Write it"]], (0, 1, 2, 1))
-        self.assertEqual((content.columnStretch(0), content.columnStretch(1)), (1, 1))
+        self.assertEqual(positions[sections["1. Destination"]], (0, 0, 1, 1))
+        self.assertEqual(positions[sections["2. Build the plan"]], (1, 0, 1, 1))
+        self.assertEqual(positions[sections["3. Review the plan"]], (2, 0, 1, 1))
+        tab.show_step(6)
+        self.assertTrue(panel.export_button.isVisibleTo(tab))
+        self.assertFalse(panel.install_overlay_button.isVisibleTo(tab))
+        tab.identity_panel.display_name.setText("Layout review item")
+        panel.build_button.click()
+        self.assertIsNotNone(tab.controller.plan)
+        self.assertGreater(panel.file_changes.topLevelItemCount(), 0)
+        panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay"))
+        self.assertIsNone(tab.controller.plan)
+        self.assertFalse(panel.export_button.isVisibleTo(tab))
+        self.assertTrue(panel.install_overlay_button.isVisibleTo(tab))
+        self.assertFalse(panel.install_overlay_button.isEnabled())
+        self.assertFalse(panel.log.isVisibleTo(panel))
+        tab.controller.status_message.emit("Could not write the output.", True)
+        self.assertTrue(panel.log.isVisibleTo(panel))
+        self.assertIn("Could not write the output.", panel.log.toPlainText())
+        requested = []
+        panel.merge_requested.disconnect()
+        panel.overlay_removal_requested.disconnect()
+        panel.merge_requested.connect(lambda: requested.append("merge"))
+        panel.overlay_removal_requested.connect(lambda: requested.append("overlays"))
+        merge, installed, recovery = panel.tools_menu.actions()
+        merge.trigger()
+        installed.trigger()
+        recovery.trigger()
+        self.assertEqual(requested, ["merge", "overlays"])
+        self.assertTrue(panel.overlay_tools.isVisibleTo(panel))
+        panel._busy_changed(True)
+        self.assertFalse(panel.tools_button.isEnabled())
+        self.assertFalse(panel.output_mode.isEnabled())
+        self.assertFalse(panel.folder_controls.isEnabled())
+        self.assertFalse(panel.install_overlay_button.isEnabled())
         tab.close()
         tab.deleteLater()
+
+    def test_output_destination_changes_reject_an_in_flight_plan(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.display_name.setText("Destination test")
+        controller, panel = tab.controller, tab.output_panel
+        ready_plan = controller.service.plan(controller.current_spec(), controller.snapshot)
+        changes = (
+            lambda: panel.export_root.setText(str(self.root / "new_mod")),
+            lambda: panel.manager.setCurrentIndex((panel.manager.currentIndex() + 1) % panel.manager.count()),
+            lambda: panel.output_mode.setCurrentIndex(panel.output_mode.findData("overlay")),
+            lambda: panel.overlay_directory.setText("0100"),
+        )
+        for change in changes:
+            with patch.object(controller, "_run", return_value=True) as dispatch:
+                self.assertTrue(controller.start_plan())
+            complete = dispatch.call_args.args[2]
+            change()
+            complete(ready_plan)
+            self.assertIsNone(controller.plan)
+            self.assertNotIn(ready_plan.spec.item_key, controller.issued_keys)
+            self.assertFalse(panel.export_button.isEnabled())
+            self.assertFalse(panel.install_overlay_button.isEnabled())

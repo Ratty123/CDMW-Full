@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QFrame,
-    QGridLayout,
     QHeaderView,
     QHBoxLayout,
     QLabel,
@@ -49,14 +48,6 @@ from cdmw.ui.new_item.effect_library_model import (  # noqa: F401 - compatibilit
 )
 
 _CHARACTER_RIGS = ("", "1_phm", "2_phw")
-
-
-class _CategoryChipPanel(QWidget):
-    resized = Signal(int)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        super().resizeEvent(event)
-        self.resized.emit(self.width())
 
 
 class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
@@ -116,15 +107,45 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(6)
+        search_row = QHBoxLayout()
+        self.library_toggle = QToolButton()
+        self.library_toggle.setText("Browse effects")
+        self.library_toggle.setCheckable(True)
+        self.library_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.library_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.library_toggle.toggled.connect(
+            lambda expanded: self.library_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
+        )
+        search_row.addWidget(self.library_toggle)
+        self.search = QLineEdit()
+        self.search.setObjectName("effect_search")
+        self.search.setPlaceholderText("Search effects…")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._refresh_library)
+        self.search.textEdited.connect(lambda _text: self.library_toggle.setChecked(True))
+        search_row.addWidget(self.search, 1)
+        self.category_choice = QComboBox()
+        for category in ("All", *(name for name, _tokens in CATEGORY_RULES), "Other"):
+            self.category_choice.addItem(category, category)
+        self.category_choice.currentIndexChanged.connect(self._refresh_library)
+        self.category_choice.activated.connect(lambda _index: self.library_toggle.setChecked(True))
+        search_row.addWidget(self.category_choice)
+        self.selected_effect_label = QLabel("No effect")
+        self.selected_effect_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.selected_effect_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        search_row.addWidget(self.selected_effect_label, 1)
+        layout.addLayout(search_row)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setObjectName("effect_workspace_splitter")
         self.splitter.setChildrenCollapsible(False)
         layout.addWidget(self.splitter, 1)
 
         library = QFrame()
+        self.library_panel = library
         library.setObjectName("effect_library_panel")
         library.setMinimumWidth(300)
+        self.library_toggle.toggled.connect(library.setVisible)
         library_layout = QVBoxLayout(library)
         library_layout.setContentsMargins(8, 8, 8, 6)
         library_layout.setSpacing(6)
@@ -134,14 +155,8 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.library_count = QLabel("")
         self.library_count.setObjectName("effect_library_count")
         library_layout.addWidget(self.library_count)
-        self.search = QLineEdit()
-        self.search.setObjectName("effect_search")
-        self.search.setPlaceholderText("Search effects…")
-        self.search.setClearButtonEnabled(True)
-        self.search.textChanged.connect(self._refresh_library)
         search_row = QHBoxLayout()
         search_row.setSpacing(4)
-        library_layout.addWidget(self.search)
         self.behavior_group = QButtonGroup(self)
         self.behavior_group.setExclusive(True)
         self.behavior_all = QToolButton()
@@ -166,30 +181,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.compatibility_label.setObjectName("effect_compatibility")
         self.compatibility_label.setWordWrap(True)
         self.compatibility_label.setVisible(False)
-        library_layout.addWidget(self.compatibility_label)
-
-        self.category_panel = _CategoryChipPanel()
-        self.category_layout = QGridLayout(self.category_panel)
-        self.category_layout.setContentsMargins(0, 0, 0, 0)
-        self.category_layout.setHorizontalSpacing(5)
-        self.category_layout.setVerticalSpacing(5)
-        self._category_columns = 0
-        self.category_group = QButtonGroup(self)
-        self.category_group.setExclusive(True)
-        self.category_buttons: dict[str, QToolButton] = {}
-        for category in ("All", *(name for name, _tokens in CATEGORY_RULES), "Other"):
-            button = QToolButton()
-            button.setText(category)
-            button.setCheckable(True)
-            button.setProperty("effectChip", True)
-            button.setMinimumWidth(button.fontMetrics().horizontalAdvance(category) + 18)
-            button.clicked.connect(self._refresh_library)
-            self.category_group.addButton(button)
-            self.category_buttons[category] = button
-        self.category_buttons["All"].setChecked(True)
-        self.category_panel.resized.connect(self._reflow_category_chips)
-        library_layout.addWidget(self.category_panel)
-        self._reflow_category_chips(self.category_panel.width())
+        layout.insertWidget(1, self.compatibility_label)
 
         self.library_model = EffectLibraryModel(self)
         self._build_library_view(library_layout)
@@ -227,6 +219,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.splitter.setStretchFactor(0, 29)
         self.splitter.setStretchFactor(1, 71)
         self.splitter.setSizes([380, 930])
+        library.hide()
 
         self.caution = QLabel("Visual only  •  Approximate preview  •  Verify final fit in game")
         self.caution.setObjectName("effect_visual_caution")
@@ -387,32 +380,7 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         return answer == QMessageBox.StandardButton.Yes
 
     def _active_category(self) -> str:
-        for category, button in self.category_buttons.items():
-            if button.isChecked():
-                return category
-        return "All"
-
-    def _reflow_category_chips(self, width: int) -> None:
-        buttons = tuple(self.category_buttons.values())
-        available = max(1, int(width))
-        spacing = self.category_layout.horizontalSpacing()
-        columns = 1
-        for candidate in range(len(buttons), 0, -1):
-            column_widths = [0] * candidate
-            for index, button in enumerate(buttons):
-                column = index % candidate
-                required = button.fontMetrics().horizontalAdvance(button.text()) + 18
-                column_widths[column] = max(column_widths[column], button.sizeHint().width(), required)
-            if sum(column_widths) + spacing * (candidate - 1) <= available:
-                columns = candidate
-                break
-        if columns == self._category_columns:
-            return
-        self._category_columns = columns
-        while self.category_layout.count():
-            self.category_layout.takeAt(0)
-        for index, button in enumerate(buttons):
-            self.category_layout.addWidget(button, index // columns, index % columns)
+        return str(self.category_choice.currentData() or "All")
 
     def _start_library(self, *_args) -> None:
         """Prepare labels in short event-loop slices; reuse them while browsing."""
@@ -496,7 +464,9 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.search.clear()
         self.search.blockSignals(False)
         self.behavior_all.setChecked(True)
-        self.category_buttons["All"].setChecked(True)
+        self.category_choice.blockSignals(True)
+        self.category_choice.setCurrentIndex(0)
+        self.category_choice.blockSignals(False)
         self.favourites_only.setChecked(False)
         self.family_only.setChecked(False)
         self._refresh_library()
@@ -523,6 +493,8 @@ class GuidedEffectsWorkspace(EffectWorkspaceAuthoringMixin, QWidget):
         self.selection_detail.setText(exact)
         self.selection_detail.setToolTip(exact)
         self.selection_detail.setVisible(bool(exact))
+        self.selected_effect_label.setText(self._label_by_stem.get(exact, effect_display_label(exact)) if exact else self.tr("No effect"))
+        self.selected_effect_label.setToolTip(exact)
         self._sync_library_tools(exact)
 
     def _sync_placement_from_state(self) -> None:

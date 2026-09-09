@@ -165,7 +165,13 @@ class EffectWorkspaceAuthoringMixin:
         if inspector is None:
             return
         self.recipe_panel = EffectRecipePanel(self.user_library, inspector)
-        inspector.layout().insertWidget(0, self.recipe_panel)
+        self.recipe_panel.hide()
+        tabs = self.recipe_panel.tabs
+        while tabs.count():
+            page, title = tabs.widget(0), tabs.tabText(0)
+            tabs.removeTab(0)
+            page.layout().setContentsMargins(10, 8, 10, 8)
+            placement._add_inspector_tab(page, title)
         self.recipe_panel.changed.connect(self._recipe_changed)
         self.recipe_panel.preview_controls.connect(self._send_effect_controls)
         placement.effect_preview_ready.connect(self.recipe_panel.set_preview)

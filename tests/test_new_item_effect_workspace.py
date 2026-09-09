@@ -237,7 +237,7 @@ class EffectWorkspaceTests(unittest.TestCase):
             prepared = facts.call_count
             workspace.search.setText("fire 001")
             workspace.loop_only.click()
-            workspace.category_buttons["Fire"].click()
+            workspace.category_choice.setCurrentIndex(workspace.category_choice.findData("Fire"))
             self.assertEqual(facts.call_count, prepared, "filtering must reuse prepared facts and labels")
             self.assertGreater(workspace.library_model.rowCount(), 1)
 
@@ -318,6 +318,8 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace.choose_effect("fx_fire_hit")
         self.app.processEvents()
         self.assertTrue(workspace.compatibility_label.isVisibleTo(workspace))
+        self.assertEqual(workspace.selected_effect_label.text(), "Fire Hit")
+        workspace.library_toggle.setChecked(True)
         self.assertTrue(workspace.selection_detail.isVisibleTo(workspace))
         self.assertEqual(workspace.selection_detail.text(), "fx_fire_hit")
 
@@ -397,6 +399,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         facts = SimpleNamespace(name="", loops=False, walk_note="", size=(2.5, 2.53, 2.64), search_text=lambda: 'fx_fire_hit')
         controller.effect_facts = lambda stem: facts if stem == "fx_fire_hit" else None
         workspace, _controller, _confirmations = self._workspace(controller)
+        workspace.library_toggle.setChecked(True)
         view = workspace.library_view
         model = workspace.library_model
         index = model.index_for_stem("fx_fire_hit")
@@ -712,7 +715,7 @@ class EffectWorkspaceTests(unittest.TestCase):
 
     def test_search_category_and_loop_filters_are_combined(self) -> None:
         workspace, _controller, _confirmations = self._workspace()
-        workspace.category_buttons["Fire"].click()
+        workspace.category_choice.setCurrentIndex(workspace.category_choice.findData("Fire"))
         workspace.loop_only.click()
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop"])
@@ -738,6 +741,7 @@ class EffectWorkspaceTests(unittest.TestCase):
         workspace._rebuild_preview()
         self.assertTrue(workspace.apply_staged())
         workspace.choose_effect("fx_frost_loop")
+        workspace.library_toggle.setChecked(True)
         workspace.search.setText("fire ring")
         stems = [workspace.library_model.row(row).stem for row in range(workspace.library_model.rowCount())]
         self.assertEqual(stems, ["", "fx_fire_ring_loop", "fx_frost_loop"])
@@ -754,14 +758,22 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertFalse(workspace.placement.discard_button.isEnabled())
         self.assertEqual(controller.commit_count, 1)
 
-    def test_category_chips_reflow_without_clipping_at_the_supported_narrow_width(self) -> None:
+    def test_library_toggle_preserves_the_selection_and_resident_workspace(self) -> None:
         workspace, _controller, _confirmations = self._workspace()
         workspace.resize(1280, 720)
+        workspace.choose_effect("fx_fire_ring_loop")
+        workspace._rebuild_preview()
         self.app.processEvents()
-        self.assertLess(workspace._category_columns, len(workspace.category_buttons))
-        for button in workspace.category_buttons.values():
-            required_text = button.fontMetrics().horizontalAdvance(button.text()) + 18
-            self.assertGreaterEqual(button.width(), required_text, button.text())
+        resident = workspace.placement
+        self.assertTrue(workspace.library_panel.isHidden())
+        self.assertEqual(workspace.selected_effect_label.toolTip(), "fx_fire_ring_loop")
+        for expanded in (True, False, True):
+            workspace.library_toggle.setChecked(expanded)
+            self.app.processEvents()
+            self.assertEqual(workspace.library_panel.isVisibleTo(workspace), expanded)
+            self.assertIs(workspace.placement, resident)
+            self.assertEqual(workspace.staged_state.stem, "fx_fire_ring_loop")
+        self.assertTrue(workspace.rect().contains(workspace.category_choice.geometry()))
 
     def test_logarithmic_factor_mapping_has_one_in_the_centre(self) -> None:
         self.assertEqual(EffectPlacementWorkspace._factor_to_slider(0.05), -1000)
