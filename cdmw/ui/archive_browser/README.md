@@ -141,7 +141,7 @@ to PAC coordinates, retains donor skin weights and lower LODs, and restores part
 order and duplicate triangles removed by Blender. Keep vertex order and counts;
 topology or rig changes require their separate replacement/authoring workflows.
 Blender corner-normal splits can recover the original vertex slots when positions,
-UVs and protected channels agree and a source normal remains. The import summary
+UVs and protected channels agree and a source normal or its reversal remains. The import summary
 reports retained source normals; new UV seams or separate hard-edge normals need
 topology replacement.
 
@@ -150,11 +150,19 @@ beside it as `<returned>.obj.meta.json`. This also supports a mesh first exporte
 as FBX: retain and rename its `.fbx.meta.json` for the returned OBJ. Direct FBX
 input remains a separate Blender conversion/replacement workflow. OBJ returns
 carry positions, normals and UV edits; they retain the PAC's original rig data.
-Blender's numeric rounding can prevent byte-identical no-edit returns.
-The rebuild verifies the resulting neutral positions. A nearly singular skin
-transform can magnify an edit beyond PAC position precision; that edit is blocked
-with the affected part and displacement instead of publishing distorted geometry.
-Use a source-coordinate OBJ or Mesh Replacement for such edits.
+The importer recovers unchanged coordinates, UVs and normal directions within
+OBJ/f32 and Blender custom-normal rounding precision. Larger Blender normal
+changes remain edits, so an untouched Blender session is not always a byte-identical
+return. Normal writes preserve the shared tangent and handedness bits; UV writes
+use correctly rounded half floats. Normal and UV edits retain all position bytes
+and bounds. A position edit that expands shared bounds compensates lower-LOD
+positions within half a quantization step and preserves their other vertex lanes.
+Unproven or conflicting lower-LOD ownership blocks that expansion.
+The rebuild verifies the resulting neutral positions and normal directions.
+A nearly singular skin transform can magnify an edit beyond PAC precision;
+displacements over the position tolerance or normal errors over one degree are
+blocked with the affected part and measured error. Use a source-coordinate OBJ
+for such normal edits, or Mesh Replacement for incompatible geometry changes.
 
 FBX retains its rig and recovered morph support, merges repeated influences on
 the same bone, and connects the resolved diffuse DDS files using portable paths.

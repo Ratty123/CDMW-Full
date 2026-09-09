@@ -15,6 +15,7 @@ The format is intentionally simple:
 - Mesh Import Setup opens compactly with expandable Files and Details. Mesh Replacement Builder combines transforms and part setup, keeps Source Mixing accessible, and hides Advanced controls and Edit Mesh.
 
 ### Fixed
+- PAC rebuilds preserve the tangent bits shared with packed normals, correctly encode normal Z signs and round half-float UVs. OBJ imports recover serialization noise, validate neutral normal accuracy and retain position bounds for normal/UV edits; expanded bounds compensate lower LODs within their quantization precision.
 - PAC interchange preserves source skin data and neutral appearance through OBJ/Blender round trips, including renamed or reordered parts, normal splits and duplicate faces. Unresolved palettes retain source coordinates, and reconstruction rejects edits beyond PAC position precision. FBX links resolved diffuse textures, omits placeholder images and preserves repeated bone influences.
 - Standalone Mesh Replacement Builder sends its models to the Rust/DX12 preview again and accepts subsequent alignment updates after the initial load.
 - Mesh Editor shows character heads in their resolved neutral shape, matching Archive Browser. Move and sculpt edits, selection, and Undo/Redo use that face; Finish converts edits back to the original PAC coordinates before validation and saving, avoiding a second deformation in game.

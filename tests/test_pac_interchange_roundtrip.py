@@ -284,6 +284,86 @@ def test_neutral_roundtrip_rejects_rebuild_that_drops_the_requested_edit(tmp_pat
         build_mesh(imported, raw)
 
 
+def test_neutral_roundtrip_rejects_rebuild_that_drops_normal_edit(tmp_path, monkeypatch):
+    raw, _source, _appearance, imported = _normal_split_obj(tmp_path)
+    imported.submeshes[0].normals[2] = (0., 0., 1.)
+    monkeypatch.setattr('cdmw.core.mesh_native.build_mesh_native', lambda mesh, original_data: original_data)
+    with pytest.raises(ValueError, match='exceeds PAC normal precision'):
+        build_mesh(imported, raw)
+
+
+def test_neutral_roundtrip_reports_missing_blender_normal_direction(tmp_path):
+    raw, _source, _appearance, imported = _normal_split_obj(tmp_path)
+    imported.submeshes[0].normals[2] = (0., 0., 0.)
+    with pytest.raises(ValueError, match='zero-length normal'):
+        build_mesh(imported, raw)
+
+
+def test_obj_rebuild_rejects_changes_to_tangent_bits_inside_normal_word(tmp_path, monkeypatch):
+    raw, source, obj = _export(tmp_path)
+    imported = import_obj(obj)
+    imported.submeshes[0].uvs[0] = (.125, .25)
+    corrupted = bytearray(raw)
+    offset = source.submeshes[0].source_vertex_offsets[0] + 16
+    corrupted[offset] ^= 1
+    monkeypatch.setattr('cdmw.core.mesh_native.build_mesh_native', lambda *_args: bytes(corrupted))
+    with pytest.raises(ValueError, match='protected PAC tangent bits'):
+        build_mesh(imported, raw)
+
+
+@pytest.mark.parametrize('sign', [1, -1])
+def test_neutral_obj_recovers_normal_direction_noise_before_ill_conditioned_inverse(tmp_path, sign):
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+    from cdmw.modding.mesh_pac_builder import _pack_pac_normal
+
+    raw, source = _skinned_pac()
+    data = bytearray(raw)
+    for offset in source.submeshes[0].source_vertex_offsets:
+        struct.pack_into('<I', data, offset + 16, _pack_pac_normal((0., 0., 1.), 0x800002AB))
+    raw = bytes(data)
+    source = parse_pac(raw, source.path)
+    source._cdmw_original_data = raw
+    matrix = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., .001, 0., 0., 0., 0., 1.)
+    appearance = NeutralMeshAppearance('owned/noise.pabc', (0, 1, 2), (matrix,) * 3)
+    displayed = appearance.to_neutral(source)
+    displayed._cdmw_neutral_appearance = appearance
+    imported = import_obj(export_obj(displayed, str(tmp_path), 'noise')[0])
+    imported.submeshes[0].normals = [(sign * x + .001, sign * y, sign * z) for x, y, z in imported.submeshes[0].normals]
+    expected = bytearray(raw)
+    if sign < 0:
+        for normal, offset in zip(source.submeshes[0].normals, source.submeshes[0].source_vertex_offsets):
+            packed = struct.unpack_from('<I', raw, offset + 16)[0]
+            struct.pack_into('<I', expected, offset + 16, _pack_pac_normal(tuple(-v for v in normal), packed))
+    assert build_mesh(imported, raw) == bytes(expected)
+
+
+def test_neutral_normal_uses_source_when_inverse_quantization_is_less_accurate(tmp_path):
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+
+    raw, source = _skinned_pac()
+    source._cdmw_original_data = raw
+    matrix = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., .0001, 0., 0., 0., 0., 1.)
+    appearance = NeutralMeshAppearance('owned/quantization.pabc', (0, 1, 2), (matrix,) * 3)
+    displayed = appearance.to_neutral(source)
+    displayed._cdmw_neutral_appearance = appearance
+    imported = import_obj(export_obj(displayed, str(tmp_path), 'quantization')[0])
+    imported.submeshes[0].normals = [(x, y, z + .004) for x, y, z in imported.submeshes[0].normals]
+    # Packed XY quantization would turn this small normal edit almost 90 degrees
+    # after redisplay. The unchanged source is within 0.23 degrees of the input.
+    assert build_mesh(imported, raw) == raw
+
+
+def test_blender_axis_rounding_near_coordinate_plane_does_not_become_position_edit(tmp_path):
+    from cdmw.modding.mesh_importer import _prepare_mesh_for_rebuild
+
+    raw, source, _appearance, imported = _normal_split_obj(tmp_path)
+    imported.submeshes[0].vertices = [(x, y, z + (6.35e-7 if max(abs(x), abs(y)) > .5 else 0.))
+                                     for x, y, z in imported.submeshes[0].vertices]
+    _, prepared, _ = _prepare_mesh_for_rebuild(imported, raw)
+    assert prepared.submeshes[0].vertices == source.submeshes[0].vertices
+    assert build_mesh(imported, raw) == raw
+
+
 def test_obj_object_and_material_names_preserve_spaces_and_hashes(tmp_path):
     raw, source = _skinned_pac()
     source._cdmw_original_data = raw

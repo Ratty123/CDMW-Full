@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import struct
 import dataclasses
 import hashlib
 from collections import Counter
@@ -19,7 +20,7 @@ from cdmw.domain.mesh.operations import (
     validate_mesh_edit_operations,
 )
 
-from .mesh_parser import ParsedMesh, parse_pac, parse_pam, parse_pamlod
+from .mesh_parser import ParsedMesh, _decode_pac_normal, parse_pac, parse_pam, parse_pamlod
 from .mesh_builder_common import (
     _align_static_vertex_sequences,
     _align_submesh_order_like_original,
@@ -330,6 +331,8 @@ def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> Pars
         )
     if appearance_payload is not None:
         restored = _restore_obj_neutral_coordinates(restored, original, appearance_payload, displayed=displayed)
+    else:
+        _restore_obj_rounded_channels(restored, original)
     if original.lod_levels and not restored.lod_levels:
         restored.lod_levels = [restored.submeshes, *copy.deepcopy(original.lod_levels[1:])]
     restored.has_bones = original.has_bones
@@ -367,7 +370,10 @@ def _collapse_obj_normal_splits(part, donor, reference) -> bool:
         # a near-zero component away. Require the source direction within that
         # precision (about 0.1 degree), then retain its original packed normal.
         if not any(math.dist(direction(part.normals[i]), source_direction) <= 2e-3 for i in indices):
-            raise ValueError(f"OBJ split vertex {source_index} has no matching source normal; use topology replacement.")
+            reversed_direction = tuple(-value for value in source_direction)
+            if not any(math.dist(direction(part.normals[i]), reversed_direction) <= 2e-3 for i in indices):
+                raise ValueError(f"OBJ split vertex {source_index} has no matching source normal; use topology replacement.")
+            normal = tuple(-value for value in normal)
         part.normals[indices[0]] = normal
     for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights", "source_vertex_offsets"):
         values = getattr(part, attr, ()) or ()
@@ -411,20 +417,90 @@ def _restore_obj_neutral_coordinates(
         # Snap only values within that serialization precision before inversion.
         if displayed is None:
             displayed = appearance.to_neutral(original)
-        for part, reference in zip(mesh.submeshes, displayed.submeshes):
-            for attr in ("vertices", "normals"):
-                values, baseline = getattr(part, attr), getattr(reference, attr)
-                if len(values) == len(baseline):
-                    setattr(part, attr, [b if all(abs(x-y) <= 6e-7 for x, y in zip(a,b)) else a
-                                         for a,b in zip(values, baseline)])
+        _restore_obj_rounded_channels(mesh, displayed)
         restored = appearance.to_source(mesh, original)
         restored._cdmw_obj_display_vertices = tuple(tuple(part.vertices) for part in mesh.submeshes)
+        restored._cdmw_obj_display_normals = tuple(tuple(part.normals) for part in mesh.submeshes)
+        for part, donor, incoming, reference in zip(restored.submeshes, original.submeshes, mesh.submeshes, displayed.submeshes):
+            for index, value in enumerate(incoming.normals):
+                if value == tuple(-component for component in reference.normals[index]):
+                    # Reversing a known normal needs no unstable matrix inverse
+                    # or normalization of its slightly non-unit PAC source.
+                    part.normals[index] = tuple(-component for component in donor.normals[index])
+            _fit_neutral_obj_normal_precision(part, donor, incoming, reference, appearance)
         # OBJ does not author tangents; keep the protected donor channel.
         for part, donor in zip(restored.submeshes, original.submeshes):
             part.tangents = copy.deepcopy(donor.tangents)
         return restored
     except (KeyError, TypeError, OverflowError, ValueError) as exc:
         raise ValueError(f"OBJ neutral appearance reconstruction failed: {exc}") from exc
+
+
+def _normal_direction(value):
+    length = math.hypot(*value)
+    return tuple(component / length for component in value) if length > 1e-12 else tuple(value)
+
+
+def _fit_neutral_obj_normal_precision(part, donor, incoming, reference, appearance):
+    """Use a known packed direction when inversion quantizes less accurately."""
+    from .mesh_neutral_appearance import _point
+
+    limit = 2 * math.sin(math.radians(1.0) / 2)
+    matrices = None
+    for index, wanted in enumerate(incoming.normals):
+        if part.normals[index] == donor.normals[index]:
+            continue
+        wanted = _normal_direction(wanted)
+        baseline = _normal_direction(reference.normals[index])
+        errors = [math.dist(wanted, baseline), math.dist(wanted, tuple(-v for v in baseline))]
+        best = min(range(2), key=errors.__getitem__)
+        if errors[best] > limit:
+            continue
+        if matrices is None:
+            matrices = appearance._vertex_matrices(donor, appearance._normal_matrices())
+        pair = matrices[index]
+        sign = 0x40000000 if math.copysign(1., donor.normals[index][2]) < 0 else 0
+        packed = _pack_pac_normal(part.normals[index], sign)
+        decoded = _decode_pac_normal(bytes(16) + struct.pack('<I', packed), 0)
+        actual = _point(decoded, pair[1], normal=True) if pair else _normal_direction(decoded)
+        error = math.dist(wanted, actual)
+        if error > limit and errors[best] < error:
+            # Near-singular transforms can magnify one packed XY step. Keeping
+            # the known source (or reversed source) is a better representable
+            # approximation here. Other edits still face the final error gate.
+            part.normals[index] = tuple((-1 if best else 1) * v for v in donor.normals[index])
+
+
+def _restore_obj_rounded_channels(mesh: ParsedMesh, reference: ParsedMesh) -> None:
+    """Recover source values within OBJ/f32 and Blender custom-normal precision."""
+    for part, donor in zip(mesh.submeshes, reference.submeshes):
+        if (len(part.vertices) != len(donor.vertices)
+                or list(part.source_vertex_map) != list(donor.source_vertex_map)):
+            continue
+        for attr in ("vertices", "uvs", "normals"):
+            values, baseline = getattr(part, attr), getattr(donor, attr)
+            if len(values) != len(baseline):
+                continue
+            restored = []
+            for actual, expected in zip(values, baseline):
+                if attr == "normals":
+                    # Same tolerance as proven corner-normal recovery. Compare
+                    # directions: decoded PAC XY can have a non-unit length.
+                    same = math.dist(_normal_direction(actual), _normal_direction(expected)) <= 2e-3
+                    if not same:
+                        reversed_normal = tuple(-value for value in expected)
+                        if math.dist(_normal_direction(actual), _normal_direction(reversed_normal)) <= 2e-3:
+                            expected, same = reversed_normal, True
+                elif attr == "vertices":
+                    # Blender's axis conversion mixes components. Bound its
+                    # float32 rounding by the whole point, including values
+                    # near an axis plane, before the six-decimal OBJ output.
+                    tolerance = 6e-7 + max(map(abs, expected), default=0.) * 2**-22
+                    same = all(abs(a - b) <= tolerance for a, b in zip(actual, expected))
+                else:
+                    same = all(abs(a - b) <= 6e-7 + abs(b) * 2**-23 for a, b in zip(actual, expected))
+                restored.append(expected if same else actual)
+            setattr(part, attr, restored)
 
 
 def _build_prepared_mesh_bytes(
@@ -515,6 +591,23 @@ def _validate_neutral_obj_rebuild(fmt: str, mesh: ParsedMesh, rebuilt_data: byte
             )
 
 
+    for part, normals in zip(displayed.submeshes, getattr(mesh, "_cdmw_obj_display_normals", ()), strict=True):
+        if any(math.hypot(*normal) < 1e-12 for normal in normals):
+            raise ValueError(
+                f"Neutral OBJ edit exceeds PAC normal precision for {part.name}: "
+                "the Blender input contains a zero-length normal. Restore its normal direction before reimport."
+            )
+        error = max((math.dist(_normal_direction(actual), _normal_direction(wanted))
+                     for actual, wanted in zip(part.normals, normals, strict=True)), default=0.0)
+        if error > 2 * math.sin(math.radians(1.0) / 2):
+            degrees = math.degrees(2 * math.asin(min(1.0, error / 2)))
+            raise ValueError(
+                f"Neutral OBJ edit exceeds PAC normal precision for {part.name} "
+                f"(reconstructed direction error {degrees:.6g} degrees). "
+                "Use a source-coordinate OBJ for this normal edit."
+            )
+
+
 def _has_topology_contract(mesh: ParsedMesh) -> bool:
     """True when any submesh carries a contract that describes its own geometry."""
     return bool(topology_contract_submesh_indices(mesh))
@@ -581,6 +674,12 @@ def _validate_pac_obj_protected_vertex_bytes(
                 raise ValueError(
                     "OBJ round-trip could not prove protected PAC vertex-byte preservation for "
                     f"submesh {submesh_index} vertex {vertex_index}: source record is outside the file."
+                )
+            before = struct.unpack_from("<I", original_data, offset + 16)[0]
+            after = struct.unpack_from("<I", rebuilt_data, offset + 16)[0]
+            if (before ^ after) & 0x800003FF:
+                raise ValueError(
+                    f"OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}."
                 )
             for start, end in protected_spans:
                 if original_data[offset + start : offset + end] != rebuilt_data[offset + start : offset + end]:

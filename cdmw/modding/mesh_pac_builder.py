@@ -16,6 +16,7 @@ from .mesh_parser import (
     SubMesh,
     _compute_smooth_normals,
     _find_pac_descriptors,
+    _parse_pac_geometry_section,
     _parse_par_sections,
     _validated_pac_descriptor_prefix,
     parse_pac,
@@ -538,6 +539,77 @@ def _build_pac_with_exact_skin_weights(
     )
 
 
+def _pac_in_place_bounds(original: SubMesh, edited: SubMesh):
+    minimum, extent = original.source_bbox_min, original.source_bbox_extent
+    if original.vertices == edited.vertices or all(
+        math.isfinite(value) and minimum[axis] <= value <= minimum[axis] + extent[axis]
+        for vertex in edited.vertices for axis, value in enumerate(vertex)
+    ):
+        return minimum, extent
+    # A descriptor is shared across LODs. Expand its old range; do not shrink
+    # it to LOD0 and thereby discard the range used by the other levels.
+    low, high = _compute_bbox([
+        *edited.vertices, minimum, tuple(a + b for a, b in zip(minimum, extent)),
+    ])
+    # Quantize against the exact f32 bounds that the decoder will read.
+    low = struct.unpack("<3f", struct.pack("<3f", *low))
+    span = struct.unpack("<3f", struct.pack("<3f", *(high[i] - low[i] for i in range(3))))
+    return low, span
+
+
+def _preserve_pac_lower_lod_positions(original_data, mesh, bounds, vertex_updates):
+    """Compensate shared bounds with position-only writes to proven lower LODs."""
+    if not bounds:
+        return
+    sections = _parse_par_sections(original_data)
+    section_map = {section["index"]: section for section in sections}
+    sec0 = section_map.get(0)
+    if sec0 is None:
+        raise ValueError("PAC bounds expansion cannot locate the shared LOD descriptors.")
+    lod_count = original_data[sec0["offset"] + 4]
+    descriptors = _validated_pac_descriptor_prefix(
+        _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], lod_count),
+        sections, filename=mesh.path,
+    )
+    for lod in range(1, lod_count):
+        required = {desc.descriptor_offset for desc in descriptors
+                    if desc.descriptor_offset in bounds and desc.vertex_counts[lod]}
+        if not required:
+            continue
+        section = section_map.get(4 - lod)
+        if section is None:
+            raise ValueError(f"PAC bounds expansion cannot prove LOD{lod} vertex ownership.")
+        lower = _parse_pac_geometry_section(original_data, mesh.path, descriptors, section, lod)
+        covered = set()
+        updates = {}
+        for part in lower.submeshes:
+            changed = bounds.get(part.source_descriptor_offset)
+            if changed is not None:
+                covered.add(part.source_descriptor_offset)
+            for position, offset in zip(part.vertices, part.source_vertex_offsets, strict=True):
+                payload = bytearray(original_data[offset:offset + part.source_vertex_stride])
+                if changed is not None:
+                    minimum, extent = changed
+                    packed = tuple(_quantize_pac_u16(position[i], minimum[i], extent[i]) for i in range(3))
+                    actual = tuple(minimum[i] + packed[i] / 32767.0 * extent[i] for i in range(3))
+                    # Fail closed on clamping or unsupported ranges. The only
+                    # allowed movement is half a step of the new quantization.
+                    if any(abs(a - b) > abs(extent[i]) / 65534.0 + 1e-10
+                           for i, (a, b) in enumerate(zip(actual, position))):
+                        raise ValueError(f"PAC bounds expansion cannot preserve LOD{lod} position precision.")
+                    struct.pack_into("<3H", payload, 0, *packed)
+                payload = bytes(payload)
+                if offset in updates and updates[offset] != payload:
+                    raise ValueError("PAC bounds expansion changes a shared lower-LOD vertex inconsistently.")
+                updates[offset] = payload
+        if required - covered:
+            raise ValueError(f"PAC bounds expansion cannot prove all LOD{lod} vertex records.")
+        for offset, payload in updates.items():
+            if offset in vertex_updates and vertex_updates[offset] != payload:
+                raise ValueError("PAC bounds expansion overlaps another edited LOD.")
+            vertex_updates[offset] = payload
+
+
 def _build_pac_in_place(
     original_mesh: ParsedMesh,
     working_mesh: ParsedMesh,
@@ -547,6 +619,7 @@ def _build_pac_in_place(
     result = bytearray(original_data)
     vertex_updates: dict[int, bytes] = {}
     index_updates: dict[int, bytes] = {}
+    changed_bounds = {}
 
     for sm_idx, (orig_sm, new_sm) in enumerate(zip(original_mesh.submeshes, working_mesh.submeshes)):
         if len(orig_sm.vertices) != len(new_sm.vertices):
@@ -566,9 +639,12 @@ def _build_pac_in_place(
                 f"PAC submesh {sm_idx} is missing source vertex metadata and cannot be rebuilt safely."
             )
 
-        bmin, bmax = _compute_bbox(new_sm.vertices)
-        extent = tuple(bmax[i] - bmin[i] for i in range(3))
-        _patch_pac_descriptor_bounds(result, orig_sm.source_descriptor_offset, bmin, extent)
+        bmin, extent = _pac_in_place_bounds(orig_sm, new_sm)
+        bounds_changed = (bmin, extent) != (orig_sm.source_bbox_min, orig_sm.source_bbox_extent)
+        if bounds_changed:
+            _patch_pac_descriptor_bounds(result, orig_sm.source_descriptor_offset, bmin, extent)
+            if orig_sm.source_lod_count > 1:
+                changed_bounds[orig_sm.source_descriptor_offset] = (bmin, extent)
 
         new_uvs = new_sm.uvs if len(new_sm.uvs) == len(new_sm.vertices) else []
         new_normals = (
@@ -600,14 +676,13 @@ def _build_pac_in_place(
                     # rewrites these lanes afterwards.
                     rec[20:28] = b"\x00" * 8
             vx, vy, vz = new_sm.vertices[vi]
-            struct.pack_into(
-                "<HHH",
-                rec,
-                0,
-                _quantize_pac_u16(vx, bmin[0], extent[0]),
-                _quantize_pac_u16(vy, bmin[1], extent[1]),
-                _quantize_pac_u16(vz, bmin[2], extent[2]),
-            )
+            if bounds_changed or new_sm.vertices[vi] != orig_sm.vertices[vi]:
+                struct.pack_into(
+                    "<HHH", rec, 0,
+                    _quantize_pac_u16(vx, bmin[0], extent[0]),
+                    _quantize_pac_u16(vy, bmin[1], extent[1]),
+                    _quantize_pac_u16(vz, bmin[2], extent[2]),
+                )
 
             if new_uvs:
                 try:
@@ -655,6 +730,7 @@ def _build_pac_in_place(
                     )
                 index_updates[face_off] = payload
 
+    _preserve_pac_lower_lod_positions(original_data, original_mesh, changed_bounds, vertex_updates)
     for rec_off, payload in vertex_updates.items():
         result[rec_off:rec_off + len(payload)] = payload
     for face_off, payload in index_updates.items():

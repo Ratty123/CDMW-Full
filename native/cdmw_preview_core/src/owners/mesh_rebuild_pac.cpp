@@ -41,21 +41,28 @@ static std::int64_t parse_i64_field(const std::vector<std::string>& fields, size
     }
 }
 
-static std::uint16_t float_to_half(float value) {
-    if (!std::isfinite(value)) value = 0.0f;
-    std::uint32_t bits = 0;
+static std::uint16_t float_to_half(double value) {
+    if (!std::isfinite(value)) value = 0.0;
+    std::uint64_t bits = 0;
     std::memcpy(&bits, &value, sizeof(bits));
-    const std::uint32_t sign = (bits >> 16) & 0x8000u;
-    int exp = static_cast<int>((bits >> 23) & 0xFFu) - 127 + 15;
-    std::uint32_t mant = bits & 0x7FFFFFu;
+    const std::uint64_t sign = (bits >> 48) & 0x8000u;
+    int exp = static_cast<int>((bits >> 52) & 0x7FFu) - 1023 + 15;
+    std::uint64_t mant = bits & 0xFFFFFFFFFFFFFu;
     if (exp <= 0) {
         if (exp < -10) return static_cast<std::uint16_t>(sign);
-        mant |= 0x800000u;
-        const std::uint32_t shifted = mant >> static_cast<std::uint32_t>(1 - exp);
-        return static_cast<std::uint16_t>(sign | ((shifted + 0x1000u) >> 13));
+        mant |= 0x10000000000000u;
+        const unsigned shift = static_cast<unsigned>(43 - exp);
+        const std::uint64_t truncated = mant >> shift;
+        const std::uint64_t remainder = mant & ((std::uint64_t{1} << shift) - 1u);
+        const std::uint64_t halfway = std::uint64_t{1} << (shift - 1u);
+        const std::uint64_t rounded = truncated + (remainder > halfway || (remainder == halfway && (truncated & 1u)));
+        return static_cast<std::uint16_t>(sign | rounded);
     }
     if (exp >= 31) return static_cast<std::uint16_t>(sign | 0x7C00u);
-    return static_cast<std::uint16_t>(sign | (static_cast<std::uint32_t>(exp) << 10) | ((mant + 0x1000u) >> 13));
+    // Add the rounded mantissa: its carry belongs to the exponent. OR loses
+    // that carry when the exponent's low bit is already set.
+    const std::uint64_t rounded = (mant + 0x1FFFFFFFFFFu + ((mant >> 42) & 1u)) >> 42;
+    return static_cast<std::uint16_t>(sign | ((static_cast<std::uint32_t>(exp) << 10) + rounded));
 }
 
 static std::uint16_t quantize_pac_u16(float value, float bbox_min, float bbox_extent) {
@@ -83,8 +90,9 @@ static std::uint32_t pack_pac_normal(Vec3 normal, std::uint32_t existing_packed)
         value = std::clamp(std::isfinite(value) ? value : 0.0f, -1.0f, 1.0f);
         return static_cast<std::uint32_t>(std::clamp(static_cast<int>(std::nearbyint((value + 1.0f) * 511.5f)), 0, 1023));
     };
-    const std::uint32_t packed = enc(normal.z) | (enc(normal.x) << 10) | (enc(normal.y) << 20);
-    return (existing_packed & 0xC0000000u) | packed;
+    const std::uint32_t sign = normal.z < 0.0f ? 0x40000000u
+        : normal.z > 0.0f ? 0u : existing_packed & 0x40000000u;
+    return (existing_packed & 0x800003FFu) | sign | (enc(normal.x) << 10) | (enc(normal.y) << 20);
 }
 
 static void write_u16_le(std::vector<char>& data, size_t offset, std::uint16_t value) {
@@ -330,28 +338,13 @@ static std::vector<char> rebuild_pac_in_place_native(const std::vector<char>& or
         }
         if (submesh.vertex_count <= 0 && submesh.face_count <= 0) continue;
         if (submesh.stride < 12) throw std::runtime_error("native PAC rebuild requires source vertex stride metadata");
-        std::array<double, 3> bmin{1.0e300, 1.0e300, 1.0e300};
-        std::array<double, 3> bmax{-1.0e300, -1.0e300, -1.0e300};
-        for (const PacPatchVertex& vertex : submesh.vertices) {
-            bmin[0] = std::min(bmin[0], vertex.position[0]); bmin[1] = std::min(bmin[1], vertex.position[1]); bmin[2] = std::min(bmin[2], vertex.position[2]);
-            bmax[0] = std::max(bmax[0], vertex.position[0]); bmax[1] = std::max(bmax[1], vertex.position[1]); bmax[2] = std::max(bmax[2], vertex.position[2]);
-        }
-        constexpr double bbox_eps = 1.0e-6;
+        if (submesh.descriptor_offset < 0) throw std::runtime_error("native PAC rebuild requires source bounds");
+        const size_t desc = static_cast<size_t>(submesh.descriptor_offset);
+        if (desc + 35u > original.size()) throw std::runtime_error("PAC descriptor offset is outside the file");
+        std::array<double, 3> bmin{}, extent{};
         for (int axis = 0; axis < 3; ++axis) {
-            bmin[axis] -= bbox_eps;
-            bmax[axis] += bbox_eps;
-        }
-        const std::array<double, 3> extent{bmax[0] - bmin[0], bmax[1] - bmin[1], bmax[2] - bmin[2]};
-        if (submesh.descriptor_offset >= 0) {
-            const size_t desc = static_cast<size_t>(submesh.descriptor_offset);
-            if (desc + 35u > output.size()) throw std::runtime_error("PAC descriptor offset is outside the file");
-            const size_t floats = desc + 3u;
-            write_f32_le(output, floats + 2u * 4u, static_cast<float>(bmin[0]));
-            write_f32_le(output, floats + 3u * 4u, static_cast<float>(bmin[1]));
-            write_f32_le(output, floats + 4u * 4u, static_cast<float>(bmin[2]));
-            write_f32_le(output, floats + 5u * 4u, static_cast<float>(extent[0]));
-            write_f32_le(output, floats + 6u * 4u, static_cast<float>(extent[1]));
-            write_f32_le(output, floats + 7u * 4u, static_cast<float>(extent[2]));
+            bmin[axis] = read_f32(original, desc + 11u + axis * 4u);
+            extent[axis] = read_f32(original, desc + 23u + axis * 4u);
         }
         for (size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
             const PacPatchVertex& vertex = submesh.vertices[vertex_index];
@@ -364,12 +357,21 @@ static std::vector<char> rebuild_pac_in_place_native(const std::vector<char>& or
                     for (size_t i = 20; i < 28; ++i) output[rec_off + i] = 0;
                 }
             }
-            write_u16_le(output, rec_off + 0u, quantize_pac_u16_double(vertex.position[0], bmin[0], extent[0]));
-            write_u16_le(output, rec_off + 2u, quantize_pac_u16_double(vertex.position[1], bmin[1], extent[1]));
-            write_u16_le(output, rec_off + 4u, quantize_pac_u16_double(vertex.position[2], bmin[2], extent[2]));
+            for (int axis = 0; axis < 3; ++axis) {
+                const auto packed = read_u16(original, rec_off + axis * 2u);
+                const double source = bmin[axis] + (std::abs(extent[axis]) < 1.0e-8 ? 0.0 : (packed / 32767.0) * extent[axis]);
+                if (vertex.position[axis] == source) continue;
+                const double value = vertex.position[axis];
+                // Descriptors are shared by every LOD. The Python writer owns
+                // expansion, including compensating and validating lower LODs.
+                if (!std::isfinite(value) || extent[axis] < 0.0 || value < bmin[axis] || value > bmin[axis] + extent[axis]) {
+                    throw std::runtime_error("native PAC bounds expansion requires shared LOD preservation");
+                }
+                write_u16_le(output, rec_off + axis * 2u, quantize_pac_u16_double(value, bmin[axis], extent[axis]));
+            }
             if (submesh.stride >= 12) {
-                write_u16_le(output, rec_off + 8u, float_to_half(static_cast<float>(vertex.uv[0])));
-                write_u16_le(output, rec_off + 10u, float_to_half(static_cast<float>(vertex.uv[1])));
+                write_u16_le(output, rec_off + 8u, float_to_half(vertex.uv[0]));
+                write_u16_le(output, rec_off + 10u, float_to_half(vertex.uv[1]));
             }
             if (submesh.stride >= 20) {
                 const std::uint32_t existing = read_u32(output, rec_off + 16u);
@@ -492,8 +494,8 @@ static std::pair<std::vector<char>, int> build_pac_full_lod_payload(
                     quantize_pac_u16_double(vertex.position[axis], item.bbox_min[axis], item.bbox_extent[axis]));
             }
             if (submesh.stride >= 12) {
-                write_u16_le(record, 8u, float_to_half(static_cast<float>(vertex.uv[0])));
-                write_u16_le(record, 10u, float_to_half(static_cast<float>(vertex.uv[1])));
+                write_u16_le(record, 8u, float_to_half(vertex.uv[0]));
+                write_u16_le(record, 10u, float_to_half(vertex.uv[1]));
             }
             if (submesh.stride >= 20) {
                 const std::uint32_t existing = read_u32(record, 16u);

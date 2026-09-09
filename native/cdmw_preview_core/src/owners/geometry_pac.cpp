@@ -7,14 +7,11 @@ static float decode_pac_position(std::uint16_t value, float min_value, float ext
 static Vec3 decode_pac_normal(const std::vector<char>& data, size_t rec_off, int normal_offset = 16) {
     if (normal_offset < 0 || rec_off + static_cast<size_t>(normal_offset) + 4 > data.size()) return Vec3{0.0f, 1.0f, 0.0f};
     const std::uint32_t packed = read_u32(data, rec_off + static_cast<size_t>(normal_offset));
-    const std::uint32_t nx_raw = (packed >> 0) & 0x3FFu;
-    const std::uint32_t ny_raw = (packed >> 10) & 0x3FFu;
-    const std::uint32_t nz_raw = (packed >> 20) & 0x3FFu;
-    return vec_normalize(Vec3{
-        static_cast<float>(ny_raw) / 511.5f - 1.0f,
-        static_cast<float>(nz_raw) / 511.5f - 1.0f,
-        static_cast<float>(nx_raw) / 511.5f - 1.0f,
-    });
+    const float nx = static_cast<float>((packed >> 10) & 0x3FFu) / 511.5f - 1.0f;
+    const float ny = static_cast<float>((packed >> 20) & 0x3FFu) / 511.5f - 1.0f;
+    float nz = std::sqrt(std::max(0.0f, 1.0f - nx * nx - ny * ny));
+    if (packed & 0x40000000u) nz = -nz;
+    return Vec3{nx, ny, nz};
 }
 
 struct PacVertexLayout {
