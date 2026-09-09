@@ -104,20 +104,17 @@ def derive_bone_map(points: np.ndarray, slots: Sequence[int], skeleton) -> dict:
 def _resolved_palette(data: bytes, skeleton) -> tuple:
     """The file's bone palette, mapped onto this rig by name hash.
 
-    The shared resolver only looks at the first 4 KB, which is where a body keeps its palette.
-    Armour keeps it further in — a coat, a boot and a helmet all came back with nothing, and
-    every one of them resolves once the whole file is searched. So the cheap scan runs first and
-    the wide one is the fallback, which costs 0.15–0.6 s and only on a piece being worn.
+    The shared resolver searches declared metadata first. Older layouts can keep the
+    palette beyond that range, so retain the whole-file search when it finds nothing.
+    Filter counts and the first hash in bounded NumPy batches before decoding tables.
 
     A candidate has to resolve *completely*: every hash a bone this rig actually has. That is a
     strong enough filter to be unambiguous in practice — of the 2,226 tables that merely look
     like a palette in a body mesh, exactly one resolves.
     """
 
-    from cdmw.modding.mesh_parser import (
-        pac_bone_palette_candidates,
-        resolve_pac_bone_palette,
-    )
+    import struct
+    from cdmw.modding.mesh_parser import resolve_pac_bone_palette
 
     palette = resolve_pac_bone_palette(data, skeleton)
     if palette:
@@ -132,12 +129,27 @@ def _resolved_palette(data: bytes, skeleton) -> tuple:
         except (TypeError, ValueError):
             continue
     best: tuple = ()
-    for candidate in pac_bone_palette_candidates(data, search_limit=len(data)):
-        if len(candidate) <= len(best):
-            continue
-        resolved = tuple(by_hash.get(value, -1) for value in candidate)
-        if all(index >= 0 for index in resolved):
-            best = resolved
+    length = len(data)
+    # Match the shared candidate scan, including unaligned tables, full hash
+    # validation and the first table winning a tie. Only temporary scan arrays
+    # are bounded here; a candidate may span the next batch.
+    for start in range(16, length - 6, 1024 * 1024):
+        size = min(1024 * 1024, length - 6 - start)
+        counts = np.ndarray((size,), dtype='<u2', buffer=data, offset=start, strides=(1,))
+        offsets = np.flatnonzero((counts > max(7, len(best))) & (counts <= 512))
+        offsets = offsets[start + offsets + 2 + counts[offsets].astype(np.int64) * 4 <= length]
+        first = np.ndarray((size,), dtype='<u4', buffer=data, offset=start + 2, strides=(1,))
+        offsets = offsets[np.isin(first[offsets], tuple(by_hash))]
+        for offset in offsets:
+            count = int(counts[offset])
+            if count <= len(best):
+                continue
+            candidate = struct.unpack_from(f'<{count}I', data, start + int(offset) + 2)
+            if any(value < 0x10000 for value in candidate) or len(set(candidate)) != count:
+                continue
+            resolved = tuple(by_hash.get(value, -1) for value in candidate)
+            if all(index >= 0 for index in resolved):
+                best = resolved
     return best
 
 
@@ -296,12 +308,8 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
     if not rest or not faces:
         return None
     rest_array = np.asarray(rest, dtype=np.float64)
-    # Resolved once. The wide scan behind it walks the whole file, so asking twice — once for
-    # the primary bone and again for the second — doubled the cost of loading a character.
-    try:
-        palette = _resolved_palette(data, skeleton)
-    except Exception:  # noqa: BLE001 - an unreadable palette is a fallback, not a failure
-        palette = ()
+    # Reuse the palette already resolved for the exact path, including an empty
+    # result. Falling back must not search the same payload a second time.
     column, exact = _bone_column(palette, primary, rest_array, skeleton)
     # The second influence indexes the same palette, so it only means anything when the palette
     # resolved. Under the proximity fallback the slot is not a bone at all and blending towards
@@ -357,7 +365,17 @@ def deform(mesh: SkinnedMesh, matrices: np.ndarray) -> np.ndarray:
     out = np.zeros((mesh.vertex_count, 3), dtype=np.float64)
     for slot in range(mesh.bones.shape[1]):
         weight = mesh.weights[:, slot]
-        if not np.any(weight):
+        active_count = np.count_nonzero(weight)
+        if not active_count:
+            continue
+        if active_count * 2 < mesh.vertex_count:
+            # Exact skins retain up to eight columns, often with only a few
+            # vertices using the later ones. Preserve every positive influence
+            # while avoiding matrix copies and multiplies for zero-weight rows.
+            active = np.flatnonzero(weight)
+            picked = matrices[mesh.bones[active, slot]]
+            moved = np.einsum("nj,njk->nk", mesh.rest[active], picked)[:, :3]
+            out[active] += weight[active, None] * moved
             continue
         picked = matrices[mesh.bones[:, slot]]           # (N, 4, 4)
         moved = np.einsum("nj,njk->nk", mesh.rest, picked)[:, :3]

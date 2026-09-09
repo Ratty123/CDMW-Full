@@ -23,6 +23,16 @@ from tools.paa_motion.timing import duration_seconds, timeline_end, validate_tim
 from .skeleton import BoneHierarchy, BoneNode
 
 
+# Sampling remains on the clip's original clock; fractional poses let a 30 Hz clip
+# be displayed smoothly at 60 Hz. Qt's integer interval rounds down, not to 17 ms.
+PREVIEW_TICK_MS = 16
+
+
+def frame_interval_ms(update_seconds: float, paint_seconds: float) -> int:
+    """Include deferred painting in the frame budget while leaving overload bounded."""
+    return min(100, max(PREVIEW_TICK_MS, math.ceil(1000 * (update_seconds + paint_seconds))))
+
+
 class PlaybackError(RuntimeError):
     """Raised when a clip cannot be posed onto the loaded rig."""
 

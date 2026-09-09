@@ -880,9 +880,7 @@ class PlacementStudioWindow(
         base = 0
         for index, mesh in enumerate(meshes):
             before = len(faces)
-            faces.extend(
-                (int(a) + base, int(b) + base, int(c) + base) for a, b, c in mesh.faces
-            )
+            faces.extend(map(tuple, (mesh.faces.astype(np.int64, copy=False) + base).tolist()))
             # Every body mesh shares group 0 — the head and the torso are one character, and
             # tinting them apart would read as a seam rather than as a worn piece.
             piece = 0 if index < body_count else index - body_count + 1

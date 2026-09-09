@@ -84,9 +84,10 @@ def build_scene(source, prepared, *, body=(), read_asset=None, cancelled=lambda:
         notes.append("Weapon geometry unavailable; socket positions remain visible")
     if not body or any(not m.binding_exact or not m.influences_exact for m in body):
         notes.append("Contact: Unverified — body geometry or skinning is approximate")
+    import numpy as np
     faces, base = [], 0
     for mesh in body:
-        faces.extend(tuple(int(v) + base for v in face) for face in mesh.faces)
+        faces.extend(map(tuple, (mesh.faces.astype(np.int64, copy=False) + base).tolist()))
         base += mesh.vertex_count
     scene = PreparedScene(prepared, before, after, clips, tuple(body), weapon, tuple(notes),
                           relationships=relationships, body_faces=tuple(faces), after_clips=after_clips,

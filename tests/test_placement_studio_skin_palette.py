@@ -76,6 +76,58 @@ class PaletteResolutionTests(unittest.TestCase):
     def test_no_rig_resolves_nothing(self) -> None:
         self.assertEqual(_resolved_palette(_pac_with_palette(_HASHES), _Rig(())), ())
 
+    def test_wide_scan_preserves_candidate_validation_order_and_batch_boundaries(self) -> None:
+        import struct
+        from cdmw.modding.mesh_parser import pac_bone_palette_candidates
+
+        hashes = tuple(0xA0000000 + 977 * i for i in range(512))
+        rig = _Rig(tuple(reversed(hashes)))
+        data = bytearray(b'\x00' * (2 * 1024 * 1024 + 4096))
+
+        def put(offset, values):
+            payload = struct.pack('<H', len(values)) + struct.pack(f'<{len(values)}I', *values)
+            data[offset:offset + len(payload)] = payload
+
+        put(8001, hashes[:7])  # Below the format's minimum count.
+        put(9003, (hashes[0],) * 32)  # Duplicate hashes are not a palette.
+        put(10005, (12, *hashes[:23]))  # Small integers are not bone hashes.
+        put(11007, (*hashes[:23], 0xDEADBEEF))  # Every hash must resolve.
+        put(16 + 1024 * 1024 - 1, hashes)  # Unaligned header straddles a scan batch.
+        put(16 + 1024 * 1024 + 3001, tuple(reversed(hashes)))  # First equal-size table wins.
+        payload = bytes(data)
+        by_hash = {bone.name_hash: i for i, bone in enumerate(rig.bones)}
+        expected = next(tuple(by_hash[value] for value in candidate)
+                        for candidate in pac_bone_palette_candidates(payload, search_limit=len(payload))
+                        if all(value in by_hash for value in candidate))
+        self.assertEqual(_resolved_palette(payload, rig), expected)
+        self.assertEqual(expected, tuple(reversed(range(512))))
+
+    def test_metadata_palette_keeps_priority_over_a_longer_wide_candidate(self) -> None:
+        import struct
+        data = bytearray(_pac_with_palette(_HASHES[:8]))
+        data.extend(b'\x00' * 5000)
+        data.extend(struct.pack('<H', len(_HASHES)) + struct.pack('<24I', *_HASHES))
+        self.assertEqual(_resolved_palette(bytes(data), _Rig(_HASHES)), tuple(range(8)))
+
+    def test_fallback_reuses_the_first_palette_result(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from tools.placement_studio import skinning, attachment_binding
+
+        submesh = SimpleNamespace(vertices=[(0., 0., 0.)] * 3, faces=[(0, 1, 2)],
+                                  bone_indices=[(0, 1)] * 3, bone_weights=[(1., 0.)] * 3)
+        parsed = SimpleNamespace(has_bones=True, submeshes=[submesh])
+        for palette in ((), tuple(range(len(_HASHES)))):
+            with self.subTest(resolved=bool(palette)), \
+                    patch('cdmw.modding.mesh_parser.parse_mesh', return_value=parsed), \
+                    patch.object(skinning, '_resolved_palette', return_value=palette) as resolve, \
+                    patch.object(skinning, 'dominant_bone_drift', return_value=0.), \
+                    patch.object(attachment_binding, 'exact_skin', side_effect=attachment_binding.BindingError('fixture')):
+                mesh = skinning.load_skinned(b'fixture', 'body.pac', _Rig(_HASHES))
+                self.assertIsNotNone(mesh)
+                self.assertEqual(mesh.binding_exact, bool(palette))
+                resolve.assert_called_once()
+
 
 class BoneColumnTests(unittest.TestCase):
     def test_an_exact_palette_reports_itself_as_exact(self) -> None:

@@ -213,13 +213,9 @@ def scan_archives(
     `result` is None until the final yield. Reads the on-disk cache when one matches the
     install, and otherwise walks the package tables and writes one.
 
-    A generator rather than a worker thread, for the reason `rig_files.scan_rig_files`
-    documents: the work is pure Python, so a `QThread` holds the GIL for its whole four to
-    five seconds and starves the UI exactly as badly as calling it inline did — measured at
-    19 event-loop ticks where 150 were due, an 87% starved window, which is what opening
-    the studio felt like. Stepping it from the event loop keeps the window painting and
-    answering the mouse while the index builds. That applies to the cached path too: 0.7
-    seconds of object building is still six missed frames if it happens in one call.
+    Studio consumes this on a cancellable worker, yielding the GIL between batches.
+    The initial cache read/decompression and individual table reads are not incremental,
+    so calling next() from a UI timer can still block the window before a yield.
     """
 
     from .corpus import _iter_archive_entries, normalize_game_path
@@ -533,7 +529,7 @@ def _package_count(root: Path) -> int:
 
 
 def index_archives(game_root, *, should_stop: Optional[Callable[[], bool]] = None) -> ClipIndex:
-    """The whole walk in one call. Blocks; use `scan_archives` on a UI thread."""
+    """The whole walk in one call. Blocks; UI callers use background preparation."""
 
     for _done, _total, result in scan_archives(game_root, should_stop=should_stop):
         if result is not None:

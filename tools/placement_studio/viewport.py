@@ -12,6 +12,7 @@ Everything here is read-only. Orbit with the left button, pan with the middle, w
 from __future__ import annotations
 
 import math
+import time
 from operator import itemgetter as _itemgetter
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -19,7 +20,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as _np
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 from cdmw.services.active_ui_translation import translate_active_ui_text
@@ -138,6 +139,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
     socket_rolled = Signal(str, float)
     # A point picked off the body surface: world x, y, z. Emitted in "pick" edit mode.
     surface_picked = Signal(float, float, float)
+    frame_painted = Signal(float)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -197,6 +199,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
         # Keyed by the vertex tuple, which also keeps it alive, so the body and the weapon do
         # not evict each other every frame.
         self._points_cache: Dict[int, tuple] = {}
+        self._shade_cache: Dict[tuple, QColor] = {}
+        self._pen_cache: Dict[int, QPen] = {}
+        self._scene_background = None
         self._show_meshes = True
         # Which rig the camera was last framed for; see `set_scene`.
         self._framed_source: Optional[str] = None
@@ -207,6 +212,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._dragging_view = False
         # Set while the playhead runs: heavy geometry thins out so the frame keeps up.
         self._moving = False
+        self.last_paint_seconds = 0.0
 
     # ── inputs ──────────────────────────────────────────────────────
 
@@ -249,13 +255,14 @@ class SkeletonViewport(GizmoMixin, QWidget):
         """Whether the playhead is running.
 
         A body proxy is 5,379 triangles and every one of them becomes a QPolygonF. Holding
-        full detail through playback costs more than it shows at 30 fps, so the budget
+        full detail through playback costs more than it shows at 60 fps, so the budget
         tightens while moving and snaps back the moment you pause.
         """
 
         value = bool(value)
         if value != self._moving:
             self._moving = value
+            self.last_paint_seconds = 0.0
             self.update()
 
     def set_follow(self, value: bool) -> None:
@@ -327,6 +334,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
         self._body = body
         self._weapon = weapon
         self._clipping = set(int(i) for i in clipping)
+        self._scene_background = None
         self.update()
 
     def set_show_meshes(self, value: bool) -> None:
@@ -436,22 +444,28 @@ class SkeletonViewport(GizmoMixin, QWidget):
     # ── painting ────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        started = time.perf_counter()
+        try:
+            self._paint_frame()
+        finally:
+            self.last_paint_seconds = time.perf_counter() - started
+            self.frame_painted.emit(self.last_paint_seconds)
+
+    def _paint_frame(self) -> None:
         painter = QPainter(self)
-        # Antialiasing costs ~40% of the mesh draw. At 30 fps the stair-stepping is not
+        # Antialiasing costs ~40% of the mesh draw. At 60 fps the stair-stepping is not
         # visible on a moving silhouette, and it comes straight back the moment you pause.
         painter.setRenderHint(
             QPainter.Antialiasing, not (self._moving or self._dragging_view)
         )
-        painter.fillRect(self.rect(), _BACKGROUND)
-
         if self._hierarchy is None or not len(self._hierarchy):
+            self._scene_background = None
+            painter.fillRect(self.rect(), _BACKGROUND)
             painter.setPen(QPen(_TEXT))
             painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("No skeleton loaded"))
             return
 
-        self._draw_ground(painter)
-        if self._show_meshes:
-            self._draw_meshes(painter)
+        self._draw_scene_background(painter)
         if self._show_bones:
             self._draw_bones(painter)
         self._draw_sockets(painter)
@@ -461,6 +475,42 @@ class SkeletonViewport(GizmoMixin, QWidget):
             self._draw_blade_axis(painter)
         self._draw_attachments(painter)
         self._draw_legend(painter)
+
+    def _draw_scene_background(self, painter: QPainter) -> None:
+        """Reuse stationary geometry while sockets, selection and gizmos stay live."""
+        ratio = self.devicePixelRatioF()
+        width, height = math.ceil(self.width() * ratio), math.ceil(self.height() * ratio)
+        # One image, at most 16 MiB. Moving frames and larger viewports draw
+        # directly; neither needs an extra image allocation or a reduced resolution.
+        if self._moving or self._dragging_view or width * height > 4 * 1024 * 1024:
+            self._scene_background = None
+            painter.fillRect(self.rect(), _BACKGROUND)
+            self._draw_ground(painter)
+            if self._show_meshes:
+                self._draw_meshes(painter)
+            return
+        camera = self._camera
+        key = (width, height, ratio, camera.yaw, camera.pitch, camera.distance, camera.fov,
+               camera.target.x, camera.target.y, camera.target.z,
+               self._solid, self._show_meshes, self.GROUND_EXTENT)
+        if self._scene_background is None or self._scene_background[0] != key:
+            self._scene_background = None
+            background = QImage(width, height, QImage.Format_ARGB32_Premultiplied)
+            background.setDevicePixelRatio(ratio)
+            # Fractional display scaling can leave a partially covered edge
+            # pixel; initialize it before compositing onto the widget.
+            background.fill(Qt.transparent)
+            layer = QPainter(background)
+            try:
+                layer.setRenderHint(QPainter.Antialiasing, True)
+                layer.fillRect(self.rect(), _BACKGROUND)
+                self._draw_ground(layer)
+                if self._show_meshes:
+                    self._draw_meshes(layer)
+            finally:
+                layer.end()
+            self._scene_background = key, background
+        painter.drawImage(0, 0, self._scene_background[1])
 
     #: Half-width of the room, in metres. Fixed on purpose: a stage that resized itself per
     #: clip meant the floor squares changed size under the character and the walls jumped,
@@ -611,6 +661,8 @@ class SkeletonViewport(GizmoMixin, QWidget):
         light = _key_light(rgt, upv, forward)
 
         faces: List[Tuple[float, QPolygonF, QColor]] = []
+        source_colours = {_CLIP_FILL.rgba(): _CLIP_FILL}
+        clipping_colour = _CLIP_FILL.rgba()
         for mesh, fill, cull in (
             (self._body, _BODY_SOLID if self._solid else _BODY_FILL, True),
             (self._weapon, _WEAPON_FILL, False),
@@ -727,6 +779,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
             groups = None if is_weapon else getattr(mesh, "groups", None)
             tints = None if groups is None else self._piece_tints(fill, groups)
             piece = None if groups is None else groups[picked].tolist()
+            fill_key = fill.rgba()
+            source_colours[fill_key] = fill
+            tint_keys = None if tints is None else [tint.rgba() for tint in tints]
+            if tints is not None:
+                source_colours.update(zip(tint_keys, tints))
 
             # Gather every per-face column into plain Python lists in one vectorised step.
             # Reading them as `ax[index]` inside the loop meant eight *numpy scalar* lookups
@@ -742,11 +799,20 @@ class SkeletonViewport(GizmoMixin, QWidget):
             if is_weapon and clipping:
                 corners = _np.stack((i0[picked], i1[picked], i2[picked]), axis=1).tolist()
 
+            if not is_weapon:
+                colours = ([fill_key] * len(mid_l) if tint_keys is None else
+                           [tint_keys[group] for group in piece])
+                shade_levels = levels if levels is not None else [_SHADE_LEVELS - 1] * len(mid_l)
+                # Body faces already have a single winding and no weapon hit-test work.
+                # Build their identical tuples in C instead of visiting every column from Python.
+                faces.extend(zip(mid_l, ax_l, ay_l, bx_l, by_l, gx_l, gy_l, colours, shade_levels))
+                continue
+
             for order in range(len(mid_l)):
-                colour = fill if tints is None else tints[piece[order]]
+                colour = fill_key if tint_keys is None else tint_keys[piece[order]]
                 if corners is not None:
                     if not clipping.isdisjoint(corners[order]):
-                        colour = _CLIP_FILL
+                        colour = clipping_colour
                 level = (_SHADE_LEVELS - 1) if levels is None else levels[order]
                 pax, pay = ax_l[order], ay_l[order]
                 pbx, pby = bx_l[order], by_l[order]
@@ -772,11 +838,13 @@ class SkeletonViewport(GizmoMixin, QWidget):
         if not faces:
             return
 
-        shades: Dict[tuple, QColor] = {}
-        pens: Dict[int, QPen] = {}
+        if len(self._shade_cache) > 512:
+            self._shade_cache.clear()
+            self._pen_cache.clear()
+        shades, pens = self._shade_cache, self._pen_cache
 
-        def brush_for(colour: QColor, level: int) -> QColor:
-            key = (colour.rgba(), level)
+        def brush_for(colour: int, level: int) -> QColor:
+            key = (colour, level)
             brush = shades.get(key)
             if brush is None:
                 # 60 = a little over half the base lightness, 168 = two thirds brighter. The
@@ -784,8 +852,9 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 # a shape: the difference between a shoulder and the chest under it landed
                 # inside one step and read as flat.
                 factor = 60 + int(level * (168 - 60) / max(1, _SHADE_LEVELS - 1))
-                brush = QColor(colour).lighter(factor)
-                brush.setAlpha(colour.alpha())
+                source = source_colours[colour]
+                brush = QColor(source).lighter(factor)
+                brush.setAlpha(source.alpha())
                 shades[key] = brush
             return brush
 
@@ -800,7 +869,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 return
             if outline:
                 painter.setBrush(brush)
-                painter.setPen(pens.setdefault(brush.rgba(), QPen(brush, 1.0)))
+                key = brush.rgba()
+                pen = pens.get(key)
+                if pen is None:
+                    pen = pens[key] = QPen(brush, 1.0)
+                painter.setPen(pen)
                 painter.drawPath(path)
             else:
                 painter.fillPath(path, brush)
@@ -833,7 +906,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         for depth, pax, pay, pbx, pby, pgx, pgy, colour, level in faces:
             # 0 = turned away from the light, _SHADE_LEVELS-1 = facing it square on.
-            key = (colour.rgba(), level)
+            key = (colour, level)
             path = buckets.get(key)
             if path is None:
                 path = QPainterPath()

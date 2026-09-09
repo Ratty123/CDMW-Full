@@ -25,12 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .playback import Playback, PlaybackError, coverage, load_clip, travel_extent
-
-#: Repaint target. The clips are 30 fps; asking for much more just burns CPU on a painter.
-_TICK_MS = 33
-#: Never pace slower than this, however heavy the scene.
-_MAX_TICK_MS = 100
+from .playback import Playback, PlaybackError, PREVIEW_TICK_MS, frame_interval_ms
 
 
 class PlaybackMixin:
@@ -39,9 +34,19 @@ class PlaybackMixin:
     def _build_playback_row(self) -> QWidget:
         self._playback = Playback()
         self._playback_timer = QTimer(self)
-        self._playback_timer.setInterval(_TICK_MS)
+        self._playback_timer.setTimerType(Qt.PreciseTimer)
+        self._playback_timer.setSingleShot(True)
+        self._playback_timer.setInterval(PREVIEW_TICK_MS)
         self._playback_timer.timeout.connect(self._on_playback_tick)
         self._playback_last_tick = 0.0
+        self._playback_update_seconds = 0.0
+        self._playback_paint_pending = False
+        self._viewport.frame_painted.connect(self._on_playback_painted)
+        self._scrub_timer = QTimer(self)
+        self._scrub_timer.setSingleShot(True)
+        self._scrub_timer.setTimerType(Qt.PreciseTimer)
+        self._scrub_timer.setInterval(PREVIEW_TICK_MS)
+        self._scrub_timer.timeout.connect(self._apply_playback_frame)
 
         row = QWidget()
         layout = QHBoxLayout(row)
@@ -62,8 +67,8 @@ class PlaybackMixin:
         self._playback_slider.setMaximum(0)
         self._playback_slider.setEnabled(False)
         self._playback_slider.valueChanged.connect(self._on_playback_scrub)
-        # Measuring clipping on every dragged pixel makes the slider chug. Settle on release.
-        self._playback_slider.sliderReleased.connect(self._refresh_meshes)
+        self._playback_slider.sliderPressed.connect(self._on_scrub_started)
+        self._playback_slider.sliderReleased.connect(self._on_scrub_finished)
         layout.addWidget(self._playback_slider, 1)
 
         self._playback_loop_box = QCheckBox("Loop")
@@ -108,28 +113,9 @@ class PlaybackMixin:
         )
         if not path:
             return
-        try:
-            clip = load_clip(Path(path).read_bytes(), Path(path).name)
-        except (PlaybackError, OSError) as error:
-            self.statusBar().showMessage(f"Could not load clip: {error}")
-            return
-
-        matched = coverage(self._session.hierarchy, clip)
-        if matched <= 0.0:
-            self.statusBar().showMessage(
-                f"{Path(path).name} animates no bone this rig defines — it is for another character."
-            )
-            return
-        self._playback.load(clip, Path(path).stem)
-        self._playback.looping = self._playback_loop_box.isChecked()
-        self._playback_slider.setMaximum(max(self._playback.last_frame, 0))
-        self._playback_slider.setEnabled(self._playback.last_frame > 0)
-        self._playback_play_button.setEnabled(self._playback.last_frame > 0)
-        self._playback_rest_button.setEnabled(True)
-        self._fit_ground_to_clip(clip)
-        note = "" if matched > 0.99 else f"  ({matched:.0%} of its bones exist on this rig)"
-        self.statusBar().showMessage(f"Loaded {Path(path).name}{note}")
-        self._apply_playback_frame()
+        from .clips import ClipEntry
+        source = Path(path)
+        self._play_clip_entry(ClipEntry(source.as_posix(), "", "", False, source))
 
     def _playback_start_dir(self) -> Path:
         """Prefer the extracted vanilla motion tree; it is where the clips actually are."""
@@ -144,6 +130,9 @@ class PlaybackMixin:
     def _on_playback_toggle(self) -> None:
         if not self._playback.loaded:
             return
+        self._scrub_timer.stop()
+        self._playback_paint_pending = False
+        self._playback_update_seconds = 0.0
         self._playback.playing = not self._playback.playing
         self._playback_play_button.setText("Pause" if self._playback.playing else "Play")
         viewport = getattr(self, "_viewport", None)
@@ -151,7 +140,7 @@ class PlaybackMixin:
             viewport.set_moving(self._playback.playing)
         if self._playback.playing:
             self._playback_last_tick = time.monotonic()
-            self._playback_timer.setInterval(_TICK_MS)
+            self._playback_timer.setInterval(PREVIEW_TICK_MS)
             self._playback_timer.start()
         else:
             self._playback_timer.stop()
@@ -163,10 +152,31 @@ class PlaybackMixin:
         if not self._playback.loaded or self._playback.playing:
             return
         self._playback.seek(float(value))
-        self._apply_playback_frame()
+        if self._playback_slider.isSliderDown():
+            if not self._scrub_timer.isActive():
+                self._scrub_timer.start()
+        else:
+            self._apply_playback_frame()
+
+    def _on_scrub_started(self) -> None:
+        self._viewport.set_moving(True)
+
+    def _on_scrub_finished(self) -> None:
+        self._scrub_timer.stop()
+        self._viewport.set_moving(self._playback.playing)
+        if self._playback.loaded and not self._playback.playing:
+            self._apply_playback_frame()
+
+    def _stop_playback(self) -> None:
+        self._playback_timer.stop()
+        self._scrub_timer.stop()
+        self._playback.playing = False
+        self._playback_paint_pending = False
+        self._viewport.set_moving(False)
+        self._playback_play_button.setText("Play")
 
     def _on_playback_clear(self) -> None:
-        self._playback_timer.stop()
+        self._stop_playback()
         self._playback.clear()
         self._playback_play_button.setText("Play")
         self._playback_play_button.setEnabled(False)
@@ -179,30 +189,33 @@ class PlaybackMixin:
         self._refresh_scene()
 
     def _on_playback_tick(self) -> None:
+        self._playback_timer.stop()
+        if not self._playback.playing or not self._playback.loaded:
+            self._stop_playback()
+            return
         now = time.monotonic()
         elapsed = now - (self._playback_last_tick or now)
         self._playback_last_tick = now
         if not self._playback.advance(elapsed):
-            self._playback_play_button.setText("Play")
-            self._playback_timer.stop()
-            if hasattr(self._viewport, "set_moving"):
-                self._viewport.set_moving(False)
+            self._stop_playback()
         started = time.monotonic()
+        self._playback_paint_pending = self._playback.playing
         self._apply_playback_frame()
         self._pace(time.monotonic() - started)
 
     def _pace(self, frame_seconds: float) -> None:
-        """Match the tick to what a frame actually costs.
+        """Wait for this pose to paint before scheduling another expensive update."""
+        self._playback_update_seconds = frame_seconds
 
-        Asking for 30 fps from a scene that needs 40 ms does not produce 30 fps — it fills
-        the event queue with timer events the paint never keeps up with, and the window
-        stops answering the mouse. Pacing to the measured cost keeps input responsive; the
-        playhead advances by wall time either way, so the animation still runs at speed.
-        """
-
-        target = min(_MAX_TICK_MS, max(_TICK_MS, int(frame_seconds * 1000 * 1.25)))
-        if abs(target - self._playback_timer.interval()) >= 8:
-            self._playback_timer.setInterval(target)
+    def _on_playback_painted(self, paint_seconds: float) -> None:
+        if not self._playback.playing or not self._playback_paint_pending:
+            return
+        self._playback_paint_pending = False
+        elapsed = time.monotonic() - self._playback_last_tick
+        target = frame_interval_ms(self._playback_update_seconds, paint_seconds)
+        # Restarting a QTimer measures from now. Deduct work already done so an
+        # interval change cannot add the entire pose cost to every frame deadline.
+        self._playback_timer.start(max(1, int(target - elapsed * 1000)))
 
     def _apply_playback_frame(self) -> None:
         """Pose the session and repaint. The single place playback touches the scene."""
@@ -212,9 +225,7 @@ class PlaybackMixin:
         try:
             self._session.apply_pose(self._playback.clip, self._playback.frame)
         except PlaybackError as error:
-            self._playback_timer.stop()
-            self._playback.playing = False
-            self._playback_play_button.setText("Play")
+            self._stop_playback()
             self.statusBar().showMessage(f"Playback stopped: {error}")
             return
         frame = int(round(self._playback.frame))

@@ -12,9 +12,7 @@ from .glossary import MATCH_LABEL
 from .clip_names import rig_label, trimmed
 from .layout_util import fit_popup
 
-from pathlib import Path
-
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -30,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .clips import ALL_CATEGORIES, ANY, ClipIndex, read_clip, scan_archives
+from .clips import ALL_CATEGORIES, ANY, ClipIndex, read_clip
 from .playback import PlaybackError, coverage, load_clip
 
 #: Rows past this are not worth painting; the filter is the way to find a clip, not scrolling.
@@ -176,20 +174,7 @@ class ClipBrowserMixin:
             self._ensure_clip_index()
 
     def _ensure_clip_index(self, *, wait: bool = False) -> None:
-        """Make the index available. Safe to call from anywhere that needs clips.
-
-        The clip browser is not the only reader — `Swap animations…` sits in the header and
-        looks for donor clips — so a feature reachable without opening the tab asks for the
-        index rather than finding it silently empty.
-
-        `wait` is the difference between asking and needing. Starting the scan only creates
-        a generator; nothing has run when this returns. A caller that then reads
-        `self._clip_index` in the same turn — `MoveWeaponDialog` builds its whole row list
-        inside its constructor — reads an empty one and tells the user *no animation has a
-        counterpart for this weapon*, which is a wrong answer rather than a slow one. Those
-        callers block. It costs about a second warm, against an explicit click, with the
-        wait cursor up.
-        """
+        """Start bounded preparation; consumers normally use `_when_clips_ready`."""
 
         if not self._clip_index_started:
             self._clip_index_started = True
@@ -198,24 +183,18 @@ class ClipBrowserMixin:
             self._drain_clip_index()
 
     def _drain_clip_index(self) -> None:
-        """Run the pending scan to completion now, with a wait cursor."""
-
-        if self._clip_scan is None:
-            return
-        from PySide6.QtCore import Qt
-        from PySide6.QtGui import QCursor
-        from PySide6.QtWidgets import QApplication
-
-        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-        self.statusBar().showMessage("Indexing the animation clips…")
-        try:
-            # Stepping the same generator the timer drives keeps one code path; the timer is
-            # stopped by `_stop_clip_index` on the last step, so the two cannot race.
-            while self._clip_scan is not None:
-                self._step_clip_index()
-        finally:
-            QApplication.restoreOverrideCursor()
-            self.statusBar().clearMessage()
+        """Compatibility for synchronous consumers; Qt stays alive while the worker runs."""
+        from PySide6.QtCore import QEventLoop
+        task = getattr(self, '_clip_index_task', None)
+        if self._clip_scan is not None and task is not None and task.busy:
+            loop = QEventLoop()
+            self._clip_wait_loop = loop
+            task.idle.connect(loop.quit)
+            try:
+                loop.exec()
+            finally:
+                task.idle.disconnect(loop.quit)
+                self._clip_wait_loop = None
 
     @property
     def clip_index_ready(self) -> bool:
@@ -224,62 +203,39 @@ class ClipBrowserMixin:
         return self._clip_index_started and self._clip_scan is None
 
     def _start_clip_index(self) -> None:
-        from .corpus import game_root
+        from .background import LatestTask
+        from .corpus import game_root, baseline_root
+        from .loading import prepare_clip_index
+        root, baseline = game_root(), baseline_root()
+        task = getattr(self, '_clip_index_task', None)
+        if task is None:
+            task = self._clip_index_task = LatestTask(self)
+            task.setObjectName('clip_index_preparation')
+            task.ready.connect(self._clip_index_prepared)
+            task.progress.connect(self._clip_index_progress)
+        # Existing replacement-workspace consumers use None to mean finished.
+        self._clip_scan = True
+        task.submit(lambda cancelled, progress: prepare_clip_index(root, baseline, cancelled, progress))
 
-        root = game_root()
-        if not Path(root).is_dir():
-            self._fall_back_to_baseline_clips(f"No game install at {root}")
-            return
-        self._clip_scan = scan_archives(root)
-        timer = QTimer(self)
-        # Zero interval, not zero work: Qt runs the rest of the event loop between timeouts,
-        # so the window keeps painting and answering the mouse while the scan advances.
-        timer.setInterval(0)
-        timer.timeout.connect(self._step_clip_index)
-        self._clip_scan_timer = timer
-        timer.start()
-
-    def _step_clip_index(self) -> None:
-        """Advance the scan by one slice. Runs on the UI thread, briefly, many times."""
-
-        scan = self._clip_scan
-        if scan is None:
-            return
-        try:
-            done, total, index = next(scan)
-        except StopIteration:
-            # Only reached when the scan was stopped before it produced an index.
-            self._stop_clip_index()
-            return
-        except Exception as error:  # noqa: BLE001 - a missing install is not a crash
-            self._stop_clip_index()
-            self._fall_back_to_baseline_clips(str(error))
-            return
+    def _clip_index_progress(self, done, total):
         bar = getattr(self, "_clip_progress", None)
         if bar is not None and total > 0:
             bar.setRange(0, total)
             bar.setValue(done)
-        if index is not None:
-            self._on_clip_index_ready(index)
 
-    def _fall_back_to_baseline_clips(self, reason: str) -> None:
-        """Without the install, the pinned baseline is still worth browsing."""
-
-        from .clips import index_directory
-        from .corpus import baseline_root
-
-        motion = Path(baseline_root()) / "character" / "motion"
-        if motion.is_dir():
-            self._clip_index = index_directory(Path(baseline_root()))
-            self._populate_clip_rigs()
-            self._refresh_clip_list()
-            self._clip_status.setText(f"{reason} — showing the pinned baseline only")
-        else:
-            self._clip_status.setText(reason)
-        self._deliver_clip_requests()
+    def _clip_index_prepared(self, result, error):
+        if result is None:
+            self._stop_clip_index()
+            self._clip_status.setText(error)
+            self._deliver_clip_requests()
+            return
+        index, note = result
+        self._on_clip_index_ready(index)
+        if note:
+            self._clip_status.setText(note)
 
     def _on_clip_index_ready(self, index) -> None:
-        """The scan finished. Failure never arrives here — the stepper falls back itself."""
+        """Publish a complete prepared index on the owning UI thread."""
 
         self._stop_clip_index()
         self._clip_index = index
@@ -414,6 +370,7 @@ class ClipBrowserMixin:
                 f"{entry.name} animates no bone on this rig — it belongs to {entry.rig or 'another rig'}."
             )
             return
+        self._stop_playback()
         self._playback.load(clip, entry.name)
         self._playback.looping = self._playback_loop_box.isChecked()
         self._playback_slider.setMaximum(max(self._playback.last_frame, 0))
@@ -437,12 +394,18 @@ class ClipBrowserMixin:
     def _stop_clip_index(self) -> None:
         """A running table scan must not outlive the window."""
 
+        loop = getattr(self, '_clip_wait_loop', None)
+        if loop is not None:
+            loop.quit()
         bar = getattr(self, "_clip_progress", None)
         if bar is not None:
             bar.hide()
         timer = self._clip_scan_timer
         self._clip_scan_timer = None
         self._clip_scan = None
+        task = getattr(self, '_clip_index_task', None)
+        if task is not None:
+            task.cancel()
         if timer is not None:
             timer.stop()
             timer.deleteLater()
@@ -451,10 +414,11 @@ class ClipBrowserMixin:
         """Stop the playhead and the indexer before the widgets they touch go away."""
 
         self._clip_ready_requests = {}
-        timer = getattr(self, "_playback_timer", None)
-        if timer is not None:
-            timer.stop()
+        self._stop_playback()
         self._stop_clip_index()
+        index_task = getattr(self, '_clip_index_task', None)
+        if index_task is not None:
+            index_task.shutdown()
         task = getattr(self, "_clip_task", None)
         if task is not None:
             task.shutdown()

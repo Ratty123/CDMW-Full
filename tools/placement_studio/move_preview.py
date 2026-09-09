@@ -12,6 +12,7 @@ from tools.paa_motion.timing import duration_seconds
 from cdmw.services.active_ui_translation import translate_active_ui_text as tr
 
 from .scene_preparation import PreparedScene, build_scene  # compatibility imports
+from .playback import PREVIEW_TICK_MS, frame_interval_ms
 
 
 class MovePreview(QWidget):
@@ -24,11 +25,24 @@ class MovePreview(QWidget):
         self._stale_message = ''
         self.seconds = 0.0
         self._last_tick = 0.0
+        self._playing = False
+        self._awaiting_paint = set()
+        self._frame_update_seconds = 0.0
+        self._frame_paint_seconds = 0.0
         self._follow_anchor = None
         self._timer = QTimer(self)
-        self._timer.setInterval(33)
+        self._timer.setTimerType(Qt.PreciseTimer)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(PREVIEW_TICK_MS)
         self._timer.timeout.connect(self._tick)
+        self._scrub_timer = QTimer(self)
+        self._scrub_timer.setSingleShot(True)
+        self._scrub_timer.setTimerType(Qt.PreciseTimer)
+        self._scrub_timer.setInterval(PREVIEW_TICK_MS)
+        self._scrub_timer.timeout.connect(self.render)
         self._views = [SkeletonViewport(), SkeletonViewport()]
+        for index, view in enumerate(self._views):
+            view.frame_painted.connect(lambda seconds, index=index: self._frame_painted(index, seconds))
         self._views[0].setMinimumSize(200, 220)
         self._views[1].setMinimumSize(200, 220)
         for view in self._views:
@@ -140,6 +154,8 @@ class MovePreview(QWidget):
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(0, 0)
         self.slider.valueChanged.connect(self.seek)
+        self.slider.sliderPressed.connect(self._scrub_started)
+        self.slider.sliderReleased.connect(self._scrub_finished)
         layout.addWidget(self.slider)
         self.status = QLabel("Preview checks: Unverified")
         status_row = QHBoxLayout()
@@ -221,7 +237,7 @@ class MovePreview(QWidget):
 
     def _blend_frame(self, space, parameters):
         return self._blend_states.sample(space, parameters, self.seconds,
-            playing=self._timer.isActive(), smoothing=self.smoothing.isChecked())
+            playing=self._playing, smoothing=self.smoothing.isChecked())
 
     def duration(self):
         space = self._space()
@@ -264,18 +280,28 @@ class MovePreview(QWidget):
         self.splitter.widget(1).setVisible(mode != "Before")
         if mode == "Compare" and min(self.splitter.sizes()) == 0:
             self.splitter.setSizes([max(1,self.splitter.width()//2)]*2)
+        if self._awaiting_paint:
+            self._awaiting_paint = {0, 1} if mode == "Compare" else {int(mode == "After")}
+            self._frame_paint_seconds = 0.0
         self.render()
 
     def toggle(self):
-        if self._timer.isActive():
+        if self._playing:
             self.stop()
         elif self.duration() > 0:
+            self._playing = True
+            self._scrub_timer.stop()
+            for view in self._views:
+                view.set_moving(True)
             self._last_tick = time.monotonic()
-            self._timer.start()
+            self._timer.start(PREVIEW_TICK_MS)
             self.play.setText("Pause")
 
     def stop(self):
         self._timer.stop()
+        self._playing = False
+        self._awaiting_paint.clear()
+        self._scrub_timer.stop()
         self.play.setText("Play")
         for view in self._views:
             view.set_moving(False)
@@ -283,9 +309,28 @@ class MovePreview(QWidget):
     def seek(self, milliseconds):
         self._blend_states.reset()
         self.seconds = max(0., min(milliseconds / 1000., self.duration()))
+        if self.slider.isSliderDown():
+            if not self._scrub_timer.isActive():
+                self._scrub_timer.start()
+        else:
+            self.render()
+
+    def _scrub_started(self):
+        for view in self._views:
+            view.set_moving(True)
+
+    def _scrub_finished(self):
+        self._scrub_timer.stop()
         self.render()
 
+    def closeEvent(self, event):
+        self.stop()
+        super().closeEvent(event)
+
     def _tick(self):
+        if not self._playing:
+            return
+        self._timer.stop()
         now = time.monotonic()
         self.seconds += (now - self._last_tick) * self.speed.value()
         self._last_tick = now
@@ -303,9 +348,21 @@ class MovePreview(QWidget):
         self.slider.setRange(0, round(end * 1000))
         self.slider.setValue(round(self.seconds * 1000))
         self.slider.blockSignals(False)
-        started = time.monotonic()
+        mode = self.view_mode.currentData()
+        self._awaiting_paint = ({0, 1} if mode == "Compare" else {int(mode == "After")}) if self._playing else set()
+        self._frame_paint_seconds = 0.0
         self.render()
-        self._timer.setInterval(min(100, max(33, int((time.monotonic() - started) * 1250))))
+        self._frame_update_seconds = time.monotonic() - now
+
+    def _frame_painted(self, index, seconds):
+        if not self._playing or index not in self._awaiting_paint:
+            return
+        self._frame_paint_seconds += seconds
+        self._awaiting_paint.remove(index)
+        if not self._awaiting_paint:
+            elapsed = time.monotonic() - self._last_tick
+            target = frame_interval_ms(self._frame_update_seconds, self._frame_paint_seconds)
+            self._timer.start(max(1, int(target - elapsed * 1000)))
 
     def render(self):
         if self.scene is None:
@@ -339,7 +396,7 @@ class MovePreview(QWidget):
             else:
                 session.clear_pose()
             view.set_scene(session.hierarchy, session.placed_sockets())
-            view.set_moving(self._timer.isActive())
+            view.set_moving(self._playing or self.slider.isSliderDown())
             if (index == 0 and self.view_mode.currentData() == "After") or (index == 1 and self.view_mode.currentData() == "Before"):
                 continue
             body = None
