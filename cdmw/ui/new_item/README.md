@@ -306,7 +306,12 @@ and the same cancellable worker reads the template geometry, retains its bounds 
 centroid for later re-fit, and prepares the fitted mesh before publishing the import.
 The first UI read of the fitted bounds reuses that mesh. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
-weapons.
+weapons. Import and **Fit to template** level the model's broad plane against the
+placement grid while matching the template's direction within that plane and keeping
+its grip or centre as the placement anchor. This removes authored and template-derived
+tilt for elongated and broad shapes; shapes without a clear axis or plane retain the
+bounding-box fit. The template stays fixed, and manual rotation remains available.
+The level fit is baked into the mesh shared by the preview and **Apply placement**.
 `item_preview.py` owns the resident frame and publishes fitted geometry, direct
 DDS textures, and then the complete synthesized material tier without resetting
 the resident camera;

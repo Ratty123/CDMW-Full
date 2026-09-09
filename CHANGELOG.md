@@ -20,6 +20,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item imports and Fit to template now level models against the placement grid while retaining the template's in-plane direction, size and grip or centre alignment. Broad models such as shields also receive this fit, and cached previews refresh for the corrected orientation.
 - Character previews and neutral exports reconcile paired axis reversals in otherwise unchanged PABC bind frames, fixing Damian's folded ear in Archive Browser. Cached previews from before this correction are rebuilt.
 - Archive Browser **Export OBJ...** preserves original PAC coordinates, fixing the 247 displaced ear vertices on Damian's embedded head. **Export OBJ (Neutral Appearance)...** explicitly selects baked character appearance.
 - PAC rebuilds preserve the tangent bits shared with packed normals, correctly encode normal Z signs and round half-float UVs. OBJ imports recover serialization noise, validate neutral normal accuracy and retain position bounds for normal/UV edits; expanded bounds compensate lower LODs within their quantization precision.

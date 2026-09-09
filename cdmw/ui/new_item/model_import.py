@@ -3,8 +3,8 @@
 The Model and icon step takes a model file (glTF, GLB, OBJ, DAE, or a zip holding one),
 reads it the way the Model Library does (the scene import, the source's own textures), and
 shows it in the step's viewport over the template's mesh, where the gizmo and the numbers
-place it. Two layers: the *fit* (`fitted_placement`: scaled to the template's length, turned
-onto its axes, and centred or grip-aligned for the template family) is baked into the mesh
+place it. Two layers: the *fit* (`fitted_placement`: scaled to the template's length, levelled
+with its grid, and centred or grip-aligned for the template family) is baked into the mesh
 itself (`bake_mesh`), so the numbers the user sees and the gizmo moves start at zero; the
 *placement* on top is one convention everywhere: scale, then the rotations about x, y and
 z, then the offset, all about the baked model's origin (the hand, for a weapon). The helper
@@ -55,16 +55,16 @@ __all__ = [
 Vec3 = Tuple[float, float, float]
 Bounds = Tuple[Vec3, Vec3]
 MODEL_IMPORTER_SCHEMA_VERSION = 2
-MODEL_FIT_VERSION = 2
+MODEL_FIT_VERSION = 3
 
 
 @dataclass(frozen=True)
 class MeshPrincipalFrame:
     """A mesh's oriented bounds, ordered from its longest axis to its shortest.
 
-    The frame is used only for an unambiguous elongated source/template pair. A
-    near-symmetric helmet or accessory keeps the established axis-aligned fit,
-    where an unstable eigendirection would be worse than no extra rotation.
+    Elongated models supply a heading; broad models also supply a stable plane.
+    A model with neither keeps the established axis-aligned fit, where an
+    unstable eigendirection would be worse than no extra rotation.
     """
 
     axes: Tuple[Vec3, Vec3, Vec3]
@@ -425,19 +425,27 @@ def fitted_placement(
     source_frame: Optional[MeshPrincipalFrame] = None,
     template_frame: Optional[MeshPrincipalFrame] = None,
 ) -> ModelPlacement:
-    """A first placement: scale uniformly to the template's longest extent, turn by right
-    angles so the long and middle axes match, then centre the bounding boxes. Weapon
-    families additionally use the two centroids to point their heavy ends the same way
-    and align the opposite grip ends. Armour and accessories keep the generic centred
-    fit, without treating one end as a handle. The user takes it from there."""
+    """Scale to the template and align the source's broad plane with the placement grid.
+
+    Stable oriented frames retain the template's heading within that plane, without
+    copying its tilt. Ambiguous shapes keep the right-angle bounding-box fit. Weapon
+    families additionally match heavy ends and grips; other families stay centred.
+    The user can adjust the fitted placement afterwards.
+    """
 
     if source_bounds is None or template_bounds is None:
         return ModelPlacement()
+    s_lo, s_hi = source_bounds
+    t_lo, t_hi = template_bounds
+    s_ext = tuple(max(0.0, s_hi[i] - s_lo[i]) for i in range(3))
+    t_ext = tuple(max(0.0, t_hi[i] - t_lo[i]) for i in range(3))
     if (
         source_frame is not None
         and template_frame is not None
-        and source_frame.is_elongated
-        and template_frame.is_elongated
+        and (
+            source_frame.is_elongated
+            or source_frame.extents[1] > max(source_frame.extents[2], 1e-9) * 1.15
+        )
     ):
         return _fitted_principal_placement(
             source_frame,
@@ -445,11 +453,9 @@ def fitted_placement(
             source_centroid=source_centroid,
             template_centroid=template_centroid,
             match_grip=match_grip,
+            # Match flat_preview_normal_axis, including its Z-first tie break.
+            grid_axis=min((2, 0, 1), key=lambda index: t_ext[index]),
         )
-    s_lo, s_hi = source_bounds
-    t_lo, t_hi = template_bounds
-    s_ext = tuple(max(0.0, s_hi[i] - s_lo[i]) for i in range(3))
-    t_ext = tuple(max(0.0, t_hi[i] - t_lo[i]) for i in range(3))
     s_long = max(s_ext)
     t_long = max(t_ext)
     scale = t_long / s_long if s_long > 1e-9 and t_long > 1e-9 else 1.0
@@ -515,13 +521,6 @@ def fitted_placement(
     return placement.with_values(offset=tuple(offset))
 
 
-def _row_matrix_vector(vector: Sequence[float], matrix: Sequence[Sequence[float]]) -> Vec3:
-    return tuple(
-        sum(float(vector[row]) * float(matrix[row][column]) for row in range(3))
-        for column in range(3)
-    )
-
-
 def _xyz_degrees_from_row_matrix(matrix: Sequence[Sequence[float]]) -> Vec3:
     """Invert the shared row-vector ``Rx @ Ry @ Rz`` placement convention."""
 
@@ -543,8 +542,25 @@ def _fitted_principal_placement(
     source_centroid: Optional[Vec3],
     template_centroid: Optional[Vec3],
     match_grip: bool,
+    grid_axis: int,
 ) -> ModelPlacement:
-    """Align two stable oriented frames, including a non-axis-aligned source."""
+    """Level the source to the grid while retaining template heading and anchors."""
+
+    normal_sign = 1.0 if template.axes[2][grid_axis] >= 0.0 else -1.0
+    normal = tuple(normal_sign if index == grid_axis else 0.0 for index in range(3))
+    long = tuple(0.0 if index == grid_axis else value for index, value in enumerate(template.axes[0]))
+    length = math.sqrt(_dot(long, long))
+    if length < 1e-9:
+        # A degenerate projection has no heading on the grid.
+        long = tuple(1.0 if index == (grid_axis + 1) % 3 else 0.0 for index in range(3))
+    else:
+        long = tuple(value / length for value in long)
+    middle = (
+        normal[1] * long[2] - normal[2] * long[1],
+        normal[2] * long[0] - normal[0] * long[2],
+        normal[0] * long[1] - normal[1] * long[0],
+    )
+    target_axes = (long, middle, normal)
 
     source_lean = source.direction_hint or (
         tuple(source_centroid[index] - source.center[index] for index in range(3))
@@ -563,11 +579,10 @@ def _fitted_principal_placement(
         (-1.0, -1.0, 1.0),
     )
     best_matrix = None
-    best_signs = candidates[0]
     best_score = None
     for signs in candidates:
         signed_target = tuple(
-            tuple(signs[index] * component for component in template.axes[index])
+            tuple(signs[index] * component for component in target_axes[index])
             for index in range(3)
         )
         # S * R = T for row-vector axes, so R = transpose(S) * T.
@@ -582,9 +597,8 @@ def _fitted_principal_placement(
         turn = math.acos(max(-1.0, min(1.0, (trace - 1.0) * 0.5)))
         long_match = middle_match = 0
         if match_grip and source_lean is not None and template_lean is not None:
-            turned_lean = _row_matrix_vector(source_lean, matrix)
             for index, weight in ((0, 2), (1, 1)):
-                ours = _dot(turned_lean, template.axes[index])
+                ours = _dot(source_lean, source.axes[index]) * signs[index]
                 theirs = _dot(template_lean, template.axes[index])
                 if (
                     abs(ours) > 0.02 * template.extents[index]
@@ -599,7 +613,6 @@ def _fitted_principal_placement(
         if best_score is None or score > best_score:
             best_score = score
             best_matrix = matrix
-            best_signs = signs
 
     assert best_matrix is not None
     source_length = source.extents[0]
@@ -624,26 +637,24 @@ def _fitted_principal_placement(
         return placement
 
     if match_grip and source_lean is not None and template_lean is not None:
-        turned_lean = _row_matrix_vector(source_lean, best_matrix)
-        ours = _dot(turned_lean, template.axes[0]) * scale
+        ours = _dot(source_lean, source.axes[0]) * scale
         theirs = _dot(template_lean, template.axes[0])
         if (
             abs(ours) > 0.02 * template.extents[0]
             and abs(theirs) > 0.02 * template.extents[0]
         ):
-            template_low, template_high = template.intervals[0]
-            source_low, source_high = source.intervals[0]
-            if best_signs[0] < 0.0:
-                source_low, source_high = -source_high, -source_low
-            source_low *= scale
-            source_high *= scale
-            current_offset = _dot(placement.offset, template.axes[0])
-            template_grip = template_low if theirs > 0.0 else template_high
-            source_grip = source_low + current_offset if ours > 0.0 else source_high + current_offset
-            delta = template_grip - source_grip
+            # The reference remains in its authored frame. Align the actual grip
+            # points in 3D, since its long axis can now differ from the level source.
+            def grip_point(frame: MeshPrincipalFrame, lean: float) -> Vec3:
+                end = frame.intervals[0][0 if lean > 0.0 else 1]
+                distance = end - _dot(frame.center, frame.axes[0])
+                return tuple(frame.center[index] + frame.axes[0][index] * distance for index in range(3))
+
+            template_grip = grip_point(template, theirs)
+            source_grip = placement.apply(grip_point(source, ours))
             placement = placement.with_values(
                 offset=tuple(
-                    placement.offset[index] + template.axes[0][index] * delta
+                    placement.offset[index] + template_grip[index] - source_grip[index]
                     for index in range(3)
                 )
             )

@@ -221,6 +221,111 @@ class FitTests(unittest.TestCase):
         )
         self.assertGreater(determinant, 0.0, "automatic fitting must preserve handedness")
 
+    def test_tilted_imports_lie_flat_on_each_template_grid_plane(self) -> None:
+        from dataclasses import replace
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview_materials import flat_preview_normal_axis
+        from cdmw.ui.new_item.model_import import ModelPlacement, analyze_mesh_geometry
+
+        def prism(half_extents, rotation, axis_order):
+            transform = ModelPlacement(rotation=rotation, offset=(0.3, -0.2, 0.1))
+
+            def point(value):
+                turned = transform.apply(value)
+                return tuple(turned[index] for index in axis_order)
+
+            length, width, thickness = half_extents
+            mesh = ParsedMesh(path="prism", format="gltf", submeshes=[
+                SubMesh(
+                    name=name,
+                    vertices=[point((x, y, z)) for y in (-width, width) for z in (-thickness, thickness)],
+                    faces=[(0, 1, 2), (1, 3, 2)],
+                )
+                for name, x in (("handle", -length), ("blade_tip", length))
+            ])
+            return mesh, point
+
+        for broad_shape in (False, True):
+            source_width = 2.0 if broad_shape else 0.4
+            source, source_point = prism((2.0, source_width, 0.04), (31.0, 17.0, -39.0), (0, 1, 2))
+            source_analysis = analyze_mesh_geometry(source)
+            for axis_order, expected_normal in (((0, 1, 2), "z"), ((1, 2, 0), "y"), ((2, 0, 1), "x")):
+                template, template_point = prism(
+                    (1.0, source_width / 2.0, 0.02), (14.0, -9.0, 25.0), axis_order,
+                )
+                template_analysis = analyze_mesh_geometry(template)
+                normal = "xyz".index(flat_preview_normal_axis(template_analysis.bounds))
+                self.assertEqual("xyz"[normal], expected_normal)
+                anchor_modes = ("centre", "named") if broad_shape else ("centre", "named", "inferred")
+                for anchor_mode in anchor_modes:
+                    with self.subTest(broad_shape=broad_shape, normal=expected_normal, anchor=anchor_mode):
+                        source_frame = source_analysis.principal_frame
+                        template_frame = template_analysis.principal_frame
+                        if anchor_mode == "inferred":
+                            source_frame = replace(source_frame, grip=None, tip=None)
+                            template_frame = replace(template_frame, grip=None, tip=None)
+                        match_grip = anchor_mode != "centre"
+                        placement = fitted_placement(
+                            source_analysis.bounds,
+                            template_analysis.bounds,
+                            source_centroid=source_analysis.centroid,
+                            template_centroid=template_analysis.centroid,
+                            source_frame=source_frame,
+                            template_frame=template_frame,
+                            match_grip=match_grip,
+                        )
+                        # Measure the actual transformed geometry, not the Euler angles:
+                        # an imported model can already be tilted inside its own mesh.
+                        placed = [placement.apply(vertex) for part in source.submeshes for vertex in part.vertices]
+                        thickness = max(point[normal] for point in placed) - min(point[normal] for point in placed)
+                        self.assertAlmostEqual(thickness, 0.08 * placement.scale[0], places=6)
+                        if not broad_shape:
+                            self.assertAlmostEqual(placement.scale[0], 0.5, places=6)
+                            source_start = placement.apply(source_point((-2.0, 0.0, 0.0)))
+                            source_end = placement.apply(source_point((2.0, 0.0, 0.0)))
+                            target_start = template_point((-1.0, 0.0, 0.0))
+                            target_end = template_point((1.0, 0.0, 0.0))
+                            ours = [source_end[index] - source_start[index] for index in range(3)]
+                            theirs = [target_end[index] - target_start[index] for index in range(3)]
+                            theirs[normal] = 0.0
+                            alignment = sum(a * b for a, b in zip(ours, theirs))
+                            lengths = sum(v * v for v in ours) * sum(v * v for v in theirs)
+                            self.assertAlmostEqual(alignment * alignment / lengths, 1.0, places=6)
+                        source_anchor = source_analysis.principal_frame.grip if match_grip else source_analysis.principal_frame.center
+                        target_anchor = template_analysis.principal_frame.grip if match_grip else template_analysis.principal_frame.center
+                        for actual, expected in zip(placement.apply(source_anchor), target_anchor):
+                            self.assertAlmostEqual(actual, expected, places=6)
+
+    def test_a_symmetric_template_still_levels_an_import_with_a_clear_plane(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import ModelPlacement, analyze_mesh_geometry
+
+        def box(half_extents, rotation):
+            transform = ModelPlacement(rotation=rotation)
+            return ParsedMesh(path="box", format="gltf", submeshes=[SubMesh(
+                name="box",
+                vertices=[
+                    transform.apply((x, y, z))
+                    for x in (-half_extents[0], half_extents[0])
+                    for y in (-half_extents[1], half_extents[1])
+                    for z in (-half_extents[2], half_extents[2])
+                ],
+                faces=[],
+            )])
+
+        source = box((2.0, 0.2, 0.02), (23.0, 17.0, 39.0))
+        source_analysis = analyze_mesh_geometry(source)
+        template_analysis = analyze_mesh_geometry(box((1.0, 1.0, 1.0), (0.0, 0.0, 0.0)))
+        placement = fitted_placement(
+            source_analysis.bounds, template_analysis.bounds,
+            source_frame=source_analysis.principal_frame,
+            template_frame=template_analysis.principal_frame,
+            match_grip=False,
+        )
+        heights = [placement.apply(vertex)[2] for vertex in source.submeshes[0].vertices]
+        self.assertAlmostEqual(max(heights) - min(heights), 0.04 * placement.scale[0], places=6)
+
     def test_bake_uses_the_native_affine_path_and_preserves_direction_channels(self) -> None:
         from unittest.mock import patch
 
