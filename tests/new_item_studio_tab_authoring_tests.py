@@ -437,6 +437,37 @@ class _TabAuthoringMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_one_copper_adds_copper_to_a_template_priced_only_in_another_currency(self) -> None:
+        from cdmw.core.iteminfo_row import parse_iteminfo_row, rebuild_stat_block
+        from cdmw.core.structured_binary_editor import parse_pabgh_table, replace_table_row
+        from tests.test_new_item_provenance import current_files
+
+        files = current_files()
+        body_path = 'gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody'
+        head_path = body_path.replace('body', 'header')
+        body, head = files[body_path], files[head_path]
+        row = next(parse_iteminfo_row(body[start:end]) for entry, start, end in
+            parse_pabgh_table(head, payload=body).row_spans(len(body)) if entry.row_id == TEMPLATE)
+        raw = rebuild_stat_block(row, price_list=tuple(p for p in row.price_list if p.item_key != COPPER))
+        files[body_path], files[head_path] = replace_table_row(body, head, TEMPLATE, raw)
+        self.entries = tuple(parse_archive_pamt(build_package(self.root, files)))
+        tab = self._tab()
+        tab.start_snapshot()
+        tab.prefill_template(TEMPLATE)
+        tab.controller.draft.display_names['eng'] = 'Copper test'
+        for label, action in (('quick', tab.stats_panel.one_copper_button.click), ('shortcut', tab.stats_panel.set_copper_price)):
+            with self.subTest(action=label):
+                tab.stats_panel.reset_button.click()
+                action()
+                self.assertEqual(tab.controller.draft.price_values[COPPER], 1)
+                plan = tab.controller.service.plan(tab.controller.current_spec(), tab.controller.snapshot)
+                body, head = plan.loose_files[body_path], plan.loose_files[head_path]
+                item = next(parse_iteminfo_row(body[start:end]) for entry, start, end in
+                    parse_pabgh_table(head, payload=body).row_spans(len(body)) if entry.row_id == plan.spec.item_key)
+                self.assertEqual(next(p.price for p in item.price_list if p.item_key == COPPER), 1)
+        tab.close()
+        tab.deleteLater()
+
     def test_template_without_a_decoded_stat_block_explains_price_blocker(self) -> None:
         tab = self._tab()
         tab.start_snapshot()

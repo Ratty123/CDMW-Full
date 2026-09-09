@@ -235,3 +235,153 @@ def test_a_change_during_backup_is_preserved_and_publication_is_refused(tmp_path
     assert mount.read_bytes() == external
     assert not (root / INDEX_PATH).exists()
     assert not (root / prepared.directory_name / '0.pamt').exists()
+
+
+@pytest.mark.parametrize('old_inventory', [False, True])
+def test_recipe_ingredients_prevent_removing_their_owner(tmp_path, old_inventory):
+    from cdmw.domain.new_item.authoring import RecipeInput, RecipeOverride
+    from tests.test_new_item_service import MC_ROW_0
+
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    first = service.plan(replace(shop_spec('Alpha'), recipes=()), snapshot)
+    service.install_overlay(first, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    second = service.plan(replace(shop_spec('Beta'), recipes=(RecipeOverride(MC_ROW_0,
+        inputs=(RecipeInput(first.spec.item_key, 1),)),)), snapshot_of(root))
+    assert any(i['item_key'] == first.spec.item_key for r in second.manifest['recipes'] for i in r['inputs'])
+    service.install_overlay(second, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    catalog = list_installed_overlays(root)
+    inventory = json.loads((root / INDEX_PATH).read_bytes())
+    assert inventory['layers'][1]['dependencies'] == [catalog[0].id]
+    if old_inventory:
+        # Earlier inventories omitted recipe dependencies; journal rows still
+        # prove the dependency and must protect an already installed item.
+        inventory['layers'][1]['dependencies'] = []
+        (root / INDEX_PATH).write_text(json.dumps(inventory), encoding='utf-8')
+    before = {path: path.read_bytes() for path in (root / catalog[0].directory).iterdir()}
+    with pytest.raises(ValueError, match='dependent overlay'):
+        prepare_overlay_removal(root, catalog[0].id)
+    assert all(path.read_bytes() == value for path, value in before.items())
+    assert backups.count == 2
+    backups.apply(prepare_overlay_removal(root, catalog[1].id))
+    backups.apply(prepare_overlay_removal(root, catalog[0].id))
+    assert list_installed_overlays(root) == ()
+
+
+def test_recipe_output_dependencies_are_read_from_the_generated_rows(tmp_path):
+    from cdmw.core.item_reward_table import parse_item_reward_set, encode_item_reward_set
+    from cdmw.core.structured_binary_editor import parse_pabgh_table, replace_table_row
+
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    first = service.plan(replace(shop_spec('Alpha'), recipes=()), snapshot)
+    service.install_overlay(first, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    second = service.plan(shop_spec('Beta'), snapshot_of(root))
+    body_request = next(p for p in second.patches if p.entry.path.endswith('dropsetinfo.staticinfobody'))
+    head_request = next(p for p in second.patches if p.entry.path.endswith('dropsetinfo.staticinfoheader'))
+    body, head = body_request.payload_data, head_request.payload_data
+    reward_key = second.manifest['recipes'][0]['reward_keys'][0]
+    reward = next(parse_item_reward_set(body[start:end]) for entry, start, end in
+        parse_pabgh_table(head, payload=body).row_spans(len(body)) if entry.row_id == reward_key)
+    reward = replace(reward, entries=reward.entries + (replace(reward.entries[0], item_key=first.spec.item_key),))
+    body, head = replace_table_row(body, head, reward_key, encode_item_reward_set(reward))
+    # The summary intentionally does not advertise this additional product:
+    # dependency protection must inspect the actual rows being installed.
+    second = replace(second, patches=tuple(replace(p, payload_data=body) if p is body_request else
+        replace(p, payload_data=head) if p is head_request else p for p in second.patches))
+    service.install_overlay(second, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    catalog = list_installed_overlays(root)
+    with pytest.raises(ValueError, match='dependent overlay'):
+        prepare_overlay_removal(root, catalog[0].id)
+    backups.apply(prepare_overlay_removal(root, catalog[1].id))
+    assert first.spec.item_key in snapshot_of(root).rows
+
+
+def test_empty_inventory_starts_a_fresh_baseline_after_a_game_update(tmp_path):
+    from cdmw.core.iteminfo_row import parse_iteminfo_row, rebuild_stat_block, price_list_with
+    from cdmw.core.structured_binary_editor import parse_pabgh_table, replace_table_row
+    from cdmw.core.pathc_format import encode_pathc, register_dds
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS
+    from tests.test_new_item_provenance import current_files
+    from tests.test_new_item_service import build_package, TEMPLATE
+
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    registry = root / 'meta/0.pathc'
+    baseline = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
+    registry.write_bytes(encode_pathc(baseline))
+    first = service.plan(shop_spec('Alpha'), snapshot_of(root))
+    service.install_overlay(first, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    backups.apply(prepare_overlay_removal(root, list_installed_overlays(root)[0].id))
+    old_journals = {path: path.read_bytes() for path in (root / '.cdmw/overlays').glob('*.zip')}
+    assert list_installed_overlays(root) == ()
+
+    updated = current_files()
+    body_path = 'gamedata/binarystaticinfo__/bin/iteminfo.staticinfobody'
+    head_path = body_path.replace('body', 'header')
+    body, head = updated[body_path], updated[head_path]
+    row = next(parse_iteminfo_row(body[start:end]) for entry, start, end in
+        parse_pabgh_table(head, payload=body).row_spans(len(body)) if entry.row_id == TEMPLATE)
+    row_bytes = rebuild_stat_block(row, price_list=price_list_with(row.price_list, 1, 12345))
+    updated[body_path], updated[head_path] = replace_table_row(body, head, TEMPLATE, row_bytes)
+    build_package(root, updated)
+    registry.write_bytes(encode_pathc(register_dds(baseline, 'ui/texture/game_update.dds', ICON_HEADER)))
+    shipped = {path: path.read_bytes() for path in (root / '0009').iterdir() if path.is_file()}
+    registry_before = registry.read_bytes()
+    next_plan = service.plan(shop_spec('AfterUpdate'), snapshot_of(root))
+    service.install_overlay(next_plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    assert snapshot_of(root).rows[TEMPLATE].raw == row_bytes
+    assert len(json.loads((root / INDEX_PATH).read_bytes())['layers']) == 1
+    backups.apply(prepare_overlay_removal(root, list_installed_overlays(root)[0].id))
+    assert snapshot_of(root).rows[TEMPLATE].raw == row_bytes
+    assert registry.read_bytes() == registry_before
+    assert all(path.read_bytes() == value for path, value in shipped.items())
+    assert all(path.read_bytes() == value for path, value in old_journals.items())
+
+
+def test_empty_history_cannot_overwrite_a_still_mounted_managed_archive(tmp_path):
+    service, snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    service.install_overlay(service.plan(shop_spec('Alpha'), snapshot),
+        mutation_service=backups, confirmed=True, game_running=lambda: False)
+    inventory = json.loads((root / INDEX_PATH).read_bytes())
+    inventory['layers'][0]['active'] = False
+    (root / INDEX_PATH).write_text(json.dumps(inventory), encoding='utf-8')
+    next_plan = service.plan(shop_spec('Beta'), snapshot_of(root))
+    with pytest.raises(ValueError, match='changed outside'):
+        prepare_item_overlay(next_plan, root)
+    assert backups.count == 1
+
+
+def test_legacy_removal_preserves_later_foreign_texture_registrations(tmp_path, monkeypatch):
+    import cdmw.core.archive_patching as patching
+    from cdmw.domain.archives.mutation import ArchiveAddRequest
+    from cdmw.services.archive_overlay_install import install_overlay
+    from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_dds
+    from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
+
+    monkeypatch.setattr(patching, 'ARCHIVE_PATCH_BACKUP_ROOT', tmp_path / 'backups')
+    service, _snapshot, _ = setup_game(tmp_path)
+    root, backups = tmp_path / 'game', Backups(tmp_path)
+    base = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
+    registry = root / 'meta/0.pathc'
+    registry.write_bytes(encode_pathc(base))
+    legacy_path, foreign_path = 'ui/texture/legacy.dds', 'ui/texture/foreign_mod.dds'
+    owned = register_dds(base, legacy_path, BIG_HEADER, tag=4)
+    old = service.plan(shop_spec('Legacy'), snapshot_of(root))
+    texture = ArchiveAddRequest.from_template(old.patches[0].entry, legacy_path, BIG_HEADER)
+    install_overlay(old.patches, old.additions + (texture,), package_root=root, game_running=lambda: False,
+        meta_files=[('meta/0.pathc', encode_pathc(owned))])
+    # This mod shares the header introduced by the older overlay.
+    live = register_dds(owned, foreign_path, BIG_HEADER, tag=4)
+    registry.write_bytes(encode_pathc(live))
+    before = registry.read_bytes()
+    prepared = prepare_overlay_removal(root, list_installed_overlays(root)[0].id)
+    assert registry.read_bytes() == before
+    backups.apply(prepared)
+    after = parse_pathc(registry.read_bytes())
+    assert after.find(legacy_path) is None
+    assert after.find(foreign_path) == live.find(foreign_path)
+    assert after.dds_header_for(after.find(foreign_path)) == BIG_HEADER
+    assert after.find('ui/texture/base.dds') == base.find('ui/texture/base.dds')
+    assert list_installed_overlays(root) == ()

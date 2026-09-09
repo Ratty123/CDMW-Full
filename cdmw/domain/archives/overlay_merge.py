@@ -155,6 +155,85 @@ def _pathc(before, after, current, where):
         filenames=_value(b.filenames, a.filenames, c.filenames, where)))
 
 
+def legacy_texture_baseline(original, current, textures):
+    """Undo only registrations proven to belong to the legacy archive's DDS files."""
+    from cdmw.core.pathc_format import parse_pathc, encode_pathc, pathc_checksum, dds_shape, block_infos_for
+
+    old, live = map(parse_pathc, (original, current))
+    old_entries = {e.checksum: e for e in old.entries}
+    entries, headers = {e.checksum: e for e in live.entries}, list(live.headers)
+
+    def signature(table, entry):
+        if entry is None:
+            return None
+        header = table.headers[entry.header_index] if entry.is_direct else None
+        return header, entry.collision_start, entry.collision_end, entry.block_infos
+
+    def matches(table, entry, payload):
+        if entry is None or not entry.is_direct or payload is None:
+            return False
+        try:
+            return (dds_shape(table.dds_header_for(entry)) == dds_shape(payload)
+                    and entry.block_infos == block_infos_for(payload))
+        except (ValueError, struct.error):
+            return False
+
+    for texture, (before, after) in textures.items():
+        checksum = pathc_checksum(texture)
+        previous, present = old_entries.get(checksum), entries.get(checksum)
+        if signature(old, previous) == signature(live, present):
+            continue
+        # A collision, changed registration, or mismatching underlay has no
+        # trustworthy ownership boundary. Refuse instead of restoring that row.
+        if (old.header_size != live.header_size or not matches(live, present, after)
+                or (previous is None and before is not None)
+                or (previous is not None and not matches(old, previous, before))):
+            path = 'meta/0.pathc'
+            raise OverlayConflict(f'Overlay conflict in {path}; overlapping file edits cannot be separated safely.')
+        if previous is None:
+            entries.pop(checksum)
+        else:
+            header = old.headers[previous.header_index]
+            if header not in headers:
+                headers.append(header)
+            entries[checksum] = replace(previous, header_index=headers.index(header))
+    # Keep live header/collision tables: unrelated registrations may reference
+    # records added after the legacy install, including shared DDS headers.
+    return encode_pathc(replace(live, headers=tuple(headers), entries=tuple(entries[key] for key in sorted(entries))))
+
+
+def owned_item_references(changes):
+    """Item references in changed rows, excluding inherited whole-table contents."""
+    from cdmw.core.iteminfo_row import parse_iteminfo_row
+    from cdmw.core.item_recipe_table import parse_item_recipe
+    from cdmw.core.item_reward_table import parse_item_reward_set
+
+    references = set()
+    for body, change in changes.items():
+        name = body.rsplit('/', 1)[-1]
+        if name not in ('iteminfo.staticinfobody', 'iteminfo.pabgb',
+                        'multichangeinfo.staticinfobody', 'dropsetinfo.staticinfobody') or change['after'] is None:
+            continue
+        head = body.replace('.staticinfobody', '.staticinfoheader').replace('.pabgb', '.pabgh')
+        if head not in changes:
+            raise OverlayConflict(f'Both table files are required to compose {body}.')
+        old = dict(_table(change['before'], changes[head]['before'])[1]) if change['before'] is not None else {}
+        for key, raw in _table(change['after'], changes[head]['after'])[1]:
+            if old.get(key) == raw:
+                continue
+            if name.startswith('iteminfo.'):
+                row = parse_iteminfo_row(raw)
+                references.update(row.socket_items)
+                references.update(item for item, _count, _extra in row.add_socket_materials)
+                references.update(p.item_key for p in row.price_list)
+                references.update(p.item_key for level in row.enchant_levels for p in level.buy_prices)
+            elif name.startswith('multichangeinfo.'):
+                references.update(i.item_key for i in parse_item_recipe(raw).ingredients)
+            else:
+                references.update(i.item_key for i in parse_item_reward_set(raw).entries)
+    return references
+
+
 _ICON = re.compile(rb'<Texture\s+Name="([^"]*)"\s+Filename="[^"]*"[^>]*/>')
 
 

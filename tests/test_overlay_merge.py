@@ -4,7 +4,7 @@ import pytest
 from cdmw.core.item_icon_registry import add_icon_texture, registered_icon_names
 from cdmw.core.pappt_format import parse_pappt, encode_pappt, insert_part_prefabs
 from cdmw.core.pathc_format import parse_pathc, encode_pathc, register_dds, pathc_checksum
-from cdmw.domain.archives.overlay_merge import merge_overlay_files, OverlayConflict
+from cdmw.domain.archives.overlay_merge import merge_overlay_files, legacy_texture_baseline, OverlayConflict
 from tests.test_pappt_format import _synthetic_bytes
 from tests.test_pathc_format import build_table, ICON_HEADER, ICON_BLOCKS, BIG_HEADER
 
@@ -52,3 +52,32 @@ def test_same_owned_file_with_different_bytes_is_a_conflict():
     path = 'character/model/owned.pac'
     with pytest.raises(OverlayConflict, match='conflict'):
         merge_overlay_files({path: None}, {path: b'new mesh'}, {path: b'other mesh'})
+
+
+def test_legacy_texture_baseline_restores_owned_rows_and_keeps_foreign_changes():
+    from dataclasses import replace
+    from cdmw.core.pathc_format import block_infos_for
+
+    path = 'ui/texture/replaced.dds'
+    base = build_table(headers=[ICON_HEADER], entries=[(path, 0, ICON_BLOCKS)])
+    live = register_dds(base, 'ui/texture/foreign.dds', BIG_HEADER, tag=4)
+    live = replace(live, entries=tuple(replace(e, header_index=1, block_infos=block_infos_for(BIG_HEADER))
+        if e.checksum == pathc_checksum(path) else e for e in live.entries))
+    restored = parse_pathc(legacy_texture_baseline(encode_pathc(base), encode_pathc(live), {path: (ICON_HEADER, BIG_HEADER)}))
+    assert restored.find(path) == base.find(path)
+    assert restored.find('ui/texture/foreign.dds') == live.find('ui/texture/foreign.dds')
+    assert restored.headers == live.headers
+
+
+@pytest.mark.parametrize('ambiguous', ['changed_header', 'collision'])
+def test_legacy_texture_baseline_refuses_unproven_registration_ownership(ambiguous):
+    from dataclasses import replace
+
+    path = 'ui/texture/legacy.dds'
+    base = build_table(headers=[ICON_HEADER], entries=[('ui/texture/base.dds', 0, ICON_BLOCKS)])
+    live = register_dds(base, path, BIG_HEADER, tag=4)
+    if ambiguous == 'collision':
+        live = replace(live, entries=tuple(replace(e, header_index=0xffff)
+            if e.checksum == pathc_checksum(path) else e for e in live.entries))
+    with pytest.raises(OverlayConflict, match='meta/0.pathc'):
+        legacy_texture_baseline(encode_pathc(base), encode_pathc(live), {path: (None, ICON_HEADER)})

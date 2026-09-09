@@ -18,7 +18,9 @@ The format is intentionally simple:
 
 ### Fixed
 
-- **Set price to 1 Copper** now removes embedded perk price contributions with owned zero-price perk copies while retaining their bonuses and translated names. Normal price editing can retain the original perk values.
+- Removing a legacy overlay preserves later texture registrations from other mods and refuses ambiguous ownership. Recipe ingredient and output dependencies prevent removal of items needed by remaining overlays, including inventories written before those dependencies were recorded.
+- After all overlays are removed, a fresh install uses the current game archives instead of rejecting a game update against retired history. Recovery journals and the previous inventory backup are retained.
+- **Set price to 1 Copper** adds Copper when needed and removes embedded perk price contributions with owned zero-price perk copies while retaining their bonuses and translated names. Normal price editing can retain the original perk values.
 - Effect colour changes now reach temperature-colour material ramps in cloned render presets. Particle billboards use the authored full size in the preview, correcting their doubled extent.
 - Full mesh replacements disable the donor's extra-influence gate and reset its extra bone indices, preventing discarded accessory bones from affecting imported parts such as Frostmourne's skull.
 - After overlay installation or removal, New Item waits for the worker to finish and refreshes the current mounted archives before allocating another item.

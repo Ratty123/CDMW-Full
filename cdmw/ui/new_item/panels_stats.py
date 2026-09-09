@@ -706,8 +706,7 @@ class StatsPanel(QGroupBox):
                     draft.grid_values[(level, column_index)] = 1
         for key, _label, _template in self._grid.price_items:
             draft.price_values[key] = 1
-        if not self._grid.price_items:
-            draft.price_values[_COPPER_ITEM_KEY] = 1
+        draft.price_values[_COPPER_ITEM_KEY] = 1
         self._draft_changed(rebuild=True)
         self.price_state_changed.emit()
 

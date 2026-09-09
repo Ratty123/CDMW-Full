@@ -20,7 +20,9 @@ from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
 from cdmw.core.atomic_file import atomic_write_bytes
 from cdmw.core.papgt_format import PAPGT_DEFAULT_FLAGS, parse_papgt, papgt_with_directory, serialize_papgt
-from cdmw.domain.archives.overlay_merge import OverlayConflict, merge_overlay_files
+from cdmw.domain.archives.overlay_merge import (
+    OverlayConflict, legacy_texture_baseline, merge_overlay_files, owned_item_references,
+)
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.archive_overlay_install import (
     OVERLAY_OWNER_BYTES, OVERLAY_OWNER_MARKER, OverlayInstallResult,
@@ -310,12 +312,17 @@ def _uses_owned_assets(plan, changes, owned_changes):
 
 def _state_for_edit(root, directory_name, stop_event):
     state = _load_index(root)
-    if state is not None:
+    if state is not None and any(layer['active'] for layer in state['layers']):
         _validate_published(root, state, stop_event)
         if directory_name is not None and _directory(directory_name) != state['directory']:
             raise ValueError(f"Managed installs share archive {state['directory']}. Choose Auto or that folder so their shared tables stay composed.")
         return state, {}
     records, owned = _mounted_owned(root)
+    if state is not None and (owned or is_cdmw_overlay_directory(_target(root, state['directory']))):
+        relative = state['directory']
+        raise OverlayConflict(f'{relative} changed outside the overlay manager. Restore or refresh the install before changing overlays.')
+    # With no installed layers, begin a fresh baseline from today's mounted files.
+    # Old journals stay on disk and the replaced inventory is included in backup.
     if len(owned) > 1:
         raise OverlayConflict('Multiple earlier CDMW archive groups need consolidation before individual item management can begin.')
     existing = owned[0].name if owned else None
@@ -357,7 +364,10 @@ def _state_for_edit(root, directory_name, stop_event):
         for relative, baseline in overlay_baseline_files(root).items():
             if relative != 'meta/0.pathc':
                 raise ValueError('The earlier overlay has unsupported metadata; its backup needs review.')
-            changes[relative] = {'before': baseline.read_bytes(), 'after': _target(root, relative).read_bytes(), 'flags': 0, 'meta': True}
+            current = _target(root, relative).read_bytes()
+            before = legacy_texture_baseline(baseline.read_bytes(), current,
+                {path: (change['before'], change['after']) for path, change in changes.items() if path.endswith('.dds')})
+            changes[relative] = {'before': before, 'after': current, 'flags': 0, 'meta': True}
         _add_layer(state, pending, f'Existing overlay {existing}', changes, item_keys=_added_item_keys(changes), legacy=True)
     return state, pending
 
@@ -402,11 +412,14 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log):
     current = dict(baseline)
     active = [layer for layer in state['layers'] if layer['active']]
     inactive = {layer['id'] for layer in state['layers'] if not layer['active']}
+    active_items = {key for layer in active for key in layer['item_keys']}
+    removed_items = {key for layer in state['layers'] if not layer['active'] for key in layer['item_keys']} - active_items
     for layer, changes in layers:
         raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
         if not layer['active']:
             continue
-        if inactive.intersection(layer['dependencies']):
+        if (inactive.intersection(layer['dependencies'])
+                or (removed_items and removed_items.intersection(owned_item_references(changes)))):
             raise OverlayConflict(f"{layer['label']} uses an item or asset from the selected overlay. Remove the dependent overlay first.")
         if on_log:
             on_log(f"Composing {layer['label']}...")
@@ -480,16 +493,7 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
         raise ValueError('The overlay plan changes nothing.')
     item_keys = _added_item_keys(changes)
     known_items = set(item_keys) | {int(plan.spec.item_key)}
-    references = {int(plan.spec.template_key), *(int(k) for k in (plan.spec.socket_items or ())) }
-    if plan.spec.socket_items is None:
-        from cdmw.core.iteminfo_row import parse_iteminfo_row
-        for path, change in changes.items():
-            if path.rsplit('/', 1)[-1] in ('iteminfo.staticinfobody', 'iteminfo.pabgb'):
-                from cdmw.core.structured_binary_editor import parse_pabgh_table
-                head = path.replace('.staticinfobody', '.staticinfoheader').replace('.pabgb', '.pabgh')
-                for row, start, end in parse_pabgh_table(changes[head]['after'], payload=change['after']).row_spans(len(change['after'])):
-                    if row.row_id == plan.spec.item_key:
-                        references.update(parse_iteminfo_row(change['after'][start:end]).socket_items)
+    references = owned_item_references(changes) | {int(plan.spec.template_key)}
     dependencies = []
     for layer in state['layers']:
         if not layer['active']:

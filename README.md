@@ -134,6 +134,7 @@ does not establish equipping, appearance, or gameplay behavior in a save.
 
 **Set price to 1 Copper** sets base and enhancement prices to one and creates
 zero-price copies of embedded perks, retaining their bonuses and localized names.
+It adds a Copper price even when the template is priced only in another currency.
 **Include perk value in shop price** restores their normal price contributions.
 The shop may still apply its own modifiers.
 
@@ -150,9 +151,14 @@ Output can be a loose manager package, a CDMW-owned archive-group overlay, or th
 confirmed archive-install path. **Output → Installed overlays** lists individual
 CDMW installs and removes a selected one while preserving the others. Shared
 tables and registries are composed by record; conflicts and dependencies block
-unsafe removal. Earlier installs without ownership history appear as one bundle.
+unsafe removal, including items used in another overlay's recipes. Earlier installs
+without ownership history appear as one bundle. Their removal changes only texture
+registrations with proven ownership and preserves later registrations from other mods.
+After the last overlay is removed, the next install starts from the current game
+files, so retired history does not block installation after a game update.
 Keep `.cdmw/overlays.json` and `.cdmw/overlays/` with the game installation: they
-retain the ownership and before/after history needed for individual removal.
+retain the ownership and before/after history needed for individual removal. Retired
+journals remain on disk, and a replaced inventory is retained in the install backup.
 Planning and preview are read-only; game writes require service-owned preflight,
 confirmation, verified backups and rollback. The part-prefab reader preserves both the original and
 Crimson Desert 2.00.00 layouts byte-for-byte.
