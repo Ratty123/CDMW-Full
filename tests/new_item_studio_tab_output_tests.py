@@ -221,6 +221,57 @@ class _TabOutputMixin:
         tab.close()
         tab.deleteLater()
 
+    def test_dmm_folder_picker_replans_with_the_loaded_snapshot_reader_and_keeps_both_items(self) -> None:
+        from cdmw.core.iteminfo_row import parse_iteminfo_row
+        from cdmw.core.structured_binary_editor import parse_pabgh_table
+        from cdmw.services.new_item_mod_base import mod_folder_payloads
+
+        tab = self._tab()
+        # The application normally lets the snapshot create its own archive reader.
+        tab.controller._read_entry = None
+        tab.prefill_template(TEMPLATE)
+        snapshot = tab.controller.snapshot
+        self.assertIsNotNone(snapshot)
+        output = tab.output_panel
+        tab.identity_panel.internal_name.setText("First_Clone_OneHandSword")
+        tab.identity_panel.display_name.setText("First")
+        output.build_button.click()
+        initial_plan = tab.controller.plan
+        self.assertIsNotNone(initial_plan, output.summary.toPlainText())
+        output.manager.setCurrentText("DMM")
+        self.assertIs(tab.controller.plan, initial_plan, "the manager selects an output layout")
+
+        folder = self.root / "dmm_mod"
+        folder.mkdir()
+        with patch("cdmw.ui.new_item.panels_output.QFileDialog.getExistingDirectory", return_value=str(folder)):
+            output.browse_button.click()
+        self.assertIs(tab.controller.snapshot, snapshot, "choosing a destination keeps the loaded archives")
+        output.build_button.click()
+        first = tab.controller.plan
+        self.assertIsNotNone(first, output.summary.toPlainText())
+        with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
+            output.export_button.click()
+        self.assertTrue((folder / "new-item.json").is_file(), output.log.toPlainText())
+
+        tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")
+        tab.identity_panel.display_name.setText("Second")
+        output.build_button.click()
+        second = tab.controller.plan
+        self.assertIsNotNone(second, output.summary.toPlainText())
+        self.assertNotEqual(second.spec.item_key, first.spec.item_key)
+        with patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
+            output.export_button.click()
+        payloads = mod_folder_payloads(folder)
+        table_path = "gamedata/binary__/client/bin/iteminfo"
+        body = payloads[f"{table_path}.pabgb"].read_bytes()
+        head = payloads[f"{table_path}.pabgh"].read_bytes()
+        rows = {
+            row.row_id: parse_iteminfo_row(body[start:end]).string_key
+            for row, start, end in parse_pabgh_table(head, payload=body).row_spans(len(body))
+        }
+        self.assertEqual(rows[first.spec.item_key], "First_Clone_OneHandSword")
+        self.assertEqual(rows[second.spec.item_key], "Second_Clone_OneHandSword")
+
     def test_install_goes_through_the_window_services_after_confirmation(self) -> None:
         from types import SimpleNamespace
 

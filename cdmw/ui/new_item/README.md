@@ -232,6 +232,10 @@ vertices. Curves retain 128 samples. The Rust renderer fades particles against c
 scene depth for soft intersections, including MSAA, and offers 64/256/1024/2048 particles
 per emitter with a 32,768-instance scene limit. Reset actions clear the corresponding draft
 authority, and the workflow summary reports effective changes rather than UI mode.
+The standard simulation uses the authored force as acceleration without dividing by
+particle mass. This keeps light fire and smoke particles from forming exaggerated
+trails; placement, size and colour settings remain independent. The preview still
+approximates game materials, lighting and environmental interactions.
 
 `effect_authoring.py` owns immutable layer/emitter recipes. `effect_recipe.py` resolves
 editable inherited emitters and compiles the same bytes for preview and export.
@@ -381,7 +385,12 @@ UI code here never touches the archives: reading is the service's snapshot,
 writing is `ArchiveMutationService` through the service's `install`, and the
 loose export is built in a sibling staging directory and published only when
 complete. DMM archive groups are readable as mod bases, so repeated exports
-carry earlier items forward. Game overlays carry a CDMW ownership marker;
+carry earlier items forward. Select the same mod folder with **Add to the mod already in this folder**
+enabled, then rebuild the plan for each additional item. Choosing that folder
+invalidates the previous plan and reuses the loaded archive reader when rebuilding.
+Separate New Item mod folders can replace the same shared tables, so enabling both
+in DMM can hide items from the earlier mod even when their item keys differ.
+Game overlays carry a CDMW ownership marker;
 install, migration and removal ignore foreign numeric groups and roll back every
 post-backup failure or cancellation. Temporary model extraction roots are retired when
 their import is replaced, discarded, fails, or the studio closes. Model, Effects and

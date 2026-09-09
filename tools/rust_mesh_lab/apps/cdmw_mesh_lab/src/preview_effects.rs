@@ -161,6 +161,8 @@ fn effect_spawn_position(emitter: &Value, seed: f32) -> Vec3 {
 }
 
 fn effect_force(emitter: &Value, seed: f32) -> Vec3 {
+    // Standard GPUParticleUpdateCS treats the authored force range as
+    // acceleration. Mass affects external forces, not this range.
     let Some(values) = emitter.get("force").and_then(Value::as_array) else {
         return Vec3::ZERO;
     };
@@ -336,14 +338,6 @@ pub(crate) fn effect_emitter_billboards_with_limit(
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or("billboard");
-    let mass = emitter
-        .get("mass")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(1.0)
-        .abs()
-        .max(0.01);
     let damping = emitter
         .get("damping")
         .and_then(Value::as_f64)
@@ -433,7 +427,7 @@ pub(crate) fn effect_emitter_billboards_with_limit(
             }
             let progress = (age / life).clamp(0.0, 1.0);
             let origin = effect_spawn_position(emitter, seed);
-            let acceleration = effect_force(emitter, seed) / mass;
+            let acceleration = effect_force(emitter, seed);
             let initial_velocity = effect_range(emitter.get("velocity"), seed + 11.1, Vec3::ZERO);
             let (local_center, velocity) = limited_particle_kinematics(
                 origin,
@@ -661,14 +655,6 @@ pub(crate) fn effect_emitter_lines(
         .get("kind")
         .and_then(Value::as_str)
         .unwrap_or("billboard");
-    let mass = emitter
-        .get("mass")
-        .and_then(Value::as_f64)
-        .map(|value| value as f32)
-        .filter(|value| value.is_finite())
-        .unwrap_or(1.0)
-        .abs()
-        .max(0.01);
     let damping = emitter
         .get("damping")
         .and_then(Value::as_f64)
@@ -752,7 +738,7 @@ pub(crate) fn effect_emitter_lines(
             }
             let progress = (age / life).clamp(0.0, 1.0);
             let origin = effect_spawn_position(emitter, seed);
-            let acceleration = effect_force(emitter, seed) / mass;
+            let acceleration = effect_force(emitter, seed);
             let initial_direction = Vec3::new(
                 seed_signed(seed + 11.1),
                 seed_signed(seed + 13.7),
@@ -1075,6 +1061,24 @@ mod tests {
         );
         assert!((2.0 * Vec3::from(p[0].axis_right).length() - 0.015).abs() < 1.0e-6);
         assert!((2.0 * Vec3::from(p[0].axis_up).length() - 0.06).abs() < 1.0e-6);
+    }
+    #[test]
+    fn authored_force_does_not_accelerate_low_mass_torch_particles_faster() {
+        let mut e = emitter();
+        e["force"] = json!([[0., 0.5, 0.], [0., 0.5, 0.]]);
+        e["life"] = json!([1.4, 1.4]);
+        e["mass"] = json!(1.);
+        let reference_lines = effect_emitter_lines(&e, 0, 0.7, 0.01);
+        assert!(!reference_lines.is_empty());
+        for mass in [0.011, 0.041, 1., 8.] {
+            e["mass"] = json!(mass);
+            let p = draw(&e, 0.7);
+            assert_eq!(p.len(), 1);
+            // The game's standard updater adds force * dt to velocity;
+            // 0.5 m/s^2 travels 0.1225 m after 0.7 s, whatever the mass.
+            assert!((p[0].center[1] - 0.1225).abs() < 1.0e-6, "mass {mass}");
+            assert_eq!(effect_emitter_lines(&e, 0, 0.7, 0.01), reference_lines);
+        }
     }
     #[test]
     fn speed_limit_bounds_displacement_as_well_as_reported_velocity() {

@@ -149,6 +149,9 @@ the new package's placement.
 The resident effect overlay renders DDS sprites, interpolated flipbooks,
 packed mask channels and bounded decoded mesh particles. It uses authored
 velocity, damping, speed limits, independent size axes, colour and alpha curves.
+The authored force range is acceleration, matching the game's standard
+`GPUParticleUpdateCS`; particle mass affects external forces rather than dividing
+that range. Both sprite and line previews preserve this distinction.
 Particle camera/sprite bindings are separate from the mesh material bindings;
 transparent particles share camera-depth order and a reusable upload buffer.
 The synthetic D3D12 smoke gate asserts particle pixels, mask channels, frame

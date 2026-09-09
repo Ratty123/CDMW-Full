@@ -59466,7 +59466,7 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 216,
+          "line": 217,
           "sink": "ValueError"
         }
       ]
@@ -76778,11 +76778,6 @@
           "path": "cdmw/ui/new_item/effect_workspace_controller.py",
           "line": 140,
           "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/new_item_workers.py",
-          "line": 170,
-          "sink": "ValueError"
         }
       ]
     },
@@ -77321,7 +77316,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 173,
+          "line": 174,
           "sink": "log"
         }
       ]
@@ -101151,12 +101146,12 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 283,
+          "line": 284,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 313,
+          "line": 314,
           "sink": "RuntimeError"
         }
       ]
@@ -101891,7 +101886,7 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 203,
+          "line": 204,
           "sink": "ValueError"
         }
       ]
@@ -112271,7 +112266,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 230,
+          "line": 231,
           "sink": "log"
         }
       ]
@@ -112666,7 +112661,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 234,
+          "line": 235,
           "sink": "log"
         }
       ]
@@ -131146,7 +131141,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 278,
+          "line": 279,
           "sink": "log"
         }
       ]

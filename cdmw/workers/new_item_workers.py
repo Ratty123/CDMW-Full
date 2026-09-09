@@ -166,13 +166,14 @@ def plan_task(
             )
             base = refreshed
         if mod_base_folder is not None:
-            if read_entry is None:
-                raise ValueError("Read the archives first.")
             from cdmw.services.new_item_mod_base import build_mod_base_snapshot
 
+            # A normal snapshot owns its reader even when the controller was not
+            # given an override. Reuse the current base after any archive refresh.
+            base_reader = read_entry or (base.provenance.reader if base.provenance else base.read_entry)
             log("Reading the mod base so the next item keeps its existing dependencies...")
             base = build_mod_base_snapshot(
-                service, base, Path(mod_base_folder), read_entry=read_entry,
+                service, base, Path(mod_base_folder), read_entry=base_reader,
                 on_log=log, stop_event=stop_event,
             )
         resolved_icon = icon_source_path
