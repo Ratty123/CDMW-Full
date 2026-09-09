@@ -571,7 +571,7 @@ def _fbx_skin_rows(submesh: object, bone_palette: Sequence[int] | None) -> tuple
         values = tuple(row_weights or ())
         if len(slots) != len(values):
             return None
-        mapped: list[tuple[int, float]] = []
+        weights_by_bone: dict[int, float] = {}
         for raw_slot, raw_weight in zip(slots, values):
             try:
                 slot, weight = int(raw_slot), float(raw_weight)
@@ -583,7 +583,10 @@ def _fbx_skin_rows(submesh: object, bone_palette: Sequence[int] | None) -> tuple
                 slot = int(palette[slot])
             if slot < 0 or not math.isfinite(weight) or weight <= 0.0:
                 continue
-            mapped.append((slot, weight))
+            # PAC rows can repeat a slot. FBX clusters need one contribution
+            # per vertex/bone; Blender otherwise replaces the earlier weight.
+            weights_by_bone[slot] = weights_by_bone.get(slot, 0.0) + weight
+        mapped = list(weights_by_bone.items())
         total = sum(weight for _bone, weight in mapped)
         if total <= 0.0:
             mapped = []
@@ -634,6 +637,7 @@ def export_native_fbx(
                 "index": submesh_index,
                 "name": str(getattr(submesh, "name", "") or f"part_{submesh_index}"),
                 "material": str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or f"part_{submesh_index}"),
+                "diffuse_texture": str(getattr(submesh, "texture", "") or "").replace("\\", "/"),
             }
             # The skin lives beside the geometry rather than inside the session, because a
             # session stores raw palette slots and the writer needs skeleton bone indices.

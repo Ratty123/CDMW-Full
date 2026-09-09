@@ -97,8 +97,8 @@ def test_pamlod_retains_each_material_and_local_triangle_indices():
     assert parsed.submeshes[1].source_vertex_offsets == [geometry + 18, geometry + 24, geometry + 30]
 
 
-@pytest.mark.parametrize("resolve_appearance", [True, False])
-def test_character_obj_uses_neutral_appearance_but_internal_edit_keeps_source(
+@pytest.mark.parametrize("resolve_appearance", [None, True, False])
+def test_character_obj_preserves_source_unless_neutral_appearance_is_requested(
     tmp_path, monkeypatch, mesh, resolve_appearance,
 ):
     entry = _entry(tmp_path, "character/model/head.pac")
@@ -115,17 +115,18 @@ def test_character_obj_uses_neutral_appearance_but_internal_edit_keeps_source(
 
     monkeypatch.setattr("cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance", appearance)
     output = tmp_path / "export"
+    options = {} if resolve_appearance is None else {"resolve_skeleton_for_obj": resolve_appearance}
     result = archive_mesh_export.export_archive_mesh(
-        entry, output, "obj", resolve_skeleton_for_obj=resolve_appearance, build_preview_context=False,
+        entry, output, "obj", build_preview_context=False, **options,
     )
     obj = output / "head.obj"
     vertices = [tuple(map(float, row.split()[1:])) for row in obj.read_text().splitlines() if row.startswith("v ")]
     assert vertices == (corrected if resolve_appearance else mesh).submeshes[0].vertices
-    assert bool(applied) == resolve_appearance
+    assert bool(applied) == bool(resolve_appearance)
     assert mesh.submeshes[0].vertices[0] == (0.0, 0.0, 0.0)
     manifest = json.loads(obj.with_suffix(".obj.meta.json").read_text())
-    assert bool(manifest["allowed_edit_operations"]) != resolve_appearance
-    assert manifest["import_rules"]["allow_position_edit"] != resolve_appearance
+    assert bool(manifest["allowed_edit_operations"]) != bool(resolve_appearance)
+    assert manifest["import_rules"]["allow_position_edit"] != bool(resolve_appearance)
     assert all(path.is_file() and path.parent == output for path in result.output_paths)
     if resolve_appearance:
         with pytest.raises(ValueError, match="not allowed|not permitted|disallow"):

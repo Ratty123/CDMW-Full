@@ -25,7 +25,8 @@ from functools import lru_cache
 from operator import itemgetter
 from typing import Iterable, Sequence, Tuple
 
-from .format import Key, MotionClip
+from .format import FPS, Key, MotionClip
+from .timing import key_position
 
 Vec3 = Tuple[float, float, float]
 Quat = Tuple[float, float, float, float]  # x, y, z, w
@@ -109,15 +110,21 @@ def _lerp_vector(keys: Sequence[Key], frame: float, default: Vec3) -> Vec3:
     return tuple(a + (b - a) * t for a, b in zip(left[1][:3], right[1][:3]))  # type: ignore[return-value]
 
 
+@lru_cache(maxsize=8192)
+def _key_rotation(values: Quat) -> Quat:
+    """Key endpoints are immutable; only their interpolation changes each frame."""
+    return quat_normalize(values)
+
+
 def _slerp_quat(keys: Sequence[Key], frame: float) -> Quat:
     if not keys:
         return IDENTITY_QUAT
     left, right, t = _bracket(keys, frame)
     if t == 0.0:
-        return quat_normalize(tuple(left[1][:4]))  # type: ignore[arg-type]
+        return _key_rotation(tuple(left[1][:4]))  # type: ignore[arg-type]
     return quat_slerp(
-        quat_normalize(tuple(left[1][:4])),  # type: ignore[arg-type]
-        quat_normalize(tuple(right[1][:4])),  # type: ignore[arg-type]
+        _key_rotation(tuple(left[1][:4])),  # type: ignore[arg-type]
+        _key_rotation(tuple(right[1][:4])),  # type: ignore[arg-type]
         t,
     )
 
@@ -134,14 +141,11 @@ class Transform:
 def sample_delta(clip: MotionClip, name_hash: int, frame: float) -> Transform | None:
     """Sample the public 30 Hz timeline, independently of the stored key clock."""
 
-    from .format import FPS
     return sample_delta_seconds(clip, name_hash, frame / FPS)
 
 
 def sample_delta_seconds(clip: MotionClip, name_hash: int, seconds: float) -> Transform | None:
     """The clip's delta for one bone at elapsed seconds."""
-
-    from .timing import key_position
 
     track = clip.track_for(name_hash)
     if track is None or not track.animated:

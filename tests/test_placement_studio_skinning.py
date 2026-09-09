@@ -74,6 +74,28 @@ class DeformTests(unittest.TestCase):
         ).reshape(2, 4, 4)
         np.testing.assert_allclose(deform(mesh, matrices), [[0.0, 0.0, 0.0]], atol=1e-9)
 
+    def test_sparse_eight_influence_columns_match_the_full_weighted_transform(self) -> None:
+        rng = np.random.default_rng(56)
+        count = 47
+        mesh = SkinnedMesh('sparse', np.column_stack((rng.normal(size=(count, 3)), np.ones(count))),
+                           np.array([[0, 1, 2]], dtype=np.int32),
+                           rng.integers(0, 19, size=(count, 8), dtype=np.int32),
+                           np.zeros((count, 8)))
+        mesh.weights[:, 0] = 1.
+        for column in range(1, 8):
+            active = rng.choice(count, size=column + 1, replace=False)
+            mesh.weights[active, column] = .1
+        mesh.weights /= mesh.weights.sum(axis=1)[:, None]
+        matrices = rng.normal(size=(19, 4, 4))
+        matrices[:, :, 3] = (0., 0., 0., 1.)
+        for _ in range(2):
+            expected = np.einsum('ni,nj,nijk->nk', mesh.weights, mesh.rest,
+                                 matrices[mesh.bones])[:, :3]
+            np.testing.assert_allclose(deform(mesh, matrices), expected, rtol=0, atol=1e-12)
+            # A later edit must not reuse stale active rows or omit the eighth column.
+            mesh.weights[2, 7] += .2
+            mesh.weights[2, 0] -= .2
+
 
 class SkinMatrixTests(unittest.TestCase):
     def test_inverse_bind_times_bind_is_identity(self) -> None:

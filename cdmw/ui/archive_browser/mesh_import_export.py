@@ -623,7 +623,9 @@ class ArchiveMeshImportExportMixin:
             materials_and_textures_only=bool(materials_and_textures_only),
         )
 
-    def _start_archive_mesh_export(self, entry: ArchiveEntry, export_format: str) -> None:
+    def _start_archive_mesh_export(
+        self, entry: ArchiveEntry, export_format: str, *, bake_neutral_appearance: bool = False,
+    ) -> None:
         try:
             dependencies = archive_workflow_dependency_context(self, entry)
         except ArchiveWorkflowDependenciesUnavailable as exc:
@@ -665,6 +667,7 @@ class ArchiveMeshImportExportMixin:
                     archive_entries_by_basename=dependencies.entries_by_basename,
                     related_entries=selected_related_entries,
                     allow_missing_skeleton=allow_missing_skeleton,
+                    resolve_skeleton_for_obj=bake_neutral_appearance,
                     on_log=log,
                 )
 

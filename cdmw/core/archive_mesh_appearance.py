@@ -745,6 +745,10 @@ def _indexed_skeleton_for_variation(
     return best[1], best[2]
 
 
+class UnresolvedPacBonePaletteError(ValueError):
+    """Source geometry is available, but its neutral skin mapping is unknown."""
+
+
 def apply_archive_mesh_appearance(
     model_entry: ArchiveEntry,
     parsed_mesh: ParsedMesh,
@@ -819,7 +823,15 @@ def apply_archive_mesh_appearance(
     if not palette:
         palette = tuple(resolve_pac_bone_palette(pac_data, resolved_skeleton))
     if not palette:
-        raise ValueError("PAC bone palette was not resolved against the character skeleton")
+        # Rigid accessories carry one full-weight slot zero and no palette.
+        # Their attachment transform lives outside PAC; a character PABC must
+        # not deform them or prevent their geometry from being exported.
+        rows = [(indices, weights) for part in parsed_mesh.submeshes
+                for indices, weights in zip(part.bone_indices, part.bone_weights)]
+        if rows and all(tuple(indices) == (0,) and len(weights) == 1 and abs(weights[0] - 1.0) < .01
+                        for indices, weights in rows):
+            return parsed_mesh, ("Rigid attachment: retained source geometry; no PAC bone palette is present.",)
+        raise UnresolvedPacBonePaletteError("PAC bone palette was not resolved against the character skeleton")
 
     variation = (
         parse_pabc_skeleton_variation(pabc_data, pabc_entry.path, skeleton=resolved_skeleton)

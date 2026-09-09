@@ -364,8 +364,22 @@ def _attach_obj_sidecar_warnings(
         if not isinstance(sidecar_entry, dict):
             continue
         expected_material = str(sidecar_entry.get("material", "") or "").strip()
+        material_aliases = {expected_material, str(sidecar_entry.get("material", "") or "").replace(" ", "_")}
         actual_material = str(getattr(submesh, "material", "") or "").strip()
-        if expected_material and actual_material and actual_material != expected_material:
+        # FBX stores a material node per draw part. Blender numbers duplicate
+        # names on import, even when those parts share the same PAC material.
+        material_base, separator, material_suffix = actual_material.rpartition(".")
+        shared_material_count = sum(
+            isinstance(entry, dict) and str(entry.get("material", "") or "").strip() == expected_material
+            for entry in matched_sidecar_entries
+        )
+        blender_material_alias = actual_material in material_aliases or (
+            separator and material_base in material_aliases and len(material_suffix) == 3
+            and material_suffix.isdigit() and 0 < int(material_suffix) < shared_material_count
+        )
+        if blender_material_alias:
+            submesh.material = expected_material
+        if expected_material and actual_material and actual_material != expected_material and not blender_material_alias:
             warnings.append(
                 {
                     "code": "sidecar_material_name_changed",
@@ -381,7 +395,12 @@ def _attach_obj_sidecar_warnings(
             )
         expected_texture = _normalize_obj_sidecar_texture_name(sidecar_entry)
         actual_texture = str(material_texture_map.get(actual_material, "") or "").strip()
-        if expected_texture and actual_texture and _obj_texture_key(actual_texture) != _obj_texture_key(expected_texture):
+        published_textures = (getattr(mesh, "_cdmw_obj_sidecar_payload", {}) or {}).get("exported_material_textures", {})
+        published_texture = published_textures.get(expected_material, "") if isinstance(published_textures, dict) else ""
+        expected_texture_keys = {_obj_texture_key(expected_texture)}
+        if published_texture:
+            expected_texture_keys.add(_obj_texture_key(str(published_texture)))
+        if expected_texture and actual_texture and _obj_texture_key(actual_texture) not in expected_texture_keys:
             warnings.append(
                 {
                     "code": "sidecar_texture_path_changed",
@@ -469,13 +488,13 @@ def _obj_texture_key(value: object) -> str:
     return texture
 
 
-def validate_obj_sidecar_source_identity(mesh: ParsedMesh, original_data: bytes) -> None:
+def validate_obj_sidecar_source_identity(mesh: ParsedMesh, original_data: bytes, *, validate_topology: bool = True) -> None:
     if getattr(mesh, "_cdmw_imported_from_obj", False) and not getattr(mesh, "_cdmw_obj_sidecar_present", False):
         submesh_count = len(getattr(mesh, "submeshes", ()) or ())
         if submesh_count > 1 or bool(getattr(mesh, "has_bones", False)):
             raise ValueError("OBJ sidecar is required for non-trivial mesh rebuilds.")
     sidecar_payload = getattr(mesh, "_cdmw_obj_sidecar_payload", None)
-    if isinstance(sidecar_payload, dict):
+    if validate_topology and isinstance(sidecar_payload, dict):
         _validate_obj_sidecar_topology(mesh, sidecar_payload)
 
     expected_size = getattr(mesh, "_cdmw_sidecar_source_asset_size", -1)
@@ -658,16 +677,21 @@ def _match_obj_roundtrip_sidecar_submeshes(
     lod_submeshes = list(_obj_sidecar_lod_submesh_entries(sidecar_payload))
     if len(lod_submeshes) == len(sidecar_submeshes):
         sidecar_submeshes = [
-            {**sidecar_submesh, **lod_submesh}
+            {**sidecar_submesh, **lod_submesh, "name": sidecar_submesh.get("name", lod_submesh.get("name", ""))}
             for sidecar_submesh, lod_submesh in zip(sidecar_submeshes, lod_submeshes)
         ]
 
     by_name: dict[str, dict[str, object]] = {}
+    aliases: dict[str, list[dict[str, object]]] = {}
     for sidecar_entry in sidecar_submeshes:
-        sidecar_name = str(sidecar_entry.get("name", "") or "").strip()
-        if not sidecar_name or sidecar_name in by_name:
-            continue
-        by_name[sidecar_name] = sidecar_entry
+        raw_name = str(sidecar_entry.get("name", "") or "")
+        sidecar_name = raw_name.strip()
+        if sidecar_name and sidecar_name not in by_name:
+            by_name[sidecar_name] = sidecar_entry
+        aliases.setdefault(raw_name.replace(" ", "_"), []).append(sidecar_entry)
+    for name, entries in aliases.items():
+        if name and name not in by_name and len(entries) == 1:
+            by_name[name] = entries[0]
 
     if len(sidecar_submeshes) == len(submesh_list):
         by_name_matches: list[Optional[dict[str, object]]] = []
@@ -693,9 +717,25 @@ def _build_obj_import_result(
     source_path, source_format, submeshes, sidecar_payload, matched_sidecar_entries, material_texture_map,
     obj_path,
 ):
+    # Blender can change object order without changing any mesh. Restore the
+    # sidecar's draw-part order before recording positional edit operations.
+    if sidecar_payload and len(matched_sidecar_entries) == len(submeshes):
+        indices = [
+            _entry_int(entry, "submesh_index", "index") if isinstance(entry, dict) else -1
+            for entry in matched_sidecar_entries
+        ]
+        if sorted(indices) == list(range(len(submeshes))):
+            order = sorted(range(len(submeshes)), key=indices.__getitem__)
+            submeshes[:] = [submeshes[index] for index in order]
+            matched_sidecar_entries[:] = [matched_sidecar_entries[index] for index in order]
+    for submesh, entry in zip(submeshes, matched_sidecar_entries):
+        if isinstance(entry, dict):
+            source_name = str(entry.get("name", "") or "")
+            if submesh.name in {source_name.strip(), source_name.replace(" ", "_")}:
+                submesh.name = source_name
     result = ParsedMesh(
-        path=source_path,
-        format=source_format,
+        path=source_path or str((sidecar_payload or {}).get("source_path", "")),
+        format=source_format or str((sidecar_payload or {}).get("source_format", "")),
         submeshes=submeshes,
         total_vertices=sum(len(s.vertices) for s in submeshes),
         total_faces=sum(len(s.faces) for s in submeshes),
@@ -788,12 +828,12 @@ def import_obj(
                         "material": current_material,
                         "faces_global": current_faces_global,
                     })
-                current_name = parts[1] if len(parts) > 1 else f"submesh_{len(submesh_list)}"
+                current_name = line.split(maxsplit=1)[1] if len(parts) > 1 else f"submesh_{len(submesh_list)}"
                 current_faces_global = []
                 current_material = ""
 
             elif parts[0] == "usemtl":
-                current_material = parts[1] if len(parts) > 1 else ""
+                current_material = line.split(maxsplit=1)[1] if len(parts) > 1 else ""
 
             elif parts[0] == "f" and len(parts) >= 4:
                 if not current_name:
@@ -848,6 +888,11 @@ def import_obj(
         local_faces: list[tuple[int, int, int]] = []
         local_source_vertex_map: list[int] = []
         sidecar_source_map = _normalize_obj_sidecar_source_vertex_map(sidecar_entry)
+        referenced_vertices = sorted({vi for face in sm_data["faces_global"] for vi, _ti, _ni in face})
+        source_index_by_global = (
+            dict(zip(referenced_vertices, sidecar_source_map))
+            if len(referenced_vertices) == len(sidecar_source_map) else {}
+        )
 
         for face in sm_data["faces_global"]:
             local_face = []
@@ -866,8 +911,8 @@ def import_obj(
                     local_normals.append(
                         all_normals[ni] if 0 <= ni < len(all_normals) else (0.0, 1.0, 0.0)
                     )
-                    if sidecar_source_map and 0 <= vi < len(sidecar_source_map):
-                        local_source_vertex_map.append(sidecar_source_map[vi])
+                    if vi in source_index_by_global:
+                        local_source_vertex_map.append(source_index_by_global[vi])
                 local_face.append(local_index)
             if len(local_face) == 3:
                 local_faces.append(tuple(local_face))

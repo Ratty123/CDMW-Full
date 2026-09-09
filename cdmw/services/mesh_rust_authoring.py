@@ -5981,7 +5981,10 @@ def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
     if str(getattr(session, "mesh_format", "") or "").strip().lower() != "pac":
         return _RustSkinWeightCapability(False, "Skin-weight editing is currently proven only for PAC LOD 0.")
     original_data = bytes(getattr(session, "original_data", b"") or b"")
-    if not original_data or not bool(getattr(session, "base_mesh_is_original_parse", False)):
+    source_base = getattr(session, "source_coordinate_base_mesh", None)
+    if not original_data or (
+        source_base is None and not bool(getattr(session, "base_mesh_is_original_parse", False))
+    ):
         return _RustSkinWeightCapability(
             False,
             "Skin-weight editing needs the immutable original PAC bytes and their exact parsed layout.",
@@ -6027,7 +6030,7 @@ def _rust_skin_weight_capability(session: object) -> _RustSkinWeightCapability:
             skeleton_bone_to_palette_slot=bone_to_slot,
         )
 
-    base_mesh = getattr(session, "base_mesh", None)
+    base_mesh = source_base if source_base is not None else getattr(session, "base_mesh", None)
     working_mesh = getattr(session, "working_mesh", None)
     base_submeshes = tuple(getattr(base_mesh, "submeshes", ()) or ())
     working_submeshes = tuple(getattr(working_mesh, "submeshes", ()) or ())
@@ -6894,6 +6897,8 @@ class RustMeshAuthoringSession:
     texture_unavailable_reason: str = ""
     material_package_path: str = ""
     authoritative_morph_root: Path | None = None
+    neutral_appearance: object | None = None
+    neutral_source_mesh: ParsedMesh | None = None
     morph_profile_base_fingerprint: str = ""
     acknowledged_morph_profile_fingerprint: str = ""
     max_state_document_bytes: int = 0
@@ -6949,6 +6954,10 @@ class RustMeshAuthoringSession:
                 )
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
+            neutral_appearance = authoritative_session.neutral_appearance
+            neutral_source_mesh = shadow_mesh if neutral_appearance is not None else None
+            if neutral_appearance is not None:
+                shadow_mesh = neutral_appearance.to_neutral(shadow_mesh)
             if stop_event is not None and stop_event.is_set():
                 raise RustMeshCancellationError(
                     "Mesh session preparation was cancelled"
@@ -6974,6 +6983,12 @@ class RustMeshAuthoringSession:
                 load_layer_project=False,
                 adopt_owned_mesh=True,
             )
+            if neutral_appearance is not None:
+                shadow_session = shadow_service._session(shadow_view.session_id)
+                shadow_session.base_mesh_is_original_parse = False
+                shadow_session.source_coordinate_base_mesh = (
+                    authoritative_session.base_mesh if authoritative_session.base_mesh_is_original_parse else None
+                )
         except Exception:
             _dispose_shadow_morph_seed(authoritative_service, authoritative_morph_state)
             try:
@@ -7012,6 +7027,8 @@ class RustMeshAuthoringSession:
                     getattr(preview_context, "material_package_path", "") or ""
                 ).strip(),
                 authoritative_morph_root=authoritative_morph_root,
+                neutral_appearance=neutral_appearance,
+                neutral_source_mesh=neutral_source_mesh,
                 morph_profile_base_fingerprint=morph_profile_base_fingerprint,
                 acknowledged_morph_profile_fingerprint=morph_profile_base_fingerprint,
             )
@@ -7702,6 +7719,8 @@ class RustMeshAuthoringSession:
             "renderer": RUST_MESH_RENDERER,
             "edit_backend": RUST_MESH_EDIT_BACKEND,
         }
+        if self.neutral_appearance is not None:
+            state["loaded_mesh"] += " (neutral appearance)"
         if include_document:
             state["document"] = self._write_mesh_document(
                 f"state-{view.revision}-{uuid4().hex[:10]}.json"
@@ -7733,6 +7752,11 @@ class RustMeshAuthoringSession:
                 palette_slot_to_bone_index=palette_slot_to_bone_index,
                 selected_palette_slot=selected_palette_slot,
             )
+            if self.neutral_appearance is not None:
+                for bone in state["skeleton"]["bones"]:
+                    bone["position"] = list(self.neutral_appearance.bone_position(
+                        bone["index"], bone["position"],
+                    ))
             from cdmw.services.mesh_rust_rig import selected_bone_influence
 
             with shadow_session.export_lock:
@@ -8200,6 +8224,12 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if self.neutral_appearance is not None and command in {
+            "refit_choose_archive", "refit_load_mesh", "import_editable_package",
+        }:
+            raise RustMeshValidationError(
+                "Finish or cancel neutral face editing before loading a different source mesh."
+            )
         if shadow_session.archive_refit_context is not None and command in {
             "topology", "layer_delete", "layer_paste", "import_editable_package", "refit_load_mesh",
         }:
@@ -8497,6 +8527,37 @@ class RustMeshAuthoringSession:
             return service.bake_morph(session_id)
         raise RustMeshProtocolError(f"Unsupported Mesh morph command: {command}")
 
+    def _source_coordinate_mesh(self, mesh: ParsedMesh) -> ParsedMesh:
+        if self.neutral_appearance is None or self.neutral_source_mesh is None:
+            return mesh
+        candidate = self.neutral_appearance.to_source(mesh, self.neutral_source_mesh)
+        operations = list(tuple(getattr(candidate, "_cdmw_edit_operations", ()) or ()))
+        for lod_index, (parts, source_parts) in enumerate(zip(
+            _mesh_lods(candidate), _mesh_lods(self.neutral_source_mesh),
+        )):
+            for submesh_index, (part, source) in enumerate(zip(parts, source_parts)):
+                if len(part.vertices) != len(source.vertices):
+                    continue
+                for attribute, operation in (
+                    ("vertices", "replace_positions_same_count"),
+                    ("normals", "replace_normals_same_count"),
+                ):
+                    if getattr(part, attribute) == getattr(source, attribute):
+                        continue
+                    if not any(
+                        row.get("operation") == operation
+                        and row.get("lod_index", 0) == lod_index
+                        and row.get("submesh_index") == submesh_index
+                        for row in operations if isinstance(row, Mapping)
+                    ):
+                        operations.append({
+                            "operation": operation, "lod_index": lod_index,
+                            "submesh_index": submesh_index, "vertex_count": len(part.vertices),
+                            "source": RUST_MESH_EDIT_BACKEND, "created_by": "CDMW Edit Mesh",
+                        })
+        setattr(candidate, "_cdmw_edit_operations", tuple(operations))
+        return candidate
+
     def _validate_exact_output_writer(
         self,
         *,
@@ -8528,6 +8589,14 @@ class RustMeshAuthoringSession:
                     )
                     assets.append({"path": entry.path, **evidence})
                 return {"status": "passed", "assets": assets, "fallback_used": False}
+            if self.neutral_appearance is not None:
+                setattr(snapshot.mesh, "_cdmw_edit_operations", tuple(snapshot.edit_operations))
+                source_mesh = self._source_coordinate_mesh(snapshot.mesh)
+                snapshot = replace(
+                    snapshot, mesh=source_mesh,
+                    base_mesh=self.authoritative_service._session(self.authoritative_session_id).base_mesh,
+                    edit_operations=tuple(getattr(source_mesh, "_cdmw_edit_operations", ()) or ()),
+                )
             result, report = self.shadow_service.rebuild_result_from_snapshot(snapshot)
         except Exception as exc:
             self._raise_if_cancelled(stop_event)
@@ -8859,6 +8928,7 @@ class RustMeshAuthoringSession:
         candidate = self.shadow_service.working_mesh(self.shadow_session_id, clone=True)
         setattr(candidate, "_cdmw_edit_operations", shadow_edit_operations)
         setattr(candidate, "_cdmw_requires_edit_operations", shadow_requires_edit_operations)
+        candidate = self._source_coordinate_mesh(candidate)
         authoritative_mesh = self.authoritative_service.working_mesh(
             self.authoritative_session_id,
             clone=True,

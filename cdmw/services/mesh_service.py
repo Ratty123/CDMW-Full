@@ -1222,6 +1222,8 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 stop_event=stop_event,
                 expected_mesh_revision=session.revision,
             )
+            if session.neutral_appearance is not None:
+                snapshot = replace(snapshot, mesh=session.neutral_appearance.to_neutral(snapshot.mesh))
             source_path = str(
                 getattr(session.base_mesh, "path", "")
                 or getattr(session.working_mesh, "path", "")

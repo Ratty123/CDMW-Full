@@ -58,6 +58,20 @@ the current source and produce the non-modal Resume/Start Fresh banner; starting
 fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
 wrapper over this direct contract.
 
+Archive PAC sessions resolve the same head-specific PABC neutral appearance as
+Archive Browser. The embedded editor labels these meshes **neutral appearance**
+and uses the reconstructed face for selection, move/sculpt operations, comparison,
+and Undo/Redo. The authoritative mesh keeps the original PAC coordinates. Finish
+inverts each vertex's blended skin transform before exact-writer validation and
+committing edits, so the game does not apply the face correction twice. Opening
+and finishing without a geometry edit preserves the source bytes. Unreadable or
+non-invertible resolved appearance data reports a load/preparation error rather
+than opening a falsely corrected face; meshes with no linked variation retain
+their source shape. Finish or cancel this edit before importing a different
+source mesh or entering an archive refit.
+Free Edit OBJ output retains the displayed neutral shape; game-asset output
+retains the reversible source-coordinate mapping.
+
 `MeshEditorTab.open_mesh_session()` opens a scripted in-tab edit session for a
 `ParsedMesh` without starting Archive Browser UI. It creates the same
 authoritative service session and embedded Rust shadow workflow as an archive

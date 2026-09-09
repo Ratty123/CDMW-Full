@@ -1,6 +1,8 @@
 """Bounded background preparation and UI-thread publication for the Studio."""
 from __future__ import annotations
 
+from collections import OrderedDict
+
 from .background import LatestTask
 from .loading import MeshRequest, prepare_meshes
 
@@ -18,6 +20,8 @@ class StudioLoadingMixin:
         self._mesh_ready = None
         self._mesh_body_ready = None
         self._model_loading = False
+        self._mesh_part_cache = OrderedDict()
+        self._mesh_cache_context = ()
 
     def _request_model(self, model=None):
         from .editing import session_from_baseline
@@ -95,6 +99,11 @@ class StudioLoadingMixin:
             return False
         self._mesh_requested = key
         reuse = self._mesh_body_ready == body_key
+        context = (parsed, index, self._baseline)
+        if (len(self._mesh_cache_context) != len(context) or
+                any(a is not b for a, b in zip(context, self._mesh_cache_context))):
+            self._mesh_part_cache.clear()
+            self._mesh_cache_context = context
 
         def entry(path):
             piece = index.piece(path) if index is not None else None
@@ -109,6 +118,7 @@ class StudioLoadingMixin:
                 if weapon_path not in self._weapon_mesh_cache else ("", None),
             tuple(self._skinned_meshes) if reuse else None,
             self._skinned_body_count if reuse else 0,
+            tuple(self._mesh_part_cache.items()),
         )
         self.statusBar().showMessage("Loading...")
         self._mesh_task.submit(lambda cancelled, progress:
@@ -122,6 +132,7 @@ class StudioLoadingMixin:
         key, result = value
         if key != self._mesh_requested or result is None or self._model_loading:
             return
+        self._remember_mesh_parts(result.cached_parts)
         body_changed = self._mesh_body_ready != key[1]
         self._mesh_ready = key
         self._mesh_body_ready = key[1]
@@ -141,6 +152,25 @@ class StudioLoadingMixin:
         worn = len(result.skinned)
         self._armour_status.setText(f"{len(self._armour_choice)} piece(s) worn, {worn} skinned")
         self._report_status()
+
+    def _remember_mesh_parts(self, parts):
+        """Keep a small set of decoded pieces; failed/cancelled work never publishes here."""
+        for path, value in parts:
+            self._mesh_part_cache[path] = value
+            self._mesh_part_cache.move_to_end(path)
+
+        def size(value):
+            _, mesh, proxy = value
+            arrays = sum(getattr(getattr(mesh, field, None), 'nbytes', 0)
+                         for field in ('rest', 'faces', 'bones', 'weights'))
+            # Conservative allowance for the Python objects in an unskinned fallback.
+            return arrays + (256 * (len(proxy.vertices) + len(proxy.triangles)) if proxy else 0)
+
+        sizes = {path: size(value) for path, value in self._mesh_part_cache.items()}
+        total = sum(sizes.values())
+        while self._mesh_part_cache and (len(self._mesh_part_cache) > 32 or total > 64 * 1024 * 1024):
+            path, _ = self._mesh_part_cache.popitem(last=False)
+            total -= sizes[path]
 
     def _request_archive_content(self, weapons):
         from .archive_loading import ArchiveRequest, prepare_archive_content
@@ -208,3 +238,5 @@ class StudioLoadingMixin:
             task = getattr(self, name, None)
             if task is not None:
                 task.shutdown()
+        self._mesh_part_cache.clear()
+        self._mesh_cache_context = ()

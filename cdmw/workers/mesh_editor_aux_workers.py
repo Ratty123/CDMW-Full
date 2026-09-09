@@ -152,6 +152,24 @@ class MeshArchiveSessionLoadWorker(QObject):
                 session_id=self.session_id or f"mesh-editor-archive:{self.entry.path}",
                 mode=self.mode,
             )
+            if self.entry.extension.lower() == ".pac" and (
+                self.archive_entries_by_normalized_path or self.archive_entries_by_basename
+            ):
+                from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+
+                appearance_mesh, _notes = apply_archive_mesh_appearance(
+                    self.entry, mesh, payload,
+                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                    archive_entries_by_basename=self.archive_entries_by_basename,
+                    stop_event=self.stop_event,
+                )
+                neutral_appearance = getattr(
+                    appearance_mesh, "_cdmw_neutral_appearance", None,
+                )
+                if neutral_appearance is not None:
+                    service._session(view.session_id).neutral_appearance = neutral_appearance
+                if self.stop_event.is_set():
+                    return
             source_skeleton: object | None = None
             skeleton_source_path = ""
             skeleton_resolution_reason = "No archive dependency index was available to find the matching PAB skeleton."

@@ -11,6 +11,20 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.13] - 2026-09-09
+
+### Changed
+- Placement & Animation previews target 60 FPS with interpolated poses and pacing that accounts for completed painting. Timeline scrubbing combines intermediate updates and restores full detail on release; unchanged body and armour pieces are reused through a bounded cache.
+- Placement & Animation filters legacy bone-palette searches in bounded batches, reuses the result through skinning fallback and assembles mesh topology in bulk. Sparse influence columns avoid work on zero-weight vertices. Stationary scene drawing is cached at full resolution while selection, sockets and gizmos remain live.
+
+### Fixed
+- Switching animation clips stops the previous playback timer. Clip-index cache reads and decompression, archive scans and local clip loading run in the background, preserving cancellation and the last usable preview.
+- Character previews and neutral exports reconcile paired axis reversals in otherwise unchanged PABC bind frames, fixing Damian's folded ear in Archive Browser. Cached previews from before this correction are rebuilt.
+- Archive Browser **Export OBJ...** preserves original PAC coordinates, fixing the 247 displaced ear vertices on Damian's embedded head. **Export OBJ (Neutral Appearance)...** explicitly selects baked character appearance.
+- PAC rebuilds preserve the tangent bits shared with packed normals, correctly encode normal Z signs and round half-float UVs. OBJ imports recover serialization noise, validate neutral normal accuracy and retain position bounds for normal/UV edits; expanded bounds compensate lower LODs within their quantization precision.
+- PAC interchange preserves source skin data and neutral appearance through OBJ/Blender round trips, including renamed or reordered parts, normal splits and duplicate faces. Unresolved palettes retain source coordinates, and reconstruction rejects edits beyond PAC position precision. FBX links resolved diffuse textures, omits placeholder images and preserves repeated bone influences.
+- Mesh Editor shows character heads in their resolved neutral shape, matching Archive Browser. Move and sculpt edits, selection, and Undo/Redo use that face; Finish converts edits back to the original PAC coordinates before validation and saving, avoiding a second deformation in game.
+
 ## [0.11.0-alpha.12] - 2026-09-08
 
 ### Fixed

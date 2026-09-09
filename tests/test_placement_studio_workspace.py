@@ -163,6 +163,7 @@ def test_comparison_blends_hold_shorter_endpoints_until_the_shared_clock_loops(m
     widget.seek(2000)
     assert scene.before.pose_matrices[0][12] == pytest.approx(1.)
     assert scene.after.pose_matrices[0][12] == pytest.approx(2.)
+    widget.toggle()
     widget._last_tick = 10.
     monkeypatch.setattr(module.time,'monotonic',lambda:10.1)
     widget._tick()

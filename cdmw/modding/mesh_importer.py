@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import copy
+import math
+import struct
 import dataclasses
 import hashlib
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from cdmw.domain.mesh.operations import (
+    MeshEditOperation,
     mesh_edit_operation_changed_channel,
     mesh_edit_operations_from_dicts,
     mesh_edit_operations_to_dicts,
@@ -16,7 +20,7 @@ from cdmw.domain.mesh.operations import (
     validate_mesh_edit_operations,
 )
 
-from .mesh_parser import ParsedMesh, parse_pac, parse_pam, parse_pamlod
+from .mesh_parser import ParsedMesh, _decode_pac_normal, parse_pac, parse_pam, parse_pamlod
 from .mesh_builder_common import (
     _align_static_vertex_sequences,
     _align_submesh_order_like_original,
@@ -48,6 +52,8 @@ from .mesh_obj_importer import (
     _load_obj_roundtrip_sidecar,
     _match_obj_roundtrip_sidecar_submeshes,
     _normalize_obj_sidecar_source_vertex_map,
+    _obj_texture_key,
+    _validate_obj_sidecar_topology,
     _normalize_obj_sidecar_texture_name,
     _obj_roundtrip_sidecar_candidates,
     _resolve_obj_index,
@@ -193,7 +199,7 @@ def _prepare_mesh_for_rebuild(
     original_mesh: ParsedMesh | None = None,
 ) -> tuple[str, ParsedMesh, ParsedMesh | None]:
     fmt = mesh.format.lower()
-    validate_obj_sidecar_source_identity(mesh, original_data)
+    validate_obj_sidecar_source_identity(mesh, original_data, validate_topology=False)
     _validate_mesh_rebuild_sidecar_warnings(mesh)
     if original_mesh is None:
         try:
@@ -216,6 +222,10 @@ def _prepare_mesh_for_rebuild(
                 "Skinned PAC OBJ round-trip requires the matching <edited>.obj.meta.json sidecar. "
                 "Keep or rename the sidecar beside the Blender-exported OBJ, then import it as Round-trip edit."
             )
+        mesh = _restore_obj_source_channels(mesh, original_mesh)
+        sidecar = getattr(mesh, "_cdmw_obj_sidecar_payload", None)
+        if isinstance(sidecar, dict):
+            _validate_obj_sidecar_topology(mesh, sidecar)
         _validate_mesh_rebuild_operations(mesh, original_mesh=original_mesh)
         if _has_topology_contract(mesh):
             # Channel re-application rebuilds the original and copies the named
@@ -226,8 +236,271 @@ def _prepare_mesh_for_rebuild(
             return fmt, mesh, original_mesh
         return fmt, _apply_operation_channels_to_original(original_mesh, mesh), original_mesh
     else:
+        sidecar = getattr(mesh, "_cdmw_obj_sidecar_payload", None)
+        if isinstance(sidecar, dict):
+            _validate_obj_sidecar_topology(mesh, sidecar)
         _validate_mesh_rebuild_operations(mesh, original_mesh=None)
         return fmt, mesh, None
+
+
+def _restore_obj_source_channels(mesh: ParsedMesh, original: ParsedMesh) -> ParsedMesh:
+    """Restore channels OBJ cannot carry, after validating its source identity.
+
+    Existing channel data is checked by operation validation. Skin/tangent data
+    is copied only when absent. Proven Blender slot/face cleanup recovers the
+    donor layout; any source normals retained for split corners are reported.
+    """
+    if (
+        not getattr(mesh, "_cdmw_imported_from_obj", False)
+        or not getattr(mesh, "_cdmw_obj_sidecar_present", False)
+        or _has_topology_contract(mesh)
+        or len(mesh.submeshes) != len(original.submeshes)
+    ):
+        return mesh
+    restored = copy.deepcopy(mesh)
+    sidecar = getattr(mesh, "_cdmw_obj_sidecar_payload", {}) or {}
+    exported_textures = sidecar.get("exported_material_textures", {})
+    if not isinstance(exported_textures, dict):
+        exported_textures = {}
+    appearance_payload = sidecar.get("neutral_appearance")
+    displayed = None
+    recovered_parts = []
+
+    def triangles(faces):
+        return Counter(min(tuple(face[i:]) + tuple(face[:i]) for i in range(3)) for face in faces)
+
+    for part_index, (part, donor) in enumerate(zip(restored.submeshes, original.submeshes)):
+        count = len(donor.vertices)
+        if len(part.vertices) > count:
+            if displayed is None:
+                displayed = (_load_obj_neutral_appearance(appearance_payload).to_neutral(original)
+                             if appearance_payload is not None else original)
+            if _collapse_obj_normal_splits(part, donor, displayed.submeshes[part_index]):
+                recovered_parts.append(part_index)
+        source_map = list(getattr(part, "source_vertex_map", ()) or ())
+        if len(part.vertices) != count or sorted(source_map) != list(range(count)):
+            continue
+        for attr in ("name", "material", "texture"):
+            if str(getattr(part, attr, "")).strip() == str(getattr(donor, attr, "")).strip():
+                setattr(part, attr, getattr(donor, attr))
+        # Scene preview resolves an OBJ's image path onto the mesh. That is
+        # still the exported material, not an authored PAC texture change.
+        texture_keys = {_obj_texture_key(donor.texture)}
+        published_texture = exported_textures.get(str(donor.material or donor.name).strip(), "")
+        if published_texture:
+            texture_keys.add(_obj_texture_key(str(published_texture)))
+        if _obj_texture_key(part.texture) in texture_keys:
+            part.texture = donor.texture
+        # Preserve the PAC's vertex slots if the importer supplied a permutation.
+        if source_map != list(range(count)):
+            order = sorted(range(count), key=source_map.__getitem__)
+            for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights"):
+                values = getattr(part, attr, ()) or ()
+                if len(values) == count:
+                    setattr(part, attr, [values[index] for index in order])
+            part.faces = [tuple(source_map[index] for index in face) for face in part.faces]
+            part.source_vertex_map = list(range(count))
+            part.source_vertex_offsets = list(donor.source_vertex_offsets)
+        for attr in ("bone_indices", "bone_weights", "tangents"):
+            if not getattr(part, attr, ()):
+                setattr(part, attr, copy.deepcopy(getattr(donor, attr, [])))
+        observed, expected = triangles(part.faces), triangles(donor.faces)
+        if ({tuple(sorted(face)) for face in observed} == {tuple(sorted(face)) for face in expected}
+                and all(1 <= count <= expected[face] for face, count in observed.items())):
+            # Blender removes repeated triangles, including opposite-facing
+            # copies. Every surviving face must still have source winding.
+            part.faces = copy.deepcopy(donor.faces)
+            part.face_count = len(part.faces)
+    if recovered_parts:
+        # Import records operations only for parts already having the source
+        # count. Add their missing declarations after proven slot recovery.
+        operations = list(mesh_edit_operations_from_dicts(getattr(restored, "_cdmw_edit_operations", ()) or ()))
+        existing = {(op.operation, op.lod_index, op.submesh_index) for op in operations}
+        for index in recovered_parts:
+            part = restored.submeshes[index]
+            for channel, attr in (("positions", "vertices"), ("normals", "normals"), ("uv0", "uvs")):
+                name = f"replace_{channel}_same_count"
+                if len(getattr(part, attr)) == len(part.vertices) and (name, 0, index) not in existing:
+                    operations.append(MeshEditOperation(name, lod_index=0, submesh_index=index,
+                                                        vertex_count=len(part.vertices), source="OBJ source-normal recovery"))
+        restored._cdmw_edit_operations = mesh_edit_operations_to_dicts(operations)
+        mesh._cdmw_obj_normal_recovery_notes = tuple(
+            f"Retained source normals for Blender corner-normal splits in {original.submeshes[index].name}. "
+            "Separate hard-edge normals require a topology replacement."
+            for index in recovered_parts
+        )
+    if appearance_payload is not None:
+        restored = _restore_obj_neutral_coordinates(restored, original, appearance_payload, displayed=displayed)
+    else:
+        _restore_obj_rounded_channels(restored, original)
+    if original.lod_levels and not restored.lod_levels:
+        restored.lod_levels = [restored.submeshes, *copy.deepcopy(original.lod_levels[1:])]
+    restored.has_bones = original.has_bones
+    _refresh_mesh_counts(restored)
+    return restored
+
+
+def _collapse_obj_normal_splits(part, donor, reference) -> bool:
+    """Recover source slots only when OBJ split normals retain source evidence."""
+    def direction(values):
+        length = math.hypot(*values)
+        return tuple(value / length for value in values) if length > 1e-12 else values
+
+    count, actual = len(donor.vertices), len(part.vertices)
+    source_map = list(part.source_vertex_map)
+    if (len(source_map) != actual or set(source_map) != set(range(count))
+            or len(part.normals) != actual or len(reference.normals) != count):
+        return False
+    groups = [[] for _ in range(count)]
+    for index, source_index in enumerate(source_map):
+        groups[source_index].append(index)
+    order = [indices[0] for indices in groups]
+    for source_index, indices in enumerate(groups):
+        if len(indices) == 1:
+            continue
+        # New UV seams, displaced copies, or changed protected channels cannot
+        # be collapsed into the PAC's one record per vertex.
+        for attr in ("vertices", "uvs", "tangents", "bone_indices", "bone_weights", "source_vertex_offsets"):
+            values = getattr(part, attr, ()) or ()
+            if values and (len(values) != actual or any(values[i] != values[indices[0]] for i in indices)):
+                raise ValueError(f"OBJ split vertex {source_index} changes {attr}; use topology replacement.")
+        normal = reference.normals[source_index]
+        source_direction = direction(normal)
+        # PAC normal packing and Blender's custom-normal compression can round
+        # a near-zero component away. Require the source direction within that
+        # precision (about 0.1 degree), then retain its original packed normal.
+        if not any(math.dist(direction(part.normals[i]), source_direction) <= 2e-3 for i in indices):
+            reversed_direction = tuple(-value for value in source_direction)
+            if not any(math.dist(direction(part.normals[i]), reversed_direction) <= 2e-3 for i in indices):
+                raise ValueError(f"OBJ split vertex {source_index} has no matching source normal; use topology replacement.")
+            normal = tuple(-value for value in normal)
+        part.normals[indices[0]] = normal
+    for attr in ("vertices", "normals", "uvs", "tangents", "bone_indices", "bone_weights", "source_vertex_offsets"):
+        values = getattr(part, attr, ()) or ()
+        if len(values) == actual:
+            setattr(part, attr, [values[index] for index in order])
+    part.faces = [tuple(source_map[index] for index in face) for face in part.faces]
+    part.source_vertex_map = list(range(count))
+    part.vertex_count = count
+    return True
+
+
+def _load_obj_neutral_appearance(payload: object):
+    from .mesh_neutral_appearance import NeutralMeshAppearance
+
+    try:
+        if not isinstance(payload, dict) or payload.get("version") != 1:
+            raise ValueError("unsupported neutral appearance version")
+        matrices = tuple(tuple(float(value) for value in row) for row in payload["skin_matrices"])
+        palette = tuple(int(value) for value in payload["bone_palette"])
+        if not matrices or not palette or any(len(row) != 16 or not all(math.isfinite(v) for v in row) for row in matrices):
+            raise ValueError("invalid neutral appearance matrices")
+        if any(index < 0 or index >= len(matrices) for index in palette):
+            raise ValueError("invalid neutral appearance bone palette")
+        return NeutralMeshAppearance(str(payload.get("source", "")), palette, matrices)
+    except (KeyError, TypeError, OverflowError, ValueError) as exc:
+        raise ValueError(f"OBJ neutral appearance reconstruction failed: {exc}") from exc
+
+
+def _restore_obj_neutral_coordinates(
+    mesh: ParsedMesh, original: ParsedMesh, payload: object, *, displayed: ParsedMesh | None = None,
+) -> ParsedMesh:
+    appearance = _load_obj_neutral_appearance(payload)
+    try:
+        for part, donor in zip(mesh.submeshes, original.submeshes):
+            if (part.name != donor.name or len(part.vertices) != len(donor.vertices)
+                    or list(part.source_vertex_map) != list(donor.source_vertex_map)
+                    or list(part.source_vertex_offsets) != list(donor.source_vertex_offsets)
+                    or part.bone_indices != donor.bone_indices or part.bone_weights != donor.bone_weights):
+                raise ValueError("neutral appearance source mapping changed")
+        # OBJ text and Blender's float32 storage round displayed coordinates.
+        # Snap only values within that serialization precision before inversion.
+        if displayed is None:
+            displayed = appearance.to_neutral(original)
+        _restore_obj_rounded_channels(mesh, displayed)
+        restored = appearance.to_source(mesh, original)
+        restored._cdmw_obj_display_vertices = tuple(tuple(part.vertices) for part in mesh.submeshes)
+        restored._cdmw_obj_display_normals = tuple(tuple(part.normals) for part in mesh.submeshes)
+        for part, donor, incoming, reference in zip(restored.submeshes, original.submeshes, mesh.submeshes, displayed.submeshes):
+            for index, value in enumerate(incoming.normals):
+                if value == tuple(-component for component in reference.normals[index]):
+                    # Reversing a known normal needs no unstable matrix inverse
+                    # or normalization of its slightly non-unit PAC source.
+                    part.normals[index] = tuple(-component for component in donor.normals[index])
+            _fit_neutral_obj_normal_precision(part, donor, incoming, reference, appearance)
+        # OBJ does not author tangents; keep the protected donor channel.
+        for part, donor in zip(restored.submeshes, original.submeshes):
+            part.tangents = copy.deepcopy(donor.tangents)
+        return restored
+    except (KeyError, TypeError, OverflowError, ValueError) as exc:
+        raise ValueError(f"OBJ neutral appearance reconstruction failed: {exc}") from exc
+
+
+def _normal_direction(value):
+    length = math.hypot(*value)
+    return tuple(component / length for component in value) if length > 1e-12 else tuple(value)
+
+
+def _fit_neutral_obj_normal_precision(part, donor, incoming, reference, appearance):
+    """Use a known packed direction when inversion quantizes less accurately."""
+    from .mesh_neutral_appearance import _point
+
+    limit = 2 * math.sin(math.radians(1.0) / 2)
+    matrices = None
+    for index, wanted in enumerate(incoming.normals):
+        if part.normals[index] == donor.normals[index]:
+            continue
+        wanted = _normal_direction(wanted)
+        baseline = _normal_direction(reference.normals[index])
+        errors = [math.dist(wanted, baseline), math.dist(wanted, tuple(-v for v in baseline))]
+        best = min(range(2), key=errors.__getitem__)
+        if errors[best] > limit:
+            continue
+        if matrices is None:
+            matrices = appearance._vertex_matrices(donor, appearance._normal_matrices())
+        pair = matrices[index]
+        sign = 0x40000000 if math.copysign(1., donor.normals[index][2]) < 0 else 0
+        packed = _pack_pac_normal(part.normals[index], sign)
+        decoded = _decode_pac_normal(bytes(16) + struct.pack('<I', packed), 0)
+        actual = _point(decoded, pair[1], normal=True) if pair else _normal_direction(decoded)
+        error = math.dist(wanted, actual)
+        if error > limit and errors[best] < error:
+            # Near-singular transforms can magnify one packed XY step. Keeping
+            # the known source (or reversed source) is a better representable
+            # approximation here. Other edits still face the final error gate.
+            part.normals[index] = tuple((-1 if best else 1) * v for v in donor.normals[index])
+
+
+def _restore_obj_rounded_channels(mesh: ParsedMesh, reference: ParsedMesh) -> None:
+    """Recover source values within OBJ/f32 and Blender custom-normal precision."""
+    for part, donor in zip(mesh.submeshes, reference.submeshes):
+        if (len(part.vertices) != len(donor.vertices)
+                or list(part.source_vertex_map) != list(donor.source_vertex_map)):
+            continue
+        for attr in ("vertices", "uvs", "normals"):
+            values, baseline = getattr(part, attr), getattr(donor, attr)
+            if len(values) != len(baseline):
+                continue
+            restored = []
+            for actual, expected in zip(values, baseline):
+                if attr == "normals":
+                    # Same tolerance as proven corner-normal recovery. Compare
+                    # directions: decoded PAC XY can have a non-unit length.
+                    same = math.dist(_normal_direction(actual), _normal_direction(expected)) <= 2e-3
+                    if not same:
+                        reversed_normal = tuple(-value for value in expected)
+                        if math.dist(_normal_direction(actual), _normal_direction(reversed_normal)) <= 2e-3:
+                            expected, same = reversed_normal, True
+                elif attr == "vertices":
+                    # Blender's axis conversion mixes components. Bound its
+                    # float32 rounding by the whole point, including values
+                    # near an axis plane, before the six-decimal OBJ output.
+                    tolerance = 6e-7 + max(map(abs, expected), default=0.) * 2**-22
+                    same = all(abs(a - b) <= tolerance for a, b in zip(actual, expected))
+                else:
+                    same = all(abs(a - b) <= 6e-7 + abs(b) * 2**-23 for a, b in zip(actual, expected))
+                restored.append(expected if same else actual)
+            setattr(part, attr, restored)
 
 
 def _build_prepared_mesh_bytes(
@@ -298,7 +571,41 @@ def _build_prepared_mesh_bytes(
         original_data,
         rebuilt,
     )
+    _validate_neutral_obj_rebuild(fmt, mesh, rebuilt)
     return rebuilt
+
+
+def _validate_neutral_obj_rebuild(fmt: str, mesh: ParsedMesh, rebuilt_data: bytes) -> None:
+    expected = getattr(mesh, "_cdmw_obj_display_vertices", ())
+    if fmt != "pac" or not expected:
+        return
+    payload = getattr(mesh, "_cdmw_obj_sidecar_payload", {})["neutral_appearance"]
+    displayed = _load_obj_neutral_appearance(payload).to_neutral(parse_pac(rebuilt_data, mesh.path))
+    for part, positions in zip(displayed.submeshes, expected, strict=True):
+        scale = max(1.0, max((abs(value) for vertex in positions for value in vertex), default=1.0))
+        error = max((math.dist(actual, wanted) for actual, wanted in zip(part.vertices, positions, strict=True)), default=0.0)
+        if error > 5e-5 * scale:
+            raise ValueError(
+                f"Neutral OBJ edit exceeds PAC position precision for {part.name} "
+                f"(reconstructed displacement {error:.6g}). Use a source-coordinate OBJ or Mesh Replacement for this edit."
+            )
+
+
+    for part, normals in zip(displayed.submeshes, getattr(mesh, "_cdmw_obj_display_normals", ()), strict=True):
+        if any(math.hypot(*normal) < 1e-12 for normal in normals):
+            raise ValueError(
+                f"Neutral OBJ edit exceeds PAC normal precision for {part.name}: "
+                "the Blender input contains a zero-length normal. Restore its normal direction before reimport."
+            )
+        error = max((math.dist(_normal_direction(actual), _normal_direction(wanted))
+                     for actual, wanted in zip(part.normals, normals, strict=True)), default=0.0)
+        if error > 2 * math.sin(math.radians(1.0) / 2):
+            degrees = math.degrees(2 * math.asin(min(1.0, error / 2)))
+            raise ValueError(
+                f"Neutral OBJ edit exceeds PAC normal precision for {part.name} "
+                f"(reconstructed direction error {degrees:.6g} degrees). "
+                "Use a source-coordinate OBJ for this normal edit."
+            )
 
 
 def _has_topology_contract(mesh: ParsedMesh) -> bool:
@@ -367,6 +674,12 @@ def _validate_pac_obj_protected_vertex_bytes(
                 raise ValueError(
                     "OBJ round-trip could not prove protected PAC vertex-byte preservation for "
                     f"submesh {submesh_index} vertex {vertex_index}: source record is outside the file."
+                )
+            before = struct.unpack_from("<I", original_data, offset + 16)[0]
+            after = struct.unpack_from("<I", rebuilt_data, offset + 16)[0]
+            if (before ^ after) & 0x800003FF:
+                raise ValueError(
+                    f"OBJ round-trip changed protected PAC tangent bits in submesh {submesh_index} vertex {vertex_index}."
                 )
             for start, end in protected_spans:
                 if original_data[offset + start : offset + end] != rebuilt_data[offset + start : offset + end]:

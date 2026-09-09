@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import copy
 import re
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
@@ -163,8 +164,10 @@ def _build_export_mtl_texture_overrides(
 
 
 def _export_mtl_local_texture_reference(output_dir: Path, archive_texture_path: str) -> str:
+    from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
+
     normalized = str(archive_texture_path or "").strip().replace("\\", "/")
-    if not normalized:
+    if not normalized or _is_placeholder_model_texture(normalized):
         return ""
     parts = PurePosixPath(normalized).parts
     copied_candidate = output_dir / "referenced_files"
@@ -175,12 +178,27 @@ def _export_mtl_local_texture_reference(output_dir: Path, archive_texture_path: 
     return PurePosixPath(normalized).name
 
 
+def _fbx_export_texture_mesh(mesh: ParsedMesh, references: Sequence[ArchiveModelTextureReference], output_dir: Path) -> ParsedMesh:
+    """Use portable published texture paths without changing source materials."""
+    overrides = _build_export_mtl_texture_overrides(mesh, references)
+    result = copy.copy(mesh)
+    result.submeshes = []
+    for part in mesh.submeshes:
+        clone = copy.copy(part)
+        texture = overrides.get(str(part.material or part.name or "").strip(), part.texture)
+        clone.texture = _export_mtl_local_texture_reference(output_dir, texture)
+        result.submeshes.append(clone)
+    return result
+
+
 def _rewrite_export_mtl_map_kd(
     mtl_path: Path,
     texture_overrides: Mapping[str, str],
     output_dir: Path,
 ) -> int:
-    if not texture_overrides or not mtl_path.is_file():
+    from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
+
+    if not mtl_path.is_file():
         return 0
     lines = mtl_path.read_text(encoding="utf-8").splitlines()
     rewritten: List[str] = []
@@ -190,6 +208,9 @@ def _rewrite_export_mtl_map_kd(
         stripped = line.strip()
         if stripped.startswith("newmtl "):
             current_material = stripped[7:].strip()
+        if stripped.startswith("map_Kd ") and _is_placeholder_model_texture(texture_overrides.get(current_material, stripped[7:])):
+            changed += 1
+            continue
         if current_material in texture_overrides and stripped.startswith("map_Kd "):
             texture_reference = _export_mtl_local_texture_reference(output_dir, texture_overrides[current_material])
             if texture_reference:
@@ -346,13 +367,13 @@ def export_archive_mesh(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
-    resolve_skeleton_for_obj: bool = True,
+    resolve_skeleton_for_obj: bool = False,
     model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
     asset_family_graph: object = None,
     build_preview_context: bool = True,
     on_log: Optional[Callable[[str], None]] = None, stop_event: object = None,
 ) -> MeshExportResult:
-    """Prepare every selected output before replacing an existing export."""
+    """Publish a complete export; OBJ keeps source coordinates unless appearance is requested."""
     raise_if_cancelled(stop_event)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -468,6 +489,14 @@ def _write_archive_export_manifest(
                             f"Updated {rewritten_mtl_rows:,} OBJ material texture binding(s) from resolved archive sidecar evidence.",
                         )
             selected_companion_files, sidecar_hashes = _archive_export_companion_metadata(related_entries, output_dir)
+            exported_material_textures = {
+                material: _export_mtl_local_texture_reference(output_dir, path)
+                for material, path in _build_export_mtl_texture_overrides(parsed_mesh, manifest_texture_references).items()
+            }
+            if companion_path:
+                from cdmw.modding.mesh_obj_importer import _load_obj_material_texture_map
+
+                exported_material_textures.update(_load_obj_material_texture_map(str(manifest_target_path)))
             family_graph_payload = _archive_family_graph_payload(manifest_family_graph)
             texture_binding_rows = [
                 {
@@ -504,6 +533,7 @@ def _write_archive_export_manifest(
                 "selected_companion_files": selected_companion_files,
                 "texture_bindings": texture_binding_rows,
                 "texture_semantics": texture_binding_rows,
+                "exported_material_textures": exported_material_textures,
                 "sidecar_hashes": sidecar_hashes,
             }
             if family_graph_payload:
@@ -516,7 +546,7 @@ def _write_archive_export_manifest(
                 extra_payload["skeleton_resolver"] = skeleton_resolver_payload
             if skin_binding_payload:
                 extra_payload["skin_binding_map"] = skin_binding_payload
-            if obj_appearance_baked:
+            if obj_appearance_baked and getattr(manifest_mesh, "_cdmw_neutral_appearance", None) is None:
                 # Neutral appearance is for interchange, not editable PAC source coordinates.
                 extra_payload["allowed_edit_operations"] = []
                 for rules_key in ("rules", "import_rules"):
@@ -557,7 +587,10 @@ def _archive_export_summary(
         summary_lines.append(f"Referenced files copied: {copied_related_count:,}")
     summary_lines.extend(appearance_notes)
     if obj_appearance_baked:
-        summary_lines.append("OBJ contains neutral character appearance; source-asset round-trip edits are disabled.")
+        if getattr(parsed_mesh, "_cdmw_neutral_appearance", None) is not None:
+            summary_lines.append("OBJ contains neutral character appearance; keep its matching .obj.meta.json for source-coordinate reconstruction.")
+        else:
+            summary_lines.append("OBJ contains baked appearance without a reversible transform; source-asset round-trip edits are disabled.")
     if skeleton_entry is not None and skeleton is not None and skeleton.bones:
         summary_lines.append(f"Skeleton: {skeleton_entry.path}")
         summary_lines.append(f"Skeleton bones: {len(skeleton.bones):,}")
@@ -579,7 +612,7 @@ def _export_archive_mesh_staged(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     related_entries: Sequence[ArchiveEntry] = (),
     allow_missing_skeleton: bool = False,
-    resolve_skeleton_for_obj: bool = True,
+    resolve_skeleton_for_obj: bool = False,
     model_texture_references: Optional[Sequence[ArchiveModelTextureReference]] = None,
     asset_family_graph: object = None,
     build_preview_context: bool = True,
@@ -605,6 +638,7 @@ def _export_archive_mesh_staged(
     skeleton_resolve_report: Optional[SkeletonResolveReport] = None
     appearance_notes: Tuple[str, ...] = ()
     export_mesh = parsed_mesh
+    manifest_mesh = parsed_mesh
     obj_appearance_baked = False
     copied_related_count = 0
     should_resolve_skeleton = entry.extension == ".pac" and (
@@ -615,17 +649,38 @@ def _export_archive_mesh_staged(
             entry, archive_entries_by_normalized_path=archive_entries_by_normalized_path,
             archive_entries_by_basename=archive_entries_by_basename, stop_event=stop_event,
         )
+    if export_kind == "fbx":
+        # Resolve before the native writer so its material nodes reference the
+        # same copied DDS files as OBJ. Paths stay relative after staged publish.
+        if build_preview_context and not model_texture_references and asset_family_graph is None:
+            from cdmw.core.archive_preview_result_builder import build_archive_preview_result
+
+            preview = build_archive_preview_result(
+                entry, (),
+                texture_entries_by_normalized_path=dict(archive_entries_by_normalized_path) if archive_entries_by_normalized_path is not None else None,
+                texture_entries_by_basename=dict(archive_entries_by_basename) if archive_entries_by_basename is not None else None,
+            )
+            model_texture_references = tuple(getattr(preview, "model_texture_references", ()) or ())
+            asset_family_graph = getattr(preview, "asset_family_graph", None)
+        if related_entries:
+            copied_paths = _export_related_archive_entries(related_entries, output_dir / "referenced_files", on_log=on_log, stop_event=stop_event)
+            output_paths.extend(copied_paths)
+            copied_related_count = len(copied_paths)
     if export_kind == "obj":
         if should_resolve_skeleton:
-            from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+            from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance, UnresolvedPacBonePaletteError
 
-            export_mesh, appearance_notes = apply_archive_mesh_appearance(
-                entry, parsed_mesh, getattr(parsed_mesh, "_cdmw_original_data", b""),
-                archive_entries_by_normalized_path=archive_entries_by_normalized_path or {},
-                archive_entries_by_basename=archive_entries_by_basename or {},
-                stop_event=stop_event,
-            )
+            try:
+                export_mesh, appearance_notes = apply_archive_mesh_appearance(
+                    entry, parsed_mesh, getattr(parsed_mesh, "_cdmw_original_data", b""),
+                    archive_entries_by_normalized_path=archive_entries_by_normalized_path or {},
+                    archive_entries_by_basename=archive_entries_by_basename or {},
+                    stop_event=stop_event,
+                )
+            except UnresolvedPacBonePaletteError:
+                appearance_notes = ("OBJ retains source coordinates because the PAC bone palette is unresolved; neutral appearance is unavailable.",)
             obj_appearance_baked = export_mesh is not parsed_mesh
+        manifest_mesh = export_mesh
         output_paths.extend(Path(path) for path in export_obj(export_mesh, str(output_dir), basename))
     else:
         if entry.extension == ".pac":
@@ -675,12 +730,13 @@ def _export_archive_mesh_staged(
                     getattr(parsed_mesh, "_cdmw_original_data", b"") or b"", skeleton
                 )
                 if not bone_palette:
+                    appearance_notes = ("FBX retains source coordinates and an unbound armature because the PAC bone palette is unresolved.",)
                     _safe_log(
                         on_log,
                         f"{entry.path}: no bone palette resolved against {skeleton_entry.path if skeleton_entry else 'the skeleton'}; "
                         "exporting the armature without skin binding.",
                     )
-            export_mesh, appearance_notes = _appearance_fbx_mesh(
+            export_mesh, fbx_appearance_notes = _appearance_fbx_mesh(
                 entry,
                 parsed_mesh,
                 skeleton,
@@ -689,11 +745,15 @@ def _export_archive_mesh_staged(
                 archive_entries_by_basename,
                 stop_event,
             )
-            output_paths.append(Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
+            appearance_notes += fbx_appearance_notes
+            manifest_mesh = export_mesh
+            export_mesh = _fbx_export_texture_mesh(export_mesh, model_texture_references or (), output_dir)
+            output_paths.insert(0, Path(export_fbx_with_skeleton(export_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette)))
         else:
-            output_paths.append(Path(export_fbx(parsed_mesh, str(output_dir), basename)))
+            export_mesh = _fbx_export_texture_mesh(parsed_mesh, model_texture_references or (), output_dir)
+            output_paths.insert(0, Path(export_fbx(export_mesh, str(output_dir), basename)))
 
-    if related_entries:
+    if related_entries and export_kind == "obj":
         related_output_root = output_dir / "referenced_files"
         copied_paths = _export_related_archive_entries(
             related_entries,
@@ -705,15 +765,15 @@ def _export_archive_mesh_staged(
         copied_related_count = len(copied_paths)
 
     _write_archive_export_manifest(
-        entry, parsed_mesh, export_mesh if export_kind == "obj" else parsed_mesh,
+        entry, parsed_mesh, manifest_mesh,
         output_dir, output_paths, skeleton, skeleton_entry, skeleton_resolve_report,
         related_entries, model_texture_references, asset_family_graph,
         archive_entries_by_normalized_path, archive_entries_by_basename,
-        build_preview_context, obj_appearance_baked, on_log,
+        build_preview_context and export_kind == "obj", obj_appearance_baked, on_log,
     )
 
     summary_lines = _archive_export_summary(
-        entry, parsed_mesh, export_kind, copied_related_count, appearance_notes, obj_appearance_baked,
+        entry, export_mesh, export_kind, copied_related_count, appearance_notes, obj_appearance_baked,
         skeleton_entry, skeleton, skeleton_resolve_report, skeleton_resolution_warning,
     )
     return MeshExportResult(output_paths=output_paths, summary_lines=summary_lines)

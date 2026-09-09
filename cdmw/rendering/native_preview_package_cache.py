@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Callable, Iterator, Mapping, Optional, Sequence, Tuple
 
 
-NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA = 2
+# Discard packages baked before neutral PABC bind-frame reconciliation.
+NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA = 3
 NATIVE_PREVIEW_PACKAGE_CACHE_MODES = {"off", "balanced", "aggressive"}
 BALANCED_NATIVE_PREVIEW_PACKAGE_MAX_BYTES = 512 * 1024 * 1024
 BALANCED_NATIVE_PREVIEW_PACKAGE_TARGET_BYTES = 384 * 1024 * 1024

@@ -456,7 +456,16 @@ class ArchiveBrowserActionMixin:
         if entry.extension in ARCHIVE_MESH_EXTENSIONS:
             _add_menu_section("mesh", "Mesh Export")
             export_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ...")
+            export_obj_action.setToolTip("Keep the mesh's original vertex positions.")
             export_obj_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "obj"))
+            if entry.extension == ".pac":
+                export_neutral_obj_action = menu.addAction(menu_icons["mesh"], "Export OBJ (Neutral Appearance)...")
+                export_neutral_obj_action.setToolTip("Bake the character's neutral appearance into the OBJ.")
+                export_neutral_obj_action.triggered.connect(
+                    lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(
+                        current_entry, "obj", bake_neutral_appearance=True,
+                    )
+                )
             export_fbx_action = menu.addAction(menu_icons["mesh"], "Export FBX...")
             export_fbx_action.triggered.connect(lambda _checked=False, current_entry=entry: self._start_archive_mesh_export(current_entry, "fbx"))
             export_character_dependencies_action = menu.addAction(menu_icons["mesh"], "Export Character Dependency Package...")

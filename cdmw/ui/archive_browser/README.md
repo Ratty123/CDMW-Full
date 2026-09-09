@@ -100,10 +100,53 @@ as original files; only the primary mesh is converted. The mesh, materials,
 selected companions, and manifest are staged together. A preparation failure or
 cancellation preserves the previous export, and publication rolls back on failure.
 
-Character OBJ exports bake the same neutral skeleton variation used by FBX.
-OBJ carries no armature or facial morph channels. Its baked appearance manifest
-disallows direct source-asset edits; **Modify Original** still uses the original
-editable coordinates. FBX retains its existing rig and recovered morph support.
+Character previews and neutral exports reconcile paired PABC bind-axis reversals
+only when the complete corrected matrix matches the PAB bind within 1e-4
+(0.1 mm for translation). This prevents Damian's embedded ear from folding while
+retaining small authored adjustments and other neutral shape changes. Animation
+poses are unaffected. The native package cache invalidates older baked previews.
+
+**Export OBJ...** preserves the PAC's original positions and normals, including
+embedded head and ear geometry. To bake the same neutral skeleton variation
+used by FBX, right-click a PAC and choose **Export OBJ (Neutral Appearance)...**.
+The matching `.meta.json` stores the source identity and, for neutral exports,
+the reversible appearance transform. **Round-trip edit** converts neutral OBJ
+positions and normals back to PAC coordinates, retains donor skin weights and
+lower LODs, and restores part
+order and duplicate triangles removed by Blender. Keep vertex order and counts;
+topology and rig changes are outside this OBJ round-trip workflow.
+Blender corner-normal splits can recover the original vertex slots when positions,
+UVs and protected channels agree and a source normal or its reversal remains. The import summary
+reports retained source normals; new UV seams or separate hard-edge normals need
+topology replacement.
+
+In Blender, return an OBJ with modifiers disabled and keep the matching manifest
+beside it as `<returned>.obj.meta.json`. This also supports a mesh first exported
+as FBX: retain and rename its `.fbx.meta.json` for the returned OBJ. Convert FBX
+to OBJ in Blender before importing. OBJ returns
+carry positions, normals and UV edits; they retain the PAC's original rig data.
+The importer recovers unchanged coordinates, UVs and normal directions within
+OBJ/f32 and Blender custom-normal rounding precision. Larger Blender normal
+changes remain edits, so an untouched Blender session is not always a byte-identical
+return. Normal writes preserve the shared tangent and handedness bits; UV writes
+use correctly rounded half floats. Normal and UV edits retain all position bytes
+and bounds. A position edit that expands shared bounds compensates lower-LOD
+positions within half a quantization step and preserves their other vertex lanes.
+Unproven or conflicting lower-LOD ownership blocks that expansion.
+The rebuild verifies the resulting neutral positions and normal directions.
+A nearly singular skin transform can magnify an edit beyond PAC precision;
+displacements over the position tolerance or normal errors over one degree are
+blocked with the affected part and measured error. Use an OBJ exported in source
+coordinates for these normal edits. Incompatible geometry changes remain blocked.
+
+FBX retains its rig and recovered morph support, merges repeated influences on
+the same bone, and connects the resolved diffuse DDS files using portable paths.
+OBJ uses the same resolved diffuse evidence. These interchange materials do not
+recreate the game's complete layered shader. Rigid attachments without a PAC
+bone palette retain their source geometry without guessing an attachment bone.
+Other unresolved palettes also export source coordinates: the summary marks
+neutral appearance as unavailable, and FBX includes an unbound armature. OBJ
+returns still retain the original PAC skin records.
 Character dependency packages preserve `character/...` paths directly below the
 chosen root so the appearance manifest can find and verify every companion.
 The extraction service's `include_package_directory=False` selects this layout

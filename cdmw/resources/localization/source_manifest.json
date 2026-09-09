@@ -12607,6 +12607,16 @@
       ]
     },
     {
+      "key": "Bake the character's neutral appearance into the OBJ.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 463,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Balanced",
       "origins": [
         {
@@ -23782,16 +23792,6 @@
       ]
     },
     {
-      "key": "Could not load clip: {value_0}",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_playback.py",
-          "line": 114,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
       "key": "Could not load language:\n{value_0}",
       "origins": [
         {
@@ -32938,6 +32938,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 732,
           "sink": "getSaveFileName"
+        }
+      ]
+    },
+    {
+      "key": "Export OBJ (Neutral Appearance)...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 462,
+          "sink": "addAction"
         }
       ]
     },
@@ -43427,16 +43437,6 @@
       ]
     },
     {
-      "key": "Indexing the animation clips…",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_clips.py",
-          "line": 210,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
       "key": "Indexing the archives…",
       "origins": [
         {
@@ -45727,6 +45727,16 @@
       ]
     },
     {
+      "key": "Keep the mesh's original vertex positions.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 459,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Keep the selected entry's raw weight",
       "origins": [
         {
@@ -47761,12 +47771,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 431,
-          "sink": "showMessage"
-        },
-        {
-          "path": "tools/placement_studio/window_playback.py",
-          "line": 131,
+          "line": 388,
           "sink": "showMessage"
         }
       ]
@@ -58935,9 +58940,9 @@
       "key": "No game install at {value_0}",
       "origins": [
         {
-          "path": "tools/placement_studio/window_clips.py",
-          "line": 231,
-          "sink": "_fall_back_to_baseline_clips"
+          "path": "tools/placement_studio/loading.py",
+          "line": 146,
+          "sink": "ValueError"
         }
       ]
     },
@@ -69836,42 +69841,37 @@
         },
         {
           "path": "tools/placement_studio/move_preview.py",
-          "line": 80,
+          "line": 94,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/move_preview.py",
-          "line": 279,
+          "line": 305,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_clips.py",
-          "line": 422,
+          "line": 379,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 55,
+          "line": 60,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 148,
+          "line": 137,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 171,
+          "line": 176,
           "sink": "setText"
         },
         {
           "path": "tools/placement_studio/window_playback.py",
-          "line": 186,
-          "sink": "setText"
-        },
-        {
-          "path": "tools/placement_studio/window_playback.py",
-          "line": 217,
+          "line": 181,
           "sink": "setText"
         }
       ]
@@ -94784,6 +94784,11 @@
     {
       "key": "Source files changed while preparing geometry; refresh and prepare again",
       "origins": [
+        {
+          "path": "tools/placement_studio/loading.py",
+          "line": 88,
+          "sink": "ValueError"
+        },
         {
           "path": "tools/placement_studio/window_carry.py",
           "line": 490,
@@ -121236,12 +121241,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 459,
+          "line": 460,
+          "sink": "_start_archive_mesh_export"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 465,
           "sink": "_start_archive_mesh_export"
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
-          "line": 721,
+          "line": 724,
           "sink": "_start_archive_mesh_export"
         }
       ]
@@ -130097,16 +130107,6 @@
       ]
     },
     {
-      "key": "{value_0} animates no bone this rig defines — it is for another character.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_playback.py",
-          "line": 119,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
       "key": "{value_0} animation file(s) replaced, but {value_1} was not among them — its selected payload was unchanged.",
       "origins": [
         {
@@ -132593,16 +132593,6 @@
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 510,
           "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} — showing the pinned baseline only",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_clips.py",
-          "line": 276,
-          "sink": "setText"
         }
       ]
     },

@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.12` is the current source version. See the Releases page for
+> `0.11.0-alpha.13` is the current source version. See the Releases page for
 > published downloads; an existing executable does not include later source changes.
 
 ---
