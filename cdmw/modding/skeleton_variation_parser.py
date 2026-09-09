@@ -291,7 +291,9 @@ def apply_skeleton_variation_to_mesh(
                 continue
             if record.bone_index >= len(neutral_globals):
                 raise ValueError(f"PABC record references missing bone index {record.bone_index}")
-            neutral_globals[record.bone_index] = _matrix4(record.matrix_blocks[0])
+            neutral_globals[record.bone_index] = _neutral_variation_bind_matrix(
+                neutral_globals[record.bone_index], record.matrix_blocks[0],
+            )
     skin_matrices = _skin_matrices(raw_bones, neutral_globals)
 
     clone = copy.copy(mesh)
@@ -409,6 +411,27 @@ def _invert_affine(matrix: Sequence[float]) -> tuple[float, ...]:
 
 def _bone_bind_matrix(bone: object) -> tuple[float, ...]:
     return _matrix4(tuple(getattr(bone, "bind_matrix", ()) or ()))
+
+
+def _neutral_variation_bind_matrix(bind: Sequence[float], values: Sequence[float]) -> tuple[float, ...]:
+    """Reconcile paired axis reversals in an otherwise unchanged neutral bind.
+
+    Shipped body PABC records can reverse two PAB bind axes while retaining the
+    joint's origin and scale. Skinning that frame discrepancy as a pose folds
+    the attached surface. Correct only a complete affine match within 1e-4
+    (0.1 mm for translation), after reversing exactly two basis rows. Retain
+    the PABC's small position/scale adjustments; other poses pass through.
+    This is neutral-appearance handling, never animation rotation filtering.
+    """
+    target = _matrix4(values)
+    for axes in ((0, 1), (0, 2), (1, 2)):
+        aligned = tuple(
+            -value if index // 4 in axes and index % 4 < 3 else value
+            for index, value in enumerate(target)
+        )
+        if all(abs(actual - original) <= 1e-4 for actual, original in zip(aligned, bind)):
+            return aligned
+    return target
 
 
 def _bone_inverse_bind_matrix(bone: object) -> tuple[float, ...]:

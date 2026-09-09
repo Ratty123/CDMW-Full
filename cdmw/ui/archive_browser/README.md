@@ -134,6 +134,12 @@ as original files; only the primary mesh is converted. The mesh, materials,
 selected companions, and manifest are staged together. A preparation failure or
 cancellation preserves the previous export, and publication rolls back on failure.
 
+Character previews and neutral exports reconcile paired PABC bind-axis reversals
+only when the complete corrected matrix matches the PAB bind within 1e-4
+(0.1 mm for translation). This prevents Damian's embedded ear from folding while
+retaining small authored adjustments and other neutral shape changes. Animation
+poses are unaffected. The native package cache invalidates older baked previews.
+
 **Export OBJ...** preserves the PAC's original positions and normals, including
 embedded head and ear geometry. To bake the same neutral skeleton variation
 used by FBX, right-click a PAC and choose **Export OBJ (Neutral Appearance)...**.

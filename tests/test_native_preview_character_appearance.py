@@ -12,7 +12,10 @@ from unittest.mock import patch
 from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.rendering import native_preview_core
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt, run_native_preview_core_preview_job
-from cdmw.rendering.native_preview_package_cache import NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA
+from cdmw.rendering.native_preview_package_cache import (
+    NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
+    lookup_native_preview_package_cache,
+)
 from cdmw.workers.archive_preview_native import (
     ArchivePreviewNativeMixin,
     _native_presentation_geometry_payload,
@@ -241,7 +244,67 @@ class NativePreviewCharacterAppearanceTests(unittest.TestCase):
         self.assertEqual(["Applied neutral face."], attempt.diagnostics["character_appearance_notes"])
 
     def test_character_preview_cache_schema_invalidates_raw_native_packages(self) -> None:
-        self.assertEqual(2, NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA)
+        self.assertEqual(3, NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA)
+
+    def test_character_preview_does_not_reuse_packages_with_uncorrected_bind_frames(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir)
+            for schema in (1, 2, 3):
+                with self.subTest(schema=schema):
+                    key = f"appearance-{schema}"
+                    entry_dir = cache_root / "packages" / key
+                    package = entry_dir / "package"
+                    package.mkdir(parents=True)
+                    (package / "manifest.json").write_text("{}", encoding="utf-8")
+                    (entry_dir / "cache_entry.json").write_text(json.dumps({"schema": schema}), encoding="utf-8")
+                    hit = lookup_native_preview_package_cache(
+                        cache_root, key, validate_package=lambda path: ((path / "manifest.json").is_file(), ()),
+                    )
+                    self.assertEqual(schema == 3, hit is not None)
+
+    def test_archive_worker_serializes_reconciled_neutral_vertices_and_normals(self) -> None:
+        from cdmw.modding.skeleton_parser import Bone
+        from tests.test_pabc_neutral_bind_frames import BIND, IDENTITY, _fixture, _pabc_payload
+        from tests.test_static_skin_weight_export import _skinned_pac
+
+        harness = _NativePreviewHarness()
+        raw, source_mesh = _skinned_pac()
+        skeleton, _mesh = _fixture()
+        skeleton.bones.append(Bone(index=2, name="JointC", name_hash=0x34567890,
+                                   bind_matrix=IDENTITY, inv_bind_matrix=IDENTITY))
+        skeleton.bone_count = 3
+        target = tuple(-value if index < 8 and index % 4 < 3 else value for index, value in enumerate(BIND))
+        variation_entry = SimpleNamespace(path="owned/neutral.pabc")
+        skeleton_entry = SimpleNamespace(path="owned/rig.pab")
+        resolution = SimpleNamespace(skeleton_variation_entry=variation_entry,
+                                     skeleton_entry=skeleton_entry, morph_target_entry=None)
+
+        def read_payload(entry, **_kwargs):
+            return (_pabc_payload(target) if entry is variation_entry else raw), False, ""
+
+        # Supply owned companion inputs; exercise the real PAC/PABC parsing,
+        # shared appearance deformation and Archive Preview serialization.
+        with (
+            patch("cdmw.core.skeleton_resolver.resolve_skeleton_descriptor_for_model", return_value=resolution),
+            patch("cdmw.core.archive_mesh_appearance.resolve_skeleton_descriptor_for_model", return_value=resolution),
+            patch("cdmw.core.archive_mesh_appearance._related_appearance_entries", return_value=()),
+            patch("cdmw.core.archive_extraction.read_archive_entry_data", side_effect=read_payload),
+            patch("cdmw.core.archive_mesh_appearance.read_archive_entry_data", side_effect=read_payload),
+            patch("cdmw.core.archive_mesh_appearance.parse_pab", return_value=skeleton),
+            patch("cdmw.core.archive_mesh_appearance.resolve_pac_bone_palette", return_value=(0, 1, 2)),
+        ):
+            payload, source, _notes = harness._prepare_native_preview_presentation_geometry()
+
+        self.assertEqual(variation_entry.path, source)
+        self.assertTrue(payload)
+        for index, vertex in enumerate(source_mesh.submeshes[0].vertices):
+            actual = struct.unpack_from("<6f", payload, 24 + index * 24)
+            for result, expected in zip(actual[:3], vertex):
+                self.assertAlmostEqual(expected, result, places=6)
+            normal = source_mesh.submeshes[0].normals[index]
+            length = sum(value * value for value in normal) ** .5
+            for result, expected in zip(actual[3:], normal):
+                self.assertAlmostEqual(expected / length, result, places=6)
 
 
 if __name__ == "__main__":
