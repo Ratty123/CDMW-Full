@@ -250,11 +250,9 @@ class NewItemTaskControllerMixin:
         return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def start_install(self, mutation_service) -> bool:
-        if not self.has_current_plan:
-            self.status_message.emit("Build the plan first.", True)
-            return False
-        task = install_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
-        return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+        """Compatibility entry point for callers predating overlay-only installation."""
+        self.status_message.emit("Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.", True)
+        return False
 
     def start_install_overlay(self, mutation_service, *, directory_name: Optional[str] = None) -> bool:
         """Install the plan as its own archive directory instead of into the shipped ones."""

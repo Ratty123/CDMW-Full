@@ -411,30 +411,10 @@ class NewItemService:
         stop_event: Optional[threading.Event] = None,
         game_running: Optional[Callable[[], bool]] = None,
     ) -> ArchivePatchResult:
-        """Write the plan into the game archives through the mutation service.
-
-        Refused while the game runs (its archives are open) and without `confirmed`;
-        the mutation service backs up, validates, applies and restores on failure.
-        """
-
-        if not confirmed:
-            raise NewItemInstallRefused("Installing a new item into the game archives requires explicit confirmation.")
-        running = game_running if game_running is not None else game_is_running
-        if running():
-            raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
-        if not plan.patches and not plan.additions:
-            raise NewItemInstallRefused("The plan changes nothing.")
-        if plan.source_revision is not None:
-            plan.source_revision.validate(stop_event)
-        mutation_plan = mutation_service.prepare_patch(
-            plan.patches,
-            additions=plan.additions,
-            meta_files=plan.meta_files,
-            confirmed=True,
-            description=f"New item {plan.spec.internal_name} ({plan.spec.item_key}) from template {plan.spec.template_key}",
+        """Retained for compatibility; New Item installation is overlay-only."""
+        raise NewItemInstallRefused(
+            "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder."
         )
-        mutation_service.validate_patch(mutation_plan, stop_event=stop_event)
-        return mutation_service.apply_patch(mutation_plan, on_log=on_log, stop_event=stop_event)
 
     def install_overlay(
         self,

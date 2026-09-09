@@ -77,6 +77,16 @@
       ]
     },
     {
+      "key": "\nEnable the combined package in DMM instead of the original selected packages.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 178,
+          "sink": "appendPlainText"
+        }
+      ]
+    },
+    {
       "key": "      {value_0}  at {value_1}",
       "origins": [
         {
@@ -1661,17 +1671,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 244,
+          "line": 233,
           "sink": "DetailsToggle"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         },
         {
@@ -1751,7 +1761,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 401,
+          "line": 389,
           "sink": "setPlainText"
         },
         {
@@ -1991,7 +2001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 162,
+          "line": 154,
           "sink": "QGroupBox"
         }
       ]
@@ -2071,7 +2081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 133,
+          "line": 125,
           "sink": "QGroupBox"
         }
       ]
@@ -2156,7 +2166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 175,
+          "line": 167,
           "sink": "QGroupBox"
         }
       ]
@@ -3231,7 +3241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 200,
+          "line": 192,
           "sink": "setToolTip"
         }
       ]
@@ -4782,6 +4792,16 @@
       ]
     },
     {
+      "key": "Add at least two mod folders, then check compatibility.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 57,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Add bonus",
       "origins": [
         {
@@ -4848,6 +4868,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_source_part_mutation_part_02.py",
           "line": 54,
           "sink": "_push_geometry_undo_snapshot"
+        }
+      ]
+    },
+    {
+      "key": "Add mod folder...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 30,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -4931,7 +4961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 199,
+          "line": 191,
           "sink": "QCheckBox"
         }
       ]
@@ -5656,7 +5686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 244,
+          "line": 233,
           "sink": "DetailsToggle"
         }
       ]
@@ -6651,7 +6681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 301,
+          "line": 299,
           "sink": "on_error"
         }
       ]
@@ -10122,6 +10152,16 @@
       ]
     },
     {
+      "key": "Archive payload escapes the selected mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 171,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Archive preview apply error",
       "origins": [
         {
@@ -10341,7 +10381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 278,
+          "line": 267,
           "sink": "setText"
         }
       ]
@@ -11886,7 +11926,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 221,
+          "line": 209,
           "sink": "setPlaceholderText"
         }
       ]
@@ -11976,7 +12016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 225,
+          "line": 213,
           "sink": "setToolTip"
         }
       ]
@@ -13366,7 +13406,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 402,
+          "line": 390,
           "sink": "set_note"
         },
         {
@@ -14706,7 +14746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 164,
+          "line": 156,
           "sink": "QPushButton"
         }
       ]
@@ -14766,7 +14806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 149,
+          "line": 141,
           "sink": "setToolTip"
         }
       ]
@@ -14781,17 +14821,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 254,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 263,
+          "line": 261,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 352,
+          "line": 341,
           "sink": "information"
         }
       ]
@@ -15256,7 +15291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 316,
+          "line": 305,
           "sink": "setPlainText"
         }
       ]
@@ -15266,7 +15301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 424,
+          "line": 412,
           "sink": "set_note"
         }
       ]
@@ -15331,7 +15366,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 317,
+          "line": 306,
           "sink": "set_note"
         }
       ]
@@ -16826,7 +16861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 367,
+          "line": 365,
           "sink": "emit"
         },
         {
@@ -18342,6 +18377,16 @@
       ]
     },
     {
+      "key": "Check compatibility",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 71,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Check one or more mirror models to download.",
       "origins": [
         {
@@ -18543,6 +18588,16 @@
           "path": "cdmw/ui/shell/startup_dialogs.py",
           "line": 582,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Checking mod contents and their game baseline...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 155,
+          "sink": "_run"
         }
       ]
     },
@@ -19302,6 +19357,36 @@
       ]
     },
     {
+      "key": "Choose a mod folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 95,
+          "sink": "getExistingDirectory"
+        }
+      ]
+    },
+    {
+      "key": "Choose a new or empty output folder",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 49,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Choose a new or empty output folder. Existing mod packages are preserved.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 297,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a perk to see what the game calls it and whether shipped equipment uses it.",
       "origins": [
         {
@@ -19522,6 +19607,16 @@
       ]
     },
     {
+      "key": "Choose an empty folder for the combined mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 51,
+          "sink": "_browse"
+        }
+      ]
+    },
+    {
       "key": "Choose an existing folder.",
       "origins": [
         {
@@ -19598,6 +19693,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 899,
           "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
+      "key": "Choose an output folder separate from the game and all selected mods.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 295,
+          "sink": "ValueError"
         }
       ]
     },
@@ -19946,8 +20051,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 349,
+          "line": 338,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Choose the game folder used to create these mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 41,
+          "sink": "_browse"
         }
       ]
     },
@@ -19966,7 +20081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 342,
+          "line": 331,
           "sink": "getExistingDirectory"
         }
       ]
@@ -21602,6 +21717,16 @@
       ]
     },
     {
+      "key": "Combine selected mod folders into one DMM package. Independent changes are merged; conflicting records and unsupported changes must be resolved first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 23,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Comfortable",
       "origins": [
         {
@@ -22408,16 +22533,6 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1260,
           "sink": "setWindowTitle"
-        }
-      ]
-    },
-    {
-      "key": "Confirmed first, backed up, restorable. Refused while the game is running.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 216,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -25647,6 +25762,16 @@
       ]
     },
     {
+      "key": "Cyclic baseline history for {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 231,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cylinder",
       "origins": [
         {
@@ -27502,6 +27627,16 @@
       ]
     },
     {
+      "key": "Different source versions for {value_0}. Rebuild these mods against the same baseline.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 239,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Different: {value_0}",
       "origins": [
         {
@@ -27608,6 +27743,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 458,
           "sink": "FlatSectionPanel"
+        }
+      ]
+    },
+    {
+      "key": "Direct archive installation is no longer available. Use Install as an overlay or write a mod folder.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller_task_mixin.py",
+          "line": 254,
+          "sink": "emit"
         }
       ]
     },
@@ -31396,7 +31541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 913,
+          "line": 894,
           "sink": "warning"
         }
       ]
@@ -33412,6 +33557,16 @@
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 229,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 226,
           "sink": "setToolTip"
         }
       ]
@@ -37496,7 +37651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 185,
+          "line": 177,
           "sink": "setPlaceholderText"
         }
       ]
@@ -37530,13 +37685,23 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 40,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 50,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 396,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 188,
+          "line": 180,
           "sink": "QPushButton"
         }
       ]
@@ -37721,7 +37886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 290,
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -38668,6 +38833,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 520,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Game baseline:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 45,
+          "sink": "addRow"
         }
       ]
     },
@@ -44226,6 +44401,11 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 98,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
           "line": 104,
           "sink": "python-return:install_result_report"
         },
@@ -44236,7 +44416,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 919,
+          "line": 900,
           "sink": "warning"
         }
       ]
@@ -44246,7 +44426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 229,
+          "line": 217,
           "sink": "QPushButton"
         }
       ]
@@ -44256,38 +44436,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 923,
+          "line": 904,
           "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Install into the game archives",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 117,
-          "sink": "python-return:install_result_report"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 888,
-          "sink": "warning"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 892,
-          "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Install into the game archives...",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 215,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -44306,7 +44456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 230,
+          "line": 218,
           "sink": "setToolTip"
         }
       ]
@@ -44326,17 +44476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 923,
-          "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Install {value_0} (item {value_1}) into the game archives?\n\n{value_2} table file(s) are replaced and {value_3} file(s) are added:\n{value_4}{value_5}\n\nA backup of the touched archive files is created before anything is written, and the game must not be running.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 892,
+          "line": 904,
           "sink": "question"
         }
       ]
@@ -44426,7 +44566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 104,
+          "line": 98,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -44436,7 +44576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 110,
+          "line": 104,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -44451,12 +44591,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 63,
+          "line": 57,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 989,
+          "line": 970,
           "sink": "_overlay_services"
         }
       ]
@@ -44466,7 +44606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 273,
+          "line": 262,
           "sink": "QPushButton"
         }
       ]
@@ -44487,16 +44627,6 @@
       ]
     },
     {
-      "key": "Installed {value_0} archive entr(ies).\n\nBackup: {value_1}\n\nStart the game and go through the checklist.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 117,
-          "sink": "python-return:install_result_report"
-        }
-      ]
-    },
-    {
       "key": "Installing another item preserves existing content in a compatible CDMW-owned overlay. Manage existing overlays provides explicit migration and removal actions; planning never performs them.",
       "origins": [
         {
@@ -44507,22 +44637,12 @@
       ]
     },
     {
-      "key": "Installing into the game archives: backing up, validating, writing.",
+      "key": "Installing the overlay: backing up, validating, writing.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 428,
+          "line": 416,
           "sink": "set_note"
-        }
-      ]
-    },
-    {
-      "key": "Installing writes into the archives the game shipped, backs them up first, and can be restored. An overlay writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the two, and the newer.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 238,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -44617,6 +44737,16 @@
       "manual": true
     },
     {
+      "key": "Invalid New Item manifest: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 158,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid alignment descriptor: {value_0}",
       "origins": [
         {
@@ -44682,6 +44812,16 @@
         {
           "path": "tools/placement_studio/event_timeline.py",
           "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid mod file path: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 59,
           "sink": "ValueError"
         }
       ]
@@ -44757,6 +44897,16 @@
       ]
     },
     {
+      "key": "Invalid previous_items in new-item.json.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 103,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid recipe ingredient",
       "origins": [
         {
@@ -44802,6 +44952,16 @@
       ]
     },
     {
+      "key": "Invalid source records in {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 181,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid stroke payload.",
       "origins": [
         {
@@ -44817,6 +44977,16 @@
         {
           "path": "cdmw/ui/item_icons/state.py",
           "line": 55,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid texture registry ownership in {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -45591,7 +45761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         }
       ]
@@ -47467,6 +47637,16 @@
       ]
     },
     {
+      "key": "Linked files or folders are not supported in a mod: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 70,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Linked mesh: {value_0}",
       "origins": [
         {
@@ -49276,7 +49456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 408,
+          "line": 396,
           "sink": "append_log"
         }
       ]
@@ -49316,12 +49496,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 506,
+          "line": 486,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 508,
+          "line": 488,
           "sink": "ValueError"
         },
         {
@@ -50947,12 +51127,42 @@
       ]
     },
     {
+      "key": "Merge mods",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 19,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Merge mods...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 229,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Merged into the next cumulative stroke update.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
           "line": 433,
           "sink": "_send_dotnet_command_result"
+        }
+      ]
+    },
+    {
+      "key": "Merged mod written to {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 177,
+          "sink": "setText"
         }
       ]
     },
@@ -54772,12 +54982,57 @@
       ]
     },
     {
+      "key": "Mod folder changed: {value_0}. Check compatibility again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 44,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Mod folder does not exist: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 65,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Mod folder for:",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 178,
+          "line": 170,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Mod merge cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 46,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 68,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 161,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 204,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -55596,7 +55851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         }
       ]
@@ -56426,32 +56681,32 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 85,
+          "line": 79,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 92,
+          "line": 86,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 955,
+          "line": 936,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 964,
+          "line": 945,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 967,
+          "line": 948,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 971,
+          "line": 952,
           "sink": "question"
         }
       ]
@@ -56461,7 +56716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 289,
+          "line": 278,
           "sink": "QPushButton"
         }
       ]
@@ -56521,7 +56776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 971,
+          "line": 952,
           "sink": "question"
         }
       ]
@@ -56571,7 +56826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 85,
+          "line": 79,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -57810,6 +58065,11 @@
       "key": "New Item manifest is too large: {value_0}",
       "origins": [
         {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 155,
+          "sink": "ValueError"
+        },
+        {
           "path": "cdmw/services/new_item_mod_base.py",
           "line": 218,
           "sink": "ValueError"
@@ -57896,22 +58156,22 @@
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 510,
+          "line": 490,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 515,
+          "line": 495,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 517,
+          "line": 497,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_service.py",
-          "line": 575,
+          "line": 555,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -61916,12 +62176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 169,
+          "line": 161,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 368,
+          "line": 356,
           "sink": "set_note"
         }
       ]
@@ -62046,7 +62306,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         }
       ]
@@ -62196,7 +62456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 967,
+          "line": 948,
           "sink": "information"
         }
       ]
@@ -62301,7 +62561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 92,
+          "line": 86,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -64891,12 +65151,12 @@
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 386,
+          "line": 384,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 397,
+          "line": 395,
           "sink": "emit"
         },
         {
@@ -65772,6 +66032,16 @@
       ]
     },
     {
+      "key": "Output folder:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 55,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Output root",
       "origins": [
         {
@@ -66046,12 +66316,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 219,
+          "line": 207,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 913,
+          "line": 894,
           "sink": "warning"
         }
       ]
@@ -67198,6 +67468,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1211,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Package name:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 47,
+          "sink": "addRow"
         }
       ]
     },
@@ -70541,7 +70821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 949,
+          "line": 930,
           "sink": "warning"
         }
       ]
@@ -77122,6 +77402,16 @@
       ]
     },
     {
+      "key": "Reading mod {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 149,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Reading model file: {value_0}",
       "origins": [
         {
@@ -77306,7 +77596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 430,
+          "line": 418,
           "sink": "set_note"
         }
       ]
@@ -77587,6 +77877,16 @@
       ]
     },
     {
+      "key": "Ready to combine {value_0} mods into one DMM package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 165,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Ready to scan archive indexes.",
       "origins": [
         {
@@ -77686,7 +77986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 371,
+          "line": 359,
           "sink": "set_note"
         }
       ]
@@ -80583,6 +80883,11 @@
           "path": "cdmw/ui/new_item/bonus_editor.py",
           "line": 52,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 33,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -80641,17 +80946,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 67,
+          "line": 61,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 64,
           "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 70,
-          "sink": "python-return:install_result_report"
-        },
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 76,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -80761,7 +81066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 70,
+          "line": 64,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -80771,7 +81076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 76,
+          "line": 70,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -80821,7 +81126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 63,
+          "line": 57,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -83053,6 +83358,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 424,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Resolve the reported conflicts before writing a merged mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 290,
+          "sink": "ValueError"
         }
       ]
     },
@@ -90132,6 +90447,16 @@
       ]
     },
     {
+      "key": "Select at least two different mod folders.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 116,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select chaiNNer chain",
       "origins": [
         {
@@ -90188,6 +90513,16 @@
           "path": "cdmw/ui/texture_workflow/editor_view_coordination.py",
           "line": 361,
           "sink": "getColor"
+        }
+      ]
+    },
+    {
+      "key": "Select individual mod folders, not the game folder or its parent.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 119,
+          "sink": "ValueError"
         }
       ]
     },
@@ -90797,6 +91132,16 @@
       ]
     },
     {
+      "key": "Selected mod folders must not contain one another.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 121,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Selected operations",
       "origins": [
         {
@@ -91048,6 +91393,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 949,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Selection changed. Check compatibility before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 116,
+          "sink": "setText"
         }
       ]
     },
@@ -95442,6 +95797,16 @@
       ]
     },
     {
+      "key": "Source changed: {value_0}. Check compatibility again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 48,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Source color",
       "origins": [
         {
@@ -97241,7 +97606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 293,
+          "line": 291,
           "sink": "emit"
         }
       ]
@@ -101131,17 +101496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 888,
+          "line": 900,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 919,
-          "sink": "warning"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 945,
+          "line": 926,
           "sink": "warning"
         },
         {
@@ -101346,7 +101706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 964,
+          "line": 945,
           "sink": "warning"
         }
       ]
@@ -101837,6 +102197,16 @@
       ]
     },
     {
+      "key": "The game texture registry is unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 262,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The game's own character provides a size reference for the item and effect.",
       "origins": [
         {
@@ -102057,6 +102427,16 @@
       ]
     },
     {
+      "key": "The merge summary and any conflicts appear here.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 68,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "The merged archive dependency set does not contain the selected file.",
       "origins": [
         {
@@ -102101,7 +102481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 181,
+          "line": 173,
           "sink": "setToolTip"
         }
       ]
@@ -102213,6 +102593,16 @@
           "path": "cdmw/services/new_item_dyes.py",
           "line": 124,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The operation returned an unrecognised result. Check the log before continuing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 110,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -102431,7 +102821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 401,
+          "line": 389,
           "sink": "setPlainText"
         }
       ]
@@ -102441,7 +102831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 319,
+          "line": 308,
           "sink": "set_note"
         }
       ]
@@ -102461,7 +102851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 137,
+          "line": 129,
           "sink": "setPlaceholderText"
         }
       ]
@@ -103276,7 +103666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 67,
+          "line": 61,
           "sink": "python-return:install_result_report"
         }
       ]
@@ -108391,7 +108781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 166,
+          "line": 158,
           "sink": "setToolTip"
         }
       ]
@@ -109131,7 +109521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 274,
+          "line": 263,
           "sink": "setToolTip"
         }
       ]
@@ -109697,6 +110087,16 @@
       ]
     },
     {
+      "key": "Wait for the current operation to finish, then try again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 151,
+          "sink": "failed"
+        }
+      ]
+    },
+    {
       "key": "Wait for the current rebuild report to finish, or cancel it first.",
       "origins": [
         {
@@ -110091,7 +110491,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         }
       ]
@@ -110651,7 +111051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 258,
+          "line": 247,
           "sink": "setPlaceholderText"
         }
       ]
@@ -111576,7 +111976,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 432,
+          "line": 420,
           "sink": "set_note"
         },
         {
@@ -111986,18 +112386,28 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 349,
+          "line": 338,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 352,
+          "line": 341,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 409,
+          "line": 397,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Write merged mod",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 74,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -112006,7 +112416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 191,
+          "line": 183,
           "sink": "QPushButton"
         }
       ]
@@ -112081,7 +112491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 192,
+          "line": 184,
           "sink": "setToolTip"
         }
       ]
@@ -112252,11 +112662,21 @@
       ]
     },
     {
+      "key": "Writing the combined mod...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 172,
+          "sink": "_run"
+        }
+      ]
+    },
+    {
       "key": "Writing the mod folder...",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 426,
+          "line": 414,
           "sink": "set_note"
         }
       ]
@@ -112326,7 +112746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 409,
+          "line": 397,
           "sink": "information"
         }
       ]
@@ -119536,12 +119956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 257,
-          "sink": "_run"
-        },
-        {
-          "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 266,
+          "line": 264,
           "sink": "_run"
         }
       ]
@@ -122686,12 +123101,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 272,
+          "line": 270,
           "sink": "_run"
         },
         {
           "path": "cdmw/ui/new_item/controller_task_mixin.py",
-          "line": 278,
+          "line": 276,
           "sink": "_run"
         },
         {
@@ -129642,6 +130057,16 @@
       ]
     },
     {
+      "key": "{value_0}\n\nRemove an incompatible mod from this selection, or rebuild it with different item IDs, asset names or conflicting edits; then check again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 162,
+          "sink": "setPlainText"
+        }
+      ]
+    },
+    {
       "key": "{value_0}\n\nTarget: {value_1}\nSource: {value_2}\n\nSelect the target in Archive Browser so its dependencies are prepared again, then choose the source. The swap target stays armed.",
       "origins": [
         {
@@ -130951,7 +131376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 335,
+          "line": 324,
           "sink": "setText"
         }
       ]
@@ -130981,7 +131406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 338,
+          "line": 327,
           "sink": "setText"
         }
       ]
@@ -131437,6 +131862,16 @@
       ]
     },
     {
+      "key": "{value_0} conflict(s). No package can be written yet.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 161,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0} context",
       "origins": [
         {
@@ -131688,6 +132123,16 @@
           "path": "tools/placement_studio/move_workspace.py",
           "line": 286,
           "sink": "tr"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} files; {value_1} recorded item(s).\n\n{value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_merge_dialog.py",
+          "line": 166,
+          "sink": "setPlainText"
         }
       ]
     },
@@ -132851,7 +133296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 394,
+          "line": 382,
           "sink": "setPlainText"
         }
       ]
@@ -134172,6 +134617,16 @@
       ]
     },
     {
+      "key": "{value_0}: incomplete table pair {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 210,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: input scale {value_1}; smoothing {value_2}. Automatic actor inputs are Unverified.",
       "origins": [
         {
@@ -134222,6 +134677,16 @@
       ]
     },
     {
+      "key": "{value_0}: no recorded baseline for {value_1}. Re-export this item with CDMW.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 222,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: no renderable geometry recovered.",
       "origins": [
         {
@@ -134257,12 +134722,32 @@
       ]
     },
     {
+      "key": "{value_0}: texture registry changes have no CDMW ownership information.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 271,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: the rebuilt mesh is {value_1} bytes, {value_2} side file(s)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 1040,
           "sink": "note"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: the recorded baseline for {value_1} is unavailable. Use the matching game version and include any required base mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 224,
+          "sink": "ValueError"
         }
       ]
     },
@@ -134283,6 +134768,11 @@
           "path": "cdmw/services/effect_catalogue_dependencies.py",
           "line": 71,
           "sink": "add"
+        },
+        {
+          "path": "cdmw/services/mod_merge_service.py",
+          "line": 249,
+          "sink": "ValueError"
         },
         {
           "path": "cdmw/services/new_item_planning.py",

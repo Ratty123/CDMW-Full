@@ -272,37 +272,29 @@ class _TabOutputMixin:
         self.assertEqual(rows[first.spec.item_key], "First_Clone_OneHandSword")
         self.assertEqual(rows[second.spec.item_key], "Second_Clone_OneHandSword")
 
-    def test_install_goes_through_the_window_services_after_confirmation(self) -> None:
-        from types import SimpleNamespace
-
-        from cdmw.services.archive_mutation_service import ArchiveMutationService
-
-        mutations = ArchiveMutationService()
-        window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
-        tab = self._tab(window=window)
+    def test_direct_install_is_absent_and_legacy_entry_point_is_refused(self) -> None:
+        tab = self._tab()
         tab.prefill_template(TEMPLATE)
-        tab.identity_panel.internal_name.setText("Ziane_Clone_OneHandSword")
-        tab.identity_panel.display_name.setText("Wolf's Fang (Clone)")
+        tab.identity_panel.internal_name.setText("Overlay_Only_Item")
+        tab.identity_panel.display_name.setText("Overlay only")
         tab.output_panel.build_button.click()
         self.assertIsNotNone(tab.controller.plan)
-        from PySide6.QtWidgets import QMessageBox
-
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.No):
-            tab.output_panel.install_button.click()
-        before = {e.path.replace("\\", "/"): e for e in parse_archive_pamt(self.pamt_path)}
-        self.assertNotIn("gamedata/binary__/client/bin/iteminfo.pabgb", [p for p in before if "1990000" in p])
-        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
-                patch("cdmw.services.new_item_service.game_is_running", lambda: False), \
-                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
-            tab.output_panel.install_button.click()
-        after = NewItemService().build_snapshot(parse_archive_pamt(self.pamt_path), read_entry=_read)
-        self.assertIn(1990000, after.rows)
-        self.assertEqual(after.rows[1990000].string_key, "Ziane_Clone_OneHandSword")
-        tab.close()
-        tab.deleteLater()
+        self.assertFalse(hasattr(tab.output_panel, "install_button"))
+        self.assertFalse(hasattr(tab.output_panel, "install_requested"))
+        self.assertTrue(tab.output_panel.install_overlay_button.isEnabled())
+        self.assertTrue(tab.output_panel.merge_button.isEnabled())
+        mutations = Mock()
+        self.assertFalse(tab.controller.start_install(mutations))
+        self.assertEqual(mutations.mock_calls, [])
+        from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
+        tab.output_panel.merge_button.click()
+        dialog = tab.findChild(ModMergeDialog)
+        self.assertIsNotNone(dialog)
+        self.assertIs(dialog.controller, tab.controller)
+        dialog.reject()
 
     def test_the_overlay_button_asks_first_and_leaves_the_shipped_archives_alone(self) -> None:
-        """The second install route: the same plan into a directory of its own, mounted
+        """The plan is installed into a directory of its own, mounted
         ahead of the shipped ones. Declining the question writes nothing, and accepting it
         writes no shipped payload file."""
 

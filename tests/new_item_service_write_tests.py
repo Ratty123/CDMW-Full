@@ -92,35 +92,19 @@ class _WriteTestsMixin:
         )
         return self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
 
-    def test_install_writes_the_package_and_reads_back(self) -> None:
+    def test_direct_install_is_refused_even_after_confirmation(self) -> None:
+        from unittest.mock import Mock
+
         plan = self._plan()
-        mutations = ArchiveMutationService()
-        with self.assertRaisesRegex(NewItemInstallRefused, "confirmation"):
-            self.service.install(plan, mutation_service=mutations, confirmed=False, game_running=lambda: False)
-        with self.assertRaisesRegex(NewItemInstallRefused, "running"):
-            self.service.install(plan, mutation_service=mutations, confirmed=True, game_running=lambda: True)
-        logs: list[str] = []
-        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
-            result = install_task(plan, service=self.service, mutation_service=mutations, confirmed=True)(logs.append, None)
-        self.assertTrue(result.backup_dir.is_dir())
-        self.assertTrue(any("Backup created" in line for line in logs), logs[:5])
-        self.assertEqual(sorted(result.added_paths), sorted(plan.new_paths))
-        after = self.reread()
-        for path, data in plan.loose_files.items():
-            self.assertEqual(after[path], data, path)
-        rows = parse_pabgh_table(after[f"{BIN}/iteminfo.pabgh"], payload=after[f"{BIN}/iteminfo.pabgb"]).row_spans(len(after[f"{BIN}/iteminfo.pabgb"]))
-        item = parse_iteminfo_row(after[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]])
-        self.assertEqual((item.key, item.string_key), (1990000, "Ziane_Clone_OneHandSword"))
-        # the installed archive is itself a valid snapshot again, and the new item resolves
-        again = self.service.build_snapshot(parse_archive_pamt(self.pamt_path), read_entry=_read)
-        family = again.family(1990000)
-        self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
-        self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_r_in", "cd_phm_01_sword_9109_l"), "the installed item owns its sheathed part too")
-        self.assertEqual(
-            [item.role for item in family.missing_files], ["hkx"],
-            "the only file the family goes without is the template's mesh physics, which an imported model does not inherit",
-        )
-        self.assertEqual([s for s in again.stores if s.name == "Store_Camp_Equipment"][0].entries[0].item_key, 1990000)
+        mutations = Mock()
+        before = self.reread()
+        for confirmed in (False, True):
+            with self.assertRaisesRegex(NewItemInstallRefused, "Direct archive installation is no longer available"):
+                self.service.install(plan, mutation_service=mutations, confirmed=confirmed, game_running=lambda: False)
+        with self.assertRaisesRegex(NewItemInstallRefused, "Install as an overlay"):
+            install_task(plan, service=self.service, mutation_service=mutations, confirmed=True)(lambda _message: None, None)
+        self.assertEqual(mutations.mock_calls, [])
+        self.assertEqual(self.reread(), before)
 
     def test_installing_as_an_overlay_leaves_the_shipped_archives_alone(self) -> None:
         """The same plan, written as a directory of its own and mounted first. What the
@@ -165,11 +149,8 @@ class _WriteTestsMixin:
             names = sorted(path.name for path in result.backup_dir.iterdir())
             self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
 
-    def test_an_item_installed_the_old_way_on_top_of_an_overlay(self) -> None:
-        """Both install buttons stay on the step, so the two routes meet: an overlay is
-        mounted first, the studio re-reads and the next plan's entries are the overlay's,
-        and Install then patches an archive this workbench wrote rather than one the game
-        shipped. Both items have to survive that, and the overlay has to stay readable."""
+    def test_a_second_overlay_install_preserves_the_first_item(self) -> None:
+        """Reread the mounted overlay before planning and composing the next item."""
 
         from cdmw.core.archive_scan_cache import discover_pamt_files
 
@@ -200,7 +181,7 @@ class _WriteTestsMixin:
         )
         self.assertNotEqual(second.spec.item_key, first.spec.item_key, "the key after the one in the overlay")
         with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
-            self.service.install(second, mutation_service=mutations, confirmed=True)
+            self.service.install_overlay(second, mutation_service=mutations, confirmed=True)
 
         after: dict[str, object] = {}
         for pamt in discover_pamt_files(self.root):
@@ -208,7 +189,7 @@ class _WriteTestsMixin:
                 after.setdefault(entry.path, entry)
         again = self.service.build_snapshot(tuple(after.values()), read_entry=_read)
         self.assertIn(first.spec.item_key, again.rows, "the item the overlay carries")
-        self.assertIn(second.spec.item_key, again.rows, "the item patched on top of it")
+        self.assertIn(second.spec.item_key, again.rows, "the item composed into the overlay")
         for key in (first.spec.item_key, second.spec.item_key):
             self.assertEqual([item.role for item in again.family(key).missing_files], ["hkx"], "no inherited mesh physics")
 
@@ -456,18 +437,11 @@ class _TextureRegistryTestsMixin:
         mutations.restore_backup(result.backup_dir, confirmed=True)
         self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before, "restoring the backup restores the registry too")
 
-    def test_install_writes_the_registry_under_the_backup(self) -> None:
+    def test_refused_direct_install_cannot_change_the_texture_registry(self) -> None:
         plan = self._plan()
-        mutations = ArchiveMutationService()
-        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
-            result = self.service.install(plan, mutation_service=mutations, confirmed=True)
-        self.assertEqual(result.meta_paths, ["meta/0.pathc"])
-        self.assertEqual(self.pathc_path.read_bytes(), plan.meta_files[0].payload_data)
-        manifest = json.loads((result.backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
-        originals = {Path(item["original_path"]).resolve() for item in manifest["files"]}
-        self.assertIn(self.pathc_path.resolve(), originals)
-        mutations.restore_backup(result.backup_dir, confirmed=True)
-        self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before, "restoring the backup restores the registry too")
+        with self.assertRaisesRegex(NewItemInstallRefused, "Direct archive installation is no longer available"):
+            self.service.install(plan, mutation_service=ArchiveMutationService(), confirmed=True)
+        self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before)
 
 class _VanillaNewItemTestsMixin:
     """The snapshot and a plan against the shipped tables (nothing is written)."""

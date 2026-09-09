@@ -245,7 +245,7 @@ def install_task(
     mutation_service,
     confirmed: bool,
 ) -> Callable[[LogSink, threading.Event], ArchivePatchResult]:
-    """Install into the game archives: backup, validate, apply, restore on failure or cancel."""
+    """Legacy factory; the service refuses direct installs and directs callers to overlays."""
 
     def run(log: LogSink, stop_event: threading.Event) -> ArchivePatchResult:
         return service.install(plan, mutation_service=mutation_service, confirmed=confirmed, on_log=log, stop_event=stop_event)

@@ -85,7 +85,7 @@ including supported material-color sidecars and manager profiles.
 
 | Workspace | What you can do |
 |---|---|
-| **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or use an explicit backed-up install route. The template is read as a baseline and is never silently overwritten. |
+| **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or install an overlay. Merge compatible mod folders into one DMM package. The template is read as a baseline and is never silently overwritten. |
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
@@ -147,8 +147,13 @@ effects, animation clipping, or final gameplay appearance.
 Colour edits include cloned render-preset temperature ramps. Billboard particle
 size represents its full dimensions, with placement scale applied once.
 
-Output can be a loose manager package, a CDMW-owned archive-group overlay, or the
-confirmed archive-install path. **Output → Installed overlays** lists individual
+Output can be a manager package or a CDMW-owned archive-group overlay. New Item
+installs through overlays only. **Output → Merge mods** combines compatible mod
+folders into a new DMM package after checking their contents and recorded game
+baselines. Duplicate item or recipe IDs, conflicting edits and unsupported shared
+changes block export; IDs are not reassigned automatically. Enable the combined
+package in DMM in place of its source packages.
+**Output → Installed overlays** lists individual
 CDMW installs and removes a selected one while preserving the others. Shared
 tables and registries are composed by record; conflicts and dependencies block
 unsafe removal, including items used in another overlay's recipes. Earlier installs

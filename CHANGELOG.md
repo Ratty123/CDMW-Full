@@ -13,8 +13,13 @@ The format is intentionally simple:
 
 ### Added
 
+- New Item's **Merge mods** checks selected loose or DMM mod folders and writes one combined DMM package. Supported table records, shops, localisation and owned texture registrations are composed against their recorded baselines; unresolved conflicts block export and source folders are preserved.
 - New Item's **Installed overlays** lists individual installs and removes a selected one while preserving the remaining items, shops, localisation and asset registries. Shared edits are composed by record, conflicting ownership is refused, and earlier installs remain identifiable as one legacy bundle.
 - New Item armour imports transfer weights across template material sections and can use the matching verified character body when the template's influences exceed its resolved palette. Build plan names the body donor and reports fit/deformation warnings; template physics must be off for this transfer.
+
+### Changed
+
+- New Item installation uses overlays only. The direct archive-install button is removed and its legacy service entry point refuses writes; mod-folder export and recovery of older installs remain available.
 
 ### Fixed
 

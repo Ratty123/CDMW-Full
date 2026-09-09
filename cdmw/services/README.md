@@ -72,8 +72,11 @@ external tools.
 `new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
 Create New Item's boundary: a read-only snapshot of the tables a brand-new item
 touches, the plan that composes the core format owners into patches and
-additions, a loose-mod or archive-group export, and installs that go through
-`ArchiveMutationService` and refuse while the game runs. Overlay install,
+additions, a loose-mod or archive-group export, and overlay installs that go through
+`ArchiveMutationService` and refuse while the game runs. The legacy direct-install
+entry point refuses writes. `mod_merge_service.py` reviews selected loose/DMM mod
+folders against recorded baselines and atomically exports a combined DMM package;
+conflicts block output, and sources stay read-only. Overlay install,
 migration, removal and restore stay in the focused `archive_overlay_*.py`
 services; they stage complete output, keep an ownership marker and receipt, and
 never adopt a foreign numeric archive group.

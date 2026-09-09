@@ -382,7 +382,7 @@ accepted without losing its history. New Item exposes the generated submesh name
 the source materials for per-part Glow. This is face separation, not a knife/cap tool.
 
 UI code here never touches the archives: reading is the service's snapshot,
-writing is `ArchiveMutationService` through the service's `install`, and the
+installation is `ArchiveMutationService` through the service's `install_overlay`, and the
 loose export is built in a sibling staging directory and published only when
 complete. DMM archive groups are readable as mod bases, so repeated exports
 carry earlier items forward. Select the same mod folder with **Add to the mod already in this folder**
@@ -390,6 +390,22 @@ enabled, then rebuild the plan for each additional item. Choosing that folder
 invalidates the previous plan and reuses the loaded archive reader when rebuilding.
 Separate New Item mod folders can replace the same shared tables, so enabling both
 in DMM can hide items from the earlier mod even when their item keys differ.
+**Merge mods** opens `mod_merge_dialog.py` without requiring a template or draft plan.
+Choose at least two loose or DMM mod folders, the game folder that supplied their
+baseline, a package name and a new or empty destination. **Check compatibility**
+reports conflicts and the resulting file list; **Write merged mod** produces one
+DMM package. Enable that package in place of the selected originals.
+`mod_merge_workers.py` uses the controller's serialized `mod_merge` lane for scans
+and export. Closing the dialog cancels its work without waiting and drops late
+results. `mod_merge_service.py` checks recorded source hashes against the game or
+selected base mods, then composes supported tables through the overlay merge rules.
+Texture registrations require recorded CDMW ownership and matching DDS payloads.
+Inputs are checked again before atomic publication. The source mods and game
+archives are read-only throughout this workflow.
+Duplicate item or generated recipe IDs, conflicting asset contents, missing baseline
+history and unsupported shared changes block export. The merger does not reassign
+identities or rewrite their references automatically. New Item's direct archive-install
+button is removed; its compatibility service entry point refuses every call.
 Game overlays carry a CDMW ownership marker;
 install, migration and removal ignore foreign numeric groups and roll back every
 post-backup failure or cancellation. Temporary model extraction roots are retired when

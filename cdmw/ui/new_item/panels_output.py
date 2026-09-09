@@ -48,13 +48,7 @@ CHECKLIST = (
 
 
 def install_result_report(result: object) -> tuple:
-    """What to tell the reader after one of step 7's four buttons finishes.
-
-    All four report through the same signal, and they did not all report the same kind of
-    result: an overlay install, a move into the overlay and a removal have no
-    `changed_paths` between them, so each of them said "Installed 0 archive entr(ies)",
-    which reads like a failure after a button that worked.
-    """
+    """Describe overlay installation, migration and removal by their result type."""
 
     backup = getattr(result, "backup_dir", "") or ""
     directory = getattr(result, "directory", None)
@@ -113,16 +107,14 @@ def install_result_report(result: object) -> tuple:
             f"archives.\n\nThe archives the game shipped were not written to."
             f"\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
         )
-    changed = len(getattr(result, "changed_paths", ()) or ())
     return (
-        "Install into the game archives",
-        f"Installed {changed} archive entr(ies).\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+        "Install as an overlay",
+        "The operation returned an unrecognised result. Check the log before continuing.",
     )
 
 
 class OutputPanel(QGroupBox):
-    #: The tab asks the shell for confirmation and the mutation service, then installs.
-    install_requested = Signal()
+    merge_requested = Signal()
     #: The overlay route: the same plan as an archive directory of its own.
     install_overlay_requested = Signal()
     #: Housekeeping for that directory, neither of which needs a plan.
@@ -212,10 +204,6 @@ class OutputPanel(QGroupBox):
         write_layout.addWidget(self.mod_base_note)
         self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         install = QHBoxLayout()
-        self.install_button = QPushButton("Install into the game archives...")
-        self.install_button.setToolTip("Confirmed first, backed up, restorable. Refused while the game is running.")
-        self.install_button.clicked.connect(self.install_requested.emit)
-        install.addWidget(self.install_button)
         install.addWidget(QLabel("Overlay folder"))
         self.overlay_directory = QLineEdit()
         self.overlay_directory.setPlaceholderText("Auto")
@@ -236,10 +224,11 @@ class OutputPanel(QGroupBox):
         install.addStretch(1)
         write_layout.addLayout(install)
         write.setToolTip(
-            "Installing writes into the archives the game shipped, backs them up first, and can be restored. An overlay "
-            "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
-            "two, and the newer."
+            "Export a mod folder or install as an overlay. Overlay installation keeps the shipped archive payloads intact."
         )
+        self.merge_button = QPushButton("Merge mods...")
+        self.merge_button.clicked.connect(self.merge_requested.emit)
+        write_layout.addWidget(self.merge_button)
         self._build_overlay_tools(write_layout)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
@@ -361,7 +350,6 @@ class OutputPanel(QGroupBox):
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         enabled = plan is not None
         self.export_button.setEnabled(enabled and not self._controller.busy)
-        self.install_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
         if plan is None:
             self.summary.setPlainText("")
@@ -425,7 +413,7 @@ class OutputPanel(QGroupBox):
         elif lane == "export":
             self.busy_state.set_note("Writing the mod folder...", EDIT)
         elif lane == "install":
-            self.busy_state.set_note("Installing into the game archives: backing up, validating, writing.", EDIT)
+            self.busy_state.set_note("Installing the overlay: backing up, validating, writing.", EDIT)
         elif lane == "snapshot":
             self.busy_state.set_note("Reading the archives...", EDIT)
         else:
@@ -433,7 +421,7 @@ class OutputPanel(QGroupBox):
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
-        self.install_button.setEnabled(has_plan and not busy)
+        self.merge_button.setEnabled(not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
         self.overlay_migration_button.setEnabled(not busy)

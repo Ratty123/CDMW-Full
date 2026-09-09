@@ -49,7 +49,27 @@ def _store(before, after, current, where, layout):
     b, a, c = (parse_store_row(raw, layout=layout) for raw in (before, after, current))
     def normalized(row):
         return tuple(replace(e, stock_index=0, offset=-1, end=-1) for e in row.entries)
-    entries = _records(*map(normalized, (b, a, c)), lambda e: e.order_index, where)
+    original, incoming, current = map(normalized, (b, a, c))
+    base_orders = {entry.order_index for entry in original}
+    occupied = {entry.order_index for entry in (*incoming, *current)}
+    current_new = [entry for entry in current if entry.order_index not in base_orders]
+    adjusted = []
+    for entry in incoming:
+        if entry.order_index not in base_orders:
+            # Independently exported mods both append at the same next order.
+            # The item identity distinguishes those additions; existing stock
+            # edits still conflict at their original order index.
+            matches = [candidate for candidate in current_new if candidate.item_key == entry.item_key]
+            if len(matches) > 1:
+                raise OverlayConflict(f"Ambiguous added shop entries in {where} for item {entry.item_key}.")
+            if matches:
+                entry = replace(entry, order_index=matches[0].order_index)
+            elif any(candidate.order_index == entry.order_index for candidate in current_new):
+                order = max(occupied, default=-1) + 1
+                occupied.add(order)
+                entry = replace(entry, order_index=order)
+        adjusted.append(entry)
+    entries = _records(original, adjusted, current, lambda e: e.order_index, where)
     # Buyable entries precede the sell-only entries in the shipped grammar.
     entries = tuple(e for e in entries if e.is_buyable) + tuple(e for e in entries if not e.is_buyable)
     entries = tuple(replace(e, stock_index=i) for i, e in enumerate(entries))
@@ -101,7 +121,8 @@ def _table_pair(before, after, current, path, head):
         raise OverlayConflict(f'Table layout changed in {path}.')
     def merge(old, new, present, where):
         key = next(value[0] for value in (new, present, old) if value is not None)
-        raw = _row(old[1] if old else None, new[1] if new else None, present[1] if present else None, where, path)
+        raw = _row(old[1] if old else None, new[1] if new else None, present[1] if present else None,
+                   f"{path} [record {int.from_bytes(key, 'little')}]", path)
         return (key, raw) if raw is not None else None
     rows = _records(b[1], a[1], c[1], lambda r: r[0], path, merge)
     offsets, payload = {}, bytearray()

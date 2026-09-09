@@ -396,7 +396,7 @@ class NewItemStudioTab(QWidget):
         controller.model_part_edit_failed.connect(self._model_part_edit_failed)
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
-        self.output_panel.install_requested.connect(self._install)
+        self.output_panel.merge_requested.connect(self._merge_mods)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
         self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
         self.output_panel.overlay_removal_requested.connect(self._remove_overlay)
@@ -878,31 +878,12 @@ class NewItemStudioTab(QWidget):
         self._model_part_editor_controller = None
         self._model_part_editor_session_id = ""
 
-    def _install(self) -> None:
-        plan = self.controller.plan
-        if plan is None:
-            return
-        services = getattr(getattr(self._window, "app_context", None), "services", None)
-        mutations = getattr(services, "require_archive_mutations", None)
-        if not callable(mutations):
-            QMessageBox.warning(self, "Install into the game archives", "The archive mutation service is not available in this window.")
-            return
-        touched = "\n".join(f"- {path}" for path in plan.touched_paths[:14])
-        more = f"\n- ... {len(plan.touched_paths) - 14} more" if len(plan.touched_paths) > 14 else ""
-        confirmation = QMessageBox.question(
-            self,
-            "Install into the game archives",
-            (
-                f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) into the game archives?\n\n"
-                f"{len(plan.patches)} table file(s) are replaced and {len(plan.additions)} file(s) are added:\n{touched}{more}\n\n"
-                "A backup of the touched archive files is created before anything is written, and the game must not be running."
-            ),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if confirmation != QMessageBox.Yes:
-            return
-        self.controller.start_install(mutations())
+    def _merge_mods(self) -> None:
+        from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
+
+        dialog = ModMergeDialog(self.controller, self._get_package_root(), self)
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.show()
 
     def _install_overlay(self) -> None:
         plan = self.controller.plan

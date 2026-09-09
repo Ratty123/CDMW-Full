@@ -793,5 +793,5 @@ class InstallReportTests(unittest.TestCase):
             backup_dir = Path("b/4")
 
         title, message = install_result_report(_Patched())
-        self.assertEqual(title, "Install into the game archives")
-        self.assertIn("Installed 3 archive entr(ies)", message)
+        self.assertEqual(title, "Install as an overlay")
+        self.assertIn("unrecognised result", message)
