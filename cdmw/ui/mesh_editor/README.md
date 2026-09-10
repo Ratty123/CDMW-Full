@@ -230,9 +230,10 @@ locked until Reset or Bake; it does not mean the topology is incompatible.
 Framing a small selection retains the complete mesh's camera clipping range.
 Scrolling a panel cannot carry camera zoom into a later viewport click.
 
-**Use loaded mesh as body** assigns the current archive mesh as the refit driver.
-This is separate from merely displaying a mesh. **Browse Body...** and
-**Browse Armor...** open the loaded game archive catalogue with search, paging,
+**Meshes & selection** shows a compact card for each loaded asset, with its
+current body/armor role, Part count, and full path on hover. **Set as body**
+assigns only that asset's Parts as the driver, making an incorrect role easy to
+correct. **Add as Body...** and **Add as Armor...** open the loaded game archive catalogue with search, paging,
 and source previews. Choosing a body assigns its Parts as the driver; choosing
 armor adds and selects its Parts ready for binding. No Free Edit or external
 mesh file is required. The panel lists loaded files separately from the assigned
@@ -241,7 +242,8 @@ body driver and bound armor/clothing.
 Both browsers search the same catalogue: the chosen role determines what the
 mesh does. Body is the shape driver; armor is the garment that follows it after
 binding. If you load armor before assigning a body, the initial mesh becomes
-the body driver. If you started with clothing instead, Browse Body assigns the
+the body driver, including when an existing Morph profile has no assigned driver.
+If you started with clothing instead, Add as Body assigns the
 new body while keeping the original clothing available for selection and binding.
 
 The catalogue comes from the archive workspace, including when Mesh Editor is
@@ -250,8 +252,8 @@ catalogue leaves the editor session available for further commands.
 The picker puts the searchable archive list on the left and a taller combined
 preview on the right. The current target and selected source share one view in
 their original archive coordinates, preserving their relative size and position.
-Each has its own **Solid** or **Wire** display choice. **Browse Armor...** starts
-with a shaded, untextured solid target and wire armor; **Browse Body...**
+Each has its own **Solid** or **Wire** display choice. **Add as Armor...** starts
+with a shaded, untextured solid target and wire armor; **Add as Body...**
 starts with a solid body source and wire target. Wire edges overlay solid surfaces,
 including hidden edges, to make overlap visible.
 
@@ -268,6 +270,9 @@ restores each asset's source coordinates before validation and writing. Drafts
 retain those mappings in the version 2 refit record and can still load version 1
 records. Added meshes retain their resolved textures and layered material data
 across loading, Undo/Redo, Bake, Finish, and reopening.
+Adding an asset reuses the existing owned textures and compiles only the incoming
+asset's materials. Generated support maps use bounded array decoding and fast,
+lossless PNG compression; material ownership and texture pixels are preserved.
 Geometry, rig dependencies, and materials prepare off the UI
 thread before one undoable publication. Cancelled, stale, duplicate, invalid,
 or oversized sources leave the edit unchanged. Reset or Bake before loading;
@@ -276,19 +281,31 @@ original topology and allow selection across all visible loaded assets.
 
 **Select body** selects the assigned driver Parts; it does not open another
 file. Its highlighted state shows when the body is already selected.
-**Select garments** selects loaded garment Parts even before they are bound.
+**Select garments** selects non-body Parts even before they are bound. It stays
+disabled until the body is assigned, so an unassigned body cannot be included.
 When only a body is loaded, **Load armor...** opens the archive browser directly.
-Once a body is assigned, the mesh section points to the role-selection controls.
+Refit setup appears immediately after the meshes, with one compact next action.
 The Rust control messages carry slider metadata only; full weighted vertex scopes
 stay in the host profiles for editing, saving, and preset export.
 
-Select the body Parts to create a body slider, then select clothing/armor Parts
-and bind them. The panel rejects overlapping
+Select clothing/armor Parts and bind them. **Create body slider** selects the
+driver and opens the slider creator in view when no shape sliders exist. Custom regions
+can still be selected with the Selection tool. The panel rejects overlapping
 roles and setup changes during an unbaked preview, and shows the binding-distance
 warning. Binding replaces the garment set; select every garment that should
 participate. Surface and Rigid modes retain per-garment enable, intensity, and
-clearance controls. Shape sliders move the driver and bound garments together.
+clearance controls, which appear only after binding. **Changes not applied**
+marks pending settings; use **Apply to Selected Garments** or **Apply to All Bound
+Garments** to update the preview. Surface follows the body surface; Rigid keeps
+each garment Part rigid. Intensity controls following strength; clearance adds
+space as a percentage of body size. Shape sliders move the driver and bound garments together.
 Use the normal transform tools if the meshes need alignment.
+
+Archive Refit keeps the original game-file topology, so its Geometry Layers
+organise loaded assets but cannot add or remove geometry. Free Edit is disabled
+before any folder picker opens. For a separate mesh, Free Edit permits structural
+edits and asks for a folder containing a new OBJ package. Finish the archive refit
+and open a separate mesh to use that route.
 
 **Finish Edit Mesh** keeps edits to both body and armor. **Build Mod** rebuilds
 each asset through its own exact game-format writer and packages every original

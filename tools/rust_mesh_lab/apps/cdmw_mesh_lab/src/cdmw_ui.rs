@@ -14,6 +14,9 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 ];
 
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
+const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
+const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
+const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
 
 fn cdmw_section<R>(
     ui: &mut egui::Ui,
@@ -904,6 +907,7 @@ impl LabApplication {
         let exact = policy == "exact_game_asset";
         let free_edit = policy == "free_edit_rebuild";
         let read_only = !exact && !free_edit;
+        let archive_refit = self.cdmw_has_archive_refit();
         ui.label(RichText::new("Output").strong());
         ui.horizontal(|ui| {
             if ui.add(Button::new("Exact").selected(exact)).clicked() && !exact {
@@ -914,7 +918,9 @@ impl LabApplication {
                 });
             }
             if ui
-                .add(Button::new("Free Edit").selected(free_edit))
+                .add_enabled(!archive_refit, Button::new("Free Edit").selected(free_edit))
+                .on_hover_text("Allows adding and removing geometry. Choose a folder for a new OBJ package.")
+                .on_disabled_hover_text("Archive Refit keeps each original game file. Finish this session, then open a separate mesh for Free Edit.")
                 .clicked()
                 && !free_edit
             {
@@ -923,7 +929,9 @@ impl LabApplication {
         });
         let ready = state_bool(&self.cdmw_state, "output_destination_ready");
         let reason = state_str(&self.cdmw_state, "output_policy_reason").unwrap_or("");
-        ui.label(if exact {
+        ui.label(if archive_refit {
+            "Archive Refit · original game files"
+        } else if exact {
             "Protected game-asset output"
         } else if free_edit && ready {
             "Free Edit package folder ready"
@@ -946,6 +954,13 @@ impl LabApplication {
                 label: "Export Free Edit OBJ",
             });
         }
+    }
+
+    pub(super) fn cdmw_has_archive_refit(&self) -> bool {
+        self.cdmw_state
+            .get("archive_refit_assets")
+            .and_then(Value::as_array)
+            .is_some_and(|assets| !assets.is_empty())
     }
 
     fn draw_cdmw_selection_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -1657,13 +1672,13 @@ impl LabApplication {
             ""
         };
         ui.horizontal_wrapped(|ui| {
-            for (role, label) in [("body", "Browse Body..."), ("armor", "Browse Armor...")] {
+            for (role, label) in [("body", "Add as Body..."), ("armor", "Add as Armor...")] {
                 if ui
                     .add_enabled(blocked.is_empty(), Button::new(label))
                     .on_hover_text(if role == "body" {
-                        "Load a body and assign it as the shape driver. Both browsers use the same archive catalogue."
+                        "Choose any archive mesh and assign it as the body that drives shape changes."
                     } else {
-                        "Load clothing or armor to follow the body. The loaded mesh becomes the body if none was assigned."
+                        "Choose armor or clothing to follow the body. If needed, the current mesh is assigned as the body."
                     })
                     .on_disabled_hover_text(blocked)
                     .clicked()
@@ -1675,56 +1690,73 @@ impl LabApplication {
         if !blocked.is_empty() {
             ui.small(blocked);
         }
-        ui.label(format!(
-            "Loaded mesh: {}",
-            state_str(&self.cdmw_state, "loaded_mesh").unwrap_or("Current mesh")
-        ));
-        if let Some(assets) = self
+        let body = value_u32_list(state, "driver_submesh_indices");
+        let mut assets = self
             .cdmw_state
             .get("archive_refit_assets")
             .and_then(Value::as_array)
-        {
-            for asset in assets.iter().skip(1) {
-                let role = state_str(asset, "role").unwrap_or("mesh");
-                let path = state_str(asset, "path").unwrap_or("");
-                ui.label(format!(
-                    "Loaded {role}: {}",
-                    path.rsplit('/').next().unwrap_or(path)
-                ))
-                .on_hover_text(path);
-            }
+            .cloned()
+            .unwrap_or_default();
+        if assets.is_empty() {
+            assets.push(json!({
+                "path": state_str(&self.cdmw_state, "loaded_mesh").unwrap_or("Current mesh"),
+                "part_indices": (0..self.cdmw_state.get("submesh_count")
+                    .and_then(Value::as_u64).unwrap_or_else(|| self.document.as_ref()
+                        .and_then(|doc| doc.lods.get(self.active_lod_index))
+                        .map_or(0, |lod| lod.submeshes.len() as u64))).collect::<Vec<_>>()
+            }));
         }
-        if value_u32_list(state, "driver_submesh_indices").is_empty() {
-            if ui
-                .add_enabled(blocked.is_empty(), Button::new("Use loaded mesh as body"))
-                .clicked()
-            {
-                actions.push(UiAction::CdmwCommand {
-                    command: "refit_use_loaded_body",
-                    arguments: json!({}),
-                    label: "Use loaded mesh as body",
+        for (asset_index, asset) in assets.iter().enumerate() {
+            let indices = value_u32_list(asset, "part_indices");
+            let body_count = indices.iter().filter(|index| body.contains(index)).count();
+            let is_body = !indices.is_empty() && body_count == indices.len();
+            let (role, colour) = if is_body {
+                ("BODY", REFIT_BODY_COLOUR)
+            } else if body_count > 0 {
+                ("MIXED", REFIT_ARMOR_COLOUR)
+            } else if body.is_empty() {
+                ("UNASSIGNED", ui.visuals().weak_text_color())
+            } else {
+                ("ARMOR", REFIT_ARMOR_COLOUR)
+            };
+            let path = state_str(asset, "path").unwrap_or("");
+            ui.push_id(("refit-asset", asset_index), |ui| {
+                ui.group(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.colored_label(colour, RichText::new(role).strong());
+                        ui.weak(format!("{} Parts", indices.len()));
+                    });
+                    ui.add(egui::Label::new(path.rsplit(['/', '\\']).next().unwrap_or(path)).truncate())
+                        .on_hover_text(path);
+                    ui.horizontal(|ui| {
+                        if ui.button("Select").clicked() {
+                            actions.push(UiAction::SetPartSelection(indices.clone()));
+                        }
+                        if !is_body && ui.add_enabled(blocked.is_empty(), Button::new("Set as body"))
+                            .on_hover_text("Assign only this asset's Parts as the body. Other loaded assets become garment candidates.")
+                            .on_disabled_hover_text(blocked).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "refit_set_driver", arguments: json!({"submesh_indices": indices}),
+                                label: "Set refit body",
+                            });
+                        }
+                    });
                 });
-            }
-            ui.small("Assign the body, then browse armor and bind its selected Parts.");
-        } else {
-            ui.small("Body assigned. Select body or garments in Refit clothing & armor below.");
+            });
         }
         let selected = self.selected_part_indices();
         let counts = self.selected_counts();
-        ui.label(format!(
-            "Scope: {} Parts · {} vertices · {} edges · {} faces",
-            selected.len(),
-            counts.vertices,
-            counts.edges,
-            counts.faces
-        ));
+        ui.weak(format!("{} Parts selected", selected.len()))
+            .on_hover_text(format!(
+                "{} vertices · {} edges · {} faces",
+                counts.vertices, counts.edges, counts.faces
+            ));
         if ui.button("Open Selection tool").clicked() {
             self.cancel_active_gesture("Open selection for Morph & Refit");
             self.cdmw_rail_page = Some(CdmwRailPage::Select);
             self.viewport_tool = ViewportTool::Select;
             self.cdmw_orbit_mode = false;
         }
-        ui.small("Select Parts below, or use the Selection tool for a region.");
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
             let parts = self
                 .document
@@ -1775,12 +1807,18 @@ impl LabApplication {
         body: &[u32],
         garments: &[u32],
     ) {
-        ui.label(format!("Body driver: {}", self.cdmw_morph_part_names(body)));
-        ui.label(format!(
-            "Bound armor / clothing: {}",
-            self.cdmw_morph_part_names(garments)
-        ));
-        let available_garments = if garments.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            ui.colored_label(REFIT_BODY_COLOUR, format!("Body · {} Parts", body.len()))
+                .on_hover_text(self.cdmw_morph_part_names(body));
+            ui.colored_label(
+                REFIT_ARMOR_COLOUR,
+                format!("Bound · {} Parts", garments.len()),
+            )
+            .on_hover_text(format!("Garments: {}", self.cdmw_morph_part_names(garments)));
+        });
+        let available_garments = if body.is_empty() {
+            Vec::new()
+        } else if garments.is_empty() {
             self.document
                 .as_ref()
                 .and_then(|doc| doc.lods.get(self.active_lod_index))
@@ -1796,7 +1834,7 @@ impl LabApplication {
         let selected = self.selected_part_indices();
         ui.horizontal_wrapped(|ui| {
             for (indices, label) in [(body, "Select body"), (available_garments.as_slice(), "Select garments")] {
-                if label == "Select garments" && indices.is_empty() {
+                if label == "Select garments" && indices.is_empty() && !body.is_empty() {
                     let unbaked = self.cdmw_state.get("morph_refit")
                         .is_some_and(|state| state_bool(state, "unbaked"));
                     if ui.add_enabled(!unbaked, Button::new("Load armor..."))
@@ -1821,14 +1859,22 @@ impl LabApplication {
                 }
             }
         });
-        if garments.is_empty() {
-            ui.small(if available_garments.is_empty() {
-                "Load armor, then bind its selected Parts to the body."
+        ui.colored_label(
+            if garments.is_empty() {
+                REFIT_ARMOR_COLOUR
             } else {
-                "Select garments, then Bind Selected Garment Parts. Body sliders will move the bound garments."
-            });
-        }
-        ui.small("Finish keeps body and armor edits. Build Mod saves each original archive file.");
+                REFIT_READY_COLOUR
+            },
+            if body.is_empty() {
+                "Next: set a body in Meshes & selection."
+            } else if available_garments.is_empty() {
+                "Next: load armor."
+            } else if garments.is_empty() {
+                "Next: select garments, then bind."
+            } else {
+                "Ready · garments follow Shape sliders."
+            },
+        );
     }
 
     fn draw_cdmw_morph_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -1844,9 +1890,6 @@ impl LabApplication {
         let selected_parts = self.selected_part_indices();
         let has_mesh_selection = self.selected_counts().total() > 0 || !selected_parts.is_empty();
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
-        let driver_parts = value_u32_list(&state, "driver_submesh_indices");
-        let refit = state.get("refit").cloned().unwrap_or(Value::Null);
-        let bound_garments = value_u32_list(&refit, "garment_submesh_indices");
         let definitions = state
             .get("definitions")
             .and_then(Value::as_array)
@@ -1863,7 +1906,7 @@ impl LabApplication {
         if morph_unbaked {
             ui.colored_label(
                 Color32::from_rgb(245, 190, 75),
-                "Preview active. Reset or Bake before changing sliders, bindings, or topology.",
+                "Shape preview · Reset or Bake when finished.",
             );
         }
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
@@ -1885,7 +1928,7 @@ impl LabApplication {
         cdmw_section(ui, "morph-meshes", "Meshes & selection", None, |ui| {
             self.draw_cdmw_morph_meshes(ui, actions, &state);
         });
-        let mut reveal_authoring = false;
+        let mut reveal_authoring = self.draw_cdmw_refit_section(ui, actions, &state);
         cdmw_section(ui, "morph-profiles", "Profiles & presets", None, |ui| {
             ComboBox::from_label("Profile")
                 .selected_text(
@@ -2132,7 +2175,7 @@ impl LabApplication {
                 }
             });
         });
-        cdmw_section(
+        let authoring_section = cdmw_section(
             ui,
             "morph-authoring",
             "Create / edit sliders",
@@ -2348,19 +2391,45 @@ impl LabApplication {
                 }
             },
         );
+        if reveal_authoring {
+            authoring_section
+                .header_response
+                .scroll_to_me(Some(egui::Align::Min));
+        }
+    }
+
+    fn draw_cdmw_refit_section(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<UiAction>,
+        state: &Value,
+    ) -> bool {
+        let profile_id = state_str(state, "profile_id").unwrap_or("");
+        let selected_parts = self.selected_part_indices();
+        let driver_parts = value_u32_list(state, "driver_submesh_indices");
+        let refit = state.get("refit").cloned().unwrap_or(Value::Null);
+        let bound_garments = value_u32_list(&refit, "garment_submesh_indices");
+        let morph_unbaked = state_bool(state, "unbaked");
+        let mut create_body_slider = false;
         cdmw_section(ui, "morph-refit", "Refit clothing & armor", None, |ui| {
-            ui.small("Loaded meshes appear above. Assign their roles here.");
             self.draw_cdmw_refit_roles(ui, actions, &driver_parts, &bound_garments);
-            ui.small(format!(
-                "Selected Parts: {} · Driver Parts: {} · Bound garment Parts: {}",
-                selected_parts.len(),
-                driver_parts.len(),
-                bound_garments.len()
-            ));
+            let has_definitions = state
+                .get("definitions")
+                .and_then(Value::as_array)
+                .is_some_and(|definitions| !definitions.is_empty());
+            if !bound_garments.is_empty() && !has_definitions
+                && ui.add_enabled(!morph_unbaked, Button::new("Create body slider"))
+                    .on_hover_text("Select the body and open the slider creator. The bound garments will follow.")
+                    .clicked()
+            {
+                actions.push(UiAction::SetPartSelection(driver_parts.clone()));
+                self.cdmw_morph_definition_edit_id.clear();
+                create_body_slider = true;
+            }
             if ui
                 .add_enabled(
                     !morph_unbaked && !selected_parts.is_empty() && bound_garments.is_empty(),
-                    Button::new("1. Use selected Parts as body"),
+                    Button::new("Set body from selection"),
                 )
                 .on_disabled_hover_text(if morph_unbaked {
                     "Reset or Bake before changing the body"
@@ -2387,7 +2456,7 @@ impl LabApplication {
                         && selected_parts
                             .iter()
                             .all(|index| !driver_parts.contains(index)),
-                    Button::new("2. Bind Selected Garment Parts"),
+                    Button::new("Bind selected garments"),
                 )
                 .on_disabled_hover_text(if profile_id.is_empty() {
                     "Activate a Morph profile before binding garments"
@@ -2427,6 +2496,10 @@ impl LabApplication {
                 "Some garment vertices are far from the body. Check alignment and scale before refitting.");
             }
             let configurable = !profile_id.is_empty() && !bound_garments.is_empty();
+            if !configurable {
+                ui.weak("Garment settings appear after binding.");
+                return;
+            }
             let selected_bound_garments = selected_parts
                 .iter()
                 .copied()
@@ -2488,25 +2561,27 @@ impl LabApplication {
                     self.cdmw_refit_mode.clone(),
                     self.cdmw_refit_clearance,
                 );
-                ui.checkbox(&mut self.cdmw_refit_enabled, "Refit enabled");
+                ui.checkbox(&mut self.cdmw_refit_enabled, "Refit enabled")
+                    .on_hover_text("Let these garments follow body Shape sliders. Apply to update the current preview.");
                 ComboBox::from_label("Mode")
-                    .selected_text(&self.cdmw_refit_mode)
+                    .selected_text(if self.cdmw_refit_mode == "rigid" { "Rigid" } else { "Surface" })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.cdmw_refit_mode,
                             "surface".to_owned(),
                             "Surface",
-                        );
-                        ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), "Rigid");
+                        ).on_hover_text("Follow the body surface. Suitable for cloth and flexible armor.");
+                        ui.selectable_value(&mut self.cdmw_refit_mode, "rigid".to_owned(), "Rigid")
+                            .on_hover_text("Move each Part as a rigid piece. Suitable for hard armor plates.");
                     });
                 ui.add(
                     egui::Slider::new(&mut self.cdmw_refit_intensity, 0.0..=200.0)
                         .text("Intensity %"),
-                );
+                ).on_hover_text("How strongly the garment follows body changes. 100% follows fully; 0% stays still.");
                 ui.add(
                     egui::Slider::new(&mut self.cdmw_refit_clearance, 0.0..=5.0)
                         .text("Clearance %"),
-                );
+                ).on_hover_text("Extra space from the body, as a percentage of body size.");
                 if before
                     != (
                         self.cdmw_refit_enabled,
@@ -2516,6 +2591,11 @@ impl LabApplication {
                     )
                 {
                     self.cdmw_refit_settings_dirty = true;
+                }
+                if self.cdmw_refit_settings_dirty {
+                    ui.colored_label(REFIT_ARMOR_COLOUR, "Changes not applied");
+                } else {
+                    ui.weak("Adjust settings, then apply.");
                 }
                 if ui
                     .add_enabled(
@@ -2551,10 +2631,8 @@ impl LabApplication {
                     });
                 }
             });
-            if !configurable {
-                ui.small("Bind one or more garment parts before configuring Refit.");
-            }
         });
+        create_body_slider
     }
 
     fn draw_cdmw_right_panels(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2866,6 +2944,7 @@ impl LabApplication {
             .find(|layer| state_str(layer, "layer_id") == Some(active_id.as_str()));
         let active_base = active.is_some_and(|layer| state_bool(layer, "base"));
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
+        let archive_refit = self.cdmw_has_archive_refit();
         let selected_elements = self.mesh.as_ref().map_or(0, |mesh| {
             mesh.selection.vertices.len() + mesh.selection.edges.len() + mesh.selection.faces.len()
         });
@@ -2873,10 +2952,13 @@ impl LabApplication {
         let has_selection = selected_elements > 0 || selected_parts > 0;
         if !authoring {
             ui.small("Geometry Layers are read-only in this session.");
+        } else if archive_refit {
+            ui.colored_label(REFIT_ARMOR_COLOUR, "Archive Refit · fixed geometry");
+            ui.small("Layers organise loaded assets. Adding or removing geometry would prevent saving the original game files.");
         } else if !free_edit {
             ui.colored_label(
                 Color32::from_rgb(245, 190, 75),
-                "Layer creation is locked by Exact output. Choose Free Edit, select elements or Parts, then Copy Selection → Paste New Layer.",
+                "Adding geometry needs Free Edit: export a new OBJ package to a folder.",
             );
         } else if has_selection {
             ui.small(format!(
@@ -2893,6 +2975,8 @@ impl LabApplication {
                 )
                 .on_disabled_hover_text(if !authoring {
                     "Geometry Layers are read-only in this session"
+                } else if archive_refit {
+                    "Archive Refit preserves original geometry. Open a separate mesh for Free Edit."
                 } else if !free_edit {
                     "Choose Free Edit under Output before copying geometry"
                 } else {
@@ -2910,6 +2994,8 @@ impl LabApplication {
                 )
                 .on_disabled_hover_text(if !authoring {
                     "Geometry Layers are read-only in this session"
+                } else if archive_refit {
+                    "Archive Refit preserves original geometry. Open a separate mesh for Free Edit."
                 } else if !free_edit {
                     "Choose Free Edit under Output before creating a geometry layer"
                 } else {
@@ -2936,7 +3022,9 @@ impl LabApplication {
             ui.label("Layer name");
             ui.text_edit_singleline(&mut self.cdmw_layer_name);
         });
-        ui.small("Copy stores the current selection in the session clipboard; Paste New Layer creates and activates the editable layer.");
+        if free_edit {
+            ui.small("Copy Selection → Paste New Layer");
+        }
     }
 
     fn draw_cdmw_history(&self, ui: &mut egui::Ui) {

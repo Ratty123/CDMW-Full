@@ -1,6 +1,7 @@
 """Atomic archive Refit loading and explicit body assignment for Edit Mesh."""
 
 from dataclasses import replace
+import copy
 from pathlib import Path
 from uuid import uuid4
 
@@ -41,9 +42,8 @@ def load_archive_refit(authoring, args, stop_event):
         prepared = replace(prepared, selection=MeshEditSelection(source_indices=indices))
         admitted = authoring._preflight_mesh_document_capacity(prepared.working_mesh)
         stage_archive_refit_materials(authoring, prepared.working_mesh, context, stop_event)
-        cache = service._morph_sessions.get(session_id)
         driver_indices = indices if role == "body" else (
-            context.assets[0].part_indices if cache is None or cache.profile is None else None
+            context.assets[0].part_indices if not state.driver_submesh_indices else None
         )
         morph = stage_refit_morph_runtime(
             service, session_id, prepared.working_mesh,
@@ -116,17 +116,42 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
     """Prepare hashed DDS and presentation references before the geometry commit."""
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState, _atomic_write_payload, _mesh_material_presentations,
-        _mesh_texture_payloads, _canonical_json_bytes, _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
+        _mesh_texture_payloads, _mesh_lods, _canonical_json_bytes, _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
     )
 
+    previous = authoring.shadow_service._session(authoring.shadow_session_id).archive_refit_context
+    previous_key = previous.context_id if previous is not None else "base"
+    retained = authoring.archive_refit_material_cache[previous_key]
+    # Archive append preserves every existing Part and its read-only material.
+    # Reuse the owned DDS references (including Undo generations), and compile
+    # only the newly appended asset's editable LOD instead of the whole scene.
+    asset = context.assets[-1]
+    incoming = copy.copy(mesh)
+    incoming.path = asset.entry.path
+    incoming.submeshes = [mesh.submeshes[index] for index in asset.part_indices]
+    incoming.lod_levels = [incoming.submeshes]
     synthesis = _RustMaterialSynthesisState()
-    textures = _mesh_texture_payloads(
-        authoring.root, mesh, expected_root_identity=authoring.root_identity,
+    added_textures = _mesh_texture_payloads(
+        authoring.root, incoming, expected_root_identity=authoring.root_identity,
         stop_event=stop_event, synthesis_state=synthesis,
     )
+    lod_count = len(_mesh_lods(mesh))
+    for texture in added_textures:
+        local_indices = texture["material_indices_by_lod"][0]
+        texture["material_indices_by_lod"] = [
+            [asset.part_indices[index] for index in local_indices],
+            *([] for _ in range(lod_count - 1)),
+        ]
+    # The cheap presentation translator must see the combined Part table: it
+    # resolves both explicit material slots and slots derived from Part indices.
+    overrides = {(lod, asset.part_indices[index]): value
+                 for (lod, index), value in synthesis.presentation_overrides.items()}
+    added_presentations = [row for row in _mesh_material_presentations(mesh, generated_overrides=overrides)
+                           if row["lod_index"] == 0 and row["material_index"] in asset.part_indices]
+    textures = [*retained["textures"], *added_textures]
     authoring.archive_refit_material_cache[context.context_id] = {
         "key": context.context_id, "textures": textures,
-        "material_presentations": _mesh_material_presentations(mesh, generated_overrides=synthesis.presentation_overrides),
+        "material_presentations": [*retained["material_presentations"], *added_presentations],
         "reason": "" if textures else "No readable archive preview textures were resolved for these meshes.",
     }
     for key, payload in authoring.archive_refit_material_cache.items():

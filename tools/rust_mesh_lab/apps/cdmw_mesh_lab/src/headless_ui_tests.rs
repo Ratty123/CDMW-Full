@@ -1827,7 +1827,7 @@ fn integrated_exact_cleanup_and_layer_locks_show_actionable_reasons_then_enable_
         .handle_actions(vec![UiAction::SetPartSelection(vec![0])]);
     ui.frame(Vec::new());
     ui.reveal(
-        "Layer creation is locked by Exact output. Choose Free Edit, select elements or Parts, then Copy Selection → Paste New Layer.",
+        "Adding geometry needs Free Edit: export a new OBJ package to a folder.",
     )?;
     assert!(!has_host_command(
         &ui.actions_from_click("Copy Selection")?,
@@ -2006,7 +2006,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
         "Select",
         "Move",
         "Visibility",
-        "Browse Body...",
+        "Add as Body...",
         "Deform",
         "Game / Mod output",
     ] {
@@ -2025,12 +2025,12 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
     ] {
         ui.reveal(section)?;
     }
-    assert!(ui.label_rect("Browse Body...").is_none());
+    assert!(ui.label_rect("Add as Body...").is_none());
     ui.click("Meshes & selection")?;
     assert!(ui.label_rect("Enable Free Edit...").is_none());
     assert!(has_host_command(
-        &ui.actions_from_click("Use loaded mesh as body")?,
-        "refit_use_loaded_body"
+        &ui.actions_from_click("Set as body")?,
+        "refit_set_driver"
     ));
     ui.click("Choose Parts")?;
     ui.click("2 · Part B")?;
@@ -2038,7 +2038,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
     ui.frame(Vec::new());
     ui.reveal("2 · Part B")?;
     assert!(ui.label_rect("Adding meshes requires Free Edit.").is_none());
-    assert!(ui.actions_from_click("Browse Armor...")?.iter().any(
+    assert!(ui.actions_from_click("Add as Armor...")?.iter().any(
         |action| matches!(action, UiAction::ChooseCdmwRefitMesh { role } if *role == "armor")
     ));
     ui.click("Open Selection tool")?;
@@ -2047,7 +2047,7 @@ fn integrated_sections_start_closed_and_morph_selection_returns_to_saved_section
     assert!(!ui.application.cdmw_orbit_mode);
     ui.reveal("Shape")?;
     ui.click_tool_button("Morph & Refit")?;
-    ui.reveal("Browse Armor...")?;
+    ui.reveal("Add as Armor...")?;
     ui.reveal("2 · Part B")?;
     assert!(
         ui.label_rect("Load Preset...").is_none(),
@@ -2151,12 +2151,12 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     assert!(ui.label_rect("Enable Free Edit...").is_none());
     ui.frame(Vec::new());
     assert!(
-        ui.actions_from_click("Browse Body...")?
+        ui.actions_from_click("Add as Body...")?
             .iter()
             .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "body" }))
     );
     assert!(
-        ui.actions_from_click("Browse Armor...")?
+        ui.actions_from_click("Add as Armor...")?
             .iter()
             .any(|a| matches!(a, UiAction::ChooseCdmwRefitMesh { role: "armor" }))
     );
@@ -2175,8 +2175,8 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.application.cdmw_state["morph_refit"]["topology_blocked"] = json!(true);
     ui.frame(Vec::new());
-    ui.reveal("Preview active. Reset or Bake before changing sliders, bindings, or topology.")?;
-    assert!(ui.actions_from_click("Browse Armor...")?.is_empty());
+    ui.reveal("Shape preview · Reset or Bake when finished.")?;
+    assert!(ui.actions_from_click("Add as Armor...")?.is_empty());
     assert!(
         ui.actions_from_click("Export Preset...")?
             .iter()
@@ -2184,14 +2184,14 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     );
     ui.click("Refit clothing & armor")?;
     assert!(!has_host_command(
-        &ui.actions_from_click("1. Use selected Parts as body")?,
+        &ui.actions_from_click("Set body from selection")?,
         "refit_set_driver"
     ));
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(false);
     ui.application.cdmw_state["morph_refit"]["driver_submesh_indices"] = json!([0]);
     ui.frame(Vec::new());
     assert!(!has_host_command(
-        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        &ui.actions_from_click("Bind selected garments")?,
         "refit_bind"
     ));
     for heading in [
@@ -2282,7 +2282,7 @@ fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResul
     ui.click("Meshes & selection")?;
     assert!(ui.label_rect("Use loaded mesh as body").is_none());
     assert!(
-        ui.reveal("Body assigned. Select body or garments in Refit clothing & armor below.")
+        ui.reveal("MIXED")
             .is_ok()
     );
     ui.click("Meshes & selection")?;
@@ -2290,13 +2290,13 @@ fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResul
     ui.click("Select garments")?;
     assert_eq!(ui.application.selected_part_indices(), vec![1]);
     assert!(has_host_command(
-        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        &ui.actions_from_click("Bind selected garments")?,
         "refit_bind",
     ));
     ui.click("Select body")?;
     assert_eq!(ui.application.selected_part_indices(), vec![0]);
     assert!(!has_host_command(
-        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        &ui.actions_from_click("Bind selected garments")?,
         "refit_bind",
     ));
     Ok(())
@@ -2321,6 +2321,81 @@ fn integrated_refit_offers_loading_when_only_the_body_is_present() -> TestResult
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.frame(Vec::new());
     assert!(ui.actions_from_click("Load armor...")?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn integrated_refit_unassigned_body_does_not_select_every_part_or_show_inert_settings() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "existing", "driver_submesh_indices": [],
+        "refit": {"garment_submesh_indices": []},
+    });
+    ui.application.cdmw_state["archive_refit_assets"] = json!([
+        {"path": "body.pac", "role": "loaded", "part_indices": [0]},
+        {"path": "coat.pac", "role": "armor", "part_indices": [1]},
+    ]);
+    ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
+    let selection = ui.application.selected_part_indices();
+    ui.click("Select garments")?;
+    assert_eq!(ui.application.selected_part_indices(), selection);
+    assert!(ui.label_rect("Refit enabled").is_none());
+    ui.reveal("Next: set a body in Meshes & selection.")?;
+    ui.click("Meshes & selection")?;
+    ui.reveal("body.pac")?;
+    let armor_name = ui.label_rect("coat.pac").ok_or("missing armor asset")?;
+    let button = ui.label_rect_where("Set as body", |rect| rect.bottom() < armor_name.top())
+        .ok_or("missing body asset assignment")?;
+    ui.click_at(button.center());
+    assert!(ui.last_actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand {command: "refit_set_driver", arguments, ..}
+        if arguments.get("submesh_indices") == Some(&json!([0]))
+    )));
+    Ok(())
+}
+
+#[test]
+fn integrated_archive_refit_free_edit_is_blocked_before_the_folder_picker() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["archive_refit_assets"] = json!([
+        {"path": "body.pac", "role": "loaded", "part_indices": [0]},
+        {"path": "coat.pac", "role": "armor", "part_indices": [1]},
+    ]);
+    ui.click("Display")?;
+    assert!(!ui.actions_from_click("Free Edit")?.iter().any(
+        |action| matches!(action, UiAction::ChooseCdmwFreeEdit)
+    ));
+    // A direct action route also returns before opening a native folder dialog.
+    ui.application.choose_cdmw_free_edit();
+    assert!(ui.application.status.contains("Archive Refit"));
+    ui.reveal("Archive Refit · fixed geometry")?;
+    assert!(ui.actions_from_click("Copy Selection")?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn integrated_refit_create_body_slider_selects_the_driver_and_opens_the_creator() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "body", "driver_submesh_indices": [0], "definitions": [],
+        "refit": {"garment_submesh_indices": [1]},
+    });
+    ui.application.handle_actions(vec![UiAction::SetPartSelection(vec![1])]);
+    ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
+    ui.click("Create body slider")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    assert!(
+        ui.label_rect("Slider label").is_some(),
+        "The creator must scroll into view without manual navigation"
+    );
     Ok(())
 }
 
@@ -2418,7 +2493,8 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     ui.click("Profiles & presets")?;
     ui.click("Shape sliders")?;
     ui.reveal("Waist Width")?;
-    ui.reveal("Selected Parts: 1 · Driver Parts: 1 · Bound garment Parts: 1")?;
+    ui.reveal("Body · 1 Parts")?;
+    ui.reveal("Bound · 1 Parts")?;
 
     ui.click("Create / edit sliders")?;
     ui.application.cdmw_morph_rule = "twist".to_owned();
@@ -2523,11 +2599,11 @@ fn integrated_morph_refit_controls_all_dispatch_typed_host_commands() -> TestRes
     ui.application.cdmw_state["morph_refit"]["refit"]["garment_submesh_indices"] = json!([]);
     ui.frame(Vec::new());
     assert!(has_host_command(
-        &ui.actions_from_click("1. Use selected Parts as body")?,
+        &ui.actions_from_click("Set body from selection")?,
         "refit_set_driver"
     ));
     assert!(has_host_command(
-        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        &ui.actions_from_click("Bind selected garments")?,
         "refit_bind"
     ));
     ui.application.cdmw_morph_preset_name.clear();

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QSize, QUrl, Qt
-from PySide6.QtGui import QColor, QImage, QImageReader
+from PySide6.QtGui import QColor, QImage, QImageReader, QImageWriter
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.rendering.material_combiner_pixels import numpy_module, to_byte_array
@@ -47,6 +47,13 @@ _IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS = tuple(
     min(0.5, 0.1 * attempt) for attempt in range(1, 20)
 )
 _NUMPY_ROW_CHUNK = 32
+
+
+def _save_generated_png(image: QImage, path: Path) -> bool:
+    """Keep generated preview maps lossless without expensive PNG compression."""
+    writer = QImageWriter(str(path), b"PNG")
+    writer.setCompression(15)
+    return writer.write(image)
 
 
 def _raise_if_material_combiner_cancelled(
@@ -788,7 +795,7 @@ def _generate_synthesized_albedo_map(
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_albedo.png"
-    if not target.save(str(output_path), "PNG"):
+    if not _save_generated_png(target, output_path):
         return "", ""
     if roles_used:
         note = "albedo synthesized:" + ",".join(roles_used[:6])
@@ -1324,7 +1331,7 @@ def _generate_spec_gloss_preview_albedo_map(
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_spec_gloss_albedo.png"
-    if not target.save(str(output_path), "PNG"):
+    if not _save_generated_png(target, output_path):
         return "", ""
     return _local_file_url(output_path), "albedo synthesized:specular-glossiness color"
 
@@ -1410,7 +1417,7 @@ def _prepare_image(
         image = image.flipped(Qt.Orientation.Vertical)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}.png"
-    if not image.save(str(output_path), "PNG"):
+    if not _save_generated_png(image, output_path):
         return "", ""
     note = f"prepared:{output_path.name}"
     if flip_vertical:
@@ -1692,6 +1699,12 @@ def _vectorised_material_maps(
             source = _numpy_rgba_row_chunk(
                 np, source_view, source_stride, width, row_start, row_count
             )
+            if mode == "specular":
+                # This newly accelerated mode previously decoded bytes directly
+                # to doubles. Keep that precision for identical output texels.
+                source = _numpy_rgba_byte_rows(
+                    np, source_view, source_stride, width, row_start, row_count,
+                ).astype(np.float64) / 255.0
             r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
             peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
             minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
@@ -1701,6 +1714,8 @@ def _vectorised_material_maps(
                 "b": b,
                 "a": a,
                 "b_minus_18": np.maximum(0.0, b - 0.18),
+                "rgb_peak": np.maximum(np.maximum(r, g), b),
+                "g_or_average": np.maximum(g, (r * 0.3333) + (g * 0.3333) + (b * 0.3334)),
                 "variance": np.maximum(peak - minimum, 0.0),
                 "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
                 "one": np.ones_like(r),
@@ -1758,6 +1773,10 @@ def _vectorised_material_maps(
                 mask = _numpy_rgba_row_chunk(
                     np, mask_view, mask_stride, width, row_start, row_count
                 )
+                if mode == "specular":
+                    mask = _numpy_rgba_byte_rows(
+                        np, mask_view, mask_stride, width, row_start, row_count,
+                    ).astype(np.float64) / 255.0
                 coverage = np.clip(
                     mask[..., mask_channel_index] * effective_layer_weight,
                     0.0,
@@ -2139,7 +2158,7 @@ def _save_material_maps(
             paths.append("")
             continue
         output_path = output_dir / f"{stem}_{slot}.png"
-        if generated.save(str(output_path), "PNG"):
+        if _save_generated_png(generated, output_path):
             slots.append(slot)
             paths.append(_local_file_url(output_path))
         else:
@@ -2348,6 +2367,6 @@ def _combine_material_slot_maps(
     output_path = output_dir / f"{stem}_{slot}.png"
     del target_view
     del layer_views
-    if not target.save(str(output_path), "PNG"):
+    if not _save_generated_png(target, output_path):
         return valid_layers[0][2], valid_layers[0][1]
     return _local_file_url(output_path), "+".join(dict.fromkeys(mode for _priority, mode, _image in normalized_layers))

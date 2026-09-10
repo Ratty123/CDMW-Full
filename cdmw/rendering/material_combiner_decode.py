@@ -515,6 +515,14 @@ _HAIR_STRAND_SHEEN = 0.19
 # ``ao`` turned every asset whose R is authored dark fully occluded -- a gold cup
 # and a cloth flag both ship R=0.000 flat.
 _AFFINE_DECODE_MODES: dict[str, dict[str, Tuple[str, float, float, float, float]]] = {
+    # Preserve the specular-map response while allowing its multi-megapixel
+    # support maps to use the same bounded array path as the other modes.
+    "specular": {
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
+        "roughness": ("g_or_average", 1.0, -1.0, 0.08, 0.92),
+        "metalness": ("one", 0.0, 0.0, 0.0, 0.0),
+        "specular": ("rgb_peak", 0.0, 1.0, 0.06, 1.0),
+    },
     # Standard family: G roughness, B metal.  ``standard_v2_material`` and
     # ``standard_v2_specular`` read the same texture and so decode alike.
     "standard_v2_material": {
@@ -592,6 +600,8 @@ def _affine_decode_terms(
         "b": b,
         "a": a,
         "b_minus_18": max(0.0, b - 0.18),
+        "rgb_peak": max(r, g, b),
+        "g_or_average": max(g, (r * 0.3333) + (g * 0.3333) + (b * 0.3334)),
         "variance": max(max(r, g, b, a) - min(r, g, b, a), 0.0),
         "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
         "one": 1.0,

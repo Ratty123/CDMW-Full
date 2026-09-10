@@ -4914,6 +4914,10 @@ impl LabApplication {
     }
 
     fn choose_cdmw_free_edit(&mut self) {
+        if self.cdmw_has_archive_refit() {
+            self.status = "Archive Refit keeps original game files. Open a separate mesh for Free Edit.".to_owned();
+            return;
+        }
         if let Some(parent) = self
             .cdmw_file_dialog()
             .set_title("Choose the parent for a new Free Edit package")

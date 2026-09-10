@@ -449,7 +449,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
         "morph.save_preset" => (Kind::ShadowCommand, "morph_save_preset"),
         "morph.delete_preset" => (Kind::ShadowCommand, "morph_delete_preset"),
         "refit.set_driver" => (Kind::ShadowCommand, "refit_set_driver"),
-        "refit.use_loaded_body" => (Kind::ShadowCommand, "refit_use_loaded_body"),
+        "refit.use_loaded_body" => (Kind::ShadowCommand, "refit_set_driver"),
         "refit.bind_garment" => (Kind::ShadowCommand, "refit_bind"),
         "refit.clear" => (Kind::ShadowCommand, "refit_clear"),
         "refit.enabled" => (Kind::LocalState, "cdmw_refit_enabled"),

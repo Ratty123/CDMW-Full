@@ -187,6 +187,37 @@ def _texture_input(path: Path, **fields):
     return PreviewMaterialTextureInput(**{name: value for name, value in values.items() if name in known})
 
 
+@pytest.mark.parametrize("masked", [False, True])
+def test_specular_support_maps_use_arrays_with_identical_scalar_pixels(monkeypatch, tmp_path, masked):
+    pytest.importorskip("numpy")
+    from cdmw.rendering import material_combiner_decode
+
+    image = QImage(str(_pattern(tmp_path / "specular.png", 41, 73, 13)))
+    mask = QImage(str(_pattern(tmp_path / "mask.png", 41, 73, 31))) if masked else None
+
+    def run(folder):
+        slots, urls = material_combiner_images._generate_material_maps(
+            image, tmp_path / folder, "specular", decode_mode="specular",
+            surface_category="cloth", force_nonmetal_surface=True,
+            layer_mask=mask, layer_mask_channel="g", layer_weight=.7,
+            flip_vertical=False, max_dimension=128,
+        )
+        return slots, tuple(_image_bytes(url, "RGBA") if url else b"" for url in urls)
+
+    scalar_decoder = material_combiner_images.decode_material_sample
+    def no_scalar(*_args):
+        pytest.fail("Specular maps fell back to per-pixel Python decoding")
+    monkeypatch.setattr(material_combiner_images, "decode_material_sample", no_scalar)
+    fast = run("arrays")
+    monkeypatch.setattr(material_combiner_images, "decode_material_sample", scalar_decoder)
+    # Exercise the pre-optimization scalar branch, not the new shared table.
+    monkeypatch.setattr(material_combiner_decode, "_AFFINE_DECODE_MODES", {
+        key: value for key, value in material_combiner_decode._AFFINE_DECODE_MODES.items()
+        if key != "specular"
+    })
+    assert fast == run("scalar")
+
+
 def test_synthesized_albedo_arrays_match_the_per_pixel_loops(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

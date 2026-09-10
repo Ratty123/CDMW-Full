@@ -31,7 +31,7 @@ def _entry(root, name, source):
 
 
 def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,
-               primary_appearance=None, incoming_appearance=None, role="armor"):
+               primary_appearance=None, incoming_appearance=None, role="armor", distinct_material=False):
     source, authority, session = _open_exact_session(
         tmp_path / "session", base_texture_path=texture_paths[0] if texture_paths else None,
         neutral_appearance=primary_appearance,
@@ -40,6 +40,9 @@ def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,
     armor = _entry(tmp_path, "armor.pac", source)
     other = MeshService()
     mesh = other.load_mesh_bytes(source, armor.path, run_roundtrip=True)
+    if distinct_material:
+        mesh.submeshes[0].name = "Armor"
+        mesh.submeshes[0].material = "Armor material"
     other_id = other.open_edit_session(mesh, mode="edit").session_id
     try:
         incoming = other.capture_export_snapshot(other_id)
@@ -200,15 +203,41 @@ def test_archive_refit_body_slider_moves_bound_armor_and_bakes_both(tmp_path):
         authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
 
 
+def test_archive_armor_load_assigns_body_when_existing_profile_has_no_driver(tmp_path):
+    _source, authority, session, primary, armor, _loaded = _load_pair(tmp_path, assign_body=False)
+    try:
+        shadow, sid = session.shadow_service, session.shadow_session_id
+        incoming = shadow._session(sid).archive_refit_context.assets[-1].source
+        _rig_command(session, 3, "undo", {})
+        _rig_command(session, 4, "select", {"selection": {"source_indices": [0]}})
+        created = _rig_command(session, 5, "morph_create", {"definition": {
+            "profile_id": "existing", "profile_name": "Existing", "definition_id": "height",
+            "label": "Height", "rule": "move", "axis": "z", "amount": .1, "feather": 0,
+        }})
+        assert created["state"]["morph_refit"]["profile_id"] == "existing"
+        assert created["state"]["morph_refit"]["driver_submesh_indices"] == []
+        loaded = _rig_command(session, 6, "refit_choose_archive", {
+            "role": "armor", "_primary_entry": primary, "_archive_entry": armor,
+            "_archive_snapshot": incoming,
+        })
+        assert loaded["state"]["morph_refit"]["driver_submesh_indices"] == [0]
+        bound = _rig_command(session, 7, "refit_bind", {"submesh_indices": [1]})
+        assert bound["state"]["morph_refit"]["refit"]["garment_submesh_indices"] == [1]
+    finally:
+        session.cancel()
+        authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
+
+
 @pytest.mark.parametrize("primary_name", ["body.dds", "a-body.dds"])
-def test_archive_refit_publishes_owned_texture_updates_for_load_undo_and_redo(tmp_path, primary_name):
+@pytest.mark.parametrize("distinct_material", [False, True])
+def test_archive_refit_publishes_owned_texture_updates_for_load_undo_and_redo(tmp_path, primary_name, distinct_material):
     from PIL import Image
 
     body_texture, armor_texture = tmp_path / primary_name, tmp_path / "armor.dds"
     Image.new("RGBA", (4, 4), (200, 50, 40, 255)).save(body_texture)
     Image.new("RGBA", (4, 4), (40, 50, 200, 255)).save(armor_texture)
     _source, authority, session, _primary, _armor, loaded = _load_pair(
-        tmp_path, assign_body=False, texture_paths=(body_texture, armor_texture),
+        tmp_path, assign_body=False, texture_paths=(body_texture, armor_texture), distinct_material=distinct_material,
     )
     try:
         def materials(state):
@@ -218,10 +247,16 @@ def test_archive_refit_publishes_owned_texture_updates_for_load_undo_and_redo(tm
             assert hashlib.sha256(data).hexdigest().upper() == reference["sha256"]
             payload = json.loads(data)
             assert payload["key"] == update["key"]
+            slots = [(row["material_index"], row["material_slot_index"])
+                     for row in payload["material_presentations"]]
+            expected = [(0, 0), (1, 1 if distinct_material else 0)]
+            assert slots == expected[:len(slots)]
             return payload["textures"]
 
         textures = materials(loaded["state"])
         assert len(textures) == 2
+        assert textures[:1] == session.archive_refit_material_cache["base"]["textures"]
+        assert len(tuple(session.root.glob("texture-*.dds"))) == 2
         assert {tuple(texture["material_indices_by_lod"][0]) for texture in textures} == {(0,), (1,)}
         assert {(session.root / texture["file"]["path"]).read_bytes() for texture in textures} == {
             body_texture.read_bytes(), armor_texture.read_bytes(),
