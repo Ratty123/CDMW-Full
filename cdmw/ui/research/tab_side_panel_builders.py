@@ -30,6 +30,7 @@ from cdmw.ui.research.layout_state import (
 )
 from cdmw.ui.research.models import archive_picker_item_kind as _archive_picker_item_kind
 from cdmw.ui.research.tree_helpers import make_research_tree_columns_persistent
+from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.widgets import ArchiveDetailsEditor, EmptyStateTreeWidget, FlatSectionPanel, PreviewLabel, PreviewScrollArea
 
 def build_archive_picker_group(self) -> QWidget:
@@ -41,7 +42,7 @@ def build_archive_picker_group(self) -> QWidget:
     layout = group.body_layout
     layout.setSpacing(8)
 
-    actions = QHBoxLayout()
+    actions = WrappingLayout()
     actions.setSpacing(8)
     self.archive_picker_refresh_button = QPushButton("Refresh")
     self.archive_picker_use_reference_button = QPushButton("References")
@@ -55,9 +56,12 @@ def build_archive_picker_group(self) -> QWidget:
     actions.addWidget(self.archive_picker_refresh_button)
     actions.addWidget(self.archive_picker_use_reference_button)
     actions.addWidget(self.archive_picker_use_note_button)
-    actions.addStretch(1)
-    actions.addWidget(QLabel("View"))
-    actions.addWidget(self.archive_picker_view_combo)
+    view_control = QWidget()
+    view_layout = QHBoxLayout(view_control)
+    view_layout.setContentsMargins(0, 0, 0, 0)
+    view_layout.addWidget(QLabel("View"))
+    view_layout.addWidget(self.archive_picker_view_combo)
+    actions.addWidget(view_control)
     layout.addLayout(actions)
 
     self.archive_picker_status_label = QLabel("Load or filter archives first to browse related files here.")
@@ -95,7 +99,7 @@ def build_archive_picker_group(self) -> QWidget:
     preview_layout = preview_group.body_layout
     preview_layout.setSpacing(8)
 
-    preview_title_row = QHBoxLayout()
+    preview_title_row = WrappingLayout()
     preview_title_row.setSpacing(8)
     self.archive_picker_preview_title_label = QLabel("Select an archive file")
     self.archive_picker_preview_title_label.setWordWrap(True)
@@ -105,7 +109,7 @@ def build_archive_picker_group(self) -> QWidget:
     self.archive_picker_preview_zoom_in_button = QPushButton("+")
     self.archive_picker_preview_zoom_value = QLabel("Fit")
     self.archive_picker_preview_zoom_value.setObjectName("HintLabel")
-    preview_title_row.addWidget(self.archive_picker_preview_title_label, stretch=1)
+    preview_layout.addWidget(self.archive_picker_preview_title_label)
     preview_title_row.addWidget(self.archive_picker_preview_zoom_out_button)
     preview_title_row.addWidget(self.archive_picker_preview_zoom_fit_button)
     preview_title_row.addWidget(self.archive_picker_preview_zoom_100_button)

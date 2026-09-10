@@ -16,6 +16,7 @@ from cdmw.services.bundled_helper_availability import bundled_helper_resolution_
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.combo_popup_limiter import ensure_app_combo_popup_limiter
+from cdmw.ui.display_scaling import ensure_app_display_scaling
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
 from cdmw.ui.shell.compact.config import active_shell_theme_key
 from cdmw.ui.shell.responsiveness_controller import AutoTreeColumnWidthEventFilter
@@ -45,6 +46,7 @@ def prepare_shell_application(
     app.setStyle("Fusion")
     ensure_app_wheel_guard(app)
     ensure_app_combo_popup_limiter(app)
+    ensure_app_display_scaling(app)
 
     startup_settings = (
         create_settings(settings_file_path=settings_file_path)

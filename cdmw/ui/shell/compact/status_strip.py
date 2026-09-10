@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -18,6 +18,34 @@ from cdmw.ui.shell.compact.icons import compact_line_icon
 from cdmw.ui.shell.compact.registry import compact_tool_label
 
 
+class _ElidingStatusLabel(QLabel):
+    """Retain the full status for translation/copy callers and its tooltip."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+
+    def text(self) -> str:
+        return self._full_text
+
+    def setText(self, text: str) -> None:
+        self._full_text = str(text)
+        self.setToolTip(self._full_text)
+        self._render_text()
+
+    def _render_text(self) -> None:
+        super().setText(self.fontMetrics().elidedText(self._full_text, Qt.ElideRight, self.contentsRect().width()))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._render_text()
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() in (QEvent.FontChange, QEvent.StyleChange):
+            self._render_text()
+
+
 class CompactBottomStatusStrip(QFrame):
     drawer_requested = Signal(bool)
 
@@ -31,7 +59,8 @@ class CompactBottomStatusStrip(QFrame):
         super().__init__(parent)
         self.setObjectName("CompactBottomStatusStrip")
         self.setFrameShape(QFrame.NoFrame)
-        self.setFixedHeight(42)
+        self.setMinimumHeight(42)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._active_tool_key = ""
         self._snapshots: dict[str, CompactStatusSnapshot] = {}
         self._messages: dict[str, tuple[str, str]] = {}
@@ -42,7 +71,8 @@ class CompactBottomStatusStrip(QFrame):
         self.ready_label = ready_label
         self.progress_bar = progress_bar
         self.cache_label = cache_label
-        ready_label.setFixedWidth(72)
+        ready_label.setMinimumWidth(72)
+        ready_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
         ready_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         progress_bar.setFixedSize(76, 10)
         # Qt style-sheet heights describe the content box; the themed 1 px border
@@ -53,24 +83,25 @@ class CompactBottomStatusStrip(QFrame):
         )
         progress_bar.setTextVisible(False)
         cache_label.setObjectName("CompactCacheStatusLabel")
-        cache_label.setFixedWidth(110)
+        cache_label.setMinimumWidth(110)
+        cache_label.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Preferred)
         cache_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(ready_label)
         layout.addWidget(progress_bar)
         layout.addWidget(cache_label)
         layout.addStretch(1)
 
-        self.snapshot_label = QLabel("")
+        self.snapshot_label = _ElidingStatusLabel()
         self.snapshot_label.setObjectName("CompactStatusSnapshotLabel")
         self.snapshot_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.snapshot_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.snapshot_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.snapshot_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.snapshot_label, stretch=1)
         self.activity_button = QPushButton("Activity")
         self.activity_button.setObjectName("CompactActivityToggle")
         self.activity_button.setCheckable(True)
         self.activity_button.setFlat(True)
-        self.activity_button.setFixedHeight(28)
+        self.activity_button.setMinimumHeight(28)
         self.activity_button.setStyleSheet("border-radius: 0; padding: 2px 7px;")
         self.activity_button.setIcon(compact_line_icon("activity", self.palette()))
         self.activity_button.setToolTip("Show or hide session Activity and the current tool's log.")

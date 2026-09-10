@@ -1241,9 +1241,11 @@ def launch(baseline: Optional[Baseline] = None) -> int:
     import sys
 
     from PySide6.QtWidgets import QApplication
+    from cdmw.ui.display_scaling import ensure_app_display_scaling
 
     resolved = baseline if baseline is not None else Baseline.load()
     app = QApplication.instance() or QApplication(sys.argv)
+    ensure_app_display_scaling(app)
     window = PlacementStudioWindow(resolved, background_loading=True)
     window.show()
     return app.exec()

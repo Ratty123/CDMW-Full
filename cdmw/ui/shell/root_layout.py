@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+from cdmw.ui.display_scaling import CurrentToolStack, scrollable_content
 
 from cdmw.ui.shell.classic_navigation import ClassicNavigation
 from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT
@@ -16,7 +18,7 @@ class ShellRootLayoutMixin:
         root_layout = QVBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        self.tool_stack = QStackedWidget()
+        self.tool_stack = CurrentToolStack()
         self.tool_stack.setObjectName("ToolContentStack")
         # Kept for startup probes that inspect the current tool's stack index.
         self.main_tabs = self.tool_stack
@@ -29,5 +31,5 @@ class ShellRootLayoutMixin:
             self.compact_workspace = None
             self.classic_navigation = ClassicNavigation(self, central)
             root_layout.addWidget(self.classic_navigation)
-            root_layout.addWidget(self.tool_stack, stretch=1)
+            root_layout.addWidget(scrollable_content(self.tool_stack), stretch=1)
         return central

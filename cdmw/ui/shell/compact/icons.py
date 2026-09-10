@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap
+from math import ceil
+
+from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
+from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPainterPath, QPalette, QPen, QPixmap
 
 
 def _line(painter: QPainter, *points: tuple[float, float]) -> None:
@@ -11,17 +13,46 @@ def _line(painter: QPainter, *points: tuple[float, float]) -> None:
         painter.drawLine(QPointF(*start), QPointF(*end))
 
 
-def compact_line_icon(name: str, palette: QPalette, *, size: int = 18) -> QIcon:
-    """Draw a dependency-free icon using the current palette's text/accent colors."""
+class _LineIconEngine(QIconEngine):
+    def __init__(self, name: str, palette: QPalette, extent: int) -> None:
+        super().__init__()
+        self.name = name
+        self.palette = QPalette(palette)
+        self.extent = max(12, int(extent))
 
-    extent = max(12, int(size))
-    pixmap = QPixmap(extent, extent)
-    pixmap.fill(Qt.transparent)
-    painter = QPainter(pixmap)
+    def clone(self):
+        return _LineIconEngine(self.name, self.palette, self.extent)
+
+    def paint(self, painter, rect, mode, state):
+        painter.save()
+        extent = min(rect.width(), rect.height(), self.extent)
+        painter.translate(rect.x() + (rect.width() - extent) / 2, rect.y() + (rect.height() - extent) / 2)
+        _paint_icon(painter, self.name, self.palette, extent)
+        painter.restore()
+
+    def pixmap(self, size, mode, state):
+        return self.scaledPixmap(size, mode, state, 1.0)
+
+    def scaledPixmap(self, size, mode, state, scale):
+        pixmap = QPixmap(QSize(max(1, ceil(size.width() * scale)), max(1, ceil(size.height() * scale))))
+        pixmap.setDevicePixelRatio(scale)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        self.paint(painter, QRect(0, 0, size.width(), size.height()), mode, state)
+        painter.end()
+        return pixmap
+
+
+def compact_line_icon(name: str, palette: QPalette, *, size: int = 18) -> QIcon:
+    """Rasterize the line artwork at the requesting window's device pixel ratio."""
+    return QIcon(_LineIconEngine(name, palette, size))
+
+
+def _paint_icon(painter: QPainter, name: str, palette: QPalette, extent: int) -> None:
     painter.setRenderHint(QPainter.Antialiasing, True)
     color = palette.color(QPalette.ColorRole.ButtonText)
     accent = palette.color(QPalette.ColorRole.Highlight)
-    pen = QPen(color, max(1.2, extent / 13.0), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+    pen = QPen(color, 18.0 / 13.0, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
     painter.setPen(pen)
     painter.setBrush(Qt.NoBrush)
     scale = extent / 18.0
@@ -116,9 +147,5 @@ def compact_line_icon(name: str, palette: QPalette, *, size: int = 18) -> QIcon:
             painter.drawEllipse(QPointF(x, 9), 0.9, 0.9)
     else:
         painter.drawEllipse(QRectF(3.0, 3.0, 12.0, 12.0))
-
-    painter.end()
-    return QIcon(pixmap)
-
 
 __all__ = ["compact_line_icon"]

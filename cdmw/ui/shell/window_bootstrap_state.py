@@ -12,6 +12,7 @@ from cdmw.services.cache_layout import migrate_runtime_cache_layout
 from cdmw.services.settings_service import create_settings
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.localization import UiLocalizer
+from cdmw.ui.display_scaling import ensure_app_display_scaling
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_DEFAULT
 from cdmw.ui.shell.app_context import AppContext
 from cdmw.ui.shell.app_state import AppState
@@ -137,7 +138,7 @@ class ShellWindowBootstrapStateMixin:
         self._current_responsive_control_scale = 0.0
         self._applying_responsive_layout = False
         self._responsive_metrics_dirty = True
-        self._responsive_last_screen_signature = (0, 0, 0.0)
+        self._responsive_last_screen_signature = (0, 0, 0.0, 0.0)
         self._responsive_resize_last_elapsed_ms = 0
         self._responsive_control_widgets = ()
 
@@ -156,7 +157,8 @@ class ShellWindowBootstrapStateMixin:
         self.archive.model_preview_settings_dialog = None
         self.archive._archive_performance_settings = clamp_archive_performance_settings()
         self.resize(1360, 840)
-        self.setMinimumSize(1120, 720)
+        self.setMinimumSize(480, 320)
+        ensure_app_display_scaling()
 
 
 __all__ = ["ShellWindowBootstrapStateMixin"]

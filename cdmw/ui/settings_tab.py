@@ -71,6 +71,7 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
+from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.domain.camera_bindings import (
     normalize_camera_drag,
     normalize_camera_modifier,
@@ -282,8 +283,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         def _performance_group(title: str) -> tuple[QGroupBox, QGridLayout]:
             group = QGroupBox(title)
             group.setObjectName("SettingsPerformanceCard")
-            group.setMinimumWidth(440)
-            group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+            group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             grid = QGridLayout(group)
             grid.setContentsMargins(6, 8, 6, 6)
             grid.setHorizontalSpacing(0)
@@ -307,9 +307,7 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             row_layout.setContentsMargins(8, 8, 8, 8)
             row_layout.setHorizontalSpacing(12)
             row_layout.setVerticalSpacing(4)
-            row_layout.setColumnMinimumWidth(0, 150)
-            row_layout.setColumnStretch(0, 0)
-            row_layout.setColumnStretch(1, 1)
+            row_layout.setColumnStretch(0, 1)
 
             label_widget = QLabel(label)
             label_widget.setObjectName("SettingsPerformanceField")
@@ -321,9 +319,9 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             if isinstance(control, QComboBox):
                 control.setMinimumContentsLength(18)
                 control.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-            row_layout.addWidget(control, 0, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
+            row_layout.addWidget(control, 1, 0, alignment=Qt.AlignLeft | Qt.AlignTop)
             note_widget = _performance_note(note)
-            row_layout.addWidget(note_widget, 1, 0, 1, 2)
+            row_layout.addWidget(note_widget, 2, 0)
             grid.addWidget(row_widget, row, 0, 1, 2)
             return row + 1
 
@@ -333,12 +331,12 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
         )
         performance_overview.setWordWrap(True)
         performance_overview.setObjectName("SettingsPerformanceOverview")
-        performance_overview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        performance_overview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         performance_content = QWidget()
         performance_content.setObjectName("SettingsPerformanceContent")
         performance_content.setMaximumWidth(1480)
-        performance_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        performance_content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         performance_content_layout = QVBoxLayout(performance_content)
         performance_content_layout.setContentsMargins(0, 0, 0, 0)
         performance_content_layout.setSpacing(10)
@@ -346,13 +344,10 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
 
         performance_grid_widget = QWidget()
         performance_grid_widget.setObjectName("SettingsPerformanceGrid")
-        performance_grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        performance_grid = QGridLayout(performance_grid_widget)
+        performance_grid_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        performance_grid = WrappingLayout(performance_grid_widget, columns=2)
         performance_grid.setContentsMargins(0, 0, 0, 0)
-        performance_grid.setHorizontalSpacing(14)
-        performance_grid.setVerticalSpacing(10)
-        performance_grid.setColumnStretch(0, 1)
-        performance_grid.setColumnStretch(1, 1)
+        performance_grid.setSpacing(14)
 
         workload_group, workload_layout = _performance_group("Overall Workload")
         self.archive_resource_profile_combo = QComboBox()
@@ -547,19 +542,19 @@ class SettingsTab(CompactWorkspaceSettingsMixin, SettingsHelperDiscoveryMixin, Q
             "Impact: less blank preview time. Final preview quality and exports unchanged.",
             max_control_width=260,
         )
-        performance_grid.addWidget(workload_group, 0, 0, alignment=Qt.AlignTop)
-        performance_grid.addWidget(archive_list_group, 0, 1, alignment=Qt.AlignTop)
-        performance_grid.addWidget(related_index_group, 1, 0, alignment=Qt.AlignTop)
-        performance_grid.addWidget(preview_cache_group, 1, 1, alignment=Qt.AlignTop)
+        performance_grid.addWidget(workload_group)
+        performance_grid.addWidget(archive_list_group)
+        performance_grid.addWidget(related_index_group)
+        performance_grid.addWidget(preview_cache_group)
         performance_content_layout.addWidget(performance_grid_widget)
         performance_host = QWidget()
         performance_host.setObjectName("SettingsPerformanceHost")
-        performance_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        performance_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         performance_host_layout = QHBoxLayout(performance_host)
         performance_host_layout.setContentsMargins(0, 0, 0, 0)
         performance_host_layout.setSpacing(0)
         performance_host_layout.addStretch(1)
-        performance_host_layout.addWidget(performance_content, stretch=50, alignment=Qt.AlignTop)
+        performance_host_layout.addWidget(performance_content, stretch=50)
         performance_host_layout.addStretch(1)
         self.archive_performance_page_layout.addWidget(performance_host)
         preview_group = QGroupBox("3D Preview / Graphics")

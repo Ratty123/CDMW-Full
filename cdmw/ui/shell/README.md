@@ -49,6 +49,20 @@ Performance, and Appearance—is a top-aligned, content-sized rail whose width
 follows its translated labels instead of taking a fixed sidebar width and
 full-window height.
 
+`cdmw/ui/display_scaling.py` installs one application display policy for the shell,
+late-created tools, and Qt dialogs. Text controls follow their font and translated
+label metrics. The current tool has an overflow scroll area; inactive tools do
+not impose their minimum size on it. Oversized separate windows fit the current
+screen's available work area and retain reachable content in a scroll area.
+Overflow wrapping happens once, preserving the central widget and nested preview
+parents on subsequent resizes. Screen, work-area, and DPI changes refresh the
+shell metrics once; ordinary resizing keeps the inexpensive path.
+
+Research and Textures action rows wrap, and Settings Performance cards switch
+between one and two columns. Compact rail/status heights follow the font, and its
+line icons rasterize at the requesting device pixel ratio. The Qt display matrix
+and its scope are documented in `docs/test-matrix.md`.
+
 All 19 application themes use semantic palette roles for shared and
 feature-owned chrome. Feature surfaces may retain intentional content colours
 only with an explicit paired foreground; they must not pin buttons, fields,

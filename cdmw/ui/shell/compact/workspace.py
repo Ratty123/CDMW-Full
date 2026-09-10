@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.ui.display_scaling import scrollable_content
 from cdmw.ui.shell.compact.activity import ActivityHistory, CompactStatusSnapshot, tool_log_adapter_for
 from cdmw.ui.shell.compact.config import active_shell_theme_setting, theme_change_field
 from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
@@ -34,7 +35,7 @@ class CompactWorkspace(QWidget):
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
-        right_layout.addWidget(main_tabs, stretch=1)
+        right_layout.addWidget(scrollable_content(main_tabs), stretch=1)
         self.drawer = CompactActivityDrawer(self.activity_history, right)
         self.drawer.setVisible(False)
         right_layout.addWidget(self.drawer)

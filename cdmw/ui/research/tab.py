@@ -712,6 +712,12 @@ class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
             self.analysis_splitter.setSizes(research_analysis_splitter_responsive_sizes(total_width))
         if hasattr(self, "notes_splitter"):
             self.notes_splitter.setSizes(research_notes_splitter_responsive_sizes(total_width))
+        if hasattr(self, "archive_picker_splitter"):
+            picker = self.archive_picker_splitter
+            orientation = Qt.Vertical if picker.width() < 640 else Qt.Horizontal
+            if picker.orientation() != orientation:
+                picker.setOrientation(orientation)
+                picker.setSizes([1, 1])
         QTimer.singleShot(0, self.auto_fit_columns)
 
     def auto_fit_columns(self) -> None:

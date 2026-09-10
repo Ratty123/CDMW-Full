@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.shell.diagnostics_controller import qt_wrapper_is_valid
+from cdmw.ui.display_scaling import fit_window_to_screen, protect_control_text
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.ui.layout_utils import (
     available_layout_size_for,
@@ -52,10 +53,8 @@ class ResponsivenessControllerMixin:
             event_type = event.type()  # type: ignore[attr-defined]
         except AttributeError:
             return
-        screen_change_type = getattr(QEvent.Type, "ScreenChangeInternal", None)
         if (
-            screen_change_type is not None
-            and event_type == screen_change_type
+            event_type in (QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange)
             and hasattr(self, "_responsive_resize_timer")
             and not getattr(self, "_applying_responsive_layout", False)
         ):
@@ -215,6 +214,7 @@ class ResponsivenessControllerMixin:
                 new_max_width = max(widget.minimumWidth(), int(round(int(base_max_width) * scale)))
                 if widget.maximumWidth() != new_max_width:
                     widget.setMaximumWidth(new_max_width)
+            protect_control_text(widget)
 
     def _apply_responsive_theme_metrics(self) -> None:
         app = QApplication.instance()
@@ -425,27 +425,8 @@ class ResponsivenessControllerMixin:
                 self._apply_responsive_control_minimums()
                 self._responsive_metrics_dirty = False
             available = screen.availableGeometry()
-            if (
-                adjust_window_geometry
-                and
-                not self.isMaximized()
-                and not self.isFullScreen()
-                and (self.width() > available.width() - 24 or self.height() > available.height() - 24)
-            ):
-                self.resize(
-                    max(self.minimumWidth(), min(int(available.width() * 0.94), available.width() - 24)),
-                    max(self.minimumHeight(), min(int(available.height() * 0.92), available.height() - 24)),
-                )
-            if adjust_window_geometry and not self.isMaximized() and not self.isFullScreen():
-                frame = self.frameGeometry()
-                x = frame.x()
-                y = frame.y()
-                max_x = max(available.left(), available.right() - frame.width() + 1)
-                max_y = max(available.top(), available.bottom() - frame.height() + 1)
-                self.move(
-                    min(max(x, available.left()), max_x),
-                    min(max(y, available.top()), max_y),
-                )
+            if adjust_window_geometry:
+                fit_window_to_screen(self, available)
             if restore_saved_splitters:
                 total_width = max(1, self.width() - 64)
                 self._apply_saved_splitter_sizes_if_enabled(total_width)
@@ -469,33 +450,50 @@ class ResponsivenessControllerMixin:
         self._apply_responsive_window_defaults(apply_expensive_metrics=False)
 
     def _apply_responsive_resize_adjustments(self) -> None:
+        metrics_dirty = bool(getattr(self, "_responsive_metrics_dirty", False))
         self._apply_responsive_window_defaults(
             restore_saved_splitters=False,
             schedule_column_autofit=False,
-            apply_expensive_metrics=False,
-            adjust_window_geometry=False,
+            apply_expensive_metrics=metrics_dirty,
+            adjust_window_geometry=metrics_dirty,
         )
 
-    def _screen_signature_for_responsive_layout(self) -> Tuple[int, int, float]:
+    def _screen_signature_for_responsive_layout(self) -> Tuple[int, int, float, float]:
         screen = self.screen() or QApplication.primaryScreen()
         if screen is None:
-            return (0, 0, 0.0)
+            return (0, 0, 0.0, 0.0)
         geometry = screen.availableGeometry()
         try:
             pixel_ratio = float(screen.devicePixelRatio())
         except Exception:
             pixel_ratio = 1.0
-        return (int(geometry.width()), int(geometry.height()), round(pixel_ratio, 3))
+        return (int(geometry.width()), int(geometry.height()), round(pixel_ratio, 3),
+                round(float(screen.logicalDotsPerInch()), 3))
 
     def _handle_responsive_screen_changed(self, _screen: object = None) -> None:
         if getattr(self, "_applying_responsive_layout", False):
             return
+        self._watch_responsive_screen_metrics()
         signature = self._screen_signature_for_responsive_layout()
-        if signature == getattr(self, "_responsive_last_screen_signature", (0, 0, 0.0)):
+        if signature == getattr(self, "_responsive_last_screen_signature", (0, 0, 0.0, 0.0)):
             return
         self._responsive_last_screen_signature = signature
         self._responsive_metrics_dirty = True
         self._responsive_resize_timer.start(260)
+
+    def _watch_responsive_screen_metrics(self) -> None:
+        screen = self.screen() or QApplication.primaryScreen()
+        previous = getattr(self, "_responsive_screen_metrics_source", None)
+        if screen is previous:
+            return
+        signal_names = ("availableGeometryChanged", "logicalDotsPerInchChanged", "geometryChanged")
+        if previous is not None and qt_wrapper_is_valid(previous):
+            for name in signal_names:
+                getattr(previous, name).disconnect(self._handle_responsive_screen_changed)
+        self._responsive_screen_metrics_source = screen
+        if screen is not None:
+            for name in signal_names:
+                getattr(screen, name).connect(self._handle_responsive_screen_changed)
 
     def _connect_responsive_screen_signals(self) -> None:
         window_handle = self.windowHandle()
@@ -504,6 +502,7 @@ class ResponsivenessControllerMixin:
         self._responsive_last_screen_signature = self._screen_signature_for_responsive_layout()
         window_handle.screenChanged.connect(self._handle_responsive_screen_changed)
         self._responsive_screen_signal_connected = True
+        self._watch_responsive_screen_metrics()
 
     def _schedule_column_autofit(self) -> None:
         if self._shutting_down:

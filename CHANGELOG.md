@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Interface controls remain readable and reachable on smaller desktops and at larger Windows scaling or app font sizes. Tool content and oversized dialogs can scroll, Research and Textures actions wrap, Settings Performance cards reflow, monitor changes refresh sizing, and Compact navigation icons stay sharp at higher DPI.
 - New Item preserves authored emission when materials are merged into an atlas, including Frostmourne's blue rune mask and glow strength. Unlit atlas regions stay dark, source strength overrides the template, faint emission retains its colour, and missing declared emissive textures block export. Existing items need rebuilding.
 - Mesh Editor **Browse Body...** and **Browse Armor...** use the loaded archive workspace, including in detached windows. Cancelling or failing to open the picker preserves the edit session instead of forcing the editor to close.
 - New Item preserves source material colours, opacity and normal strength when attaching an imported weapon to its template's hand socket. Textureless gems keep their own colour instead of inheriting the blade texture; previously exported items need rebuilding.

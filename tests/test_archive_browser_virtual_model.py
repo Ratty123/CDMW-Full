@@ -16,6 +16,7 @@ from cdmw.ui.archive_browser.mesh_swap_support import ArchiveMeshSwapSupportMixi
 from cdmw.ui.archive_browser.controller import ArchiveBrowserRowPayloadMixin
 from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
 from cdmw.ui.settings_tab import SettingsTab
+from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.workers.archive_filter_workers import ArchiveFilterWorker
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QGroupBox, QLabel, QWidget
@@ -340,8 +341,7 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
         self.assertLessEqual(content.width(), host.width())
 
         grid = grid_widget.layout()
-        self.assertIsInstance(grid, QGridLayout)
-        assert isinstance(grid, QGridLayout)
+        self.assertIsInstance(grid, WrappingLayout)
         cards = {
             card.title(): card
             for card in grid_widget.findChildren(
@@ -350,15 +350,12 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
                 Qt.FindDirectChildrenOnly,
             )
         }
-        expected_positions = {
-            "Overall Workload": (0, 0, 1, 1),
-            "Archive List Loading": (0, 1, 1, 1),
-            "Related-File Indexing": (1, 0, 1, 1),
-            "Preview Caches": (1, 1, 1, 1),
-        }
-        self.assertEqual(set(expected_positions), set(cards))
-        for title, expected_position in expected_positions.items():
-            self.assertEqual(expected_position, grid.getItemPosition(grid.indexOf(cards[title])))
+        self.assertEqual({"Overall Workload", "Archive List Loading", "Related-File Indexing", "Preview Caches"}, set(cards))
+        self.assertEqual(cards["Overall Workload"].y(), cards["Archive List Loading"].y())
+        self.assertEqual(cards["Related-File Indexing"].y(), cards["Preview Caches"].y())
+        self.assertGreater(cards["Archive List Loading"].x(), cards["Overall Workload"].x())
+        self.assertGreater(cards["Related-File Indexing"].y(), cards["Overall Workload"].y())
+        self.assertLess(cards["Preview Caches"].geometry().bottom(), grid_widget.height())
 
         rows = grid_widget.findChildren(QFrame, "SettingsPerformanceRow")
         self.assertEqual(9, len(rows))
@@ -374,7 +371,7 @@ class ArchivePerformanceSettingsTabTests(unittest.TestCase):
             assert field is not None
             assert note is not None
             self.assertEqual((0, 0, 1, 1), row_layout.getItemPosition(row_layout.indexOf(field)))
-            self.assertEqual((1, 0, 1, 2), row_layout.getItemPosition(row_layout.indexOf(note)))
+            self.assertEqual((2, 0, 1, 1), row_layout.getItemPosition(row_layout.indexOf(note)))
 
     def test_numeric_performance_presets_keep_auto_and_custom_values_clear(self) -> None:
         tab = self._settings_tab()
@@ -663,14 +660,12 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("SettingsPerformanceField", source)
         self.assertIn("SettingsPerformanceNote", source)
         self.assertIn('group.setObjectName("SettingsPerformanceCard")', source)
-        self.assertIn("group.setMinimumWidth(440)", source)
-        self.assertIn("group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)", source)
         self.assertIn('row_widget.setObjectName("SettingsPerformanceRow")', source)
         self.assertIn('performance_host.setObjectName("SettingsPerformanceHost")', source)
         self.assertIn('performance_content.setObjectName("SettingsPerformanceContent")', source)
         self.assertIn("performance_content.setMaximumWidth(1480)", source)
         self.assertIn('performance_grid_widget.setObjectName("SettingsPerformanceGrid")', source)
-        self.assertIn("performance_grid = QGridLayout(performance_grid_widget)", source)
+        self.assertIn("performance_grid = WrappingLayout(performance_grid_widget, columns=2)", source)
         self.assertIn("QGroupBox#SettingsPerformanceCard", theme_source)
         self.assertIn("QFrame#SettingsPerformanceRow", theme_source)
         self.assertIn('QFrame#SettingsPerformanceRow[firstRow="true"]', theme_source)

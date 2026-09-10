@@ -47,7 +47,7 @@ class CompactCategoryHeader(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(29)
+        self.setMinimumHeight(29)
         self.setAccessibleName(f"{title} tools")
         self._refresh_icon()
         self.toggled.connect(lambda _checked: self._refresh_icon())
@@ -68,7 +68,8 @@ class CompactWorkspaceRail(QFrame):
     def __init__(self, owner: object, settings: object, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("CompactWorkspaceRail")
-        self.setFixedWidth(224)
+        self.setMinimumWidth(224)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self._owner = owner
         self._settings = settings
         self._tool_buttons: dict[str, QToolButton] = {}
@@ -84,7 +85,7 @@ class CompactWorkspaceRail(QFrame):
         scroll.setObjectName("CompactToolScrollArea")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         content = QWidget()
         content.setObjectName("CompactToolRailContent")
@@ -129,7 +130,7 @@ class CompactWorkspaceRail(QFrame):
             button.setCheckable(True)
             button.setFocusPolicy(Qt.StrongFocus)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            button.setFixedHeight(32)
+            button.setMinimumHeight(32)
             button.clicked.connect(
                 lambda _checked=False, tool_key=spec.key: self.tool_requested.emit(tool_key)
             )
@@ -165,7 +166,7 @@ class CompactWorkspaceRail(QFrame):
         self.settings_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.settings_button.setFocusPolicy(Qt.StrongFocus)
         self.settings_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.settings_button.setFixedHeight(31)
+        self.settings_button.setMinimumHeight(31)
         layout.addWidget(self.settings_button)
 
         self.help_button = QToolButton()
@@ -177,7 +178,7 @@ class CompactWorkspaceRail(QFrame):
         self.help_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.help_button.setFocusPolicy(Qt.StrongFocus)
         self.help_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.help_button.setFixedHeight(31)
+        self.help_button.setMinimumHeight(31)
         layout.addWidget(self.help_button)
 
         self.support_button = owner.shell.support_corner_button
@@ -188,7 +189,7 @@ class CompactWorkspaceRail(QFrame):
         self.support_button.setMinimumWidth(0)
         self.support_button.setMaximumWidth(16777215)
         self.support_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.support_button.setFixedHeight(31)
+        self.support_button.setMinimumHeight(31)
         layout.addWidget(self.support_button)
 
         self.overflow_button = QToolButton()
@@ -200,7 +201,7 @@ class CompactWorkspaceRail(QFrame):
         self.overflow_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.overflow_button.setFocusPolicy(Qt.StrongFocus)
         self.overflow_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.overflow_button.setFixedHeight(31)
+        self.overflow_button.setMinimumHeight(31)
         overflow_menu = QMenu(self.overflow_button)
         overflow_menu.addAction(owner.shell.profile_menu.menuAction())
         overflow_menu.addAction(owner.shell.window_menu.menuAction())
@@ -266,6 +267,12 @@ class CompactWorkspaceRail(QFrame):
         self.settings_button.setIcon(compact_line_icon("mesh", palette))
         self.help_button.setIcon(compact_line_icon("book", palette))
         self.overflow_button.setIcon(compact_line_icon("more", palette))
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        buttons = tuple(getattr(self, "_tool_buttons", {}).values())
+        hint.setWidth(max(224, max((max(button.sizeHint().width(), button.minimumWidth()) + 32 for button in buttons), default=0)))
+        return hint
 
 
 __all__ = ["CompactCategoryHeader", "CompactWorkspaceRail"]

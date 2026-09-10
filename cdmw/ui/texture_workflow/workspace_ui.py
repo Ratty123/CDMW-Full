@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
+from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.texture_workflow.job import (
     TEXTURE_MODE_SETTING, TEXTURE_TOOL_ALIASES, TextureJobAsset, normalize_texture_mode,
 )
@@ -74,7 +75,7 @@ class TextureJobUiMixin:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
-        toolbar = QHBoxLayout()
+        toolbar = WrappingLayout()
         self.mode_buttons = {}
         self.mode_button_group = QButtonGroup(self)
         self.mode_button_group.setExclusive(True)
@@ -92,7 +93,6 @@ class TextureJobUiMixin:
         self.add_mod_button.clicked.connect(self._choose_texture_mod)
         toolbar.addWidget(self.add_texture_button)
         toolbar.addWidget(self.add_mod_button)
-        toolbar.addStretch(1)
         self.review_export_button = QPushButton("Review && Export")
         self.review_export_button.clicked.connect(self.show_texture_review)
         toolbar.addWidget(self.review_export_button)
