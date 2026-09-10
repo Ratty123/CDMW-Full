@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+import math
 from pathlib import Path
 from uuid import uuid4
 
@@ -945,6 +946,104 @@ def test_surface_clearance_lifts_triangle_interiors_and_keeps_material_seams_clo
         for weights in ((.5, .5, 0.), (0., .5, .5), (.5, 0., .5), (1/3, 1/3, 1/3)):
             x, y, z = (sum(v[axis] * w for v, w in zip(part.vertices, weights)) for axis in range(3))
             assert z >= .4 * min(x, y, 1 - x, 1 - y), "garment triangle still crosses the body roof"
+
+
+def _initial_surface_fit(mesh: ParsedMesh) -> ParsedMesh:
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64,
+            "definitions": [], "fields": [],
+        }})
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        garments = list(range(1, len(mesh.submeshes)))
+        _command(session_id, "morph_bind", {"garment_submesh_indices": garments})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": garments, "enabled": True,
+            "intensity_percent": 100., "mode": "surface", "clearance_percent": .1,
+        })
+        return _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+
+def test_surface_fit_keeps_a_coarse_shell_outside_a_detailed_lining() -> None:
+    grid = [(x * .1, y * .1) for y in range(-2, 3) for x in range(-2, 3)]
+    faces = [(a, a + 1, a + 6) for a in range(20) if a % 5 < 4]
+    faces += [(a, a + 6, a + 5) for a in range(20) if a % 5 < 4]
+    body = _part("body", [
+        (x, y, .06 * max(0., 1. - math.hypot(x - .04, y - .04) / .14)) for x, y in grid
+    ], faces, material="skin", texture="")
+    lining = _part("lining", [(x, y, -.003) for x, y in grid], faces, material="lining", texture="")
+    shell = _part("shell", [(-.2, -.2, .001), (.2, -.2, .001), (.2, .2, .001), (-.2, .2, .001)],
+                  [(0, 1, 2), (0, 2, 3)], material="shell", texture="")
+    mesh = ParsedMesh(path="layered-fit.pac", format="pac", submeshes=[body, lining, shell],
+                      total_vertices=54, total_faces=66)
+    fitted = _initial_surface_fit(mesh)
+    checked = 0
+    for x, y, z in fitted.submeshes[1].vertices:
+        for face in shell.faces:
+            a, b, c = [fitted.submeshes[2].vertices[index] for index in face]
+            ab = tuple(b[axis] - a[axis] for axis in range(3))
+            ac = tuple(c[axis] - a[axis] for axis in range(3))
+            determinant = ab[0] * ac[1] - ab[1] * ac[0]
+            u = ((x - a[0]) * ac[1] - (y - a[1]) * ac[0]) / determinant
+            v = (ab[0] * (y - a[1]) - ab[1] * (x - a[0])) / determinant
+            if u >= -1e-6 and v >= -1e-6 and u + v <= 1. + 1e-6:
+                assert a[2] + u * ab[2] + v * ac[2] - z >= .002, "lining crosses the coarse outer shell"
+                checked += 1
+                break
+    assert checked >= 9
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def test_surface_fit_limits_stretch_around_a_folded_sleeve_opening() -> None:
+    def rings(name, heights, radii, segments, bulge):
+        vertices = []
+        for y, radius in zip(heights, radii, strict=True):
+            for index in range(segments):
+                angle = 2. * math.pi * index / segments
+                r = radius + bulge * math.exp(-((y - .22) / .06) ** 2) * max(0., math.cos(angle)) ** 12
+                vertices.append((r * math.cos(angle), y, r * math.sin(angle)))
+        faces = []
+        for ring in range(len(heights) - 1):
+            for index in range(segments):
+                a = ring * segments + index
+                b = (ring + 1) * segments + index
+                c = ring * segments + (index + 1) % segments
+                d = (ring + 1) * segments + (index + 1) % segments
+                faces.extend(((a, b, d), (a, d, c)))
+        return _part(name, vertices, faces, material=name, texture="")
+
+    body = rings("arm", (0., .15, .22, .3, .45, .6), (.1,) * 6, 32, .075)
+    cuff = rings("folded-cuff", (.18, .185, .2, .27, .4), (.145, .135, .13, .13, .15), 48, 0.)
+    mesh = ParsedMesh(path="cuff-fit.pac", format="pac", submeshes=[body, cuff],
+                      total_vertices=len(body.vertices) + len(cuff.vertices), total_faces=len(body.faces) + len(cuff.faces))
+    fitted = _initial_surface_fit(mesh)
+    edges = {tuple(sorted((face[i], face[(i + 1) % 3]))) for face in cuff.faces for i in range(3)}
+    for a, b in edges:
+        before = math.dist(cuff.vertices[a], cuff.vertices[b])
+        after = math.dist(fitted.submeshes[1].vertices[a], fitted.submeshes[1].vertices[b])
+        assert after <= before * 1.6 + 1e-6, "a local fit correction stretches the cuff into a spike"
+    assert fitted.submeshes[1].faces == cuff.faces
+    assert fitted.submeshes[1].uvs == cuff.uvs
+    assert fitted.submeshes[1].bone_weights == cuff.bone_weights
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def test_surface_fit_does_not_couple_clothes_on_opposing_body_regions() -> None:
+    square = [(-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)]
+    body = _part("two-nearby-body-regions", [(x, y, z) for x in (0., .02) for y, z in square],
+                 [(0, 1, 2), (0, 2, 3), (4, 6, 5), (4, 7, 6)], material="skin", texture="")
+    sleeve = _part("sleeve", [(-.008, y * .4, z * .4) for y, z in square],
+                   [(0, 1, 2), (0, 2, 3)], material="sleeve", texture="")
+    vest = _part("vest", [(.017, y * .4, z * .4) for y, z in square],
+                 [(0, 2, 1), (0, 3, 2)], material="vest", texture="")
+    mesh = ParsedMesh(path="adjacent-regions.pac", format="pac", submeshes=[body, sleeve, vest],
+                      total_vertices=16, total_faces=8)
+    fitted = _initial_surface_fit(mesh)
+    assert all(point[0] >= .0014 for point in fitted.submeshes[1].vertices)
+    _assert_positions_close(fitted.submeshes[2].vertices, vest.vertices)
 
 
 def _seed_refit_snapshot_session(mesh, source_session):

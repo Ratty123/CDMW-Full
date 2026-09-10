@@ -303,9 +303,13 @@ the garment was already inside the body when bound. **Fit to body** previews a
 fit for every bound garment using Surface, 100% intensity, and the current
 clearance (at least 0.1%). It works without creating or changing a body slider;
 Reset reverts the preview and Bake keeps it. Surface also checks triangle edges
-and interiors against the current body, keeping coincident seams joined.
-Inspect folded or tightly fitted areas before baking; increasing clearance can
-help with remaining clipping. Shape sliders move the driver and bound garments together.
+and interiors against the current body, keeping coincident seams joined. Nearby
+clothing layers over the same body region move together to preserve their
+separation, including detailed linings beneath coarser outer shells. Local edge
+stretch is limited while folds and sleeve openings can bend around the body.
+Inspect folded or tightly fitted areas before baking; unusual outfits may still
+need local adjustments. To redo a poor baked fit, undo the bake or reload the
+original meshes before fitting again. Shape sliders move the driver and bound garments together.
 Use the normal transform tools if the meshes need alignment.
 
 Archive Refit keeps the original game-file topology, so its Geometry Layers
