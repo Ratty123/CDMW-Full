@@ -39,8 +39,15 @@ def write_gltf(root, materials, images):
     return path
 
 
-def export_materials(path, root):
+def export_materials(path, root, *, socket_attached=False):
     scene = import_scene_mesh_with_report(path)
+    if socket_attached:
+        from dataclasses import replace
+
+        from cdmw.services.new_item_variants import bind_static_import_to_attachment
+        from tests.test_new_item_variant_rig import MODEL, PREFAB, _snapshot
+
+        scene = replace(scene, mesh=bind_static_import_to_attachment(scene.mesh, MODEL, _snapshot().payload(PREFAB)))
     sets = group_replacement_texture_sets(scene.discovered_texture_files, obj_mesh=scene.mesh)
     targets = {f"part_{index}": part.material for index, part in enumerate(scene.mesh.submeshes)}
     sections = tuple(SimpleNamespace(target_submesh_name=name, source_material_name=source) for name, source in targets.items())
@@ -99,6 +106,24 @@ def test_shared_images_and_factor_only_materials_keep_their_own_colour(tmp_path)
     np.testing.assert_array_equal(pixels(files, materials["Tinted"]), pixels(files, materials["Solid"]))
     assert materials["Tinted"].textures["_baseColorTexture"] == materials["SameTint"].textures["_baseColorTexture"]
     assert materials["White"].textures["_baseColorTexture"] != materials["Tinted"].textures["_baseColorTexture"]
+
+
+def test_socket_attachment_keeps_gem_colour_and_textured_material_factors(tmp_path):
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "blade_basecolor.png")
+    Image.new("RGB", (16, 16), (210, 180, 220)).save(tmp_path / "blade_normal.png")
+    materials = [
+        {"name": "Blade", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [0, 0, 1, 1]},
+         "normalTexture": {"index": 1, "scale": 0}},
+        {"name": "Gem", "alphaMode": "BLEND", "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 0.5]}},
+    ]
+    scene, files, materials = export_materials(
+        write_gltf(tmp_path, materials, ["blade_basecolor.png", "blade_normal.png"]), tmp_path, socket_attached=True,
+    )
+    assert scene.mesh.has_bones
+    assert pixels(files, materials["Blade"])[0, 0].tolist() == [0, 0, 255, 255]
+    assert pixels(files, materials["Gem"])[0, 0].tolist() == [255, 0, 0, 128]
+    assert pixels(files, materials["Blade"], "_normalTexture")[0, 0, :2].tolist() == [128, 128]
+    assert "_normalTexture" not in materials["Gem"].textures
 
 
 @pytest.mark.parametrize("alpha", [0.0, 0.5])

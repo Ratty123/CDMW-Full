@@ -96,6 +96,8 @@ Textureless colours and opacity factors are applied once, including an explicitl
 zero opacity. Normal strength is baked once; a material without a source normal
 map does not inherit another part's map. Colliding glTF material names receive
 distinct names based on their source indices before grouping.
+Binding an unrigged weapon to its template's hand socket preserves those source
+materials, including textureless gem colours, opacity and normal strength.
 The exported roughness/metalness map includes the source's scalar multipliers;
 separate OBJ/MTL roughness and metalness maps are packed into the same game layout.
 Selected gem glow stays on those materials; a source emissive map is retained

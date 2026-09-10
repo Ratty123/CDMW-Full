@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item preserves source material colours, opacity and normal strength when attaching an imported weapon to its template's hand socket. Textureless gems keep their own colour instead of inheriting the blade texture; previously exported items need rebuilding.
 - New Item exports keep shared-image materials independent, apply textureless colour and opacity factors once, preserve zero opacity and normal strength, and prevent parts from inheriting another part's normal map. Colliding glTF material names remain distinct.
 - New Item carries separate OBJ/MTL roughness and metalness maps into exported surface textures and retains emissive-map colour multipliers and strength.
 - New Item preserves smooth opacity in alpha-capable DDS textures and explicitly reports unsupported plain-PBR alpha mode/cutoff and double-sided shader behavior. Existing items need rebuilding to receive these corrections.

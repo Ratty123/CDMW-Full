@@ -47,17 +47,25 @@ def _has_exact_socket_attachment(prefab_data, target_path):
 
 def bind_static_import_to_attachment(mesh, target_path, prefab_data):
     """Keep an unrigged import on its exact socket instead of transferring accessory skin."""
+    from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
     from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
 
     if (mesh.has_bones or any(part.bone_indices or part.bone_weights or part.source_bone_palette
                              or part.source_skin_weight_layout for part in mesh.submeshes)
             or not _has_exact_socket_attachment(prefab_data, target_path)):
         return mesh
-    return replace(mesh, has_bones=True, submeshes=[
-        replace(part, bone_indices=[(0,)] * len(part.vertices), bone_weights=[(1.0,)] * len(part.vertices),
-                source_vertex_map=[], source_vertex_map_authority=SOURCE_VERTEX_MAP_TOPOLOGY)
-        for part in mesh.submeshes
-    ])
+    bound_parts = []
+    for part in mesh.submeshes:
+        bound = replace(part)
+        # Material factors and texture inputs live outside the dataclass fields.
+        # Keep them when adding the socket weights so export sees the same source.
+        copy_extra_submesh_attrs(part, bound)
+        bound.bone_indices = [(0,)] * len(part.vertices)
+        bound.bone_weights = [(1.0,)] * len(part.vertices)
+        bound.source_vertex_map = []
+        bound.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
+        bound_parts.append(bound)
+    return replace(mesh, has_bones=True, submeshes=bound_parts)
 
 
 def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_event=None):
