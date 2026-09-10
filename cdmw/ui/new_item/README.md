@@ -90,9 +90,22 @@ Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
 New Item disables the Builder's automatic brightness balancing so exported colour
 textures retain the authored dark detail and highlights shown in the import preview.
-The exported roughness/metalness map includes the source's scalar multipliers.
+Generated texture reuse includes the material's factors, normal scale and colour
+controls, so sharing an image cannot transfer another material's appearance.
+Textureless colours and opacity factors are applied once, including an explicitly
+zero opacity. Normal strength is baked once; a material without a source normal
+map does not inherit another part's map. Colliding glTF material names receive
+distinct names based on their source indices before grouping.
+The exported roughness/metalness map includes the source's scalar multipliers;
+separate OBJ/MTL roughness and metalness maps are packed into the same game layout.
 Selected gem glow stays on those materials; a source emissive map is retained
-even when the template has no emissive texture slot. Existing exported or installed
+even when the template has no emissive texture slot, with its authored colour
+multiplier and intensity. The game's single emissive colour and intensity map
+cannot represent every multicoloured emissive image exactly.
+Blend and mask textures retain opacity precision in alpha-capable DDS output.
+The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shader
+semantics explicitly: preserved alpha pixels do not establish matching game
+transparency. Existing exported or installed
 items need to be rebuilt to pick up these material corrections.
 Moving to step 3 reparents that
 live viewport without rebuilding

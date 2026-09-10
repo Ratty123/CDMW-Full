@@ -139,6 +139,8 @@ class ReplacementTextureSlot:
     base_color_tone_contrast: float = 0.0
     base_colourise_rgb: tuple[float, float, float] = ()
     base_colourise_strength: float = 0.0
+    normal_scale: float = 1.0
+    alpha_mode: str = ""
 
 
 @dataclass(slots=True)

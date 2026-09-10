@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import tempfile
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence
 
@@ -2123,7 +2123,7 @@ def _build_source_driven_pac_material_payloads(
     target_pbr_scalars: dict[str, tuple[int, int, str]] = {}
     target_emissive_settings: dict[str, tuple[str, float]] = {}
     generated_payloads: list[TextureReplacementPayload] = []
-    generated_by_source: dict[tuple[str, str], str] = {}
+    generated_by_source: dict[tuple[object, ...], str] = {}
     emitted_paths: set[str] = set()
     divergence_reported_materials: set[str] = set()
     texture_parent = _source_driven_texture_parent(original_texture_refs)
@@ -2435,9 +2435,13 @@ def _build_source_driven_pac_material_payloads(
                 parameter_name = _source_driven_parameter_name(source_slot.slot_kind, material_profile=material_profile)
             if not parameter_name:
                 continue
-            source_key = (
-                str(source_slot.source_path.expanduser().resolve()).lower(),
-                str(source_slot.slot_kind or "").strip().lower(),
+            # Sharing an image does not imply sharing its converted pixels. Include
+            # every slot setting (factors, normal scale and profile controls), while
+            # allowing different material owners with identical settings to share.
+            source_key = tuple(
+                getattr(source_slot, field.name)
+                for field in fields(source_slot)
+                if field.name != "material_name"
             )
             output_texture_path = generated_by_source.get(source_key)
             if output_texture_path is None:

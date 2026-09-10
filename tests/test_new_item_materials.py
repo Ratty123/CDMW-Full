@@ -123,7 +123,7 @@ class RouteTests(unittest.TestCase):
         return dds()
 
     def test_rewrites_owned_wrappers_with_a_source_sp_and_drops_the_orphaned_mask(self) -> None:
-        sources = {"cd_phm_02_sword_0003": SourceMaterialTextures(name="lambert1", material=self.mr)}
+        sources = {"cd_phm_02_sword_0003": SourceMaterialTextures(name="lambert1", material=self.mr, normal=self.folder / "normal.png")}
         imported = builder_files()
         imported.notes = ("Skin weights transferred",)
         imported.warnings = ("Check armour fit",)

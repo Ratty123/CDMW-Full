@@ -2886,8 +2886,10 @@ class StaticTextureReplacementTests(unittest.TestCase):
         texture_sets = group_replacement_texture_sets((), obj_mesh=mesh)
         base_slot = texture_sets["gem_inside"].slots["base"]
         self.assertIn("emissive", texture_sets["gem_inside"].slots)
-        with Image.open(base_slot.source_path) as image:
-            self.assertEqual((0, 255, 178, 255), image.convert("RGBA").getpixel((0, 0)))
+        with Image.open(_source_slot_png_with_base_color_factor_path(base_slot)) as image:
+            pixel = image.convert("RGBA").getpixel((0, 0))
+            self.assertEqual((0, 255, 255), (pixel[0], pixel[1], pixel[3]))
+            self.assertAlmostEqual(pixel[2], 0.7 * 255, delta=1)
 
     def test_source_driven_inserted_overlay_uses_runtime_overlay_item_id(self) -> None:
         sidecar_text = """

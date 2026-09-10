@@ -25,6 +25,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item exports keep shared-image materials independent, apply textureless colour and opacity factors once, preserve zero opacity and normal strength, and prevent parts from inheriting another part's normal map. Colliding glTF material names remain distinct.
+- New Item carries separate OBJ/MTL roughness and metalness maps into exported surface textures and retains emissive-map colour multipliers and strength.
+- New Item preserves smooth opacity in alpha-capable DDS textures and explicitly reports unsupported plain-PBR alpha mode/cutoff and double-sided shader behavior. Existing items need rebuilding to receive these corrections.
 - New Item preserves imported colour textures without the Builder's hidden automatic brightness adjustment, which lifted dark detail and compressed highlights during export. Existing items need rebuilding to receive the corrected textures.
 - New Item exports preserve separate roughness/metalness and glow maps for source materials that share a colour texture. A smooth gem no longer gives the blade its finish, source map multipliers are retained, and selected glow keeps its own mask even when the template has no emissive slot. Previously exported items need rebuilding.
 - Typing in Create New Item's Template **Find** field stays responsive while results update. Catalogue search, category filtering and sorting run on a cancellable worker; rapid edits replace obsolete searches and retain the current results until the latest search finishes.

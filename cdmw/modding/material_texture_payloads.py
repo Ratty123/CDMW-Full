@@ -991,7 +991,11 @@ def _build_texture_payload(
         or _source_slot_needs_base_alpha_factor(source_slot)
         or _source_slot_needs_base_color_adjustment(source_slot)
     )
-    if source_is_dds and not needs_source_color_bake:
+    needs_normal_bake = source_slot.slot_kind == "normal" and (
+        source_slot.normal_scale != 1.0 or source_slot.normal_space == "green_up"
+    )
+    source_alpha_mode = source_slot.alpha_mode.upper() if source_slot.slot_kind == "base" else ""
+    if source_is_dds and not (needs_source_color_bake or needs_normal_bake or source_alpha_mode):
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
         _append_crimson_dds_validation_warnings(source_slot.source_path, vpath=target_vpath, report=report)
         source_info = parse_dds(source_slot.source_path)
@@ -1011,9 +1015,10 @@ def _build_texture_payload(
             )
         return source_slot.source_path.read_bytes()
     if source_is_dds:
+        adjustment = "color adjustment" if needs_source_color_bake else "material settings"
         _warn_once(
             report,
-            f"{source_slot.source_path.name}: baking source color adjustment by re-encoding DDS source.",
+            f"{source_slot.source_path.name}: baking source {adjustment} by re-encoding DDS source.",
         )
     original_source = original_texture_source_path(target_entry)
     original_info = parse_dds(original_source)
@@ -1026,6 +1031,30 @@ def _build_texture_payload(
             report.warnings.append(f"Inverted green channel for green-up normal map: {source_png.name}")
         else:
             shutil.copy2(source_png, prepared_png)
+        if needs_normal_bake and source_slot.normal_scale != 1.0:
+            import numpy as np
+            from PIL import Image
+
+            with Image.open(prepared_png) as image:
+                vectors = np.asarray(image.convert("RGB"), dtype=np.float64) / 127.5 - 1.0
+            # BC5 omits Z; reconstruct it before scaling XY and normalizing.
+            if source_is_dds and parse_dds(source_slot.source_path).dds_format.upper().startswith("BC5"):
+                vectors[:, :, 2] = np.sqrt(np.maximum(0.0, 1.0 - np.square(vectors[:, :, :2]).sum(axis=2)))
+            vectors[:, :, :2] *= source_slot.normal_scale
+            if source_slot.normal_scale == 0.0:
+                vectors[:, :, 2] = 1.0
+            lengths = np.linalg.norm(vectors, axis=2, keepdims=True)
+            vectors /= np.maximum(lengths, 1e-12)
+            prepared_png = temp_dir / "scaled_normal.png"
+            Image.fromarray(np.clip(np.rint((vectors + 1.0) * 127.5), 0, 255).astype(np.uint8)).save(prepared_png)
+        if source_alpha_mode == "OPAQUE":
+            from PIL import Image
+
+            with Image.open(prepared_png) as image:
+                opaque = image.convert("RGBA")
+            opaque.putalpha(255)
+            prepared_png = temp_dir / "opaque_base.png"
+            opaque.save(prepared_png)
         out_dir = temp_dir / "dds"
         out_dir.mkdir(parents=True, exist_ok=True)
         source_width, source_height = _source_image_dimensions(prepared_png)
@@ -1047,6 +1076,11 @@ def _build_texture_payload(
                 f"{source_width}x{source_height}."
             )
         output_format = str(original_info.dds_format or "").strip() or "BC7_UNORM"
+        if source_alpha_mode != "OPAQUE" and (source_alpha_mode in {"BLEND", "MASK"} or _source_slot_needs_base_alpha_factor(source_slot)):
+            # BC1 can only retain one-bit alpha. DXT5 is also used by the game's
+            # plain base-colour materials and preserves intermediate opacity.
+            if output_format.upper() not in {"BC3_UNORM", "BC3_UNORM_SRGB", "BC7_UNORM", "BC7_UNORM_SRGB", "R8G8B8A8_UNORM", "R8G8B8A8_UNORM_SRGB"}:
+                output_format = "BC3_UNORM"
         if str(source_slot.slot_kind or "").strip().lower() == "normal":
             if output_format.upper() not in {"BC5_UNORM", "BC5_SNORM"}:
                 _warn_once(
@@ -1164,7 +1198,7 @@ def _source_slot_png_with_base_color_factor_path(
         factor = (1.0, 1.0, 1.0)
     alpha_factor = 1.0
     if _source_slot_needs_base_alpha_factor(source_slot):
-        alpha_factor = max(0.0, min(1.0, float(getattr(source_slot, "base_alpha_factor", 1.0) or 1.0)))
+        alpha_factor = max(0.0, min(1.0, float(source_slot.base_alpha_factor)))
     scale_rgb = values.base_color_scale
     lift = values.base_color_lift
     gamma = values.gamma

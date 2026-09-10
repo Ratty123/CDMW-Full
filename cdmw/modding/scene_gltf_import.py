@@ -260,10 +260,19 @@ def _apply_general_gltf_bake(
     payload.discovered_texture_files.extend(outcome.generated_paths)
     for material_index in outcome.material_reports:
         slots = slots_by_material.get(material_index, {})
+        # Raster baking already applies normal scale. Remove its material-wide
+        # copy as well as the slot copy so later export cannot apply it again.
+        preview_parameters[material_index] = tuple(
+            parameter for parameter in preview_parameters.get(material_index, ())
+            if parameter.parameter_name != "_gltfTextureScale_normal"
+        )
         for record in records:
             if record.material_index != material_index:
                 continue
             mesh.submeshes[record.submesh_index].preview_normal_texture_strength = 1.0
+            # The baked slots replace this material's authored image bindings;
+            # retaining both would also retain the old normal-scale metadata.
+            mesh.submeshes[record.submesh_index].preview_material_texture_inputs = ()
             _apply_gltf_preview_material_metadata(
                 mesh.submeshes[record.submesh_index],
                 material_index,
@@ -595,10 +604,30 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
     textures = payload.document.get("textures", []) or []
     images = payload.document.get("images", []) or []
     payload.material_uv_plans.clear()
-    for material_index, material in enumerate(payload.document.get("materials", []) or []):
+    materials = payload.document.get("materials", []) or []
+    authored_names = {
+        index: str(material.get("name", "") or f"material_{index}").strip() or f"material_{index}"
+        for index, material in enumerate(materials) if isinstance(material, dict)
+    }
+    name_counts: dict[str, int] = {}
+    for name in authored_names.values():
+        name_counts[name.casefold()] = name_counts.get(name.casefold(), 0) + 1
+    reserved_names = {name.casefold() for name in authored_names.values()}
+    for material_index, material in enumerate(materials):
         if not isinstance(material, dict):
             continue
-        material_names[material_index] = str(material.get("name", "") or f"material_{material_index}")
+        material_name = authored_names[material_index]
+        if name_counts[material_name.casefold()] > 1:
+            # glTF identity is the material index, never its optional display name.
+            # Downstream material and game-path matching is case insensitive, so
+            # assign collision-free names before any grouping or texture routing.
+            unique_name = f"{material_name}__material_{material_index}"
+            while unique_name.casefold() in reserved_names:
+                unique_name += "_"
+            reserved_names.add(unique_name.casefold())
+            payload.diagnostics.append(f"Kept glTF material {material_index} ({material_name}) distinct as {unique_name}.")
+            material_name = unique_name
+        material_names[material_index] = material_name
         material_flags[material_index] = {
             "alpha_mode": str(material.get("alphaMode", "OPAQUE") or "OPAQUE"),
             "double_sided": bool(material.get("doubleSided", False)),

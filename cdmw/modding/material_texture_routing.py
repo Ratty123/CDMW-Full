@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import tempfile
 from dataclasses import replace
@@ -522,6 +523,25 @@ def _attach_source_material_factor_slots(
             _merge_source_role_tags(existing_texture_set, role_tags)
         preview_color = _source_preview_rgb(source_submesh)
         preview_alpha = _source_preview_alpha(source_submesh)
+        alpha_mode = str(getattr(source_submesh, "preview_alpha_mode", "") or "").upper()
+        normal_scale = None
+        for parameter in _source_material_parameters(source_submesh):
+            if getattr(parameter, "parameter_name", "") == "_gltfTextureScale_normal":
+                raw = getattr(parameter, "numeric_value", None)
+                if raw is None:
+                    raw = getattr(parameter, "value", "")
+                try:
+                    value = float(raw)
+                    if math.isfinite(value):
+                        normal_scale = value
+                except (TypeError, ValueError, OverflowError):
+                    pass
+                break
+        if existing_texture_set is not None:
+            if "normal" in existing_texture_set.slots and normal_scale is not None:
+                existing_texture_set.slots["normal"].normal_scale = normal_scale
+            if "base" in existing_texture_set.slots:
+                existing_texture_set.slots["base"].alpha_mode = alpha_mode
         emissive_color = _source_emissive_rgb(source_submesh)
         emissive_strength = source_emissive_strength(source_submesh)
         roughness_factor = _source_material_numeric_parameter(source_submesh, "_roughnessFactor")
@@ -571,9 +591,11 @@ def _attach_source_material_factor_slots(
             if existing_base is not None:
                 existing_base.base_alpha_factor = preview_alpha
                 existing_base.source_authority = existing_base.source_authority or "gltf"
-        base_color = preview_color if "base" not in texture_set.slots else None
+        base_color = (preview_color or (1.0, 1.0, 1.0)) if "base" not in texture_set.slots else None
         if base_color is not None and "base" not in texture_set.slots:
-            source_path = _solid_material_factor_png_path(material_name, "base", base_color)
+            # The later pixel conversion applies the factor. Starting with the
+            # factor's colour here would multiply it twice.
+            source_path = _solid_material_factor_png_path(material_name, "base", (1.0, 1.0, 1.0))
             texture_set.slots["base"] = ReplacementTextureSlot(
                 material_name=texture_set.material_name,
                 slot_kind="base",
@@ -582,6 +604,7 @@ def _attach_source_material_factor_slots(
                 source_authority="synthetic",
                 base_color_factor=base_color,
                 base_alpha_factor=preview_alpha,
+                alpha_mode=alpha_mode,
             )
         if emissive_color is not None and "emissive" not in texture_set.slots:
             source_path = _solid_material_factor_png_path(material_name, "emissive", emissive_color)
@@ -783,7 +806,11 @@ def _source_preview_rgb(source_submesh: object) -> Optional[tuple[float, float, 
 
 
 def _source_preview_alpha(source_submesh: object) -> Optional[float]:
+    # Scene import's preview alpha already includes the authored opacity. Only
+    # read the raw material factor when that combined value is unavailable.
     alpha = getattr(source_submesh, "preview_vertex_alpha_mean", None)
+    if alpha is None:
+        alpha = _source_material_numeric_parameter(source_submesh, "_gltfBaseColorAlphaFactor")
     if alpha is None:
         return None
     try:

@@ -37,7 +37,7 @@ _BOM = "\ufeff"
 
 @dataclass(frozen=True, slots=True)
 class SourceMaterialTextures:
-    """The source (glTF) textures of one material, by role, as files on disk, and the
+    """The source textures of one material, by role, as files on disk, and the
     scalar factors that stand in for a map the source does not carry."""
 
     name: str
@@ -56,6 +56,12 @@ class SourceMaterialTextures:
     #: without a metallic/roughness map they become a solid `_sp`
     roughness_factor: float = 1.0
     metallic_factor: float = 1.0
+    #: Separate scalar maps (OBJ/MTL and other scene formats), sampled from R.
+    roughness: Optional[Path] = None
+    metallic: Optional[Path] = None
+    alpha_mode: str = ""
+    alpha_cutoff: float = 0.5
+    double_sided: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,15 +81,41 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
 
     Read from the Builder result's source-owned draw sections (target submesh ->
     source material name) and the scene import's material bindings (material name
-    -> texture slots). Either missing gives an empty map, and the route falls back
-    to the Builder's masks.
+    -> texture slots). Other scene formats carry these slots directly on their
+    submesh inputs. Missing source ownership falls back to the Builder's masks.
     """
+
+    from cdmw.modding.scene_material_audit import ImportedMaterialBinding
 
     bindings = {}
     submeshes = tuple(getattr(getattr(scene, "mesh", None), "submeshes", ()) or ())
-    for binding in tuple(getattr(scene, "material_bindings", ()) or ()):
+    material_bindings = list(getattr(scene, "material_bindings", ()) or ())
+    covered = {getattr(binding, "submesh_index", -1) for binding in material_bindings}
+    # OBJ/DAE attach the same authored slots and parameters to their submeshes.
+    # They must reach the route even without the glTF-specific binding collection.
+    for index, submesh in enumerate(submeshes):
+        if index not in covered and getattr(submesh, "material", ""):
+            texture_slots = list(getattr(submesh, "texture_slots", ()) or ())
+            for texture_input in tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ()):
+                source_path = (
+                    getattr(texture_input, "source_texture_path", "")
+                    or getattr(texture_input, "source_dds_path", "")
+                    or getattr(texture_input, "preview_texture_path", "")
+                )
+                if source_path:
+                    texture_slots.append((texture_input.slot_kind, Path(source_path)))
+            material_bindings.append(ImportedMaterialBinding(
+                material_name=submesh.material, submesh_index=index,
+                texture_slots=tuple(texture_slots),
+                alpha_mode=str(getattr(submesh, "preview_alpha_mode", "") or ""),
+                double_sided=bool(getattr(submesh, "preview_double_sided", False)),
+            ))
+    for binding in material_bindings:
         name = str(getattr(binding, "material_name", "") or "")
-        slots = {}
+        slots = {
+            "alpha_mode": str(getattr(binding, "alpha_mode", "") or "").upper(),
+            "double_sided": bool(getattr(binding, "double_sided", False)),
+        }
         # the scalar factors the importer keeps on the submesh's preview parameters
         index = int(getattr(binding, "submesh_index", -1))
         if 0 <= index < len(submeshes):
@@ -111,6 +143,8 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                     slots["metallic_factor"] = max(0.0, min(1.0, value))
                 elif pname == "_emissiveIntensity":
                     slots["emissive_intensity"] = max(0.0, value)
+                elif pname == "_gltfAlphaCutoff":
+                    slots["alpha_cutoff"] = max(0.0, min(1.0, value))
         for slot_kind, path in tuple(getattr(binding, "texture_slots", ()) or ()):
             kind = str(slot_kind or "").strip().lower()
             candidate = Path(str(path))
@@ -122,6 +156,10 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                 slots.setdefault("material", candidate)
             elif kind in {"emissive", "emission"} and candidate.is_file():
                 slots.setdefault("emissive", candidate)
+            elif kind in {"roughness"} and candidate.is_file():
+                slots.setdefault("roughness", candidate)
+            elif kind in {"metallic", "metalness"} and candidate.is_file():
+                slots.setdefault("metallic", candidate)
         if name:
             bindings.setdefault(name.casefold(), SourceMaterialTextures(name=name, **slots))
     out: Dict[str, SourceMaterialTextures] = {}
@@ -205,18 +243,46 @@ def _encode_source_sp(source: SourceMaterialTextures, encode: Callable[[Path], b
 
     roughness = max(0.0, min(1.0, source.roughness_factor))
     metallic = max(0.0, min(1.0, source.metallic_factor))
-    if roughness == metallic == 1.0:
+    if source.material is not None and source.roughness is None and source.metallic is None and roughness == metallic == 1.0:
         return encode(source.material)
 
     from PIL import Image
 
-    with Image.open(source.material) as image:
-        red, green, blue = image.convert("RGB").split()
+    maps = {}
+    for role, path in (("material", source.material), ("roughness", source.roughness), ("metallic", source.metallic)):
+        if path is not None:
+            with Image.open(path) as image:
+                maps[role] = image.convert("RGB")
+    size = (max(image.width for image in maps.values()), max(image.height for image in maps.values()))
+    packed = maps.get("material")
+    rgb = packed.resize(size, Image.Resampling.BILINEAR) if packed is not None else Image.new("RGB", size, "white")
+    red, green, blue = rgb.split()
+    if "roughness" in maps:
+        green = maps["roughness"].resize(size, Image.Resampling.BILINEAR).getchannel("R")
+    if "metallic" in maps:
+        blue = maps["metallic"].resize(size, Image.Resampling.BILINEAR).getchannel("R")
     green = green.point([round(value * roughness) for value in range(256)])
     blue = blue.point([round(value * metallic) for value in range(256)])
     with tempfile.TemporaryDirectory(prefix="cdmw_new_item_sp_factors_") as temp:
-        prepared = Path(temp) / f"{source.material.stem}.png"
+        prepared = Path(temp) / "source_sp.png"
         Image.merge("RGB", (red, green, blue)).save(prepared)
+        return encode(prepared)
+
+
+def _encode_source_emissive(source: SourceMaterialTextures, encode: Callable[[Path], Tuple[bytes, str]]) -> Tuple[bytes, str]:
+    """Apply the authored colour multiplier before reducing RGB to game emission."""
+
+    if not source.emissive_color or source.emissive_color.upper() == "#FFFFFFFF":
+        return encode(source.emissive)
+    from PIL import Image
+
+    factor = tuple(int(source.emissive_color[index:index + 2], 16) / 255.0 for index in (1, 3, 5))
+    with Image.open(source.emissive) as image:
+        channels = image.convert("RGB").split()
+    adjusted = Image.merge("RGB", tuple(channel.point([round(value * scale) for value in range(256)]) for channel, scale in zip(channels, factor)))
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_emi_factor_") as temp:
+        prepared = Path(temp) / "source_emissive.png"
+        adjusted.save(prepared)
         return encode(prepared)
 
 
@@ -501,6 +567,7 @@ def route_plain_pbr(
     lines = list(files.notes)
     warnings = list(files.warnings)
     encoded = []
+    warned_sources: set[str] = set()
     for wrapper in wrappers:
         owned = {name: path for name, path in wrapper.textures.items() if path.replace("\\", "/").casefold() in by_lower}
         if not owned:
@@ -511,18 +578,32 @@ def route_plain_pbr(
             continue
         normal = owned.get("_normalTexture", "")
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
+        if source is not None and source.normal is None:
+            normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
+        if source is not None and source.name not in warned_sources:
+            warned_sources.add(source.name)
+            if source.alpha_mode in {"BLEND", "MASK"}:
+                detail = f" (cutoff {source.alpha_cutoff:g})" if source.alpha_mode == "MASK" else ""
+                warnings.append(
+                    f"{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, "
+                    "but the plain-PBR game shader has no verified mapping for this alpha mode; "
+                    "the exported material does not support the source transparency behavior."
+                )
+            if source.double_sided:
+                warnings.append(f"{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.")
         material = ""
         how = ""
-        if source is not None and source.material is not None:
+        if source is not None and any(path is not None for path in (source.material, source.roughness, source.metallic)):
+            source_map_names = ", ".join(path.name for path in (source.material, source.roughness, source.metallic) if path is not None)
             sp_path = _sp_path_for(base, source.name)
             if sp_path.casefold() not in {k.casefold() for k in new_files}:
                 if on_log:
-                    on_log(f"Encoding {source.material.name} -> {sp_path.rsplit('/', 1)[-1]} (BC1, G roughness, B metalness)")
+                    on_log(f"Encoding {source_map_names} -> {sp_path.rsplit('/', 1)[-1]} (BC1, G roughness, B metalness)")
                 new_files[sp_path] = _encode_source_sp(source, encode)
                 encoded.append(sp_path)
             material = sp_path
-            how = f"_sp from {source.material.name}"
+            how = f"_sp from {source_map_names}"
         elif source is not None:
             # a source with factors and no map: a solid _sp says what the factors say
             sp_path = _sp_path_for(base, source.name)
@@ -599,7 +680,7 @@ def route_plain_pbr(
             if key not in emissive_done:
                 if on_log:
                     on_log(f"Encoding {source.emissive.name} -> {emissive.rsplit('/', 1)[-1]} (BC4 intensity, colour from the source)")
-                data, color = encode_emissive(source.emissive)
+                data, color = _encode_source_emissive(source, encode_emissive)
                 new_files[emissive] = data
                 encoded.append(emissive)
                 emissive_done[key] = (emissive, color)
