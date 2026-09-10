@@ -1660,7 +1660,11 @@ impl LabApplication {
             for (role, label) in [("body", "Browse Body..."), ("armor", "Browse Armor...")] {
                 if ui
                     .add_enabled(blocked.is_empty(), Button::new(label))
-                    .on_hover_text("Choose a game mesh from the loaded archive catalogue.")
+                    .on_hover_text(if role == "body" {
+                        "Load a body and assign it as the shape driver. Both browsers use the same archive catalogue."
+                    } else {
+                        "Load clothing or armor to follow the body. The loaded mesh becomes the body if none was assigned."
+                    })
                     .on_disabled_hover_text(blocked)
                     .clicked()
                 {
@@ -1690,17 +1694,21 @@ impl LabApplication {
                 .on_hover_text(path);
             }
         }
-        if ui
-            .add_enabled(blocked.is_empty(), Button::new("Use loaded mesh as body"))
-            .clicked()
-        {
-            actions.push(UiAction::CdmwCommand {
-                command: "refit_use_loaded_body",
-                arguments: json!({}),
-                label: "Use loaded mesh as body",
-            });
+        if value_u32_list(state, "driver_submesh_indices").is_empty() {
+            if ui
+                .add_enabled(blocked.is_empty(), Button::new("Use loaded mesh as body"))
+                .clicked()
+            {
+                actions.push(UiAction::CdmwCommand {
+                    command: "refit_use_loaded_body",
+                    arguments: json!({}),
+                    label: "Use loaded mesh as body",
+                });
+            }
+            ui.small("Assign the body, then browse armor and bind its selected Parts.");
+        } else {
+            ui.small("Body assigned. Select body or garments in Refit clothing & armor below.");
         }
-        ui.small("Assign the body, then browse armor and bind its selected Parts.");
         let selected = self.selected_part_indices();
         let counts = self.selected_counts();
         ui.label(format!(
@@ -1772,16 +1780,54 @@ impl LabApplication {
             "Bound armor / clothing: {}",
             self.cdmw_morph_part_names(garments)
         ));
+        let available_garments = if garments.is_empty() {
+            self.document
+                .as_ref()
+                .and_then(|doc| doc.lods.get(self.active_lod_index))
+                .map(|lod| {
+                    (0..lod.submeshes.len() as u32)
+                        .filter(|index| !body.contains(index))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            garments.to_vec()
+        };
+        let selected = self.selected_part_indices();
         ui.horizontal_wrapped(|ui| {
-            for (indices, label) in [(body, "Select body"), (garments, "Select garments")] {
+            for (indices, label) in [(body, "Select body"), (available_garments.as_slice(), "Select garments")] {
+                if label == "Select garments" && indices.is_empty() {
+                    let unbaked = self.cdmw_state.get("morph_refit")
+                        .is_some_and(|state| state_bool(state, "unbaked"));
+                    if ui.add_enabled(!unbaked, Button::new("Load armor..."))
+                        .on_hover_text("No garment Parts are loaded. Choose armor or clothing from the archive.")
+                        .on_disabled_hover_text("Reset or Bake before loading armor")
+                        .clicked()
+                    {
+                        actions.push(UiAction::ChooseCdmwRefitMesh { role: "armor" });
+                    }
+                    continue;
+                }
                 if ui
-                    .add_enabled(!indices.is_empty(), Button::new(label))
+                    .add_enabled(!indices.is_empty(), Button::new(label).selected(
+                        !indices.is_empty() && indices.len() == selected.len()
+                            && indices.iter().all(|index| selected.contains(index))
+                    ))
+                    .on_hover_text("Select the loaded Parts for editing. This does not load another file.")
+                    .on_disabled_hover_text("Assign body Parts first using the control below")
                     .clicked()
                 {
                     actions.push(UiAction::SetPartSelection(indices.to_vec()));
                 }
             }
         });
+        if garments.is_empty() {
+            ui.small(if available_garments.is_empty() {
+                "Load armor, then bind its selected Parts to the body."
+            } else {
+                "Select garments, then Bind Selected Garment Parts. Body sliders will move the bound garments."
+            });
+        }
         ui.small("Finish keeps body and armor edits. Build Mod saves each original archive file.");
     }
 

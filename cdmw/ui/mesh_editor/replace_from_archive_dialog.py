@@ -408,8 +408,12 @@ class ReplaceFromArchivePickerDialog(QDialog):
             "The source bytes are mapped onto the current target and built as a separate loose mod."
         )
         intro.setWordWrap(True)
-        if self._refit_role:
-            intro.setText("Choose a game mesh to edit alongside the loaded mesh. Build Mod saves both at their original archive paths.")
+        if self._refit_role == "body":
+            intro.setText("Choose the body that will drive the refit. Both browsers show the same archive catalogue; "
+                          "Load Body assigns this mesh as the body. Armor will follow its shape changes after binding.")
+        elif self._refit_role == "armor":
+            intro.setText("Choose clothing or armor to fit to the body. Both browsers show the same archive catalogue; "
+                          "Load Armor adds and selects the garment. Bind it to make it follow body shape changes.")
         layout.addWidget(intro)
 
         self.search_edit = QLineEdit()

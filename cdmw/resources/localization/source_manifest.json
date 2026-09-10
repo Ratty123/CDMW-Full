@@ -8751,7 +8751,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
-          "line": 99,
+          "line": 63,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -8792,6 +8797,16 @@
         {
           "path": "cdmw/services/mesh_archive_refit.py",
           "line": 219,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft neutral appearance is invalid: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 266,
           "sink": "ValueError"
         }
       ]
@@ -9458,6 +9473,31 @@
           "path": "cdmw/workers/archive_scan_workers.py",
           "line": 100,
           "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
+      "key": "Archive comparison cancelled",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mesh_comparison.py",
+          "line": 19,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_mesh_comparison.py",
+          "line": 41,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Archive comparison package must stay inside its output root",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mesh_comparison.py",
+          "line": 31,
+          "sink": "ValueError"
         }
       ]
     },
@@ -19477,16 +19517,6 @@
       ]
     },
     {
-      "key": "Choose a game mesh to edit alongside the loaded mesh. Build Mod saves both at their original archive paths.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 412,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Choose a language and optional reference, load them, then search keys and text or filter by group.",
       "origins": [
         {
@@ -19977,6 +20007,16 @@
       ]
     },
     {
+      "key": "Choose clothing or armor to fit to the body. Both browsers show the same archive catalogue; Load Armor adds and selects the garment. Bind it to make it follow body shape changes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
+          "line": 415,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Choose color",
       "origins": [
         {
@@ -20223,6 +20263,16 @@
           "path": "cdmw/services/mesh_rust_archive_refit.py",
           "line": 19,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose the body that will drive the refit. Both browsers show the same archive catalogue; Load Body assigns this mesh as the body. Armor will follow its shape changes after binding.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
+          "line": 412,
+          "sink": "setText"
         }
       ]
     },
@@ -22308,6 +22358,16 @@
           "path": "cdmw/ui/replace_assistant/review_dialog.py",
           "line": 216,
           "sink": "python-return:_format_comparison_html"
+        }
+      ]
+    },
+    {
+      "key": "Comparison display must be Solid or Wire",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mesh_comparison.py",
+          "line": 16,
+          "sink": "ValueError"
         }
       ]
     },
@@ -49196,17 +49256,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 63,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 111,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 137,
+          "line": 129,
           "sink": "setText"
         },
         {
@@ -59687,6 +59737,16 @@
       ]
     },
     {
+      "key": "No comparison geometry is available",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mesh_comparison.py",
+          "line": 23,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "No compatible suggested texture overrides were found for the selected part.",
       "origins": [
         {
@@ -61291,17 +61351,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 124,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 176,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
-          "line": 177,
+          "line": 122,
           "sink": "setText"
         },
         {
@@ -83359,6 +83409,11 @@
     {
       "key": "Reset view",
       "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 72,
+          "sink": "QPushButton"
+        },
         {
           "path": "tools/placement_studio/window.py",
           "line": 402,
@@ -107657,6 +107712,16 @@
       ]
     },
     {
+      "key": "Unsupported archive Refit coordinate space",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 237,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unsupported archive Refit draft format",
       "origins": [
         {
@@ -117927,6 +117992,21 @@
       ]
     },
     {
+      "key": "direct",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 679,
+          "sink": "build_or_lookup_quality"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 908,
+          "sink": "build_or_lookup_quality"
+        }
+      ]
+    },
+    {
       "key": "disabled | {value_0} | {value_1} | expr {value_2}{value_3} | {value_4}record {value_5} | {value_6}",
       "origins": [
         {
@@ -119974,6 +120054,26 @@
     {
       "key": "full",
       "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 712,
+          "sink": "_publish_locked"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 732,
+          "sink": "build_or_lookup_quality"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 941,
+          "sink": "_publish_locked"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_preview_cache.py",
+          "line": 956,
+          "sink": "build_or_lookup_quality"
+        },
         {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 347,

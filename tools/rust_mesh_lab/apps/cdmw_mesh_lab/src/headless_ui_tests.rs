@@ -2269,6 +2269,62 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
 }
 
 #[test]
+fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "body", "driver_submesh_indices": [0],
+        "refit": {"garment_submesh_indices": []},
+    });
+    ui.click("Morph & Refit")?;
+    ui.click("Meshes & selection")?;
+    assert!(ui.label_rect("Use loaded mesh as body").is_none());
+    assert!(
+        ui.reveal("Body assigned. Select body or garments in Refit clothing & armor below.")
+            .is_ok()
+    );
+    ui.click("Meshes & selection")?;
+    ui.click("Refit clothing & armor")?;
+    ui.click("Select garments")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![1]);
+    assert!(has_host_command(
+        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        "refit_bind",
+    ));
+    ui.click("Select body")?;
+    assert_eq!(ui.application.selected_part_indices(), vec![0]);
+    assert!(!has_host_command(
+        &ui.actions_from_click("2. Bind Selected Garment Parts")?,
+        "refit_bind",
+    ));
+    Ok(())
+}
+
+#[test]
+fn integrated_refit_offers_loading_when_only_the_body_is_present() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "body", "driver_submesh_indices": [0],
+        "refit": {"garment_submesh_indices": []},
+    });
+    ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
+    assert!(ui.label_rect("Select garments").is_none());
+    assert!(ui.actions_from_click("Load armor...")?.iter().any(
+        |action| matches!(action, UiAction::ChooseCdmwRefitMesh { role } if *role == "armor")
+    ));
+    ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
+    ui.frame(Vec::new());
+    assert!(ui.actions_from_click("Load armor...")?.is_empty());
+    Ok(())
+}
+
+#[test]
 fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

@@ -238,6 +238,12 @@ armor adds and selects its Parts ready for binding. No Free Edit or external
 mesh file is required. The panel lists loaded files separately from the assigned
 body driver and bound armor/clothing.
 
+Both browsers search the same catalogue: the chosen role determines what the
+mesh does. Body is the shape driver; armor is the garment that follows it after
+binding. If you load armor before assigning a body, the initial mesh becomes
+the body driver. If you started with clothing instead, Browse Body assigns the
+new body while keeping the original clothing available for selection and binding.
+
 The catalogue comes from the archive workspace, including when Mesh Editor is
 detached into its own window. Cancelling the picker or failing to open the
 catalogue leaves the editor session available for further commands.
@@ -245,25 +251,39 @@ The picker puts the searchable archive list on the left and a taller combined
 preview on the right. The current target and selected source share one view in
 their original archive coordinates, preserving their relative size and position.
 Each has its own **Solid** or **Wire** display choice. **Browse Armor...** starts
-with a shaded, untextured solid target and amber wire armor; **Browse Body...**
+with a shaded, untextured solid target and wire armor; **Browse Body...**
 starts with a solid body source and wire target. Wire edges overlay solid surfaces,
 including hidden edges, to make overlap visible.
 
-The combined preview shows the original archive geometry at a fixed angle; it
-does not show live edits or animate the refit. Background workers redraw retained
-meshes when display modes or preview size change, without rereading archive data
-or requiring a 3D renderer package cache. The editor viewport remains the place
-to rotate, edit, and inspect the loaded result.
+The combined preview uses the interactive 3D viewport: Alt/Ctrl-drag to orbit,
+Shift-drag to pan, and scroll to zoom. **Reset view** restores the shared
+framing. Each model keeps its Solid/Wire choice while the camera moves. Display
+changes reuse decoded meshes and retain the camera; resizing does not decode or
+rebuild the scene. It shows the original archive geometry; live edits and refit
+results are inspected in the main editor viewport.
 
 Archive sources keep their own original bytes, Part mappings, palettes, and
-archive paths. Geometry, rig dependencies, and materials prepare off the UI
+archive paths. Each neutral appearance uses its own reversible mapping; Finish
+restores each asset's source coordinates before validation and writing. Drafts
+retain those mappings in the version 2 refit record and can still load version 1
+records. Added meshes retain their resolved textures and layered material data
+across loading, Undo/Redo, Bake, Finish, and reopening.
+Geometry, rig dependencies, and materials prepare off the UI
 thread before one undoable publication. Cancelled, stale, duplicate, invalid,
 or oversized sources leave the edit unchanged. Reset or Bake before loading;
 Clear Refit first if garments are already bound. Archive refits preserve the
 original topology and allow selection across all visible loaded assets.
 
+**Select body** selects the assigned driver Parts; it does not open another
+file. Its highlighted state shows when the body is already selected.
+**Select garments** selects loaded garment Parts even before they are bound.
+When only a body is loaded, **Load armor...** opens the archive browser directly.
+Once a body is assigned, the mesh section points to the role-selection controls.
+The Rust control messages carry slider metadata only; full weighted vertex scopes
+stay in the host profiles for editing, saving, and preset export.
+
 Select the body Parts to create a body slider, then select clothing/armor Parts
-and bind them. The panel offers Select body/Select garments, rejects overlapping
+and bind them. The panel rejects overlapping
 roles and setup changes during an unbaked preview, and shows the binding-distance
 warning. Binding replaces the garment set; select every garment that should
 participate. Surface and Rigid modes retain per-garment enable, intensity, and

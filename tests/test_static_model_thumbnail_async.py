@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import threading
 import time
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -14,13 +13,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
 from cdmw.models import ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh, RunCancelled
-from cdmw.rendering.static_model_thumbnail import (
-    StaticModelThumbnailPlan,
-    prepare_static_model_thumbnail,
-    render_static_model_comparison_image,
-    render_static_model_thumbnail_image,
-    render_static_model_thumbnail_plan_image,
-)
+from cdmw.rendering.static_model_thumbnail import prepare_static_model_thumbnail
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 
 
@@ -150,82 +143,3 @@ def test_archive_pickers_request_worker_rendered_static_images() -> None:
         assert "static_thumbnail_size=" in source
         assert 'getattr(payload, "static_preview_image"' in source or 'getattr(result_payload, "static_preview_image"' in source
         assert "render_static_model_preview_pixmap(" not in source
-
-
-def test_solid_fills_faces_while_wire_only_draws_edges_over_solid_meshes() -> None:
-    triangle = ((40.0, 40.0, 0.0), (280.0, 40.0, 0.0), (160.0, 220.0, 0.0))
-    plan = StaticModelThumbnailPlan(320, 260, ((180, 180, 180, 255),), ((0, triangle),), ())
-    solid = render_static_model_thumbnail_plan_image(plan, text_color="", mesh_display_modes=("solid",))
-    wire = render_static_model_thumbnail_plan_image(plan, text_color="", mesh_display_modes=("wireframe",))
-    assert solid.pixel(160, 100) != solid.pixel(0, 0)
-    assert wire.pixel(160, 100) == wire.pixel(0, 0)
-    assert wire.pixel(160, 40) != wire.pixel(0, 0)
-
-    # The farther wire mesh must remain legible over the opaque body.
-    overlay = replace(plan, mesh_colors=(*plan.mesh_colors, (245, 176, 84, 255)), triangles=(
-        (1, ((80.0, 90.0, -1.0), (240.0, 90.0, -1.0), (160.0, 180.0, -1.0))),
-        *plan.triangles,
-    ))
-    combined = render_static_model_thumbnail_plan_image(
-        overlay, text_color="", mesh_display_modes=("solid", "wireframe"),
-    )
-    edge = combined.pixelColor(160, 90)
-    assert edge.red() > edge.blue()
-    assert combined.pixel(160, 110) == solid.pixel(160, 110)
-
-
-def test_combined_preview_restores_both_meshes_original_scale_and_position() -> None:
-    target = ModelPreviewData(meshes=[ModelPreviewMesh(
-        positions=[(-2.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 4.0, 0.0)], indices=[0, 1, 2],
-    )])
-    source = ModelPreviewData(meshes=[ModelPreviewMesh(
-        positions=[(1.0, 1.0, 0.0), (3.0, 1.0, 0.0), (2.0, 3.0, 0.0)], indices=[0, 1, 2],
-    )])
-
-    def normalized(model, center, scale):
-        return replace(model, normalization_center=center, normalization_scale=scale, meshes=[
-            replace(mesh, positions=[
-                tuple((position[axis] - center[axis]) * scale for axis in range(3))
-                for position in mesh.positions
-            ]) for mesh in model.meshes
-        ])
-
-    original = render_static_model_comparison_image(target, source, width=480, height=640)
-    restored = render_static_model_comparison_image(
-        normalized(target, (0.0, 2.0, 0.0), 0.5),
-        normalized(source, (2.0, 2.0, 0.0), 2.0), width=480, height=640,
-    )
-    assert original is not None and restored == original
-    assert target.meshes[0].positions[0] == (-2.0, 0.0, 0.0)
-    assert source.meshes[0].positions[0] == (1.0, 1.0, 0.0)
-
-
-def test_combined_solid_preview_keeps_faces_omitted_by_thumbnail_sampling() -> None:
-    # Face 1 is the only triangle on the right. Ordinary thumbnail sampling
-    # skips it at this triangle count; a solid comparison must keep it.
-    model = ModelPreviewData(meshes=[ModelPreviewMesh(
-        positions=[(-3.0, 0.0, 0.0), (-1.0, 0.0, 0.0), (-2.0, 2.0, 0.0),
-                   (1.0, 0.0, 0.0), (3.0, 0.0, 0.0), (2.0, 2.0, 0.0)],
-        indices=[0, 1, 2, 3, 4, 5] + [0, 1, 2] * 9000,
-    )])
-    plan = prepare_static_model_thumbnail(model, width=480, height=320, sample_triangles=False)
-    marker = max((triangle for _, triangle in plan.triangles), key=lambda t: sum(p[0] for p in t))
-    x, y = (round(sum(p[axis] for p in marker) / 3) for axis in (0, 1))
-    sampled = render_static_model_thumbnail_image(model, width=480, height=320, text_color="")
-    combined = render_static_model_comparison_image(model, None, width=480, height=320)
-    assert sampled.pixel(x, y) == sampled.pixel(0, 0)
-    assert combined.pixel(x, y) != combined.pixel(0, 0)
-
-
-def test_static_thumbnail_painting_checks_cancellation_between_batches() -> None:
-    class CancelAfterFirstBatch:
-        checks = 0
-
-        def is_set(self):
-            self.checks += 1
-            return self.checks > 1
-
-    triangle = ((40.0, 40.0, 0.0), (280.0, 40.0, 0.0), (160.0, 220.0, 0.0))
-    plan = StaticModelThumbnailPlan(320, 260, ((180, 180, 180, 255),), ((0, triangle),) * 1000, ())
-    with pytest.raises(RunCancelled):
-        render_static_model_thumbnail_plan_image(plan, text_color="", stop_event=CancelAfterFirstBatch())

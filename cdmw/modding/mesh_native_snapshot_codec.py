@@ -42,6 +42,7 @@ from cdmw.domain.mesh.topology import (
     topology_source_vertex_map,
     validate_topology_provenance,
 )
+from cdmw.domain.model_preview_materials import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
 from cdmw.models import RunCancelled
@@ -157,6 +158,32 @@ def _snapshot_metadata_value(value: object) -> object:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
+
+def _restored_snapshot_metadata_value(name: str, value: object) -> object:
+    # Native JSON preserves the fields, but material consumers require the
+    # typed records (including nested dye/layer parameters) after an edit.
+    record_type = {
+        "preview_material_parameters": PreviewMaterialParameterInput,
+        "preview_material_texture_inputs": PreviewMaterialTextureInput,
+    }.get(name)
+    if record_type is None or not isinstance(value, (list, tuple)) or not all(
+        isinstance(item, Mapping) for item in value
+    ):
+        return _snapshot_metadata_value(value)
+    result = []
+    for item in value:
+        payload = {key: item_value for key, item_value in item.items()
+                   if key in record_type.__dataclass_fields__}
+        for key in ("color_value", "packed_channels", "blend_flags"):
+            if key in payload and isinstance(payload[key], (list, tuple)):
+                payload[key] = tuple(payload[key])
+        if record_type is PreviewMaterialTextureInput:
+            payload["material_parameters"] = _restored_snapshot_metadata_value(
+                "preview_material_parameters", payload.get("material_parameters", ()),
+            )
+        result.append(record_type(**payload))
+    return tuple(result)
+
 
 def _native_submesh_snapshot_item(
     item: Mapping[str, object],
@@ -372,7 +399,7 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
         for raw_name, value in extra_attrs.items():
             attr_name = str(raw_name or "").strip()
             if attr_name and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
-                setattr(submesh, attr_name, _snapshot_metadata_value(value))
+                setattr(submesh, attr_name, _restored_snapshot_metadata_value(attr_name, value))
     provenance = _topology_provenance_from_native_snapshot_item(
         item, vertex_count=vertex_count, face_count=face_count
     )

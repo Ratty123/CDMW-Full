@@ -557,7 +557,19 @@ def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index
                 actual=len(weight_row),
             )
             continue
-        if len(index_row) > MAX_SKIN_INFLUENCES:
+        # PAC can contain two additional protected lanes. Geometry-only edits
+        # preserve those original rows; the six-lane limit still applies to
+        # newly authored or changed weights.
+        preserved_extra_lanes = (
+            MAX_SKIN_INFLUENCES < len(index_row) <= 8
+            and getattr(original_submesh, "source_skin_weight_layout", "") == "pac_slot_u10x6"
+            and getattr(original_submesh, "source_vertex_stride", 0) == 40
+            and _skinning_row_matches_original(
+                original_submesh, vertex_index, index_row, weight_row,
+                topology_contract=topology_contract,
+            )
+        )
+        if len(index_row) > MAX_SKIN_INFLUENCES and not preserved_extra_lanes:
             _add(
                 issues,
                 "blocker",

@@ -30,9 +30,11 @@ def _entry(root, name, source):
     return ArchiveEntry(name, pamt, paz, 0, len(source), len(source), 0, 0)
 
 
-def _load_pair(tmp_path, *, assign_body=True, texture_paths=None):
+def _load_pair(tmp_path, *, assign_body=True, texture_paths=None,
+               primary_appearance=None, incoming_appearance=None, role="armor"):
     source, authority, session = _open_exact_session(
         tmp_path / "session", base_texture_path=texture_paths[0] if texture_paths else None,
+        neutral_appearance=primary_appearance,
     )
     primary = _entry(tmp_path, "owned-rust-exact.pac", source)
     armor = _entry(tmp_path, "armor.pac", source)
@@ -49,8 +51,8 @@ def _load_pair(tmp_path, *, assign_body=True, texture_paths=None):
         result = _rig_command(session, 1, "refit_use_loaded_body", {})
         assert result["state"]["morph_refit"]["driver_submesh_indices"]
     loaded = _rig_command(session, 2, "refit_choose_archive", {
-        "role": "armor", "_primary_entry": primary, "_archive_entry": armor,
-        "_archive_snapshot": incoming,
+        "role": role, "_primary_entry": primary, "_archive_entry": armor,
+        "_archive_snapshot": incoming, "_archive_neutral_appearance": incoming_appearance,
     })
     return source, authority, session, primary, armor, loaded
 
@@ -111,6 +113,8 @@ def test_archive_refit_load_undo_and_hidden_layers_retain_asset_identity(tmp_pat
     _source, authority, session, _primary, _armor, _loaded = _load_pair(tmp_path, assign_body=False)
     try:
         shadow, sid = session.shadow_service, session.shadow_session_id
+        assert shadow.cached_morph_state(sid).driver_submesh_indices == (0,)
+        assert shadow.cached_morph_state(sid).profile_id
         context = shadow._session(sid).archive_refit_context
         assert shadow.undo(sid).ok
         assert shadow._session(sid).archive_refit_context is None
@@ -134,6 +138,9 @@ def test_archive_refit_draft_roundtrip_keeps_sources_and_rejects_tampering(tmp_p
         components = archive_refit_snapshots(replace(snapshot, archive_refit_context=restored))
         assert len(components) == 2
         assert all(session.shadow_service.validate_export_snapshot(item).ok for _entry, item in components)
+        legacy = {**payload, "format": "cdmw_archive_refit_v1"}
+        legacy.pop("coordinates")
+        assert not load_archive_refit_context(legacy, root).neutral_coordinates
         (root / payload["assets"][0]["source"]).write_bytes(b"damaged")
         with pytest.raises(ValueError, match="source"):
             load_archive_refit_context(payload, root)
@@ -193,10 +200,11 @@ def test_archive_refit_body_slider_moves_bound_armor_and_bakes_both(tmp_path):
         authority.close_edit_session("authoritative-rust-exact", force_without_saving=True)
 
 
-def test_archive_refit_publishes_owned_texture_updates_for_load_undo_and_redo(tmp_path):
+@pytest.mark.parametrize("primary_name", ["body.dds", "a-body.dds"])
+def test_archive_refit_publishes_owned_texture_updates_for_load_undo_and_redo(tmp_path, primary_name):
     from PIL import Image
 
-    body_texture, armor_texture = tmp_path / "body.dds", tmp_path / "armor.dds"
+    body_texture, armor_texture = tmp_path / primary_name, tmp_path / "armor.dds"
     Image.new("RGBA", (4, 4), (200, 50, 40, 255)).save(body_texture)
     Image.new("RGBA", (4, 4), (40, 50, 200, 255)).save(armor_texture)
     _source, authority, session, _primary, _armor, loaded = _load_pair(

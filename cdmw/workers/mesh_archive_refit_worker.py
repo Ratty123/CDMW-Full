@@ -1,10 +1,15 @@
 """Prepare archive geometry, rig and material context on the protocol worker."""
 
+from types import SimpleNamespace
+
 from PySide6.QtCore import Qt
 
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.mesh_archive_refit import ArchiveRefitPreviewLease
-from cdmw.services.mesh_rust_authoring import _prepare_shadow_mesh_materials
+from cdmw.services.mesh_rust_authoring import (
+    _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR, _prepare_shadow_mesh_materials,
+    prime_rust_mesh_preview_context,
+)
 from cdmw.workers.mesh_editor_aux_workers import (
     MeshArchiveMaterialContextWorker, MeshArchiveSessionLoadWorker,
 )
@@ -46,15 +51,23 @@ def prepare_archive_refit_source(args, stop_event):
     loaded = _run(loader, loader.loaded, stop_event)
     try:
         snapshot = loaded.service.capture_export_snapshot(loaded.view.session_id, stop_event=stop_event)
+        appearance = loaded.service._session(loaded.view.session_id).neutral_appearance
         materials = MeshArchiveMaterialContextWorker(
             1, entry, entries_by_normalized_path=dependencies.entries_by_normalized_path,
             entries_by_basename=dependencies.entries_by_basename,
         )
         context = _run(materials, materials.context_resolved, stop_event)
         lease = ArchiveRefitPreviewLease(context)
-        _count, reason = _prepare_shadow_mesh_materials(snapshot.mesh, context, "", stop_event)
+        controller = SimpleNamespace(mesh_service=loaded.service, active_session_id=loaded.view.session_id)
+        prime_rust_mesh_preview_context(
+            controller, context.preview_model, material_package_path=context.material_package_path,
+            target_entry=entry, entries_by_basename=dependencies.entries_by_basename,
+        )
+        _count, reason = _prepare_shadow_mesh_materials(
+            snapshot.mesh, getattr(controller, _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR), "", stop_event,
+        )
         raise_if_cancelled(stop_event, "Archive Refit loading cancelled")
         return {**args, "_archive_snapshot": snapshot, "_archive_preview_lease": lease,
-                "_archive_material_reason": reason}
+                "_archive_material_reason": reason, "_archive_neutral_appearance": appearance}
     finally:
         loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)

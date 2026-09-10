@@ -220,6 +220,33 @@ def _reversed_triangle_mesh() -> ParsedMesh:
 
 
 class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
+    def test_resident_snapshot_restores_typed_layered_material_inputs(self) -> None:
+        from cdmw.modding import mesh_native_core
+        from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+        parameter = PreviewMaterialParameterInput(
+            parameter_kind="color", parameter_name="_DyeColor", color_value=(0.2, 0.3, 0.4),
+        )
+        texture = PreviewMaterialTextureInput(
+            slot_kind="normal", source_dds_path="owned-layer.dds", owner_slot_index=2,
+            binding_authority="exact", packed_channels=("x", "y"), blend_flags=("overlay",),
+            material_parameters=(parameter,),
+        )
+        mesh = _quad_mesh()
+        mesh.submeshes[0].preview_material_texture_inputs = (texture,)
+        mesh.submeshes[0].preview_material_parameters = (parameter,)
+        session_id = f"native-editor-material-types-{uuid4().hex}"
+        try:
+            self.assertIsNotNone(mesh_native_core.open_native_mesh_editor_session(mesh, session_id))
+            self.assertTrue(mesh_native_core.export_native_mesh_editor_session_to_mesh(mesh, session_id))
+            self.assertEqual((texture,), mesh.submeshes[0].preview_material_texture_inputs)
+            self.assertEqual((parameter,), mesh.submeshes[0].preview_material_parameters)
+            self.assertEqual(_quad_mesh().submeshes[0].uvs, mesh.submeshes[0].uvs)
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session_id)
+
     def test_session_store_item_sanitizes_preview_material_parameters_for_json(self) -> None:
         from cdmw.modding import mesh_native_core
         from cdmw.models import PreviewMaterialParameterInput

@@ -23,7 +23,7 @@ import threading
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager, nullcontext
 from ctypes import wintypes
-from dataclasses import asdict, dataclass, field, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from enum import Enum
 from functools import wraps
 from pathlib import Path, PurePosixPath
@@ -35,7 +35,8 @@ from cdmw.core.common import (
     read_file_bytes_cancellable,
 )
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
+from cdmw.domain.mesh.morph import MeshMorphDefinition
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
     action_authoring_capability,
@@ -2043,7 +2044,20 @@ def _json_safe(value: object) -> object:
     if isinstance(value, Path):
         return str(value)
     if is_dataclass(value) and not isinstance(value, type):
-        return _json_safe(asdict(value))
+        # The Rust UI edits slider metadata by definition ID. Weighted vertex
+        # scopes remain in the host profile, including when a command returns
+        # that profile; sending them twice can overflow the 256 KiB channel.
+        return {
+            item.name: _json_safe(getattr(value, item.name))
+            for item in fields(value)
+            if not (isinstance(value, MeshMorphDefinition) and item.name == "vertices")
+            # Geometry and selection arrive through the acknowledged state and
+            # hashed mesh document, not these duplicate native service arrays.
+            and not (isinstance(value, MeshEditResult) and item.name in {
+                "changed_vertices_by_submesh", "native_selection_groups",
+                "native_preview_vertex_update_groups", "native_preview_triangle_groups", "session_view",
+            })
+        }
     if isinstance(value, Mapping):
         return {str(key): _json_safe(item) for key, item in value.items()}
     if isinstance(value, (set, frozenset)):
@@ -4822,8 +4836,17 @@ def _publish_rust_texture_resources(root, bindings, sources, stop_event, expecte
     )
     initial_entry_count = entry_count
     initial_aggregate_bytes = aggregate_bytes
+    # Refit adds material generations to an existing session. Never overwrite
+    # payloads still referenced by the initial scene or an Undo generation.
+    first_file_index = 1 + max(
+        (int(path.name.split("-", 2)[1]) for path in root.iterdir()
+         if _TEXTURE_FILE_RE.fullmatch(path.name)),
+        default=-1,
+    )
+    if first_file_index + len(sources) > 10_000:
+        raise RustMeshProtocolError("Mesh session texture payload limit reached")
     file_references: dict[str, dict[str, object]] = {}
-    for file_index, path_text in enumerate(sorted(sources, key=str.casefold)):
+    for file_index, path_text in enumerate(sorted(sources, key=str.casefold), start=first_file_index):
         _raise_if_texture_copy_cancelled(stop_event)
         if entry_count + 1 > _SESSION_MAX_ENTRIES:
             raise RustMeshProtocolError(
@@ -6956,7 +6979,13 @@ class RustMeshAuthoringSession:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
             neutral_source_mesh = shadow_mesh if neutral_appearance is not None else None
-            if neutral_appearance is not None:
+            refit_context = geometry_layer_seed.get("archive_refit_context")
+            if refit_context is not None:
+                from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
+                if not refit_context.neutral_coordinates:
+                    shadow_mesh = transform_archive_refit_mesh(shadow_mesh, refit_context, to_neutral=True)
+                    geometry_layer_seed["archive_refit_context"] = replace(refit_context, neutral_coordinates=True)
+            elif neutral_appearance is not None:
                 shadow_mesh = neutral_appearance.to_neutral(shadow_mesh)
             if stop_event is not None and stop_event.is_set():
                 raise RustMeshCancellationError(
@@ -8225,7 +8254,7 @@ class RustMeshAuthoringSession:
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
         if self.neutral_appearance is not None and command in {
-            "refit_choose_archive", "refit_load_mesh", "import_editable_package",
+            "refit_load_mesh", "import_editable_package",
         }:
             raise RustMeshValidationError(
                 "Finish or cancel neutral face editing before loading a different source mesh."
@@ -8528,12 +8557,22 @@ class RustMeshAuthoringSession:
         raise RustMeshProtocolError(f"Unsupported Mesh morph command: {command}")
 
     def _source_coordinate_mesh(self, mesh: ParsedMesh) -> ParsedMesh:
-        if self.neutral_appearance is None or self.neutral_source_mesh is None:
+        context = self.shadow_service._session(self.shadow_session_id).archive_refit_context
+        if context is not None and context.neutral_coordinates:
+            from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
+            candidate = transform_archive_refit_mesh(mesh, context, to_neutral=False)
+            source_lods = [
+                [part for asset in context.assets for part in asset.source.mesh.submeshes],
+                *_mesh_lods(context.assets[0].source.mesh)[1:],
+            ]
+        elif context is not None or self.neutral_appearance is None or self.neutral_source_mesh is None:
             return mesh
-        candidate = self.neutral_appearance.to_source(mesh, self.neutral_source_mesh)
+        else:
+            candidate = self.neutral_appearance.to_source(mesh, self.neutral_source_mesh)
+            source_lods = _mesh_lods(self.neutral_source_mesh)
         operations = list(tuple(getattr(candidate, "_cdmw_edit_operations", ()) or ()))
         for lod_index, (parts, source_parts) in enumerate(zip(
-            _mesh_lods(candidate), _mesh_lods(self.neutral_source_mesh),
+            _mesh_lods(candidate), source_lods,
         )):
             for submesh_index, (part, source) in enumerate(zip(parts, source_parts)):
                 if len(part.vertices) != len(source.vertices):
@@ -8558,6 +8597,20 @@ class RustMeshAuthoringSession:
         setattr(candidate, "_cdmw_edit_operations", tuple(operations))
         return candidate
 
+    def _source_coordinate_snapshot(self, snapshot):
+        context = snapshot.archive_refit_context
+        if context is None and self.neutral_appearance is None:
+            return snapshot
+        setattr(snapshot.mesh, "_cdmw_edit_operations", tuple(snapshot.edit_operations))
+        source_mesh = self._source_coordinate_mesh(snapshot.mesh)
+        return replace(
+            snapshot, mesh=source_mesh,
+            base_mesh=(snapshot.base_mesh if context is not None else
+                       self.authoritative_service._session(self.authoritative_session_id).base_mesh),
+            edit_operations=tuple(getattr(source_mesh, "_cdmw_edit_operations", ()) or ()),
+            archive_refit_context=replace(context, neutral_coordinates=False) if context is not None else None,
+        )
+
     def _validate_exact_output_writer(
         self,
         *,
@@ -8575,11 +8628,12 @@ class RustMeshAuthoringSession:
         """
 
         try:
-            snapshot = snapshot or self.shadow_service.capture_export_snapshot(
-                self.shadow_session_id,
-                stop_event=stop_event,
-                expected_mesh_revision=shadow_revision,
-            )
+            if snapshot is None:
+                snapshot = self._source_coordinate_snapshot(self.shadow_service.capture_export_snapshot(
+                    self.shadow_session_id,
+                    stop_event=stop_event,
+                    expected_mesh_revision=shadow_revision,
+                ))
             if snapshot.archive_refit_context is not None:
                 from cdmw.services.mesh_archive_refit import archive_refit_snapshots
                 assets = []
@@ -8589,14 +8643,6 @@ class RustMeshAuthoringSession:
                     )
                     assets.append({"path": entry.path, **evidence})
                 return {"status": "passed", "assets": assets, "fallback_used": False}
-            if self.neutral_appearance is not None:
-                setattr(snapshot.mesh, "_cdmw_edit_operations", tuple(snapshot.edit_operations))
-                source_mesh = self._source_coordinate_mesh(snapshot.mesh)
-                snapshot = replace(
-                    snapshot, mesh=source_mesh,
-                    base_mesh=self.authoritative_service._session(self.authoritative_session_id).base_mesh,
-                    edit_operations=tuple(getattr(source_mesh, "_cdmw_edit_operations", ()) or ()),
-                )
             result, report = self.shadow_service.rebuild_result_from_snapshot(snapshot)
         except Exception as exc:
             self._raise_if_cancelled(stop_event)
@@ -8940,7 +8986,8 @@ class RustMeshAuthoringSession:
             validation_output_policy=shadow_view.output_policy,
             validation_output_destination=shadow_view.output_destination,
             validation_output_destination_ready=shadow_view.output_destination_ready,
-            archive_refit_context=shadow_session.archive_refit_context,
+            archive_refit_context=(replace(shadow_session.archive_refit_context, neutral_coordinates=False)
+                                   if shadow_session.archive_refit_context is not None else None),
         )
         if prepared.expected_revision != self.base_revision:
             raise RustMeshValidationError(

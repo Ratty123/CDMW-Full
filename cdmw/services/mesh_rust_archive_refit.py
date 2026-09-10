@@ -29,6 +29,9 @@ def load_archive_refit(authoring, args, stop_event):
         combined, context, indices = append_archive_refit(
             current, args["_primary_entry"], incoming, entry, role,
             args.get("_archive_preview_lease"),
+            primary_source=authoring._source_coordinate_snapshot(current),
+            primary_appearance=authoring.neutral_appearance,
+            incoming_appearance=args.get("_archive_neutral_appearance"),
         )
         prepared = service.prepare_working_mesh_replacement(
             session_id, combined, archive_refit_context=context,
@@ -38,9 +41,13 @@ def load_archive_refit(authoring, args, stop_event):
         prepared = replace(prepared, selection=MeshEditSelection(source_indices=indices))
         admitted = authoring._preflight_mesh_document_capacity(prepared.working_mesh)
         stage_archive_refit_materials(authoring, prepared.working_mesh, context, stop_event)
+        cache = service._morph_sessions.get(session_id)
+        driver_indices = indices if role == "body" else (
+            context.assets[0].part_indices if cache is None or cache.profile is None else None
+        )
         morph = stage_refit_morph_runtime(
             service, session_id, prepared.working_mesh,
-            driver_indices=indices if role == "body" else None,
+            driver_indices=driver_indices,
         )
         try:
             layers = (*session.geometry_layers, _MeshGeometryLayer(

@@ -329,6 +329,8 @@ def test_preview_lane_latest_wins_cancel_returns_immediately_and_tears_down(
 
 
 def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_package(tmp_path, monkeypatch):
+    from tests.test_archive_mesh_comparison import _PreviewHost
+    monkeypatch.setattr("cdmw.ui.mesh_editor.archive_mesh_comparison.RustPreviewHostFrame", _PreviewHost)
     app = QApplication.instance() or QApplication([])
     target = _entry("character/model/body.pac", 1)
     source = _entry("character/model/armor.pac", 2)
@@ -358,11 +360,10 @@ def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_pack
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             app.processEvents()
-            if not dialog.has_live_preview_workers and not dialog._comparison_preview._resize_timer.isActive():
+            if not dialog.has_live_preview_workers:
                 break
             time.sleep(0.005)
         assert not dialog.has_live_preview_workers
-        assert not dialog._comparison_preview._resize_timer.isActive()
 
     try:
         dialog.setAttribute(Qt.WA_DontShowOnScreen, True)
@@ -398,21 +399,24 @@ def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_pack
         assert dialog._content_splitter.orientation() == Qt.Horizontal
         assert dialog._content_splitter.widget(0).geometry().right() < comparison.geometry().left()
         assert dialog.search_edit.parent() is dialog.table.parent()
-        assert comparison.image_label.height() > 320
+        assert comparison.viewport.height() > 320
         assert comparison.target_mode_combo.currentText() == "Solid"
         assert comparison.source_mode_combo.currentText() == "Wire"
-        assert comparison.image is not None and not comparison.image_label.pixmap().isNull()
-        before_mode_change = comparison.image.copy()
+        assert comparison.viewport.loads
+        before_mode_change = comparison.viewport.loads[-1][0]
         read_count = len(reads)
         assert read_count == 2
         comparison.source_mode_combo.setCurrentIndex(0)
         wait_for_previews()
-        assert comparison.image != before_mode_change
+        assert comparison.viewport.loads[-1][0] != before_mode_change
+        assert not comparison.viewport.loads[-1][1]["reset_view"]
         assert len(reads) == read_count  # View changes reuse the decoded meshes.
-        before_resize = comparison.image.size()
+        before_resize = comparison.viewport.size()
+        package_count = len(comparison.viewport.loads)
         dialog.resize(dialog.width() + 100, dialog.height() + 100)
         wait_for_previews()
-        assert comparison.image.size() != before_resize
+        assert comparison.viewport.size() != before_resize
+        assert len(comparison.viewport.loads) == package_count
         assert len(reads) == read_count
         assert dialog.choose_button.isEnabled()
         assert target.prepared_path.read_bytes() == source_bytes

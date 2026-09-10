@@ -170,7 +170,7 @@ def test_weight_edit_recomputes_the_inverse_from_the_edited_weights(tmp_path):
     assert appearance.to_neutral(parse_pac(rebuilt.data)).submeshes[0].vertices[0] == pytest.approx(visible, abs=.002)
 
 
-@pytest.mark.parametrize("command", ["refit_choose_archive", "refit_load_mesh", "import_editable_package"])
+@pytest.mark.parametrize("command", ["refit_load_mesh", "import_editable_package"])
 def test_neutral_edit_does_not_apply_its_mapping_to_a_different_source(tmp_path, command):
     _source, _authoritative, session = _open_exact_session(tmp_path / "edit", neutral_appearance=_appearance())
     try:

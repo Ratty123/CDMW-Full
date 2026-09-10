@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 import copy
 import hashlib
 from pathlib import Path
@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from cdmw.domain.mesh.export_validation import MeshExportValidationReport
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
+from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
 from cdmw.services.mesh_service_state import MeshExportSnapshot
 
 
@@ -20,6 +21,7 @@ class ArchiveRefitAsset:
     part_indices: tuple[int, ...]
     role: str
     preview_lease: object | None = None
+    neutral_appearance: NeutralMeshAppearance | None = None
 
 
 class ArchiveRefitPreviewLease:
@@ -43,6 +45,7 @@ class ArchiveRefitPreviewLease:
 class ArchiveRefitContext:
     assets: tuple[ArchiveRefitAsset, ...]
     context_id: str = field(default_factory=lambda: uuid4().hex)
+    neutral_coordinates: bool = False
 
 
 def _clone(mesh):
@@ -53,15 +56,43 @@ def _clone(mesh):
     )
 
 
-def append_archive_refit(current, primary_entry, incoming, entry, role, preview_lease=None):
+def transform_archive_refit_mesh(mesh, context, *, to_neutral):
+    """Convert each asset with its own palette; retain combined Part/LOD aliases."""
+    indices = [index for asset in context.assets for index in asset.part_indices]
+    if sorted(indices) != list(range(len(mesh.submeshes))):
+        raise ValueError("Archive Refit Part identities changed; undo the Part addition or removal")
+    result = _clone(mesh)
+    for asset_index, asset in enumerate(context.assets):
+        appearance = asset.neutral_appearance
+        if appearance is None:
+            continue
+        subset = copy.copy(result)
+        subset.submeshes = [result.submeshes[index] for index in asset.part_indices]
+        # The combined document retains the primary asset's additional LODs.
+        # Incoming assets contribute only their editable Parts.
+        subset.lod_levels = [subset.submeshes, *(result.lod_levels[1:] if asset_index == 0 else ())]
+        converted = (appearance.to_neutral(subset) if to_neutral
+                     else appearance.to_source(subset, asset.source.mesh))
+        for original_level, converted_level in zip(subset.lod_levels, converted.lod_levels, strict=True):
+            for original, part in zip(original_level, converted_level, strict=True):
+                for channel in ("vertices", "normals", "tangents", "tangent_signs"):
+                    if hasattr(part, channel):
+                        setattr(original, channel, getattr(part, channel))
+    refresh_mesh_totals(result)
+    return result
+
+
+def append_archive_refit(current, primary_entry, incoming, entry, role, preview_lease=None,
+                         *, primary_source=None, primary_appearance=None, incoming_appearance=None):
     if role not in {"body", "armor"}:
         raise ValueError("Archive Refit role must be body or armor")
     if current.texture_resources or incoming.texture_resources:
         raise ValueError("Finish texture edits before loading an archive Refit mesh")
     context = current.archive_refit_context
     assets = context.assets if isinstance(context, ArchiveRefitContext) else (
-        ArchiveRefitAsset(copy.copy(primary_entry), replace(current, archive_refit_context=None),
-                          tuple(range(len(current.mesh.submeshes))), "loaded"),
+        ArchiveRefitAsset(copy.copy(primary_entry), replace(primary_source or current, archive_refit_context=None),
+                          tuple(range(len(current.mesh.submeshes))), "loaded",
+                          neutral_appearance=primary_appearance),
     )
     source_paths = {str(asset.entry.path).replace("\\", "/").casefold() for asset in assets}
     if str(entry.path).replace("\\", "/").casefold() in source_paths:
@@ -70,7 +101,7 @@ def append_archive_refit(current, primary_entry, incoming, entry, role, preview_
         raise ValueError("Archive Refit needs a parsed game asset with original source bytes")
     if Path(primary_entry.pamt_path).resolve().parent.parent != Path(entry.pamt_path).resolve().parent.parent:
         raise ValueError("Archive Refit assets must belong to the same loaded game archive root")
-    for source in (current, incoming) if context is None else (incoming,):
+    for source in (primary_source or current, incoming) if context is None else (incoming,):
         base = source.base_mesh
         if base is None or len(base.submeshes) != len(source.mesh.submeshes) or any(
             len(original.vertices) != len(edited.vertices) or original.faces != edited.faces
@@ -78,7 +109,8 @@ def append_archive_refit(current, primary_entry, incoming, entry, role, preview_
         ):
             raise ValueError("Archive Refit requires the original mesh topology; undo topology changes before loading")
     combined = _clone(current.mesh)
-    imported = _clone(incoming.mesh)
+    imported = (incoming_appearance.to_neutral(incoming.mesh) if incoming_appearance is not None
+                else _clone(incoming.mesh))
     first = len(combined.submeshes)
     combined.submeshes.extend(imported.submeshes)
     combined.has_bones = combined.has_bones or imported.has_bones
@@ -87,7 +119,11 @@ def append_archive_refit(current, primary_entry, incoming, entry, role, preview_
     indices = tuple(range(first, len(combined.submeshes)))
     return combined, ArchiveRefitContext((*assets, ArchiveRefitAsset(
         copy.copy(entry), replace(incoming, archive_refit_context=None), indices, role, preview_lease,
-    ))), indices
+        incoming_appearance,
+    )), neutral_coordinates=bool(
+        (context is not None and context.neutral_coordinates)
+        or primary_appearance is not None or incoming_appearance is not None
+    )), indices
 
 
 def archive_refit_snapshots(snapshot):
@@ -98,7 +134,8 @@ def archive_refit_snapshots(snapshot):
     if sorted(all_indices) != list(range(len(snapshot.mesh.submeshes))):
         raise ValueError("Archive Refit Part identities changed; undo the Part addition or removal")
     result = []
-    edited = _clone(snapshot.mesh)
+    edited = (transform_archive_refit_mesh(snapshot.mesh, context, to_neutral=False)
+              if context.neutral_coordinates else _clone(snapshot.mesh))
     for asset in context.assets:
         mesh = _clone(asset.source.mesh)
         parts = [edited.submeshes[index] for index in asset.part_indices]
@@ -180,8 +217,11 @@ def save_archive_refit_context(context, project_root, stop_event):
             "source": relative, "sha256": digest, "size": len(asset.source.original_data),
             "parts": list(asset.part_indices), "role": asset.role,
             "skeleton_bone_count": asset.source.skeleton_bone_count,
+            **({"neutral_appearance": {"version": 1, **asdict(asset.neutral_appearance)}}
+               if asset.neutral_appearance is not None else {}),
         })
-    return {"format": "cdmw_archive_refit_v1", "assets": assets}
+    return {"format": "cdmw_archive_refit_v2", "assets": assets,
+            "coordinates": "neutral" if context.neutral_coordinates else "source"}
 
 
 def load_archive_refit_context(payload, project_root):
@@ -190,8 +230,11 @@ def load_archive_refit_context(payload, project_root):
     from cdmw.models import ArchiveEntry
     from cdmw.services.mesh_service import MeshService
 
-    if not isinstance(payload, dict) or payload.get("format") != "cdmw_archive_refit_v1":
+    if not isinstance(payload, dict) or payload.get("format") not in {"cdmw_archive_refit_v1", "cdmw_archive_refit_v2"}:
         raise ValueError("Unsupported archive Refit draft format")
+    coordinates = payload.get("coordinates", "source")
+    if coordinates not in {"source", "neutral"}:
+        raise ValueError("Unsupported archive Refit coordinate space")
     assets = []
     service = MeshService()
     for item in payload["assets"]:
@@ -214,7 +257,15 @@ def load_archive_refit_context(payload, project_root):
             source = replace(source, skeleton_bone_count=max(0, int(item["skeleton_bone_count"])))
         finally:
             service.close_edit_session(session_id, force_without_saving=True)
-        assets.append(ArchiveRefitAsset(entry, source, tuple(int(i) for i in item["parts"]), str(item["role"])))
+        appearance = None
+        if "neutral_appearance" in item:
+            from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
+            try:
+                appearance = _load_obj_neutral_appearance(item["neutral_appearance"])
+            except ValueError as exc:
+                raise ValueError(f"Archive Refit draft neutral appearance is invalid: {exc}") from exc
+        assets.append(ArchiveRefitAsset(entry, source, tuple(int(i) for i in item["parts"]), str(item["role"]),
+                                       neutral_appearance=appearance))
     if not assets:
         raise ValueError("Archive Refit draft contains no asset identities")
-    return ArchiveRefitContext(tuple(assets))
+    return ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral")
