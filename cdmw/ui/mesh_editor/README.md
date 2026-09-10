@@ -238,6 +238,10 @@ armor adds and selects its Parts ready for binding. No Free Edit or external
 mesh file is required. The panel lists loaded files separately from the assigned
 body driver and bound armor/clothing.
 
+The catalogue comes from the archive workspace, including when Mesh Editor is
+detached into its own window. Cancelling the picker or failing to open the
+catalogue leaves the editor session available for further commands.
+
 Archive sources keep their own original bytes, Part mappings, palettes, and
 archive paths. Geometry, rig dependencies, and materials prepare off the UI
 thread before one undoable publication. Cancelled, stale, duplicate, invalid,

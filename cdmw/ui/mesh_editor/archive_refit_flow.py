@@ -5,12 +5,13 @@ from PySide6.QtWidgets import QDialog
 from cdmw.ui.mesh_editor.replace_from_archive_dialog import ReplaceFromArchivePickerDialog
 from cdmw.ui.mesh_editor.replace_from_archive_flow import ReplaceFromArchiveFlowController
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
+from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 
 class ArchiveRefitPickerController(ReplaceFromArchiveFlowController):
     def choose(self, target_entry, role):
         owner = self._owner
-        service = getattr(owner, "archive_catalogue_service", None)
+        service = getattr(getattr(owner, "archive", None), "archive_catalogue_service", None)
         session = getattr(service, "current_session", None)
         if session is None:
             raise ValueError("Load the game archive catalogue before choosing a Refit mesh")
@@ -36,7 +37,10 @@ def prepare_archive_refit_event(tab, session, event):
     """Only host-selected archive objects enter the worker; never client paths."""
     controller = getattr(tab, "_archive_refit_picker", None)
     if controller is None:
-        controller = ArchiveRefitPickerController(tab.window())
+        owner = tab.window()
+        if isinstance(owner, DetachedToolWindow):
+            owner = owner.owner
+        controller = ArchiveRefitPickerController(owner)
         tab._archive_refit_picker = controller
     role = str(dict(event.get("arguments") or {}).get("role", ""))
     if role not in {"body", "armor"}:

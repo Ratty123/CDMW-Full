@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor **Browse Body...** and **Browse Armor...** use the loaded archive workspace, including in detached windows. Cancelling or failing to open the picker preserves the edit session instead of forcing the editor to close.
 - New Item preserves source material colours, opacity and normal strength when attaching an imported weapon to its template's hand socket. Textureless gems keep their own colour instead of inheriting the blade texture; previously exported items need rebuilding.
 - New Item exports keep shared-image materials independent, apply textureless colour and opacity factors once, preserve zero opacity and normal strength, and prevent parts from inheriting another part's normal map. Colliding glTF material names remain distinct.
 - New Item carries separate OBJ/MTL roughness and metalness maps into exported surface textures and retains emissive-map colour multipliers and strength.

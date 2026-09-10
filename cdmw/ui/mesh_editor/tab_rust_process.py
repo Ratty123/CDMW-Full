@@ -403,24 +403,31 @@ class MeshEditorRustProcessMixin:
             self.standalone_rust_protocol_queue.clear()
             return
         event = self.standalone_rust_protocol_queue.pop(0)
+        preparation_error = ""
         if event.get("command") == "refit_choose_archive":
             from cdmw.ui.mesh_editor.archive_refit_flow import prepare_archive_refit_event
             self._archive_refit_picker_active = True
             try:
                 event = prepare_archive_refit_event(self, session, event)
             except Exception as exc:
-                self._send_rust_error_response(event, str(exc))
-                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
-                return
+                preparation_error = str(exc) or type(exc).__name__
             finally:
                 self._archive_refit_picker_active = False
+            if (
+                self.standalone_rust_authoring_session is not session
+                or self.standalone_rust_closing
+            ):
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
         self.standalone_rust_protocol_request_id += 1
         worker_request_id = self.standalone_rust_protocol_request_id
         worker_type = getattr(
             import_module("cdmw.workers.mesh_rust_editor_workers"),
             "MeshRustProtocolWorker",
         )
-        worker = worker_type(worker_request_id, session, event)
+        worker = worker_type(
+            worker_request_id, session, event, preparation_error=preparation_error,
+        )
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)

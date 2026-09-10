@@ -180,6 +180,8 @@ class MeshRustProtocolWorker(QObject):
         worker_request_id: int,
         session: RustMeshAuthoringSession,
         event: dict[str, object],
+        *,
+        preparation_error: str = "",
     ) -> None:
         super().__init__()
         self.worker_request_id = int(worker_request_id)
@@ -188,6 +190,7 @@ class MeshRustProtocolWorker(QObject):
         # named ``event`` masks that Qt virtual and makes moveToThread() fail
         # before the first real protocol transaction can start.
         self.protocol_event = dict(event)
+        self._preparation_error = str(preparation_error)
         self._stop_event = threading.Event()
 
     def stop(self) -> bool:
@@ -203,6 +206,10 @@ class MeshRustProtocolWorker(QObject):
             client_request_id = int(self.protocol_event.get("request_id", 0) or 0)
             if self._stop_event.is_set():
                 return
+            if self._preparation_error:
+                # Picker rejection needs the same authoritative recovery state
+                # as worker failures, prepared here rather than on the UI thread.
+                raise ValueError(self._preparation_error)
             finish_accepted = False
             if event_name == "transaction_request":
                 payload = self.session.apply_candidate(self.protocol_event)
