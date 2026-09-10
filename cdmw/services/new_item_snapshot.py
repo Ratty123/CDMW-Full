@@ -35,6 +35,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import NewItemContext, TemplateFacts, TemplateLevelFacts
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_provenance import SourceTracker
+from cdmw.services.new_item_template_search import TemplateSearchCatalogue, build_template_search_catalogue
 
 TABLE_DIR = "gamedata/binary__/client/bin"
 PALOC_DIR = "gamedata/stringtable/binary__"
@@ -114,6 +115,7 @@ class NewItemSnapshot:
     _item_names: Optional[Mapping[int, str]] = field(default=None, repr=False)
     _item_display_names: Mapping[int, str] = field(default_factory=dict, repr=False)
     _item_localized_names: Mapping[int, Tuple[str, ...]] = field(default_factory=dict, repr=False)
+    _template_search_catalogue: Optional[TemplateSearchCatalogue] = field(default=None, repr=False)
     #: template key -> the validation context built for it; see :func:`build_context`
     _contexts: Dict[int, NewItemContext] = field(default_factory=dict, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
@@ -285,6 +287,12 @@ class NewItemSnapshot:
     def item_search_names(self) -> Mapping[int, Tuple[str, ...]]:
         """All shipped translations, prepared on the snapshot worker."""
         return self._item_localized_names
+
+    def template_search_catalogue(self) -> TemplateSearchCatalogue:
+        """The immutable equipment search facts; normal snapshots prepare these before publication."""
+        if self._template_search_catalogue is None:
+            self._template_search_catalogue = build_template_search_catalogue(self)
+        return self._template_search_catalogue
 
     def status_value_ranges(self) -> Mapping[int, Tuple[int, int, int, int]]:
         """`{status key: (entries, low, median, high)}` over shipped equipment rows.
@@ -579,6 +587,7 @@ def build_snapshot(
     # the median implementation local: importing ``statistics`` after PySide starts was
     # most of this otherwise small cold path on current Python builds.
     snapshot.status_value_ranges()
+    snapshot._template_search_catalogue = build_template_search_catalogue(snapshot, stop_event=stop_event)
     paths = {entry.pamt_path for entry in entries} | {entry.paz_file for entry in entries}
     root = Path(iteminfo.payload_entry.pamt_path).parent.parent
     paths.update((root / "meta" / "0.papgt", pathc_path))

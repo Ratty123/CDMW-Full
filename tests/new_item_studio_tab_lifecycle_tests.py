@@ -556,14 +556,17 @@ class _TabLifecycleMixin:
 
     def test_template_handoff_searches_once_and_selects_the_requested_item(self) -> None:
         from PySide6.QtCore import Qt
+        from cdmw.services.new_item_template_search import search_template_options
 
         tab = self._tab(window=None)
         tab.prefill_template(TEMPLATE)
         panel = tab.template_panel
-        with patch.object(tab.controller, "template_options", wraps=tab.controller.template_options) as search:
+        with patch("cdmw.workers.new_item_template_search.search_template_options", wraps=search_template_options) as search:
             panel.prefill(OTHER)
 
-        search.assert_called_once_with(str(OTHER), limit=None)
+        self.assertEqual(search.call_count, 1)
+        self.assertEqual(search.call_args.args[1], str(OTHER))
+        self.assertIsNone(search.call_args.kwargs["limit"])
         self.assertEqual(tab.controller.draft.template_key, OTHER)
         self.assertEqual(panel.filter_edit.text(), str(OTHER))
         self.assertEqual(panel.matches.currentItem().data(0, Qt.UserRole), OTHER)
@@ -595,7 +598,7 @@ class _TabLifecycleMixin:
             [TEMPLATE],
         )
         helmet_key = 1000036
-        tab.controller.snapshot.rows = {
+        rows = {
             **tab.controller.snapshot.rows,
             helmet_key: replace(
                 tab.controller.snapshot.rows[TEMPLATE],
@@ -604,6 +607,7 @@ class _TabLifecycleMixin:
                 name_key="",
             ),
         }
+        tab.controller.snapshot = replace(tab.controller.snapshot, rows=rows, _template_search_catalogue=None)
         self.assertEqual(
             [key for key, _internal, _item_name, _equip in tab.controller.template_options("helmet red")],
             [helmet_key],
@@ -630,13 +634,14 @@ class _TabLifecycleMixin:
             for index in range(125)
         ]
 
-        def template_options(_text="", *, limit=60):
-            return options if limit is None else options[:limit]
-
-        tab.controller.template_options = template_options  # type: ignore[method-assign]
-        # Every result includes capabilities derived from its actual ItemInfo row.
+        # Exercise the real search and sorting with an owned catalogue larger than one page.
         template = tab.controller.snapshot.rows[TEMPLATE]
-        tab.controller.snapshot.rows.update({key: replace(template,key=key,string_key=internal) for key,internal,_label,_equip in options})
+        tab.controller.snapshot = replace(
+            tab.controller.snapshot,
+            rows={key: replace(template, key=key, string_key=internal) for key, internal, _label, _equip in options},
+            _item_display_names={key: label for key, _internal, label, _equip in options},
+            _template_search_catalogue=None,
+        )
 
         panel.filter_edit.clear()
         panel._refresh_matches()

@@ -17,8 +17,8 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, 
 
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
-from cdmw.services.archive_workflow_service import archive_name_search_text_match, parse_archive_search_query
 from cdmw.services.new_item_snapshot import LocalizationEntry, LocalizationTable
+from cdmw.services.new_item_template_search import search_template_options
 from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
@@ -51,6 +51,7 @@ from cdmw.ui.new_item.effect_workspace_controller import NewItemEffectWorkspaceC
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, glow_choice, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.effect_catalogue_worker import EffectCatalogueIndexLane
 from cdmw.workers.new_item_cleanup_worker import ModelSourceCleanupLane
+from cdmw.workers.new_item_template_search import TemplateSearchLane
 from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -69,6 +70,7 @@ class NewItemStudioController(
     snapshot_ready = Signal()
     snapshot_failed = Signal(str)
     template_changed = Signal(object)
+    template_search_ready = Signal(object)
     plan_ready = Signal(object)
     plan_failed = Signal(str, object)
     plan_invalidated = Signal()
@@ -158,6 +160,9 @@ class NewItemStudioController(
         self._effect_lane.progress.connect(self.effect_catalogue_progress.emit)
         self._effect_lane.failed.connect(self.effect_catalogue_failed.emit)
         self._effect_lane.completed.connect(self._publish_effect_catalogue)
+        self._template_search_lane = TemplateSearchLane(synchronous=self._synchronous, parent=self)
+        self._template_search_lane.completed.connect(self._publish_template_search)
+        self._template_search_lane.failed.connect(self.log_message.emit)
         #: Identities this studio has already handed out but the snapshot may not see: a
         #: plan built earlier, or an item written as a loose mod rather than installed.
         #: Without them a second item would take the first one's key and stem, and
@@ -210,53 +215,24 @@ class NewItemStudioController(
 
         if self.snapshot is None:
             return []
-        raw_needle = str(text or "").strip().casefold()
-        query = parse_archive_search_query(text)
-        display_names = self.snapshot.item_display_names()
-        localized_names = self.snapshot.item_search_names()
-        ranked: List[Tuple[int, str, int, str, str, str]] = []
+        return search_template_options(self.snapshot.template_search_catalogue(), text, limit=limit)
 
-        def term_matches(term, name_fields: Tuple[str, ...], all_fields: Tuple[str, ...]) -> bool:
-            fields = name_fields if term.field == "name" else all_fields if term.field == "any" else ()
-            value = str(term.value or "").casefold()
-            return any(
-                archive_name_search_text_match(field, term)
-                or bool(value and not term.glob and not term.phrase and value in field.casefold())
-                for field in fields
-                if field
-            )
+    def request_template_search(self, text: str, *, group_key=None, sort_column=-1, descending=False, debounce=True) -> None:
+        if self._shutdown_requested:
+            return
+        if self.snapshot is None:
+            self._template_search_lane.cancel()
+            self.template_search_ready.emit([])
+            return
+        self._template_search_lane.request(
+            self.snapshot.template_search_catalogue(), text,
+            group_key=group_key, sort_column=sort_column, descending=descending,
+            debounce_ms=150 if debounce else 0,
+        )
 
-        for key, row in self.snapshot.rows.items():
-            equip = self.snapshot.equip_type_name(row)
-            if not equip:
-                continue
-
-            internal_name = str(row.string_key or "")
-            display_name = str(display_names.get(int(key), "") or "")
-            name_fields = (internal_name, display_name, *localized_names.get(int(key), ()))
-            all_fields = (*name_fields, equip, str(key))
-
-            if not query.is_empty and not any(
-                all(
-                    not term_matches(term, name_fields, all_fields)
-                    if term.negated
-                    else term_matches(term, name_fields, all_fields)
-                    for term in group
-                )
-                for group in query.groups
-            ):
-                continue
-
-            exact_values = {str(key), *(value.casefold() for value in name_fields)}
-            rank = 0 if raw_needle and raw_needle in exact_values else 1
-            ranked.append((rank, internal_name.casefold(), int(key), internal_name, display_name, equip))
-
-        ranked.sort(key=lambda item: (item[0], item[1], item[2]))
-        visible = ranked if limit is None else ranked[:limit]
-        return [
-            (key, internal_name, display_name, equip)
-            for _rank, _name, key, internal_name, display_name, equip in visible
-        ]
+    def _publish_template_search(self, catalogue, options) -> None:
+        if self.snapshot is not None and catalogue is self.snapshot.template_search_catalogue():
+            self.template_search_ready.emit(options)
 
     def template_name(self) -> str:
         """The template's internal name, or "" before one is chosen."""

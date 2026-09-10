@@ -439,6 +439,7 @@ class NewItemTaskControllerMixin:
             workers.append((self._lane or "task", self._thread, self._worker))
         workers.extend(self._model_cleanup_lane.iter_shutdown_workers())
         workers.extend(self._effect_lane.iter_shutdown_workers())
+        workers.extend(self._template_search_lane.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
@@ -454,6 +455,7 @@ class NewItemTaskControllerMixin:
         source, self.model_import = self.model_import, None
         self._cleanup_model_source(source)
         self._effect_lane.request_shutdown()
+        self._template_search_lane.request_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()

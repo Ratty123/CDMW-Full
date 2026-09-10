@@ -43,8 +43,13 @@ Queued effect-toolbar resize and post-install refresh callbacks are tied to
 their owning widgets, so destroying the workspace cancels pending delivery.
 The Template panel searches internal IDs, every available localized item name, equipment types and
 item keys with Archive Browser's normalized terms, phrases, alternatives and exclusions.
+The snapshot worker prepares immutable equipment names and category membership once.
+Find coalesces typing for 150 ms, then searches and sorts on one cancellable worker;
+each edit immediately supersedes older work, and only the latest result for the current
+snapshot can replace the list. Existing rows stay usable while searching. Search shutdown
+returns immediately and keeps unfinished threads visible to the shell's close sweep.
 Its result table separates the internal name, English item name, numeric key and equipment
-type into four labelled columns. Column edges are session-resizable, clicking a heading
+type plus authoring capabilities into five labelled columns. Column edges are session-resizable, clicking a heading
 sorts the complete match set (including numeric key order), and scrolling near the bottom
 adds the next 60 rows until every match is visible. Startup and later panel growth distribute
 all available width across the columns instead of leaving an empty strip. An explicit mouse click commits immediately,

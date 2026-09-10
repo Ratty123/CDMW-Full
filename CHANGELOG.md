@@ -24,6 +24,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Typing in Create New Item's Template **Find** field stays responsive while results update. Catalogue search, category filtering and sorting run on a cancellable worker; rapid edits replace obsolete searches and retain the current results until the latest search finishes.
 - New Item can rebuild its plan after choosing a DMM or other existing output folder, using the loaded archive reader instead of incorrectly blocking with **Read the archives first**. Repeated exports with **Add to the mod already in this folder** retain earlier items in that folder.
 - Effect previews apply authored force as acceleration, matching the game's standard particle simulation. Low-mass fire and smoke no longer accelerate disproportionately and form oversized trails; effect placement and colour settings are preserved.
 - Removing a legacy overlay preserves later texture registrations from other mods and refuses ambiguous ownership. Recipe ingredient and output dependencies prevent removal of items needed by remaining overlays, including inventories written before those dependencies were recorded.

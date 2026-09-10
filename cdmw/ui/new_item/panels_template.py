@@ -40,6 +40,9 @@ class TemplatePanel(QGroupBox):
         self._controller = controller
         self._syncing = False
         self._match_options: list[tuple[int, str, str, str]] = []
+        self._requested_row_count = _MATCH_PAGE_SIZE
+        self._preferred_match_key: Optional[int] = None
+        self._matches_snapshot = None
         self._sort_column = -1
         self._sort_order = Qt.SortOrder.AscendingOrder
         self._column_widths_initialized = False
@@ -137,7 +140,7 @@ class TemplatePanel(QGroupBox):
         self.workspace_splitter.setSizes((720, 480))
         layout.addLayout(self.workspace_layout, 1)
         self._preview = None
-        controller.snapshot_ready.connect(self._refresh_matches)
+        controller.template_search_ready.connect(self._show_matches)
         controller.template_changed.connect(self._show_template)
         controller.snapshot_ready.connect(self._refresh_categories)
         self._refresh_categories()
@@ -177,25 +180,32 @@ class TemplatePanel(QGroupBox):
         if preview.parentWidget() is not self.preview_holder:
             self.preview_holder_layout.addWidget(preview, 1)
 
-    def _refresh_matches(self, *_args) -> None:
+    def _refresh_matches(self, *_args, debounce=True, visible_count=_MATCH_PAGE_SIZE, preferred_key=None) -> None:
+        # Supersede both search work and an arrow-key selection from the old results
+        # immediately; keep the current rows usable until the new query is ready.
+        self._pick_timer.stop()
+        self._pending_key = None
+        self._requested_row_count = visible_count
+        self._preferred_match_key = preferred_key
+        if self._matches_snapshot is not self._controller.snapshot:
+            self._show_matches([])
+        self._controller.request_template_search(
+            self.filter_edit.text(), group_key=self.category.currentData(),
+            sort_column=self._sort_column,
+            descending=self._sort_order == Qt.SortOrder.DescendingOrder,
+            debounce=debounce,
+        )
+
+    def _show_matches(self, options) -> None:
+        self._pick_timer.stop()
+        self._pending_key = None
         self._syncing = True
         try:
             self.matches.clear()
-            self._match_options = self._controller.template_options(self.filter_edit.text(), limit=None)
-            group_key = self.category.currentData()
-            if group_key is not None and self._controller.snapshot:
-                groups = {g.key: g for g in self._controller.snapshot.item_groups}
-                members, visited, pending = set(), set(), [group_key]
-                while pending:
-                    key = pending.pop()
-                    if key in visited or key not in groups:
-                        continue
-                    visited.add(key)
-                    members.update(groups[key].members)
-                    pending.extend(groups[key].subgroups)
-                self._match_options = [option for option in self._match_options if option[0] in members]
-            self._sort_match_options()
-            self._append_match_rows(preferred_key=self._controller.draft.template_key)
+            self._matches_snapshot = self._controller.snapshot
+            self._match_options = options
+            preferred_key = self._controller.draft.template_key if self._preferred_match_key is None else self._preferred_match_key
+            self._append_match_rows(self._requested_row_count, preferred_key=preferred_key)
         finally:
             self._syncing = False
 
@@ -232,21 +242,6 @@ class TemplatePanel(QGroupBox):
         finally:
             self._syncing = False
 
-    def _sort_match_options(self) -> None:
-        column = self._sort_column
-        if column < 0:
-            return
-
-        def sort_key(option: tuple[int, str, str, str]):
-            key, internal_name, item_name, equip = option
-            values = (internal_name.casefold(), item_name.casefold(), int(key), equip.casefold(), self._capability_label(key).casefold())
-            return values[column], internal_name.casefold(), int(key)
-
-        self._match_options.sort(
-            key=sort_key,
-            reverse=self._sort_order == Qt.SortOrder.DescendingOrder,
-        )
-
     def _capability_label(self, key):
         snapshot = self._controller.snapshot
         row = snapshot.rows.get(key) if snapshot else None
@@ -271,15 +266,12 @@ class TemplatePanel(QGroupBox):
         current = self.matches.currentItem()
         current_key = current.data(0, Qt.UserRole) if current is not None else None
         visible_count = max(_MATCH_PAGE_SIZE, self.matches.topLevelItemCount())
-        self._syncing = True
-        try:
-            self.matches.header().setSortIndicator(self._sort_column, self._sort_order)
-            self.matches.header().setSortIndicatorShown(True)
-            self._sort_match_options()
-            self.matches.clear()
-            self._append_match_rows(visible_count, preferred_key=current_key if isinstance(current_key, int) else None)
-        finally:
-            self._syncing = False
+        self.matches.header().setSortIndicator(self._sort_column, self._sort_order)
+        self.matches.header().setSortIndicatorShown(True)
+        self._refresh_matches(
+            debounce=False, visible_count=visible_count,
+            preferred_key=current_key if isinstance(current_key, int) else None,
+        )
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt virtual method
         if (
@@ -409,7 +401,7 @@ class TemplatePanel(QGroupBox):
         with QSignalBlocker(self.filter_edit):
             self.filter_edit.setText(str(template_key))
         self._controller.set_template(template_key)
-        self._refresh_matches()
+        self._refresh_matches(debounce=False)
 
     def _show_template(self, key: object) -> None:
         if key is None:

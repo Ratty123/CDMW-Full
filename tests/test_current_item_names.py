@@ -53,6 +53,7 @@ def current_entries(tmp_path):
 
 def test_current_snapshot_and_template_search_share_all_languages(current_entries):
     snapshot = build_snapshot(current_entries, read_entry=_read)
+    assert snapshot._template_search_catalogue is not None, "search preparation belongs to snapshot loading"
     assert snapshot.item_display_names()[TEMPLATE] == "Wolf's Fang"
     assert snapshot.languages == ("ara", "eng", "ger")
     controller = SimpleNamespace(snapshot=snapshot)
