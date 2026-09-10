@@ -196,6 +196,27 @@ def build_mod_base_snapshot(service, snapshot, folder: Path, *, read_entry, on_l
         for suffix, other in ((body_suffix, head_suffix), (head_suffix, body_suffix)):
             if path.endswith(suffix) and path[:-len(suffix)] + other not in payloads:
                 raise ValueError(f"Incomplete table pair in mod base: {path}")
+    from cdmw.core.mod_compatibility import build_label, build_status, game_identity, read_compatibility
+    compatibility = read_compatibility(folder, stop_event=stop_event)
+    if compatibility is not None:
+        game_root = Path(snapshot.iteminfo.payload_entry.pamt_path).parent.parent
+        current_game = game_identity(game_root, stop_event)
+        changed = []
+        for path, original in compatibility.originals.items():
+            raise_if_cancelled(stop_event, "Mod base compatibility check cancelled.")
+            if path not in payloads or path.startswith("meta/"):
+                continue
+            current_data = read_entry(snapshot.entry(path)) if snapshot.has_entry(path) else None
+            if current_data != original and current_data != payloads[path].read_bytes():
+                changed.append(path)
+        if changed:
+            raise ValueError("This mod's source data changed. Use Check mods for game updates and review or rebuild it before adding items. "
+                             + "Changed files: " + ", ".join(changed[:8]))
+        if on_log and build_status(compatibility.target_game, current_game) != "same":
+            on_log(f"Mod built for {build_label(compatibility.target_game)}; current game {build_label(current_game)}. "
+                   "Use Check mods for game updates to review its recorded dependencies.")
+    elif on_log:
+        on_log("This older mod has no portable game baseline. Its game compatibility is unknown.")
     entries = dict(snapshot.entries)
     added = set()
     for path, payload in payloads.items():

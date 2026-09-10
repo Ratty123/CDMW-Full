@@ -36,6 +36,7 @@ class ModMergePlan:
     revision: SourceRevision
     inventories: tuple[tuple[Path, tuple], ...]
     loose_hashes: tuple[tuple[Path, str], ...]
+    compatibility: object = None
 
     def validate(self, stop_event=None):
         self.revision.validate(stop_event)
@@ -185,6 +186,7 @@ def prepare_mod_merge(
         mods.append((label, data, flags, hashes, manifest))
 
     output, source_hashes, owned_items, textures = {}, {}, [], set()
+    baseline_payloads = {}
     generations = {str(mod[4].get("generation")) for mod in mods if mod[4].get("generation")}
     if len(generations) > 1:
         conflicts.append("The selected mods use different game table generations. Rebuild them against the same game version.")
@@ -239,6 +241,7 @@ def prepare_mod_merge(
                     raise ValueError(f"Different source versions for {path}. Rebuild these mods against the same baseline.")
                 digest = roots_for_path.pop()
                 common[path] = versions[digest] if digest is not None else None
+                baseline_payloads[path] = common[path]
                 if digest is not None:
                     source_hashes[path] = digest
             current = dict(common)
@@ -271,12 +274,31 @@ def prepare_mod_merge(
                     raise ValueError(f"{name}: texture registry changes have no CDMW ownership information.")
                 current = merge_mod_texture_registry(registry[0], current, data["meta/0.pathc"], owned, data)
             output["meta/0.pathc"] = (current, 0)
+            baseline_payloads["meta/0.pathc"] = registry[0]
         except (ValueError, RuntimeError) as error:
             conflicts.append(f"meta/0.pathc: {error}")
+    from cdmw.core.mod_compatibility import compatibility_from_payloads, game_identity, read_compatibility
+    dependencies = {}
+    for folder, mod in zip(roots, mods):
+        evidence = read_compatibility(folder, stop_event=stop_event)
+        for record in evidence.dependencies if evidence else mod[4].get("sources", ()):
+            path = _path(record["path"])
+            if path in output:
+                continue
+            values = game_candidates(path)
+            if not values or _digest(values[0]) != record["sha256"]:
+                conflicts.append(f"{folder.name}: referenced source changed or is missing: {path}. Check this mod for game updates.")
+            elif path in dependencies and dependencies[path] != record["sha256"]:
+                conflicts.append(f"The selected mods reference different source versions of {path}.")
+            else:
+                dependencies[path] = record["sha256"]
+    compatibility = compatibility_from_payloads({path: data for path, (data, _flags) in output.items()},
+        baseline_payloads, target_game=game_identity(game_root, stop_event),
+        dependencies=tuple({"path": path, "sha256": value} for path, value in sorted(dependencies.items())))
     result = ModMergePlan(roots, game_root,
         tuple((path, data, flags) for path, (data, flags) in sorted(output.items())), tuple(conflicts),
         tuple(sorted(source_hashes.items())), tuple(owned_items), tuple(sorted(textures)),
-        next(iter(generations), ""), tracker.capture(), tuple(inventories), tuple(loose_hashes))
+        next(iter(generations), ""), tracker.capture(), tuple(inventories), tuple(loose_hashes), compatibility)
     result.validate(stop_event)
     return result
 
@@ -306,14 +328,15 @@ def export_merged_mod(plan: ModMergePlan, destination: Path, *, title="Combined 
             else:
                 additions.append(ArchiveAddRequest(plan.game_root / "0.pamt", path, data, flags))
         result = export_archive_overlay_package((), additions, package_root=staging,
-            game_root=plan.game_root, metadata_files=metadata, on_log=on_log, stop_event=stop_event)
+            game_root=plan.game_root, metadata_files=metadata, on_log=on_log, stop_event=stop_event,
+            compatibility=plan.compatibility)
         manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod",
             "name": title, "title": title, "game": "Crimson Desert", "version": "1.0.0",
             "description": "Combined from: " + ", ".join(folder.name for folder in plan.folders),
             "generator": "Crimson Desert Mod Workbench - Merge Mods", "files_dir": ".",
             "manager_targets": ["dmm"], "manager_target_labels": ["Definitive Mod Manager"],
             "structure": "archive_group", "archive_group": result.group,
-            "file_count": result.file_count, "overrides": list(result.paths)}
+            "file_count": result.file_count, "overrides": list(result.paths), "target_game": result.target_game}
         for name in ("manifest.json", "modinfo.json"):
             (staging / name).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         info = {"generation": plan.generation, "previous_items": list(plan.items),

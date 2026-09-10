@@ -424,6 +424,41 @@ Duplicate item or generated recipe IDs, conflicting asset contents, missing base
 history and unsupported shared changes block export. The merger does not reassign
 identities or rewrite their references automatically. New Item's direct archive-install
 button is removed; its compatibility service entry point refuses every call.
+
+**Tools > Check mods for game updates...** compares an exported mod folder or all
+installed CDMW overlays with the current game. The same action is available beside
+**Read the archives** before the item catalogue loads. Disable an exported mod in its mod
+manager before comparing it. Installed CDMW overlays are excluded from the current
+game baseline and reviewed together using their recorded installation history.
+The review shows the original and current game builds, compared files, missing
+originals, changed dependencies and merge conflicts. Supported independent table
+changes can be carried forward; conflicting records, reused IDs and overlapping
+opaque asset changes require review and block automatic output.
+**Write updated mod** creates a separate DMM package in a new or empty folder.
+Enable that package in place of the original. For installed overlays, review
+**Archive recovery** before replacing the installed set. Comparison and export
+never alter the source mod, installed overlays or game archives.
+
+New exports record the full available game build and executable fingerprint, file
+hashes and original payloads in `cdmw-compatibility.json` and `cdmw-baseline.zip`.
+Keep both files with the mod; metadata conversion and mod merging preserve this
+history. Original payload storage is bounded to 256 MiB per file and 512 MiB total;
+unavailable or larger originals remain explicitly unknown. New Item exports also
+record the dependencies read while building the item. Installed overlays carry a
+game stamp in their existing transaction history, and their list shows **Built for**
+and **Game check**. A known game build change prompts a new comparison; a matching
+build is not a gameplay compatibility guarantee.
+
+Older mods without recoverable original data remain **Unknown baseline** and
+cannot be updated automatically. Old source hashes can establish that existing
+data is unchanged, but cannot reconstruct lost pre-update data. A successful
+comparison covers recorded files and dependencies; gameplay still needs testing.
+`mod_update_service.py` owns comparison and separate package publication.
+`mod_update_workers.py` uses the controller's serialized `mod_update` lane;
+closing the dialog cancels work without waiting, discards late results and leaves
+an incomplete package unpublished. Both source inputs are checked again before
+publication.
+
 Game overlays carry a CDMW ownership marker;
 install, migration and removal ignore foreign numeric groups and roll back every
 post-backup failure or cancellation. Temporary model extraction roots are retired when

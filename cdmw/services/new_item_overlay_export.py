@@ -49,6 +49,8 @@ def export_overlay_mod(
     created_utc: str = "",
     game_root: Optional[Path] = None,
     on_log: Optional[Callable[[str], None]] = None,
+    compatibility=None,
+    stop_event=None,
 ) -> OverlayModExport:
     """Write `plan` into `package_root` as an archive group with its mount list.
 
@@ -70,6 +72,8 @@ def export_overlay_mod(
             (write.path, write.payload_data) for write in getattr(plan, "meta_files", ())
         ),
         on_log=on_log,
+        compatibility=compatibility,
+        stop_event=stop_event,
     )
     root = shared.package_root
     name = shared.group
@@ -83,6 +87,7 @@ def export_overlay_mod(
         "name": title or f"New item {spec.internal_name}",
         "title": title or f"New item {spec.internal_name}",
         "game": "Crimson Desert",
+        "target_game": shared.target_game,
         "version": version,
         "author": author,
         "description": description or f"Adds {spec.internal_name} (item {spec.item_key}) cloned from item {spec.template_key}.",

@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- **Check mods for game updates** records game-build and original-file history in new exports and installed overlays. Compare against a patched game, review changed files and dependencies, and write a separate updated DMM package when supported changes merge without conflicts. Missing originals and unresolved conflicts block automatic updates; the original mod and game files are preserved.
 - New Item's **Merge mods** checks selected loose or DMM mod folders and writes one combined DMM package. Supported table records, shops, localisation and owned texture registrations are composed against their recorded baselines; unresolved conflicts block export and source folders are preserved.
 - New Item's **Installed overlays** lists individual installs and removes a selected one while preserving the remaining items, shops, localisation and asset registries. Shared edits are composed by record, conflicting ownership is refused, and earlier installs remain identifiable as one legacy bundle.
 - New Item armour imports transfer weights across template material sections and can use the matching verified character body when the template's influences exceed its resolved palette. Build plan names the body donor and reports fit/deformation warnings; template physics must be off for this transfer.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
@@ -29,6 +29,7 @@ class ArchiveOverlayPackageResult:
     paths: Tuple[str, ...]
     metadata_files: Tuple[str, ...]
     mount_list_written: bool
+    target_game: dict = field(default_factory=dict)
 
 
 def _safe_overlay_package_output_path(
@@ -58,10 +59,16 @@ def export_archive_overlay_package(
     metadata_files: Iterable[tuple[str, bytes]] = (),
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: threading.Event | None = None,
+    compatibility=None,
 ) -> ArchiveOverlayPackageResult:
     """Write immutable patch payloads as one manager-mountable archive group."""
 
     root = Path(package_root)
+    metadata_files = tuple(metadata_files)
+    from cdmw.core.mod_compatibility import capture_patch_compatibility, write_compatibility
+    if compatibility is None:
+        compatibility = capture_patch_compatibility(requests, additions, game_root=game_root,
+            metadata_files=metadata_files, stop_event=stop_event)
     files: dict[str, OverlayFile] = {}
     for request in requests:
         raise_if_cancelled(stop_event, "Overlay package export cancelled while composing patches.")
@@ -132,6 +139,7 @@ def export_archive_overlay_package(
         target.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(target, payload)
         written.append(normalized)
+    written.extend(path.name for path in write_compatibility(root, compatibility, stop_event=stop_event))
 
     if on_log is not None:
         on_log(
@@ -146,6 +154,7 @@ def export_archive_overlay_package(
         paths=tuple(sorted(files)),
         metadata_files=tuple(written),
         mount_list_written=mount_written,
+        target_game=compatibility.target_game,
     )
 
 

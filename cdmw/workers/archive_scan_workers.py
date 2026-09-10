@@ -349,6 +349,8 @@ class ArchiveScanWorker(QObject):
         if previous_hash == current_hash:
             return
 
+        self.log_message.emit("The game build changed. Use New Item > Tools > Check mods for game updates to review older mods and overlays.")
+
         deleted_paths = invalidate_archive_browser_cache(
             self.package_root,
             self.cache_root,

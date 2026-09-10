@@ -163,6 +163,9 @@ class NewItemStudioTab(QWidget):
         self._read_button = QPushButton("Read the archives")
         self._read_button.setProperty("newItemPrimary", True)
         self._read_button.clicked.connect(self.start_snapshot)
+        self._update_button = QPushButton("Check mods for game updates...")
+        self._update_button.clicked.connect(self._update_mods)
+        self.controller.busy_changed.connect(self._update_button.setDisabled)
         self._bootstrap = QWidget()
         boot = QVBoxLayout(self._bootstrap)
         boot.setContentsMargins(24, 24, 24, 24)
@@ -170,6 +173,7 @@ class NewItemStudioTab(QWidget):
         boot.addWidget(self._status)
         boot.addWidget(self._progress)
         boot.addWidget(self._read_button, alignment=Qt.AlignHCenter)
+        boot.addWidget(self._update_button, alignment=Qt.AlignHCenter)
         boot.addStretch(1)
 
         self._layout = QVBoxLayout(self)
@@ -400,6 +404,7 @@ class NewItemStudioTab(QWidget):
         self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
         self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
         self.output_panel.merge_requested.connect(self._merge_mods)
+        self.output_panel.update_requested.connect(self._update_mods)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
         self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
         self.output_panel.overlay_removal_requested.connect(self._remove_overlay)
@@ -894,6 +899,13 @@ class NewItemStudioTab(QWidget):
         from cdmw.ui.new_item.mod_merge_dialog import ModMergeDialog
 
         dialog = ModMergeDialog(self.controller, self._get_package_root(), self)
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.show()
+
+    def _update_mods(self) -> None:
+        from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
+
+        dialog = ModUpdateDialog(self.controller, self._get_package_root(), self)
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.show()
 

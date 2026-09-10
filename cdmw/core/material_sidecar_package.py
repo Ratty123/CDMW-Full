@@ -205,12 +205,19 @@ def export_material_sidecar_mod_package(
             stop_event,
         )
         raise_if_cancelled(stop_event, _CANCEL_MESSAGE)
+        from cdmw.core.mod_compatibility import capture_patch_compatibility
+        from cdmw.domain.archives.mutation import ArchivePatchRequest
+        baseline_requests = tuple(ArchivePatchRequest(entry, (staged_root / entry.path).read_bytes())
+            for entry in (edited_entry, *related_entries) if (staged_root / entry.path).is_file())
+        compatibility = capture_patch_compatibility(baseline_requests,
+            game_root=Path(edited_entry.pamt_path).parent.parent, stop_event=stop_event)
         metadata_files = write_mesh_loose_mod_package_metadata(
             staged_root,
             package_info,
             assets=(),
             files=file_rows,
             include_paired_lod=False,
+            compatibility=compatibility,
             export_options=export_options,
             create_no_encrypt_file=create_no_encrypt_file,
             stop_event=stop_event,

@@ -118,6 +118,7 @@ def install_result_report(result: object) -> tuple:
 
 class OutputPanel(QGroupBox):
     merge_requested = Signal()
+    update_requested = Signal()
     #: The overlay route: the same plan as an archive directory of its own.
     install_overlay_requested = Signal()
     #: Housekeeping for that directory, neither of which needs a plan.
@@ -261,6 +262,10 @@ class OutputPanel(QGroupBox):
         self.merge_button.clicked.connect(self.merge_requested.emit)
         self.merge_button.hide()
         self.tools_menu.addAction(self.merge_button.text(), self.merge_button.click)
+        self.update_button = QPushButton("Check mods for game updates...", self)
+        self.update_button.clicked.connect(self.update_requested.emit)
+        self.update_button.hide()
+        self.tools_menu.addAction(self.update_button.text(), self.update_button.click)
         self._build_overlay_tools(write_layout)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
@@ -497,6 +502,7 @@ class OutputPanel(QGroupBox):
         has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
         self.merge_button.setEnabled(not busy)
+        self.update_button.setEnabled(not busy)
         self.install_overlay_button.setEnabled(has_plan and not busy)
         self.overlay_directory.setEnabled(not busy)
         self.overlay_migration_button.setEnabled(not busy)

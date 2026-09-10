@@ -333,6 +333,9 @@ def export_archive_payloads_to_mod_ready_loose(
             on_log=on_log,
         )
 
+    from cdmw.core.mod_compatibility import capture_patch_compatibility, write_compatibility
+    write_compatibility(package_root, capture_patch_compatibility(requests,
+        game_root=_package_root_from_entry(requests[0].entry)))
     manifest_path = write_mod_package_manifest(
         package_root,
         package_info,
@@ -620,6 +623,8 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
     if duplicate_row_count > 0:
         _safe_log(on_log, f"Removed {duplicate_row_count:,} duplicate file metadata row(s) before writing manifest.json.")
     game_metadata = _detect_archive_game_metadata(primary_entry)
+    from cdmw.core.mod_compatibility import capture_patch_compatibility
+    compatibility = capture_patch_compatibility(requests, game_root=_package_root_from_entry(primary_entry))
 
     metadata_files = write_mesh_loose_mod_package_metadata(
         package_root,
@@ -631,6 +636,7 @@ def export_archive_mesh_payloads_to_mod_ready_loose(
         create_no_encrypt_file=create_no_encrypt_file,
         game_build=str(game_metadata.get("game_build", "") or ""),
         game_metadata=game_metadata,
+        compatibility=compatibility,
     )
     primary_lower = primary_path.casefold()
     cloth_like = any(token in primary_lower for token in ("cloak", "cloth", "cape", "pbd"))

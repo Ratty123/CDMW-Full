@@ -857,6 +857,9 @@ class MeshDirectOutputWorker(QObject):
                 atomic_write_bytes(target, request.payload_data)
             atomic_write_bytes(staging / "mesh-editor-session.json", metadata)
             options = mod_package_export_options_for_manager(self.manager_profile)
+            from cdmw.core.mod_compatibility import capture_patch_compatibility
+            compatibility = capture_patch_compatibility(requests,
+                game_root=Path(self.entry.pamt_path).resolve().parent.parent, stop_event=self.stop_event)
             metadata_files = write_mesh_loose_mod_package_metadata(
                 staging,
                 self._package_info(root),
@@ -865,6 +868,7 @@ class MeshDirectOutputWorker(QObject):
                 include_paired_lod=False,
                 export_options=options,
                 create_no_encrypt_file=bool(options.create_no_encrypt_file),
+                compatibility=compatibility,
                 stop_event=self.stop_event,
             )
             effective_options = effective_mod_package_export_options_for_kind("mesh_loose_mod", options)

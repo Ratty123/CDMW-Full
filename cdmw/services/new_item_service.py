@@ -311,6 +311,15 @@ class NewItemService:
                     created_utc=created_utc,
                     stop_event=stop_event,
                 )
+            from cdmw.core.mod_compatibility import capture_patch_compatibility
+            try:
+                game_root = _package_root_of(plan)
+            except NewItemInstallRefused:
+                game_root = None
+            compatibility = capture_patch_compatibility(plan.patches, plan.additions,
+                game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in plan.meta_files),
+                dependencies=tuple({"path": row["path"], "sha256": row["sha256"]}
+                    for row in plan.manifest.get("sources", ())), stop_event=stop_event)
             payload_paths = []
             for game_path, data in sorted(plan.loose_files.items()):
                 raise_if_cancelled(stop_event, "New item export cancelled.")
@@ -341,6 +350,8 @@ class NewItemService:
                 new_file_paths=list(plan.new_paths),
                 options=resolved_options,
                 created_utc=created_utc,
+                compatibility=compatibility,
+                stop_event=stop_event,
             )
             metadata = tuple(sorted(Path(path).name for path in getattr(result, "metadata_files", ()) or ()))
             return NewItemExportResult(
@@ -382,6 +393,11 @@ class NewItemService:
         source_root = Path(existing_root) if existing_root is not None else root
         group = _existing_archive_group(source_root)
         carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
+        from cdmw.core.mod_compatibility import capture_patch_compatibility
+        compatibility = capture_patch_compatibility(carried_plan.patches, carried_plan.additions,
+            game_root=game_root, metadata_files=tuple((item.path, item.payload_data) for item in carried_plan.meta_files),
+            dependencies=tuple({"path": row["path"], "sha256": row["sha256"]}
+                for row in plan.manifest.get("sources", ())), stop_event=stop_event)
         raise_if_cancelled(stop_event, "New item export cancelled.")
         written = export_overlay_mod(
             carried_plan, root,
@@ -392,6 +408,8 @@ class NewItemService:
             version=str(getattr(info, "version", "") or "1.0.0"),
             created_utc=str(created_utc or ""),
             game_root=game_root,
+            compatibility=compatibility,
+            stop_event=stop_event,
         )
         return NewItemExportResult(
             package_root=root,

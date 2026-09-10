@@ -19,21 +19,21 @@ class OverlayManagerDialog(QDialog):
         self._entries = ()
         self.setWindowTitle('Installed overlays')
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.resize(720, 400)
+        self.resize(900, 430)
         layout = QVBoxLayout(self)
         self.status = QLabel('Reading installed overlays…')
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(['Overlay', 'Items', 'Folder', 'Files', 'Installed'])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(['Overlay', 'Items', 'Folder', 'Files', 'Installed', 'Built for', 'Game check'])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().hide()
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, 5):
+        for column in range(1, 7):
             self.table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         layout.addWidget(self.table, 1)
@@ -48,6 +48,9 @@ class OverlayManagerDialog(QDialog):
         self.refresh_button = QPushButton('Refresh')
         self.refresh_button.clicked.connect(self.refresh)
         row.addWidget(self.refresh_button)
+        self.update_button = QPushButton('Check game updates...')
+        self.update_button.clicked.connect(self._check_updates)
+        row.addWidget(self.update_button)
         row.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
@@ -62,6 +65,7 @@ class OverlayManagerDialog(QDialog):
         available = not self._working and not self.controller.busy
         self.table.setEnabled(available)
         self.refresh_button.setEnabled(available)
+        self.update_button.setEnabled(available and bool(self._entries))
         self.remove_button.setEnabled(available and 0 <= self.table.currentRow() < len(self._entries))
 
     def _selection_changed(self):
@@ -69,6 +73,8 @@ class OverlayManagerDialog(QDialog):
         entry = self._entries[index] if 0 <= index < len(self._entries) else None
         self.details.setText('This earlier install has no separate ownership history. Its contents are managed as one bundle.'
                              if entry and entry.legacy else 'Removing one overlay preserves the shared tables and files used by the remaining overlays.')
+        if entry and entry.compatibility_status != 'same':
+            self.details.setText(self.details.text() + ' Check game updates before changing this installed set.')
         self._buttons()
 
     def _run(self, task, done, status, *, applying=False):
@@ -105,14 +111,21 @@ class OverlayManagerDialog(QDialog):
         self._entries = tuple(entries)
         self.table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
+            check = {'changed': self.tr('Needs comparison'), 'same': self.tr('Same build'), 'unknown': self.tr('Unknown')}[entry.compatibility_status]
             values = (entry.label, ', '.join(map(str, entry.item_keys)) or '—', entry.directory,
-                      str(entry.file_count), datetime.fromtimestamp(entry.created_at).strftime('%Y-%m-%d %H:%M'))
+                      str(entry.file_count), datetime.fromtimestamp(entry.created_at).strftime('%Y-%m-%d %H:%M'), entry.game_build, check)
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         if entries:
             self.table.selectRow(0)
         self.status.setText(f'{len(entries)} installed overlay(s).' if entries else 'No CDMW overlays are installed.')
         self._selection_changed()
+
+    def _check_updates(self):
+        from cdmw.ui.new_item.mod_update_dialog import ModUpdateDialog
+        dialog = ModUpdateDialog(self.controller, self.package_root, self, installed=True)
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.show()
 
     def _remove(self):
         index = self.table.currentRow()

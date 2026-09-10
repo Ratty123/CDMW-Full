@@ -404,6 +404,8 @@ def _payload_paths_under_root(root: Path, payload_paths: Sequence[str | Path]) -
 
 def _discover_payload_paths_under_root(root: Path) -> list[str]:
     ignored_names = {
+        "cdmw-compatibility.json",
+        "cdmw-baseline.zip",
         ".no_encrypt",
         "README.txt",
         "info.json",
@@ -638,6 +640,8 @@ def finalize_mod_package_export(
     extra_fields: dict[str, object] | None = None,
     options: ModPackageExportOptions | None = None,
     created_utc: str | None = None,
+    compatibility=None,
+    stop_event=None,
 ) -> ModPackageFinalizeResult:
     root.mkdir(parents=True, exist_ok=True)
     resolved_options = _effective_export_options_for_kind(kind, options or ModPackageExportOptions())
@@ -731,6 +735,28 @@ def finalize_mod_package_export(
             payload_paths=effective_payload_paths,
         )
         metadata_files.append(field_manifest_path)
+
+    from cdmw.core.mod_compatibility import (
+        compatibility_from_payloads, read_compatibility, write_compatibility,
+    )
+    actual_payloads = {str(path).replace("\\", "/"): (payload_root / path).read_bytes()
+                       for path in effective_payload_paths if (payload_root / path).is_file()}
+    if compatibility is None:
+        compatibility = read_compatibility(root, stop_event=stop_event)
+    if compatibility is None:
+        recorded_build = str((extra_fields or {}).get("game_build", "") or "")
+        compatibility = compatibility_from_payloads(actual_payloads, {},
+            target_game={"game": "Crimson Desert", "build": recorded_build})
+    elif actual_payloads and normalized_structure != "field_json_v31" and not any(
+            path.endswith(("/0.pamt", "/0.paz")) for path in actual_payloads):
+        compatibility = compatibility_from_payloads(actual_payloads, compatibility.originals,
+            target_game=compatibility.target_game, dependencies=compatibility.dependencies)
+    metadata_files.extend(write_compatibility(root, compatibility, stop_event=stop_event))
+    manifest_path = root / "manifest.json"
+    if manifest_path.is_file():
+        existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        existing_manifest["target_game"] = compatibility.target_game
+        _write_json(manifest_path, existing_manifest)
 
     zip_path = (
         _write_package_zip(
@@ -949,6 +975,7 @@ def write_mod_package_manifest(
         extra_fields=extra_fields,
         options=metadata_options,
         created_utc=created_utc,
+        stop_event=stop_event,
     )
     ready_zip_path = root.with_suffix(".zip") if resolved_export_options.create_zip else None
     metadata_files = [
@@ -992,6 +1019,7 @@ def write_mesh_loose_mod_package_metadata(
     create_no_encrypt_file: bool = True,
     game_build: str = "",
     game_metadata: Mapping[str, object] | None = None,
+    compatibility=None,
     stop_event: threading.Event | None = None,
 ) -> list[Path]:
     raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
@@ -1117,6 +1145,8 @@ def write_mesh_loose_mod_package_metadata(
             create_zip=False,
         ),
         created_utc=created_utc,
+        compatibility=compatibility,
+        stop_event=stop_event,
     )
     raise_if_cancelled(stop_event, "Mod package metadata creation cancelled.")
     if resolved_export_options.create_manifest_json:

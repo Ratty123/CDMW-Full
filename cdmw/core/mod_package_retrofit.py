@@ -165,6 +165,16 @@ def retrofit_mod_package(
     raise_if_cancelled(stop_event, "Retrofit conversion cancelled.")
     new_file_paths = [mapping.target_path for mapping in repair_summary.mappings if mapping.is_new]
     source_to_target = {mapping.source_path.casefold(): mapping.target_path for mapping in repair_summary.mappings}
+    from cdmw.core.mod_compatibility import ModCompatibility, read_compatibility, write_compatibility
+    compatibility = read_compatibility(package.root, stop_event=stop_event)
+    if compatibility is not None:
+        def remapped(path):
+            return source_to_target.get(path.casefold(), path)
+        compatibility = ModCompatibility(compatibility.target_game,
+            tuple(dict(row, path=remapped(row['path'])) for row in compatibility.files),
+            {remapped(path): data for path, data in compatibility.originals.items()},
+            tuple(dict(row, path=remapped(row['path'])) for row in compatibility.dependencies))
+        write_compatibility(package_root, compatibility)
     if normalized_profile == "jmm":
         _add_jmm_descriptor_alias_payloads(
             package_root,
@@ -611,6 +621,8 @@ def _is_ignored_retrofit_file(relative: Path) -> bool:
         return True
     name = relative.name
     lowered_name = name.casefold()
+    if lowered_name in {"cdmw-compatibility.json", "cdmw-baseline.zip"}:
+        return True
     if len(parts) == 1 and lowered_name in _IGNORED_ROOT_FILENAMES:
         return True
     if Path(name).suffix.casefold() in _IGNORED_SUFFIXES:
@@ -950,12 +962,9 @@ def _normalize_game_build_signature(value: str) -> str:
     text = (value or "").strip()
     if not text:
         return ""
-    numeric_components = [part for part in re.findall(r"\d+", text)]
-    if not numeric_components:
-        return text.lower()
-    if len(numeric_components) == 1:
-        return f"{int(numeric_components[0])}"
-    return f"{int(numeric_components[0])}.{int(numeric_components[1])}"
+    if re.fullmatch(r"v?\d+(?:\.\d+)*", text, flags=re.IGNORECASE):
+        return ".".join(str(int(part)) for part in text.lstrip("vV").split("."))
+    return text.casefold()
 
 
 def _manifest_file_rows_by_path(manifest: Mapping[str, object]) -> dict[str, Mapping[str, object]]:

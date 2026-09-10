@@ -536,6 +536,8 @@ class StartupPromptMixin:
         if previous_hash == current_hash:
             return False
 
+        self.append_log("The game build changed. Use New Item > Tools > Check mods for game updates to review older mods and overlays.")
+
         deleted_paths = invalidate_archive_browser_cache(
             package_root,
             self.archive.archive_cache_root,

@@ -157,6 +157,8 @@ class InstalledOverlay:
     file_count: int
     created_at: float
     legacy: bool = False
+    game_build: str = "Unknown"
+    compatibility_status: str = "unknown"
 
 
 def list_installed_overlays(package_root, *, stop_event=None):
@@ -164,8 +166,13 @@ def list_installed_overlays(package_root, *, stop_event=None):
     raise_if_cancelled(stop_event)
     state = _load_index(root)
     if state is not None:
+        from cdmw.core.mod_compatibility import build_label, build_status, game_identity
+        current_game = game_identity(root, stop_event)
+        sources_changed = any(not _target(root, relative).is_file() or _stamp(_target(root, relative)) != stamp
+                              for relative, stamp in state.get('sources', {}).items())
         return tuple(InstalledOverlay(layer['id'], layer['label'], tuple(layer['item_keys']), state['directory'],
-            int(layer['file_count']), float(layer['created_at']), bool(layer.get('legacy')))
+            int(layer['file_count']), float(layer['created_at']), bool(layer.get('legacy')),
+            build_label(layer.get('target_game')), 'changed' if sources_changed else build_status(layer.get('target_game'), current_game))
             for layer in state['layers'] if layer['active'])
     _records, owned = _mounted_owned(root)
     result = []
@@ -244,12 +251,14 @@ def _unpack_changes(root, layer, pending, stop_event):
     return changes
 
 
-def _add_layer(state, pending, label, changes, *, item_keys=(), dependencies=(), legacy=False):
+def _add_layer(state, pending, label, changes, *, item_keys=(), dependencies=(), legacy=False, target_game=None):
     identity = uuid.uuid4().hex
     payload = _pack_changes(changes)
     pending['.cdmw/overlays/' + identity + '.zip'] = payload
     layer = {'id': identity, 'label': label, 'item_keys': list(item_keys), 'dependencies': list(dependencies),
         'active': True, 'created_at': time.time(), 'legacy': bool(legacy), 'file_count': len(changes), 'sha256': _digest(payload)}
+    if target_game is not None:
+        layer['target_game'] = dict(target_game)
     state['layers'].append(layer)
     return layer
 
@@ -504,8 +513,9 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
             plan, changes, _unpack_changes(root, layer, pending, stop_event)
         ):
             dependencies.append(layer['id'])
+    from cdmw.core.mod_compatibility import game_identity
     _add_layer(state, pending, plan.spec.display_names.get('eng') or plan.spec.internal_name, changes,
-        item_keys=tuple(sorted(known_items)), dependencies=dependencies)
+        item_keys=tuple(sorted(known_items)), dependencies=dependencies, target_game=game_identity(root, stop_event))
     return _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log)
 
 
