@@ -175,6 +175,194 @@ Vec3 mesh_editor_refit_driver_point(
     return point;
 }
 
+void mesh_editor_relieve_refit_surface(
+    const MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::map<int, std::vector<Vec3>>& driver_visible,
+    const std::map<int, std::vector<Vec3>>& residual,
+    std::map<int, std::vector<Vec3>>& layer
+) {
+    std::map<int, double> clearances;
+    for (const auto& item : refit.garment_settings) {
+        if (item.second.enabled && item.second.clearance_percent > 0.0
+            && item.second.mode == "surface") {
+            clearances[item.first] = refit.driver_diagonal * item.second.clearance_percent / 100.0;
+        }
+    }
+    if (clearances.empty()) return;
+
+    // A garment triangle can cross a curved body even when all its vertices
+    // clear their original bindings. Query the live surface for its edges and
+    // interior as well, without changing topology or the zero-clearance path.
+    std::map<int, MeshSessionSubmesh> drivers;
+    for (const auto& item : driver_visible) {
+        drivers[item.first].vertices = item.second;
+        drivers[item.first].faces = submeshes.at(item.first).faces;
+    }
+    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(
+        drivers, refit.driver_submesh_indices
+    );
+    const double tolerance = std::max(1.0e-6, refit.driver_diagonal * 1.0e-7);
+    struct Cohort {
+        Vec3 original;
+        Vec3 position;
+        double clearance = 0.0;
+        std::vector<std::pair<int, std::size_t>> vertices;
+    };
+    std::vector<Cohort> cohorts;
+    std::map<int, std::vector<std::size_t>> vertex_cohorts;
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::size_t>> cells;
+    for (const auto& item : clearances) {
+        const int index = item.first;
+        auto& indices = vertex_cohorts[index];
+        const auto& positions = residual.at(index);
+        for (std::size_t vertex = 0; vertex < positions.size(); ++vertex) {
+            const Vec3 point = add_vec3(positions[vertex], layer.at(index)[vertex]);
+            const auto cell = mesh_editor_refit_cell(point, tolerance);
+            std::size_t cohort_index = cohorts.size();
+            for (long long dx = -1; dx <= 1 && cohort_index == cohorts.size(); ++dx) {
+                for (long long dy = -1; dy <= 1 && cohort_index == cohorts.size(); ++dy) {
+                    for (long long dz = -1; dz <= 1 && cohort_index == cohorts.size(); ++dz) {
+                        const auto found = cells.find({
+                            std::get<0>(cell) + dx, std::get<1>(cell) + dy, std::get<2>(cell) + dz
+                        });
+                        if (found == cells.end()) continue;
+                        for (const std::size_t candidate : found->second) {
+                            if (distance_squared_vec3(point, cohorts[candidate].original) <= tolerance * tolerance) {
+                                cohort_index = candidate;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (cohort_index == cohorts.size()) {
+                cells[cell].push_back(cohort_index);
+                cohorts.push_back(Cohort{point, point, item.second, {}});
+            }
+            Cohort& cohort = cohorts[cohort_index];
+            cohort.clearance = std::max(cohort.clearance, item.second);
+            cohort.vertices.push_back({index, vertex});
+            indices.push_back(cohort_index);
+        }
+    }
+    const auto correction = [&](const Vec3& point, double clearance) {
+        long long candidate_tests = 0;
+        const MeshRefitVertexBindingRuntime nearest = closest_refit_binding_native(point, spatial_index, candidate_tests);
+        const Vec3 normal = refit_binding_face_normal_native(nearest, driver_visible);
+        const Vec3 surface = mesh_editor_refit_driver_point(nearest, driver_visible);
+        const double missing = clearance - dot_vec3(sub_vec3(point, surface), normal);
+        return missing > tolerance ? scale_vec3(normal, missing) : Vec3{0.0, 0.0, 0.0};
+    };
+    const std::array<Vec3, 4> samples{{
+        {0.5, 0.5, 0.0}, {0.0, 0.5, 0.5}, {0.5, 0.0, 0.5},
+        {1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0},
+    }};
+    // Share the required lift over the underlying body region first. Projecting
+    // each lining, cuff and outer-shell vertex independently onto the same gap
+    // would flatten layered clothing and produce spikes along their boundaries.
+    std::map<int, std::vector<double>> lift;
+    std::map<int, std::vector<Vec3>> normals;
+    for (const auto& item : driver_visible) {
+        lift[item.first].resize(item.second.size(), 0.0);
+        auto& part_normals = normals[item.first];
+        part_normals.resize(item.second.size(), Vec3{0.0, 0.0, 0.0});
+        for (const auto& face : drivers.at(item.first).faces) {
+            const Vec3 normal = refit_face_normal_native(item.second[face[0]], item.second[face[1]], item.second[face[2]]);
+            for (const int vertex : face) part_normals[vertex] = add_vec3(part_normals[vertex], normal);
+        }
+    }
+    const auto seed_lift = [&](const Vec3& point, double clearance) {
+        long long candidate_tests = 0;
+        const auto nearest = closest_refit_binding_native(point, spatial_index, candidate_tests);
+        const Vec3 normal = refit_binding_face_normal_native(nearest, driver_visible);
+        const Vec3 surface = mesh_editor_refit_driver_point(nearest, driver_visible);
+        const double missing = clearance - dot_vec3(sub_vec3(point, surface), normal);
+        for (const int vertex : nearest.driver_vertices) {
+            double& value = lift.at(nearest.driver_submesh_index)[vertex];
+            value = std::max(value, missing);
+        }
+    };
+    for (const Cohort& cohort : cohorts) seed_lift(cohort.original, cohort.clearance);
+    for (const auto& item : clearances) {
+        const auto& indices = vertex_cohorts.at(item.first);
+        for (const auto& face : submeshes.at(item.first).faces) {
+            for (const Vec3& weights : samples) {
+                Vec3 point{0.0, 0.0, 0.0};
+                for (std::size_t corner = 0; corner < 3; ++corner) {
+                    point = add_vec3(point, scale_vec3(cohorts[indices[face[corner]]].original, weights[corner]));
+                }
+                seed_lift(point, item.second);
+            }
+        }
+    }
+    for (int iteration = 0; iteration < 4; ++iteration) {
+        auto next = lift;
+        for (const auto& item : drivers) {
+            for (const auto& face : item.second.faces) {
+                const auto& values = lift.at(item.first);
+                const double adjacent = 0.75 * std::max({values[face[0]], values[face[1]], values[face[2]]});
+                for (const int vertex : face) next.at(item.first)[vertex] = std::max(next.at(item.first)[vertex], adjacent);
+            }
+        }
+        lift = std::move(next);
+    }
+    for (Cohort& cohort : cohorts) {
+        long long candidate_tests = 0;
+        const auto nearest = closest_refit_binding_native(cohort.original, spatial_index, candidate_tests);
+        Vec3 normal{0.0, 0.0, 0.0};
+        double amount = 0.0;
+        for (std::size_t corner = 0; corner < 3; ++corner) {
+            const int vertex = nearest.driver_vertices[corner];
+            amount += lift.at(nearest.driver_submesh_index)[vertex] * nearest.barycentric[corner];
+            normal = add_vec3(normal, scale_vec3(normals.at(nearest.driver_submesh_index)[vertex], nearest.barycentric[corner]));
+        }
+        const double length = length_vec3(normal);
+        if (length > 0.0) cohort.position = add_vec3(cohort.original, scale_vec3(normal, amount / length));
+    }
+    // Bounded projection keeps the preview responsive. Cohorts make every
+    // correction shared by coincident UV/material seam vertices.
+    for (int iteration = 0; iteration < 16; ++iteration) {
+        double maximum_correction = 0.0;
+        for (Cohort& cohort : cohorts) {
+            const Vec3 delta = correction(cohort.position, cohort.clearance);
+            maximum_correction = std::max(maximum_correction, length_vec3(delta));
+            cohort.position = add_vec3(cohort.position, delta);
+        }
+        for (const auto& item : clearances) {
+            const auto& indices = vertex_cohorts.at(item.first);
+            for (const auto& face : submeshes.at(item.first).faces) {
+                const std::array<std::size_t, 3> corners{
+                    indices.at(static_cast<std::size_t>(face[0])),
+                    indices.at(static_cast<std::size_t>(face[1])),
+                    indices.at(static_cast<std::size_t>(face[2])),
+                };
+                if (corners[0] == corners[1] || corners[0] == corners[2] || corners[1] == corners[2]) continue;
+                for (const Vec3& weights : samples) {
+                    Vec3 point{0.0, 0.0, 0.0};
+                    for (std::size_t corner = 0; corner < 3; ++corner) {
+                        point = add_vec3(point, scale_vec3(cohorts[corners[corner]].position, weights[corner]));
+                    }
+                    const Vec3 delta = correction(point, item.second);
+                    maximum_correction = std::max(maximum_correction, length_vec3(delta));
+                    const double weight_squared = dot_vec3(weights, weights);
+                    for (std::size_t corner = 0; corner < 3; ++corner) {
+                        Cohort& cohort = cohorts[corners[corner]];
+                        cohort.position = add_vec3(cohort.position, scale_vec3(delta, weights[corner] / weight_squared));
+                    }
+                }
+            }
+        }
+        if (maximum_correction <= tolerance) break;
+    }
+    for (const Cohort& cohort : cohorts) {
+        const Vec3 delta = sub_vec3(cohort.position, cohort.original);
+        for (const auto& vertex : cohort.vertices) {
+            layer.at(vertex.first)[vertex.second] = add_vec3(layer.at(vertex.first)[vertex.second], delta);
+        }
+    }
+}
+
 void mesh_editor_add_refit_layer(
     const MeshMorphRuntime& morph,
     const std::map<int, MeshSessionSubmesh>& submeshes,
@@ -226,9 +414,10 @@ void mesh_editor_add_refit_layer(
         const double intensity = settings.intensity_percent / 100.0;
         if (intensity != 1.0) refit_delta = scale_vec3(refit_delta, intensity);
         const double clearance = morph.refit->driver_diagonal * settings.clearance_percent / 100.0;
-        if (clearance > 0.0) {
-            Vec3 outward = refit_binding_face_normal_native(binding, driver_visible);
-            if (binding.normal_height < 0.0) outward = scale_vec3(outward, -1.0);
+        if (clearance > 0.0 && settings.mode == "rigid") {
+            // Clearance is measured toward the body's exterior even when a
+            // garment was already inside the body when it was bound.
+            const Vec3 outward = refit_binding_face_normal_native(binding, driver_visible);
             if (dot_vec3(outward, outward) > 0.0) {
                 const Vec3 predicted = add_vec3(
                     add_vec3(target_residual->second[target_vertex_index], target_layer[target_vertex_index]),
@@ -242,6 +431,7 @@ void mesh_editor_add_refit_layer(
         }
         target_layer[target_vertex_index] = add_vec3(target_layer[target_vertex_index], refit_delta);
     }
+    mesh_editor_relieve_refit_surface(*morph.refit, submeshes, driver_visible, residual, layer);
 }
 
 std::map<int, std::vector<Vec3>> mesh_editor_morph_residual_positions(

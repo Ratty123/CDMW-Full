@@ -805,6 +805,49 @@ def test_rigid_refit_mode_preserves_face_local_distance_for_hard_surface_parts()
     assert current_distance == pytest.approx(baseline_distance)
 
 
+@pytest.mark.parametrize("mode", ["surface", "rigid"])
+@pytest.mark.parametrize("intensity", [0.0, 100.0, 200.0])
+def test_refit_clearance_repairs_initial_penetration_without_a_body_morph(mode: str, intensity: float) -> None:
+    mesh = _tilt_mesh()
+    mesh.submeshes[1].vertices = [(x, y, -0.002) for x, y, _ in mesh.submeshes[1].vertices]
+    original = deepcopy(mesh)
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "enabled": True,
+            "intensity_percent": intensity, "mode": mode, "clearance_percent": 0.0,
+        })
+        at_zero = _snapshot(mesh, session_id)
+        fitted = _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1], "enabled": True,
+            "intensity_percent": intensity, "mode": mode, "clearance_percent": 0.1,
+        })
+        after = _snapshot(mesh, session_id)
+        _command(session_id, "morph_reset")
+        after_reset = _snapshot(mesh, session_id)
+        assert mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0)
+        after_undo_reset = _snapshot(mesh, session_id)
+        _command(session_id, "morph_bake")
+        _command(session_id, "morph_reset")
+        after_bake_reset = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    _assert_positions_close(at_zero.submeshes[1].vertices, original.submeshes[1].vertices)
+    _assert_positions_close(after.submeshes[0].vertices, original.submeshes[0].vertices)
+    _assert_positions_close(after.submeshes[1].vertices, [
+        (x, y, (2.0 ** 0.5) * 0.001) for x, y, _ in original.submeshes[1].vertices
+    ])
+    assert fitted["morph_state"]["unbaked"] is True
+    assert fitted["history_published"] is True
+    _assert_positions_close(after_reset.submeshes[1].vertices, original.submeshes[1].vertices)
+    _assert_positions_close(after_undo_reset.submeshes[1].vertices, after.submeshes[1].vertices)
+    _assert_positions_close(after_bake_reset.submeshes[1].vertices, after.submeshes[1].vertices)
+
+
 def test_refit_clearance_relief_pushes_a_stationary_garment_out_of_a_moving_driver() -> None:
     mesh = _tilt_mesh()
     session_id = _open(mesh)
@@ -839,7 +882,69 @@ def test_refit_clearance_relief_pushes_a_stationary_garment_out_of_a_moving_driv
         (after.submeshes[1].vertices[0][axis] - surface[axis]) * normal[axis]
         for axis in range(3)
     )
-    assert signed_clearance == pytest.approx((2.0**0.5) * 0.01)
+    assert signed_clearance >= (2.0**0.5) * 0.01 - 1e-6
+
+
+def test_surface_fit_preserves_the_gap_between_overlapping_clothing_layers() -> None:
+    mesh = _tilt_mesh()
+    mesh.submeshes[1].vertices = [(x, y, -.003) for x, y, _ in mesh.submeshes[1].vertices]
+    outer = deepcopy(mesh.submeshes[1])
+    outer.name = "outer-shell"
+    outer.material = "outer-shell"
+    outer.vertices = [(x, y, -.002) for x, y, _ in outer.vertices]
+    mesh.submeshes.append(outer)
+    mesh.total_vertices = sum(len(part.vertices) for part in mesh.submeshes)
+    mesh.total_faces = sum(len(part.faces) for part in mesh.submeshes)
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1, 2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "enabled": True,
+            "intensity_percent": 100., "mode": "surface", "clearance_percent": .1,
+        })
+        after = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+    for inside, outside in zip(after.submeshes[1].vertices, after.submeshes[2].vertices, strict=True):
+        assert inside[2] >= 2.0 ** .5 * .001 - 1e-6
+        assert outside[2] - inside[2] == pytest.approx(.001)
+
+
+def test_surface_clearance_lifts_triangle_interiors_and_keeps_material_seams_closed() -> None:
+    body = _part("body", [(0., 0., 0.), (1., 0., 0.), (1., 1., 0.), (0., 1., 0.), (.5, .5, .2)],
+                 [(0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)], material="skin", texture="")
+    first = _part("cloth-a", [(0., 0., .01), (1., 0., .01), (1., 1., .01)], [(0, 1, 2)],
+                  material="cloth-a", texture="")
+    second = _part("cloth-b", [(0., 0., .01), (1., 1., .01), (0., 1., .01)], [(0, 1, 2)],
+                   material="cloth-b", texture="")
+    mesh = ParsedMesh(path="curved-body.pac", format="pac", submeshes=[body, first, second],
+                      total_vertices=11, total_faces=6)
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", {"profile": {
+            "profile_id": "fit", "name": "Fit", "topology_fingerprint": "a" * 64,
+            "definitions": [], "fields": [],
+        }})
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1, 2]})
+        _command(session_id, "morph_configure_refit", {
+            "garment_submesh_indices": [1, 2], "enabled": True,
+            "intensity_percent": 100., "mode": "surface", "clearance_percent": .1,
+        })
+        after = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    _assert_positions_close(after.submeshes[0].vertices, body.vertices)
+    assert after.submeshes[1].vertices[0] == pytest.approx(after.submeshes[2].vertices[0])
+    assert after.submeshes[1].vertices[2] == pytest.approx(after.submeshes[2].vertices[1])
+    for part in after.submeshes[1:]:
+        assert part.faces == [(0, 1, 2)]
+        for weights in ((.5, .5, 0.), (0., .5, .5), (.5, 0., .5), (1/3, 1/3, 1/3)):
+            x, y, z = (sum(v[axis] * w for v, w in zip(part.vertices, weights)) for axis in range(3))
+            assert z >= .4 * min(x, y, 1 - x, 1 - y), "garment triangle still crosses the body roof"
 
 
 def _seed_refit_snapshot_session(mesh, source_session):

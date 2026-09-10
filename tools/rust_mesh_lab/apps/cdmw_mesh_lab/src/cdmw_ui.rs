@@ -1872,7 +1872,7 @@ impl LabApplication {
             } else if garments.is_empty() {
                 "Next: select garments, then bind."
             } else {
-                "Ready · garments follow Shape sliders."
+                "Ready · Fit to body, or use Shape sliders."
             },
         );
     }
@@ -1906,7 +1906,7 @@ impl LabApplication {
         if morph_unbaked {
             ui.colored_label(
                 Color32::from_rgb(245, 190, 75),
-                "Shape preview · Reset or Bake when finished.",
+                "Fit / shape preview · Reset or Bake when finished.",
             );
         }
         if let Some(failure) = state_str(&state, "failure").filter(|value| !value.trim().is_empty())
@@ -2554,6 +2554,27 @@ impl LabApplication {
                 }
             }
             ui.separator();
+            ui.weak("Fit all bound garments to the current body; body sliders are optional.");
+            if ui.button("Fit to body").on_hover_text(
+                "Preview an outward fit for all bound garments using Surface, 100% intensity, and at least 0.1% clearance. Reset reverts it; Bake keeps it."
+            ).clicked() {
+                self.cdmw_refit_enabled = true;
+                self.cdmw_refit_intensity = 100.0;
+                self.cdmw_refit_mode = "surface".to_owned();
+                self.cdmw_refit_clearance = self.cdmw_refit_clearance.max(0.1);
+                self.cdmw_refit_settings_dirty = true;
+                actions.push(UiAction::CdmwCommand {
+                    command: "refit_configure",
+                    arguments: json!({
+                        "submesh_indices": bound_garments,
+                        "enabled": self.cdmw_refit_enabled,
+                        "intensity_percent": self.cdmw_refit_intensity,
+                        "mode": self.cdmw_refit_mode,
+                        "clearance_percent": self.cdmw_refit_clearance
+                    }),
+                    label: "Apply garment refit settings",
+                });
+            }
             ui.add_enabled_ui(configurable, |ui| {
                 let before = (
                     self.cdmw_refit_enabled,
@@ -2581,7 +2602,7 @@ impl LabApplication {
                 ui.add(
                     egui::Slider::new(&mut self.cdmw_refit_clearance, 0.0..=5.0)
                         .text("Clearance %"),
-                ).on_hover_text("Extra space from the body, as a percentage of body size.");
+                ).on_hover_text("Minimum outward space from the body, as a percentage of body size. Positive clearance also repairs vertices already inside the body.");
                 if before
                     != (
                         self.cdmw_refit_enabled,

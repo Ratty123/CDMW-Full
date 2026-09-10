@@ -2175,7 +2175,7 @@ fn integrated_morph_loaders_selection_and_sections_have_real_actions() -> TestRe
     ui.application.cdmw_state["morph_refit"]["unbaked"] = json!(true);
     ui.application.cdmw_state["morph_refit"]["topology_blocked"] = json!(true);
     ui.frame(Vec::new());
-    ui.reveal("Shape preview · Reset or Bake when finished.")?;
+    ui.reveal("Fit / shape preview · Reset or Bake when finished.")?;
     assert!(ui.actions_from_click("Add as Armor...")?.is_empty());
     assert!(
         ui.actions_from_click("Export Preset...")?
@@ -2265,6 +2265,45 @@ fn integrated_refit_controls_hydrate_existing_garment_settings_before_apply() ->
             && arguments.get("mode") == Some(&json!("rigid"))
             && arguments.get("clearance_percent") == Some(&json!(1.25))
     )));
+    Ok(())
+}
+
+#[test]
+fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selection() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1_440.0, 980.0),
+    );
+    ui.application.cdmw_state["morph_refit"] = json!({
+        "profile_id": "owned-profile",
+        "state_revision": 7,
+        "available_profiles": [["owned-profile", "Owned Profile"]],
+        "values": [],
+        "definitions": [],
+        "driver_submesh_indices": [0],
+        "refit": {"garment_submesh_indices": [1, 2], "garment_settings": []}
+    });
+    ui.click("Morph & Refit")?;
+    ui.click("Refit clothing & armor")?;
+    for clearance in [0.0, 1.25] {
+        ui.application.cdmw_refit_clearance = clearance;
+        ui.application.cdmw_refit_intensity = 0.0;
+        ui.application.cdmw_refit_mode = "rigid".to_owned();
+        ui.application.cdmw_refit_enabled = false;
+        ui.application.cdmw_refit_settings_dirty = true;
+        let actions = ui.actions_from_click("Fit to body")?;
+        assert!(actions.iter().any(|action| matches!(
+            action,
+            UiAction::CdmwCommand { command: "refit_configure", arguments, .. }
+                if arguments["submesh_indices"] == json!([1, 2])
+                    && arguments["enabled"] == json!(true)
+                    && arguments["intensity_percent"] == json!(100.0)
+                    && arguments["mode"] == json!("surface")
+                    && (arguments["clearance_percent"].as_f64().unwrap_or(0.0)
+                        - f64::from(clearance.max(0.1))).abs() < 1.0e-6
+        )));
+        assert_eq!(ui.application.cdmw_refit_clearance, clearance.max(0.1));
+    }
     Ok(())
 }
 
