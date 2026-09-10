@@ -86,6 +86,12 @@ Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
 current camera's depth order. Imported previews open flat against their broad
 plane with a matching grid; cache reuse preserves that framing choice.
+Plain-PBR exports keep each source material's roughness/metalness and emissive
+outputs separate even when the Builder shares a colour texture between parts.
+The exported roughness/metalness map includes the source's scalar multipliers.
+Selected gem glow stays on those materials; a source emissive map is retained
+even when the template has no emissive texture slot. Existing exported or installed
+items need to be rebuilt to pick up these material corrections.
 Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or

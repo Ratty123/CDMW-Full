@@ -15,6 +15,7 @@ roughness was clamped towards matte).
 from __future__ import annotations
 
 import copy
+import hashlib
 import re
 import tempfile
 from dataclasses import dataclass, field
@@ -133,13 +134,16 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
 
 
 def _sp_path_for(base_path: str, source_name: str) -> str:
-    """`.../<stem>_<material>_basecolor.dds` -> `.../<stem>_<material>_sp.dds`."""
+    """Keep distinct source materials separate even when their base texture is shared."""
 
     folder, _, name = base_path.replace("\\", "/").rpartition("/")
     if _BASE_NAME_RE.search(name):
         new_name = _BASE_NAME_RE.sub("_sp.dds", name, count=1)
     else:
         new_name = f"{name[:-4]}_sp.dds" if name.lower().endswith(".dds") else f"{name}_sp.dds"
+    if source_name:
+        identity = hashlib.sha256(source_name.casefold().encode("utf-8")).hexdigest()[:12]
+        new_name = f"{new_name.removesuffix('_sp.dds')}_{identity}_sp.dds"
     return f"{folder}/{new_name}" if folder else new_name
 
 
@@ -196,6 +200,26 @@ def encode_sp_from_factors(roughness: float, metallic: float, *, on_log: Optiona
         return produced.read_bytes()
 
 
+def _encode_source_sp(source: SourceMaterialTextures, encode: Callable[[Path], bytes]) -> bytes:
+    """glTF factors multiply a map as well as defining surfaces without one."""
+
+    roughness = max(0.0, min(1.0, source.roughness_factor))
+    metallic = max(0.0, min(1.0, source.metallic_factor))
+    if roughness == metallic == 1.0:
+        return encode(source.material)
+
+    from PIL import Image
+
+    with Image.open(source.material) as image:
+        red, green, blue = image.convert("RGB").split()
+    green = green.point([round(value * roughness) for value in range(256)])
+    blue = blue.point([round(value * metallic) for value in range(256)])
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_sp_factors_") as temp:
+        prepared = Path(temp) / f"{source.material.stem}.png"
+        Image.merge("RGB", (red, green, blue)).save(prepared)
+        return encode(prepared)
+
+
 def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = None) -> Tuple[bytes, str]:
     """Encode an emissive PNG as the game's intensity map (BC4, the pixel's strongest
     channel, full mips) and return it with the `#RRGGBBFF` colour the lit pixels
@@ -244,16 +268,10 @@ def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None
         return produced.read_bytes(), color
 
 
-def _emi_path_for(base_path: str) -> str:
-    """`.../<stem>_<material>_basecolor.dds` -> `.../<stem>_<material>_emi.dds`, for a part
-    the reader asked to glow when the import generated no emissive slot for it."""
+def _emi_path_for(base_path: str, source_name: str) -> str:
+    """An emissive output owned by its source, including sources without a template slot."""
 
-    folder, _, name = base_path.replace("\\", "/").rpartition("/")
-    if _BASE_NAME_RE.search(name):
-        new_name = _BASE_NAME_RE.sub("_emi.dds", name, count=1)
-    else:
-        new_name = f"{name[:-4]}_emi.dds" if name.lower().endswith(".dds") else f"{name}_emi.dds"
-    return f"{folder}/{new_name}" if folder else new_name
+    return _sp_path_for(base_path, source_name).removesuffix("_sp.dds") + "_emi.dds"
 
 
 def encode_emissive_solid(*, on_log: Optional[Callable[[str], None]] = None) -> bytes:
@@ -445,12 +463,17 @@ def _plain_pbr_inputs(
         text = text[len(_BOM):]
     by_lower = {key.replace("\\", "/").casefold(): key for key in files.side_files}
     wrappers = find_material_wrappers(text)
-    source_by_base: Dict[str, SourceMaterialTextures] = {}
+    source_by_base: Dict[str, Optional[SourceMaterialTextures]] = {}
     for wrapper in wrappers:
         source = sources.get(wrapper.submesh_name.casefold())
         base = wrapper.textures.get("_baseColorTexture") or wrapper.textures.get("_overlayColorTexture")
         if source is not None and base:
-            source_by_base.setdefault(base.replace("\\", "/").casefold(), source)
+            key = base.replace("\\", "/").casefold()
+            if key not in source_by_base:
+                source_by_base[key] = source
+            elif source_by_base[key] != source:
+                # A shared colour does not identify which finish or glow a clone owns.
+                source_by_base[key] = None
     return xml_key, text, bom, by_lower, wrappers, source_by_base
 
 
@@ -488,6 +511,7 @@ def route_plain_pbr(
             continue
         normal = owned.get("_normalTexture", "")
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
+        source_name = source.name if source is not None else wrapper.submesh_name
         material = ""
         how = ""
         if source is not None and source.material is not None:
@@ -495,7 +519,7 @@ def route_plain_pbr(
             if sp_path.casefold() not in {k.casefold() for k in new_files}:
                 if on_log:
                     on_log(f"Encoding {source.material.name} -> {sp_path.rsplit('/', 1)[-1]} (BC1, G roughness, B metalness)")
-                new_files[sp_path] = encode(source.material)
+                new_files[sp_path] = _encode_source_sp(source, encode)
                 encoded.append(sp_path)
             material = sp_path
             how = f"_sp from {source.material.name}"
@@ -533,7 +557,7 @@ def route_plain_pbr(
             # the model's own glow, stated as a factor rather than a map: a solid map is
             # what "this whole material glows" means, and the colour and strength are the
             # source's own
-            emissive = emissive or _emi_path_for(base)
+            emissive = _emi_path_for(base, source_name)
             key = emissive.replace("\\", "/").casefold()
             if key not in emissive_done:
                 if on_log:
@@ -546,7 +570,7 @@ def route_plain_pbr(
             color, intensity = source.emissive_color, source.emissive_intensity
         elif wants_glow and (source is None or source.emissive is None):
             # the reader asked for this part: a solid map, their colour, their strength
-            emissive = emissive or _emi_path_for(base)
+            emissive = _emi_path_for(base, source_name)
             key = emissive.replace("\\", "/").casefold()
             if key not in emissive_done:
                 if on_log:
@@ -569,7 +593,8 @@ def route_plain_pbr(
                 "so the glow is off. Choose the parts that glow on the Model step if you want it."
             )
             emissive, color, intensity = "", "#FFFFFFFF", 1.0
-        elif emissive and source is not None and source.emissive is not None:
+        elif source is not None and source.emissive is not None:
+            emissive = _emi_path_for(base, source_name)
             key = emissive.replace("\\", "/").casefold()
             if key not in emissive_done:
                 if on_log:

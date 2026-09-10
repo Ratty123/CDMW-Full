@@ -24,6 +24,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item exports preserve separate roughness/metalness and glow maps for source materials that share a colour texture. A smooth gem no longer gives the blade its finish, source map multipliers are retained, and selected glow keeps its own mask even when the template has no emissive slot. Previously exported items need rebuilding.
 - Typing in Create New Item's Template **Find** field stays responsive while results update. Catalogue search, category filtering and sorting run on a cancellable worker; rapid edits replace obsolete searches and retain the current results until the latest search finishes.
 - New Item can rebuild its plan after choosing a DMM or other existing output folder, using the loaded archive reader instead of incorrectly blocking with **Read the archives first**. Repeated exports with **Add to the mod already in this folder** retain earlier items in that folder.
 - Effect previews apply authored force as acceleration, matching the game's standard particle simulation. Low-mass fire and smoke no longer accelerate disproportionately and form oversized trails; effect placement and colour settings are preserved.

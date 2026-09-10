@@ -26,7 +26,7 @@ from cdmw.services.new_item_materials import (  # noqa: E402
     source_materials_from_import,
 )
 from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError  # noqa: E402
-from test_pac_xml_standard_material import SIDECAR, TEX  # noqa: E402
+from test_pac_xml_standard_material import HEAD, SIDECAR, TAIL, TEX, texture, wrapper  # noqa: E402
 
 XML = "character/modelproperty/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0003.pac_xml"
 BASE = f"{TEX}/cd_phm_02_sword_0003_lambert1_basecolor.dds"
@@ -129,8 +129,9 @@ class RouteTests(unittest.TestCase):
         imported.warnings = ("Check armour fit",)
         route = route_plain_pbr(imported, sources=sources, encode=self._encode, encode_emissive=self._encode_emissive)
         self.assertEqual(route.rewritten, ("cd_phm_02_sword_0003", "cd_phm_02_sword_handle_0003"))
-        sp = f"{TEX}/cd_phm_02_sword_0003_lambert1_sp.dds"
-        self.assertEqual(route.encoded, (sp,))
+        self.assertEqual(len(route.encoded), 1)
+        sp = route.encoded[0]
+        self.assertTrue(sp.endswith("_sp.dds"))
         self.assertEqual(self.encoded, ["lambert1_metallicRoughness.png"])
         files = route.files
         self.assertEqual(files.pac_data, b"PAC")
@@ -166,14 +167,17 @@ class RouteTests(unittest.TestCase):
         route = route_plain_pbr(builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive, encode_factors=self._encode_factors)
         # no metallic/roughness map on the source: its factors become a solid _sp; the emissive is encoded from the source
         self.assertEqual(self.encoded, ["factors 0.3 0.9", "gem_emissive.png"])
-        gem_sp = f"{TEX}/cd_phm_02_sword_0003_gem_sp.dds"
-        self.assertEqual(route.encoded, (gem_sp, GEM_EMI))
+        gem_sp, gem_emi = route.encoded
+        self.assertTrue(gem_sp.endswith("_sp.dds"))
+        self.assertTrue(gem_emi.endswith("_emi.dds"))
         gem = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}["cd_phm_02_sword_handle_0003"]
         self.assertEqual(gem.textures["_materialTexture"], gem_sp)
+        self.assertEqual(gem.textures["_emissiveIntensityTexture"], gem_emi)
         self.assertNotIn(GEM_MASK, route.files.side_files, "the Builder's mask is no longer named")
         self.assertEqual(gem.value("_emissiveColor"), "#4461F3FF", "the colour the source glows in")
         self.assertEqual(gem.value("_emissiveIntensity"), "10.000000")
-        self.assertEqual(route.files.side_files[GEM_EMI][84:88], b"BC4U", "the intensity map replaces the Builder's")
+        self.assertNotIn(GEM_EMI, route.files.side_files, "the unreferenced Builder map is dropped")
+        self.assertEqual(route.files.side_files[gem_emi][84:88], b"BC4U", "the source owns its intensity map")
         self.assertTrue(any("factors (roughness 0.3, metalness 0.9)" in line for line in route.lines), route.lines)
 
     def test_a_glow_is_chosen_by_the_reader_s_own_material_name(self) -> None:
@@ -267,7 +271,114 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(self.encoded, ["lambert1_metallicRoughness.png"], "encoded once")
         wrappers = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}
         self.assertEqual(wrappers["cd_phm_02_sword_guard_0003"].shader, STANDARD_SHADER)
-        self.assertEqual(wrappers["cd_phm_02_sword_guard_0003"].textures["_materialTexture"], f"{TEX}/cd_phm_02_sword_0003_lambert1_sp.dds")
+        self.assertEqual(wrappers["cd_phm_02_sword_guard_0003"].textures["_materialTexture"], wrappers["cd_phm_02_sword_0003"].textures["_materialTexture"])
+
+    def test_shared_base_keeps_blade_finish_and_selected_gem_glow_separate(self) -> None:
+        """Wolf Gravestone: the smooth outer gem must not replace the blade's map."""
+        result = Result((
+            Section("outer", "Gem_outside"), Section("blade", "lambert1"),
+            Section("inner", "Gem_inside"), Section("blade_copy", "lambert1"),
+        ))
+        scene = Scene((
+            Binding("Gem_outside", submesh_index=0),
+            Binding("lambert1", (("material", str(self.mr)),), submesh_index=1),
+            Binding("Gem_inside", submesh_index=2),
+        ), Mesh((
+            Submesh((Parameter("_roughnessFactor", "0"),)), Submesh(),
+            Submesh((Parameter("_roughnessFactor", "0.92"),)),
+        )))
+        sources = source_materials_from_import(result, scene)
+
+        class Glow:
+            parts = ("Gem_outside", "Gem_inside")
+            intensity = 4.0
+
+            def hex_color(self):
+                return "#AA0000FF"
+
+        params = texture("_baseColorTexture", "0", BASE, 0) + texture("_detailMaskTexture", "1", MASK, 1)
+        for order in (("outer", "blade", "inner"), ("blade", "inner", "outer")):
+            for glow in (None, Glow()):
+                with self.subTest(order=order, glow=bool(glow)):
+                    text = HEAD + "".join(wrapper(name, LAYERED_SHADER, params) for name in (*order, "blade_copy", "unmapped")) + TAIL
+                    files = ModelFiles(b"PAC", {XML: text.encode(), BASE: dds(), MASK: dds()})
+                    calls = []
+
+                    def encode_map(path):
+                        calls.append(path.name)
+                        return b"blade roughness map"
+
+                    route = route_plain_pbr(
+                        files, sources=sources, glow=glow, encode=encode_map,
+                        encode_factors=lambda r, m: f"factors {r:g} {m:g}".encode(),
+                        encode_glow=lambda: b"solid glow",
+                    )
+                    materials = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode())}
+                    paths = {name: materials[name].textures["_materialTexture"] for name in (*order, "blade_copy", "unmapped")}
+                    self.assertEqual(calls, [self.mr.name])
+                    self.assertEqual(len({paths[name] for name in order}), 3)
+                    self.assertEqual(paths["blade_copy"], paths["blade"])
+                    self.assertEqual(route.files.side_files[paths["blade"]], b"blade roughness map")
+                    self.assertEqual(route.files.side_files[paths["outer"]], b"factors 0 1")
+                    self.assertEqual(route.files.side_files[paths["inner"]], b"factors 0.92 1")
+                    self.assertEqual(paths["unmapped"], MASK, "a shared colour is not enough to identify this source")
+                    for name, material in materials.items():
+                        lit = glow is not None and name in {"outer", "inner"}
+                        self.assertEqual(material.shader, EMISSIVE_SHADER if lit else STANDARD_SHADER)
+                        if lit:
+                            self.assertEqual(material.value("_emissiveColor"), "#AA0000FF")
+                            self.assertEqual(material.value("_emissiveIntensity"), "4.000000")
+                            self.assertEqual(route.files.side_files[material.textures["_emissiveIntensityTexture"]], b"solid glow")
+                    self.assertEqual(files.side_files[XML], text.encode(), "input files remain untouched")
+
+    def test_shared_emissive_binding_keeps_solid_and_masked_glow_separate(self) -> None:
+        sources = {
+            "solid": SourceMaterialTextures(name="Gem/outside"),
+            "masked": SourceMaterialTextures(name="Gem_outside", emissive=self.emi),
+        }
+
+        class Glow:
+            parts = ("Gem/outside", "Gem_outside")
+            intensity = 3.0
+
+            def hex_color(self):
+                return "#AA0000FF"
+
+        for bound in (True, False):
+            for order in (("solid", "masked"), ("masked", "solid")):
+                with self.subTest(bound=bound, order=order):
+                    params = texture("_baseColorTexture", "0", BASE, 0)
+                    if bound:
+                        params += texture("_emissiveIntensityTexture", "1", GEM_EMI, 1)
+                    text = HEAD + "".join(wrapper(name, LAYERED_SHADER, params) for name in order) + TAIL
+                    files = ModelFiles(b"PAC", {XML: text.encode(), BASE: dds(), GEM_EMI: dds()})
+                    route = route_plain_pbr(
+                        files, sources=sources, glow=Glow(), encode_factors=self._encode_factors,
+                        encode_glow=lambda: b"solid glow", encode_emissive=lambda path: (b"masked glow", "#FFFFFFFF"),
+                    )
+                    materials = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode())}
+                    for name, expected in (("solid", b"solid glow"), ("masked", b"masked glow")):
+                        self.assertEqual(materials[name].shader, EMISSIVE_SHADER)
+                        self.assertEqual(route.files.side_files[materials[name].textures["_emissiveIntensityTexture"]], expected)
+
+    def test_source_factors_multiply_the_roughness_and_metalness_map(self) -> None:
+        from PIL import Image
+
+        Image.new("RGB", (16, 16), (255, 200, 240)).save(self.mr)
+        before = self.mr.read_bytes()
+        for roughness, metallic, expected in ((0.5, 0.25, (255, 100, 60)), (0.0, 0.0, (255, 0, 0))):
+            with self.subTest(roughness=roughness, metallic=metallic):
+                seen = []
+
+                def encode(path):
+                    with Image.open(path) as image:
+                        seen.append(image.getpixel((0, 0)))
+                    return dds()
+
+                source = SourceMaterialTextures(name="lambert1", material=self.mr, roughness_factor=roughness, metallic_factor=metallic)
+                route_plain_pbr(builder_files(), sources={"cd_phm_02_sword_0003": source}, encode=encode)
+                self.assertEqual(seen, [expected])
+                self.assertEqual(self.mr.read_bytes(), before)
 
     def test_refuses_an_import_without_one_sidecar_or_without_owned_wrappers(self) -> None:
         with self.assertRaisesRegex(NewItemPlanError, "0 .pac_xml"):
