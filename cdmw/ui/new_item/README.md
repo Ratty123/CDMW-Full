@@ -88,6 +88,8 @@ current camera's depth order. Imported previews open flat against their broad
 plane with a matching grid; cache reuse preserves that framing choice.
 Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
+New Item disables the Builder's automatic brightness balancing so exported colour
+textures retain the authored dark detail and highlights shown in the import preview.
 The exported roughness/metalness map includes the source's scalar multipliers.
 Selected gem glow stays on those materials; a source emissive map is retained
 even when the template has no emissive texture slot. Existing exported or installed

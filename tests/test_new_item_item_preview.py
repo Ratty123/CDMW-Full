@@ -455,6 +455,46 @@ class PlacementConventionTests(unittest.TestCase):
 
 
 class ModelImportBuildTests(unittest.TestCase):
+    def test_build_preserves_source_colour_without_automatic_tone_adjustment(self) -> None:
+        from PIL import Image
+
+        from cdmw.modding.material_profiles import apply_true_source_basic_controls_to_profile, get_complete_swap_material_profile
+        from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot
+        from cdmw.modding.material_source_driven import _source_driven_slots
+        from cdmw.modding.material_texture_payloads import _source_slot_png_with_base_color_factor_path
+        from cdmw.modding.mesh_parser import ParsedMesh
+        from cdmw.modding.scene_import_result_ops import SceneImportResult
+        from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            colour = root / "base.png"
+            pixels = [(34, 38, 38, 255), (31, 26, 23, 255), (160, 172, 190, 255), (255, 255, 255, 255)]
+            original = Image.new("RGBA", (4, 1))
+            original.putdata(pixels)
+            original.save(colour)
+            texture_set = ReplacementTextureSet("blade", slots={"base": ReplacementTextureSlot("blade", "base", colour)})
+            source = ModelImportSource(
+                root / "a.gltf", root / "a.gltf", SceneImportResult(mesh=ParsedMesh()), None, None,
+            )
+
+            def build(_entry, _path, **kwargs):
+                options = kwargs["static_replacement_options"]
+                profile = apply_true_source_basic_controls_to_profile(
+                    get_complete_swap_material_profile(options.complete_swap_material_profile),
+                    auto_brightness_balance=options.auto_brightness_balance,
+                    dark_detail_lift=options.dark_detail_lift,
+                    tone_contrast=options.tone_contrast,
+                )
+                slot = next(slot for slot in _source_driven_slots(texture_set, material_profile=profile) if slot.slot_kind == "base")
+                prepared = _source_slot_png_with_base_color_factor_path(slot, output_root=root)
+                with Image.open(prepared) as image:
+                    return image.convert("RGBA").tobytes()
+
+            with patch("cdmw.services.preview_workflow_service.build_mesh_import_preview", build):
+                actual = build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement())
+            self.assertEqual(actual, original.tobytes(), "New Item must retain the source's dark detail and highlights")
+
     def test_model_import_temp_roots_are_owned_and_cleaned(self) -> None:
         from cdmw.ui.new_item.model_import import ModelImportSource, load_model_import_source
 

@@ -1294,6 +1294,9 @@ def build_placed_import(
 
     options = dc_replace(
         apply_full_import_model_replacement_preset(),
+        # New Item previews the authored colour; Builder's automatic tone balance
+        # is not a New Item control and must not silently alter the exported DDS.
+        auto_brightness_balance=0.0,
         transform=placement.build_transform(origin=source.baked_origin()),
         texture_uv_transforms=list(flip_v_transforms(source.scene.mesh) if source.flip_texture_v else ()),
     )
