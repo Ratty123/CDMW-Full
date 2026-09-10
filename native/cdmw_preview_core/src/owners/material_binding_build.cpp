@@ -883,7 +883,7 @@ static std::vector<TextureBinding> build_material_bindings(
         graph = &cached_native_material_graph(job, index);
     }
     package.material_graph_status = "active";
-    package.material_graph_cache_path = graph->cache_path.string();
+    package.material_graph_cache_path = path_utf8(graph->cache_path);
     package.material_graph_cache_hit = graph->persistent_cache_hit;
     package.notes.push_back(
         "native material graph: version=" + std::to_string(graph->version)

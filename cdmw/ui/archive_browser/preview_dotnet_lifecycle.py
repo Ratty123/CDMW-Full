@@ -330,7 +330,9 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         self._request_archive_preview_textures(automatic=bool(automatic))
 
-    def _finish_archive_texture_request(self, request_id: int, *, success: bool, message: str = "") -> bool:
+    def _finish_archive_texture_request(
+        self, request_id: int, *, success: bool, message: str = "", retryable: bool = True
+    ) -> bool:
         if int(request_id or 0) != int(getattr(self, "_archive_texture_request_id", 0) or 0):
             return False
         automatic = bool(getattr(self, "_archive_texture_request_automatic", False))
@@ -368,7 +370,8 @@ class ArchivePreviewDotNetLifecycleMixin:
             f"Texture loading failed; the untextured model remains available: {message}",
             error=True,
         )
-        self._schedule_archive_texture_request_retry(automatic)
+        if retryable:
+            self._schedule_archive_texture_request_retry(automatic)
         return True
 
     def _sync_archive_texture_action_state(self) -> None:

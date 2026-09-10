@@ -79,11 +79,11 @@ static bool looks_like_dds_string(const std::vector<char>& data, size_t offset, 
 EntryJob parse_job(const fs::path& job_path) {
     const std::string text = read_text(job_path);
     EntryJob job;
-    job.output_root = fs::path(find_string_value(text, "output_root"));
-    job.cache_root = fs::path(find_string_value(text, "cache_root"));
-    job.package_root = fs::path(find_string_value(text, "package_root"));
-    job.archive_index_path = fs::path(find_string_value(text, "archive_index_path"));
-    job.archive_basename_index_path = fs::path(find_string_value(text, "archive_basename_index_path"));
+    job.output_root = utf8_path(find_string_value(text, "output_root"));
+    job.cache_root = utf8_path(find_string_value(text, "cache_root"));
+    job.package_root = utf8_path(find_string_value(text, "package_root"));
+    job.archive_index_path = utf8_path(find_string_value(text, "archive_index_path"));
+    job.archive_basename_index_path = utf8_path(find_string_value(text, "archive_basename_index_path"));
     job.schema_version = static_cast<int>(std::max<long long>(1, find_int_value(text, "schema_version", 4)));
     const std::string entry_object = find_object_value(text, "entry");
     job.entry = parse_archive_entry_ref(entry_object.empty() ? text : entry_object);
@@ -138,7 +138,7 @@ EntryJob parse_job(const fs::path& job_path) {
     if (context_components_truncated) {
         throw std::runtime_error("preview context components exceeded the 32-entry safety bound");
     }
-    job.presentation_geometry_path = fs::path(find_string_value(text, "presentation_geometry_path"));
+    job.presentation_geometry_path = utf8_path(find_string_value(text, "presentation_geometry_path"));
     job.presentation_geometry_source = find_string_value(text, "presentation_geometry_source");
     job.path = job.entry.path;
     job.extension = job.entry.extension.empty() ? basename_extension(job.path) : job.entry.extension;

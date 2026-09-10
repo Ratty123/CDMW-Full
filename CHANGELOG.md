@@ -28,6 +28,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive previews support long Windows paths and Unicode folder names when reading models and dependencies or writing preview packages. File errors report their cause and path length, with recovery guidance and no automatic texture retry for permanent failures. New catalogue cache paths use shorter directory names while retaining full hashes, active-generation protection and compatibility with older caches.
 - Loading armor assigns the current body even when a Morph profile already exists without a driver. Garment selection cannot include an unassigned body. Archive loading reuses existing textures, accelerates specular-map decoding, and uses faster lossless compression for generated preview maps.
 - Creating Morph & Refit sliders on full character meshes no longer closes the editor by exceeding the control-message limit; weighted vertex scopes remain in the host while slider controls receive compact metadata.
 - Archive Refit loads character bodies and armor with separate neutral-appearance mappings, preserving each asset's source coordinates through Finish, export, and draft reopening. Added meshes resolve their archive textures without overwriting earlier texture generations, and native morph snapshots retain typed material layers and color parameters through Bake and reopening. Original PACs with protected seventh/eighth bone influences remain valid for geometry editing while changes to those weight lanes stay blocked.

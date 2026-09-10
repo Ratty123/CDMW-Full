@@ -10,18 +10,18 @@ static std::string extracted_dds_path_for_entry(
     }
     const std::string identity =
         "native_dds_v" + std::to_string(kNativeDdsExtractionVersion) + "|"
-        + ref.pamt_path.string() + "|" + ref.path + "|" + std::to_string(ref.offset) + "|"
+        + path_utf8(ref.pamt_path) + "|" + ref.path + "|" + std::to_string(ref.offset) + "|"
         + std::to_string(ref.comp_size) + "|" + std::to_string(ref.orig_size);
     const fs::path out_path = cache_root / "dds" / (hex64(fnv1a64(identity)) + "_" + safe_filename(ref.basename));
     const std::uint64_t expected_size = ref.orig_size > 0 ? ref.orig_size : ref.comp_size;
     if (expected_size > 0) {
         try {
-            if (fs::is_regular_file(out_path) && fs::file_size(out_path) == expected_size) {
-                std::ifstream cached(out_path, std::ios::binary);
+            if (fs::is_regular_file(native_file_path(out_path)) && fs::file_size(native_file_path(out_path)) == expected_size) {
+                std::ifstream cached(native_file_path(out_path), std::ios::binary);
                 char magic[4] = {};
                 cached.read(magic, sizeof(magic));
                 if (cached.gcount() == 4 && std::string(magic, magic + 4) == "DDS ") {
-                    return fs::absolute(out_path).string();
+                    return path_utf8(fs::absolute(out_path));
                 }
             }
         } catch (...) {
@@ -43,14 +43,14 @@ static std::string extracted_dds_path_for_entry(
         notes.push_back("DDS sparse padded:" + ref.basename);
     }
     try {
-        if (!fs::is_regular_file(out_path) || fs::file_size(out_path) != data.size()) {
+        if (!fs::is_regular_file(native_file_path(out_path)) || fs::file_size(native_file_path(out_path)) != data.size()) {
             write_binary(out_path, data);
         }
     } catch (const std::exception& exc) {
         notes.push_back("DDS cache write failed:" + ref.basename + ":" + exc.what());
         return "";
     }
-    return fs::absolute(out_path).string();
+    return path_utf8(fs::absolute(out_path));
 }
 
 struct DdsHeaderInfo {
@@ -70,7 +70,7 @@ static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
     auto cached = cache.find(path);
     if (cached != cache.end()) return cached->second;
     DdsHeaderInfo info;
-    std::ifstream in(fs::path(path), std::ios::binary);
+    std::ifstream in(native_file_path(utf8_path(path)), std::ios::binary);
     if (!in) return info;
     std::vector<char> header(148, 0);
     in.read(header.data(), static_cast<std::streamsize>(header.size()));
@@ -168,7 +168,7 @@ static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& pa
         if (cache.size() < 4096) cache.emplace(path, stats);
         return stats;
     }
-    std::ifstream in(fs::path(path), std::ios::binary);
+    std::ifstream in(native_file_path(utf8_path(path)), std::ios::binary);
     if (!in) return stats;
     in.seekg(128, std::ios::beg);
     const size_t block_stride = bc3 ? 16u : 8u;

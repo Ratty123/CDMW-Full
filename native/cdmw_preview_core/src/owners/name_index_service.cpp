@@ -78,8 +78,8 @@ static void write_name_index_progress(
 ) {
     if (progress_path.empty()) return;
     try {
-        fs::create_directories(progress_path.parent_path());
-        std::ofstream out(progress_path, std::ios::binary | std::ios::trunc);
+        fs::create_directories(native_file_path(progress_path.parent_path()));
+        std::ofstream out(native_file_path(progress_path), std::ios::binary | std::ios::trunc);
         if (!out) return;
         out << "{"
             << "\"stage\":\"" << json_escape(stage) << "\","
@@ -102,7 +102,7 @@ int run_name_index_job(
     std::unordered_map<std::string, std::vector<std::uint32_t>> token_rows;
     try {
         write_name_index_progress(progress_path, "tokenize", 0, 0, 0);
-        std::ifstream in(input_tsv_path, std::ios::binary);
+        std::ifstream in(native_file_path(input_tsv_path), std::ios::binary);
         if (!in) throw std::runtime_error("could not open name-search input TSV");
         std::string line;
         std::uint64_t processed_lines = 0;
@@ -133,8 +133,8 @@ int run_name_index_job(
         }
 
         write_name_index_progress(progress_path, "write", entry_count, token_rows.size(), 0);
-        fs::create_directories(output_bin_path.parent_path());
-        std::ofstream out(output_bin_path, std::ios::binary | std::ios::trunc);
+        fs::create_directories(native_file_path(output_bin_path.parent_path()));
+        std::ofstream out(native_file_path(output_bin_path), std::ios::binary | std::ios::trunc);
         if (!out) throw std::runtime_error("could not write name-search output binary");
         const char magic[8] = {'C', 'D', 'N', 'I', 'D', 'X', '1', '\0'};
         out.write(magic, sizeof(magic));
@@ -179,7 +179,7 @@ int run_name_index_job(
                << "\"token_count\":" << keys.size() << ","
                << "\"posting_count\":" << posting_count << ","
                << "\"elapsed_ms\":" << elapsed_ms << ","
-               << "\"output_path\":\"" << json_escape(output_bin_path.string()) << "\""
+               << "\"output_path\":\"" << json_escape(path_utf8(output_bin_path)) << "\""
                << "}";
         write_text(report_path, report.str());
         return 0;
@@ -226,7 +226,7 @@ int run_service() {
                     {"report_path", report_path},
                     {"service_job_count", std::to_string(g_service_job_count)}
                 });
-            const int exit_code = run_preview_job(fs::path(job_path), fs::path(report_path));
+            const int exit_code = run_preview_job(utf8_path(job_path), utf8_path(report_path));
             std::cout << "{\"status\":\"" << (exit_code == 0 ? "ok" : "error")
                       << "\",\"backend\":\"cdmw_preview_core_0.1\",\"report_path\":\""
                       << json_escape(report_path) << "\",\"exit_code\":" << exit_code << "}" << std::endl;

@@ -295,7 +295,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
         std::chrono::steady_clock::now() - pamt_index_started).count();
     package.pamt_index_entries = index->entry_count;
     package.pamt_index_cache_hit = index->persistent_cache_hit;
-    package.pamt_index_cache_path = index->persistent_cache_path.string();
+    package.pamt_index_cache_path = path_utf8(index->persistent_cache_path);
     const auto mesh_parse_started = std::chrono::steady_clock::now();
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
@@ -382,8 +382,8 @@ static void append_preview_dependency_report(std::ostringstream& out) {
         if (i) out << ",";
         const ArchiveEntryRef& dependency = g_preview_decoded_dependencies[i];
         out << "{\"path\":\"" << json_escape(dependency.path) << "\","
-            << "\"pamt_path\":\"" << json_escape(dependency.pamt_path.string()) << "\","
-            << "\"paz_file\":\"" << json_escape(dependency.paz_file.string()) << "\","
+            << "\"pamt_path\":\"" << json_escape(path_utf8(dependency.pamt_path)) << "\","
+            << "\"paz_file\":\"" << json_escape(path_utf8(dependency.paz_file)) << "\","
             << "\"offset\":" << dependency.offset << ","
             << "\"comp_size\":" << dependency.comp_size << ","
             << "\"orig_size\":" << dependency.orig_size << ","
@@ -414,19 +414,25 @@ static PreviewCacheCounters current_preview_cache_counters() {
     };
 }
 
+static void capture_preview_failure(const std::exception& error, std::string& reason, std::string& fields) {
+    const auto* filesystem = dynamic_cast<const fs::filesystem_error*>(&error);
+    reason = filesystem ? FileAccessError(filesystem->path1(), filesystem->code(), "access").what() : error.what();
+    fields = file_error_fields(error);
+}
+
 std::string preview_report_for_job(const fs::path& job_path) {
     const auto started = std::chrono::steady_clock::now();
     reset_preview_dependency_report();
     EntryJob job = parse_job(job_path);
-    std::string status = "unsupported", fallback_reason, message, format_fourcc;
+    std::string status = "unsupported", fallback_reason, message, format_fourcc, file_failure;
     std::uint64_t bytes_read = 0;
     const int compression_type = static_cast<int>(job.flags & 0x0F);
     bool raw_read_ok = false;
     NativePackage package;
     const PreviewCacheCounters counters_before = current_preview_cache_counters();
     try {
-        fs::create_directories(job.output_root);
-        fs::create_directories(job.cache_root);
+        fs::create_directories(native_file_path(job.output_root));
+        fs::create_directories(native_file_path(job.cache_root));
         auto data = read_entry_decoded_bytes(job);
         bytes_read = static_cast<std::uint64_t>(data.size());
         format_fourcc = fourcc_from_bytes(data);
@@ -446,7 +452,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
                     fallback_reason = "native preview-core generated no renderable batches";
                 }
             } catch (const std::exception& native_exc) {
-                fallback_reason = native_exc.what();
+                capture_preview_failure(native_exc, fallback_reason, file_failure);
             }
         }
         if (message.empty()) {
@@ -456,7 +462,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         }
     } catch (const std::exception& exc) {
         status = "error";
-        fallback_reason = exc.what();
+        capture_preview_failure(exc, fallback_reason, file_failure);
         message = "native archive IO preflight failed";
     }
     const PreviewCacheReleaseStats cache_release = release_preview_job_caches();
@@ -465,7 +471,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
     const double elapsed_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - started).count();
     std::ostringstream out;
-    out << "{"
+    out << "{" << file_failure
         << "\"status\":\"" << json_escape(status) << "\","
         << "\"backend\":\"cdmw_preview_core_0.1\","
         << "\"runtime_backend\":\"native_cpp\","
@@ -534,7 +540,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"service_job_count\":" << g_service_job_count << ","
         << "\"service_recycle_reason\":\"" << json_escape(recycle_reason) << "\","
         << "\"elapsed_ms\":" << elapsed_ms << ","
-        << "\"package_path\":\"" << json_escape(status == "ok" ? package.path.string() : "") << "\","
+        << "\"package_path\":\"" << json_escape(status == "ok" ? path_utf8(package.path) : "") << "\","
         << "\"fallback_reason\":\"" << json_escape(fallback_reason) << "\","
         << "\"message\":\"" << json_escape(message) << "\","
         << "\"base_quality_notes\":[";
@@ -576,7 +582,7 @@ CommonArgs parse_common_args(int argc, char** argv) {
         std::string key = argv[i] ? argv[i] : "";
         auto next = [&]() -> fs::path {
             if (i + 1 >= argc) return {};
-            return fs::path(argv[++i]);
+            return utf8_path(argv[++i]);
         };
         if (key == "--crash-dir") args.crash_dir = next();
         else if (key == "--diagnostic-log") args.diagnostic_log = next();
@@ -613,7 +619,7 @@ int run_preview_job(const fs::path& job_path, const fs::path& report_path) {
         release_resident_pamt_indexes();
         release_resident_preview_metadata_caches();
         std::ostringstream out;
-        out << "{\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\""
+        out << "{" << file_error_fields(exc) << "\"status\":\"error\",\"backend\":\"cdmw_preview_core_0.1\",\"message\":\""
             << json_escape(exc.what()) << "\",\"fallback_reason\":\"" << json_escape(exc.what()) << "\"}";
         try {
             write_text(report_path, out.str());
@@ -675,7 +681,7 @@ int run_mesh_audit_job(const fs::path& input_path, const fs::path& report_path, 
         return 0;
     } catch (const std::exception& exc) {
         std::ostringstream out;
-        out << "{\"status\":\"error\","
+        out << "{" << file_error_fields(exc) << "\"status\":\"error\","
             << "\"supported\":false,"
             << "\"backend\":\"cdmw_preview_core_mesh_audit_0.1\","
             << "\"message\":\"" << json_escape(exc.what()) << "\","

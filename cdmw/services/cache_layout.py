@@ -30,10 +30,13 @@ def runtime_cache_layout(cache_root: Path | str) -> RuntimeCacheLayout:
     index_root = root / "index"
     preview_root = root / "preview"
     texture_preview_root = preview_root / "textures"
+    # Keep older generations in place while their prepared paths may be in use.
+    candidates = (index_root / "c2", index_root / "catalogue_v2", root / "catalogue_v2")
+    catalogue_root = next((path for path in candidates if path.is_dir()), candidates[0])
     return RuntimeCacheLayout(
         root=root,
         index_root=index_root,
-        catalogue_root=index_root / "catalogue_v2",
+        catalogue_root=catalogue_root,
         preview_root=preview_root,
         item_icon_preview_root=preview_root / "item-icons",
         model_preview_root=preview_root / "models",
@@ -89,7 +92,6 @@ def migrate_runtime_cache_layout(cache_root: Path | str) -> CacheLayoutMigration
         except OSError as exc:
             report.skipped.append((directory, directory, str(exc)))
 
-    _move_directory(layout.root / "catalogue_v2", layout.catalogue_root, report)
     _move_directory(
         layout.root / "directxtex_texture_preview",
         layout.directxtex_preview_root,

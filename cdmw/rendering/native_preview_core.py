@@ -219,7 +219,7 @@ class NativePreviewCoreAttempt:
                 metrics.append(f"graph_cache={'hit' if graph_cache_hit else 'miss'}")
             suffix = f"; {'; '.join(metrics)}" if metrics else ""
             return f"Native Preview Core: active; package={self.package_path}; time={timing}{suffix}."
-        return f"Native Preview Core: unavailable; reason={reason or self.status}; time={timing}."
+        return f"Native Preview Core: preparation failed; reason={reason or self.status}; time={timing}."
 
 
 def _native_diagnostic_args(*, crash_dir: Optional[Path] = None, diagnostic_log: Optional[Path] = None) -> list[str]:
@@ -1105,7 +1105,7 @@ def run_native_preview_core_preview_job(
             job_root_path=str(job_root),
         )
     elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-    if returncode != 0:
+    if returncode != 0 and not report_path.is_file():
         detail = (stderr_text or stdout_text or "").strip()
         shutil.rmtree(job_root, ignore_errors=True)
         return NativePreviewCoreAttempt(
@@ -1130,6 +1130,12 @@ def run_native_preview_core_preview_job(
         report = {"status": "error", "message": "native preview-core report was not an object"}
     else:
         report = dict(report)
+    if returncode != 0:
+        # Read structured failures even on a nonzero exit, but never promote a
+        # package from a helper that wrote "ok" and then failed during teardown.
+        if str(report.get("status", "")).strip().lower() == "ok":
+            report["fallback_reason"] = f"native preview-core exited with code {returncode} after writing its report"
+        report["status"] = "error"
     binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(binary)
     report.setdefault("native_preview_core_binary_mtime_ns", binary_signature[0])
     report.setdefault("native_preview_core_binary_size", binary_signature[1])

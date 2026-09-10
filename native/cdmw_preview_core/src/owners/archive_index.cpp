@@ -1,11 +1,11 @@
 
 static void write_binary(const fs::path& path, const std::vector<char>& data) {
     if (!path.parent_path().empty()) {
-        fs::create_directories(path.parent_path());
+        fs::create_directories(native_file_path(path.parent_path()));
     }
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(native_file_path(path), std::ios::binary | std::ios::trunc);
     if (!out) {
-        throw std::runtime_error("could not write " + path.string());
+        throw_file_error("write", path);
     }
     if (!data.empty()) {
         out.write(data.data(), static_cast<std::streamsize>(data.size()));
@@ -223,8 +223,8 @@ struct PamtIndexSourceStamp {
 
 static PamtIndexSourceStamp pamt_index_source_stamp(const fs::path& pamt_path) {
     return PamtIndexSourceStamp{
-        static_cast<std::uint64_t>(fs::file_size(pamt_path)),
-        static_cast<std::int64_t>(fs::last_write_time(pamt_path).time_since_epoch().count()),
+        static_cast<std::uint64_t>(fs::file_size(native_file_path(pamt_path))),
+        static_cast<std::int64_t>(fs::last_write_time(native_file_path(pamt_path)).time_since_epoch().count()),
     };
 }
 
@@ -267,7 +267,7 @@ static std::pair<bool, bool> pamt_index_entry_traits(const ArchiveEntryRef& ref)
 
 static fs::path pamt_index_cache_path(const fs::path& pamt_path, const fs::path& cache_root) {
     if (cache_root.empty()) return {};
-    const std::string identity = lower_copy(fs::absolute(pamt_path).lexically_normal().string());
+    const std::string identity = lower_copy(path_utf8(fs::absolute(pamt_path).lexically_normal()));
     return cache_root / "pamt_index" / (hex64(fnv1a64(identity)) + ".bin");
 }
 
@@ -305,8 +305,8 @@ static std::optional<PamtIndex> load_pamt_index_cache(
     const fs::path& pamt_path,
     PamtIndexSourceStamp expected_stamp
 ) {
-    if (cache_path.empty() || !fs::is_regular_file(cache_path)) return std::nullopt;
-    std::ifstream in(cache_path, std::ios::binary);
+    if (cache_path.empty() || !fs::is_regular_file(native_file_path(cache_path))) return std::nullopt;
+    std::ifstream in(native_file_path(cache_path), std::ios::binary);
     if (!in) return std::nullopt;
     std::array<char, 8> magic{};
     in.read(magic.data(), static_cast<std::streamsize>(magic.size()));
@@ -353,16 +353,17 @@ static void write_pamt_index_cache(
     PamtIndexSourceStamp source_stamp
 ) {
     if (cache_path.empty()) return;
-    fs::create_directories(cache_path.parent_path());
+    fs::create_directories(native_file_path(cache_path.parent_path()));
     const std::string nonce = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-    const fs::path temp_path = cache_path.string() + ".tmp." + hex64(fnv1a64(nonce));
+    fs::path temp_path = cache_path;
+    temp_path += ".tmp." + hex64(fnv1a64(nonce));
     std::uint64_t relevant_count = 0;
     for (const auto& [basename, refs] : index.by_basename) {
         (void)basename;
         relevant_count += static_cast<std::uint64_t>(refs.size());
     }
     try {
-        std::ofstream out(temp_path, std::ios::binary | std::ios::trunc);
+        std::ofstream out(native_file_path(temp_path), std::ios::binary | std::ios::trunc);
         if (!out) throw std::runtime_error("could not create PAMT index cache");
         out.write("CDMWPIDX", 8);
         write_pamt_index_cache_value(out, static_cast<std::uint32_t>(2));
@@ -384,21 +385,21 @@ static void write_pamt_index_cache(
         out.close();
         if (!out) throw std::runtime_error("could not finalize PAMT index cache");
         if (!MoveFileExW(
-                temp_path.c_str(),
-                cache_path.c_str(),
+                native_file_path(temp_path).c_str(),
+                native_file_path(cache_path).c_str(),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
             throw std::runtime_error("could not publish PAMT index cache");
         }
     } catch (...) {
         std::error_code remove_error;
-        fs::remove(temp_path, remove_error);
+        fs::remove(native_file_path(temp_path), remove_error);
         throw;
     }
 }
 
 static std::vector<char> read_pamt_bytes(const fs::path& pamt_path) {
-    std::ifstream in(pamt_path, std::ios::binary);
-    if (!in) throw std::runtime_error("could not open PAMT file " + pamt_path.string());
+    std::ifstream in(native_file_path(pamt_path), std::ios::binary);
+    if (!in) throw_file_error("open", pamt_path);
     in.seekg(0, std::ios::end);
     const auto size_pos = in.tellg();
     if (size_pos < 0) throw std::runtime_error("could not determine PAMT size");

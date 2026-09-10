@@ -4,7 +4,7 @@ static PamtIndex build_bounded_pamt_index(const EntryJob& job) {
     std::set<std::string> seen;
     auto add_entry = [&](const ArchiveEntryRef& entry) {
         if (entry.path.empty()) return;
-        const std::string key = lower_copy(entry.pamt_path.string() + "|" + entry.path);
+        const std::string key = lower_copy(path_utf8(entry.pamt_path) + "|" + entry.path);
         if (!seen.insert(key).second) return;
         ++index.entry_count;
         const auto [material_sidecar, lookup_relevant] = pamt_index_entry_traits(entry);
@@ -35,7 +35,7 @@ static bool lookup_bounded_archive_dependency_basename(
         const std::string candidate = lower_copy(
             entry.basename.empty() ? basename_from_path(entry.path) : entry.basename);
         if (candidate != wanted) continue;
-        const std::string key = lower_copy(entry.pamt_path.string() + "|" + entry.path);
+        const std::string key = lower_copy(path_utf8(entry.pamt_path) + "|" + entry.path);
         if (seen.insert(key).second) result.push_back(entry);
         if (result.size() >= max_count) break;
     }

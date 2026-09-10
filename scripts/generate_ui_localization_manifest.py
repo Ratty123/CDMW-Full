@@ -47,6 +47,12 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Preview Core selects recovery guidance by the native filesystem error.
+        "A required file is missing. Refresh the archive catalogue and select the model again.",
+        "Access was denied. Check permissions for the workspace and source files.",
+        "A file path is too long. Use a shorter app or workspace location.",
+        "A file path is invalid. Check the workspace and source locations.",
+        "Select the model again to retry.",
         # Archive action menus remove the file-dialog ellipsis from this label.
         "Replace Mesh from File",
         # Shared preview combo labels arrive through imported option tables.

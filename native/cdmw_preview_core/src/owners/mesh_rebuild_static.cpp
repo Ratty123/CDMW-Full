@@ -175,7 +175,7 @@ static void sync_pam_header_mirrors_native(std::vector<char>& result, const std:
 }
 
 static PamFullRebuildPlan load_pam_full_rebuild_plan(const fs::path& table_path) {
-    std::ifstream in(table_path);
+    std::ifstream in(native_file_path(table_path));
     if (!in) throw std::runtime_error("could not open PAM full rebuild table");
     PamFullRebuildPlan plan;
     std::string line;
@@ -382,7 +382,7 @@ struct PamlodFullPlan {
 };
 
 static PamlodFullPlan load_pamlod_full_rebuild_plan(const fs::path& table_path) {
-    std::ifstream in(table_path);
+    std::ifstream in(native_file_path(table_path));
     if (!in) throw std::runtime_error("could not open PAMLOD full rebuild table");
     PamlodFullPlan plan;
     std::string line;

@@ -917,17 +917,25 @@ class ArchivePreviewNativeMixin:
             getattr(native_attempt, "fallback_reason", "")
             or "native Preview Core did not produce a Preview package"
         )
+        diagnostics = dict(getattr(native_attempt, "diagnostics", {}) or {})
+        file_error = diagnostics.get("file_error")
+        file_kind = str(file_error.get("kind", "")) if isinstance(file_error, Mapping) else ""
+        guidance = {
+            "missing": "A required file is missing. Refresh the archive catalogue and select the model again.",
+            "access_denied": "Access was denied. Check permissions for the workspace and source files.",
+            "path_too_long": "A file path is too long. Use a shorter app or workspace location.",
+            "invalid_path": "A file path is invalid. Check the workspace and source locations.",
+        }.get(file_kind, "Select the model again to retry.")
         detail_text = "\n".join(
             part
             for part in (
                 "Preview Core did not produce a canonical Preview package.",
-                "The legacy renderer is not used as a fallback; the Preview will retry.",
+                guidance,
                 native_attempt.diagnostic_line(),
                 f"Native failure reason: {reason}",
             )
             if part
         )
-        diagnostics = dict(getattr(native_attempt, "diagnostics", {}) or {})
         diagnostics.setdefault("fallback_reason", reason)
         return ArchivePreviewResult(
             status="error",

@@ -534,6 +534,43 @@ def test_cold_texture_failure_retries_once_for_the_same_entry(tmp_path: Path) ->
     assert harness._archive_texture_retry_count == 1
 
 
+def test_permanent_file_failure_preserves_scene_without_retry(tmp_path: Path) -> None:
+    harness = _failed_texture_request_harness(tmp_path)
+    package = harness.archive_isolated_renderer_active_package
+    assert harness._finish_archive_texture_request(
+        11, success=False, message="Access denied", retryable=False,
+    )
+    assert getattr(harness, "_archive_texture_retry_count", 0) == 0
+    assert harness.render_requests == []
+    assert harness.archive_isolated_renderer_active_package == package
+    assert harness._archive_texture_request_loading is False
+
+
+def test_native_file_failure_reaches_texture_retry_decision(tmp_path: Path) -> None:
+    from unittest.mock import MagicMock
+    from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
+
+    harness = _failed_texture_request_harness(tmp_path)
+    harness.archive_preview_request_id = 11
+    harness._archive_family_badge = lambda _path: ""
+    harness._archive_entry_role_label = lambda _entry: "Model"
+    for name in (
+        "archive_preview_title_label", "archive_preview_meta_label", "archive_preview_role_badge",
+        "_apply_archive_preview_health", "_set_archive_preview_base_detail_text",
+        "_update_archive_preview_warning_controls", "_schedule_archive_texture_reference_update",
+    ):
+        setattr(harness, name, MagicMock())
+    result = ArchivePreviewResult(
+        status="error", title="grid.pac", preferred_view="details",
+        native_preview_diagnostics={"retryable": False, "fallback_reason": "Access denied"},
+    )
+    assert ArchivePreviewResultMixin._show_archive_preview_result(
+        harness, result, use_loose=False, request_id=11,
+    ) == -1.0
+    assert getattr(harness, "_archive_texture_retry_count", 0) == 0
+    assert harness._archive_texture_request_loading is False
+
+
 def test_texture_retry_is_dropped_when_the_selection_moved_on(tmp_path: Path) -> None:
     harness = _failed_texture_request_harness(tmp_path)
     harness._finish_archive_texture_request(11, success=False, message="service timed out")

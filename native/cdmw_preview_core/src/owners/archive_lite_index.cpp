@@ -80,8 +80,8 @@ private:
 
     static std::uint64_t file_size_checked(const fs::path& path) {
         std::error_code ec;
-        const std::uint64_t size = fs::file_size(path, ec);
-        if (ec) throw std::runtime_error("could not read Archive Lite index size: " + path.string());
+        const std::uint64_t size = fs::file_size(native_file_path(path), ec);
+        if (ec) throw std::runtime_error("could not read Archive Lite index size: " + path_utf8(path));
         return size;
     }
 
@@ -96,7 +96,7 @@ private:
     }
 
     void load_basename_index() {
-        std::ifstream input(basename_index_path_, std::ios::binary);
+        std::ifstream input(native_file_path(basename_index_path_), std::ios::binary);
         if (!input) throw std::runtime_error("could not open Archive Lite basename index");
         std::array<unsigned char, 64> header{};
         read_exact(input, reinterpret_cast<char*>(header.data()), header.size(), "Archive Lite basename index header");
@@ -137,7 +137,7 @@ private:
     }
 
     void open_archive_index() {
-        archive_.open(archive_index_path_, std::ios::binary);
+        archive_.open(native_file_path(archive_index_path_), std::ios::binary);
         if (!archive_) throw std::runtime_error("could not open Archive Lite archive index");
         std::array<unsigned char, 64> header{};
         read_exact(archive_, reinterpret_cast<char*>(header.data()), header.size(), "Archive Lite archive index header");
@@ -186,8 +186,8 @@ private:
         std::replace(entry.path.begin(), entry.path.end(), '\\', '/');
         entry.basename = basename_from_path(entry.path);
         entry.extension = extension_from_path(entry.path);
-        entry.pamt_path = fs::path(read_string(archive_lite_read_u64(row.data() + 8), archive_lite_read_u32(row.data() + 52)));
-        entry.paz_file = fs::path(read_string(archive_lite_read_u64(row.data() + 16), archive_lite_read_u32(row.data() + 56)));
+        entry.pamt_path = utf8_path(read_string(archive_lite_read_u64(row.data() + 8), archive_lite_read_u32(row.data() + 52)));
+        entry.paz_file = utf8_path(read_string(archive_lite_read_u64(row.data() + 16), archive_lite_read_u32(row.data() + 56)));
         entry.offset = archive_lite_read_u64(row.data() + 24);
         entry.comp_size = archive_lite_read_u64(row.data() + 32);
         entry.orig_size = archive_lite_read_u64(row.data() + 40);

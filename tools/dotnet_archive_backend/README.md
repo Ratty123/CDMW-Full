@@ -13,19 +13,24 @@ Persistent data lives beneath the cache root passed with `--cache-root`:
 
 ```text
 index/
-  catalogue_v2/<root-id>/
+  c2/<root-id>/
     current.json
-    generations/<generation-id>/
+    g/<generation-id>/
       manifest.json
       archive.ali
       archive.adi
       lookups.bin
       names.bin
+      p/<hash-prefix>/<full-hash>.<extension>
 ```
 
-An existing top-level `catalogue_v2/` family is moved into `index/` on first
-use when the destination is free. If migration cannot complete, the worker
-continues from the legacy location instead of discarding or replacing it.
+Fresh catalogue caches use `index/c2/`. Existing `index/catalogue_v2/` or
+top-level `catalogue_v2/` families remain in place so live prepared paths stay
+valid; an existing compact root takes precedence. Both `generations/` and `g/`
+are readable, while new generations use `g/`. Existing `prepared/` payloads are
+reused and new payloads use `p/`. Root IDs, generation IDs, full content hashes,
+checksums and leases are unchanged. Directory labels save 27 characters for
+fresh prepared paths; temporary publications use short unique sibling names.
 
 The base generation is staged and validated before `current.json` is replaced.
 Mapped generations remain protected while a session owns them. Corrupt base

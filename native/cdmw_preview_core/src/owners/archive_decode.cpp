@@ -9,7 +9,7 @@ static void reset_preview_decoded_dependencies() {
 
 static void record_preview_decoded_dependency(const ArchiveEntryRef& entry) {
     const std::string identity = lower_copy(
-        entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
+        path_utf8(entry.pamt_path) + "|" + path_utf8(entry.paz_file) + "|" + entry.path + "|" +
         std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
         std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
         std::to_string(entry.paz_index));
@@ -25,9 +25,9 @@ static std::vector<char> read_archive_ref_raw_bytes(const ArchiveEntryRef& entry
     if (entry.comp_size == 0) {
         return {};
     }
-    std::ifstream in(entry.paz_file, std::ios::binary);
+    std::ifstream in(native_file_path(entry.paz_file), std::ios::binary);
     if (!in) {
-        throw std::runtime_error("could not open PAZ file " + entry.paz_file.string());
+        throw_file_error("open", entry.paz_file);
     }
     in.seekg(0, std::ios::end);
     const auto end_pos = in.tellg();
@@ -285,8 +285,8 @@ struct PathcCollectionNative {
 };
 
 static PathcCollectionNative load_pathc_collection_native(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) throw std::runtime_error("could not open PATHC file " + path.string());
+    std::ifstream in(native_file_path(path), std::ios::binary);
+    if (!in) throw_file_error("open", path);
     std::vector<char> raw((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     if (raw.size() < 32) throw std::runtime_error("PATHC file is too small");
     PathcCollectionNative collection;
@@ -371,7 +371,7 @@ static void trim_resident_pathc_cache() {
 
 static const PathcCollectionNative& cached_pathc_collection_native(const fs::path& path) {
     auto& cache = resident_pathc_cache();
-    const std::string key = fs::absolute(path).string();
+    const std::string key = path_utf8(fs::absolute(path));
     auto found = cache.find(key);
     if (found != cache.end()) return found->second;
     return cache.emplace(key, load_pathc_collection_native(path)).first->second;
@@ -604,7 +604,7 @@ static std::vector<char> decode_archive_ref_bytes(const ArchiveEntryRef& entry, 
 }
 
 static std::string archive_ref_identity(const ArchiveEntryRef& entry) {
-    return entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
+    return path_utf8(entry.pamt_path) + "|" + path_utf8(entry.paz_file) + "|" + entry.path + "|" +
         std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
         std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
         std::to_string(entry.paz_index) + "|prepared:" + entry.prepared_sha256 + "|" +

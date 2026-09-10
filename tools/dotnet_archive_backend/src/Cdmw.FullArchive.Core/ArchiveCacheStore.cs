@@ -28,21 +28,14 @@ public sealed class ArchiveCacheStore
     private static string ResolveCatalogueRoot(string archiveCacheRoot)
     {
         var indexRoot = Path.Combine(archiveCacheRoot, "index");
-        var preferredRoot = Path.Combine(indexRoot, "catalogue_v2");
-        var legacyRoot = Path.Combine(archiveCacheRoot, "catalogue_v2");
-        Directory.CreateDirectory(indexRoot);
-        if (!Directory.Exists(preferredRoot) && Directory.Exists(legacyRoot))
+        var candidates = new[]
         {
-            try
-            {
-                Directory.Move(legacyRoot, preferredRoot);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                return legacyRoot;
-            }
-        }
-        return preferredRoot;
+            Path.Combine(indexRoot, "c2"),
+            Path.Combine(indexRoot, "catalogue_v2"),
+            Path.Combine(archiveCacheRoot, "catalogue_v2"),
+        };
+        // Do not relocate generations whose prepared paths may still be in use.
+        return candidates.FirstOrDefault(Directory.Exists) ?? candidates[0];
     }
 
     public static string DeriveRootId(string packageRoot)
@@ -168,7 +161,7 @@ public sealed class ArchiveCacheStore
             }
 
             var generationId = $"{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}"[..30];
-            var generationsRoot = Path.Combine(RootDirectory(rootId), "generations");
+            var generationsRoot = Path.Combine(RootDirectory(rootId), "g");
             Directory.CreateDirectory(generationsRoot);
             var stagingPath = Path.Combine(generationsRoot, $".{generationId}.staging");
             var generationPath = Path.Combine(generationsRoot, generationId);
@@ -492,12 +485,10 @@ public sealed class ArchiveCacheStore
 
     private void PruneSupersededGenerations(string rootId, string currentGenerationId)
     {
-        var root = Path.Combine(RootDirectory(rootId), "generations");
-        if (!Directory.Exists(root))
-        {
-            return;
-        }
-        foreach (var directory in new DirectoryInfo(root).EnumerateDirectories()
+        var roots = new[] { "g", "generations" }
+            .Select(name => new DirectoryInfo(Path.Combine(RootDirectory(rootId), name)))
+            .Where(static root => root.Exists);
+        foreach (var directory in roots.SelectMany(static root => root.EnumerateDirectories())
                      .Where(static item => !item.Name.StartsWith(".", StringComparison.Ordinal))
                      .OrderByDescending(static item => item.CreationTimeUtc)
                      .Skip(2))
@@ -514,7 +505,7 @@ public sealed class ArchiveCacheStore
     {
         var root = new DirectoryInfo(CatalogueRoot);
         var directories = root.EnumerateDirectories()
-            .SelectMany(static rootDirectory => new[] { "generations", "quarantine" }
+            .SelectMany(static rootDirectory => new[] { "g", "generations", "quarantine" }
                 .Select(name => new DirectoryInfo(Path.Combine(rootDirectory.FullName, name)))
                 .Where(static family => family.Exists)
                 .SelectMany(static family => family.EnumerateDirectories()))
@@ -545,7 +536,7 @@ public sealed class ArchiveCacheStore
     private bool IsCurrentGeneration(string path)
     {
         var generation = new DirectoryInfo(path);
-        if (generation.Parent?.Name != "generations")
+        if (generation.Parent?.Name is not ("g" or "generations"))
         {
             return false;
         }
@@ -580,8 +571,12 @@ public sealed class ArchiveCacheStore
 
     private string RootDirectory(string rootId) => Path.Combine(CatalogueRoot, rootId);
 
-    private string GenerationDirectory(string rootId, string generationId) =>
-        Path.Combine(RootDirectory(rootId), "generations", generationId);
+    private string GenerationDirectory(string rootId, string generationId)
+    {
+        var compact = Path.Combine(RootDirectory(rootId), "g", generationId);
+        var legacy = Path.Combine(RootDirectory(rootId), "generations", generationId);
+        return !Directory.Exists(compact) && Directory.Exists(legacy) ? legacy : compact;
+    }
 
     private static string CanonicalRoot(string packageRoot)
     {
@@ -717,7 +712,7 @@ internal static class AtomicJson
             ?? throw new InvalidDataException("Atomic JSON destination has no parent directory."));
         var staging = Path.Combine(
             Path.GetDirectoryName(destination)!,
-            $".{Path.GetFileName(destination)}.{Guid.NewGuid():N}.tmp");
+            $".{Guid.NewGuid():N}.tmp");
         try
         {
             await using (var stream = new FileStream(

@@ -178,7 +178,7 @@ static std::vector<PacFullSubmesh> load_pac_full_rebuild_tables(
 ) {
     std::vector<PacFullSubmesh> submeshes;
     {
-        std::ifstream in(submeshes_path);
+        std::ifstream in(native_file_path(submeshes_path));
         if (!in) throw std::runtime_error("could not open PAC full submesh table");
         std::string line;
         while (std::getline(in, line)) {
@@ -201,7 +201,7 @@ static std::vector<PacFullSubmesh> load_pac_full_rebuild_tables(
         }
     }
     {
-        std::ifstream in(vertices_path);
+        std::ifstream in(native_file_path(vertices_path));
         if (!in) throw std::runtime_error("could not open PAC full vertex table");
         std::string line;
         while (std::getline(in, line)) {
@@ -225,7 +225,7 @@ static std::vector<PacFullSubmesh> load_pac_full_rebuild_tables(
         }
     }
     {
-        std::ifstream in(faces_path);
+        std::ifstream in(native_file_path(faces_path));
         if (!in) throw std::runtime_error("could not open PAC full face table");
         std::string line;
         while (std::getline(in, line)) {
@@ -258,7 +258,7 @@ static std::vector<PacPatchSubmesh> load_pac_patch_tables(
 ) {
     std::vector<PacPatchSubmesh> submeshes;
     {
-        std::ifstream in(submeshes_path);
+        std::ifstream in(native_file_path(submeshes_path));
         if (!in) throw std::runtime_error("could not open PAC submesh patch table");
         std::string line;
         while (std::getline(in, line)) {
@@ -281,7 +281,7 @@ static std::vector<PacPatchSubmesh> load_pac_patch_tables(
         }
     }
     {
-        std::ifstream in(vertices_path);
+        std::ifstream in(native_file_path(vertices_path));
         if (!in) throw std::runtime_error("could not open PAC vertex patch table");
         std::string line;
         while (std::getline(in, line)) {
@@ -304,7 +304,7 @@ static std::vector<PacPatchSubmesh> load_pac_patch_tables(
         }
     }
     {
-        std::ifstream in(faces_path);
+        std::ifstream in(native_file_path(faces_path));
         if (!in) throw std::runtime_error("could not open PAC face patch table");
         std::string line;
         while (std::getline(in, line)) {
@@ -618,7 +618,7 @@ static std::vector<char> rebuild_pac_full_native(const std::vector<char>& origin
 }
 
 static std::vector<char> rebuild_static_quantized_in_place_native(const std::vector<char>& original, const fs::path& patch_path) {
-    std::ifstream in(patch_path);
+    std::ifstream in(native_file_path(patch_path));
     if (!in) throw std::runtime_error("could not open static mesh patch table");
     std::vector<char> output = original;
     std::array<double, 3> bmin{0.0, 0.0, 0.0};

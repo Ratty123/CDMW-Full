@@ -14,7 +14,8 @@ internal static class FullArchiveTestRunner
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
-            ("cache_layout_migration", CacheLayoutMigrationAsync),
+            ("cache_layout_compatibility", CacheLayoutMigrationAsync),
+            ("legacy_generation_and_prepared_cache", LegacyGenerationAndPreparedCacheAsync),
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
@@ -68,19 +69,70 @@ internal static class FullArchiveTestRunner
             File.WriteAllText(markerPath, "existing cache");
 
             var cache = new ArchiveCacheStore(cacheRoot);
-            var expectedRoot = Path.Combine(cacheRoot, "index", "catalogue_v2");
+            var expectedRoot = legacyRoot;
             Require(
                 StringComparer.OrdinalIgnoreCase.Equals(cache.CatalogueRoot, expectedRoot),
                 "the archive catalogue did not use the structured index cache lane");
             Require(
-                File.Exists(Path.Combine(expectedRoot, "legacy-marker.txt")) && !Directory.Exists(legacyRoot),
-                "the legacy catalogue cache was not preserved during migration");
+                File.Exists(Path.Combine(expectedRoot, "legacy-marker.txt")) && Directory.Exists(legacyRoot),
+                "the legacy catalogue cache was moved while prepared paths may be in use");
+            var fresh = new ArchiveCacheStore(Path.Combine(cacheRoot, "fresh"));
+            Require(fresh.CatalogueRoot == Path.Combine(cacheRoot, "fresh", "index", "c2"), "fresh catalogue root is not compact");
         }
         finally
         {
             DeleteDirectory(cacheRoot);
         }
         return Task.CompletedTask;
+    }
+
+    private static async Task LegacyGenerationAndPreparedCacheAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("legacy-generation");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            string generationPath;
+            string preparedName;
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+                generationPath = sessions.GetRequired(handle.SessionId).GenerationPath;
+                var prepared = await new ArchiveEntryPreparationService(sessions, native).PrepareAsync(
+                    new PrepareEntryRequest(handle.SessionId, 2), CancellationToken.None).ConfigureAwait(false);
+                preparedName = Path.GetFileName(prepared.PreparedPath);
+                Require(preparedName[..^4].Length == 64, "prepared identity hash was shortened");
+                Require(Path.GetRelativePath(generationPath, prepared.PreparedPath).StartsWith("p" + Path.DirectorySeparatorChar), "prepared path is not compact");
+            }
+            // Recreate the old on-disk layout only after all mapped fixture sessions close.
+            Directory.Move(Path.Combine(generationPath, "p"), Path.Combine(generationPath, "prepared"));
+            var family = Directory.GetParent(generationPath)!.Parent!.FullName;
+            Directory.Move(Path.Combine(family, "g"), Path.Combine(family, "generations"));
+            var legacyRoot = Path.Combine(cacheRoot, "index", "catalogue_v2");
+            Directory.Move(cache.CatalogueRoot, legacyRoot);
+            var reopenedCache = new ArchiveCacheStore(cacheRoot);
+            Require(reopenedCache.CatalogueRoot == legacyRoot, "legacy root was moved");
+            using (var sessions = new ArchiveSessionManager(native, reopenedCache))
+            {
+                var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+                Require(handle.CacheHit, "legacy generation was not reused");
+                var prepared = await new ArchiveEntryPreparationService(sessions, native).PrepareAsync(
+                    new PrepareEntryRequest(handle.SessionId, 2), CancellationToken.None).ConfigureAwait(false);
+                Require(prepared.PreparedPath.Contains(Path.DirectorySeparatorChar + "prepared" + Path.DirectorySeparatorChar), "legacy prepared file was moved");
+                Require(Path.GetFileName(prepared.PreparedPath) == preparedName, "prepared hash identity changed");
+                Require(await File.ReadAllTextAsync(prepared.PreparedPath).ConfigureAwait(false) == "Hello Crimson\nline 2", "legacy prepared bytes changed");
+                var fresh = await sessions.RefreshAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+                var freshPath = sessions.GetRequired(fresh.SessionId).GenerationPath;
+                Require(Directory.GetParent(freshPath)!.Name == "g", "refreshed generation is not compact");
+                Require(File.Exists(prepared.PreparedPath), "active legacy prepared file was pruned");
+            }
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
     }
 
     private static Task TextureUsageClassificationAsync()
@@ -261,9 +313,9 @@ internal static class FullArchiveTestRunner
                 "deterministic path and identity ordering changed");
 
             var rootId = ArchiveCacheStore.DeriveRootId(fixture.Root);
-            var family = Path.Combine(cacheRoot, "index", "catalogue_v2", rootId);
+            var family = Path.Combine(cacheRoot, "index", "c2", rootId);
             Require(File.Exists(Path.Combine(family, "current.json")), "current pointer was not published");
-            var firstGeneration = Directory.GetDirectories(Path.Combine(family, "generations"))
+            var firstGeneration = Directory.GetDirectories(Path.Combine(family, "g"))
                 .Single(path => !Path.GetFileName(path).StartsWith(".", StringComparison.Ordinal));
             Require(File.Exists(Path.Combine(firstGeneration, "archive.ali")), "base index is missing");
             Require(File.Exists(Path.Combine(firstGeneration, "manifest.json")), "generation manifest is missing");
@@ -287,7 +339,7 @@ internal static class FullArchiveTestRunner
                 CancellationToken.None).ConfigureAwait(false);
             Require(refreshed.Fingerprint != first.Fingerprint, "refresh did not observe changed source metadata");
             Require(firstSession.ReadEntry(2).Path == "text/hello.txt", "old mapped generation stopped serving its active session");
-            Require(Directory.GetDirectories(Path.Combine(family, "generations")).Length >= 2, "active prior generation was pruned");
+            Require(Directory.GetDirectories(Path.Combine(family, "g")).Length >= 2, "active prior generation was pruned");
 
             var health = await cache.InspectAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
             Require(health.State == "current", $"cache health is not current: {health.State} {health.Reason}");

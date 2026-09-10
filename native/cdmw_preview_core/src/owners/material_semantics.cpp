@@ -215,8 +215,8 @@ static int visible_class_priority(const std::string& visible_class) {
 
 static std::string package_label_for_ref(const ArchiveEntryRef& ref) {
     if (ref.pamt_path.empty()) return "";
-    std::string parent = ref.pamt_path.parent_path().filename().string();
-    std::string name = ref.pamt_path.filename().string();
+    std::string parent = path_utf8(ref.pamt_path.parent_path().filename());
+    std::string name = path_utf8(ref.pamt_path.filename());
     return parent.empty() ? name : (parent + "/" + name);
 }
 

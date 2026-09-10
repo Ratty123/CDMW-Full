@@ -10,7 +10,7 @@ static std::map<std::string, TechniqueIndex>& resident_package_technique_index_c
 
 static const TechniqueIndex& cached_technique_index(const PamtIndex& pamt_index) {
     auto& cache = resident_technique_index_cache();
-    const std::string key = fs::absolute(pamt_index.pamt_path).string();
+    const std::string key = path_utf8(fs::absolute(pamt_index.pamt_path));
     auto it = cache.find(key);
     if (it == cache.end()) {
         it = cache.emplace(key, build_technique_index_for_pamt(pamt_index)).first;
@@ -22,21 +22,21 @@ static std::vector<fs::path> package_root_pamt_paths(const fs::path& package_roo
     std::vector<fs::path> paths;
     if (package_root.empty()) return paths;
     std::error_code ec;
-    if (fs::is_regular_file(package_root, ec) && package_root.extension() == ".pamt") {
+    if (fs::is_regular_file(native_file_path(package_root), ec) && package_root.extension() == ".pamt") {
         paths.push_back(package_root);
         return paths;
     }
-    if (!fs::is_directory(package_root, ec)) return paths;
-    for (const fs::directory_entry& root_entry : fs::directory_iterator(package_root, ec)) {
+    if (!fs::is_directory(native_file_path(package_root), ec)) return paths;
+    for (const fs::directory_entry& root_entry : fs::directory_iterator(native_file_path(package_root), ec)) {
         if (ec) break;
         if (root_entry.is_regular_file(ec) && root_entry.path().extension() == ".pamt") {
-            paths.push_back(root_entry.path());
+            paths.push_back(package_root / root_entry.path().filename());
         } else if (root_entry.is_directory(ec)) {
             std::error_code inner_ec;
-            for (const fs::directory_entry& child : fs::directory_iterator(root_entry.path(), inner_ec)) {
+            for (const fs::directory_entry& child : fs::directory_iterator(native_file_path(root_entry.path()), inner_ec)) {
                 if (inner_ec) break;
                 if (child.is_regular_file(inner_ec) && child.path().extension() == ".pamt") {
-                    paths.push_back(child.path());
+                    paths.push_back(package_root / root_entry.path().filename() / child.path().filename());
                 }
             }
         }
@@ -47,6 +47,35 @@ static std::vector<fs::path> package_root_pamt_paths(const fs::path& package_roo
     return paths;
 }
 
+static void run_archive_path_io_self_test() {
+#ifdef _WIN32
+    const auto parent = fs::absolute(fs::temp_directory_path()).lexically_normal();
+    const auto name = "cdmw-path-test-" + std::to_string(GetCurrentProcessId()) + "-"
+        + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto temporary = parent / name;
+    if (temporary.parent_path() != parent || !fs::create_directory(native_file_path(temporary))) {
+        throw std::runtime_error("could not reserve path self-test directory");
+    }
+    auto cleanup = [&]() {
+        std::error_code ignored;
+        fs::remove_all(native_file_path(temporary), ignored);
+    };
+    try {
+        auto root = temporary / utf8_path("space-\xE4\xB8\xAD");
+        while (root.native().size() < 350) root /= std::string(80, 'd');
+        const std::vector<fs::path> expected{root / "0.pamt", root / "nested" / "1.pamt"};
+        for (const auto& path : expected) write_text(path, "owned directory scan fixture");
+        if (package_root_pamt_paths(root) != expected) {
+            throw std::runtime_error("archive directory scan changed ordinary path identities");
+        }
+        cleanup();
+    } catch (...) {
+        cleanup();
+        throw;
+    }
+#endif
+}
+
 static const TechniqueIndex& cached_package_technique_index(
     const EntryJob& job,
     const PamtIndex& primary_index
@@ -55,15 +84,15 @@ static const TechniqueIndex& cached_package_technique_index(
         return cached_technique_index(primary_index);
     }
     auto& cache = resident_package_technique_index_cache();
-    const std::string key = fs::absolute(job.package_root).string();
+    const std::string key = path_utf8(fs::absolute(job.package_root));
     auto found = cache.find(key);
     if (found != cache.end()) return found->second;
     TechniqueIndex combined;
     std::set<std::string> seen_pamts;
     merge_technique_index(combined, cached_technique_index(primary_index));
-    seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+    seen_pamts.insert(path_utf8(fs::absolute(primary_index.pamt_path)));
     for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
-        const std::string pamt_key = fs::absolute(pamt_path).string();
+        const std::string pamt_key = path_utf8(fs::absolute(pamt_path));
         if (!seen_pamts.insert(pamt_key).second) continue;
         try {
             merge_technique_index(combined, cached_technique_index(cached_pamt_index(pamt_path, job.cache_root)));
@@ -122,7 +151,7 @@ static NativeMaterialGraph build_bounded_native_material_graph(
     for (const auto& [basename, refs] : index.by_basename) {
         (void)basename;
         for (const ArchiveEntryRef& ref : refs) {
-            pamt_paths.insert(lower_copy(ref.pamt_path.string()));
+            pamt_paths.insert(lower_copy(path_utf8(ref.pamt_path)));
         }
     }
     graph.pamt_count = static_cast<int>(std::max<size_t>(1, pamt_paths.size()));
@@ -140,8 +169,8 @@ static const NativeMaterialGraph& cached_native_material_graph(
 ) {
     auto& cache = resident_native_material_graph_cache();
     const std::string root_key = job.package_root.empty()
-        ? fs::absolute(primary_index.pamt_path).string()
-        : fs::absolute(job.package_root).string();
+        ? path_utf8(fs::absolute(primary_index.pamt_path))
+        : path_utf8(fs::absolute(job.package_root));
     const std::string key = root_key + "|material_graph_v" + std::to_string(kNativeMaterialGraphVersion);
     auto found = cache.find(key);
     if (found != cache.end()) return found->second;
@@ -149,7 +178,7 @@ static const NativeMaterialGraph& cached_native_material_graph(
     NativeMaterialGraph graph;
     graph.key = hex64(fnv1a64(key));
     graph.cache_path = job.cache_root / "native_material_graph" / (graph.key + ".json");
-    graph.persistent_cache_hit = fs::is_regular_file(graph.cache_path);
+    graph.persistent_cache_hit = fs::is_regular_file(native_file_path(graph.cache_path));
     graph.technique_index = cached_technique_index(primary_index);
     graph.pamt_count = 1;
     graph.entry_count = primary_index.entry_count;
@@ -166,9 +195,9 @@ static const NativeMaterialGraph& cached_native_material_graph(
     const bool build_archive_wide_summary = std::getenv("CDMW_PREVIEW_CORE_ARCHIVE_WIDE_GRAPH") != nullptr;
     if (build_archive_wide_summary && !job.package_root.empty()) {
         std::set<std::string> seen_pamts;
-        seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+        seen_pamts.insert(path_utf8(fs::absolute(primary_index.pamt_path)));
         for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
-            const std::string pamt_key = fs::absolute(pamt_path).string();
+            const std::string pamt_key = path_utf8(fs::absolute(pamt_path));
             if (!seen_pamts.insert(pamt_key).second) continue;
             try {
                 const PamtIndex& index = cached_pamt_index(pamt_path, job.cache_root);

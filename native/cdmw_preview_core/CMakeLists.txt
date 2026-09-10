@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PREVIEW_CORE_OWNER_SOURCES
+    src/owners/path_io.cpp
     src/owners/protocol_json.cpp
     src/owners/protocol_types.cpp
     src/owners/protocol_jobs.cpp

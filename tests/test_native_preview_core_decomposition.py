@@ -21,9 +21,15 @@ def test_native_preview_core_has_thin_entry_point_and_real_owner_sources() -> No
     assert main.read_text(encoding="utf-8").splitlines() == [
         '#include "preview_core.hpp"',
         "",
+        "#ifdef _WIN32",
+        "int wmain(int argc, wchar_t** argv) {",
+        "    return cdmw_preview_core::run_cli_utf16(argc, argv);",
+        "}",
+        "#else",
         "int main(int argc, char** argv) {",
         "    return cdmw_preview_core::run_cli(argc, argv);",
         "}",
+        "#endif",
     ]
     assert owners
     assert "set(PREVIEW_CORE_OWNER_SOURCES" in cmake

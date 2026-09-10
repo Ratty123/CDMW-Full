@@ -13,6 +13,21 @@ restarting the renderer or resetting its camera. Character appearance overrides
 are read-only presentation clones and are acknowledged in the package report;
 they never rewrite the selected PAC or its linked PABC/PAMT sources.
 
+Windows file access uses absolute extended-length Unicode paths, including UNC
+shares, for prepared models, dependencies, cache files, jobs and package/report
+outputs. JSON and package paths remain ordinary UTF-8 paths; escaped Unicode
+and surrogate pairs are supported. Failed file access reports the OS cause and
+path length in `file_error` (`kind`, `path`, `operation`, `os_error`,
+`os_error_category`, `path_length`). Missing, denied and invalid/overlong paths
+set the additive `retryable` flag to false; sharing violations remain retryable.
+Archive Browser preserves the current scene and avoids automatic texture retries
+for permanent file errors. Its details explain how to recover.
+
+`tests/test_native_preview_long_paths.py` exercises the real helper with a valid
+synthetic PAC, short/279/440-character paths, Unicode, both CLI/service calls,
+and missing, denied, invalid and locked inputs. `self-test` additionally checks
+UNC normalization, already-extended paths and Windows length-error classification.
+
 Cold PAMT scans classify entries before constructing archive paths, retain only
 the same preview-relevant records, and reuse each PAZ path within a table. XML
 classification still uses the complete directory path. These allocation savings

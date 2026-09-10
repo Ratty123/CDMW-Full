@@ -177,7 +177,7 @@ static PackageWriteState start_package_write(
 ) {
     const fs::path package_dir = job.output_root;
     const fs::path geometry_dir = package_dir / "geometry";
-    fs::create_directories(geometry_dir);
+    fs::create_directories(native_file_path(geometry_dir));
     PackageWriteState state{
         job,
         submeshes,

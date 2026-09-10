@@ -14,7 +14,7 @@ static MeshRebuildRequest read_mesh_rebuild_request(const fs::path& job_path) {
     request.filename = find_string_value(request.job, "source_filename");
     request.layout = find_string_value(request.job, "layout");
     request.mode = find_string_value(request.job, "rebuild_mode");
-    request.original_path = fs::path(find_string_value(request.job, "original_binary_path"));
+    request.original_path = utf8_path(find_string_value(request.job, "original_binary_path"));
     return request;
 }
 
@@ -23,8 +23,8 @@ static void write_mesh_rebuild_binary(
     const std::vector<char>& rebuilt,
     const std::string& label
 ) {
-    if (!output_path.parent_path().empty()) fs::create_directories(output_path.parent_path());
-    std::ofstream output(output_path, std::ios::binary | std::ios::trunc);
+    if (!output_path.parent_path().empty()) fs::create_directories(native_file_path(output_path.parent_path()));
+    std::ofstream output(native_file_path(output_path), std::ios::binary | std::ios::trunc);
     if (!output) throw std::runtime_error("could not write native " + label + " output");
     output.write(rebuilt.data(), static_cast<std::streamsize>(rebuilt.size()));
     if (!output) throw std::runtime_error("native " + label + " output write failed");
@@ -49,7 +49,7 @@ static void write_mesh_rebuild_success(
     report << "\"rebuild_supported\":true,"
            << "\"parity_ready\":true,"
            << "\"bytes_written\":" << rebuilt.size() << ","
-           << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+           << "\"output_path\":\"" << json_escape(path_utf8(output_path)) << "\","
            << "\"fallback_reason\":\"\"}";
     write_text(report_path, report.str());
 }
@@ -60,9 +60,9 @@ static int run_pac_rebuild(
     const fs::path& report_path
 ) {
     if (request.mode == "full") {
-        const fs::path submeshes = fs::path(find_string_value(request.job, "pac_full_submeshes_tsv_path"));
-        const fs::path vertices = fs::path(find_string_value(request.job, "pac_full_vertices_tsv_path"));
-        const fs::path faces = fs::path(find_string_value(request.job, "pac_full_faces_tsv_path"));
+        const fs::path submeshes = utf8_path(find_string_value(request.job, "pac_full_submeshes_tsv_path"));
+        const fs::path vertices = utf8_path(find_string_value(request.job, "pac_full_vertices_tsv_path"));
+        const fs::path faces = utf8_path(find_string_value(request.job, "pac_full_faces_tsv_path"));
         if (request.original_path.empty() || submeshes.empty() || vertices.empty() || faces.empty()) {
             throw std::runtime_error("native PAC full rebuild job is missing patch table paths");
         }
@@ -72,9 +72,9 @@ static int run_pac_rebuild(
         write_mesh_rebuild_success(report_path, output_path, request, rebuilt, true);
         return 0;
     }
-    const fs::path submeshes = fs::path(find_string_value(request.job, "pac_submeshes_tsv_path"));
-    const fs::path vertices = fs::path(find_string_value(request.job, "pac_vertices_tsv_path"));
-    const fs::path faces = fs::path(find_string_value(request.job, "pac_faces_tsv_path"));
+    const fs::path submeshes = utf8_path(find_string_value(request.job, "pac_submeshes_tsv_path"));
+    const fs::path vertices = utf8_path(find_string_value(request.job, "pac_vertices_tsv_path"));
+    const fs::path faces = utf8_path(find_string_value(request.job, "pac_faces_tsv_path"));
     if (request.original_path.empty() || submeshes.empty() || vertices.empty() || faces.empty()) {
         throw std::runtime_error("native PAC rebuild job is missing patch table paths");
     }
@@ -100,7 +100,7 @@ static int run_static_rebuild(
     const fs::path& report_path
 ) {
     if (request.format == "pamlod" && request.mode == "full") {
-        const fs::path table = fs::path(find_string_value(request.job, "pamlod_full_rebuild_tsv_path"));
+        const fs::path table = utf8_path(find_string_value(request.job, "pamlod_full_rebuild_tsv_path"));
         if (request.original_path.empty() || table.empty()) {
             throw std::runtime_error("native PAMLOD full rebuild job is missing table paths");
         }
@@ -111,7 +111,7 @@ static int run_static_rebuild(
         return 0;
     }
     if (request.format == "pam" && request.mode == "full") {
-        const fs::path table = fs::path(find_string_value(request.job, "static_full_rebuild_tsv_path"));
+        const fs::path table = utf8_path(find_string_value(request.job, "static_full_rebuild_tsv_path"));
         if (request.original_path.empty() || table.empty()) {
             throw std::runtime_error("native PAM full rebuild job is missing table paths");
         }
@@ -121,7 +121,7 @@ static int run_static_rebuild(
         write_mesh_rebuild_success(report_path, output_path, request, rebuilt, true);
         return 0;
     }
-    const fs::path patch = fs::path(find_string_value(request.job, "static_quantized_patch_tsv_path"));
+    const fs::path patch = utf8_path(find_string_value(request.job, "static_quantized_patch_tsv_path"));
     if (request.original_path.empty() || patch.empty()) {
         throw std::runtime_error("native static mesh rebuild job is missing patch table paths");
     }
@@ -148,7 +148,7 @@ static void write_mesh_rebuild_unsupported(
            << "\"rebuild_supported\":false,"
            << "\"parity_ready\":false,"
            << "\"bytes_written\":0,"
-           << "\"output_path\":\"" << json_escape(output_path.string()) << "\","
+           << "\"output_path\":\"" << json_escape(path_utf8(output_path)) << "\","
            << "\"fallback_reason\":\"native mesh rebuild is not enabled until per-layout parity tests pass\"}";
     write_text(report_path, report.str());
 }

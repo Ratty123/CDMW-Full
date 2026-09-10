@@ -244,6 +244,37 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertEqual("C:/cache/native/package_001", attempt.package_path)
         self.assertIn("cache=2/1", attempt.diagnostic_line())
 
+    def test_nonzero_exit_preserves_file_error_report_without_accepting_success(self) -> None:
+        for report in (
+            {"status": "error", "fallback_reason": "Access denied", "retryable": False,
+             "file_error": {"kind": "access_denied", "os_error": 5}},
+            {"status": "ok", "package_path": "C:/cache/package"},
+        ):
+            with self.subTest(status=report["status"]), tempfile.TemporaryDirectory() as temp_dir:
+                root = Path(temp_dir)
+                binary = root / "core.exe"
+                binary.touch()
+
+                def run(command, **_kwargs):
+                    Path(command[3]).write_text(json.dumps(report), encoding="utf-8")
+                    return 2, "", "helper failed"
+
+                with (
+                    patch.object(native_preview_core, "find_native_preview_core_binary", return_value=binary),
+                    patch.object(native_preview_core, "run_process_with_cancellation", side_effect=run),
+                ):
+                    attempt = run_native_preview_core_preview_job(
+                        _entry(), cache_root=root / "cache", use_service=False,
+                    )
+                self.assertFalse(attempt.succeeded)
+                self.assertEqual(attempt.status, "error")
+                if report["status"] == "error":
+                    self.assertEqual(attempt.fallback_reason, "Access denied")
+                    self.assertFalse(attempt.diagnostics["retryable"])
+                    self.assertEqual(attempt.diagnostics["file_error"]["os_error"], 5)
+                else:
+                    self.assertIn("exited with code 2", attempt.fallback_reason)
+
     def test_cancel_after_service_dispatch_leaves_job_file_for_native_service(self) -> None:
         class _CancellingService:
             def preview_job(self, job_path, report_path, *, timeout_seconds, stop_event=None, on_dispatched=None):
@@ -1031,7 +1062,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("authoritative_small_slot", source)
         self.assertIn("_native_preview_core_manifest_metadata", python_source)
         self.assertIn("Native Asset Family: schema=v", python_source)
-        self.assertIn("The legacy renderer is not used as a fallback", python_source)
+        self.assertIn("Select the model again to retry.", python_source)
         self.assertIn("_native_preview_core_failure_result", python_source)
         self.assertNotIn("_native_preview_core_reference_metadata", python_source)
         self.assertNotIn("compatibility fallback used", python_source)

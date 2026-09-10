@@ -28,10 +28,16 @@ public sealed class ArchiveEntryPreparationService(
         var sourceSha256 = await HashArchiveRangeAsync(entry, cancellationToken, progress).ConfigureAwait(false);
         var identityText = $"{session.Fingerprint}\n{entry.Identity.NormalizedPath}\n{entry.Identity.SourcePamt}\n{entry.PazIndex}\n{entry.Offset}\n{sourceSha256}";
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identityText))).ToLowerInvariant();
-        var preparedRoot = Path.Combine(session.GenerationPath, "prepared", key[..2]);
-        Directory.CreateDirectory(preparedRoot);
+        var preparedRoot = Path.Combine(session.GenerationPath, "p", key[..2]);
         var extension = entry.Extension.Length <= 16 ? entry.Extension : string.Empty;
         var destination = Path.Combine(preparedRoot, key + extension);
+        var legacy = Path.Combine(session.GenerationPath, "prepared", key[..2], key + extension);
+        if (!File.Exists(destination) && File.Exists(legacy))
+        {
+            destination = legacy;
+            preparedRoot = Path.GetDirectoryName(legacy)!;
+        }
+        Directory.CreateDirectory(preparedRoot);
         if (File.Exists(destination))
         {
             var info = new FileInfo(destination);
@@ -79,7 +85,7 @@ public sealed class ArchiveEntryPreparationService(
         var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
         var preparedSha256 = Convert.ToHexString(SHA256.HashData(decoded.Bytes)).ToLowerInvariant();
         cancellationToken.ThrowIfCancellationRequested();
-        var staging = Path.Combine(preparedRoot, $".{key}.{Guid.NewGuid():N}.tmp");
+        var staging = Path.Combine(preparedRoot, $".{Guid.NewGuid():N}.tmp");
         try
         {
             await using (var stream = new FileStream(

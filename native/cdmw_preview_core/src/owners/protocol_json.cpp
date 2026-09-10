@@ -26,9 +26,9 @@ std::string json_escape(const std::string& value) {
 }
 
 std::string read_text(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(native_file_path(path), std::ios::binary);
     if (!in) {
-        throw std::runtime_error("could not open " + path.string());
+        throw_file_error("open", path);
     }
     std::ostringstream ss;
     ss << in.rdbuf();
@@ -37,21 +37,83 @@ std::string read_text(const fs::path& path) {
 
 void write_text(const fs::path& path, const std::string& text) {
     if (!path.parent_path().empty()) {
-        fs::create_directories(path.parent_path());
+        fs::create_directories(native_file_path(path.parent_path()));
     }
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(native_file_path(path), std::ios::binary | std::ios::trunc);
     if (!out) {
-        throw std::runtime_error("could not write " + path.string());
+        throw_file_error("write", path);
     }
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
+    out.close();
+    if (!out) throw_file_error("write", path);
 }
 
 std::vector<char> read_binary_file(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(native_file_path(path), std::ios::binary);
     if (!in) {
-        throw std::runtime_error("could not open " + path.string());
+        throw_file_error("open", path);
     }
     return std::vector<char>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+static std::uint32_t json_hex_codepoint(const std::string& json, size_t& pos) {
+    std::uint32_t value = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (pos >= json.size()) throw std::runtime_error("truncated JSON Unicode escape");
+        const char ch = json[pos++];
+        const int digit = ch >= '0' && ch <= '9' ? ch - '0'
+            : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10 : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : -1;
+        if (digit < 0) throw std::runtime_error("invalid JSON Unicode escape");
+        value = value * 16 + static_cast<std::uint32_t>(digit);
+    }
+    return value;
+}
+
+static void append_json_codepoint(std::string& out, std::uint32_t value) {
+    if (value <= 0x7F) out += static_cast<char>(value);
+    else {
+        if (value > 0xFFFF) out += static_cast<char>(0xF0 | (value >> 18));
+        if (value > 0x7FF) out += static_cast<char>((value > 0xFFFF ? 0x80 : 0xE0) | ((value >> 12) & 0x3F));
+        out += static_cast<char>((value > 0x7FF ? 0x80 : 0xC0) | ((value >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (value & 0x3F));
+    }
+}
+
+static std::string read_json_string(const std::string& json, size_t& pos) {
+    if (pos >= json.size() || json[pos++] != '"') throw std::runtime_error("expected JSON string");
+    std::string out;
+    while (pos < json.size()) {
+        const char ch = json[pos++];
+        if (ch == '"') return out;
+        if (static_cast<unsigned char>(ch) < 0x20) throw std::runtime_error("unescaped control character in JSON string");
+        if (ch != '\\') { out += ch; continue; }
+        if (pos >= json.size()) break;
+        switch (json[pos++]) {
+        case 'n': out += '\n'; break;
+        case 'r': out += '\r'; break;
+        case 't': out += '\t'; break;
+        case 'b': out += '\b'; break;
+        case 'f': out += '\f'; break;
+        case '"': out += '"'; break;
+        case '\\': out += '\\'; break;
+        case '/': out += '/'; break;
+        case 'u': {
+            auto value = json_hex_codepoint(json, pos);
+            if (value >= 0xD800 && value <= 0xDBFF) {
+                if (json.compare(pos, 2, "\\u") != 0) throw std::runtime_error("missing JSON low surrogate");
+                pos += 2;
+                const auto low = json_hex_codepoint(json, pos);
+                if (low < 0xDC00 || low > 0xDFFF) throw std::runtime_error("invalid JSON low surrogate");
+                value = 0x10000 + ((value - 0xD800) << 10) + low - 0xDC00;
+            } else if (value >= 0xDC00 && value <= 0xDFFF) throw std::runtime_error("unpaired JSON low surrogate");
+            if (value == 0) throw std::runtime_error("JSON string contains NUL");
+            append_json_codepoint(out, value);
+            break;
+        }
+        default: throw std::runtime_error("invalid JSON string escape");
+        }
+    }
+    throw std::runtime_error("unterminated JSON string");
 }
 
 std::string find_string_value(const std::string& json, const std::string& key) {
@@ -60,30 +122,10 @@ std::string find_string_value(const std::string& json, const std::string& key) {
     if (pos == std::string::npos) return {};
     pos = json.find(':', pos + needle.size());
     if (pos == std::string::npos) return {};
-    pos = json.find('"', pos + 1);
-    if (pos == std::string::npos) return {};
-    std::string out;
-    bool escaped = false;
-    for (size_t i = pos + 1; i < json.size(); ++i) {
-        char ch = json[i];
-        if (escaped) {
-            switch (ch) {
-            case 'n': out += '\n'; break;
-            case 'r': out += '\r'; break;
-            case 't': out += '\t'; break;
-            default: out += ch; break;
-            }
-            escaped = false;
-            continue;
-        }
-        if (ch == '\\') {
-            escaped = true;
-            continue;
-        }
-        if (ch == '"') break;
-        out += ch;
-    }
-    return out;
+    ++pos;
+    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos]))) ++pos;
+    if (pos >= json.size() || json[pos] != '"') return {};
+    return read_json_string(json, pos);
 }
 
 std::string find_object_value(const std::string& json, const std::string& key) {
@@ -204,31 +246,7 @@ static std::vector<std::string> find_string_array_values(
         while (pos < json.size() && (std::isspace(static_cast<unsigned char>(json[pos])) || json[pos] == ',')) ++pos;
         if (pos >= json.size() || json[pos] == ']') break;
         if (json[pos] != '"') return values;
-        ++pos;
-        std::string value;
-        bool escaped = false;
-        for (; pos < json.size(); ++pos) {
-            const char ch = json[pos];
-            if (escaped) {
-                switch (ch) {
-                case 'n': value += '\n'; break;
-                case 'r': value += '\r'; break;
-                case 't': value += '\t'; break;
-                default: value += ch; break;
-                }
-                escaped = false;
-                continue;
-            }
-            if (ch == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (ch == '"') {
-                ++pos;
-                break;
-            }
-            value += ch;
-        }
+        std::string value = read_json_string(json, pos);
         if (values.size() < max_count) values.push_back(std::move(value));
         else truncated = true;
     }
@@ -493,14 +511,14 @@ ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
     if (entry.basename.empty()) entry.basename = basename_from_path(entry.path);
     entry.extension = find_string_value(object, "extension");
     if (entry.extension.empty()) entry.extension = extension_from_path(entry.path);
-    entry.pamt_path = fs::path(find_string_value(object, "pamt_path"));
-    entry.paz_file = fs::path(find_string_value(object, "paz_file"));
+    entry.pamt_path = utf8_path(find_string_value(object, "pamt_path"));
+    entry.paz_file = utf8_path(find_string_value(object, "paz_file"));
     entry.offset = static_cast<std::uint64_t>(std::max<long long>(0, find_int_value(object, "offset")));
     entry.comp_size = static_cast<std::uint64_t>(std::max<long long>(0, find_int_value(object, "comp_size")));
     entry.orig_size = static_cast<std::uint64_t>(std::max<long long>(0, find_int_value(object, "orig_size")));
     entry.flags = static_cast<std::uint32_t>(std::max<long long>(0, find_int_value(object, "flags")));
     entry.paz_index = static_cast<std::uint32_t>(std::max<long long>(0, find_int_value(object, "paz_index")));
-    entry.prepared_path = fs::path(find_string_value(object, "prepared_path"));
+    entry.prepared_path = utf8_path(find_string_value(object, "prepared_path"));
     entry.prepared_sha256 = lower_copy(find_string_value(object, "prepared_sha256"));
     entry.prepared_size = find_int_value(object, "prepared_size", -1);
     return entry;
@@ -514,7 +532,7 @@ static PreviewContextComponentRef parse_preview_context_component_ref(const std:
     component.authority = lower_copy(find_string_value(object, "authority"));
     component.appearance_path = find_string_value(object, "appearance_path");
     component.scale = std::clamp(find_float_value(object, "scale", 1.0f), 0.01f, 100.0f);
-    component.presentation_geometry_path = fs::path(find_string_value(object, "context_presentation_geometry_path"));
+    component.presentation_geometry_path = utf8_path(find_string_value(object, "context_presentation_geometry_path"));
     component.presentation_geometry_source = find_string_value(object, "context_presentation_geometry_source");
     if (component.entry.path.empty()) throw std::runtime_error("preview context component is missing its archive entry");
     if (component.slot != "face" && component.slot != "hair"

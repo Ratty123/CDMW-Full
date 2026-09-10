@@ -121,12 +121,15 @@ class ArchivePreviewResultMixin:
             and int(request_id or 0) == texture_request_id
         )
         if texture_request and (preferred_view != "model" or not dotnet_package_path):
+            diagnostics = getattr(result, "native_preview_diagnostics", {}) or {}
             finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
             if callable(finish_texture_request):
                 finish_texture_request(
                     texture_request_id,
                     success=False,
-                    message="Texture preparation did not produce a resident preview package.",
+                    message=str(diagnostics.get("fallback_reason") or getattr(result, "detail_text", "")
+                                or "Texture preparation did not produce a resident preview package."),
+                    retryable=diagnostics.get("retryable") is not False,
                 )
             return -1.0
         if preferred_view == "model" and not self.archive_preview_showing_loose:

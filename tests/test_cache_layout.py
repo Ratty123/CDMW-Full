@@ -8,7 +8,7 @@ from cdmw.services.cache_layout import migrate_runtime_cache_layout, runtime_cac
 def test_runtime_cache_layout_groups_index_and_preview_lanes(tmp_path: Path) -> None:
     layout = runtime_cache_layout(tmp_path / "cache")
 
-    assert layout.catalogue_root == tmp_path / "cache" / "index" / "catalogue_v2"
+    assert layout.catalogue_root == tmp_path / "cache" / "index" / "c2"
     assert layout.item_icon_preview_root == tmp_path / "cache" / "preview" / "item-icons"
     assert layout.model_preview_root == tmp_path / "cache" / "preview" / "models"
     assert layout.native_preview_root == tmp_path / "cache" / "preview" / "native"
@@ -38,7 +38,8 @@ def test_migration_preserves_known_legacy_cache_lanes(tmp_path: Path) -> None:
     for dirname in ("packages", "dotnet_vortice"):
         assert (layout.model_preview_root / dirname / "marker.bin").is_file()
     assert unknown.is_dir()
-    assert len(report.moved) == 7
+    assert len(report.moved) == 6
+    assert layout.catalogue_root == cache_root / "catalogue_v2"
 
     second = migrate_runtime_cache_layout(cache_root)
     assert second.moved == []
@@ -57,4 +58,17 @@ def test_migration_never_overwrites_an_existing_destination(tmp_path: Path) -> N
 
     assert (source / "source.txt").read_text(encoding="utf-8") == "legacy"
     assert (destination / "destination.txt").read_text(encoding="utf-8") == "current"
-    assert any(item[0] == source and item[2] == "destination exists" for item in report.skipped)
+    assert runtime_cache_layout(cache_root).catalogue_root == destination
+    assert report.moved == []
+
+
+def test_compact_catalogue_wins_without_moving_legacy_generations(tmp_path: Path) -> None:
+    cache_root = tmp_path / "cache"
+    for relative in ("index/c2", "index/catalogue_v2", "catalogue_v2"):
+        root = cache_root / relative
+        root.mkdir(parents=True)
+        (root / "marker").write_text(relative, encoding="utf-8")
+    migrate_runtime_cache_layout(cache_root)
+    assert runtime_cache_layout(cache_root).catalogue_root == cache_root / "index" / "c2"
+    for relative in ("index/c2", "index/catalogue_v2", "catalogue_v2"):
+        assert (cache_root / relative / "marker").read_text(encoding="utf-8") == relative

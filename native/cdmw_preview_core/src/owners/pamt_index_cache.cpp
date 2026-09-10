@@ -82,7 +82,7 @@ static const PamtIndex& cached_pamt_index(
     auto& cache = resident_pamt_index_cache();
     const PamtIndexSourceStamp source_stamp = pamt_index_source_stamp(pamt_path);
     const std::string key =
-        lower_copy(fs::absolute(pamt_path).lexically_normal().string()) + "|" +
+        lower_copy(path_utf8(fs::absolute(pamt_path).lexically_normal())) + "|" +
         std::to_string(source_stamp.size) + "|" + std::to_string(source_stamp.mtime);
     auto it = cache.find(key);
     if (it == cache.end()) {
@@ -97,7 +97,7 @@ static const PamtIndex& cached_pamt_index(
             it = cache.emplace(key, std::move(*persisted)).first;
         } else {
             std::error_code remove_error;
-            if (!persistent_path.empty()) fs::remove(persistent_path, remove_error);
+            if (!persistent_path.empty()) fs::remove(native_file_path(persistent_path), remove_error);
             PamtIndex parsed = parse_pamt_index(pamt_path);
             parsed.persistent_cache_path = persistent_path;
             try {
