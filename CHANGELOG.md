@@ -28,6 +28,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Surface auto-fitting keeps corrections local around clear shoulders and sleeves, checks body contours between garment samples, and accounts for overlapping or tightly spaced body surfaces to reduce underarm clipping and spikes.
 - Morph & Refit preserves the separation of nearby clothing layers over the same body region and limits local stretching, reducing chest-layer breakthrough and cuff spikes while allowing sleeve openings to bend around the hands.
 - Morph & Refit clearance pushes clothing outward when it already intersects the body, instead of moving it deeper inside. Surface mode also relieves clipping between vertices while keeping seams joined. **Fit to body** previews an initial fit for all bound garments without requiring a body slider, with Reset and Bake support.
 - Archive previews support long Windows paths and Unicode folder names when reading models and dependencies or writing preview packages. File errors report their cause and path length, with recovery guidance and no automatic texture retry for permanent failures. New catalogue cache paths use shorter directory names while retaining full hashes, active-generation protection and compatibility with older caches.

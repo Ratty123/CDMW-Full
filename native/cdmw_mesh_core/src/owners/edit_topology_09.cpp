@@ -201,6 +201,93 @@ RefitSpatialIndexNative build_refit_spatial_index_native(
     return index;
 }
 
+void update_refit_spatial_index_native(
+    RefitSpatialIndexNative& index,
+    const std::map<int, MeshSessionSubmesh>& submeshes
+) {
+    for (auto& triangle : index.triangles) {
+        const auto& vertices = submeshes.at(triangle.driver_submesh_index).vertices;
+        for (std::size_t corner = 0; corner < 3; ++corner) triangle.corners[corner] = vertices[triangle.driver_vertices[corner]];
+        triangle.minimum = triangle.maximum = triangle.corners[0];
+        for (const auto& point : triangle.corners) {
+            for (std::size_t axis = 0; axis < 3; ++axis) {
+                triangle.minimum[axis] = std::min(triangle.minimum[axis], point[axis]);
+                triangle.maximum[axis] = std::max(triangle.maximum[axis], point[axis]);
+            }
+        }
+    }
+    for (auto it = index.nodes.rbegin(); it != index.nodes.rend(); ++it) {
+        auto& node = *it;
+        if (node.left >= 0 && node.right >= 0) {
+            for (std::size_t axis = 0; axis < 3; ++axis) {
+                node.minimum[axis] = std::min(index.nodes[node.left].minimum[axis], index.nodes[node.right].minimum[axis]);
+                node.maximum[axis] = std::max(index.nodes[node.left].maximum[axis], index.nodes[node.right].maximum[axis]);
+            }
+        } else {
+            const auto& first = index.triangles[index.triangle_order[node.begin]];
+            node.minimum = first.minimum;
+            node.maximum = first.maximum;
+            for (std::size_t position = node.begin + 1; position < node.end; ++position) {
+                const auto& triangle = index.triangles[index.triangle_order[position]];
+                for (std::size_t axis = 0; axis < 3; ++axis) {
+                    node.minimum[axis] = std::min(node.minimum[axis], triangle.minimum[axis]);
+                    node.maximum[axis] = std::max(node.maximum[axis], triangle.maximum[axis]);
+                }
+            }
+        }
+    }
+}
+
+std::vector<MeshRefitVertexBindingRuntime> refit_surface_line_hits_native(
+    const Vec3& point, const Vec3& direction, double reach, const RefitSpatialIndexNative& index
+) {
+    std::vector<MeshRefitVertexBindingRuntime> hits;
+    if (index.root < 0) return hits;
+    MeshEditorScreenRay ray;
+    ray.origin = sub_vec3(point, scale_vec3(direction, reach));
+    ray.direction = direction;
+    std::vector<int> pending{index.root};
+    while (!pending.empty()) {
+        const int node_index = pending.back();
+        pending.pop_back();
+        const auto& node = index.nodes[node_index];
+        double near = 0.0, far = reach * 2.0;
+        bool intersects = true;
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+            if (std::abs(direction[axis]) <= 1.0e-12) {
+                if (point[axis] < node.minimum[axis] || point[axis] > node.maximum[axis]) intersects = false;
+            } else {
+                const double first = (node.minimum[axis] - ray.origin[axis]) / direction[axis];
+                const double second = (node.maximum[axis] - ray.origin[axis]) / direction[axis];
+                near = std::max(near, std::min(first, second));
+                far = std::min(far, std::max(first, second));
+                if (near > far) intersects = false;
+            }
+        }
+        if (!intersects) continue;
+        if (node.left >= 0 && node.right >= 0) {
+            pending.push_back(node.left);
+            pending.push_back(node.right);
+            continue;
+        }
+        for (std::size_t position = node.begin; position < node.end; ++position) {
+            const auto& triangle = index.triangles[index.triangle_order[position]];
+            double distance = 0.0;
+            if (!mesh_editor_ray_intersects_triangle(ray, triangle.corners[0], triangle.corners[1], triangle.corners[2], distance)
+                || distance > reach * 2.0) continue;
+            const Vec3 hit = add_vec3(ray.origin, scale_vec3(direction, distance));
+            MeshRefitVertexBindingRuntime binding;
+            binding.driver_submesh_index = triangle.driver_submesh_index;
+            binding.driver_vertices = triangle.driver_vertices;
+            binding.barycentric = closest_triangle_point_native(hit, triangle.corners[0], triangle.corners[1], triangle.corners[2]).barycentric;
+            binding.distance = std::abs(distance - reach);
+            hits.push_back(binding);
+        }
+    }
+    std::stable_sort(hits.begin(), hits.end(), [](const auto& first, const auto& second) { return first.distance < second.distance; });
+    return hits;
+}
+
 void query_refit_spatial_node_native(
     const RefitSpatialIndexNative& index,
     int node_index,

@@ -1046,6 +1046,104 @@ def test_surface_fit_does_not_couple_clothes_on_opposing_body_regions() -> None:
     _assert_positions_close(fitted.submeshes[2].vertices, vest.vertices)
 
 
+@pytest.mark.parametrize("bulge", [.03, .06])
+def test_surface_fit_localizes_contact_without_inflating_clear_clothing(bulge: float) -> None:
+    grid = [(x * .05, y * .05) for y in range(-2, 3) for x in range(-4, 5)]
+    faces = [(a, a + 1, a + 10) for a in range(36) if a % 9 < 8]
+    faces += [(a, a + 10, a + 9) for a in range(36) if a % 9 < 8]
+    body = _part("body", [
+        (x, y, bulge * max(0., 1. - math.hypot(x + .1, y) / .075)) for x, y in grid
+    ], faces, material="skin", texture="")
+    cloth = _part("clothing", [(x, y, .008) for x, y in grid], faces, material="cloth", texture="")
+    mesh = ParsedMesh(path="local-fit.pac", format="pac", submeshes=[body, cloth],
+                      total_vertices=90, total_faces=128)
+    fitted = _initial_surface_fit(mesh)
+    for before, after in zip(cloth.vertices, fitted.submeshes[1].vertices, strict=True):
+        if before[0] >= .1:
+            assert math.dist(before, after) < .001, "contact elsewhere inflates already-clear clothing"
+    assert max(vertex[2] for vertex in fitted.submeshes[1].vertices) > bulge
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def test_surface_fit_does_not_pull_a_panel_across_an_air_gap_to_another_body_region() -> None:
+    vertices = []
+    faces = []
+    for left, right in ((0., .1), (.3, .4)):
+        start = len(vertices)
+        vertices.extend((x, y, z) for x in (left, right) for y in (-.5, .5) for z in (-.5, .5))
+        for quad in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+            center = len(vertices)
+            vertices.append(tuple(sum(vertices[start + index][axis] for index in quad) / 4. for axis in range(3)))
+            faces.extend((start + quad[i], start + quad[(i + 1) % 4], center) for i in range(4))
+    body = _part("separated-body-regions", vertices, faces, material="skin", texture="")
+    cloth = _part("panel", [(.098, y, z) for y, z in ((-.2, -.2), (.2, -.2), (.2, .2), (-.2, .2))],
+                  [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    mesh = ParsedMesh(path="region-fit.pac", format="pac", submeshes=[body, cloth],
+                      total_vertices=len(vertices) + 4, total_faces=len(faces) + 2)
+    fitted = _initial_surface_fit(mesh)
+    assert all(.1 < point[0] < .11 for point in fitted.submeshes[1].vertices), "a remote body region pulled the panel through the gap"
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+@pytest.mark.parametrize("panel_x", [.08, .11])
+def test_surface_fit_clears_overlapping_body_volumes(panel_x: float) -> None:
+    vertices = []
+    faces = []
+    for left, right in ((-.1, .1), (.05, .25)):
+        start = len(vertices)
+        vertices.extend((x, y, z) for x in (left, right) for y in (-.1, .1) for z in (-.1, .1))
+        for a, b, c, d in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+            faces.extend(((start + a, start + b, start + c), (start + a, start + c, start + d)))
+    body = _part("overlapping-body-regions", vertices, faces, material="skin", texture="")
+    panel = _part("underarm-panel", [(panel_x, y, z) for y, z in ((.06, -.01), (.08, -.01), (.08, .01), (.06, .01))],
+                  [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    mesh = ParsedMesh(path="overlap-fit.pac", format="pac", submeshes=[body, panel],
+                      total_vertices=20, total_faces=26)
+    fitted = _initial_surface_fit(mesh)
+    for point in fitted.submeshes[1].vertices:
+        assert point[1] > .1, "the nearest body face is internal to another body region"
+        assert abs(point[0] - panel_x) < .02, "the panel crossed the body instead of taking the nearby exit"
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def test_surface_fit_ignores_a_remote_open_body_shell() -> None:
+    vertices = []
+    faces = []
+    quads = ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3))
+    for box, (left, right) in enumerate(((-.1, 0.), (.1, .3))):
+        start = len(vertices)
+        vertices.extend((x, y, z) for x in (left, right) for y in (-.1, .1) for z in (-.1, .1))
+        for a, b, c, d in quads[1 if box else 0:]:
+            faces.extend(((start + a, start + b, start + c), (start + a, start + c, start + d)))
+    body = _part("body-with-an-open-shell", vertices, faces, material="skin", texture="")
+    panel = _part("clear-panel", [(.002, y, z) for y, z in ((-.02, -.02), (.02, -.02), (.02, .02), (-.02, .02))],
+                  [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    mesh = ParsedMesh(path="open-shell-fit.pac", format="pac", submeshes=[body, panel],
+                      total_vertices=20, total_faces=24)
+    fitted = _initial_surface_fit(mesh)
+    _assert_positions_close(fitted.submeshes[1].vertices, panel.vertices)
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def test_surface_fit_clears_a_gap_narrower_than_the_requested_clearance() -> None:
+    vertices = []
+    faces = []
+    for left, right in ((-.05, 0.), (.0001, .05)):
+        start = len(vertices)
+        vertices.extend((x, y, z) for x in (left, right) for y in (-.02, .02) for z in (-.02, .02))
+        for a, b, c, d in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+            faces.extend(((start + a, start + b, start + c), (start + a, start + c, start + d)))
+    body = _part("nearly-touching-body-regions", vertices, faces, material="skin", texture="")
+    panel = _part("pinched-panel", [(.00005, y, z) for y, z in ((.015, -.001), (.018, -.001), (.018, .001), (.015, .001))],
+                  [(0, 1, 2), (0, 2, 3)], material="cloth", texture="")
+    mesh = ParsedMesh(path="pinched-fit.pac", format="pac", submeshes=[body, panel],
+                      total_vertices=20, total_faces=26)
+    fitted = _initial_surface_fit(mesh)
+    assert all(point[1] >= .0201 for point in fitted.submeshes[1].vertices), "clearance corrections bounce between the two surfaces"
+    assert all(abs(point[0]) < .01 for point in fitted.submeshes[1].vertices)
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
 def _seed_refit_snapshot_session(mesh, source_session):
     _command(source_session, "morph_upload", _profile_payload(mesh))
     _command(source_session, "morph_set_driver", {"submesh_indices": [0, 1]})
