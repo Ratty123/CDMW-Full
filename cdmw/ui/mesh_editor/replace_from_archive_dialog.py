@@ -59,6 +59,7 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
 )
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
+from cdmw.ui.mesh_editor.archive_mesh_comparison import ArchiveMeshComparisonPreview
 
 _SORT_FIELDS: Mapping[int, ArchiveSortField] = {
     0: ArchiveSortField.NAME,
@@ -83,6 +84,7 @@ class _ArchivePreviewLane(QObject):
         self._generation = 0
         self._jobs: dict[int, tuple[ArchivePreviewWorker, QThread]] = {}
         self.image: QImage | None = None
+        self.preview_model: ModelPreviewData | None = None
         self.settled = False
 
     @property
@@ -108,6 +110,7 @@ class _ArchivePreviewLane(QObject):
         self._image_label.clear()
         self._image_label.setText(f"Loading {entry.basename}...")
         self._status_label.setText(entry.path)
+        self.settled_changed.emit()
         related = tuple(
             find_archive_model_related_entries(entry, dict(context.entries_by_basename))
         )
@@ -157,9 +160,12 @@ class _ArchivePreviewLane(QObject):
 
     def cancel(self) -> None:
         self._generation += 1
+        self.preview_model = None
+        self.settled = False
         for worker, thread in tuple(self._jobs.values()):
             worker.stop()
             thread.quit()
+        self.settled_changed.emit()
 
     def _completed(self, request_id: int, payload: object) -> None:
         if request_id != self._generation or not isinstance(
@@ -178,6 +184,7 @@ class _ArchivePreviewLane(QObject):
             self.settled = True
             self.settled_changed.emit()
             return
+        self.preview_model = preview_model
         self.image = image.copy()
         pixmap = QPixmap.fromImage(self.image).scaled(
             self._image_label.size(),
@@ -256,9 +263,14 @@ class ReplaceFromArchivePickerDialog(QDialog):
         layout = QVBoxLayout(self)
         self._build_picker_header(layout)
 
-        content = QSplitter(Qt.Vertical)
+        self._content_splitter = content = QSplitter(Qt.Horizontal)
         content.setChildrenCollapsible(False)
         layout.addWidget(content, 1)
+        browser_panel = QWidget()
+        browser_panel.setMinimumWidth(300)
+        browser_layout = QVBoxLayout(browser_panel)
+        browser_layout.setContentsMargins(0, 0, 0, 0)
+        browser_layout.addWidget(self.search_edit)
 
         self.model = RemoteArchiveBrowserModel(self, page_size=256, page_cache_limit=12)
         self.table = QTableView()
@@ -278,10 +290,9 @@ class ReplaceFromArchivePickerDialog(QDialog):
             self.table.setColumnHidden(column, True)
         for column, width in {0: 210, 1: 220, 2: 140, 5: 150, 6: 110, 7: 520}.items():
             self.table.setColumnWidth(column, width)
-        content.addWidget(self.table)
+        browser_layout.addWidget(self.table, 1)
+        content.addWidget(browser_panel)
 
-        previews = QSplitter(Qt.Horizontal)
-        previews.setChildrenCollapsible(False)
         self._target_image, self._target_status, target_panel = self._preview_panel(
             "Current target",
             target_entry.path,
@@ -290,11 +301,24 @@ class ReplaceFromArchivePickerDialog(QDialog):
             "Archive source",
             "Select a source row to prepare its preview.",
         )
-        previews.addWidget(target_panel)
-        previews.addWidget(source_panel)
-        previews.setSizes((1, 1))
-        content.addWidget(previews)
-        content.setSizes((470, 300))
+        self._comparison_preview = None
+        if refit_role:
+            for panel in (target_panel, source_panel):
+                panel.setParent(self)
+                panel.hide()
+            self._comparison_preview = ArchiveMeshComparisonPreview(self, refit_role=refit_role)
+            self._comparison_preview.idle.connect(self._preview_lane_idle)
+            content.addWidget(self._comparison_preview)
+        else:
+            previews = QSplitter(Qt.Horizontal)
+            previews.setChildrenCollapsible(False)
+            previews.addWidget(target_panel)
+            previews.addWidget(source_panel)
+            previews.setSizes((1, 1))
+            content.addWidget(previews)
+        content.setStretchFactor(0, 1)
+        content.setStretchFactor(1, 2)
+        content.setSizes((440, 880))
 
         self.character_mode_combo = QComboBox()
         self.character_mode_combo.addItem("Choose character identity handling...", None)
@@ -347,6 +371,9 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self._target_lane.idle.connect(self._preview_lane_idle)
         self._source_lane.idle.connect(self._preview_lane_idle)
         self._source_lane.settled_changed.connect(self._update_choose_state)
+        if self._comparison_preview is not None:
+            self._target_lane.settled_changed.connect(self._update_combined_preview)
+            self._source_lane.settled_changed.connect(self._update_combined_preview)
 
         self.search_edit.textChanged.connect(lambda _text: self._query_timer.start())
         header.sectionClicked.connect(self._sort_requested)
@@ -389,7 +416,6 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self.search_edit.setPlaceholderText(
             "Search item name, internal name, type, path, or package"
         )
-        layout.addWidget(self.search_edit)
 
     @property
     def target_preview_image(self) -> QImage | None:
@@ -409,7 +435,10 @@ class ReplaceFromArchivePickerDialog(QDialog):
 
     @property
     def has_live_preview_workers(self) -> bool:
-        return self._target_lane.has_live_workers or self._source_lane.has_live_workers
+        return bool(
+            self._target_lane.has_live_workers or self._source_lane.has_live_workers
+            or (self._comparison_preview is not None and self._comparison_preview.has_live_workers)
+        )
 
     def iter_shutdown_workers(
         self,
@@ -417,13 +446,29 @@ class ReplaceFromArchivePickerDialog(QDialog):
         return (
             *self._target_lane.iter_shutdown_workers(),
             *self._source_lane.iter_shutdown_workers(),
+            *(self._comparison_preview.iter_shutdown_workers() if self._comparison_preview else ()),
         )
+
+    def _update_combined_preview(self) -> None:
+        if not self._closed and self._comparison_preview is not None:
+            self._comparison_preview.set_models(
+                self._target_lane.preview_model, self._source_lane.preview_model,
+                target_note=self._target_image.text(), source_note=self._source_image.text(),
+            )
+            for label, status in (
+                (self._comparison_preview._target_name, self._target_status),
+                (self._comparison_preview._source_name, self._source_status),
+            ):
+                if status.text():
+                    label.setToolTip("\n".join(filter(None, (label.toolTip(), status.text()))))
 
     def request_shutdown(self) -> None:
         if not self._closed:
             self.reject()
             return
         self._dependency_provider.cancel(clear_snapshot=True)
+        if self._comparison_preview is not None:
+            self._comparison_preview.request_shutdown()
         self._target_lane.cancel()
         self._source_lane.cancel()
 
@@ -596,6 +641,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
         if not isinstance(selected, ArchiveEntryDto):
             self._source_image.clear()
             self._source_image.setText("Select a loaded archive mesh row.")
+            self._update_combined_preview()
             self._update_character_mode_visibility(None)
             self._update_choose_state()
             return
@@ -611,6 +657,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self._source_status.setText(
             "Resolving the bounded source family and preview dependencies..."
         )
+        self._update_combined_preview()
         self._update_character_mode_visibility(compatibility)
         self._dependency_provider.request(selected, ui_request_id=selection_id)
         self._update_choose_state()
@@ -646,6 +693,7 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self._source_image.clear()
         self._source_image.setText("Source preparation failed.")
         self._source_status.setText(message)
+        self._update_combined_preview()
         self.status_label.setText(message)
         self._update_choose_state()
 
@@ -710,6 +758,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
             self._cancel_requests()
             self.model.suspend_requests(True)
             self._dependency_provider.cancel(clear_snapshot=True)
+            if self._comparison_preview is not None:
+                self._comparison_preview.request_shutdown()
             self._target_lane.cancel()
             self._source_lane.cancel()
             for signal, slot in (

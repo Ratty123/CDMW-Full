@@ -2006,7 +2006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 547,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -3901,7 +3901,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 759,
+          "line": 809,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -10656,7 +10656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 289,
+          "line": 300,
           "sink": "_preview_panel"
         }
       ]
@@ -10909,6 +10909,11 @@
     {
       "key": "Armour",
       "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 36,
+          "sink": "QLabel"
+        },
         {
           "path": "tools/placement_studio/window.py",
           "line": 333,
@@ -12546,7 +12551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 800,
+          "line": 850,
           "sink": "addItem"
         }
       ]
@@ -13548,6 +13553,11 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 100,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 36,
+          "sink": "QLabel"
         }
       ]
     },
@@ -13601,7 +13611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 305,
+          "line": 329,
           "sink": "addItem"
         }
       ]
@@ -14236,7 +14246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 811,
+          "line": 861,
           "sink": "QPushButton"
         }
       ]
@@ -14316,7 +14326,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 811,
+          "line": 861,
           "sink": "QPushButton"
         },
         {
@@ -16681,12 +16691,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 326,
+          "line": 350,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 810,
+          "line": 860,
           "sink": "QPushButton"
         },
         {
@@ -18876,7 +18886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 809,
+          "line": 859,
           "sink": "QPushButton"
         }
       ]
@@ -19261,7 +19271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 374,
+          "line": 401,
           "sink": "setWindowTitle"
         }
       ]
@@ -19271,7 +19281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 374,
+          "line": 401,
           "sink": "setWindowTitle"
         }
       ]
@@ -19471,7 +19481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 385,
+          "line": 412,
           "sink": "setText"
         }
       ]
@@ -19906,7 +19916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 379,
+          "line": 406,
           "sink": "QLabel"
         }
       ]
@@ -19961,7 +19971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 300,
+          "line": 324,
           "sink": "addItem"
         }
       ]
@@ -25640,8 +25650,13 @@
           "sink": "setHeaderLabels"
         },
         {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 35,
+          "sink": "QLabel"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 285,
+          "line": 296,
           "sink": "_preview_panel"
         }
       ]
@@ -38966,7 +38981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 309,
+          "line": 333,
           "sink": "addItem"
         }
       ]
@@ -39621,12 +39636,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 774,
+          "line": 824,
           "sink": "QTableWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 775,
+          "line": 825,
           "sink": "setToolTip"
         }
       ]
@@ -48366,7 +48381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 325,
+          "line": 349,
           "sink": "setText"
         }
       ]
@@ -48386,7 +48401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 325,
+          "line": 349,
           "sink": "setText"
         }
       ]
@@ -49180,6 +49195,21 @@
           "sink": "setText"
         },
         {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 63,
+          "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 111,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 137,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/text_search/preview_panel.py",
           "line": 32,
           "sink": "setText"
@@ -49301,7 +49331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 109,
+          "line": 111,
           "sink": "setText"
         }
       ]
@@ -61260,6 +61290,21 @@
           "sink": "setPlainText"
         },
         {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 124,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 176,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 177,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/replace_assistant/preview.py",
           "line": 74,
           "sink": "clear_preview"
@@ -61431,7 +61476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 177,
+          "line": 183,
           "sink": "setText"
         }
       ]
@@ -62916,7 +62961,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 759,
+          "line": 809,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -72356,7 +72401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 636,
+          "line": 683,
           "sink": "setText"
         }
       ]
@@ -73286,7 +73331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 610,
+          "line": 656,
           "sink": "setText"
         }
       ]
@@ -73391,7 +73436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 301,
+          "line": 325,
           "sink": "addItem"
         }
       ]
@@ -76076,7 +76121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 832,
+          "line": 882,
           "sink": "QLabel"
         }
       ]
@@ -76090,8 +76135,18 @@
           "sink": "AlignmentD3D11StatusPresentation"
         },
         {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 187,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 188,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 199,
+          "line": 206,
           "sink": "setText"
         }
       ]
@@ -77306,12 +77361,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 316,
+          "line": 340,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 472,
+          "line": 517,
           "sink": "setText"
         }
       ]
@@ -82066,7 +82121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 374,
+          "line": 401,
           "sink": "setWindowTitle"
         },
         {
@@ -84406,7 +84461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 611,
+          "line": 657,
           "sink": "setText"
         }
       ]
@@ -85141,7 +85196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 790,
+          "line": 840,
           "sink": "QLabel"
         }
       ]
@@ -85396,7 +85451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 740,
+          "line": 790,
           "sink": "setWindowTitle"
         }
       ]
@@ -85406,7 +85461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 323,
+          "line": 347,
           "sink": "QPushButton"
         }
       ]
@@ -85831,7 +85886,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 759,
+          "line": 809,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -88451,7 +88506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 389,
+          "line": 416,
           "sink": "setPlaceholderText"
         }
       ]
@@ -89846,7 +89901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 598,
+          "line": 643,
           "sink": "setText"
         }
       ]
@@ -90326,12 +90381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 289,
+          "line": 300,
           "sink": "_preview_panel"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 471,
+          "line": 516,
           "sink": "setText"
         }
       ]
@@ -96080,6 +96135,11 @@
       "key": "Solid",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 42,
+          "sink": "addItems"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 727,
           "sink": "addItem"
@@ -96226,12 +96286,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 755,
+          "line": 805,
           "sink": "_review_preview"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 759,
+          "line": 809,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -96736,7 +96796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 647,
+          "line": 694,
           "sink": "setText"
         }
       ]
@@ -96916,7 +96976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 746,
+          "line": 796,
           "sink": "QLabel"
         }
       ]
@@ -99476,12 +99536,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 754,
+          "line": 804,
           "sink": "_review_preview"
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 759,
+          "line": 809,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -102701,7 +102761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 604,
+          "line": 650,
           "sink": "setText"
         }
       ]
@@ -110741,7 +110801,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 802,
+          "line": 852,
           "sink": "addItem"
         }
       ]
@@ -112563,8 +112623,13 @@
     },
     {
       "key": "Wire",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
+          "line": 42,
+          "sink": "addItems"
+        }
+      ]
     },
     {
       "key": "Wire + Vertices",
@@ -132526,7 +132591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 547,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -134356,7 +134421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
-          "line": 189,
+          "line": 196,
           "sink": "setText"
         }
       ]

@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtGui import QImage
-from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal
+from PySide6.QtCore import QEventLoop, QObject, QTimer, Qt, Signal
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QWidget
 
 from cdmw.domain.archives.catalogue import (
@@ -328,7 +328,7 @@ def test_preview_lane_latest_wins_cancel_returns_immediately_and_tears_down(
     app.processEvents()
 
 
-def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_package(tmp_path):
+def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_package(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     target = _entry("character/model/body.pac", 1)
     source = _entry("character/model/armor.pac", 2)
@@ -339,26 +339,34 @@ def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_pack
         entry.prepared_path = prepared
         entry.prepared_size = entry.orig_size = entry.comp_size = len(source_bytes)
 
+    from cdmw.workers import archive_preview_workers
+    build_preview = archive_preview_workers.build_archive_preview_result
+    reads = []
+
+    def track_reads(*args, **kwargs):
+        reads.append(args)
+        return build_preview(*args, **kwargs)
+
+    monkeypatch.setattr(archive_preview_workers, "build_archive_preview_result", track_reads)
+
     dialog = ReplaceFromArchivePickerDialog(
         _Catalogue(), _session(), target_entry=target,
         target_dependencies=_context(target), refit_role="armor",
     )
 
     def wait_for_previews():
-        if not dialog.has_live_preview_workers:
-            return
-        loop = QEventLoop()
-        timer = QTimer()
-        timer.setSingleShot(True)
-        timer.timeout.connect(loop.quit)
-        dialog.preview_workers_idle.connect(loop.quit)
-        timer.start(5_000)
-        loop.exec()
-        timer.stop()
-        dialog.preview_workers_idle.disconnect(loop.quit)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            app.processEvents()
+            if not dialog.has_live_preview_workers and not dialog._comparison_preview._resize_timer.isActive():
+                break
+            time.sleep(0.005)
         assert not dialog.has_live_preview_workers
+        assert not dialog._comparison_preview._resize_timer.isActive()
 
     try:
+        dialog.setAttribute(Qt.WA_DontShowOnScreen, True)
+        dialog.show()
         app.processEvents()  # Start the real current-target preview worker.
         context = _context(source)
         dialog._dependencies_ready(
@@ -386,6 +394,26 @@ def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_pack
                 for x in range(image.width() // 3, image.width() * 2 // 3, 8)
                 for y in range(image.height() // 3, image.height() * 2 // 3, 8)
             )
+        comparison = dialog._comparison_preview
+        assert dialog._content_splitter.orientation() == Qt.Horizontal
+        assert dialog._content_splitter.widget(0).geometry().right() < comparison.geometry().left()
+        assert dialog.search_edit.parent() is dialog.table.parent()
+        assert comparison.image_label.height() > 320
+        assert comparison.target_mode_combo.currentText() == "Solid"
+        assert comparison.source_mode_combo.currentText() == "Wire"
+        assert comparison.image is not None and not comparison.image_label.pixmap().isNull()
+        before_mode_change = comparison.image.copy()
+        read_count = len(reads)
+        assert read_count == 2
+        comparison.source_mode_combo.setCurrentIndex(0)
+        wait_for_previews()
+        assert comparison.image != before_mode_change
+        assert len(reads) == read_count  # View changes reuse the decoded meshes.
+        before_resize = comparison.image.size()
+        dialog.resize(dialog.width() + 100, dialog.height() + 100)
+        wait_for_previews()
+        assert comparison.image.size() != before_resize
+        assert len(reads) == read_count
         assert dialog.choose_button.isEnabled()
         assert target.prepared_path.read_bytes() == source_bytes
         assert source.prepared_path.read_bytes() == source_bytes

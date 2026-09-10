@@ -241,8 +241,19 @@ body driver and bound armor/clothing.
 The catalogue comes from the archive workspace, including when Mesh Editor is
 detached into its own window. Cancelling the picker or failing to open the
 catalogue leaves the editor session available for further commands.
-Both picker panels render static geometry thumbnails from the prepared meshes
-on background workers, without requiring a 3D renderer package cache.
+The picker puts the searchable archive list on the left and a taller combined
+preview on the right. The current target and selected source share one view in
+their original archive coordinates, preserving their relative size and position.
+Each has its own **Solid** or **Wire** display choice. **Browse Armor...** starts
+with a shaded, untextured solid target and amber wire armor; **Browse Body...**
+starts with a solid body source and wire target. Wire edges overlay solid surfaces,
+including hidden edges, to make overlap visible.
+
+The combined preview shows the original archive geometry at a fixed angle; it
+does not show live edits or animate the refit. Background workers redraw retained
+meshes when display modes or preview size change, without rereading archive data
+or requiring a 3D renderer package cache. The editor viewport remains the place
+to rotate, edit, and inspect the loaded result.
 
 Archive sources keep their own original bytes, Part mappings, palettes, and
 archive paths. Geometry, rig dependencies, and materials prepare off the UI

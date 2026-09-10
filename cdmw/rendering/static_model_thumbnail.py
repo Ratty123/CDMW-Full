@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, Sequence, Tuple
 
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen
@@ -26,6 +26,7 @@ class StaticModelThumbnailPlan:
     mesh_colors: Tuple[Tuple[int, int, int, int], ...]
     triangles: Tuple[Tuple[int, ScreenTriangle], ...]
     points: Tuple[Point3, ...]
+    projection_scale: float = 1.0
 
 
 def _mesh_rgba(mesh_index: int, mesh: object) -> Tuple[int, int, int, int]:
@@ -89,6 +90,7 @@ def prepare_static_model_thumbnail(
     height: int,
     draw_point_cloud_when_no_triangles: bool = False,
     stop_event: threading.Event | None = None,
+    sample_triangles: bool = True,
 ) -> Optional[StaticModelThumbnailPlan]:
     if not isinstance(preview_model, ModelPreviewData):
         return None
@@ -184,7 +186,7 @@ def prepare_static_model_thumbnail(
     def to_screen(point: Point3) -> Point3:
         return (center_x + point[0] * scale, center_y - point[1] * scale, point[2])
 
-    triangle_sample_step = max(1, total_triangles // 4500) if total_triangles else 1
+    triangle_sample_step = max(1, total_triangles // 4500) if sample_triangles and total_triangles else 1
     triangles: list[Tuple[float, int, ScreenTriangle]] = []
     triangle_base = 0
     for mesh_index, mesh in enumerate(meshes):
@@ -229,6 +231,7 @@ def prepare_static_model_thumbnail(
         mesh_colors=tuple(_mesh_rgba(index, mesh) for index, mesh in enumerate(meshes)),
         triangles=tuple((mesh_index, triangle) for _depth, mesh_index, triangle in triangles),
         points=tuple(to_screen(point) for point in sampled_points) if not triangles else (),
+        projection_scale=scale,
     )
 
 
@@ -236,8 +239,15 @@ def render_static_model_thumbnail_plan_image(
     plan: StaticModelThumbnailPlan,
     *,
     text_color: str,
+    mesh_display_modes: Sequence[str] = (),
+    stop_event: threading.Event | None = None,
 ) -> QImage:
     del text_color  # Kept for facade compatibility; text/font work is not needed in thumbnails.
+    modes = tuple(mesh_display_modes) or ("solid_wire",) * len(plan.mesh_colors)
+    if len(modes) != len(plan.mesh_colors) or any(
+        mode not in {"solid", "wireframe", "solid_wire"} for mode in modes
+    ):
+        raise ValueError("Static preview display modes do not match the meshes")
     image = QImage(plan.width, plan.height, QImage.Format.Format_ARGB32_Premultiplied)
     image.fill(QColor(MODEL_PREVIEW_BACKGROUND_COLOR))
     painter = QPainter(image)
@@ -247,18 +257,38 @@ def render_static_model_thumbnail_plan_image(
         painter.setPen(QPen(QColor(MODEL_PREVIEW_GRID_COLOR), 1))
         grid_y = int(plan.height * 0.82)
         painter.drawLine(18, grid_y, plan.width - 18, grid_y)
-        for mesh_index, triangle in plan.triangles:
+        # Wire-only meshes overlay the solid surfaces, including occluded edges.
+        triangles = sorted(plan.triangles, key=lambda item: modes[item[0]] == "wireframe")
+        for triangle_number, (mesh_index, triangle) in enumerate(triangles):
+            if not (triangle_number & 255):
+                raise_if_cancelled(stop_event, "Static model thumbnail cancelled.")
+                time.sleep(0)
             color = plan.mesh_colors[mesh_index]
-            fill = QColor(color[0], color[1], color[2], 150)
+            mode = modes[mesh_index]
+            # Antialiasing each opaque face independently leaves hairline gaps
+            # along shared edges. Keep it for the wire overlay only.
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, mode != "solid")
+            fill = QColor(color[0], color[1], color[2], 255 if mode == "solid" else 150)
+            if mode == "solid":
+                a, b, c = triangle
+                u = (b[0] - a[0], b[1] - a[1], (b[2] - a[2]) * plan.projection_scale)
+                v = (c[0] - a[0], c[1] - a[1], (c[2] - a[2]) * plan.projection_scale)
+                normal = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+                length = math.sqrt(sum(value * value for value in normal))
+                light = abs(sum(n * l for n, l in zip(normal, (0.3, -0.4, 0.866)))) / length if length else 0.0
+                shade = 0.45 + 0.55 * min(1.0, light)
+                fill = QColor(*(round(component * shade) for component in color[:3]))
             edge = QColor(color[0], color[1], color[2], 235)
             path = QPainterPath()
             path.moveTo(triangle[0][0], triangle[0][1])
             path.lineTo(triangle[1][0], triangle[1][1])
             path.lineTo(triangle[2][0], triangle[2][1])
             path.closeSubpath()
-            painter.fillPath(path, QBrush(fill))
-            painter.setPen(QPen(edge, 0.7))
-            painter.drawPath(path)
+            if mode != "wireframe":
+                painter.fillPath(path, QBrush(fill))
+            if mode != "solid":
+                painter.setPen(QPen(edge, 0.7))
+                painter.drawPath(path)
         if plan.points and not plan.triangles:
             painter.setPen(QPen(QColor("#86efac"), 2))
             for point in plan.points:
@@ -276,6 +306,8 @@ def render_static_model_thumbnail_image(
     text_color: str,
     draw_point_cloud_when_no_triangles: bool = False,
     stop_event: threading.Event | None = None,
+    mesh_display_modes: Sequence[str] = (),
+    sample_triangles: bool = True,
 ) -> Optional[QImage]:
     plan = prepare_static_model_thumbnail(
         preview_model,
@@ -283,13 +315,72 @@ def render_static_model_thumbnail_image(
         height=height,
         draw_point_cloud_when_no_triangles=draw_point_cloud_when_no_triangles,
         stop_event=stop_event,
+        sample_triangles=sample_triangles,
     )
     if plan is None:
         return None
     raise_if_cancelled(stop_event, "Static model thumbnail cancelled.")
-    image = render_static_model_thumbnail_plan_image(plan, text_color=text_color)
+    image = render_static_model_thumbnail_plan_image(
+        plan, text_color=text_color, mesh_display_modes=mesh_display_modes, stop_event=stop_event,
+    )
     raise_if_cancelled(stop_event, "Static model thumbnail cancelled.")
     return image
+
+
+class _RestoredPositions(Sequence[Point3]):
+    """Read original mesh coordinates without duplicating all vertex arrays."""
+
+    def __init__(self, positions: Sequence[Point3], center: Point3, scale: float) -> None:
+        self._positions, self._center, self._scale = positions, center, scale
+
+    def __len__(self) -> int:
+        return len(self._positions)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[item] for item in range(*index.indices(len(self)))]
+        position = self._positions[index]
+        return tuple(float(position[axis]) / self._scale + self._center[axis] for axis in range(3))
+
+
+def render_static_model_comparison_image(
+    target: ModelPreviewData | None,
+    source: ModelPreviewData | None,
+    *,
+    width: int,
+    height: int,
+    target_mode: str = "solid",
+    source_mode: str = "wireframe",
+    stop_event: threading.Event | None = None,
+) -> Optional[QImage]:
+    """Frame both meshes together in original coordinates, with untextured role colours."""
+    meshes, modes = [], []
+    for model, mode, color in (
+        (target, target_mode, (0.67, 0.72, 0.78)),
+        (source, source_mode, (0.96, 0.69, 0.33)),
+    ):
+        raise_if_cancelled(stop_event, "Static model thumbnail cancelled.")
+        if model is None:
+            continue
+        center = _position(model.normalization_center)
+        scale = float(model.normalization_scale)
+        if center is None or not math.isfinite(scale) or scale <= 1e-9:
+            raise ValueError("The mesh preview has invalid normalization coordinates")
+        for mesh in model.meshes:
+            if not isinstance(mesh, ModelPreviewMesh) or not mesh.positions:
+                continue
+            meshes.append(replace(
+                mesh, preview_color=color,
+                positions=_RestoredPositions(mesh.positions, center, scale),
+            ))
+            modes.append(mode)
+    combined = ModelPreviewData(mesh_count=len(meshes), meshes=meshes)
+    return render_static_model_thumbnail_image(
+        combined, width=width, height=height, text_color="",
+        draw_point_cloud_when_no_triangles=True,
+        mesh_display_modes=modes, stop_event=stop_event,
+        sample_triangles=False,
+    )
 
 
 __all__ = [
@@ -297,4 +388,5 @@ __all__ = [
     "prepare_static_model_thumbnail",
     "render_static_model_thumbnail_image",
     "render_static_model_thumbnail_plan_image",
+    "render_static_model_comparison_image",
 ]

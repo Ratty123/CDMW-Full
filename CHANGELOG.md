@@ -20,6 +20,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor archive pickers place the searchable list on the left and previews on the right. **Browse Body...** and **Browse Armor...** combine the target and selected source at their original relative size and position, with independent untextured **Solid** and **Wire** choices and a preview that uses the available height.
 - New Item keeps its seven steps with more compact layouts: readable template names, player-facing identity fields first, one Model/Effects inspector, recipes together with other Distribution routes, and destination-first Output with a fixed final action. Technical identifiers, effect browsing, maintenance tools and activity logs open on demand.
 - New Item installation uses overlays only. The direct archive-install button is removed and its legacy service entry point refuses writes; mod-folder export and recovery of older installs remain available.
 
