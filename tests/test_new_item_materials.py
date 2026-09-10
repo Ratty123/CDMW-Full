@@ -163,7 +163,7 @@ class RouteTests(unittest.TestCase):
         self.assertIn("Check armour fit", files.warnings)
 
     def test_source_emissive_is_encoded_with_its_colour(self) -> None:
-        sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Gem", emissive=self.emi, roughness_factor=0.3, metallic_factor=0.9)}
+        sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Gem", emissive=self.emi, emissive_intensity=4.5522127, roughness_factor=0.3, metallic_factor=0.9)}
         route = route_plain_pbr(builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive, encode_factors=self._encode_factors)
         # no metallic/roughness map on the source: its factors become a solid _sp; the emissive is encoded from the source
         self.assertEqual(self.encoded, ["factors 0.3 0.9", "gem_emissive.png"])
@@ -175,7 +175,7 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(gem.textures["_emissiveIntensityTexture"], gem_emi)
         self.assertNotIn(GEM_MASK, route.files.side_files, "the Builder's mask is no longer named")
         self.assertEqual(gem.value("_emissiveColor"), "#4461F3FF", "the colour the source glows in")
-        self.assertEqual(gem.value("_emissiveIntensity"), "10.000000")
+        self.assertEqual(gem.value("_emissiveIntensity"), "4.552213", "source strength replaces the template's intensity 10")
         self.assertNotIn(GEM_EMI, route.files.side_files, "the unreferenced Builder map is dropped")
         self.assertEqual(route.files.side_files[gem_emi][84:88], b"BC4U", "the source owns its intensity map")
         self.assertTrue(any("factors (roughness 0.3, metalness 0.9)" in line for line in route.lines), route.lines)

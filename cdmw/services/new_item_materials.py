@@ -51,7 +51,7 @@ class SourceMaterialTextures:
     #: the glTF's emissive strength. The shipped weapons' own `_emissiveIntensity` is
     #: 1.00 at the median (27 of the 32 that state one round to 1), so this carries across
     #: as it stands rather than through a scale nobody measured.
-    emissive_intensity: float = 0.0
+    emissive_intensity: float = 1.0
     #: glTF `roughnessFactor` / `metallicFactor` (1.0 when the source says nothing);
     #: without a metallic/roughness map they become a solid `_sp`
     roughness_factor: float = 1.0
@@ -62,6 +62,9 @@ class SourceMaterialTextures:
     alpha_mode: str = ""
     alpha_cutoff: float = 0.5
     double_sided: bool = False
+    #: An atlas retains the authored materials and their exact output UV regions.
+    atlas_section: object = None
+    atlas_sources: Tuple[SourceMaterialTextures, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,7 +157,9 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
                 slots.setdefault("normal", candidate)
             elif kind in {"material", "metallic_roughness", "metallicroughness", "pbr", "orm"} and candidate.is_file():
                 slots.setdefault("material", candidate)
-            elif kind in {"emissive", "emission"} and candidate.is_file():
+            elif kind in {"emissive", "emission"}:
+                if not candidate.is_file():
+                    raise NewItemPlanError(f"{name}: the declared emissive texture is unavailable: {candidate}")
                 slots.setdefault("emissive", candidate)
             elif kind in {"roughness"} and candidate.is_file():
                 slots.setdefault("roughness", candidate)
@@ -166,7 +171,17 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
     for section in tuple(getattr(result, "source_owned_output_draw_sections", ()) or ()):
         target = str(getattr(section, "target_submesh_name", "") or "").casefold()
         source = str(getattr(section, "source_material_name", "") or "").casefold()
-        if target and source in bindings:
+        rects = tuple(getattr(section, "atlas_rects", ()) or ())
+        if target and rects:
+            names = tuple(str(rect.source_material_name).casefold() for rect in rects)
+            missing = [name for name in names if name not in bindings]
+            if missing:
+                raise NewItemPlanError(f"{target}: source materials for the baked atlas are unavailable: {', '.join(missing)}")
+            out[target] = SourceMaterialTextures(
+                name=str(getattr(section, "atlas_material_name", "") or source),
+                atlas_section=section, atlas_sources=tuple(bindings[name] for name in names),
+            )
+        elif target and source in bindings:
             out.setdefault(target, bindings[source])
     return out
 
@@ -286,6 +301,72 @@ def _encode_source_emissive(source: SourceMaterialTextures, encode: Callable[[Pa
         return encode(prepared)
 
 
+def _encode_atlas_emissive(
+    source: SourceMaterialTextures, encode: Callable[[Path], Tuple[bytes, str]], glow: object,
+) -> Optional[Tuple[bytes, str, float]]:
+    """Bake authored emission into the geometry's atlas, with dark unlit regions."""
+
+    from PIL import Image
+
+    from cdmw.modding.material_profiles import get_complete_swap_material_profile
+    from cdmw.modding.material_rebuilt_payloads import _bake_complete_swap_material_atlas_png
+    from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot, TextureReplacementReport
+
+    section = source.atlas_section
+    selected = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
+    whole_atlas = str(section.target_submesh_name).casefold() in selected
+    choices = []
+    for part in source.atlas_sources:
+        override = whole_atlas or part.name.casefold() in selected
+        color = str(glow.hex_color()) if override else part.emissive_color or "#FFFFFFFF"
+        strength = float(glow.intensity) if override else part.emissive_intensity
+        emits = override or part.emissive is not None or (bool(part.emissive_color) and part.emissive_color[:7] != "#000000")
+        choices.append((part, color, max(0.0, strength) if emits else 0.0, override))
+    peak_strength = max((strength for _part, _color, strength, _override in choices), default=0.0)
+    if peak_strength <= 0.0:
+        return None
+
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_atlas_emi_") as temp:
+        texture_sets = {}
+        for index, (part, color, strength, override) in enumerate(choices):
+            if part.emissive is not None:
+                with Image.open(part.emissive) as original:
+                    image = original.convert("RGB")
+                if override:
+                    # Match the separate-material route: keep the authored mask
+                    # and its colour multiplier before applying an override hue.
+                    import numpy as np
+                    authored = part.emissive_color or "#FFFFFFFF"
+                    factors = np.array([int(authored[offset:offset + 2], 16) / 255.0 for offset in (1, 3, 5)])
+                    mask = np.rint(np.asarray(image) * factors).max(axis=2).astype(np.uint8)
+                    image.close()
+                    image = Image.fromarray(mask, mode="L").convert("RGB")
+            else:
+                image = Image.new("RGB", (16, 16), "white")
+            factors = tuple(int(color[offset:offset + 2], 16) / 255.0 * strength / peak_strength for offset in (1, 3, 5))
+            channels = image.split()
+            adjusted = Image.merge("RGB", tuple(channel.point([round(value * factor) for value in range(256)])
+                                                  for channel, factor in zip(channels, factors)))
+            path = Path(temp) / f"part_{index}.png"
+            adjusted.save(path)
+            adjusted.close()
+            image.close()
+            texture_sets[part.name.casefold()] = ReplacementTextureSet(
+                material_name=part.name, emissive_strength=1.0,
+                slots={"emissive": ReplacementTextureSlot(part.name, "emissive", path)},
+            )
+        report = TextureReplacementReport()
+        atlas = _bake_complete_swap_material_atlas_png(
+            target_name=f"{section.target_submesh_name}_plain_emissive", rects=section.atlas_rects,
+            texture_sets=texture_sets, slot_kind="emissive", padding=int(getattr(section, "atlas_padding", 8)),
+            report=report, material_profile=get_complete_swap_material_profile("material_authority_detail_mask"),
+        )
+        if atlas is None or report.errors:
+            raise NewItemPlanError(f"{source.name}: emissive atlas could not be preserved: {'; '.join(report.errors)}")
+        data, color = encode(atlas)
+        return data, color, peak_strength
+
+
 def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = None) -> Tuple[bytes, str]:
     """Encode an emissive PNG as the game's intensity map (BC4, the pixel's strongest
     channel, full mips) and return it with the `#RRGGBBFF` colour the lit pixels
@@ -313,7 +394,7 @@ def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None
     # the colour: strength-weighted mean of the pixels that glow at all, scaled so
     # the strongest channel is full (the map carries the strength)
     weights = strength
-    lit = weights > 8
+    lit = weights > 0
     if lit.any():
         mean = (pixels[lit] * weights[lit, None]).sum(axis=0) / weights[lit].sum()
         peak = float(mean.max())
@@ -559,7 +640,7 @@ def route_plain_pbr(
     sources = dict(sources or {})
     glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
     glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
-    glow_intensity = float(getattr(glow, "intensity", 1.0) or 1.0)
+    glow_intensity = float(getattr(glow, "intensity", 1.0))
     xml_key, text, bom, by_lower, wrappers, source_by_base = _plain_pbr_inputs(files, sources)
     replacements: Dict[str, PlainMaterial] = {}
     new_files: Dict[str, bytes] = {}
@@ -578,7 +659,8 @@ def route_plain_pbr(
             continue
         normal = owned.get("_normalTexture", "")
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
-        if source is not None and source.normal is None:
+        is_atlas = source is not None and source.atlas_section is not None
+        if source is not None and not is_atlas and source.normal is None:
             normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
         if source is not None and source.name not in warned_sources:
@@ -594,7 +676,10 @@ def route_plain_pbr(
                 warnings.append(f"{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.")
         material = ""
         how = ""
-        if source is not None and any(path is not None for path in (source.material, source.roughness, source.metallic)):
+        if is_atlas:
+            material = owned.get("_detailMaskTexture", "")
+            how = "_sp from the Builder's baked material atlas"
+        elif source is not None and any(path is not None for path in (source.material, source.roughness, source.metallic)):
             source_map_names = ", ".join(path.name for path in (source.material, source.roughness, source.metallic) if path is not None)
             sp_path = _sp_path_for(base, source.name)
             if sp_path.casefold() not in {k.casefold() for k in new_files}:
@@ -632,9 +717,18 @@ def route_plain_pbr(
         )
         factor_glow = (
             source is not None and source.emissive is None
-            and bool(source.emissive_color) and source.emissive_intensity > 0.0
+            and bool(source.emissive_color) and source.emissive_color[:7] != "#000000" and source.emissive_intensity > 0.0
         )
-        if factor_glow and not wants_glow:
+        if is_atlas:
+            baked = _encode_atlas_emissive(source, encode_emissive, glow)
+            if baked is None:
+                emissive, color, intensity = "", "#FFFFFFFF", 0.0
+            else:
+                data, color, intensity = baked
+                emissive = _emi_path_for(base, source_name)
+                new_files[emissive] = data
+                encoded.append(emissive)
+        elif factor_glow and not wants_glow:
             # the model's own glow, stated as a factor rather than a map: a solid map is
             # what "this whole material glows" means, and the colour and strength are the
             # source's own
@@ -685,6 +779,7 @@ def route_plain_pbr(
                 encoded.append(emissive)
                 emissive_done[key] = (emissive, color)
             emissive, color = emissive_done[key]
+            intensity = source.emissive_intensity
             if wants_glow:
                 # the source glows and the reader also said how: the map is the source's,
                 # the colour and the strength are theirs

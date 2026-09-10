@@ -39,7 +39,7 @@ def write_gltf(root, materials, images):
     return path
 
 
-def export_materials(path, root, *, socket_attached=False):
+def export_materials(path, root, *, socket_attached=False, atlas=False, glow=None):
     scene = import_scene_mesh_with_report(path)
     if socket_attached:
         from dataclasses import replace
@@ -51,6 +51,17 @@ def export_materials(path, root, *, socket_attached=False):
     sets = group_replacement_texture_sets(scene.discovered_texture_files, obj_mesh=scene.mesh)
     targets = {f"part_{index}": part.material for index, part in enumerate(scene.mesh.submeshes)}
     sections = tuple(SimpleNamespace(target_submesh_name=name, source_material_name=source) for name, source in targets.items())
+    if atlas:
+        from cdmw.modding.static_mesh_types import StaticMaterialAtlasRect, StaticOutputDrawSection
+
+        names = tuple(targets.values())
+        targets = {"part_0": " + ".join(names)}
+        sections = (StaticOutputDrawSection(
+            0, 0, "part_0", list(range(len(names))), source_material_name=targets["part_0"],
+            atlas_source_material_names=names, atlas_material_name="part_0_atlas",
+            atlas_rects=tuple(StaticMaterialAtlasRect(name, (index,), index / len(names), 0, 1 / len(names), 1)
+                              for index, name in enumerate(names)),
+        ),)
     xml_path = "character/modelproperty/sword.pac_xml"
     template_paths = {"base": "character/texture/sword_common.dds", "normal": "character/texture/sword_normal_n.dds"}
     template_files = {}
@@ -74,16 +85,17 @@ def export_materials(path, root, *, socket_attached=False):
         read_original_texture_bytes=lambda entry: template_files[entry.path].read_bytes(),
         original_texture_source_path=lambda entry: template_files[entry.path],
         report=report, on_log=None, texture_output_size_mode="source",
+        output_draw_sections=sections,
         complete_external_material_reset=True, neutralize_inherited_material_layers=True,
         complete_swap_material_profile=FULL_IMPORT_MODEL_REPLACEMENT_PROFILE,
     )
     assert not report.errors, report.errors
     files = route_model_files(
         ModelFiles(pac_data=b"owned synthetic geometry", side_files={payload.target_path: payload.payload_data for payload in payloads}),
-        MaterialRoute.PLAIN_PBR, result=SimpleNamespace(source_owned_output_draw_sections=sections), scene=scene,
+        MaterialRoute.PLAIN_PBR, result=SimpleNamespace(source_owned_output_draw_sections=sections), scene=scene, glow=glow,
     )
     wrappers = {targets[item.submesh_name]: item for item in find_material_wrappers(files.side_files[xml_path].decode("utf-8-sig"))}
-    assert len(wrappers) == len(scene.mesh.submeshes)
+    assert len(wrappers) == len(targets)
     return scene, files, wrappers
 
 
@@ -124,6 +136,7 @@ def test_socket_attachment_keeps_gem_colour_and_textured_material_factors(tmp_pa
     assert pixels(files, materials["Gem"])[0, 0].tolist() == [255, 0, 0, 128]
     assert pixels(files, materials["Blade"], "_normalTexture")[0, 0, :2].tolist() == [128, 128]
     assert "_normalTexture" not in materials["Gem"].textures
+    assert all(material.shader == "SkinnedMeshStandard" for material in materials.values())
 
 
 @pytest.mark.parametrize("alpha", [0.0, 0.5])
@@ -177,15 +190,109 @@ def test_obj_separate_pbr_maps_survive_import_and_plain_route(tmp_path):
     assert not any("Builder's mask stands in" in warning for warning in files.warnings)
 
 
-@pytest.mark.parametrize("strength", [0.0, 2.0])
-def test_emissive_map_keeps_authored_tint_magnitude_and_strength(tmp_path, strength):
+@pytest.mark.parametrize("socket_attached", [False, True])
+@pytest.mark.parametrize("strength", [0.0, 2.0, 32.0])
+def test_emissive_map_keeps_authored_tint_magnitude_and_strength(tmp_path, strength, socket_attached):
     Image.new("RGB", (16, 16), "white").save(tmp_path / "white.png")
     materials = [{"name": "Glow", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}, "emissiveTexture": {"index": 0}, "emissiveFactor": [0.25, 0, 0], "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": strength}}}]
-    _, files, materials = export_materials(write_gltf(tmp_path, materials, ["white.png"]), tmp_path)
+    _, files, materials = export_materials(write_gltf(tmp_path, materials, ["white.png"]), tmp_path, socket_attached=socket_attached)
     material = materials["Glow"]
     assert material.value("_emissiveColor") == "#FF0000FF"
     assert float(material.value("_emissiveIntensity")) == strength
     assert abs(int(pixels(files, material, "_emissiveIntensityTexture")[0, 0, 0]) - 64) <= 1
+
+
+@pytest.mark.parametrize("disable_gem", [False, True])
+def test_atlas_keeps_blue_runes_separate_strengths_and_dark_regions(tmp_path, disable_gem):
+    from cdmw.domain.new_item.spec import GlowChoice
+
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "base.png")
+    emission = Image.new("RGB", (16, 16), "black")
+    emission.paste((0, 0, 255), (4, 4, 12, 12))
+    emission.save(tmp_path / "runes_emissive.png")
+    materials = [
+        {"name": "Runes", "emissiveTexture": {"index": 1}, "emissiveFactor": [1, 1, 1],
+         "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 4.5522127}}},
+        {"name": "Gem", "emissiveFactor": [0, 0, 1],
+         "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 2}}},
+        {"name": "Skull"},
+    ]
+    for material in materials:
+        material["pbrMetallicRoughness"] = {"baseColorTexture": {"index": 0}}
+    _, files, materials = export_materials(
+        write_gltf(tmp_path, materials, ["base.png", "runes_emissive.png"]), tmp_path, socket_attached=True, atlas=True,
+        glow=GlowChoice(parts=("Gem",), color=(0, 0, 1), intensity=0) if disable_gem else None,
+    )
+    material = next(iter(materials.values()))
+    assert material.shader == "SkinnedMeshEmissive"
+    assert material.value("_emissiveColor") == "#0000FFFF"
+    assert float(material.value("_emissiveIntensity")) == pytest.approx(4.5522127, abs=1e-6)
+    mask = pixels(files, material, "_emissiveIntensityTexture")[:, :, 0]
+    height, width = mask.shape
+    assert int(mask[height // 2, width // 6]) >= 250
+    assert abs(int(mask[height // 2, width // 2]) - (0 if disable_gem else round(255 * 2 / 4.5522127))) <= 2
+    assert not mask[:, 2 * width // 3:].any(), "non-emissive atlas regions must stay dark"
+    assert int(mask[height // 32, width // 6]) == 0, "only the rune mask glows"
+
+
+def test_dim_blue_emission_keeps_its_hue(tmp_path):
+    from cdmw.services.new_item_materials import encode_emissive_from_png
+
+    path = tmp_path / "dim_blue.png"
+    Image.new("RGB", (16, 16), (0, 0, 3)).save(path)
+    data, color = encode_emissive_from_png(path)
+    assert color == "#0000FFFF"
+    with Image.open(BytesIO(data)) as mask:
+        assert mask.convert("RGB").getpixel((0, 0)) == (3, 3, 3)
+
+
+@pytest.mark.parametrize("atlas", [False, True])
+def test_glow_override_keeps_the_source_mask_multiplier_with_or_without_an_atlas(tmp_path, atlas):
+    from cdmw.domain.new_item.spec import GlowChoice
+
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "white.png")
+    material = {"name": "Runes", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}},
+                "emissiveTexture": {"index": 0}, "emissiveFactor": [0.25, 0, 0]}
+    _, files, materials = export_materials(
+        write_gltf(tmp_path, [material], ["white.png"]), tmp_path, atlas=atlas,
+        glow=GlowChoice(parts=("Runes",), color=(0, 0, 1), intensity=5),
+    )
+    material = next(iter(materials.values()))
+    assert material.value("_emissiveColor") == "#0000FFFF"
+    assert float(material.value("_emissiveIntensity")) == 5
+    assert abs(int(pixels(files, material, "_emissiveIntensityTexture")[0, 0, 0]) - 64) <= 1
+
+
+def test_declared_emissive_texture_cannot_silently_disappear(tmp_path):
+    from cdmw.services.new_item_materials import source_materials_from_import
+    from cdmw.services.new_item_planning import NewItemPlanError
+
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "base.png")
+    emission = tmp_path / "emissive.png"
+    Image.new("RGB", (16, 16), "blue").save(emission)
+    material = {"name": "Runes", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}},
+                "emissiveTexture": {"index": 1}, "emissiveFactor": [1, 1, 1]}
+    scene = import_scene_mesh_with_report(write_gltf(tmp_path, [material], ["base.png", "emissive.png"]))
+    emission.unlink()
+    result = SimpleNamespace(source_owned_output_draw_sections=(SimpleNamespace(target_submesh_name="blade", source_material_name="Runes"),))
+    with pytest.raises(NewItemPlanError, match="Runes: the declared emissive texture is unavailable"):
+        source_materials_from_import(result, scene)
+
+
+def test_obj_emissive_map_and_colour_survive_socket_attachment(tmp_path):
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "base.png")
+    emission = Image.new("RGB", (16, 16), "black")
+    emission.paste("white", (4, 4, 12, 12))
+    emission.save(tmp_path / "runes.png")
+    (tmp_path / "source.mtl").write_text("newmtl Runes\nKd 1 1 1\nmap_Kd base.png\nKe 0 0 1\nmap_Ke runes.png\n", encoding="utf-8")
+    path = tmp_path / "source.obj"
+    path.write_text("mtllib source.mtl\no Blade\nusemtl Runes\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n", encoding="utf-8")
+    _, files, materials = export_materials(path, tmp_path, socket_attached=True)
+    material = materials["Runes"]
+    assert material.shader == "SkinnedMeshEmissive"
+    assert material.value("_emissiveColor") == "#0000FFFF"
+    assert float(material.value("_emissiveIntensity")) == 1.0
+    np.testing.assert_array_equal(pixels(files, material, "_emissiveIntensityTexture")[:, :, 0], np.asarray(emission)[:, :, 0])
 
 
 @pytest.mark.parametrize("names", [("Paint", "paint"), ("Paint", "Paint")])

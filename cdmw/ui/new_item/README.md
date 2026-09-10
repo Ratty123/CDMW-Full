@@ -102,7 +102,11 @@ The exported roughness/metalness map includes the source's scalar multipliers;
 separate OBJ/MTL roughness and metalness maps are packed into the same game layout.
 Selected gem glow stays on those materials; a source emissive map is retained
 even when the template has no emissive texture slot, with its authored colour
-multiplier and intensity. The game's single emissive colour and intensity map
+multiplier and intensity. When source materials share a baked atlas, their emissive
+masks and relative strengths follow the same UV regions; non-emissive regions stay
+dark. Source glow strength takes precedence over the template, faint emission keeps
+its colour, and an unavailable declared emissive texture blocks export.
+The game's single emissive colour and intensity map
 cannot represent every multicoloured emissive image exactly.
 Blend and mask textures retain opacity precision in alpha-capable DDS output.
 The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shader
