@@ -241,6 +241,8 @@ body driver and bound armor/clothing.
 The catalogue comes from the archive workspace, including when Mesh Editor is
 detached into its own window. Cancelling the picker or failing to open the
 catalogue leaves the editor session available for further commands.
+Both picker panels render static geometry thumbnails from the prepared meshes
+on background workers, without requiring a 3D renderer package cache.
 
 Archive sources keep their own original bytes, Part mappings, palettes, and
 archive paths. Geometry, rig dependencies, and materials prepare off the UI

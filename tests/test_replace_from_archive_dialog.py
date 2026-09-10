@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+from PySide6.QtGui import QImage
 from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QWidget
 
@@ -26,11 +27,13 @@ from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
 )
+from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.mesh_editor.replace_from_archive_dialog import (
     ReplaceFromArchivePickerDialog,
     ReplaceFromArchiveReviewDialog,
     _ArchivePreviewLane,
 )
+from tests.test_mesh_pac_topology_serializer import _pac_fixture
 
 
 class _Catalogue(QObject):
@@ -323,3 +326,71 @@ def test_preview_lane_latest_wins_cancel_returns_immediately_and_tears_down(
     assert all(returned_to_ui_thread)
     parent.deleteLater()
     app.processEvents()
+
+
+def test_refit_picker_renders_both_prepared_pac_previews_without_a_renderer_package(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    target = _entry("character/model/body.pac", 1)
+    source = _entry("character/model/armor.pac", 2)
+    source_bytes = _pac_fixture(skinned=True)
+    for entry in (target, source):
+        prepared = tmp_path / entry.basename
+        prepared.write_bytes(source_bytes)
+        entry.prepared_path = prepared
+        entry.prepared_size = entry.orig_size = entry.comp_size = len(source_bytes)
+
+    dialog = ReplaceFromArchivePickerDialog(
+        _Catalogue(), _session(), target_entry=target,
+        target_dependencies=_context(target), refit_role="armor",
+    )
+
+    def wait_for_previews():
+        if not dialog.has_live_preview_workers:
+            return
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        dialog.preview_workers_idle.connect(loop.quit)
+        timer.start(5_000)
+        loop.exec()
+        timer.stop()
+        dialog.preview_workers_idle.disconnect(loop.quit)
+        assert not dialog.has_live_preview_workers
+
+    try:
+        app.processEvents()  # Start the real current-target preview worker.
+        context = _context(source)
+        dialog._dependencies_ready(
+            dialog._selection_generation,
+            ArchivePreviewDependencySet(
+                "session", 2, context.entries, context.entries_by_normalized_path,
+                context.entries_by_basename, 1, False,
+            ),
+        )
+        wait_for_previews()
+        for lane, label, status in (
+            (dialog._target_lane, dialog._target_image, dialog._target_status),
+            (dialog._source_lane, dialog._source_image, dialog._source_status),
+        ):
+            assert lane.settled
+            assert isinstance(lane.image, QImage), label.text()
+            assert not lane.image.isNull()
+            assert not label.pixmap().isNull()
+            assert "vertices" in status.text() and "faces" in status.text()
+            # Check geometry pixels inside the image, away from its text and grid.
+            image = lane.image
+            background = image.pixel(0, 0)
+            assert any(
+                image.pixel(x, y) != background
+                for x in range(image.width() // 3, image.width() * 2 // 3, 8)
+                for y in range(image.height() // 3, image.height() * 2 // 3, 8)
+            )
+        assert dialog.choose_button.isEnabled()
+        assert target.prepared_path.read_bytes() == source_bytes
+        assert source.prepared_path.read_bytes() == source_bytes
+    finally:
+        dialog.reject()
+        wait_for_previews()
+        dialog.deleteLater()
+        app.processEvents()

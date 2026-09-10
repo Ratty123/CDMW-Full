@@ -676,7 +676,12 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 preview_model=prepared_model,
                 prepared_preview_model=prepared_preview_model,
             )
-            if str(quality_tier or "").strip().lower() == "full":
+            # Picker thumbnails render the prepared geometry directly to a QImage.
+            # Keep that geometry without requiring an interactive renderer package.
+            if (
+                self.static_thumbnail_size is None
+                and str(quality_tier or "").strip().lower() == "full"
+            ):
                 cache_root = self.native_preview_package_cache_root
                 if cache_root is None:
                     payload = dataclasses.replace(

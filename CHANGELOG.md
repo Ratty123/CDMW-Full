@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive mesh pickers, including Mesh Editor **Browse Body...** and **Browse Armor...**, render geometry thumbnails without requiring a 3D renderer package cache. Valid target and source meshes no longer appear as "No renderable geometry preview was recovered" for this reason.
 - Interface controls remain readable and reachable on smaller desktops and at larger Windows scaling or app font sizes. Tool content and oversized dialogs can scroll, Research and Textures actions wrap, Settings Performance cards reflow, monitor changes refresh sizing, and Compact navigation icons stay sharp at higher DPI.
 - New Item preserves authored emission when materials are merged into an atlas, including Frostmourne's blue rune mask and glow strength. Unlit atlas regions stay dark, source strength overrides the template, faint emission retains its colour, and missing declared emissive textures block export. Existing items need rebuilding.
 - Mesh Editor **Browse Body...** and **Browse Armor...** use the loaded archive workspace, including in detached windows. Cancelling or failing to open the picker preserves the edit session instead of forcing the editor to close.
