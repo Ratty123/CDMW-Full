@@ -64,6 +64,7 @@ The format is intentionally simple:
 ### Docs
 
 - Updated the README, feature and native-helper guides, and in-app wiki for initial garment fitting, its remaining manual-adjustment limits, overlay-only New Item installs, mod merging, and game-update checks. The updated wiki text is included in all 14 interface language catalogs; embedded Rust editor controls remain English-only.
+- Portable packages include the README, changelog and security policy, keeping the in-app README location valid in the packaged application.
 
 ## [0.11.0-alpha.14] - 2026-09-09
 

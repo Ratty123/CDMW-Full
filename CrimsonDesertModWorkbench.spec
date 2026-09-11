@@ -180,6 +180,9 @@ _add_data_tree_if_exists(
 )
 _add_data_if_exists(datas, "THIRD_PARTY_NOTICES.md", ".")
 _add_data_if_exists(datas, "LICENSE", ".")
+_add_data_if_exists(datas, "README.md", ".", required_release=True)
+_add_data_if_exists(datas, "CHANGELOG.md", ".", required_release=True)
+_add_data_if_exists(datas, "SECURITY.md", ".", required_release=True)
 _add_data_if_exists(datas, "cdmw/modding/VendoredMeshTools_MIT_LICENSE.txt", "third_party")
 
 
