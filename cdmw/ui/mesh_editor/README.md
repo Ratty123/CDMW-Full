@@ -307,10 +307,17 @@ and interiors against the current body, keeping coincident seams joined. It
 checks body contours between those samples and resolves overlapping or tightly
 spaced body regions together, including around underarms. Fitting favours the
 original shape in clear areas, reducing unnecessary shoulder and sleeve inflation.
-Nearby clothing layers over the same body region move together to preserve their
-separation while allowing them to slide, including detailed linings beneath
-coarser outer shells. Local edge stretch is limited while folds and sleeve
-openings can bend around the body.
+Nearby clothing layers over the same body region preserve their separation while
+allowing them to slide, including detailed linings beneath coarser outer shells.
+Clear belts and trim are not pulled toward layers that move away from them.
+The garment's original facing direction helps offset sleeves wrap around the
+correct side of an arm during the initial fitting passes. This guidance stops
+as the cloth settles and is restricted near open body boundaries and by each
+piece's openings, protecting collars and keeping thin attachments from stretching
+around a limb. Local stretch and sharp new creases are reduced while folds and
+sleeve openings can bend around the body.
+Complex layered outfits have a bounded 90-second command budget, including
+subsequent body-slider changes.
 Inspect folded or tightly fitted areas before baking; unusual outfits may still
 need local adjustments. To redo a poor baked fit, undo the bake or reload the
 original meshes before fitting again. Shape sliders move the driver and bound

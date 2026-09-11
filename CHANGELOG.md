@@ -28,6 +28,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Surface auto-fitting uses garment-facing directions to reduce inverted sleeves and cuff spikes, guards against unreliable wrapping near body openings, and resists sharp new creases. Layer separation is preserved without pulling clear belts or trim toward moving layers. Complex fits and subsequent body-slider changes have a 90-second command budget so larger layered outfits can finish.
 - Surface auto-fitting keeps corrections local around clear shoulders and sleeves, checks body contours between garment samples, and accounts for overlapping or tightly spaced body surfaces to reduce underarm clipping and spikes.
 - Morph & Refit preserves the separation of nearby clothing layers over the same body region and limits local stretching, reducing chest-layer breakthrough and cuff spikes while allowing sleeve openings to bend around the hands.
 - Morph & Refit clearance pushes clothing outward when it already intersects the body, instead of moving it deeper inside. Surface mode also relieves clipping between vertices while keeping seams joined. **Fit to body** previews an initial fit for all bound garments without requiring a body slider, with Reset and Bake support.

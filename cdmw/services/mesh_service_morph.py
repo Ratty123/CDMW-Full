@@ -1675,7 +1675,9 @@ class MeshMorphServiceMixin:
         request["delta_output_dir"] = _native_preview_delta_output_dir()
         request["include_edit_report"] = True
         started = time.perf_counter()
-        report = native_mesh_editor_session_command(command, session.session_id, request, timeout_seconds=30.0)
+        # Layered outfits can take longer than 30 seconds to fit. Slider and
+        # preset changes also recompose the fit, so share one bounded budget.
+        report = native_mesh_editor_session_command(command, session.session_id, request, timeout_seconds=90.0)
         if not isinstance(report, Mapping) or str(report.get("status") or "").lower() != "ok":
             raise RuntimeError(_report_error(report, f"Resident C++ {command} failed."))
         # From this point the resident runtime may already have changed. Move

@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection, mesh_topology_fingerprint
+from cdmw.services import mesh_service_morph
 from cdmw.services.mesh_service import MeshService
 from tests.test_native_mesh_editor_morph_refit import _driver_garment_mesh
 
@@ -318,6 +319,46 @@ def test_refit_garment_settings_are_validated_and_preserved_in_service_state(tmp
     assert settings.intensity_percent == pytest.approx(65.0)
     assert settings.mode == "rigid"
     assert settings.clearance_percent == pytest.approx(0.75)
+
+
+def test_refit_and_following_slider_share_a_bounded_budget_and_reject_failed_output(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(_driver_garment_mesh(), mode="edit").session_id
+    try:
+        assert service.apply_command(session_id, _author_command()).ok
+        assert service.set_refit_driver(session_id, (0, 1))[0].ok
+        assert service.bind_refit(session_id, (2,))[0].ok
+        with patch.object(
+            mesh_service_morph, "native_mesh_editor_session_command",
+            wraps=mesh_service_morph.native_mesh_editor_session_command,
+        ) as native_command:
+            assert service.configure_refit(
+                session_id, (2,), enabled=True, intensity_percent=100.0,
+                mode="surface", clearance_percent=0.1,
+            )[0].ok
+            assert service.set_morph_value(session_id, "volume", 25.0, phase="end", change_id="refit-budget")[0].ok
+        mutation_calls = [call for call in native_command.call_args_list
+                          if call.args[0] in {"morph_configure_refit", "morph_change"}]
+        assert {call.args[0] for call in mutation_calls} == {"morph_configure_refit", "morph_change"}
+        assert all(call.kwargs["timeout_seconds"] == 90.0 for call in mutation_calls)
+
+        before_mesh = service.working_mesh(session_id, clone=True)
+        before_view = service.session_view(session_id)
+        before_state = service.cached_morph_state(session_id)
+        before_revision = service._session(session_id).morph_session_revision
+        with patch.object(mesh_service_morph, "native_mesh_editor_session_command", return_value=None):
+            with pytest.raises(RuntimeError, match="morph_configure_refit failed"):
+                service.configure_refit(
+                    session_id, (2,), enabled=True, intensity_percent=100.0,
+                    mode="surface", clearance_percent=0.2,
+                )
+        assert service.session_view(session_id) == before_view
+        assert service.cached_morph_state(session_id) == before_state
+        assert service._session(session_id).morph_session_revision == before_revision
+        after_mesh = service.working_mesh(session_id, clone=True)
+        assert [part.vertices for part in after_mesh.submeshes] == [part.vertices for part in before_mesh.submeshes]
+    finally:
+        service.close_edit_session(session_id, force_without_saving=True)
 
 
 def test_mesh_service_owns_authoring_resident_values_refit_persistence_history_and_cleanup(tmp_path) -> None:

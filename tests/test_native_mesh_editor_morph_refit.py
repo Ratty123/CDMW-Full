@@ -997,6 +997,27 @@ def test_surface_fit_keeps_a_coarse_shell_outside_a_detailed_lining() -> None:
     _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
 
 
+def test_surface_fit_does_not_pull_clear_lining_toward_a_lifted_outer_shell() -> None:
+    grid = [(x * .05, y * .05) for y in range(-2, 3) for x in range(-4, 5)]
+    faces = [(a, a + 1, a + 10) for a in range(36) if a % 9 < 8]
+    faces += [(a, a + 10, a + 9) for a in range(36) if a % 9 < 8]
+    body = _part("body", [
+        (x, y, .06 * max(0., 1. - math.hypot(x + .1, y) / .075)) for x, y in grid
+    ], faces, material="skin", texture="")
+    lining = _part("clear-lining", [
+        (x, y, .006) for x, y in ((.12, -.035), (.18, -.035), (.18, .035), (.12, .035))
+    ], [(0, 1, 2), (0, 2, 3)], material="lining", texture="")
+    shell = _part("coarse-shell", [
+        (x, y, .012) for x, y in ((-.2, -.1), (.2, -.1), (.2, .1), (-.2, .1))
+    ], [(0, 1, 2), (0, 2, 3)], material="shell", texture="")
+    mesh = ParsedMesh(path="clear-lining.pac", format="pac", submeshes=[body, lining, shell],
+                      total_vertices=53, total_faces=68)
+    fitted = _initial_surface_fit(mesh)
+    _assert_positions_close(fitted.submeshes[1].vertices, lining.vertices)
+    assert max(p[2] for p in fitted.submeshes[2].vertices) > .06
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
 def test_surface_fit_limits_stretch_around_a_folded_sleeve_opening() -> None:
     def rings(name, heights, radii, segments, bulge):
         vertices = []
@@ -1028,6 +1049,72 @@ def test_surface_fit_limits_stretch_around_a_folded_sleeve_opening() -> None:
     assert fitted.submeshes[1].faces == cuff.faces
     assert fitted.submeshes[1].uvs == cuff.uvs
     assert fitted.submeshes[1].bone_weights == cuff.bone_weights
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+def _refit_tube_part(name, radius, offset, heights, segments, caps=False):
+    vertices = [
+        (offset + radius * math.cos(i * 2. * math.pi / segments), y,
+         radius * math.sin(i * 2. * math.pi / segments))
+        for y in heights for i in range(segments)
+    ]
+    faces = []
+    for ring in range(len(heights) - 1):
+        for i in range(segments):
+            a = ring * segments + i
+            b = a + segments
+            c = ring * segments + (i + 1) % segments
+            d = c + segments
+            faces.extend(((a, b, d), (a, d, c)))
+    if caps:
+        for ring, reverse in ((0, False), (len(heights) - 1, True)):
+            center = len(vertices)
+            vertices.append((offset, heights[ring], 0.))
+            for i in range(segments):
+                a = ring * segments + i
+                b = ring * segments + (i + 1) % segments
+                faces.append((center, b, a) if reverse else (center, a, b))
+    return _part(name, vertices, faces, material=name, texture="")
+
+
+def test_surface_fit_wraps_a_shifted_sleeve_around_the_arm_without_inverting_it() -> None:
+    body = _refit_tube_part("arm", .08, 0., (0., .1, .2, .3, .4, .5), 64, True)
+    sleeve = _refit_tube_part("shifted-sleeve", .065, .07, (.1, .15, .2, .25, .3, .35, .4), 32)
+    mesh = ParsedMesh(path="shifted-sleeve.pac", format="pac", submeshes=[body, sleeve],
+                      total_vertices=len(body.vertices) + len(sleeve.vertices),
+                      total_faces=len(body.faces) + len(sleeve.faces))
+    fitted = _initial_surface_fit(mesh)
+    positions = fitted.submeshes[1].vertices
+    for ring in range(7):
+        winding = 0.
+        for i in range(32):
+            a = positions[ring * 32 + i]
+            b = positions[ring * 32 + (i + 1) % 32]
+            winding += math.atan2(a[0] * b[2] - a[2] * b[0], a[0] * b[0] + a[2] * b[2])
+        assert winding == pytest.approx(2. * math.pi), "the sleeve moved off the arm instead of wrapping it"
+    edges = {tuple(sorted((face[i], face[(i + 1) % 3]))) for face in sleeve.faces for i in range(3)}
+    for a, b in edges:
+        assert math.dist(positions[a], positions[b]) <= 1.6 * math.dist(sleeve.vertices[a], sleeve.vertices[b])
+        midpoint = tuple((positions[a][axis] + positions[b][axis]) * .5 for axis in range(3))
+        assert math.hypot(midpoint[0], midpoint[2]) >= .0803
+    _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
+
+
+@pytest.mark.parametrize("caps", (False, True))
+def test_surface_fit_does_not_wrap_a_thin_attachment_around_the_arm(caps) -> None:
+    body = _refit_tube_part("arm", .08, 0., (0., .1, .2, .3, .4, .5), 64, True)
+    attachment = _refit_tube_part("thin-attachment", .008, .025, (.1, .15, .2, .25, .3, .35, .4), 12, caps)
+    mesh = ParsedMesh(path="thin-attachment.pac", format="pac", submeshes=[body, attachment],
+                      total_vertices=len(body.vertices) + len(attachment.vertices),
+                      total_faces=len(body.faces) + len(attachment.faces))
+    fitted = _initial_surface_fit(mesh)
+    positions = fitted.submeshes[1].vertices
+    assert min(p[0] for p in positions) > .06, "a narrow attachment should leave the body on its original side"
+    edges = {tuple(sorted((face[i], face[(i + 1) % 3]))) for face in attachment.faces for i in range(3)}
+    for a, b in edges:
+        assert math.dist(positions[a], positions[b]) <= 1.6 * math.dist(attachment.vertices[a], attachment.vertices[b])
+        midpoint = tuple((positions[a][axis] + positions[b][axis]) * .5 for axis in range(3))
+        assert math.hypot(midpoint[0], midpoint[2]) >= .0803
     _assert_positions_close(fitted.submeshes[0].vertices, body.vertices)
 
 
