@@ -311,7 +311,8 @@ def test_documentation_covers_current_mesh_editor_behavior() -> None:
     assert "Open in Mesh Editor" in main_window_source
     assert "right-drag orbits, middle-drag pans" in main_window_source
     assert "Solid (Textured)" in main_window_source
-    assert "Select influenced vertices" in main_window_source
+    assert "temporarily hidden from the tool rail" in main_window_source
+    assert "Fit to body previews every bound garment" in main_window_source
     assert "isolated session until Finish Edit Mesh validates" in main_window_source
     assert "Run validation again before exporting" in main_window_source
     assert "Exact Game Asset preserves protected source records" in main_window_source

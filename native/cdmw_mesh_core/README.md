@@ -146,9 +146,17 @@ data so exported vertex-aligned tangents do not average across seams.
 `morph-apply-json` blends morph slider delta sidecars and post-edit deltas in
 C++, recomputes smooth normals, and writes morphed vertices/normals as binary
 sidecars so Python remains a snapshot/fallback bridge instead of the blend loop.
+Resident Morph & Refit commands are owned by `src/owners/session_morph_01.cpp`.
+Surface fitting checks vertices, triangle edges and interiors, joins coincident
+seams, preserves nearby layer separation, and limits local stretching and sharp
+new creases. Initial garment-facing guidance helps sleeves wrap around limbs;
+body-boundary and garment-opening guards limit that guidance around open necks
+and thin attachments. The body and source topology remain unchanged during an
+initial garment fit. Complex trim still needs inspection; static clearance is
+not animation or in-game proof. The owning focused regression file is
+`tests/test_native_mesh_editor_morph_refit.py` at the repository root.
 `auto-uv-json` uses bundled xatlas and reports generated UVs, output faces,
 vertex remap, chart counts, and topology deltas. Python can apply the output
 through undoable Mesh Edit UV commands, and topology-changing output is gated by
 an explicit command flag. Its optional `auto_uv.padding` pixel value is passed
 to xatlas chart packing; the compatibility default remains zero.
-

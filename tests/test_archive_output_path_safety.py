@@ -144,7 +144,7 @@ def test_overlay_export_preflights_metadata_before_publishing_group_files(tmp_pa
     package_root = tmp_path / "package"
     outside = tmp_path / "outside.txt"
 
-    with pytest.raises(ValueError, match="escapes the package"):
+    with pytest.raises(ValueError, match="Invalid compatibility payload path"):
         export_archive_overlay_package(
             (),
             (_addition(tmp_path),),

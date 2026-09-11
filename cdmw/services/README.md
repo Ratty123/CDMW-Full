@@ -34,6 +34,11 @@ weapon-swap, and index operations.
 mesh/native and texture/recolor coordination surfaces without eager imports.
 `mesh_rust_authoring.py` owns the production Rust editor's disposable shadow
 session, revisioned commands, and validated finish publication.
+`mesh_service_morph.py` dispatches native body-slider and garment-refit commands
+with a bounded 90-second budget. A failed command retains the previous service
+state and history. `mesh_archive_refit.py` keeps each loaded body's or garment's
+source identity and neutral-coordinate mapping separate; output validates every
+rebuilt asset before publishing the combined mod.
 `mesh_service_resident_transaction.py` retains the compatibility trust boundary
 for shared-memory terminal gestures. It validates the
 shared-memory descriptor, session identity, revisions, topology generation,

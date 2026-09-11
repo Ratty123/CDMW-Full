@@ -175,6 +175,14 @@ The interface described below is the standalone Rust Mesh Lab layout. In
 CDMW-managed mode the executable instead presents the Mesh Editor session bar,
 left tool rail, camera strip, Parts, Geometry Layers, Action History, Morph &
 Refit, and output-policy controls supplied by the integrated control contract.
+The integrated Rig & Weights tool is currently hidden. Morph & Refit can load
+body and armor from the archive catalogue, assign their roles, and preview an
+initial **Fit to body** without a shape slider. The host's native Surface solver
+preserves layers and limits sleeve/cuff distortion, with a 90-second command
+budget for large fits. Inspect complex trim before Bake. Exact archive refits
+preserve source topology and rebuild each loaded asset separately. See the
+[Mesh Editor workflow](../../cdmw/ui/mesh_editor/README.md#morph--refit-workflow)
+for the current product controls and output limits.
 The session bar and camera strip use labelled rows, the left rail groups
 Selection, Transform, Sculpt, Mesh Data, and Deform tools, and the right rail
 separates Parts, Layers, and History. CDMW supplies its semantic palette,

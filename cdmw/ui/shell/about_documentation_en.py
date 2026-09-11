@@ -24,10 +24,12 @@ CREATE_NEW_ITEM_SECTION = {
       <li><b>Stats &amp; Prices</b>: compare raw game values with the template. Advanced stat edits remain experimental.</li>
       <li><b>Perks &amp; Effects</b>: choose gameplay perks separately from visual effects. Four perks is the default cap; five to eight requires experimental mode. Apply staged effect placement before planning.</li>
       <li><b>Distribution</b>: review shops, crafting recipes, supported reward sources, and item groups. Saved routes are included in the final plan.</li>
-      <li><b>Output</b>: Build plan reviews the exact changes without writing. Export a loose mod or archive-group package, or review and confirm a backed-up installation.</li>
+      <li><b>Output</b>: Build plan is read-only. Export a mod package or review and confirm an overlay installation. New Item does not install into shipped archives.</li>
     </ol>
-    <p>Valid template socket bindings are preserved. Changed skin bindings need a compatible rig. Each mesh section is limited to 65,535 vertices. Map incompatible inherited dyes explicitly or clear their assignments.</p>
-    <p>Installing another item preserves existing content in a compatible CDMW-owned overlay. Manage existing overlays provides explicit migration and removal actions; planning never performs them.</p>
+    <p>Valid template sockets are preserved. Armour weight transfer needs a compatible template or verified body donor; disable template physics and review Build plan warnings. Each mesh section is limited to 65,535 vertices. Imported-model dyes are off by default.</p>
+    <p>Installed overlays removes a selected CDMW install while preserving the others. Shared-file conflicts and recipe dependencies can block removal.</p>
+    <p>Merge mods writes a separate DMM package from compatible mod folders. Conflicts block export. Use the merged package in place of its source packages.</p>
+    <p>Check mods for game updates compares recorded originals with the current game. Review conflicts before writing a separate updated DMM package; source mods and game files stay unchanged.</p>
     <p>Effects are approximate previews and do not add elemental damage. A successful build or game startup does not verify equipping, appearance, stats, or behavior in a save.</p>
                 """,
 }
@@ -414,18 +416,17 @@ class AboutDocumentationEnglishMixin:
                 <h4>Open and author a mesh</h4>
                 <ul>
                   <li>Choose Open in Mesh Editor for a supported PAC, PAM, or PAMLOD. Imported geometry uses the available Free Edit route.</li>
-                  <li>Use selection, transforms, brushes, topology, cleanup, normals, UVs, rig weights, layers, and Morph &amp; Refit where enabled. Each disabled control explains its limit.</li>
+                  <li>Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph &amp; Refit where enabled. Each disabled control explains its limit.</li>
                   <li>Exact Game Asset preserves protected source records. Free Edit permits supported geometry changes for a new validated output.</li>
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
                 <h4>Rig &amp; Weights</h4>
-                <ul>
-                  <li>Review the loaded mesh, Part, rig, active bone, and parent. Search bones by name and inspect the labelled bone and weight colours in the viewport.</li>
-                  <li>Frame bone and Frame influence change the camera. Select influenced vertices changes the edit selection and excludes hidden Parts.</li>
-                </ul>
+                <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
                 <p>Use Browse Body... and Browse Armor... to load archive assets. Assign the body as the driver, then select and bind the garments. Reset or Bake before changing the setup. Finish Edit Mesh keeps both body and armor edits; Build Mod rebuilds each asset at its original archive path. Refit changes geometry, not skeletons or animation.</p>
+                <p>Fit to body previews every bound garment in Surface mode at 100% intensity, with at least 0.1% clearance. No body slider is required. Reset discards the preview; Bake keeps it.</p>
+                <p>Large fits and body-slider changes can take up to 90 seconds. Inspect cuffs, underarms, belts and thin trim before baking; complex folds can still need manual adjustment. Undo a poor bake or reload the original meshes before fitting again.</p>
                 <h4>Save and build</h4>
                 <ul>
                   <li>Export Mesh File writes a separate rebuilt asset. Build Mod writes a loose manager package or a DMM archive-group package.</li>

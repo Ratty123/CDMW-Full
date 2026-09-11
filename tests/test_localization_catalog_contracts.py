@@ -646,10 +646,20 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "window.reset_progress(1234)",
             "assert window.textures.total_files_value.text() == window.ui_localizer.format_number(1234)",
             "window._handle_language_changed('fr')",
+            # Follow the visible user route before opening its review dialog.
+            "window.compact_workspace.rail.tool_buttons['textures'].click()",
+            "app.processEvents()",
             "window.textures.show_texture_review(operation='upscale')",
             "app.processEvents()",
-            "assert window.textures.total_files_value.isVisible(), 'Review did not reveal the progress counter.'",
+            # Responsive wrapping and deferred translation are queued after
+            # Show. Require the visible counter to reach the current locale.
+            "from time import monotonic",
+            "from PySide6.QtTest import QTest",
             "expected_total = window.ui_localizer.format_number(1234)",
+            "review_deadline = monotonic() + 2.0",
+            "while (not window.textures.total_files_value.isVisible() or window.textures.total_files_value.text() != expected_total) and monotonic() < review_deadline:",
+            "    QTest.qWait(1)",
+            "assert window.textures.total_files_value.isVisible(), 'Review did not reveal the progress counter.'",
             "assert window.textures.total_files_value.text() == expected_total, (",
             "    f'Counter kept {window.textures.total_files_value.text()!r}, expected {expected_total!r}.'",
             ")",
@@ -1482,7 +1492,7 @@ def test_generated_manifest_contains_reviewed_source_keys() -> None:
             "to the Crimson Desert folder or package root before the first Archive "
             "Browser scan."
         ),
-        "Use selection, transforms, brushes, topology, cleanup, normals, UVs, rig weights, layers, and Morph & Refit where enabled. Each disabled control explains its limit.",
+        "Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph & Refit where enabled. Each disabled control explains its limit.",
         " Placement workspace has {value_0} prefab/socket chain(s).",
         (
             "Build a loose mod package for edited prefab?\n\n"

@@ -68,8 +68,10 @@ committing edits, so the game does not apply the face correction twice. Opening
 and finishing without a geometry edit preserves the source bytes. Unreadable or
 non-invertible resolved appearance data reports a load/preparation error rather
 than opening a falsely corrected face; meshes with no linked variation retain
-their source shape. Finish or cancel this edit before importing a different
-source mesh or entering an archive refit.
+their source shape. Finish or cancel this edit before importing an unrelated
+source mesh. Archive Refit has its own per-asset neutral mappings, so it can load
+body and armor together without applying the body's appearance transform to the
+armor.
 Free Edit OBJ output retains the displayed neutral shape; game-asset output
 retains the reversible source-coordinate mapping.
 
@@ -319,7 +321,9 @@ sleeve openings can bend around the body.
 Complex layered outfits have a bounded 90-second command budget, including
 subsequent body-slider changes.
 Inspect folded or tightly fitted areas before baking; unusual outfits may still
-need local adjustments. To redo a poor baked fit, undo the bake or reload the
+need local adjustments, particularly thin wrist trim and folded cuffs. Static
+fit and PAC round-trip checks do not establish animation or in-game appearance.
+To redo a poor baked fit, undo the bake or reload the
 original meshes before fitting again. Shape sliders move the driver and bound
 garments together. Use the normal transform tools if the meshes need alignment.
 

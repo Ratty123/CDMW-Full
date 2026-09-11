@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.14-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.15-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.14` is the current source version. See the Releases page for
+> `0.11.0-alpha.15` is the current source version. See the Releases page for
 > published downloads; an existing executable does not include later source changes.
 
 ---
@@ -89,7 +89,7 @@ including supported material-color sidecars and manager profiles.
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
-| **Mesh Editor** | Edit supported archive or local meshes with selection, transforms, sculpting, topology, UVs, rig weights, layers, and Morph & Refit. Supports OBJ/FBX export, OBJ/DAE/glTF/GLB import. Load body and armor from archives and rebuild each asset separately in one mod. Exact/Free Edit controls explain their limits; Finish Edit Mesh validates the isolated session before accepting changes. |
+| **Mesh Editor** | Edit supported archive or local meshes with selection, transforms, sculpting, topology, UVs, layers, and Morph & Refit. Supports OBJ/FBX export, OBJ/DAE/glTF/GLB import. Load body and armor from archives and rebuild each asset separately in one mod. Exact/Free Edit controls explain their limits; Finish Edit Mesh validates the isolated session before accepting changes. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Textures** | Edit layered documents, recolor mod textures and supported material values, upscale selected assets, review replacement matches, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
@@ -128,9 +128,17 @@ placement, icon capture, the enhancement ladder, base prices,
 Abyss Gear perks, model variants and dye assignments, shops, crafting recipes,
 supported reward sources, item groups, and the final file plan remain explicit.
 Valid template socket bindings are preserved; changed skin bindings require a
-compatible rig. Map incompatible inherited dyes explicitly or clear them. A mesh
+compatible rig. Imported-model dyes are off by default; enable and map compatible
+template dyes explicitly. A mesh
 section may contain at most 65,535 vertices. A successful plan or game startup
 does not establish equipping, appearance, or gameplay behavior in a save.
+
+Armour imports can transfer weights across template material sections or use a
+verified matching character body. Disable template physics for body-weight
+transfer, then review the named donor and deformation warnings in Build plan.
+Source materials retain separate surface and glow maps, colour factors and
+opacity. Unsupported shader behavior is reported; existing exports must be
+rebuilt to receive the material corrections in this version.
 
 **Set price to 1 Copper** sets base and enhancement prices to one and creates
 zero-price copies of embedded perks, retaining their bonuses and localized names.
@@ -153,6 +161,11 @@ folders into a new DMM package after checking their contents and recorded game
 baselines. Duplicate item or recipe IDs, conflicting edits and unsupported shared
 changes block export; IDs are not reassigned automatically. Enable the combined
 package in DMM in place of its source packages.
+**Check mods for game updates...** compares a mod's recorded original files with
+the current game, identifies changed dependencies and conflicts, and can write a
+separate updated DMM package for supported changes. Missing original data or
+unresolved conflicts block automatic updates. Source mods and game files stay
+unchanged during comparison and export.
 **Output → Installed overlays** lists individual
 CDMW installs and removes a selected one while preserving the others. Shared
 tables and registries are composed by record; conflicts and dependencies block
@@ -178,9 +191,9 @@ supported topology changes for a new output. Disabled controls explain their
 requirements. Textures remain read-only references in this workspace.
 
 Use Select, Move, Rotate, Scale, Grab, Smooth, Inflate, Pinch, cleanup,
-normals/tangents, UVs, rig weights, and layers where the active mesh supports
-them. The Parts list controls visibility and whole-part selection. Rig & Weights
-identifies the mesh, rig and active bone, with influence colours and framing.
+normals/tangents, UVs, and layers where the active mesh supports them. The Parts
+list controls visibility and whole-part selection. Rig & Weights is temporarily
+hidden from the product tool rail; its underlying implementation is retained.
 
 **Morph & Refit** supports body shape sliders and fitting armor or clothing:
 
@@ -189,13 +202,22 @@ identifies the mesh, rig and active bone, with influence colours and framing.
 2. Select the body Parts for shape sliders, then select and bind all garments
    that should follow the body. Align meshes with the normal transform tools
    when needed. The panel separates loaded assets, the driver, and bound garments.
-3. Adjust the shape sliders. **Reset** or **Bake** the preview before changing
+3. Use **Fit to body** for an initial fit without a body slider. It applies
+   Surface mode at 100% intensity with the current clearance, at least 0.1%.
+   Inspect sleeves, underarms, cuffs, belts and layered trim before baking.
+4. Adjust the shape sliders when needed. **Reset** or **Bake** the preview before changing
    its setup. Presets can be saved in the session library or exported as portable
    JSON; they require matching driver topology and Part order.
-4. **Finish Edit Mesh** validates and retains the body and armor edits. **Build
+5. **Finish Edit Mesh** validates and retains the body and armor edits. **Build
    Mod** rebuilds each asset at its original archive path and publishes them
    together only after every asset succeeds. Hiding a Part does not exclude it
    from output.
+
+Surface fitting keeps corrections local, preserves nearby clothing layers and
+reduces inverted sleeves and cuff spikes. Large fits and subsequent slider
+changes have a bounded 90-second command budget. Complex folds and thin trim can
+still need manual adjustment. Undo a poor bake or reload the original meshes
+before trying again.
 
 Refit changes geometry; it does not automatically align poses or convert
 skeletons, weights or animations. Check visual fit and animation clipping in

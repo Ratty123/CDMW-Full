@@ -11,6 +11,8 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.15] - 2026-09-11
+
 ### Added
 
 - **Check mods for game updates** records game-build and original-file history in new exports and installed overlays. Compare against a patched game, review changed files and dependencies, and write a separate updated DMM package when supported changes merge without conflicts. Missing originals and unresolved conflicts block automatic updates; the original mod and game files are preserved.
@@ -58,6 +60,10 @@ The format is intentionally simple:
 - Wearable imports and Fit to template preserve the template's body orientation. Variant rig checks follow declared skeletons outside the model folder, and Build plan retains skin-transfer notes and material warnings.
 - New Item weapon imports keep unused template mesh sections on the rigid attachment and remove residual donor skin influences from full replacements. Templates with weighted accessories no longer cause a false missing-or-ambiguous-skeleton block.
 - New Item dye assignments are off by default. The checkbox now controls the applied settings, and replacing an import resets its dye choices. Explicitly requested but incompatible template dyes produce a warning and are omitted.
+
+### Docs
+
+- Updated the README, feature and native-helper guides, and in-app wiki for initial garment fitting, its remaining manual-adjustment limits, overlay-only New Item installs, mod merging, and game-update checks. The updated wiki text is included in all 14 interface language catalogs; embedded Rust editor controls remain English-only.
 
 ## [0.11.0-alpha.14] - 2026-09-09
 
