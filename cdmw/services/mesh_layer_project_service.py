@@ -20,7 +20,10 @@ from cdmw.modding.mesh_native_core import (
 )
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.atomic_file_service import atomic_write_text
-from cdmw.services.mesh_archive_refit import load_archive_refit_context, save_archive_refit_context
+from cdmw.services.mesh_archive_refit import (
+    load_archive_refit_context, load_archive_refit_materials,
+    save_archive_refit_context, save_archive_refit_materials,
+)
 
 
 MESH_LAYER_PROJECT_FORMAT = "mesh_layer_project_v1"
@@ -190,6 +193,10 @@ def save_mesh_layer_project(
         "snapshot": persisted_snapshot,
         "archive_refit": save_archive_refit_context(archive_refit_context, project_root, stop),
     }
+    if archive_refit_context is not None:
+        generation_payload["archive_refit_material_files"] = save_archive_refit_materials(
+            persisted_snapshot, project_root, stop,
+        )
     if replacement_state is not None:
         generation_payload["replacement"] = save_replacement_state(replacement_state, project_root, generation_dir, stop)
     generation_manifest = generation_dir / "generation.json"
@@ -273,6 +280,9 @@ def load_mesh_layer_project(
                 generation_name,
                 stored_hash,
                 expected_manifest_sha256=expected_manifest_sha256,
+            )
+            load_archive_refit_materials(
+                payload["snapshot"], payload.get("archive_refit_material_files"), target.parent, stop,
             )
             if descriptor.get("format") == MESH_REPLACEMENT_PROJECT_FORMAT and payload.get("format") != MESH_REPLACEMENT_GENERATION_FORMAT:
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")

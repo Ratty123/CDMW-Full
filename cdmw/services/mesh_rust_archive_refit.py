@@ -151,19 +151,26 @@ def stage_archive_refit_materials(authoring, mesh, context, stop_event):
     added_presentations = [row for row in _mesh_material_presentations(mesh, generated_overrides=overrides)
                            if row["lod_index"] == 0 and row["material_index"] in asset.part_indices]
     textures = [*retained["textures"], *added_textures]
-    authoring.archive_refit_material_cache[context.context_id] = {
+    candidate = {
         "key": context.context_id, "textures": textures,
         "material_presentations": [*retained["material_presentations"], *added_presentations],
         "reason": "" if textures else "No readable archive preview textures were resolved for these meshes.",
     }
-    for key, payload in authoring.archive_refit_material_cache.items():
-        if key in authoring.archive_refit_material_references:
-            continue
+    pending = {key: payload for key, payload in {
+        **authoring.archive_refit_material_cache, context.context_id: candidate,
+    }.items() if key not in authoring.archive_refit_material_references}
+    for payload in pending.values():
         authoring._raise_if_cancelled(stop_event)
         if len(_canonical_json_bytes(payload)) > _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES:
             raise ValueError("Archive Refit material metadata exceeds the 16 MiB session limit")
-        authoring.archive_refit_material_references[key] = _atomic_write_payload(
+    references = {}
+    for key, payload in pending.items():
+        authoring._raise_if_cancelled(stop_event)
+        references[key] = _atomic_write_payload(
             authoring.root, f"material-state-{key}.json", payload,
             data_type="mesh_materials_json", element_count=1,
             expected_root_identity=authoring.root_identity,
         )
+    authoring._raise_if_cancelled(stop_event)
+    authoring.archive_refit_material_cache[context.context_id] = candidate
+    authoring.archive_refit_material_references.update(references)

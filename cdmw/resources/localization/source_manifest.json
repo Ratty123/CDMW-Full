@@ -8962,11 +8962,96 @@
       ]
     },
     {
+      "key": "Archive Refit draft material checksum failed",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 340,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 369,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft material is missing: {value_0}. Reopen its source mesh to reload textures.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 322,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft material path escapes the project",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 330,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft material path or size is invalid",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 362,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft material size is invalid",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 325,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 360,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft materials exceed the 512 MiB limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 334,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 366,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Archive Refit draft neutral appearance is invalid: {value_0}",
       "origins": [
         {
           "path": "cdmw/services/mesh_archive_refit.py",
           "line": 266,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit draft omitted a material file",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 374,
           "sink": "ValueError"
         }
       ]
@@ -9027,6 +9112,21 @@
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
           "line": 69,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Archive Refit material copy cancelled",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 300,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 318,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -45845,6 +45945,16 @@
       "key": "Interval minimum (s)",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Invalid Archive Refit draft material descriptor",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 356,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "Invalid New Item manifest: {value_0}",
@@ -97772,6 +97882,11 @@
       ]
     },
     {
+      "key": "Some Archive Refit material files are missing ({value_0}). Reopen the source meshes to reload textures.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Some items are still unresolved. Choose the original DDS for each of them before building.",
       "origins": [
         {
@@ -109428,6 +109543,16 @@
           "path": "cdmw/ui/archive_browser/appearance_swap.py",
           "line": 64,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported Archive Refit draft material record",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_archive_refit.py",
+          "line": 350,
+          "sink": "ValueError"
         }
       ]
     },

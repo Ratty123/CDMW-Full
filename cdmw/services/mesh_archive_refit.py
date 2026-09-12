@@ -269,3 +269,121 @@ def load_archive_refit_context(payload, project_root):
     if not assets:
         raise ValueError("Archive Refit draft contains no asset identities")
     return ArchiveRefitContext(tuple(assets), neutral_coordinates=coordinates == "neutral")
+
+
+_MAX_REFIT_MATERIAL_BYTES = 512 * 1024 * 1024
+
+
+def _material_path_fields(value):
+    """Visit local image paths, retaining archive names and material identity."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(item, str) and item and (
+                key == "texture" or key == "source_dds_path"
+                or ("texture" in key and key.endswith("_path"))
+            ) and Path(item).is_absolute():
+                yield value, key, item
+            elif isinstance(item, (dict, list, tuple)):
+                yield from _material_path_fields(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _material_path_fields(item)
+
+
+def _material_file_hash(path, stop_event=None):
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            if stop_event is not None:
+                raise_if_cancelled(stop_event, "Archive Refit material copy cancelled")
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def save_archive_refit_materials(snapshot, project_root, stop_event):
+    """Own DDS and decoded layer images before publishing the draft generation."""
+    from cdmw.core.temp_cache import app_temp_cache_use
+    from cdmw.domain.cancellation import raise_if_cancelled
+    from cdmw.services.atomic_file_service import atomic_copy_file
+
+    root = Path(project_root).resolve()
+    files, owned = {}, set()
+    total = 0
+    for item in snapshot["submeshes"]:
+        for _container, _key, value in _material_path_fields(item.get("metadata", {})):
+            if value in files:
+                continue
+            raise_if_cancelled(stop_event, "Archive Refit material copy cancelled")
+            source = Path(value)
+            with app_temp_cache_use(source):
+                if not source.is_file():
+                    raise ValueError(f"Archive Refit draft material is missing: {source.name}. Reopen its source mesh to reload textures.")
+                size = source.stat().st_size
+                if not 0 < size <= _MAX_REFIT_MATERIAL_BYTES:
+                    raise ValueError("Archive Refit draft material size is invalid")
+                digest = _material_file_hash(source, stop_event)
+                # Keep filenames: material interpretation can depend on their suffixes.
+                destination = (root / "archive-refit-materials" / digest / source.name).resolve()
+                if not destination.is_relative_to(root):
+                    raise ValueError("Archive Refit draft material path escapes the project")
+                if destination not in owned:
+                    total += size
+                    if total > _MAX_REFIT_MATERIAL_BYTES:
+                        raise ValueError("Archive Refit draft materials exceed the 512 MiB limit")
+                    owned.add(destination)
+                    if not destination.exists():
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        atomic_copy_file(source, destination)
+                    if destination.stat().st_size != size or _material_file_hash(destination, stop_event) != digest:
+                        raise ValueError("Archive Refit draft material checksum failed")
+            files[value] = {"path": destination.relative_to(root).as_posix(), "size": size, "sha256": digest}
+    return {"version": 1, "files": files}
+
+
+def load_archive_refit_materials(snapshot, payload, project_root, stop_event=None):
+    """Rebase image bindings only after every owned material file verifies."""
+    if payload is None:  # Earlier drafts retain their original cache references.
+        return
+    if not isinstance(payload, dict) or payload.get("version") != 1 or not isinstance(payload.get("files"), dict):
+        raise ValueError("Unsupported Archive Refit draft material record")
+    root = Path(project_root).resolve()
+    resolved, owned = {}, {}
+    total = 0
+    for value, descriptor in payload["files"].items():
+        if not isinstance(descriptor, dict) or not {"path", "size", "sha256"} <= descriptor.keys():
+            raise ValueError("Invalid Archive Refit draft material descriptor")
+        path = (root / str(descriptor["path"])).resolve()
+        size = descriptor["size"]
+        if type(size) is not int:
+            raise ValueError("Archive Refit draft material size is invalid")
+        if not path.is_relative_to(root) or not 0 < size <= _MAX_REFIT_MATERIAL_BYTES:
+            raise ValueError("Archive Refit draft material path or size is invalid")
+        if path not in owned:
+            total += size
+            if total > _MAX_REFIT_MATERIAL_BYTES:
+                raise ValueError("Archive Refit draft materials exceed the 512 MiB limit")
+            owned[path] = (path.stat().st_size, _material_file_hash(path, stop_event))
+        if owned[path] != (size, descriptor["sha256"]):
+            raise ValueError("Archive Refit draft material checksum failed")
+        resolved[value] = str(path)
+    bindings = [field for item in snapshot["submeshes"]
+                for field in _material_path_fields(item.get("metadata", {}))]
+    if any(value not in resolved for _container, _key, value in bindings):
+        raise ValueError("Archive Refit draft omitted a material file")
+    for container, key, value in bindings:
+        container[key] = resolved[value]
+
+
+def archive_refit_material_warning(mesh):
+    """Expose missing files in older drafts even if another part is textured."""
+    from cdmw.modding.mesh_native_snapshot_codec import _submesh_snapshot_metadata
+
+    missing = {Path(value).name for part in mesh.submeshes
+               for _container, _key, value in _material_path_fields(_submesh_snapshot_metadata(part))
+               if not Path(value).is_file()}
+    if not missing:
+        return ""
+    names = ", ".join(sorted(missing))[:160]
+    return f"Some Archive Refit material files are missing ({names}). Reopen the source meshes to reload textures."
