@@ -198,7 +198,8 @@ internal sealed class WorkerServer(Stream input, Stream output, string cacheRoot
                 WorkerProtocol.Version,
                 native.AbiVersion,
                 ArchiveIndex.Version,
-                Environment.ProcessId));
+                Environment.ProcessId,
+                ["character_catalog_v1"]));
     }
 
     private async Task HandleCancelAsync(

@@ -54,6 +54,12 @@ from cdmw.domain.archives.item_catalogue import (
     ItemIconBatchResult,
 )
 from cdmw.domain.archives.catalogue_wire import ArchiveContractError
+from cdmw.domain.archives.character_catalogue import (
+    BuildCharacterCatalogRequest, BuildCharacterCatalogResult,
+    CharacterCatalogSearchRequest, CharacterCatalogSearchResult,
+    CharacterCatalogDetailRequest, CharacterCatalogDetailResult,
+    CharacterCatalogScopeRequest, CharacterCatalogScopeResult,
+)
 from cdmw.models import ArchiveEntry
 
 
@@ -319,6 +325,39 @@ class ArchiveCatalogueService(QObject):
             ui_generation=ui_generation,
             session=session,
         )
+
+    @property
+    def character_catalog_available(self) -> bool:
+        return "character_catalog_v1" in getattr(self._client, "capabilities", ())
+
+    def _require_character_catalog(self) -> None:
+        if not self.character_catalog_available:
+            raise ValueError("Body & Face Finder requires an updated archive helper. Rebuild the archive worker or install a current CDMW build, then reopen the archives.")
+
+    def build_character_catalog(self, session_id: str, *, ui_generation: int) -> str:
+        self._require_character_catalog()
+        session = self._require_session(session_id)
+        return self._submit(ArchiveBackendOperation.BUILD_CHARACTER_CATALOG,
+                            BuildCharacterCatalogRequest(session_id), BuildCharacterCatalogResult.from_wire,
+                            ui_generation=ui_generation, session=session)
+
+    def search_character_catalog(self, request: CharacterCatalogSearchRequest, *, ui_generation: int) -> str:
+        self._require_character_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.SEARCH_CHARACTER_CATALOG, request,
+                            CharacterCatalogSearchResult.from_wire, ui_generation=ui_generation, session=session)
+
+    def get_character_catalog_detail(self, request: CharacterCatalogDetailRequest, *, ui_generation: int) -> str:
+        self._require_character_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.GET_CHARACTER_CATALOG_DETAIL, request,
+                            CharacterCatalogDetailResult.from_wire, ui_generation=ui_generation, session=session)
+
+    def scope_character_catalog(self, request: CharacterCatalogScopeRequest, *, ui_generation: int) -> str:
+        self._require_character_catalog()
+        session = self._require_session(request.session_id)
+        return self._submit(ArchiveBackendOperation.SCOPE_CHARACTER_CATALOG, request,
+                            CharacterCatalogScopeResult.from_wire, ui_generation=ui_generation, session=session)
 
     def prepare_entries(self, request: PrepareEntriesRequest, *, ui_generation: int) -> str:
         session = self._require_session(request.session_id)

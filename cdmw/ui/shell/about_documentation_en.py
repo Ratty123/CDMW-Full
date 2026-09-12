@@ -354,6 +354,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Preview supported DDS/images, text-like files, structured assets such as <code>.app_xml</code>, <code>.prefabdata_xml</code>, <code>.prefab</code>, <code>.levelinfo</code>, <code>.palevel</code>, <code>.roadsector</code>, <code>.road</code>, <code>.nav</code>, <code>.pabc</code>, <code>.pabv</code>, <code>.pabgb</code>, <code>.pabgh</code>, HKX/Havok summaries, audio/video, and model assets such as <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code>.</li>
                   <li>Extract selected or filtered content to loose folders.</li>
                   <li>Use <b>Item Finder</b> when a name/category/icon is a better starting point than a raw path; armor and horse gear categories are inferred from item names, IDs, and game metadata where possible.</li>
+                  <li>Use <b>Body &amp; Face Finder</b> to browse character models and appearance variants, including creatures and mounts, with thumbnails and an independent interactive preview.</li>
                   <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <a href="topic:placement_studio">Placement &amp; Animations</a> to review supported equipment placement, sockets, and animation replacements.</li>
                   <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
@@ -382,6 +383,10 @@ class AboutDocumentationEnglishMixin:
                   <li>For meshes and sidecars, click <b>Asset Family</b> to load related textures, XML, material sidecars, skeletons, and metadata only when needed.</li>
                   <li>Use <b>Item Finder</b> for name/icon/category-based lookup when the archive path is unknown.</li>
                 </ul>
+                <h4>Find bodies and faces</h4>
+                <p>After scanning, open <b>Body &amp; Face Finder</b>. Choose <b>Bodies</b> or <b>Faces</b>, then <b>Unique assets</b> or <b>Appearance variants</b>. Search character names, IDs or paths, and narrow results with the component, family and resolution filters.</p>
+                <p><b>Used by / Components</b> connects shared meshes and appearances. <b>Show exact files</b> or <b>Show related files</b> returns the selection to Archive Browser for extraction or export. Thumbnails load as you browse.</p>
+                <p><b>Base appearance</b> applies supported context; complete customization is not reproduced. <b>Textures unavailable</b> identifies a geometry-only preview. Embedded faces use their owning body, and unresolved models remain listed with their source evidence. Refreshing archives requires reopening the finder.</p>
                 <table>
                   <tr><th>Goal</th><th>Use</th><th>Notes</th></tr>
                   <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use the <b>Item Name</b> column when available.</td><td>The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.</td></tr>

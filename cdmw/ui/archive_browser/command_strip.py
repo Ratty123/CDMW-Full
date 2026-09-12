@@ -35,7 +35,9 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     layout.setSpacing(4)
     scan, refresh, finder, search_edit, search_button, extension, extension_picker = controls
     extension_picker.setObjectName("CompactArchiveSelectButton")
-    for button in (scan, refresh, finder):
+    character_finder = getattr(archive, "archive_character_finder_button", None)
+    buttons = (scan, refresh, finder, character_finder) if isinstance(character_finder, QWidget) else (scan, refresh, finder)
+    for button in buttons:
         button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(button)
     search_edit.setMinimumWidth(120)

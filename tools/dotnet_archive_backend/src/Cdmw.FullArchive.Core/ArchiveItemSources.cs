@@ -96,6 +96,38 @@ internal sealed class ArchiveItemSources
         throw new InvalidDataException($"Incomplete {stem} table pair in {selected.SourcePamt}.");
     }
 
+    // Character callers use an independent selector without Finish(): their source
+    // generation must not depend on ItemInfo being installed.
+    internal (ArchiveEntryDto? Body, ArchiveEntryDto? Header) TablePair(string stem)
+    {
+        var current = new[] { Current + stem + ".staticinfobody", Current + stem + ".staticinfoheader" }
+            .Any(path => (_candidates.GetValueOrDefault(path) ?? []).Any(Accepts));
+        return Pair(stem, current);
+    }
+
+    internal Dictionary<string, ArchiveEntryDto> DomainLocalizations(string domain)
+    {
+        var result = new Dictionary<string, ArchiveEntryDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (path, candidates) in _candidates)
+        {
+            if (!path.StartsWith(LocalizationRoot)) continue;
+            var parts = path[LocalizationRoot.Length..].Split('/');
+            if (parts.Length != 2 || parts[1] != domain + ".paloc") continue;
+            var entry = candidates.Where(Accepts).OrderByDescending(Order).FirstOrDefault();
+            if (entry is not null) result[parts[0]] = entry;
+        }
+        // Legacy all-domain localization tables only apply when no domain exists.
+        if (result.Count == 0)
+            foreach (var (path, candidates) in _candidates)
+            {
+                var name = path.StartsWith(LocalizationRoot) ? path[LocalizationRoot.Length..] : "";
+                if (!name.StartsWith("localizationstring_") || !name.EndsWith(".paloc")) continue;
+                var entry = candidates.Where(Accepts).OrderByDescending(Order).FirstOrDefault();
+                if (entry is not null) result[name["localizationstring_".Length..^6]] = entry;
+            }
+        return result;
+    }
+
     public void Finish()
     {
         var current = new[] { Current + "iteminfo.staticinfobody", Current + "iteminfo.staticinfoheader" }

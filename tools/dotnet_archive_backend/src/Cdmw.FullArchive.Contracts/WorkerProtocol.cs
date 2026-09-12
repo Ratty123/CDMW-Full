@@ -27,6 +27,10 @@ public static class WorkerProtocol
     public const string SearchItemCatalog = "search_item_catalog";
     public const string LoadItemIcons = "load_item_icons";
     public const string ScopeItemCatalog = "scope_item_catalog";
+    public const string BuildCharacterCatalog = "build_character_catalog";
+    public const string SearchCharacterCatalog = "search_character_catalog";
+    public const string GetCharacterCatalogDetail = "get_character_catalog_detail";
+    public const string ScopeCharacterCatalog = "scope_character_catalog";
     public const string PrepareEntry = "prepare_entry";
     public const string TextSearch = "text_search";
     public const string Export = "export";
@@ -115,6 +119,7 @@ public sealed record PingResult(
     int ProtocolVersion,
     int NativeAbiVersion,
     int IndexVersion,
-    int ProcessId);
+    int ProcessId,
+    IReadOnlyList<string>? Capabilities = null);
 
 public sealed record CancelRequest(Guid TargetRequestId);

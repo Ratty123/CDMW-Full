@@ -16,6 +16,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
     private readonly ArchiveItemCatalogService _itemCatalog;
     private readonly ArchiveItemIconService _itemIcons;
     private readonly ArchiveItemCatalogScopeService _itemScopes;
+    private readonly ArchiveCharacterCatalogService _characters;
     private readonly ArchiveEntryPreparationService _preparation;
     private readonly ArchiveTextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
@@ -37,6 +38,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _itemCatalog = new ArchiveItemCatalogService(_sessions, _itemCatalogBuilder);
         _itemIcons = new ArchiveItemIconService(_sessions, _itemCatalogBuilder, _preparation);
         _itemScopes = new ArchiveItemCatalogScopeService(_sessions, _itemCatalogBuilder, _lookups);
+        _characters = new ArchiveCharacterCatalogService(_sessions, _native);
         _textSearch = new ArchiveTextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(_sessions, _queries, _lookups, _native);
     }
@@ -224,6 +226,34 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                         payload,
                         publishProgress,
                         cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.BuildCharacterCatalog:
+                {
+                    var payload = RequirePayload<BuildCharacterCatalogRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _characters.BuildAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.SearchCharacterCatalog:
+                {
+                    var payload = RequirePayload<CharacterCatalogSearchRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _characters.SearchAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.GetCharacterCatalogDetail:
+                {
+                    var payload = RequirePayload<CharacterCatalogDetailRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _characters.DetailAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.ScopeCharacterCatalog:
+                {
+                    var payload = RequirePayload<CharacterCatalogScopeRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _characters.ScopeAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
                 }
             case WorkerProtocol.PrepareEntry:

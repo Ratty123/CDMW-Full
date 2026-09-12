@@ -30,6 +30,8 @@ internal static class FullArchiveTestRunner
             ("current_item_names_and_mount_order", CurrentItemNamesAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
             ("item_catalogue_lite_category_parity", ItemCatalogueLiteCategoryParityAsync),
+            ("character_catalogue_resolution_and_names", CharacterCatalogTests.CatalogueAsync),
+            ("character_catalogue_cache_and_cancellation", CharacterCatalogTests.CacheAsync),
             ("texture_usage_classification", TextureUsageClassificationAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),

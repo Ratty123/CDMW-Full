@@ -77,6 +77,39 @@ English is the display language; Item Finder and New Item search all discovered 
 missing English is not silently substituted from another language. New Item uses the
 same source selection and name lookup; its separate Item Name cell shows `-` when missing.
 
+## Body & Face Finder
+
+After scanning, open **Body & Face Finder** beside Item Finder. **Bodies** and
+**Faces** offer **Unique assets** and **Appearance variants**, 72-result pages,
+name/ID/path search, and component, source-family, body-family and resolution
+filters. English character names are displayed; discovered character languages
+remain searchable. **Used by / Components** links appearances to shared models.
+**Show exact files** and **Show related files** return a bounded entry-ID scope to
+Archive Browser, where existing extraction/export/editor actions remain available.
+
+The resident .NET archive worker owns the character catalogue independently of
+ItemInfo. It accounts for active models and appearance/prefab references, including
+orphans, unresolved ownership and ambiguous basenames. Known equipment is excluded
+unless an authored body/face component references it. Unclassified candidates
+remain accessible. Mount precedence chooses active paths; complete CharacterInfo
+table pairs and verified CharacterAppearanceIndexInfo full-path hashes supply
+names. Missing XML attribute separators are repaired only in memory and reported.
+
+The finder owns a separate Rust preview session. One background job at a time
+prepares the selected preview and visible-card 256px thumbnails. Catalogue caches
+use archive generation, mount signature and format version; thumbnails also use
+appearance context, renderer/package schema, settings and camera preset. Refresh
+invalidates the finder. Search/selection changes cancel obsolete work; close retains
+threads and owned processes until asynchronous teardown finishes.
+
+**Base appearance** applies supported model/skeleton variations and scales;
+customization/material/morph references remain in Details. Declared combined
+body/head meshes retain their embedded face instead of stacking a separate head.
+**Textures unavailable** means geometry is shown without claiming textured parity.
+**Unresolved model** remains browsable with its source evidence. Exact customization
+and in-game appearance parity are outside this feature's supported preview claim.
+An older archive helper without `character_catalog_v1` requests a current helper.
+
 Textured model requests publish a cache-isolated direct-DDS Rust package as soon
 as Preview Core finishes, then promote the same resident scene to the full
 PAC/PAC_XML material package without resetting its camera. Rust manifest texture

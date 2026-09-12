@@ -70,6 +70,10 @@ class ArchiveControlsPanelMixin:
             "Selecting a row can scope the Archive Browser to that asset's likely files."
         )
         self.archive_asset_catalog_button.setEnabled(False)
+        self.archive_character_finder_button = QPushButton("Body & Face Finder")
+        self.archive_character_finder_button.setToolTip("Find character bodies, faces and appearance variants in the installed archives.")
+        self.archive_character_finder_button.setEnabled(False)
+        self.archive_character_finder_button.clicked.connect(self._show_archive_character_finder_dialog)
         self.archive_clear_asset_scope_button = QPushButton("Clear Scope")
         self.archive_clear_asset_scope_button.setToolTip("Clear the active Item Finder scope and return to normal archive filters.")
         self.archive_clear_asset_scope_button.setVisible(False)
@@ -121,6 +125,7 @@ class ArchiveControlsPanelMixin:
         archive_scan_actions_row.addWidget(self.archive_scan_button)
         archive_scan_actions_row.addWidget(self.archive_refresh_scan_button)
         archive_scan_actions_row.addWidget(self.archive_asset_catalog_button)
+        archive_scan_actions_row.addWidget(self.archive_character_finder_button)
         archive_scan_actions_row.addWidget(self.archive_clear_asset_scope_button)
         archive_scan_actions_row.addStretch(1)
         archive_search_layout.addLayout(archive_scan_actions_row)
