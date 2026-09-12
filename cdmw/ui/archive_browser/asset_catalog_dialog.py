@@ -35,6 +35,11 @@ from cdmw.models import ArchiveEntry
 
 class ArchiveAssetCatalogDialogMixin:
     """Item Finder dialog and visible-row icon loading UI."""
+    def _show_archive_character_finder_dialog(self) -> None:
+        from cdmw.ui.character_finder.dialog import show_character_finder
+
+        show_character_finder(self)
+
     def _show_archive_asset_catalog_dialog(self) -> None:
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:

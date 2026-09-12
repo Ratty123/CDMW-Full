@@ -47,6 +47,11 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Body & Face Finder facets/statuses arrive through typed worker rows.
+        "Whole character", "Head", "Facial detail", "Beard", "Unclassified",
+        "Player families", "Creatures", "NPCs", "Mounts", "Objects", "Towers",
+        "Unresolved model", "Ambiguous", "Embedded face",
+        "The previous preview is still shown.",
         # Preview Core selects recovery guidance by the native filesystem error.
         "A required file is missing. Refresh the archive catalogue and select the model again.",
         "Access was denied. Check permissions for the workspace and source files.",

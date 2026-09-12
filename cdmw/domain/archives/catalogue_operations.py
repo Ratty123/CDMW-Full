@@ -47,6 +47,10 @@ class ArchiveBackendOperation(str, Enum):
     SEARCH_ITEM_CATALOG = "search_item_catalog"
     LOAD_ITEM_ICONS = "load_item_icons"
     SCOPE_ITEM_CATALOG = "scope_item_catalog"
+    BUILD_CHARACTER_CATALOG = "build_character_catalog"
+    SEARCH_CHARACTER_CATALOG = "search_character_catalog"
+    GET_CHARACTER_CATALOG_DETAIL = "get_character_catalog_detail"
+    SCOPE_CHARACTER_CATALOG = "scope_character_catalog"
     PREPARE_ENTRY = "prepare_entry"
     TEXT_SEARCH = "text_search"
     EXPORT = "export"
@@ -165,6 +169,7 @@ class PingResult:
     native_abi_version: int
     index_version: int
     process_id: int
+    capabilities: tuple[str, ...] = ()
 
     @classmethod
     def from_wire(cls, value: object) -> "PingResult":
@@ -175,6 +180,7 @@ class PingResult:
             native_abi_version=read_int(payload, "native_abi_version"),
             index_version=read_int(payload, "index_version"),
             process_id=read_int(payload, "process_id"),
+            capabilities=read_string_tuple(payload, "capabilities") if payload.get("capabilities") is not None else (),
         )
 
 

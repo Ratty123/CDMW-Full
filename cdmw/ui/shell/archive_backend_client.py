@@ -115,6 +115,7 @@ class ArchiveBackendClient(QObject):
         self._resident_requested = False
         self._automatic_restart_used = False
         self._process_generation = 0
+        self._capabilities: tuple[str, ...] = ()
 
         self._start_timer = QTimer(self)
         self._start_timer.setSingleShot(True)
@@ -137,6 +138,10 @@ class ArchiveBackendClient(QObject):
     @property
     def is_ready(self) -> bool:
         return self._state is ArchiveBackendClientState.READY
+
+    @property
+    def capabilities(self) -> tuple[str, ...]:
+        return self._capabilities if self.is_ready else ()
 
     @property
     def process_id(self) -> int:
@@ -426,6 +431,7 @@ class ArchiveBackendClient(QObject):
             return
         self._handshake_request_id = None
         self._start_timer.stop()
+        self._capabilities = result.capabilities
         self._set_state(ArchiveBackendClientState.READY)
         self.worker_ready.emit()
         self._flush_queue()

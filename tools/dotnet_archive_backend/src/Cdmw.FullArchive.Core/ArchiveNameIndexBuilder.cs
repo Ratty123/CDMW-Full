@@ -250,7 +250,7 @@ internal static class ArchiveNameIndexBuilder
         return decoded.Bytes;
     }
 
-    private static Dictionary<string, string> ParseLocalization(
+    internal static Dictionary<string, string> ParseLocalization(
         byte[] data,
         IReadOnlySet<string> wantedIds,
         CancellationToken cancellationToken)
@@ -332,7 +332,7 @@ internal static class ArchiveNameIndexBuilder
     }
 
     /// <summary>One `.pabgh` row: a primary key and where the matching `.pabgb` row starts.</summary>
-    private readonly record struct PabghDirectoryRow(byte[] Key, uint Offset);
+    internal readonly record struct PabghDirectoryRow(byte[] Key, uint Offset);
 
     /// <summary>
     /// Resolve the header's count and key widths against the row payload.
@@ -340,7 +340,7 @@ internal static class ArchiveNameIndexBuilder
     /// payload: every row repeats its own key inline. A one-row table fits several
     /// widths arithmetically, and that inline check is the only thing separating them.
     /// </summary>
-    private static List<PabghDirectoryRow>? ResolvePabghDirectory(byte[] header, byte[] payload)
+    internal static List<PabghDirectoryRow>? ResolvePabghDirectory(byte[] header, byte[] payload)
     {
         foreach (var countWidth in PabghCountWidths)
         {
@@ -415,7 +415,7 @@ internal static class ArchiveNameIndexBuilder
     /// Read a localization key out of an inline `07 7x 00 00 00` sub-record. The shape
     /// is `tag, u32 repeat-key, u32 length, ascii`.
     /// </summary>
-    private static string ReadItemInfoSubRecordKey(byte[] data, int rowStart, int rowEnd, byte tagSecond)
+    internal static string ReadItemInfoSubRecordKey(byte[] data, int rowStart, int rowEnd, byte tagSecond)
     {
         Span<byte> tag = [0x07, tagSecond, 0x00, 0x00, 0x00];
         var span = data.AsSpan(rowStart, rowEnd - rowStart);
@@ -440,7 +440,7 @@ internal static class ArchiveNameIndexBuilder
     }
 
     /// <summary>The row's own name field, which follows the repeated primary key.</summary>
-    private static string ReadItemInfoRowInternalName(byte[] data, int rowStart, int rowEnd)
+    internal static string ReadItemInfoRowInternalName(byte[] data, int rowStart, int rowEnd)
     {
         if (rowStart + 8 > rowEnd)
         {
