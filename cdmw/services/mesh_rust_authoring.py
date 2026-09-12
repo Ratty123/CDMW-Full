@@ -7591,7 +7591,13 @@ class RustMeshAuthoringSession:
             "key": material_key, "textures": textures, "material_presentations": material_presentations,
             "reason": self.texture_unavailable_reason,
         }
-        if textures:
+        material_warning = ""
+        if self.shadow_service._session(self.shadow_session_id).archive_refit_context is not None:
+            from cdmw.services.mesh_archive_refit import archive_refit_material_warning
+            material_warning = archive_refit_material_warning(mesh)
+        if material_warning:
+            self.texture_unavailable_reason = material_warning
+        elif textures:
             self.texture_unavailable_reason = ""
         elif not self.texture_unavailable_reason:
             self.texture_unavailable_reason = (
@@ -7599,6 +7605,7 @@ class RustMeshAuthoringSession:
                 if self.preview_material_binding_count > 0
                 else "No readable DDS preview textures were supplied by CDMW."
             )
+        self.archive_refit_material_cache[material_key]["reason"] = self.texture_unavailable_reason
         view = self.shadow_service.session_view(self.shadow_session_id)
         manifest = {
             "schema": RUST_MESH_AUTHORING_PACKAGE,

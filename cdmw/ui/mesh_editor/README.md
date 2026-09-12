@@ -340,14 +340,22 @@ restores each asset's source coordinates before validation and writing. Drafts
 retain those mappings in the version 2 refit record and can still load version 1
 records. Added meshes retain their resolved textures and layered material data
 across loading, Undo/Redo, Bake, Finish, and reopening.
+New archive-refit draft generations own checksummed copies of their DDS and decoded
+layer images (up to 512 MiB combined), so clearing the preview cache does not remove
+their textures. Missing or damaged draft files reject that generation before it
+replaces the loaded geometry. Older drafts still open, with a warning when their
+cached material files are missing; reopen the source meshes to reload those textures.
 Adding an asset reuses the existing owned textures and compiles only the incoming
 asset's materials. Generated support maps use bounded array decoding and fast,
 lossless PNG compression; material ownership and texture pixels are preserved.
 Geometry, rig dependencies, and materials prepare off the UI
 thread before one undoable publication. Cancelled, stale, duplicate, invalid,
-or oversized sources leave the edit unchanged. Reset or Bake before loading;
-Clear Refit first if garments are already bound. Archive refits preserve the
-original topology and allow selection across all visible loaded assets.
+or oversized sources leave the edit unchanged.
+Rejected material preparation also leaves the session material cache unchanged,
+so another valid archive import can proceed after a size, write, or cancellation error.
+Reset or Bake before loading; Clear Refit first if garments are already bound.
+Archive refits preserve the original topology and allow selection across all
+visible loaded assets.
 
 **Select body** selects the assigned driver Parts; it does not open another
 file. Its highlighted state shows when the body is already selected.
