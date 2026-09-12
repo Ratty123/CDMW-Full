@@ -206,7 +206,8 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         parts.append(replace(binding, included=True, material_choice=material_choice,
             source_label=Path(pending.source_path).name,
             source_part_ids=tuple(f"{pending.source_sha256}:{i}" for i in source_indices),
-            import_positions=tuple(tuple(float(v) for v in position) for position in imported.vertices)))
+            import_positions=tuple(tuple(float(v) for v in position) for position in imported.vertices),
+            import_normals=tuple(tuple(float(v) for v in normal) for normal in imported.normals)))
     refresh_mesh_totals(candidate)
     if material_choice == "original" and companion_files is None:
         from cdmw.services.mesh_replacement_materials import restore_original_materials
@@ -234,7 +235,11 @@ def commit_replacement(service, snapshot, candidate, state, *, label, stop_event
         output_policy=REPLACEMENT_POLICY, require_reversible_history=True)
     with session.export_lock:
         if session.revision == view.revision:
-            session.replacement_output = replace(output, revision=(view.revision, view.revision, session.material_generation))
+            report = replace(output.report, export_snapshot={
+                **output.report.export_snapshot, "mesh_revision": view.revision,
+            })
+            session.replacement_output = replace(output, report=report,
+                revision=(view.revision, view.revision, session.material_generation))
     return view
 
 
@@ -276,7 +281,15 @@ def reset_or_fit_import(service, snapshot, *, fit=False, stop_event=None):
         part = candidate.submeshes[indices[binding.part_id]]
         if len(part.vertices) != len(binding.import_positions):
             raise ValueError("Import topology changed; undo topology edits before resetting placement.")
+        if binding.import_normals is None:
+            raise ValueError("This older replacement draft has no saved import normals. Import the model again before using Reset Placement or Fit to Original.")
+        if len(binding.import_normals) not in {0, len(binding.import_positions)}:
+            raise ValueError("Saved import normals do not match the replacement geometry.")
         part.vertices = [tuple(point[axis] * scale + offset[axis] for axis in range(3)) for point in binding.import_positions]
+        part.normals = list(binding.import_normals)
+    from cdmw.services.mesh_service_kernel import _invalidate_tangents_after_edit
+    _invalidate_tangents_after_edit(candidate, "transform", {indices[part.part_id] for part in affected},
+                                    None, topology_changed=False)
     refresh_mesh_totals(candidate)
     return commit_replacement(service, snapshot, candidate, replace(state, revision=state.revision + 1),
         label="Fit replacement to original" if fit else "Reset replacement placement", stop_event=stop_event)

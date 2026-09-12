@@ -26,6 +26,8 @@ class ReplacementPart:
     material_choice: str = "original"
     source_label: str = ""
     import_positions: tuple[tuple[float, float, float], ...] = ()
+    # None identifies older drafts that did not retain the imported normal frame.
+    import_normals: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)

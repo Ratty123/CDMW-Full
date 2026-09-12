@@ -19,14 +19,17 @@ in-game swaps, and Texture Editor handoffs remain separate workflows.
 Open an archive mesh, choose **Import Replacement…**, and select **Entire Mesh**
 or **Selected Parts**. OBJ, DAE, glTF and GLB use the retained import pipeline.
 Review the source-to-target mapping before **Apply Replacement**. Selected-part
-replacement preserves every untouched part and its material binding. Multiple
+replacement preserves every untouched part and its material binding, including
+the original PAC vertex and index records at every LOD. Multiple
 source parts can map to a target with original materials; imported-material mode
 requires one source material part per target.
 
 New imports preserve decoded coordinates: no automatic scaling, alignment or
 centering. Scale starts at 1, rotation and translation at 0. Use the existing
 transform tools for placement. **Fit to Original** explicitly fits the imported
-parts; **Reset Placement** restores their imported positions. Both are undoable.
+parts; **Reset Placement** restores their imported positions and normals. Both
+restore the imported normal orientation and invalidate outdated tangents, and
+both are undoable.
 New Item fitting defaults are unchanged.
 
 **Keep Original Materials** is the default. **Imported Materials & Textures**
@@ -58,7 +61,11 @@ Imports, inclusion and placement changes participate in normal Undo/Redo and
 Finish/cancel. Replacement-bearing drafts use version 2 and keep captured
 dependencies and output intent together; older apps reject them. Existing
 version-1 drafts still load unchanged. Source files are unnecessary after Apply.
-No bulk migration is performed.
+New replacement payloads also retain import normals. Older replacement drafts
+still reopen and export, but require reimporting before Reset Placement or Fit
+to Original because their original normal orientation was not saved. Older
+applications reject the new replacement payload version. No bulk migration is
+performed.
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.
