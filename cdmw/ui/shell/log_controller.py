@@ -120,13 +120,16 @@ class LogControllerMixin:
         if not resolved_tool_key and getattr(self, "compact_workspace", None) is not None:
             current_widget = self._current_navigation_widget()
             resolved_tool_key = self._tool_key_for_widget(current_widget)
-        append_compact_activity(
-            self,
-            message,
-            tool_key=resolved_tool_key,
-            source=source,
-            severity=str(severity or ("error" if error else "info")),
-        )
+        resolved_severity = str(severity or ("error" if error else "info"))
+        if error and resolved_tool_key == "mesh_editor":
+            # append_log also writes Activity, so one rejection produces one
+            # item there and a durable line in the user-visible Log tool.
+            self.append_log(message, tool_key=resolved_tool_key, source=source, severity=resolved_severity)
+        else:
+            append_compact_activity(
+                self, message, tool_key=resolved_tool_key, source=source,
+                severity=resolved_severity,
+            )
         compact_workspace = getattr(self, "compact_workspace", None)
         if compact_workspace is not None and snapshot is not None:
             from cdmw.ui.shell.compact.activity import CompactStatusSnapshot

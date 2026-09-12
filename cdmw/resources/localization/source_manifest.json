@@ -135970,6 +135970,11 @@
           "sink": "_emit_status"
         },
         {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 366,
+          "sink": "emit"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/workspace_state.py",
           "line": 402,
           "sink": "QTreeWidgetItem"

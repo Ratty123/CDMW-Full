@@ -784,6 +784,7 @@ def apply_archive_mesh_appearance(
         archive_entries_by_normalized_path=archive_entries_by_normalized_path,
         archive_entries_by_basename=archive_entries_by_basename,
         read_entry_data=read_payload,
+        pac_data=pac_data,
     )
     pabc_candidates = tuple(entry for entry in related if str(entry.extension or "").lower() == ".pabc")
     pamt_candidates = tuple(entry for entry in related if str(entry.extension or "").lower() == ".pamt")
@@ -791,6 +792,16 @@ def apply_archive_mesh_appearance(
     pamt_entry = descriptor_resolution.morph_target_entry or (pamt_candidates[0] if pamt_candidates else None)
     if pabc_entry is None and not (include_morph_targets and pamt_entry is not None):
         return parsed_mesh, ()
+    # Preserve rigid attachments if character-palette resolution fails. A
+    # single weighted slot can also belong to a valid character palette, so
+    # it must not bypass a successfully resolved appearance mapping.
+    rows = [(indices, weights) for part in getattr(parsed_mesh, "submeshes", ())
+            for indices, weights in zip(part.bone_indices, part.bone_weights)]
+    rigid_attachment = bool(rows) and all(
+        tuple(indices) == (0,) and len(weights) == 1 and abs(weights[0] - 1.0) < .01
+        for indices, weights in rows
+    )
+    rigid_note = ("Rigid attachment: retained source geometry; no character palette was resolved.",)
     pabc_data = read_payload(pabc_entry) if pabc_entry is not None else None
     resolved_skeleton = skeleton
     palette = tuple(int(value) for value in (bone_palette or ()))
@@ -817,20 +828,16 @@ def apply_archive_mesh_appearance(
                     read_entry_data=read_payload,
                 )
                 if skeleton_entry is None:
+                    if rigid_attachment:
+                        return parsed_mesh, rigid_note
                     detail = report.blocking_errors[0] if report.blocking_errors else "matching PAB skeleton was not resolved"
-                    raise ValueError(detail)
+                    raise UnresolvedPacBonePaletteError(detail)
                 resolved_skeleton = parse_pab(read_payload(skeleton_entry), skeleton_entry.path)
     if not palette:
         palette = tuple(resolve_pac_bone_palette(pac_data, resolved_skeleton))
     if not palette:
-        # Rigid accessories carry one full-weight slot zero and no palette.
-        # Their attachment transform lives outside PAC; a character PABC must
-        # not deform them or prevent their geometry from being exported.
-        rows = [(indices, weights) for part in parsed_mesh.submeshes
-                for indices, weights in zip(part.bone_indices, part.bone_weights)]
-        if rows and all(tuple(indices) == (0,) and len(weights) == 1 and abs(weights[0] - 1.0) < .01
-                        for indices, weights in rows):
-            return parsed_mesh, ("Rigid attachment: retained source geometry; no PAC bone palette is present.",)
+        if rigid_attachment:
+            return parsed_mesh, rigid_note
         raise UnresolvedPacBonePaletteError("PAC bone palette was not resolved against the character skeleton")
 
     variation = (

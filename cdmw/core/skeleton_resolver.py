@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import ArchiveEntry
+from cdmw.modding.mesh_parser import pac_bone_palette_candidates
 from cdmw.modding.skeleton_parser import Skeleton, iter_pab_candidate_basenames, parse_pab
 
 
@@ -118,7 +119,7 @@ def _shared_prefix_len(left: str, right: str) -> int:
     return count
 
 
-def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes) -> int:
+def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes, *, palettes=None) -> int:
     if not pac_data:
         return 0
     skeleton_hashes = {
@@ -128,6 +129,13 @@ def _skeleton_palette_hits(skeleton: Skeleton, pac_data: bytes) -> int:
     }
     if not skeleton_hashes:
         return 0
+    if pac_data.startswith(b"PAR "):
+        # Complete metadata palettes outrank names. A short run of shared bone
+        # hashes elsewhere in a PAC is not proof that a skeleton owns the mesh.
+        if palettes is None:
+            palettes = pac_bone_palette_candidates(pac_data)
+        return max((len(palette) for palette in palettes
+                    if all(value in skeleton_hashes for value in palette)), default=0)
     best_sequence: set[int] = set()
     data_length = len(pac_data)
     for offset in range(0, max(0, data_length - 3)):
@@ -274,6 +282,13 @@ def _descriptor_model_identity_compatible(model_path: str, descriptor_path: str)
     descriptor_stem = descriptor_name.split(".prefabdata", 1)[0]
     model_tokens = tuple(token for token in model_stem.split("_") if token)
     descriptor_tokens = tuple(token for token in descriptor_stem.split("_") if token)
+    # The same families occur both with and without the legacy cd_ prefix.
+    # Compare them in one namespace before deciding whether named identities
+    # differ (for example, a PHW outfit and an unrelated m0001 bear).
+    if model_tokens[:1] == ("cd",) and descriptor_tokens[:1] != ("cd",):
+        descriptor_tokens = ("cd", *descriptor_tokens)
+    elif descriptor_tokens[:1] == ("cd",) and model_tokens[:1] != ("cd",):
+        model_tokens = ("cd", *model_tokens)
     component_tokens = {"body", "face", "hair", "head", "nude"}
     if (
         model_tokens[:3] == descriptor_tokens[:3]
@@ -625,6 +640,7 @@ def resolve_skeleton_descriptor_for_model(
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
+    pac_data: bytes = b"",
 ) -> SkeletonDescriptorResolution:
     if read_entry_data is None:
         return SkeletonDescriptorResolution()
@@ -635,6 +651,8 @@ def resolve_skeleton_descriptor_for_model(
     morph_candidates: list[SkeletonDescriptorResolution] = []
     attempted_all: list[str] = []
     errors: list[str] = []
+    palettes = pac_bone_palette_candidates(pac_data) if pac_data.startswith(b"PAR ") else ()
+    skeleton_matches: dict[str, bool] = {}
     for descriptor_entry in _descriptor_candidates_for_model(
         model_entry,
         archive_entries=archive_entries,
@@ -685,6 +703,20 @@ def resolve_skeleton_descriptor_for_model(
                     resolved[attr] = entry
                     score += 40
         attempted_all.extend(attempted)
+        skeleton_entry = resolved.get("skeletonname")
+        if palettes and skeleton_entry is not None:
+            skeleton_path = _normalize_virtual_path(skeleton_entry.path)
+            if skeleton_path not in skeleton_matches:
+                try:
+                    skeleton = parse_pab(read_entry_data(skeleton_entry), skeleton_entry.path)
+                    skeleton_matches[skeleton_path] = bool(
+                        _skeleton_palette_hits(skeleton, pac_data, palettes=palettes)
+                    )
+                except Exception:
+                    skeleton_matches[skeleton_path] = False
+            if not skeleton_matches[skeleton_path]:
+                errors.append(f"{descriptor_entry.path}: linked skeleton does not resolve the PAC bone palette")
+                continue
         if not any(
             key in resolved
             for key in ("skeletonname", "skeletonvariationname", "morphtargetset", "morphtargetsetname")
@@ -742,6 +774,8 @@ def _all_indexed_pab_candidates(
     seen: set[str] = set()
 
     def add(entry: ArchiveEntry) -> None:
+        if not str(getattr(entry, "path", "") or "").lower().endswith(".pab"):
+            return
         normalized = _normalize_virtual_path(getattr(entry, "path", ""))
         if normalized and normalized.endswith(".pab") and normalized not in seen:
             seen.add(normalized)
@@ -750,7 +784,9 @@ def _all_indexed_pab_candidates(
     for entry in archive_entries:
         add(entry)
     if archive_entries_by_basename is not None:
-        for entries in archive_entries_by_basename.values():
+        for basename, entries in archive_entries_by_basename.items():
+            if not str(basename).lower().endswith(".pab"):
+                continue
             for entry in tuple(entries or ()):
                 add(entry)
     return tuple(result)
@@ -787,6 +823,7 @@ def resolve_skeleton_for_model(
         archive_entries_by_normalized_path=archive_entries_by_normalized_path,
         archive_entries_by_basename=archive_entries_by_basename,
         read_entry_data=read_entry_data,
+        pac_data=pac_data,
     )
     if descriptor_resolution.skeleton_entry is not None:
         selected = descriptor_resolution.skeleton_entry
@@ -850,6 +887,8 @@ def resolve_skeleton_for_model(
             add_candidate(entry)
 
     scored: list[SkeletonResolveCandidate] = []
+    parse_errors: list[str] = []
+    palettes = pac_bone_palette_candidates(pac_data) if pac_data.startswith(b"PAR ") else None
     for entry in candidates:
         candidate_path = _normalize_virtual_path(entry.path)
         score = 0
@@ -877,13 +916,16 @@ def resolve_skeleton_for_model(
             try:
                 skeleton = parse_pab(read_entry_data(entry), entry.path)
                 bone_count = len(getattr(skeleton, "bones", ()) or ())
-                palette_hits = _skeleton_palette_hits(skeleton, pac_data)
+                if not bone_count:
+                    raise ValueError(f"PAB contains no parsed bones: {entry.path}")
+                palette_hits = _skeleton_palette_hits(skeleton, pac_data, palettes=palettes)
                 if palette_hits:
                     score += 200 + min(120, palette_hits * 6)
-                    reasons.append(f"{palette_hits} contiguous palette bone hash hit(s)")
+                    reasons.append(f"{palette_hits} matching palette bone hash(es)")
             except Exception as exc:
                 score -= 20
                 reasons.append(f"parse failed: {exc}")
+                parse_errors.append(f"{entry.path}: {exc}")
         scored.append(
             SkeletonResolveCandidate(
                 path=entry.path.replace("\\", "/"),
@@ -903,6 +945,19 @@ def resolve_skeleton_for_model(
         )
 
     palette_scored = [candidate for candidate in scored if candidate.palette_hits > 0]
+    if palettes and not palette_scored:
+        reason = (
+            "; ".join(parse_errors[:3]) if len(parse_errors) == len(scored)
+            else "No candidate skeleton resolves a complete PAC bone palette."
+        )
+        return None, SkeletonResolveReport(
+            model_path=model_entry.path.replace("\\", "/"),
+            reason=reason,
+            candidates=tuple(scored),
+            **_descriptor_report_context(descriptor_resolution),
+            attempted_paths=tuple(dict.fromkeys((*descriptor_attempted, *attempted))),
+            blocking_errors=("No candidate skeleton resolves the PAC bone palette.",),
+        )
     ranked = palette_scored or scored
     ranked.sort(key=lambda candidate: (candidate.palette_hits, candidate.score, candidate.bone_count, -len(candidate.path)), reverse=True)
     scored.sort(key=lambda candidate: (candidate.score, candidate.palette_hits, candidate.bone_count, -len(candidate.path)), reverse=True)

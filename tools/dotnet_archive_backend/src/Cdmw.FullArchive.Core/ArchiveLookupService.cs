@@ -553,6 +553,16 @@ public sealed class ArchiveLookupService(
         }
         foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
+            // NPC armor names can carry the player rig family inside the stem.
+            // Deliver those PAB candidates so the mesh loader can verify the
+            // palette instead of receiving only identityskeleton.pab.
+            foreach (var token in segment.Split('_', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (token.Length is >= 3 and <= 5 && token[0] == 'p' && token.All(char.IsLetter))
+                {
+                    Add(token + "_01");
+                }
+            }
             var separator = segment.IndexOf('_');
             if (separator > 0)
             {

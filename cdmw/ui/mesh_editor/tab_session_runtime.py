@@ -362,6 +362,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 f"Mesh Editor automatically attached {Path(result.skeleton_source_path).name} for Rig & Skin Weights.",
                 False,
             )
+        if result.appearance_warning:
+            self.status_message_requested.emit(f"{entry.basename}: {result.appearance_warning}", False)
 
     @staticmethod
     def _discard_archive_session_result(result: object) -> None:
