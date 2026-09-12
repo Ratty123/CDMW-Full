@@ -2308,6 +2308,73 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
 }
 
 #[test]
+fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = json!({
+        "available": true, "active": true, "has_import": true, "comparison": "edit",
+        "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
+    });
+    assert!(
+        ui.actions_from_click("Mod")?
+            .iter()
+            .any(|action| matches!(action,
+                UiAction::CdmwCommand { command: "replacement_include", arguments, .. }
+                if arguments["part_ids"] == json!(["stable:0"]) && arguments["included"] == false
+            ))
+    );
+    assert!(ui.application.cdmw_hidden_parts.is_empty());
+    ui.application.cdmw_hidden_parts.insert(0);
+    assert!(
+        ui.actions_from_click("Output Preview")?
+            .iter()
+            .any(|action| matches!(action,
+                UiAction::CdmwCommand { command: "replacement_compare", arguments, .. }
+                if arguments["mode"] == "output"
+            ))
+    );
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("output");
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_visible_submeshes().is_none());
+    assert!(ui.actions_from_click("Mod")?.is_empty());
+    assert!(ui.application.cdmw_hidden_parts.contains(&0));
+    Ok(())
+}
+
+#[test]
+fn integrated_replacement_mapping_defaults_to_original_materials() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = json!({
+        "available": true, "active": false, "comparison": "edit",
+        "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}],
+        "pending": {"token": "one", "source": "off-origin.obj",
+            "targets": [{"id": "stable:0", "name": "Triangle"}],
+            "sources": [{"name": "Imported", "target": "stable:0"}]}
+    });
+    assert!(ui.actions_from_click("Apply Replacement")?.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+        if arguments["targets"] == json!(["stable:0"]) && arguments["materials"] == "original"
+    )));
+    assert!(
+        ui.actions_from_click("Cancel Import")?
+            .iter()
+            .any(|action| matches!(
+                action,
+                UiAction::CdmwCommand {
+                    command: "replacement_cancel",
+                    ..
+                }
+            ))
+    );
+    Ok(())
+}
+
+#[test]
 fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         two_part_application()?,

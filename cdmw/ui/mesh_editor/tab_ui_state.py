@@ -217,7 +217,7 @@ class MeshEditorUiStateMixin:
                         output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value,
                     )
                 ),
-                writer_capabilities=frozenset(eligible if output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value else ()),
+                writer_capabilities=frozenset(eligible if output_policy in {MeshOutputPolicy.EXACT_GAME_ASSET.value, MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value} else ()),
                 eligible_actions=frozenset(eligible),
                 visible_actions=frozenset(visible_keys),
                 blocked_actions=frozenset(blocked),

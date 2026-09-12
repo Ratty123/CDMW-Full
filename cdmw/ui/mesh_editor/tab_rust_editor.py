@@ -79,6 +79,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_protocol_worker: object | None = None
         self.standalone_rust_protocol_request_id = 0
         self.standalone_rust_active_event: dict[str, object] | None = None
+        self.standalone_rust_protocol_status: tuple[str, bool] | None = None
         self.standalone_rust_protocol_queue: list[dict[str, object]] = []
         self.standalone_rust_dispose_thread: QThread | None = None
         self.standalone_rust_dispose_worker: object | None = None

@@ -303,7 +303,7 @@ def mesh_editor_ui_invariant_errors(state: MeshEditorUiState) -> tuple[str, ...]
     if state.output_gate_requested and state.validation_revision != state.geometry_revision:
         errors.append("validation_gated_output_revision_mismatch")
     if (
-        state.output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value
+        state.output_policy in {MeshOutputPolicy.EXACT_GAME_ASSET.value, MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value}
         and state.eligible_actions & state.blocked_actions
     ):
         errors.append("exact_policy_enables_blocked_action")

@@ -391,7 +391,7 @@ class MeshRebuildServiceMixin:
             if int(session.revision) != captured_revision:
                 raise RuntimeError("mesh export session changed during snapshot capture")
             visible_submeshes = set(_service_call("_visible_geometry_layer_indices", session))
-            if session.archive_refit_context is None and session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
+            if session.archive_refit_context is None and session.replacement_state is None and session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
                 mesh.submeshes = [
                     submesh
                     for submesh_index, submesh in enumerate(mesh.submeshes)
@@ -432,6 +432,7 @@ class MeshRebuildServiceMixin:
                 material_authority_fingerprint=str(session.material_authority_fingerprint or ""),
                 material_authority_revision=int(session.material_authority_revision),
                 archive_refit_context=session.archive_refit_context,
+                replacement_state=session.replacement_state,
             )
 
     def _capture_texture_resources(
@@ -545,7 +546,7 @@ class MeshRebuildServiceMixin:
         available_textures: Iterable[str] | None,
         skeleton_bone_count: int | None,
     ) -> MeshExportValidationReport:
-        if session.archive_refit_context is not None:
+        if session.archive_refit_context is not None or session.replacement_state is not None:
             return self.validate_export_snapshot(self.capture_export_snapshot(session.session_id))
         if session.native_editor_mesh_dirty and not _service_call("_sync_native_editor_session_to_working_mesh", session):
             raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
@@ -573,6 +574,16 @@ class MeshRebuildServiceMixin:
         available_textures: Iterable[str] | None = None,
         skeleton_bone_count: int | None = None,
     ) -> MeshExportValidationReport:
+        if snapshot.replacement_state is not None:
+            from cdmw.services.mesh_replacement_output import validate_replacement_geometry
+            from cdmw.domain.mesh.export_validation import MeshExportValidationIssue
+            report = validate_replacement_geometry(snapshot.mesh, snapshot.replacement_state, snapshot.original_data)
+            if report.ok:
+                try:
+                    self._replacement_output_for_snapshot(snapshot)
+                except (ValueError, RuntimeError) as exc:
+                    report = replace(report, issues=report.issues + (MeshExportValidationIssue("blocker", "replacement_writer", str(exc)),))
+            return report
         if snapshot.archive_refit_context is not None:
             from cdmw.services.mesh_archive_refit import validate_archive_refit
             return validate_archive_refit(self, snapshot)
@@ -687,9 +698,27 @@ class MeshRebuildServiceMixin:
             developer_override=developer_override,
             developer_override_reason=developer_override_reason,
         )
+        if getattr(result, "companion_files", ()):
+            raise RuntimeError("This replacement requires companion files. Use Build Mod.")
         target.parent.mkdir(parents=True, exist_ok=True)
         _service_call("atomic_write_bytes", target, result.data)
         return report
+
+    def _replacement_output_for_snapshot(self, snapshot):
+        from cdmw.services.mesh_replacement_output import prepare_replacement_output
+        session = self._sessions.get(snapshot.session_id)
+        key = (snapshot.mesh_revision, snapshot.native_edit_revision, snapshot.material_generation)
+        if session is not None:
+            with session.export_lock:
+                cached = session.replacement_output
+                if cached is not None and cached.revision == key and session.replacement_state is snapshot.replacement_state:
+                    return cached
+        result = prepare_replacement_output(snapshot)
+        if session is not None:
+            with session.export_lock:
+                if session.revision == snapshot.mesh_revision and session.replacement_state is snapshot.replacement_state:
+                    session.replacement_output = result
+        return result
 
     def rebuild_result_from_snapshot(
         self,
@@ -701,6 +730,9 @@ class MeshRebuildServiceMixin:
         developer_override: bool = False,
         developer_override_reason: str = "",
     ):
+        if snapshot.replacement_state is not None:
+            result = self._replacement_output_for_snapshot(snapshot)
+            return result, result.report
         if snapshot.archive_refit_context is not None:
             raise RuntimeError("Use Build Mod to save all body and armor archive assets together")
         if not snapshot.original_data:

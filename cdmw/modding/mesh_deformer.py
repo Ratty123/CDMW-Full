@@ -43,6 +43,7 @@ class MeshPartSplitResult:
 
 
 _EXTRA_SUBMESH_ATTRS = (
+    "_cdmw_replacement_part_id",
     "texture_slots",
     "preview_color",
     "preview_role", "preview_source_asset_path",

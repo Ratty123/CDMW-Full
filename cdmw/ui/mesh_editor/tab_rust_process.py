@@ -404,6 +404,18 @@ class MeshEditorRustProcessMixin:
             return
         event = self.standalone_rust_protocol_queue.pop(0)
         preparation_error = ""
+        if event.get("command") in {"replacement_choose", "replacement_include"}:
+            from cdmw.ui.mesh_editor.replacement_flow import prepare_replacement_event
+            self._archive_refit_picker_active = True
+            try:
+                event = prepare_replacement_event(self, session, event)
+            except Exception as exc:
+                preparation_error = str(exc) or type(exc).__name__
+            finally:
+                self._archive_refit_picker_active = False
+            if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
         if event.get("command") == "refit_choose_archive":
             from cdmw.ui.mesh_editor.archive_refit_flow import prepare_archive_refit_event
             self._archive_refit_picker_active = True
@@ -442,6 +454,7 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_protocol_worker = worker
         self.standalone_rust_protocol_thread = thread
         self.standalone_rust_active_event = event
+        self.standalone_rust_protocol_status = None
         self._set_rust_status(self._rust_busy_message(event))
         thread.start()
 
@@ -480,7 +493,7 @@ class MeshEditorRustProcessMixin:
             payload = response.get("payload", {})
             result = payload.get("result", {}) if isinstance(payload, dict) else {}
             warning = str(result.get("appearance_warning") or "") if isinstance(result, dict) else ""
-            self._set_rust_status(warning or "Mesh Editor command completed.")
+            self._publish_rust_protocol_status(warning or "Mesh Editor command completed.")
 
     def _handle_rust_protocol_worker_error(
         self,
@@ -497,11 +510,21 @@ class MeshEditorRustProcessMixin:
         if self.standalone_rust_closing and str(
             request.get("event", "") or ""
         ).strip().lower() == "finish_request":
-            self._set_rust_status(
+            self._publish_rust_protocol_status(
                 "Mesh Editor Finish was cancelled before commit; authoritative geometry is unchanged."
             )
         else:
-            self._set_rust_status(f"Mesh Editor rejected the operation: {message}", error=True)
+            self._publish_rust_protocol_status(f"Mesh Editor rejected the operation: {message}", error=True)
+
+    def _publish_rust_protocol_status(self, message: str, *, error: bool = False) -> None:
+        # Shell status updates repolish Qt widgets. Doing that while PySide is
+        # destroying the protocol worker can deadlock Qt's connection mutex
+        # against the GIL. Send the protocol result immediately, but publish its
+        # status only after this worker's thread has finished its teardown.
+        if getattr(self, "standalone_rust_protocol_thread", None) is not None:
+            self.standalone_rust_protocol_status = (message, error)
+        else:
+            self._set_rust_status(message, error=error)
 
     def _handle_rust_protocol_thread_finished(self, thread: QThread) -> None:
         if self.standalone_rust_protocol_thread is not thread:
@@ -509,6 +532,10 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_protocol_thread = None
         self.standalone_rust_protocol_worker = None
         self.standalone_rust_active_event = None
+        status = getattr(self, "standalone_rust_protocol_status", None)
+        self.standalone_rust_protocol_status = None
+        if status is not None:
+            self._set_rust_status(status[0], error=status[1])
         stop_after_protocol = self.standalone_rust_stop_after_protocol
         self.standalone_rust_stop_after_protocol = False
         close_session_pending = self.standalone_rust_close_session_pending
@@ -624,7 +651,7 @@ class MeshEditorRustProcessMixin:
             show_result(
                 "CDMW accepted the validated mesh revision. Choose an output action, reopen editing, or close the session."
             )
-        self._set_rust_status("Mesh Editor finished and CDMW accepted the validated geometry.")
+        self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
 
     def _handle_rust_ready_timeout(self) -> None:
         if self.standalone_rust_ready:

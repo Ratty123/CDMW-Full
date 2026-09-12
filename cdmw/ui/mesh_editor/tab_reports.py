@@ -279,6 +279,9 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         self.status_message_requested.emit(f"Running {action_text} in the background...", False)
         thread.start(QThread.LowPriority)
     def _start_standalone_rebuild_asset_requested(self) -> None:
+        if self._standalone_replacement_companions_required():
+            self.status_message_requested.emit("This replacement requires companion files. Use Build Mod to export the complete result.", True)
+            return
         developer_override = self._standalone_developer_rebuild_override_allowed()
         if not (self._standalone_export_validation_ok() or developer_override):
             self.status_message_requested.emit("Run validation successfully before rebuilding a patched asset.", True)
@@ -440,7 +443,20 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
     def _set_rebuild_asset_button_enabled(self, enabled: bool) -> None:
         button = getattr(self.standalone_workspace, "export_mesh_file_button", None)
         if button is not None:
-            button.setEnabled(bool(enabled))
+            button.setEnabled(bool(enabled) and not self._standalone_replacement_companions_required())
+    def _standalone_replacement_companions_required(self) -> bool:
+        controller = getattr(self, "standalone_controller", None)
+        service = getattr(controller, "mesh_service", None)
+        session_id = getattr(controller, "active_session_id", "")
+        if service is None or not session_id:
+            return False
+        try:
+            state = service._session(session_id).replacement_state
+        except (KeyError, AttributeError):
+            return False
+        return bool(state and (state.companion_files or (
+            state.target_path.lower().endswith(".pam") and any(file.path.lower().endswith(".pamlod") for file in state.dependencies)
+        )))
     def _set_preview_rebuilt_asset_button_enabled(self, enabled: bool) -> None:
         button = getattr(self.standalone_workspace, "build_mod_button", None)
         if button is not None:

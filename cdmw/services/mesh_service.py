@@ -764,6 +764,9 @@ class _MeshServiceSessionLayerCore(
         )
         if loaded_layer_project is not None:
             session.archive_refit_context = loaded_layer_project.get("archive_refit_context")
+            session.replacement_state = loaded_layer_project.get("replacement_state")
+            if session.replacement_state is not None:
+                session.output_policy = MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value
         self._sessions[session_key] = session
         return self.session_view(session_key)
 
@@ -1162,8 +1165,17 @@ class _MeshServiceSessionLayerCore(
     ) -> None:
         if session.mesh_layer_project_path is None:
             return
+        if session.replacement_state is not None and not session.native_editor_session_ready:
+            if session.native_editor_mesh_dirty:
+                raise RuntimeError("Replacement draft cannot save stale resident geometry.")
+            opened = open_native_mesh_editor_session(session.working_mesh, session.session_id,
+                                                     stop_event=stop_event, timeout_seconds=10.0)
+            if opened is None:
+                raise RuntimeError("Replacement draft snapshot session failed to open.")
+            session.native_editor_session_ready = True
+            session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
         layer_payload = _geometry_layer_state_payload(session)
-        promote = len(session.geometry_layers) > 1
+        promote = len(session.geometry_layers) > 1 or session.replacement_state is not None
         descriptor = save_mesh_layer_project(
             session_id=session.session_id,
             mesh=session.working_mesh,
@@ -1184,6 +1196,7 @@ class _MeshServiceSessionLayerCore(
             promote_persistent_draft=promote,
             stop_event=stop_event,
             archive_refit_context=session.archive_refit_context,
+            replacement_state=session.replacement_state,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
@@ -1300,6 +1313,10 @@ class MeshService(MeshUvServiceMixin, _MeshServiceSessionLayerCore):
                 raise ValueError(f"Unsupported Mesh Editor output policy: {output_policy!r}") from exc
             if session.archive_refit_context is not None and requested is not MeshOutputPolicy.EXACT_GAME_ASSET:
                 raise ValueError("Archive Refit saves the original game assets; undo the archive loads before switching output format")
+            if session.replacement_state is not None and requested is not MeshOutputPolicy.REPLACEMENT_GAME_ASSET:
+                raise ValueError("Undo the replacement operations before switching output policy.")
+            if requested is MeshOutputPolicy.REPLACEMENT_GAME_ASSET and session.replacement_state is None:
+                raise ValueError("Import a replacement or change part inclusion before choosing replacement output.")
             destination = ""
             destination_ready = False
             if requested is MeshOutputPolicy.FREE_EDIT:

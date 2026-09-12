@@ -141,7 +141,7 @@ class MeshEditorStatePresentationMixin:
     ) -> None:
         exact_session = bool(
             has_standalone
-            and ui_state.output_policy == MeshOutputPolicy.EXACT_GAME_ASSET.value
+            and ui_state.output_policy in {MeshOutputPolicy.EXACT_GAME_ASSET.value, MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value}
         )
         rebuild_allowed = self._standalone_rebuild_allowed()
         for button_name in (
@@ -170,14 +170,22 @@ class MeshEditorStatePresentationMixin:
                 "standalone_install_overlay_button",
             }:
                 enabled = enabled and rebuild_allowed
+                if button_name == "standalone_export_mesh_file_button":
+                    enabled = enabled and not self._standalone_replacement_companions_required()
                 if button_name != "standalone_export_mesh_file_button":
                     enabled = enabled and has_archive_target
             elif button_name == "standalone_restore_overlay_button":
                 receipt = self._mesh_overlay_receipt_path()
                 enabled = enabled and receipt is not None and receipt.is_file()
+            elif ui_state.output_policy == MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value and button_name in {
+                "standalone_export_editable_package_button", "standalone_import_edited_package_button",
+            }:
+                enabled = False
             button.setEnabled(enabled)
             if button_name != "standalone_open_editable_package_folder_button":
                 self._apply_exact_output_tooltip(button, exact_session=exact_session)
+                if button_name == "standalone_export_mesh_file_button" and self._standalone_replacement_companions_required():
+                    button.setToolTip("This replacement requires companion files. Use Build Mod to export the complete result.")
         self._set_rebuild_report_button_enabled(
             has_standalone and exact_session and not output_task_active
         )

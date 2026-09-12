@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from cdmw.domain.mesh import MeshObjectTransformState
 from cdmw.domain.mesh.authoring_capability import MeshOutputPolicy, output_policy_state
+from cdmw.domain.mesh.replacement import MeshReplacementState
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service_state import (
     MeshPreparedWorkingMeshReplacement,
@@ -34,6 +35,7 @@ def _publish_prepared_replacement(
     session.edit_operations = prepared.edit_operations
     session.requires_edit_operations = prepared.requires_edit_operations
     session.archive_refit_context = prepared.archive_refit_context
+    session.replacement_state = prepared.replacement_state
     session.object_transform = MeshObjectTransformState(pivot=session.object_transform.pivot)
     session.revision += 1
 
@@ -49,6 +51,7 @@ def _restore_previous_replacement_state(
     session.edit_operations = prepared.previous_edit_operations
     session.requires_edit_operations = prepared.previous_requires_edit_operations
     session.archive_refit_context = prepared.previous_archive_refit_context
+    session.replacement_state = prepared.previous_replacement_state
     session.revision = prepared.expected_revision
 
 
@@ -101,6 +104,8 @@ class MeshWorkingReplacementServiceMixin:
         validation_output_destination: str | None = None,
         validation_output_destination_ready: bool | None = None,
         archive_refit_context: object | None = None,
+        replacement_state: MeshReplacementState | None = None,
+        replace_output_state: bool = False,
     ) -> MeshPreparedWorkingMeshReplacement:
         """Build and validate an immutable candidate without publishing live state."""
 
@@ -134,12 +139,15 @@ class MeshWorkingReplacementServiceMixin:
             ):
                 _service_call("validate_obj_sidecar_source_identity", mesh, session.original_data)
             refit_context = archive_refit_context or session.archive_refit_context
+            output_state = replacement_state if replacement_state is not None or replace_output_state else session.replacement_state
+            if output_state is not None and refit_context is not None:
+                raise ValueError("Replacement cannot be combined with active Morph & Refit bindings.")
             working_mesh = _service_call(
                 "apply_operation_channels_to_original",
                 session.base_mesh,
                 mesh,
                 active_lod_index=session.lod_index,
-            ) if refit_context is None else _service_call(
+            ) if refit_context is None and output_state is None else _service_call(
                 "_clone_mesh_for_service_native_snapshot", mesh,
                 "session.archive_refit_replacement", "Archive Refit snapshot failed",
             )
@@ -166,11 +174,15 @@ class MeshWorkingReplacementServiceMixin:
                 bool(getattr(working_mesh, "_cdmw_imported_from_obj", False))
                 and bool(getattr(working_mesh, "_cdmw_obj_sidecar_present", False))
             )
-            validation_report = self._validate_replacement_export(
-                session, working_mesh, refit_context, sidecar_warnings, edit_operations,
-                requires_edit_operations, validation_output_policy,
-                validation_output_destination, validation_output_destination_ready,
-            )
+            if output_state is not None:
+                from cdmw.services.mesh_replacement_output import validate_replacement_geometry
+                validation_report = validate_replacement_geometry(working_mesh, output_state, session.original_data)
+            else:
+                validation_report = self._validate_replacement_export(
+                    session, working_mesh, refit_context, sidecar_warnings, edit_operations,
+                    requires_edit_operations, validation_output_policy,
+                    validation_output_destination, validation_output_destination_ready,
+                )
             return MeshPreparedWorkingMeshReplacement(
                 session_id=session.session_id,
                 expected_revision=session.revision,
@@ -188,6 +200,8 @@ class MeshWorkingReplacementServiceMixin:
                 requires_edit_operations=requires_edit_operations,
                 archive_refit_context=refit_context,
                 previous_archive_refit_context=session.archive_refit_context,
+                replacement_state=output_state,
+                previous_replacement_state=session.replacement_state,
             )
 
     def _validate_replacement_export(
@@ -383,6 +397,8 @@ class MeshWorkingReplacementServiceMixin:
             history_snapshot.history_label = str(options.history_label or "Replace Working Mesh")
             history_snapshot.archive_refit_context = session.archive_refit_context
             history_snapshot.restore_archive_refit_context = True
+            history_snapshot.replacement_state = session.replacement_state
+            history_snapshot.restore_replacement_state = True
             if session.native_editor_mesh_dirty:
                 previous_native_snapshot = _service_call(
                     "snapshot_native_mesh_submeshes",
@@ -445,6 +461,8 @@ class MeshWorkingReplacementServiceMixin:
                         "snapshot exceeds the configured history memory limit."
                     )
                 after_snapshot = _MeshHistorySnapshot(
+                    replacement_state=prepared.replacement_state,
+                    restore_replacement_state=True,
                     archive_refit_context=prepared.archive_refit_context,
                     restore_archive_refit_context=True,
                     mesh=prepared.working_mesh,
@@ -660,7 +678,7 @@ class MeshWorkingReplacementServiceMixin:
                     _service_call("_dispose_history_snapshot", snapshot)
                 except Exception as exc:
                     session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
-            if geometry_layers is not None:
+            if geometry_layers is not None or prepared.replacement_state is not None or prepared.previous_replacement_state is not None:
                 try:
                     self._schedule_mesh_layer_autosave(session)
                 except Exception as exc:

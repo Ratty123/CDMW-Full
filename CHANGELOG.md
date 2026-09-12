@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor imports replacement models into the existing Parts panel with manual placement by default, reversible Include in mod controls, original/output comparison, and complete mesh/material/texture/paired-LOD packages. Replacement state follows Undo/Redo and versioned drafts; ordinary editing and New Item fitting keep their existing behavior.
+
 ### Fixed
 
 - Morph & Refit accepts loose body/armor combinations with different bone-reference ranges and preserves original seventh/eighth skin influences. Exact PAC geometry edits also preserve original skin slots that exceed the attached rig's bone count; unsupported weight changes remain blocked.

@@ -84,7 +84,7 @@ def mesh_editor_action_authoring_blocker(
     if (
         deletes_parts
         and key == "delete"
-        and normalized_policy is MeshOutputPolicy.EXACT_GAME_ASSET
+        and normalized_policy in {MeshOutputPolicy.EXACT_GAME_ASSET, MeshOutputPolicy.REPLACEMENT_GAME_ASSET}
     ):
         return "Deleting whole parts changes the protected PAC submesh table and has no exact writeback route."
     if key == "toggle_visibility":
@@ -366,7 +366,7 @@ def visible_actions_for_session(
             action for action in MESH_EDITOR_SESSION_ACTIONS
             if action.key in READ_ONLY_VISIBLE_ACTION_KEYS
         )
-    if policy is MeshOutputPolicy.EXACT_GAME_ASSET:
+    if policy in {MeshOutputPolicy.EXACT_GAME_ASSET, MeshOutputPolicy.REPLACEMENT_GAME_ASSET}:
         if writer is None:
             return tuple(MESH_EDITOR_VISIBLE_ACTIONS)
         return tuple(

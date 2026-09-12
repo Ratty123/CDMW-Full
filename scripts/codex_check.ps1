@@ -145,6 +145,10 @@ $TestsByArea = @{
         "tests/test_mesh_service_editing.py"
     )
     "mesh-unit" = @(
+        "tests/test_mesh_editor_replacement.py",
+        "tests/test_mesh_editor_replacement_materials.py",
+        "tests/test_mesh_editor_replacement_formats.py",
+        "tests/test_mesh_rust_replacement.py",
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
         "tests/test_mesh_builder_construction_invariants.py",

@@ -8,6 +8,7 @@ import shutil
 import json
 import os
 import tempfile
+import hashlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import datetime, timezone
@@ -30,7 +31,7 @@ from cdmw.domain.packages.export_policy import (
     normalize_mod_package_manager_profile,
 )
 from cdmw.domain.mesh import MeshEditCommand
-from cdmw.domain.archives.mutation import ArchivePatchRequest
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.models import ModPackageInfo, RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.mesh_exporter import export_obj
@@ -629,6 +630,8 @@ class MeshRebuildReportWorker(QObject):
         )
         if self.output_path is None:
             return report
+        if getattr(result, "companion_files", ()):
+            raise RuntimeError("This replacement requires companion files. Use Build Mod to export the complete result.")
         target = self.output_path
         source_text = str(getattr(snapshot.base_mesh or snapshot.mesh, "path", "") or "").strip()
         if source_text and target.resolve(strict=False) == Path(source_text).resolve(strict=False):
@@ -724,6 +727,7 @@ class MeshDirectOutputWorker(QObject):
 
     @Slot()
     def run(self) -> None:
+        replacement_baselines = None
         try:
             if self.stop_event.is_set():
                 raise RunCancelled("Mesh output cancelled")
@@ -746,10 +750,38 @@ class MeshDirectOutputWorker(QObject):
                 if components[0][0].identity != self.entry.identity:
                     raise RuntimeError("Archive Refit output target no longer matches the loaded source")
             requests = []
+            additions = []
             reports = []
             for entry, component in components:
                 _raise_export_cancelled(self.stop_event)
                 rebuilt, component_report = self.service.rebuild_result_from_snapshot(component)
+                if getattr(component, "replacement_state", None) is not None:
+                    from cdmw.services.mesh_replacement_import import archive_entry, archive_location
+                    state = component.replacement_state
+                    if state.target_path.casefold() != entry.path.casefold() or (
+                        state.target_location is not None and state.target_location != archive_location(entry)
+                    ):
+                        raise RuntimeError("Replacement output target no longer matches the captured archive identity.")
+                    if replacement_baselines is None:
+                        replacement_baselines = tempfile.TemporaryDirectory(prefix="cdmw-replacement-baselines-")
+
+                    def captured_entry(item, data):
+                        digest = hashlib.sha256(data).hexdigest()
+                        path = Path(replacement_baselines.name) / digest
+                        path.write_bytes(data)
+                        return replace(item, prepared_path=path, prepared_sha256=digest, prepared_size=len(data))
+
+                    entry = captured_entry(entry, component.original_data)
+                    for file in rebuilt.companion_files:
+                        companion_entry = archive_entry(file)
+                        if companion_entry is not None:
+                            baseline = next((item for item in state.dependencies if item.path.casefold() == file.path.casefold()), None)
+                            if baseline is None:
+                                raise ValueError(f"Replacement companion has no captured baseline: {file.path}")
+                            companion_entry = captured_entry(companion_entry, baseline.data)
+                            requests.append(ArchivePatchRequest(companion_entry, file.data))
+                        else:
+                            additions.append(ArchiveAddRequest(Path(entry.pamt_path), file.path, file.data))
                 requests.append(ArchivePatchRequest(entry, rebuilt.data))
                 reports.append(component_report)
             report = reports[0]
@@ -765,13 +797,14 @@ class MeshDirectOutputWorker(QObject):
                 ]
                 metadata = (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
             if self.kind == "loose_mod":
-                result = self._write_loose_mod(tuple(requests), metadata, report)
+                result = self._write_loose_mod(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_loose_mod(tuple(requests), metadata, report)
             elif self.kind == "overlay_package":
-                result = self._write_overlay_package(tuple(requests), metadata, report)
+                result = self._write_overlay_package(tuple(requests), metadata, report, additions=tuple(additions)) if additions else self._write_overlay_package(tuple(requests), metadata, report)
             elif self.kind == "overlay_prepare":
                 package_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
                 preparation = prepare_overlay_install(
                     tuple(requests),
+                    additions=tuple(additions),
                     package_root=package_root,
                     stop_event=self.stop_event,
                 )
@@ -793,6 +826,8 @@ class MeshDirectOutputWorker(QObject):
             else:
                 self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
         finally:
+            if replacement_baselines is not None:
+                replacement_baselines.cleanup()
             self.finished.emit()
 
     def _metadata(self, snapshot: MeshExportSnapshot, report: object) -> bytes:
@@ -808,6 +843,11 @@ class MeshDirectOutputWorker(QObject):
             "contents": ["rebuilt_mesh", "validation_metadata"],
             "rebuild_report": asdict(report) if is_dataclass(report) else report,
         }
+        state = getattr(snapshot, "replacement_state", None)
+        if state is not None:
+            payload.update(format="cdmw_mesh_editor_output_v2", replacement_revision=state.revision,
+                           materials=[{"part_id": part.part_id, "choice": part.material_choice, "included": part.included} for part in state.parts],
+                           textures="prepared_bundle", contents=["rebuilt_mesh", "prepared_companions", "validation_metadata"])
         return (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
 
     def _package_info(self, root: Path) -> ModPackageInfo:
@@ -823,6 +863,8 @@ class MeshDirectOutputWorker(QObject):
         requests: tuple[ArchivePatchRequest, ...],
         metadata: bytes,
         report: object,
+        *,
+        additions: tuple[ArchiveAddRequest, ...] = (),
     ) -> MeshDirectOutputResult:
         if self.output_path is None:
             raise ValueError("Loose Mesh Editor output needs a package folder")
@@ -855,10 +897,24 @@ class MeshDirectOutputWorker(QObject):
                 target = staging / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 atomic_write_bytes(target, request.payload_data)
+            for addition in additions:
+                relative = Path(addition.path.replace("\\", "/"))
+                if relative.is_absolute() or relative.drive or ".." in relative.parts or not relative.name or relative in relative_paths:
+                    raise ValueError("Replacement companion has an invalid or duplicate package path")
+                relative_paths.append(relative)
+                package_group = Path(addition.pamt_path).parent.name
+                mesh_format = relative.suffix.lstrip(".").lower()
+                assets.append(MeshLooseModAsset(entry_path=relative.as_posix(), package_group=package_group,
+                                               format=mesh_format, note="Replacement companion"))
+                files.append(MeshLooseModFile(path=relative.as_posix(), package_group=package_group,
+                                             format=mesh_format, note="Replacement companion"))
+                target = staging / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_bytes(target, addition.payload_data)
             atomic_write_bytes(staging / "mesh-editor-session.json", metadata)
             options = mod_package_export_options_for_manager(self.manager_profile)
             from cdmw.core.mod_compatibility import capture_patch_compatibility
-            compatibility = capture_patch_compatibility(requests,
+            compatibility = capture_patch_compatibility(requests, additions,
                 game_root=Path(self.entry.pamt_path).resolve().parent.parent, stop_event=self.stop_event)
             metadata_files = write_mesh_loose_mod_package_metadata(
                 staging,
@@ -880,8 +936,8 @@ class MeshDirectOutputWorker(QObject):
                     "This package contains a validated mesh replacement created in the "
                     "Crimson Desert Mod Workbench Mesh Editor."
                 ),
-                loose_file_count=len(requests),
-                asset_count=len(requests),
+                loose_file_count=len(requests) + len(additions),
+                asset_count=len(requests) + len(additions),
                 include_paired_lod=False,
                 create_no_encrypt_file=bool(effective_options.create_no_encrypt_file),
                 manifest_label="Structured mesh package metadata",
@@ -909,6 +965,8 @@ class MeshDirectOutputWorker(QObject):
         requests: tuple[ArchivePatchRequest, ...],
         metadata: bytes,
         report: object,
+        *,
+        additions: tuple[ArchiveAddRequest, ...] = (),
     ) -> MeshDirectOutputResult:
         if self.output_path is None:
             raise ValueError("DMM Mesh Editor output needs a package folder")
@@ -921,6 +979,7 @@ class MeshDirectOutputWorker(QObject):
         try:
             exported = export_archive_overlay_package(
                 requests,
+                additions=additions,
                 package_root=staging,
                 game_root=game_root,
                 metadata_files=(("mesh-editor-session.json", metadata),),
