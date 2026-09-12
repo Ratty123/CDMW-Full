@@ -39,8 +39,14 @@ def test_actual_worker_catalogue_paging_details_scope_and_refresh(tmp_path):
         request = CharacterCatalogSearchRequest(session.session_id)
         page = awaiter.wait(service.search_character_catalog(request, ui_generation=1))
         next_page = awaiter.wait(service.search_character_catalog(replace(request, page_start=72), ui_generation=1))
-        assert len(page.rows) == 72 and page.total_matches == 85 and len(next_page.rows) == 13
+        assert len(page.rows) == 72 and page.total_matches == 86 and len(next_page.rows) == 14
         assert not {r.key for r in page.rows} & {r.key for r in next_page.rows}
+        assert all(r.path.endswith(".pac") and r.model_count == 1 and r.role in {"body", "whole_character"}
+                   and "_foot_" not in r.path and "_spline" not in r.path for r in (*page.rows, *next_page.rows))
+        fur = awaiter.wait(service.search_character_catalog(replace(request, query="spline", tab="faces"), ui_generation=1))
+        assert len(fur.rows) == 1 and fur.rows[0].role == "hair"
+        unknown = awaiter.wait(service.search_character_catalog(replace(request, role="unclassified"), ui_generation=1))
+        assert len(unknown.rows) == 1 and unknown.rows[0].path.endswith("mystery.pac") and unknown.rows[0].preview_status == "base_appearance"
         selected = next(r for r in page.rows if r.path.endswith("hero_body_0000.pac"))
         detail = awaiter.wait(service.get_character_catalog_detail(CharacterCatalogDetailRequest(session.session_id, selected.key), ui_generation=1))
         assert len(detail.models) == 1 and len(detail.related) >= 2 and detail.row.usage_count >= 2

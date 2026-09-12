@@ -175,6 +175,18 @@ def test_refresh_invalidates_requests_and_actions(finder):
     assert dialog._details is None and not scopes
 
 
+def test_related_unclassified_model_selects_its_explicit_filter(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1)])
+    unknown = row(2, role="unclassified")
+    service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", detail(row(1), [unknown]))
+    dialog._navigate(dialog._relations.item(0))
+    dialog._search_timer.stop()
+    dialog._search()
+    request = service.calls[-1][1]
+    assert request.role == "unclassified" and request.query == unknown.path
+
+
 @pytest.mark.parametrize("include_related", [False, True])
 def test_scope_reaches_real_archive_bridge(finder, monkeypatch, include_related):
     from PySide6.QtWidgets import QLabel, QPushButton

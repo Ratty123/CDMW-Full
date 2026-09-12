@@ -7,7 +7,7 @@ namespace Cdmw.FullArchive.Core;
 
 public static class ArchiveCharacterCatalogBuilder
 {
-    public const int Version = 3;
+    public const int Version = 4;
     private static readonly HashSet<string> CharacterExtensions = new(StringComparer.OrdinalIgnoreCase) {
         ".pac", ".pam", ".pamlod", ".app_xml", ".prefab", ".prefabdata_xml", ".pappt",
         ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".pab", ".pabc", ".pamt", ".pabv", ".paccd", ".xml", ".dds", ".hkt", ".papr" };
@@ -118,7 +118,7 @@ public static class ArchiveCharacterCatalogBuilder
                 || bodyModels.Any(id => resolver.HasEmbeddedFace(byId[id])));
             if (combined)
             {
-                foreach (var model in bodyModels.Where(id => ArchiveCharacterReferences.Role(byId[id].Path) == "body")) embedded.Add(model);
+                foreach (var model in bodyModels.Where(id => resolver.ModelRole(byId[id]) == "body")) embedded.Add(model);
                 evidence.Add("Appearance uses a combined body/head mesh or has no resolved separate head. Body preview retains its embedded face; separate facial components remain independently discoverable.");
             }
             foreach (var group in components.GroupBy(static component => component.Role))
@@ -144,10 +144,18 @@ public static class ArchiveCharacterCatalogBuilder
                     models.Append(app.EntryId).Distinct().ToArray(), models.Concat(context).Append(app.EntryId).Distinct().ToArray(),
                     models.Select(id => "asset:" + ArchiveCharacterReferences.Normalize(byId[id].Path)).ToArray(), selected,
                     links.Select(static link => link.Owner).ToArray(), evidence.Distinct().ToArray(), app.Path, contextKey);
-                foreach (var model in primary.SelectMany(static component => component.ModelEntryIds))
+                foreach (var component in primary)
                 {
-                    if (!usedRoles.TryGetValue(model, out var roles)) usedRoles[model] = roles = [];
-                    roles.Add(role);
+                    var unclassified = component.ModelEntryIds.Where(id => resolver.ModelRole(byId[id]) == "unclassified").Distinct().ToArray();
+                    var hasPrimary = component.ModelEntryIds.Any(id => resolver.ModelRole(byId[id]) == role);
+                    // Inherit a declaration only for a single otherwise unclassified
+                    // primary mesh. Other members of its assembly are dependencies.
+                    if (unclassified.Length == 1 && !hasPrimary)
+                    {
+                        var model = unclassified[0];
+                        if (!usedRoles.TryGetValue(model, out var roles)) usedRoles[model] = roles = [];
+                        roles.Add(role);
+                    }
                 }
                 foreach (var model in models)
                 {
@@ -166,10 +174,10 @@ public static class ArchiveCharacterCatalogBuilder
             if (!entries.TryGetValue(path, out var active) || active.EntryId != entry.EntryId)
             { Account(entry, "excluded", "Shadowed or unmounted source; active mount precedence applied."); continue; }
             if (entry.Extension == ".app_xml") continue;
-            var role = ArchiveCharacterReferences.Role(path);
-            if (role is "excluded" or "unclassified" && usedRoles.TryGetValue(entry.EntryId, out var declaredRoles))
+            var role = ArchiveCharacterReferences.IsModel(entry) ? resolver.ModelRole(entry) : ArchiveCharacterReferences.Role(path);
+            if (role == "unclassified" && usedRoles.TryGetValue(entry.EntryId, out var declaredRoles))
                 role = declaredRoles.Order(StringComparer.Ordinal).First();
-            if (role == "excluded") { Account(entry, "excluded", "Equipment or unrelated prop; no authored body/face use."); continue; }
+            if (role == "excluded") { Account(entry, "excluded", "Equipment or non-body component; retained only in its owning appearance dependencies."); continue; }
             if (ArchiveCharacterReferences.IsModel(entry))
             {
                 var resolved = resolver.Resolve(path, role, entry);
@@ -180,7 +188,7 @@ public static class ArchiveCharacterCatalogBuilder
                 var isEmbedded = embedded.Contains(entry.EntryId) || role == "body" && resolver.HasEmbeddedFace(entry);
                 if (isEmbedded && role == "body") role = "whole_character";
                 var row = Row(key, "assets", role, entry.Name, Path.GetFileNameWithoutExtension(entry.Name), entry.Path,
-                    role == "unclassified" ? "unresolved" : resolved.Resolution, 1, role == "unclassified" ? "Character model awaits role classification; retained for discovery." : "Installed model asset.", isEmbedded)
+                    resolved.Resolution, 1, role == "unclassified" ? "Installed model awaits role classification; available through Unclassified." : "Installed model asset.", isEmbedded)
                     with { UsageCount = relatedKeys.Length };
                 records[key] = new(row, searchNames, [entry.EntryId], resolved.Context.Append(entry.EntryId)
                     .Concat(relatedKeys.SelectMany(related => records[related].DirectIds).Where(id => byId[id].Extension == ".app_xml")).Distinct().ToArray(), relatedKeys,
@@ -191,13 +199,8 @@ public static class ArchiveCharacterCatalogBuilder
             else
             {
                 var resolved = resolver.Resolve(Path.GetFileNameWithoutExtension(entry.Name), role);
-                Account(entry, resolved.Resolution, resolved.Models.Length > 0 ? "Descriptor links installed model assets." : "Descriptor has no resolved body/face model; retained.");
-                if (resolved.Models.Length == 0)
-                {
-                    var key = "asset:" + path;
-                    records[key] = new(Row(key, "assets", role, entry.Name, entry.Name, entry.Path, "unresolved", 0, "Descriptor has no resolved model."),
-                        [entry.Name], [entry.EntryId], resolved.Context.Append(entry.EntryId).Distinct().ToArray(), [], [], [], resolved.Evidence, ContextKey: key);
-                }
+                Account(entry, resolved.Resolution, resolved.Models.Length > 0 ? "Descriptor links installed model assets."
+                    : "Descriptor has no resolved body/face model. Accounted for as a reference, not a unique model asset.");
             }
         }
         // Resolve links after all physical assets exist. References that point at
