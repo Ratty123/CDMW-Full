@@ -148,7 +148,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
         prepared.lod_levels = []  # The editor owns LOD0; the writer retains other levels.
         data = _build_replacement_pamlod(prepared, snapshot.original_data, state, original)
     else:
-        data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options)
+        preserved = ()
+        if original.format.lower() == "pac":
+            from cdmw.modding.mesh_pac_builder import _pac_submesh_channels_unchanged
+            preserved = tuple(part.target_index for part in state.parts if part.included and
+                _pac_submesh_channels_unchanged(original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
+        data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options,
+                                              preserve_original_pac_submesh_indices=preserved)
         if original.format.lower() == "pam":
             data = _preserve_pam_index_convention(data, snapshot.original_data)
     parsed = parse_mesh(data, state.target_path)

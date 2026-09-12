@@ -3566,7 +3566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 278,
+          "line": 288,
           "sink": "ValueError"
         }
       ]
@@ -9136,7 +9136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_archive_refit.py",
-          "line": 164,
+          "line": 165,
           "sink": "ValueError"
         }
       ]
@@ -20796,7 +20796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 245,
+          "line": 250,
           "sink": "ValueError"
         }
       ]
@@ -30221,7 +30221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 201,
+          "line": 207,
           "sink": "ValueError"
         }
       ]
@@ -30681,7 +30681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9174,
+          "line": 9181,
           "sink": "RuntimeError"
         }
       ]
@@ -43511,7 +43511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 255,
+          "line": 260,
           "sink": "ValueError"
         }
       ]
@@ -43741,7 +43741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 278,
+          "line": 283,
           "sink": "ValueError"
         }
       ]
@@ -46191,7 +46191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 79,
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -46201,7 +46201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 199,
+          "line": 205,
           "sink": "ValueError"
         }
       ]
@@ -46211,7 +46211,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 87,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -46221,7 +46221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 67,
+          "line": 69,
           "sink": "ValueError"
         }
       ]
@@ -46231,7 +46231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 91,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -46241,7 +46241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 96,
+          "line": 108,
           "sink": "ValueError"
         }
       ]
@@ -48326,7 +48326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 313,
+          "line": 323,
           "sink": "ValueError"
         }
       ]
@@ -53951,7 +53951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 252,
+          "line": 259,
           "sink": "ValueError"
         }
       ]
@@ -54916,22 +54916,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 108,
+          "line": 111,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 130,
+          "line": 133,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 221,
+          "line": 228,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 337,
+          "line": 347,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55016,7 +55016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 269,
+          "line": 276,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55046,7 +55046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 100,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -55056,7 +55056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 357,
+          "line": 367,
           "sink": "RuntimeError"
         }
       ]
@@ -55066,7 +55066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 340,
+          "line": 350,
           "sink": "RuntimeError"
         }
       ]
@@ -55076,7 +55076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 353,
+          "line": 363,
           "sink": "RuntimeError"
         }
       ]
@@ -57976,7 +57976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8519,
+          "line": 8526,
           "sink": "RuntimeError"
         }
       ]
@@ -58056,7 +58056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8449,
+          "line": 8456,
           "sink": "RuntimeError"
         }
       ]
@@ -58066,7 +58066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8445,
+          "line": 8452,
           "sink": "RuntimeError"
         }
       ]
@@ -58076,7 +58076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8420,
+          "line": 8427,
           "sink": "RuntimeError"
         }
       ]
@@ -59126,7 +59126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 116,
+          "line": 119,
           "sink": "RuntimeError"
         }
       ]
@@ -59156,7 +59156,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 139,
+          "line": 142,
           "sink": "RuntimeError"
         }
       ]
@@ -59166,7 +59166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 121,
+          "line": 124,
           "sink": "RuntimeError"
         }
       ]
@@ -59176,7 +59176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 144,
+          "line": 147,
           "sink": "RuntimeError"
         }
       ]
@@ -59186,7 +59186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 152,
+          "line": 155,
           "sink": "RuntimeError"
         }
       ]
@@ -59196,7 +59196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 124,
+          "line": 127,
           "sink": "RuntimeError"
         }
       ]
@@ -59206,7 +59206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 148,
+          "line": 151,
           "sink": "RuntimeError"
         }
       ]
@@ -59216,7 +59216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 167,
+          "line": 170,
           "sink": "RuntimeError"
         }
       ]
@@ -63366,7 +63366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 301,
+          "line": 311,
           "sink": "RuntimeError"
         }
       ]
@@ -63512,11 +63512,21 @@
       ]
     },
     {
+      "key": "Non-finite replacement import normals.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 106,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Non-finite replacement import placement.",
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 94,
+          "line": 96,
           "sink": "ValueError"
         }
       ]
@@ -69536,7 +69546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 179,
+          "line": 185,
           "sink": "ValueError"
         }
       ]
@@ -69546,7 +69556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 173,
+          "line": 179,
           "sink": "ValueError"
         }
       ]
@@ -69556,7 +69566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 191,
+          "line": 197,
           "sink": "ValueError"
         }
       ]
@@ -80466,7 +80476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 159,
+          "line": 165,
           "sink": "ValueError"
         }
       ]
@@ -83651,12 +83661,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 220,
+          "line": 221,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 231,
+          "line": 232,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -83732,11 +83742,21 @@
       ]
     },
     {
+      "key": "Replacement draft is missing saved import normals.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Replacement draft omitted its output state.",
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 292,
+          "line": 302,
           "sink": "ValueError"
         }
       ]
@@ -83746,7 +83766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 72,
+          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -83756,7 +83776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 69,
+          "line": 71,
           "sink": "ValueError"
         }
       ]
@@ -83796,7 +83816,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 295,
+          "line": 305,
           "sink": "ValueError"
         }
       ]
@@ -83851,12 +83871,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 224,
+          "line": 225,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 228,
+          "line": 229,
           "sink": "ValueError"
         }
       ]
@@ -84086,7 +84106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 156,
+          "line": 162,
           "sink": "ValueError"
         }
       ]
@@ -84326,7 +84346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 193,
+          "line": 199,
           "sink": "ValueError"
         }
       ]
@@ -88918,6 +88938,21 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 625,
           "sink": "_append_log"
+        }
+      ]
+    },
+    {
+      "key": "Saved import normals do not match the replacement geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 103,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 287,
+          "sink": "ValueError"
         }
       ]
     },
@@ -105291,7 +105326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_import.py",
-          "line": 273,
+          "line": 278,
           "sink": "ValueError"
         }
       ]
@@ -106858,6 +106893,16 @@
           "path": "cdmw/services/new_item_mod_base.py",
           "line": 219,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "This older replacement draft has no saved import normals. Import the model again before using Reset Placement or Fit to Original.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 285,
+          "sink": "ValueError"
         }
       ]
     },
@@ -109611,7 +109656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 248,
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -109941,7 +109986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 57,
+          "line": 59,
           "sink": "ValueError"
         }
       ]
@@ -123481,7 +123526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 321,
+          "line": 331,
           "sink": "ValueError"
         }
       ]
@@ -123491,7 +123536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 316,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -123501,7 +123546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 325,
+          "line": 335,
           "sink": "ValueError"
         }
       ]
@@ -125411,7 +125456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 286,
+          "line": 296,
           "sink": "RuntimeError"
         }
       ]
@@ -132141,7 +132186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 319,
+          "line": 329,
           "sink": "ValueError"
         }
       ]

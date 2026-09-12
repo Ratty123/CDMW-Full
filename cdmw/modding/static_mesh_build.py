@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 
 from cdmw.domain.mesh.builder_operation import option_operation_disagreements
 
@@ -33,8 +34,14 @@ def build_static_mesh_replacement(
     original_mesh: ParsedMesh,
     replacement_mesh: ParsedMesh,
     options: StaticMeshReplacementOptions | None = None,
+    *,
+    preserve_original_pac_submesh_indices: Sequence[int] = (),
 ) -> tuple[bytes, StaticMeshReplacementReport]:
-    """Build a static replacement PAC/PAM payload from an arbitrary OBJ mesh."""
+    """Build a static replacement PAC/PAM payload from an arbitrary OBJ mesh.
+
+    Mesh Editor may retain unchanged PAC draw slots at every LOD explicitly;
+    other callers keep the existing full-import rebuild behavior by default.
+    """
     normalized_options = options or StaticMeshReplacementOptions()
     replacement_mesh = _replacement_mesh_from_options(replacement_mesh, normalized_options)
     effective_replacement_mesh, _preserve_source_indices = _replacement_mesh_with_original_part_copies(
@@ -126,6 +133,7 @@ def build_static_mesh_replacement(
                 for section in cloned_draw_sections
             ],
             preserve_runtime_abi=complete_external_swap,
+            preserve_original_submesh_indices=preserve_original_pac_submesh_indices,
         )
     elif fmt == "pam":
         from .mesh_importer import build_pam

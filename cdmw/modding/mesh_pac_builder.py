@@ -24,6 +24,7 @@ from .mesh_parser import (
     SubMesh,
     _compute_smooth_normals,
     _find_pac_descriptors,
+    _find_pac_section_layout,
     _parse_pac_geometry_section,
     _parse_par_sections,
     _validated_pac_descriptor_prefix,
@@ -945,6 +946,59 @@ def _pac_lod_variants_for_submesh(new_sm: SubMesh, desc: object, stored_lod_coun
     return variants
 
 
+def _pac_submesh_channels_unchanged(original: SubMesh, edited: SubMesh) -> bool:
+    """Only bypass rebuilding when every authored channel still matches."""
+    return all(
+        list(getattr(original, channel)) == list(getattr(edited, channel))
+        for channel in ("vertices", "faces", "normals", "uvs", "tangents",
+                        "bone_indices", "bone_weights", "source_bone_palette")
+    ) and all(
+        getattr(original, field) == getattr(edited, field)
+        for field in ("name", "material", "texture", "source_skin_weight_layout")
+    )
+
+
+def _preserved_pac_lod_records(original_data, original_mesh, working_mesh, descriptors,
+                               sec_by_idx, n_lods, preserved_indices):
+    """Retain complete original records, refusing shared or unproven ownership."""
+    records = {index: [] for index in preserved_indices}
+    for index in preserved_indices:
+        if type(index) is not int or not 0 <= index < len(original_mesh.submeshes):
+            raise ValueError("Invalid PAC part requested for original LOD preservation.")
+        original = original_mesh.submeshes[index]
+        if (original.source_descriptor_offset != descriptors[index].descriptor_offset
+                or not _pac_submesh_channels_unchanged(original, working_mesh.submeshes[index])):
+            raise ValueError(f"PAC part {index} no longer matches its original descriptor and geometry.")
+    for lod in range(n_lods):
+        section = sec_by_idx.get(n_lods - lod)
+        if section is None:
+            raise ValueError(f"PAC LOD {lod} has no geometry section to preserve.")
+        vertex_counts = [desc.vertex_counts[lod] if lod < len(desc.vertex_counts) else 0
+                         for desc in descriptors]
+        index_counts = [desc.index_counts[lod] if lod < len(desc.index_counts) else 0
+                        for desc in descriptors]
+        vertex_cursor, index_cursor = _find_pac_section_layout(
+            original_data, section, descriptors, lod, sum(index_counts))
+        index_region = index_cursor
+        section_end = section["offset"] + section["size"]
+        for index, (vertex_count, index_count) in enumerate(zip(vertex_counts, index_counts)):
+            if index in records:
+                vertex_start = section["offset"] + vertex_cursor
+                vertex_end = vertex_start + vertex_count * 40
+                index_start = section["offset"] + index_cursor
+                index_end = index_start + index_count * 2
+                if not (section["offset"] <= vertex_start <= vertex_end <= section["offset"] + index_region
+                        <= index_start <= index_end <= section_end <= len(original_data)):
+                    raise ValueError(f"PAC part {index} LOD {lod} records exceed their geometry section.")
+                indices = original_data[index_start:index_end]
+                if any(value >= vertex_count for (value,) in struct.iter_unpack("<H", indices)):
+                    raise ValueError(f"PAC part {index} LOD {lod} uses shared or invalid vertex indices; original LOD preservation is unsupported.")
+                records[index].append((original_data[vertex_start:vertex_end], indices))
+            vertex_cursor += vertex_count * 40
+            index_cursor += index_count * 2
+    return records
+
+
 def _build_pac_full_rebuild(
     original_mesh: ParsedMesh,
     working_mesh: ParsedMesh,
@@ -955,6 +1009,7 @@ def _build_pac_full_rebuild(
     output_descriptor_sources: Sequence[int] = (),
     output_descriptor_names: Sequence[str] = (),
     preserve_runtime_abi: bool = False,
+    preserve_original_submesh_indices: Sequence[int] = (),
 ) -> bytes:
     """Rebuild PAC geometry sections from scratch for topology-changing imports."""
     sections = _parse_par_sections(original_data)
@@ -974,6 +1029,14 @@ def _build_pac_full_rebuild(
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
     if len(descriptors) < len(original_mesh.submeshes):
         raise ValueError("PAC descriptor count does not match the parsed original submesh set.")
+    preserved_lods = {}
+    if preserve_original_submesh_indices:
+        if (clone_descriptor_sources or clone_descriptor_names or output_descriptor_sources or output_descriptor_names
+                or len(working_mesh.submeshes) != len(original_mesh.submeshes)):
+            raise ValueError("Original PAC LOD preservation requires the original draw-section layout.")
+        preserved_lods = _preserved_pac_lod_records(
+            original_data, original_mesh, working_mesh, descriptors, sec_by_idx, n_lods,
+            preserve_original_submesh_indices)
     if preserve_runtime_abi and (clone_descriptor_sources or clone_descriptor_names or output_descriptor_sources or output_descriptor_names):
         raise ValueError("PAC runtime ABI preservation cannot clone or rename draw descriptors.")
     output_descriptor_sources = tuple(int(index) for index in tuple(output_descriptor_sources or ()))
@@ -1024,6 +1087,9 @@ def _build_pac_full_rebuild(
         if source_target_index < 0 or source_target_index >= len(original_mesh.submeshes):
             raise ValueError(f"PAC cloned submesh {sm_idx} references invalid source target {source_target_index}.")
         orig_sm = original_mesh.submeshes[source_target_index]
+        if sm_idx in preserved_lods:
+            prepared_submeshes.append({"preserved_lods": preserved_lods[sm_idx]})
+            continue
         if not new_sm.vertices and not new_sm.faces:
             rel_desc_off = desc.descriptor_offset - sec0["offset"]
             if rel_desc_off < 0 or rel_desc_off + 40 > len(sec0_data):
@@ -1101,6 +1167,11 @@ def _build_pac_full_rebuild(
         idx_buf = bytearray()
 
         for sm_idx, prepared in enumerate(prepared_submeshes):
+            if "preserved_lods" in prepared:
+                vertices, indices = prepared["preserved_lods"][lod_idx]
+                verts_buf.extend(vertices)
+                idx_buf.extend(indices)
+                continue
             if lod_idx >= prepared["stored_lod_count"]:
                 continue
             lod_variants = prepared["lod_variants"]

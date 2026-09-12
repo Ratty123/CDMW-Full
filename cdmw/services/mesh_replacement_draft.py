@@ -38,12 +38,14 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     return {
-        "version": 1, "target_path": state.target_path, "target_sha256": state.target_sha256,
+        "version": 2, "target_path": state.target_path, "target_sha256": state.target_sha256,
         "target_location": state.target_location, "revision": state.revision,
         "parts": [{"part_id": part.part_id, "target_index": part.target_index,
                    "source_part_ids": list(part.source_part_ids), "included": part.included,
                    "material_choice": part.material_choice, "source_label": part.source_label,
-                   "import_positions": blob(b"".join(struct.pack("<3d", *point) for point in part.import_positions))}
+                   "import_positions": blob(b"".join(struct.pack("<3d", *point) for point in part.import_positions)),
+                   "import_normals": (blob(b"".join(struct.pack("<3d", *normal) for normal in part.import_normals))
+                                      if part.import_normals is not None else None)}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
         "companion_files": [file_payload(file) for file in state.companion_files],
@@ -53,7 +55,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
 def load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if not isinstance(payload, dict) or payload.get("version") != 1:
+    if not isinstance(payload, dict) or payload.get("version") not in {1, 2}:
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
     total = 0
@@ -92,11 +94,21 @@ def load_replacement_state(payload, project_root):
         positions = tuple(struct.iter_unpack("<3d", data))
         if any(not math.isfinite(coordinate) for point in positions for coordinate in point):
             raise ValueError("Non-finite replacement import placement.")
+        normals = None
+        if payload["version"] == 2 and "import_normals" not in value:
+            raise ValueError("Replacement draft is missing saved import normals.")
+        if payload["version"] == 2 and value["import_normals"] is not None:
+            normal_data = blob(value["import_normals"])
+            if len(normal_data) not in {0, len(data)}:
+                raise ValueError("Saved import normals do not match the replacement geometry.")
+            normals = tuple(struct.iter_unpack("<3d", normal_data))
+            if any(not math.isfinite(coordinate) for normal in normals for coordinate in normal):
+                raise ValueError("Non-finite replacement import normals.")
         if type(value["included"]) is not bool or value["material_choice"] not in {"original", "imported"}:
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions))
+            value["material_choice"], str(value["source_label"]), positions, normals))
     return MeshReplacementState(str(payload["target_path"]), str(payload["target_sha256"]),
         tuple(parts), int(payload["revision"]), location(payload.get("target_location")),
         tuple(file(v) for v in payload.get("dependencies", [])),
