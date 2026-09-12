@@ -331,6 +331,12 @@ def iter_pab_candidate_basenames(pac_path: str) -> tuple[str, ...]:
 
     path_parts = [part for part in PurePosixPath(normalized_path).parts if part]
     for part in path_parts:
+        # NPC equipment embeds its player rig family inside a longer name,
+        # for example cd_m0001_00_so_phw_ub_22002. These are candidates only;
+        # the resolver must verify their PAC palette before attaching a rig.
+        for token in part.split("_"):
+            if 3 <= len(token) <= 5 and token.startswith("p") and token.isalpha():
+                _append(f"{token}_01")
         class_match = re.match(r"^\d+_([a-z]{2,5})$", part)
         if class_match is not None:
             _append(f"{class_match.group(1)}_01")

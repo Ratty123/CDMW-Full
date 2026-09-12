@@ -941,6 +941,17 @@ internal static class FullArchiveTestRunner
                 .Select(index => session.ReadEntry(index))
                 .Single(static entry => entry.Path == "character/model/hero.pac");
             var lookup = new ArchiveLookupService(sessions, cache, native);
+            foreach (var family in new[] { "phw", "phm" })
+            {
+                var npcArmor = Enumerable.Range(0, checked((int)handle.EntryCount))
+                    .Select(index => session.ReadEntry(index))
+                    .Single(entry => entry.Path.EndsWith($"cd_m0001_00_so_{family}_ub_22002.pac", StringComparison.OrdinalIgnoreCase));
+                var npcAssociation = await lookup.FindAssociationCandidatesAsync(
+                    new ArchiveAssociationRequest(handle.SessionId, npcArmor.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(npcAssociation.Candidates.Any(entry => entry.Path.EndsWith($"/{family}_01.pab", StringComparison.OrdinalIgnoreCase))
+                    && !npcAssociation.Truncated, $"NPC {family} armor must retain its player rig dependency.");
+            }
             var association = await lookup.FindAssociationCandidatesAsync(
                 new ArchiveAssociationRequest(
                     handle.SessionId,

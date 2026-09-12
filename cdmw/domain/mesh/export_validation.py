@@ -52,6 +52,22 @@ class MeshExportValidationIssue:
     face_index: int = -1
 
 
+def describe_mesh_export_issue(issue: object) -> str:
+    """Keep bounded diagnostic coordinates when a report becomes an error."""
+    message = str(getattr(issue, "message", "") or issue).strip()
+    details = []
+    for name in ("lod_index", "submesh_index", "vertex_index", "face_index"):
+        value = getattr(issue, name, -1)
+        if isinstance(value, int) and value >= 0:
+            details.append(f"{name}={value}")
+    for name in ("expected", "actual"):
+        value = getattr(issue, name, None)
+        if value is not None:
+            text = str(value)
+            details.append(f"{name}={text[:160]}{'...' if len(text) > 160 else ''}")
+    return f"{message} [{'; '.join(details)}]" if details else message
+
+
 @dataclass(frozen=True, slots=True)
 class MeshExportValidationReport:
     mesh_format: str
@@ -243,7 +259,8 @@ def validate_mesh_export(
             mesh_format=mesh_format,
         ) or skinned
 
-    _validate_export_skeleton(issues, mesh, skinned, skeleton_bone_count)
+    if exact_output:
+        _validate_export_skeleton(issues, mesh, skinned, skeleton_bone_count)
 
     _validate_bounds(issues, mesh, geometry_points)
     if exact_output and original_mesh is not None:
@@ -539,8 +556,13 @@ def _validate_material(
         )
 
 
-def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract):
+def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract, *, exact_output=True):
     preserved_unnormalized = False
+    # Free Edit publishes OBJ geometry, without a shared rig or PAC writeback.
+    # Additive sources retain their own influence references. The editor can
+    # carry all eight PAC lanes; the six-lane authoring limit belongs to exact
+    # output, where extra lanes must still match the original source.
+    influence_limit = MAX_SKIN_INFLUENCES if exact_output else 8
     for vertex_index, (indices, weights) in enumerate(zip(bone_indices, bone_weights)):
         index_row = tuple(indices or ())
         weight_row = tuple(weights or ())
@@ -560,32 +582,38 @@ def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index
         # PAC can contain two additional protected lanes. Geometry-only edits
         # preserve those original rows; the six-lane limit still applies to
         # newly authored or changed weights.
-        preserved_extra_lanes = (
-            MAX_SKIN_INFLUENCES < len(index_row) <= 8
-            and getattr(original_submesh, "source_skin_weight_layout", "") == "pac_slot_u10x6"
+        preserved_pac_row = (
+            getattr(original_submesh, "source_skin_weight_layout", "") == "pac_slot_u10x6"
             and getattr(original_submesh, "source_vertex_stride", 0) == 40
             and _skinning_row_matches_original(
                 original_submesh, vertex_index, index_row, weight_row,
                 topology_contract=topology_contract,
             )
         )
-        if len(index_row) > MAX_SKIN_INFLUENCES and not preserved_extra_lanes:
+        preserved_extra_lanes = MAX_SKIN_INFLUENCES < len(index_row) <= 8 and preserved_pac_row
+        # These are encoded PAC slot references, not PAB array indexes. Some
+        # original garments also carry slots beyond the named palette. Exact
+        # geometry edits copy these lanes from the immutable source; applying
+        # the attached PAB's bone count would reject the unmodified asset.
+        # Changed rows still require the explicit, palette-bounded weight path.
+        reference_limit = skeleton_bone_count if exact_output and not preserved_pac_row else None
+        if len(index_row) > influence_limit and not preserved_extra_lanes:
             _add(
                 issues,
                 "blocker",
                 "too_many_bone_influences",
-                f"Vertex has more than {MAX_SKIN_INFLUENCES} bone influences.",
+                f"Vertex has more than {influence_limit} bone influences.",
                 "skeleton",
                 submesh_index=submesh_index,
                 vertex_index=vertex_index,
-                expected=f"<={MAX_SKIN_INFLUENCES}",
+                expected=f"<={influence_limit}",
                 actual=len(index_row),
             )
         clean_weights: list[float] = []
         for raw_index, raw_weight in zip(index_row, weight_row):
             bone_index = _coerce_index(raw_index)
             weight = _coerce_float(raw_weight)
-            if bone_index is None or bone_index < 0 or (skeleton_bone_count is not None and bone_index >= skeleton_bone_count):
+            if bone_index is None or bone_index < 0 or (reference_limit is not None and bone_index >= reference_limit):
                 _add(
                     issues,
                     "blocker",
@@ -594,7 +622,7 @@ def _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index
                     "skeleton",
                     submesh_index=submesh_index,
                     vertex_index=vertex_index,
-                    expected=f"0..{max(0, skeleton_bone_count - 1)}" if skeleton_bone_count is not None else ">=0",
+                    expected=f"0..{max(0, reference_limit - 1)}" if reference_limit is not None else ">=0",
                     actual=raw_index,
                 )
             if weight is None or weight < 0.0:
@@ -712,7 +740,7 @@ def _validate_skinning(
                 ),
                 actual=(mesh_format or "unknown") if safe_replacement_authorized else "changed",
             )
-    _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract)
+    _validate_skin_weight_rows(issues, bone_indices, bone_weights, submesh_index, original_submesh, skeleton_bone_count, topology_contract, exact_output=exact_output)
     return True
 
 

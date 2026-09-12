@@ -57,6 +57,7 @@ class MeshArchiveSessionLoadResult:
     source_skeleton: object | None = None
     skeleton_source_path: str = ""
     skeleton_resolution_reason: str = ""
+    appearance_warning: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,17 +153,30 @@ class MeshArchiveSessionLoadWorker(QObject):
                 session_id=self.session_id or f"mesh-editor-archive:{self.entry.path}",
                 mode=self.mode,
             )
+            appearance_warning = ""
+            source_geometry_notice = (
+                "Loaded source geometry. Character appearance and named weight editing "
+                "are unavailable because the PAC bone palette could not be resolved."
+            )
             if self.entry.extension.lower() == ".pac" and (
                 self.archive_entries_by_normalized_path or self.archive_entries_by_basename
             ):
-                from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
-
-                appearance_mesh, _notes = apply_archive_mesh_appearance(
-                    self.entry, mesh, payload,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    archive_entries_by_basename=self.archive_entries_by_basename,
-                    stop_event=self.stop_event,
+                from cdmw.core.archive_mesh_appearance import (
+                    UnresolvedPacBonePaletteError, apply_archive_mesh_appearance,
                 )
+
+                try:
+                    appearance_mesh, _notes = apply_archive_mesh_appearance(
+                        self.entry, mesh, payload,
+                        archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+                        archive_entries_by_basename=self.archive_entries_by_basename,
+                        stop_event=self.stop_event,
+                    )
+                except UnresolvedPacBonePaletteError:
+                    # Exact geometry editing preserves source skin bytes and
+                    # does not require a guessed character appearance transform.
+                    appearance_mesh = mesh
+                    appearance_warning = source_geometry_notice
                 neutral_appearance = getattr(
                     appearance_mesh, "_cdmw_neutral_appearance", None,
                 )
@@ -244,6 +258,10 @@ class MeshArchiveSessionLoadWorker(QObject):
                         f"Matching PAB skeleton could not be attached: {type(exc).__name__}: {exc}"
                     )
             if not self.stop_event.is_set():
+                if source_skeleton is None and self.entry.extension.lower() == ".pac" and mesh.has_bones:
+                    appearance_warning = source_geometry_notice
+                if source_skeleton is None and appearance_warning:
+                    service.set_skeleton_resolution_reason(view.session_id, skeleton_resolution_reason)
                 self.loaded.emit(
                     self.request_id,
                     MeshArchiveSessionLoadResult(
@@ -256,6 +274,7 @@ class MeshArchiveSessionLoadWorker(QObject):
                         source_skeleton=source_skeleton,
                         skeleton_source_path=skeleton_source_path,
                         skeleton_resolution_reason=skeleton_resolution_reason,
+                        appearance_warning=appearance_warning,
                     ),
                 )
                 transferred = True

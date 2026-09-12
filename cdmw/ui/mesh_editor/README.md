@@ -75,6 +75,17 @@ armor.
 Free Edit OBJ output retains the displayed neutral shape; game-asset output
 retains the reversible source-coordinate mapping.
 
+Body and armor may use different PAC slot ranges. Free Edit combines their
+geometry for OBJ output without requiring a shared rig, retaining up to eight
+original influence lanes in the session. Exact PAC output preserves each
+asset's original skin bytes, including references beyond its attached PAB's
+bone count; changed weights still require the explicit safe weight operation.
+Rigid accessories need no character appearance mapping. When no complete PAC
+palette resolves, archive loading retains source geometry and reports that
+character appearance and named weight editing are unavailable. Other appearance
+decode errors still stop loading. Rejections include the available zero-based
+mesh/vertex coordinates and expected/actual values in Activity and Log.
+
 `MeshEditorTab.open_mesh_session()` opens a scripted in-tab edit session for a
 `ParsedMesh` without starting Archive Browser UI. It creates the same
 authoritative service session and embedded Rust shadow workflow as an archive

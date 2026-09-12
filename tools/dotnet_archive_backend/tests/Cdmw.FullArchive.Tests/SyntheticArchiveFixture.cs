@@ -111,6 +111,9 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
                 Encoding.ASCII.GetBytes("PABC synthetic")),
             ("character/model/1_pc/2_phw/phw_damian.pamt", Encoding.ASCII.GetBytes("PAMT synthetic")),
             ("character/model/1_pc/2_phw/phw_01.pab", Encoding.ASCII.GetBytes("PAB synthetic")),
+            ("character/model/1_pc/1_phm/phm_01.pab", Encoding.ASCII.GetBytes("PAB male synthetic")),
+            ("character/model/2_mon/cd_m0001_02_phw/armor_south/cd_m0001_00_so_phw_ub_22002.pac", Encoding.ASCII.GetBytes("PAC NPC female armor")),
+            ("character/model/2_mon/cd_m0001_01_phm/armor_south/cd_m0001_00_so_phm_ub_22002.pac", Encoding.ASCII.GetBytes("PAC NPC male armor")),
             ("character/model/not_a_reference.H", Encoding.UTF8.GetBytes("not a preview dependency")),
             ("unrelated/other.dds", "DDS unrelated"u8.ToArray()),
         };

@@ -118,7 +118,9 @@ placement-preview inputs inside the selected target's prepared candidate set.
 For model previews, the worker repairs only registered path extensions followed
 by one printable prefab length byte, derives the base DDS beside explicit
 `_sp`/`_n` references, resolves selected-mesh `CD_*` material names as DDS
-basename hints, and includes the shared identity skeleton. Archive existence
+basename hints, including player-family tokens embedded in NPC equipment names,
+and includes the shared identity skeleton. The Python mesh loader verifies the
+candidate PAB against the PAC palette before attaching it. Archive existence
 still validates every derived candidate, so an unmatched binary fragment cannot
 enter the snapshot. A complete snapshot is the native preview core's in-memory
 archive index; it does not trigger a second full-PAMT parse.

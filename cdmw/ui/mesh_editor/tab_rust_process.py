@@ -477,7 +477,10 @@ class MeshEditorRustProcessMixin:
             self.standalone_rust_closing = True
             self._stop_rust_editor_process(reason="Mesh Editor cancelled; CDMW mesh unchanged.")
         else:
-            self._set_rust_status("Mesh Editor command completed.")
+            payload = response.get("payload", {})
+            result = payload.get("result", {}) if isinstance(payload, dict) else {}
+            warning = str(result.get("appearance_warning") or "") if isinstance(result, dict) else ""
+            self._set_rust_status(warning or "Mesh Editor command completed.")
 
     def _handle_rust_protocol_worker_error(
         self,

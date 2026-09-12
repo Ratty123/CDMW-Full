@@ -68,6 +68,7 @@ def prepare_archive_refit_source(args, stop_event):
         )
         raise_if_cancelled(stop_event, "Archive Refit loading cancelled")
         return {**args, "_archive_snapshot": snapshot, "_archive_preview_lease": lease,
-                "_archive_material_reason": reason, "_archive_neutral_appearance": appearance}
+                "_archive_material_reason": reason, "_archive_neutral_appearance": appearance,
+                "_archive_appearance_warning": getattr(loaded, "appearance_warning", "")}
     finally:
         loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)

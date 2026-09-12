@@ -36,6 +36,7 @@ from cdmw.core.common import (
 )
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
+from cdmw.domain.mesh.export_validation import describe_mesh_export_issue
 from cdmw.domain.mesh.morph import MeshMorphDefinition
 from cdmw.domain.mesh.authoring_capability import (
     MeshOutputPolicy,
@@ -6272,7 +6273,7 @@ def _skeleton_state_payload(
 
 def _validation_blockers(report: object) -> tuple[str, ...]:
     return tuple(
-        str(getattr(item, "message", "") or item).strip()
+        describe_mesh_export_issue(item)
         for item in tuple(getattr(report, "blockers", ()) or ())
         if str(getattr(item, "message", "") or item).strip()
     )

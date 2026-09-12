@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from cdmw.domain.mesh import MeshEditSelection
+from cdmw.domain.mesh.export_validation import describe_mesh_export_issue
 from cdmw.services.mesh_archive_refit import append_archive_refit
 from cdmw.services.mesh_refit_loading import stage_refit_morph_runtime
 from cdmw.services.mesh_service_state import _MeshGeometryLayer
@@ -38,7 +39,7 @@ def load_archive_refit(authoring, args, stop_event):
             session_id, combined, archive_refit_context=context,
         )
         if not prepared.validation_report.ok:
-            raise ValueError(prepared.validation_report.blockers[0].message)
+            raise ValueError(describe_mesh_export_issue(prepared.validation_report.blockers[0]))
         prepared = replace(prepared, selection=MeshEditSelection(source_indices=indices))
         admitted = authoring._preflight_mesh_document_capacity(prepared.working_mesh)
         stage_archive_refit_materials(authoring, prepared.working_mesh, context, stop_event)
@@ -70,7 +71,8 @@ def load_archive_refit(authoring, args, stop_event):
         if reason:
             authoring.texture_unavailable_reason = f"{entry.path}: {reason}"
         return {"session_id": view.session_id, "loaded_parts": indices, "role": role,
-                "archive_path": entry.path, "material_warning": reason}
+                "archive_path": entry.path, "material_warning": reason,
+                "appearance_warning": str(args.get("_archive_appearance_warning") or "")}
 
 
 def assign_loaded_refit_body(authoring, indices=None):
