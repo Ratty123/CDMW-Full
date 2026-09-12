@@ -86,12 +86,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 508,
+          "line": 515,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 509,
+          "line": 516,
           "sink": "setText"
         }
       ]
@@ -1256,7 +1256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 488,
+          "line": 495,
           "sink": "setText"
         }
       ]
@@ -13308,8 +13308,13 @@
     },
     {
       "key": "Beard",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Before",
@@ -13780,6 +13785,11 @@
           "sink": "QLabel"
         },
         {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/archive_mesh_comparison.py",
           "line": 62,
           "sink": "QLabel"
@@ -13801,7 +13811,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 602,
+          "line": 609,
           "sink": "information"
         },
         {
@@ -13826,7 +13836,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 602,
+          "line": 609,
           "sink": "information"
         }
       ]
@@ -30571,7 +30581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9157,
+          "line": 9174,
           "sink": "RuntimeError"
         }
       ]
@@ -36023,8 +36033,13 @@
     },
     {
       "key": "Facial detail",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Failed",
@@ -41333,6 +41348,11 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 93,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
         }
       ]
     },
@@ -41498,8 +41518,13 @@
     },
     {
       "key": "Head",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Head and eye tracking — how far they turn, and when they give up",
@@ -57841,7 +57866,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8502,
+          "line": 8519,
           "sink": "RuntimeError"
         }
       ]
@@ -57921,7 +57946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8432,
+          "line": 8449,
           "sink": "RuntimeError"
         }
       ]
@@ -57931,7 +57956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8428,
+          "line": 8445,
           "sink": "RuntimeError"
         }
       ]
@@ -57941,7 +57966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8403,
+          "line": 8420,
           "sink": "RuntimeError"
         }
       ]
@@ -82236,7 +82261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 428,
+          "line": 435,
           "sink": "setText"
         }
       ]
@@ -103806,7 +103831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 540,
+          "line": 547,
           "sink": "_invalidate"
         }
       ]
@@ -104741,7 +104766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 475,
+          "line": 482,
           "sink": "_preview_failed"
         }
       ]
@@ -108798,8 +108823,13 @@
     },
     {
       "key": "Unclassified",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Unclassified asset ({value_0} match)",
@@ -114378,8 +114408,13 @@
     },
     {
       "key": "Whole character",
-      "origins": [],
-      "manual": true
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 431,
+          "sink": "addItem"
+        }
+      ]
     },
     {
       "key": "Whole number",

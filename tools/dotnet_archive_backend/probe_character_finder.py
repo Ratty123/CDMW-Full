@@ -58,6 +58,8 @@ def run(args):
         window._character_finder_dialogs.add(dialog)
         dialog._view.setCurrentIndex(1 if args.view == "appearances" else 0)
         dialog._tabs.setCurrentIndex(1 if args.role in {"head", "facial_detail", "hair", "beard"} else 0)
+        for combo in dialog._filters.values():
+            combo.setCurrentIndex(0)
         for field, value in (("role", args.role), ("source_group", args.source_group)):
             if value:
                 combo = dialog._filters[field]
@@ -116,14 +118,36 @@ def run(args):
             report["interactive_camera"] = {"render_changed": changed, "capture_events": captures, "view_events": views}
             dialog._host.reset_view()
         tick()
-        # Qt's window backing-store capture omits the native D3D child and can
-        # retain its old loading panel. Capture the visible desktop rectangle.
+        # Qt's backing-store capture omits the native D3D child. Briefly raise
+        # this owned window above other apps and verify the capture is its own.
         import ctypes
         from ctypes import wintypes
         from PIL import ImageGrab
-        rect = wintypes.RECT()
-        ctypes.windll.user32.GetWindowRect(wintypes.HWND(int(dialog.winId())), ctypes.byref(rect))
-        ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True).save(args.output / "finder.png")
+        user32 = ctypes.windll.user32
+        user32.WindowFromPoint.argtypes = [wintypes.POINT]
+        user32.WindowFromPoint.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        user32.GetAncestor.restype = wintypes.HWND
+        hwnd = wintypes.HWND(int(dialog.winId()))
+        flags = 0x0001 | 0x0002 | 0x0010  # No resize, move, or activation.
+        if not user32.SetWindowPos(hwnd, wintypes.HWND(-1), 0, 0, 0, 0, flags):
+            raise RuntimeError("Could not raise the finder for its capture")
+        try:
+            raised = []
+            QTimer.singleShot(300, lambda: raised.append(True))
+            _Awaiter._wait_until(lambda: bool(raised), timeout_ms=1000)
+            rect = wintypes.RECT()
+            if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                raise RuntimeError("Could not locate the finder window")
+            for x, y in ((rect.left + 20, rect.top + 40), (rect.right - 20, rect.bottom - 20),
+                         ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)):
+                owner = user32.GetAncestor(user32.WindowFromPoint(wintypes.POINT(x, y)), 2)
+                if owner != hwnd.value:
+                    raise RuntimeError("Finder capture is obscured; no screenshot was recorded")
+            ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True).save(args.output / "finder.png")
+            report["finder_capture_owned_window"] = True
+        finally:
+            user32.SetWindowPos(hwnd, wintypes.HWND(-2), 0, 0, 0, 0, flags)
         report.update(completed=finished, renderer_active=dialog._host.controller._active, renderer_states=states[-30:],
             session=asdict(session), shown_key=dialog._shown_key,
             status=dialog._preview_status.text(), rows=[asdict(row) for row in dialog._rows.values()],

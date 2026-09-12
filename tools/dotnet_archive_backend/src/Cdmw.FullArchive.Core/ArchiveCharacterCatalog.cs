@@ -43,6 +43,7 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
             && tokens.All(token => (_search.GetValueOrDefault(row.Key) ?? SearchText(row, [])).Contains(token, StringComparison.Ordinal)))
             .ToArray();
         var rows = matching.Where(row => Matches(row.Role, request.Role)
+            && (row.Role != "unclassified" || request.Tab == "all" || request.Role == "unclassified")
             && Matches(row.SourceGroup, request.SourceGroup) && Matches(row.BodyFamily, request.BodyFamily)
             && Matches(row.Resolution, request.Resolution))
             .OrderBy(static row => row.Label, StringComparer.OrdinalIgnoreCase)

@@ -424,6 +424,13 @@ class CharacterFinderDialog(QDialog):
         self._tabs.setCurrentIndex(1 if target.role in {"head", "facial_detail", "hair", "beard"} else 0)
         for combo in self._filters.values():
             combo.setCurrentIndex(0)
+        if target.role == "unclassified":
+            role_filter = self._filters["role"]
+            index = role_filter.findData("unclassified")
+            if index < 0:
+                role_filter.addItem(ROLE_LABELS[target.role], target.role)
+                index = role_filter.count() - 1
+            role_filter.setCurrentIndex(index)
         self._search_edit.setText(target.path)
         self._relation_banner.setText("Related results · Show all results")
         self._relation_banner.setVisible(True)

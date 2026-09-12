@@ -42,11 +42,11 @@ def source_snapshot(root: Path) -> dict[str, object]:
     return result
 
 
-def run(root: Path, output: Path, worker: Path) -> None:
+def run(root: Path, output: Path, worker: Path, cache_root: Path | None = None) -> None:
     app = QCoreApplication.instance() or QCoreApplication([])
     output.mkdir(parents=True, exist_ok=True)
     before = source_snapshot(root)
-    client = ArchiveBackendClient(cache_root=output / "cache", worker_executable=worker)
+    client = ArchiveBackendClient(cache_root=cache_root or output / "cache", worker_executable=worker)
     service = ArchiveCatalogueService(client)
     awaiter = _Awaiter(service)
     service.progress.connect(lambda _id, update: print(f"{update.phase}: {update.completed}/{update.total} {update.current_item or ''}", flush=True)
@@ -78,6 +78,17 @@ def run(root: Path, output: Path, worker: Path) -> None:
                     raise AssertionError("Coverage paging stalled")
         if coverage_count != build.candidate_count or build.candidate_count != build.resolved_count + build.unresolved_count + build.excluded_count:
             raise AssertionError("Candidate accounting did not balance")
+        browse = {}
+        for tab in ("bodies", "faces"):
+            pages = []
+            for start in (0, 72):
+                result = awaiter.wait(service.search_character_catalog(CharacterCatalogSearchRequest(
+                    session.session_id, tab=tab, page_start=start), ui_generation=1))
+                for row in result.rows:
+                    if row.role == "unclassified" or row.model_count != 1 or Path(row.path).suffix.lower() not in {".pac", ".pam", ".pamlod"}:
+                        raise AssertionError(f"Default {tab} browse contains a non-model or unclassified result: {row.key}")
+                pages.append(asdict(result))
+            browse[tab] = pages
         samples = {}
         for query in ("Kliff", "Damiane", "Oongka"):
             result = awaiter.wait(service.search_character_catalog(CharacterCatalogSearchRequest(
@@ -90,7 +101,7 @@ def run(root: Path, output: Path, worker: Path) -> None:
         report = {"schema": "cdmw_character_catalog_audit_v1", "package_root": str(root), "session": asdict(session),
                   "catalogue": asdict(build), "warm_cache": warm.used_cache, "coverage_count": coverage_count,
                   "groups": [{"role": role, "resolution": state, "count": count} for (role, state), count in sorted(counts.items())],
-                  "samples": samples, "archive_snapshot_unchanged": before == after, "source_snapshot": before,
+                  "samples": samples, "default_browse": browse, "archive_snapshot_unchanged": before == after, "source_snapshot": before,
                   "elapsed_seconds": round(time.monotonic() - started, 3)}
         (output / "audit.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         if before != after:
@@ -106,6 +117,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--cache-root", type=Path, help="Reuse an existing read-only archive inventory cache; write new audit evidence to --output.")
     parser.add_argument("--worker", type=Path, default=ROOT / "tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/bin/Release/net10.0-windows/win-x64/cdmw-full-archive-worker.exe")
     args = parser.parse_args()
-    run(args.package_root, args.output, args.worker)
+    run(args.package_root, args.output, args.worker, args.cache_root)

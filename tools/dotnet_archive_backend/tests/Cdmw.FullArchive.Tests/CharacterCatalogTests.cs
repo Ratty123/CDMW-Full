@@ -31,6 +31,7 @@ internal static class CharacterCatalogTests
         var shadowed = Add(body, [1], "0038");
         var active = Add(body.ToUpperInvariant(), [2], "0036");
         var head = Add("character/model/1_pc/1_phm/head/hero_head_0001.pac", [3]);
+        Xml("character/modelproperty/1_pc/1_phm/head/hero_head_0001.pac_xml", "<Mesh _subMeshName=\"hero_body_neck_01\"/>");
         var orphan = Add("character/model/3_npc/nude/orphan_body_0001.pac", [4]);
         Add("character/model/1_pc/1_phm/armor/hero_ub_0001.pac", [5]);
         Add("character/model/3_npc/a/head/duplicate_head_0001.pac", [6]);
@@ -46,6 +47,21 @@ internal static class CharacterCatalogTests
         Add("character/customization/hero_custom.paccd", [9]);
         Xml("character/modelproperty/1_pc/1_phm/nude/hero_body_0001.pac_xml", "<Header/>\n<Material FileName=\"character/texture/hero.dds\"/><Mesh _subMeshName=\"hero_head_01\"/><Mesh _subMeshName=\"hero_nude_01\"/>");
         Add("character/texture/hero.dds", [10]);
+        const string creatureRoot = "character/model/2_mon/test_creature/";
+        var creature = Add(creatureRoot + "creature_0001.pac", [11]);
+        var boots = Add(creatureRoot + "creature_foot_0040.pac", [12]);
+        var bag = Add(creatureRoot + "creature_bag_0040.pac", [13]);
+        var fur = Add(creatureRoot + "creature_0001_00_spline.pac", [14]);
+        Xml("character/modelproperty/2_mon/test_creature/creature_0001.pac_xml",
+            "<Mesh _subMeshName=\"creature_body_01\"/>");
+        Xml("character/modelproperty/2_mon/test_creature/creature_0001_00_spline.pac_xml",
+            "<Mesh _subMeshName=\"creature_hair_01_spline\"/>");
+        Xml("character/prefab/2_mon/test_creature/creature_nude_0001.prefabdata_xml",
+            "<Prefab>" + string.Join("", new[] { creature, boots, bag, fur }.Select(entry => $"<Mesh FileName=\"{entry.Path}\"/>")) + "</Prefab>");
+        const string creatureAppearance = "character/appearance/2_mon/test_creature/creature.app_xml";
+        Xml(creatureAppearance, "<Appearance><Nude Name=\"creature_nude_0001\"/></Appearance>");
+        Xml("character/bin__/sequenceprefab/01_tool/cd_ani_cd_alchemy_bottle_03.prefab",
+            "<Prefab FileName=\"object/products/alchemy/cd_alchemy_bottle_03.pami\"/>");
         for (var i = 0; i < 80; i++) Add($"character/model/4_riding/nude/mount_body_{i:0000}.pac", [1]);
 
         const string table = "gamedata/binarystaticinfo__/bin/";
@@ -86,6 +102,7 @@ internal static class CharacterCatalogTests
         Check(physical.Row.UsageCount >= 2 && physical.Characters.Single().CharacterId == 1, "shared model ownership failed");
         Check(physical.Row.EmbeddedFace && details.Row.EmbeddedFace, "declared embedded head submesh was lost");
         Check(!catalogue.GetRequired(hero.Rows.Single(row => row.Role == "head").Key).Row.EmbeddedFace, "separate head was mislabeled as embedded");
+        Check(catalogue.GetRequired("asset:" + head.Path).Row.Role == "head", "a neck submesh relabeled an explicit head as a body");
         Check(physical.RelatedIds.Any(id => inventory[(int)id].Path == appearance), "asset related-file scope lost appearance");
         Check(catalogue.Search(new("fixture", Query: "duplicate", View: "appearances", Tab: "faces")).Rows.Single().Resolution == "ambiguous", "duplicate basenames were arbitrarily resolved");
         Check(catalogue.Search(new("fixture", Query: "missing", View: "appearances")).Rows.Single().PreviewStatus == "unresolved_model", "unresolved reference disappeared");
@@ -98,6 +115,20 @@ internal static class CharacterCatalogTests
         Check(snapshot.Coverage.Count(r => r.Key.StartsWith("coverage:")) == inventory.Count(e => e.Path.StartsWith("character/", StringComparison.OrdinalIgnoreCase)
             && e.Extension is ".pac" or ".app_xml" or ".prefab" or ".prefabdata_xml"), "physical candidate coverage is incomplete");
         Check(catalogue.Search(new("fixture", Role: "unclassified")).Rows.Any(), "unclassified candidates are inaccessible");
+        var defaultBodies = catalogue.Search(new("fixture"));
+        Check(defaultBodies.Rows.All(row => row.Role != "unclassified"), "default body browsing includes unclassified candidates");
+        Check(defaultBodies.Facets.Any(facet => facet.Field == "role" && facet.Value == "unclassified"), "unclassified filter disappeared");
+        var assets = snapshot.Records.Where(record => record.Row.View == "assets").ToArray();
+        Check(assets.All(record => record.Row.ModelCount == 1 && Path.GetExtension(record.Row.Path).ToLowerInvariant() is ".pac" or ".pam" or ".pamlod"),
+            "reference-only descriptors were advertised as unique model assets");
+        Check(!assets.Any(record => record.Row.Path == boots.Path || record.Row.Path == bag.Path),
+            "appearance membership relabeled equipment as body assets");
+        Check(catalogue.GetRequired("asset:" + fur.Path).Row.Role == "hair", "spline fur submesh was labeled as a body");
+        Check(catalogue.GetRequired("asset:" + creature.Path).Row.Role is "body" or "whole_character", "actual creature body was lost");
+        var creatureDetail = catalogue.GetRequired("appearance:" + creatureAppearance + "#body");
+        Check(creatureDetail.Components.SelectMany(component => component.ModelEntryIds).Contains(boots.EntryId)
+            && creatureDetail.RelatedIds.Contains(bag.EntryId), "appearance assembly lost its equipment dependencies");
+        Check(snapshot.Coverage.Any(row => row.Path.EndsWith("cd_ani_cd_alchemy_bottle_03.prefab")), "excluded descriptor disappeared from coverage");
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         try { Build(cancelled.Token); throw new InvalidOperationException("cancelled build published"); }
         catch (OperationCanceledException) { }

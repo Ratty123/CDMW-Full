@@ -18,6 +18,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Body & Face Finder no longer lists unresolved prefab/prop descriptors as unique models or promotes armor and accessories to bodies through appearance membership. Physical submesh metadata identifies fur and facial details; unclassified models remain available through their filter. Existing character catalogs rebuild automatically.
 - Morph & Refit accepts loose body/armor combinations with different bone-reference ranges and preserves original seventh/eighth skin influences. Exact PAC geometry edits also preserve original skin slots that exceed the attached rig's bone count; unsupported weight changes remain blocked.
 - Archive loading finds the player rig used by NPC outfits and rejects unrelated descriptor rigs. Rigid accessories remain editable, and meshes without a complete character palette open in source geometry with an explicit notice and named weight editing disabled.
 - Mesh Editor rejection messages include the affected mesh/vertex and expected/actual values when available, and appear in both Activity and Log.

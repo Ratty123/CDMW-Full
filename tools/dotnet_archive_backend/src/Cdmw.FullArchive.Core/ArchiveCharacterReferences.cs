@@ -17,7 +17,7 @@ internal sealed class ArchiveCharacterReferences(
         .GroupBy(static entry => entry.Name, StringComparer.OrdinalIgnoreCase)
         .ToDictionary(static group => group.Key, static group => group.ToArray(), StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<long, ((string Attribute, string Value)[] References, string[] Evidence)> _references = [];
-    private readonly Dictionary<long, bool> _embeddedFaces = [];
+    private readonly Dictionary<long, (string Role, bool EmbeddedFace)> _modelRoles = [];
     private static readonly string[] NameExtensions = [".prefab", ".prefabdata_xml", ".pac", ".pam", ".pamlod", ".pac_xml"];
     private static readonly HashSet<string> Readable = new(StringComparer.OrdinalIgnoreCase)
         { ".prefab", ".prefabdata_xml", ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".xml" };
@@ -27,9 +27,14 @@ internal sealed class ArchiveCharacterReferences(
     internal static bool IsCandidate(ArchiveEntryDto entry) => IsModel(entry)
         || entry.Extension is ".app_xml" or ".prefab" or ".prefabdata_xml";
 
-    public bool HasEmbeddedFace(ArchiveEntryDto model)
+    public bool HasEmbeddedFace(ArchiveEntryDto model) => ModelClassification(model).EmbeddedFace;
+
+    public string ModelRole(ArchiveEntryDto model) => ModelClassification(model).Role;
+
+    private (string Role, bool EmbeddedFace) ModelClassification(ArchiveEntryDto model)
     {
-        if (_embeddedFaces.TryGetValue(model.EntryId, out var cached)) return cached;
+        if (_modelRoles.TryGetValue(model.EntryId, out var cached)) return cached;
+        var role = Role(model.Path);
         var path = Normalize(model.Path).Replace("/model/", "/modelproperty/") + "_xml";
         var found = false;
         if (entries.TryGetValue(path, out var descriptor) && descriptor.OriginalSize <= 16 * 1024 * 1024)
@@ -40,13 +45,23 @@ internal sealed class ArchiveCharacterReferences(
                 var names = document.Descendants().Attributes()
                     .Where(static attribute => attribute.Name.LocalName == "_subMeshName")
                     .Select(static attribute => Normalize(attribute.Value)).ToArray();
-                found = names.Any(static name => Regex.IsMatch(name, @"(?:^|_)(?:head|face)(?:_|$)"))
-                    && names.Any(static name => Regex.IsMatch(name, @"(?:^|_)(?:body|nude)(?:_|$)"));
+                var roles = names.Select(Role).Distinct().ToArray();
+                found = roles.Contains("body") && roles.Contains("head");
+                // A body prefab can include clothing, fur and separate facial parts.
+                // Classify the physical mesh from its own submeshes, not its parent.
+                // Unknown submeshes prevent a partial match (e.g. a gorilla's head)
+                // from turning the whole character into a standalone head asset.
+                if (role is "body" or "unclassified")
+                {
+                    if (roles.Contains("body")) role = "body";
+                    else if (roles.Length == 1 && roles[0] != "unclassified") role = roles[0];
+                    else if (roles.Length > 0 && roles.All(static value => value is "head" or "facial_detail")) role = "head";
+                    else if (roles.Length > 0 && roles.All(static value => value is "hair" or "beard")) role = "hair";
+                }
             }
             catch (Exception error) when (error is IOException or XmlException or InvalidDataException or ArgumentException) { }
         }
-        _embeddedFaces[model.EntryId] = found;
-        return found;
+        return _modelRoles[model.EntryId] = (role, found);
     }
 
     internal static string Role(string path)
@@ -54,10 +69,10 @@ internal sealed class ArchiveCharacterReferences(
         var normalized = Normalize(path);
         var parts = normalized.Split('/');
         var stem = Path.GetFileNameWithoutExtension(normalized);
-        if (parts.Contains("armor") || parts.Contains("weapon") || Regex.IsMatch(stem, @"_(?:ub|lb|hand|foot|hel|cloak|sword|shield|bow|saddle|parthide)_")) return "excluded";
-        if (parts.Contains("hair") || stem.Contains("_hair_")) return "hair";
+        if (parts.Contains("armor") || parts.Contains("weapon") || Regex.IsMatch(stem, @"_(?:armor|ub|lb|hand|foot|hel|cloak|sword|shield|bow|saddle|parthide|bag|belt|chain|flail|floor|saliva|uw)_")) return "excluded";
+        if (parts.Contains("hair") || Regex.IsMatch(stem, @"_(?:hair\d*|fur|fuzz)_")) return "hair";
         if (parts.Contains("beard") || stem.Contains("_beard_")) return "beard";
-        if (parts.Contains("head_sub") || Regex.IsMatch(stem, @"_(?:head_sub|eyebrow|eyeline|eyelash|eye|teeth|tooth)_")) return "facial_detail";
+        if (parts.Contains("head_sub") || Regex.IsMatch(stem, @"_(?:head_sub|eyebrow|eyeline|eyelash|eye|eyeleft|eyeright|teeth|tooth|horn|tongue)_")) return "facial_detail";
         if (parts.Contains("head") || parts.Contains("face") || Regex.IsMatch(stem, @"_(?:head|face)_")) return "head";
         if (parts.Contains("nude") || parts.Contains("body") || Regex.IsMatch(stem, @"_(?:nude|body)_")) return "body";
         if (normalized.Contains("/6_object/") || normalized.Contains("/7_montower/")) return "excluded";

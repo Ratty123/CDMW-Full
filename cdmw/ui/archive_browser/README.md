@@ -89,9 +89,13 @@ Archive Browser, where existing extraction/export/editor actions remain availabl
 
 The resident .NET archive worker owns the character catalogue independently of
 ItemInfo. It accounts for active models and appearance/prefab references, including
-orphans, unresolved ownership and ambiguous basenames. Known equipment is excluded
-unless an authored body/face component references it. Unclassified candidates
-remain accessible. Mount precedence chooses active paths; complete CharacterInfo
+orphans, unresolved ownership and ambiguous basenames. Unique assets contain actual
+model files; unresolved descriptors remain in reference coverage and appearance
+details. Equipment remains part of its owning appearance assembly without becoming
+a standalone body result. Mesh/submesh metadata distinguishes bodies from hair,
+fur and accessories. Unclassified models require the **Unclassified** component
+filter instead of appearing in default Bodies/Faces results. Mount precedence
+chooses active paths; complete CharacterInfo
 table pairs and verified CharacterAppearanceIndexInfo full-path hashes supply
 names. Missing XML attribute separators are repaired only in memory and reported.
 
