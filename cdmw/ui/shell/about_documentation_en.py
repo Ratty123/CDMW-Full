@@ -421,6 +421,11 @@ class AboutDocumentationEnglishMixin:
                   <li>Edits and Undo/Redo stay in an isolated session until Finish Edit Mesh validates and publishes the result. Run validation again before exporting the changed revision.</li>
                 </ul>
                 <p>Use Orbit to navigate without editing: right-drag orbits, middle-drag pans, and the wheel zooms. Fit frames the whole mesh; Frame Selected frames the selection. Solid (Textured) needs resolved materials. Solid + Wire, X-Ray, Normals, Bounds, and Bones provide inspection views.</p>
+                <h4>Replacement imports</h4>
+                <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
+                <p>Imports keep their decoded size and position. Fit to Original is optional; Reset Placement restores the import. Mod controls output inclusion; viewport hiding stays independent.</p>
+                <p>Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.</p>
+                <p>Replacement supports one eligible PAC, PAM or PAMLOD at a time. Clear active Morph &amp; Refit bindings first; unsupported layouts or missing dependencies block Apply.</p>
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>

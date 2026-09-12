@@ -2827,13 +2827,36 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
+        // Replacement targets keep their material slots when imported layouts
+        // differ from the archive layout. Reload the explicit immutable binding
+        // in that case instead of letting ordinary source-identity remapping
+        // discard a target's texture during Edit / Original / Output comparison.
+        let replacement_rebind = document.as_ref().is_some_and(|next| {
+            (state["replacement"]["active"].as_bool() == Some(true)
+                || self.cdmw_state["replacement"]["active"].as_bool() == Some(true))
+                && self.document.as_ref().is_some_and(|previous| {
+                    previous.lods.len() != next.lods.len()
+                        || previous.lods.iter().zip(&next.lods).any(|(before, after)| {
+                            before.submeshes.len() != after.submeshes.len()
+                                || before
+                                    .submeshes
+                                    .iter()
+                                    .zip(&after.submeshes)
+                                    .any(|(before, after)| !same_source_part(before, after))
+                        })
+                })
+        });
         let materials = self
             .cdmw_bridge
             .as_ref()
             .map(|bridge| {
                 bridge.materials_from_state(
                     &state,
-                    &self.cdmw_material_key,
+                    if replacement_rebind {
+                        ""
+                    } else {
+                        &self.cdmw_material_key
+                    },
                     document.as_ref().or(self.document.as_ref()),
                 )
             })
@@ -2879,6 +2902,9 @@ impl LabApplication {
         let viewport_tool = self.viewport_tool;
         let show_bones = self.show_bones;
         let active_lod_index = self.active_lod_index;
+        let replacement_hidden_parts = (self.cdmw_state["replacement"]["active"].as_bool()
+            == Some(true))
+        .then(|| self.cdmw_hidden_parts.clone());
         let (textures, material_presentations, material_revision) = if let Some(update) = materials
         {
             (
@@ -2987,6 +3013,9 @@ impl LabApplication {
         self.cdmw_rail_page = rail_page;
         self.viewport_tool = viewport_tool;
         self.show_bones = show_bones;
+        if let Some(hidden_parts) = replacement_hidden_parts {
+            self.cdmw_hidden_parts = hidden_parts;
+        }
         self.apply_cdmw_selection_state(true);
         Ok(())
     }

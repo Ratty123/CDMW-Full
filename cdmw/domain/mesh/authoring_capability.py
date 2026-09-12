@@ -46,6 +46,7 @@ class MeshOutputPolicy(str, Enum):
     """What kind of output the active editor session is allowed to produce."""
 
     EXACT_GAME_ASSET = "exact_game_asset"
+    REPLACEMENT_GAME_ASSET = "replacement_game_asset"
     FREE_EDIT = "free_edit_rebuild"
     READ_ONLY = "read_only"
 
@@ -404,6 +405,15 @@ def output_policy_state(
             policy = MeshOutputPolicy.READ_ONLY
 
     destination = str(output_destination or "").strip()
+    if policy is MeshOutputPolicy.REPLACEMENT_GAME_ASSET:
+        capability = geometry_authoring_capability(normalized, lod_index=lod_index)
+        if capability.support is AuthoringSupport.EXACT:
+            return MeshOutputPolicyState(
+                normalized, int(lod_index), policy, "", False,
+                AuthoringCapability(AuthoringSupport.REBUILD, "", "Prepared archive replacement output"),
+                AuthoringSupport.REBUILD,
+            )
+        policy = MeshOutputPolicy.READ_ONLY
     if policy is MeshOutputPolicy.EXACT_GAME_ASSET:
         capability = geometry_authoring_capability(normalized, lod_index=lod_index)
         if capability.support not in {AuthoringSupport.EXACT, AuthoringSupport.UNPROVEN}:

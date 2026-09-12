@@ -3507,6 +3507,16 @@
       ]
     },
     {
+      "key": "A replacement draft cannot fall back to a generation without its output state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 278,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "A required file is missing. Refresh the archive catalogue and select the model again.",
       "origins": [],
       "manual": true
@@ -6101,12 +6111,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 289,
+          "line": 292,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 562,
+          "line": 578,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -6633,6 +6643,16 @@
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 551,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Ambiguous original material dependency: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 90,
+          "sink": "ValueError"
         }
       ]
     },
@@ -7651,7 +7671,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 533,
+          "line": 534,
           "sink": "emit"
         }
       ]
@@ -8106,7 +8126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 458,
+          "line": 471,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -8276,7 +8296,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 504,
+          "line": 505,
           "sink": "emit"
         }
       ]
@@ -8926,7 +8946,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 842,
+          "line": 884,
           "sink": "ValueError"
         }
       ]
@@ -8936,7 +8956,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 747,
+          "line": 751,
           "sink": "RuntimeError"
         }
       ]
@@ -8976,7 +8996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1302,
+          "line": 1315,
           "sink": "ValueError"
         }
       ]
@@ -9941,7 +9961,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 840,
+          "line": 882,
           "sink": "ValueError"
         }
       ]
@@ -13056,7 +13076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 973,
+          "line": 976,
           "sink": "ValueError"
         }
       ]
@@ -13066,7 +13086,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 904,
+          "line": 907,
           "sink": "ValueError"
         }
       ]
@@ -13076,7 +13096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 955,
+          "line": 958,
           "sink": "ValueError"
         }
       ]
@@ -13086,7 +13106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 931,
+          "line": 934,
           "sink": "ValueError"
         }
       ]
@@ -15951,12 +15971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 621,
+          "line": 651,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 692,
+          "line": 722,
           "sink": "show_result"
         }
       ]
@@ -16916,42 +16936,42 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 502,
+          "line": 503,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 531,
+          "line": 532,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 536,
+          "line": 537,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 541,
+          "line": 542,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 585,
+          "line": 586,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 600,
+          "line": 601,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 605,
+          "line": 606,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 610,
+          "line": 611,
           "sink": "emit"
         }
       ]
@@ -16961,7 +16981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 321,
+          "line": 322,
           "sink": "_stop_rust_editor_process"
         }
       ]
@@ -16971,12 +16991,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 762,
+          "line": 792,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 779,
+          "line": 809,
           "sink": "_set_rust_status"
         }
       ]
@@ -16986,7 +17006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 456,
+          "line": 469,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -17271,7 +17291,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 730,
+          "line": 734,
           "sink": "emit"
         }
       ]
@@ -19672,6 +19692,16 @@
       ]
     },
     {
+      "key": "Choose a replacement model first.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 92,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a source image and an existing target icon path.",
       "origins": [
         {
@@ -19693,6 +19723,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1844,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Choose a target part for every imported part before applying replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 178,
+          "sink": "ValueError"
         }
       ]
     },
@@ -19798,6 +19838,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_panel.py",
           "line": 579,
           "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Choose an OBJ, DAE, glTF or GLB replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 135,
+          "sink": "ValueError"
         }
       ]
     },
@@ -20162,6 +20212,16 @@
       ]
     },
     {
+      "key": "Choose original or imported materials.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 173,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose packaged mods folder",
       "origins": [
         {
@@ -20393,6 +20453,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 70,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Choose valid parts to include in the mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 245,
+          "sink": "ValueError"
         }
       ]
     },
@@ -21058,6 +21128,16 @@
           "path": "cdmw/ui/archive_browser/controls_panel.py",
           "line": 74,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Clear the active Morph & Refit profile before replacing parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
         }
       ]
     },
@@ -26511,7 +26591,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 914,
+          "line": 972,
           "sink": "ValueError"
         }
       ]
@@ -26521,7 +26601,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 933,
+          "line": 992,
           "sink": "RuntimeError"
         }
       ]
@@ -26531,7 +26611,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 977,
+          "line": 1036,
           "sink": "RuntimeError"
         }
       ]
@@ -29762,6 +29842,16 @@
       "manual": true
     },
     {
+      "key": "Duplicate replacement companion: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 201,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Duplicate this object",
       "origins": [
         {
@@ -30216,7 +30306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9119,
+          "line": 9157,
           "sink": "RuntimeError"
         }
       ]
@@ -30296,7 +30386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 511,
+          "line": 529,
           "sink": "RuntimeError"
         }
       ]
@@ -30306,7 +30396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 640,
+          "line": 658,
           "sink": "RuntimeError"
         }
       ]
@@ -30316,7 +30406,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 443,
+          "line": 459,
           "sink": "RuntimeError"
         }
       ]
@@ -33646,7 +33736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 289,
+          "line": 292,
           "sink": "getSaveFileName"
         },
         {
@@ -33661,7 +33751,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 637,
+          "line": 640,
           "sink": "RuntimeError"
         }
       ]
@@ -35961,7 +36051,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 830,
+          "line": 872,
           "sink": "ValueError"
         }
       ]
@@ -37431,7 +37521,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 602,
+          "line": 603,
           "sink": "emit"
         }
       ]
@@ -38771,7 +38861,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1321,
+          "line": 1338,
           "sink": "ValueError"
         }
       ]
@@ -38781,7 +38871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1219,
+          "line": 1232,
           "sink": "RuntimeError"
         }
       ]
@@ -38796,7 +38886,7 @@
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1317,
+          "line": 1334,
           "sink": "ValueError"
         }
       ]
@@ -38816,7 +38906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1319,
+          "line": 1336,
           "sink": "ValueError"
         }
       ]
@@ -38826,7 +38916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1308,
+          "line": 1325,
           "sink": "ValueError"
         }
       ]
@@ -39688,6 +39778,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_custom_icon.py",
           "line": 490,
           "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Generated material sidecar has no captured target: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 214,
+          "sink": "ValueError"
         }
       ]
     },
@@ -42897,6 +42997,16 @@
       ]
     },
     {
+      "key": "Import Replacement",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 21,
+          "sink": "getOpenFileName"
+        }
+      ]
+    },
+    {
       "key": "Import Socket Evidence Folder...",
       "origins": [
         {
@@ -42963,6 +43073,36 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 887,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Import a replacement before adjusting its placement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 255,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Import a replacement or change output inclusion before previewing output.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 65,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Import a replacement or change part inclusion before choosing replacement output.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1319,
+          "sink": "ValueError"
         }
       ]
     },
@@ -43167,6 +43307,16 @@
       ]
     },
     {
+      "key": "Import topology changed; undo topology edits before resetting placement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 278,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Import validation:",
       "origins": [
         {
@@ -43267,6 +43417,16 @@
       ]
     },
     {
+      "key": "Imported dependency changed during preparation: {value_0}. Import again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 126,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Imported global recolor templates: {value_0}",
       "origins": [
         {
@@ -43292,6 +43452,116 @@
       ]
     },
     {
+      "key": "Imported material conversion failed: ",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 184,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported material has no prepared texture binding: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement_materials.py",
+          "line": 70,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported material {value_0} has no proven target binding.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 191,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials have no proven target sidecar wrapper mapping.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 224,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials produced no output textures or sidecars; original-material fallback is disabled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 186,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require a captured archive target identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 156,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require a complete prepared material and texture bundle.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 175,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require a readable target material sidecar (.pac_xml or .pami).",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 171,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require one source material part per target part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 127,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require one source material part per target part. Split the mapping before applying.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 199,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Imported materials require the original material sidecar and texture dependencies.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 129,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Imported model",
       "origins": [
         {
@@ -43308,6 +43578,16 @@
           "path": "cdmw/ui/new_item/controller_preview_mixin.py",
           "line": 102,
           "sink": "RunCancelled"
+        }
+      ]
+    },
+    {
+      "key": "Imported skinning is not supported by this replacement workflow. Import an unskinned model.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 146,
+          "sink": "ValueError"
         }
       ]
     },
@@ -43468,6 +43748,16 @@
           "path": "cdmw/ui/replace_assistant/queue.py",
           "line": 115,
           "sink": "setFormat"
+        }
+      ]
+    },
+    {
+      "key": "Imports keep their decoded size and position. Fit to Original is optional; Reset Placement restores the import. Mod controls output inclusion; viewport hiding stays independent.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -45447,6 +45737,66 @@
       ]
     },
     {
+      "key": "Invalid replacement archive identity.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 79,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid replacement companion: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 199,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid replacement draft parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 87,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid replacement draft resource path or size.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 67,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid replacement import placement data.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 91,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid replacement output intent.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid resident interaction transaction descriptor.",
       "origins": [],
       "manual": true
@@ -46596,7 +46946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 562,
+          "line": 578,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -47526,7 +47876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 295,
+          "line": 313,
           "sink": "ValueError"
         }
       ]
@@ -47546,7 +47896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 895,
+          "line": 898,
           "sink": "ValueError"
         }
       ]
@@ -49901,7 +50251,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 828,
+          "line": 870,
           "sink": "ValueError"
         }
       ]
@@ -50173,6 +50523,46 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 653,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Lower LOD geometry transfer is unsupported: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 119,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Lower LOD material has no target mapping: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 111,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Lower LOD material mapping is ambiguous: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 103,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Lower LOD {value_0} changed its required section layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 107,
+          "sink": "ValueError"
         }
       ]
     },
@@ -51172,6 +51562,16 @@
       ]
     },
     {
+      "key": "Material mapping is not an unambiguous target wrapper: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 33,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.",
       "origins": [
         {
@@ -52151,7 +52551,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2178,
+          "line": 2195,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -52221,12 +52621,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 762,
+          "line": 792,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 779,
+          "line": 809,
           "sink": "_set_rust_status"
         }
       ]
@@ -52236,8 +52636,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 497,
-          "sink": "_set_rust_status"
+          "line": 513,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -52621,7 +53021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 478,
+          "line": 491,
           "sink": "_stop_rust_editor_process"
         },
         {
@@ -52681,7 +53081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 351,
+          "line": 352,
           "sink": "_set_rust_status"
         }
       ]
@@ -52691,7 +53091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 340,
+          "line": 341,
           "sink": "_set_rust_status"
         }
       ]
@@ -52716,7 +53116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 819,
+          "line": 820,
           "sink": "_set_rust_status"
         }
       ]
@@ -52726,7 +53126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 836,
+          "line": 839,
           "sink": "RuntimeError"
         }
       ]
@@ -52736,7 +53136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 701,
+          "line": 731,
           "sink": "_set_rust_status"
         }
       ]
@@ -52746,7 +53146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 707,
+          "line": 737,
           "sink": "show_error"
         }
       ]
@@ -52756,7 +53156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 686,
+          "line": 716,
           "sink": "_set_rust_status"
         }
       ]
@@ -52766,8 +53166,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 480,
-          "sink": "_set_rust_status"
+          "line": 496,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -52776,7 +53176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 539,
+          "line": 540,
           "sink": "_set_rust_status"
         }
       ]
@@ -52811,7 +53211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 739,
+          "line": 740,
           "sink": "_set_rust_status"
         }
       ]
@@ -52821,7 +53221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 556,
+          "line": 557,
           "sink": "_set_rust_status"
         }
       ]
@@ -52831,7 +53231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 629,
+          "line": 659,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -52886,17 +53286,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 624,
-          "sink": "_set_rust_status"
+          "line": 654,
+          "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 636,
+          "line": 666,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 695,
+          "line": 725,
           "sink": "_set_rust_status"
         }
       ]
@@ -52986,7 +53386,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1263,
+          "line": 1276,
           "sink": "RuntimeError"
         }
       ]
@@ -53011,12 +53411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 274,
+          "line": 275,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 516,
+          "line": 517,
           "sink": "_set_rust_status"
         }
       ]
@@ -53026,7 +53426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 410,
+          "line": 411,
           "sink": "_set_rust_status"
         }
       ]
@@ -53051,17 +53451,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 212,
+          "line": 213,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 213,
+          "line": 214,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 222,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -53101,7 +53501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 246,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -53216,7 +53616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 854,
+          "line": 857,
           "sink": "RuntimeError"
         }
       ]
@@ -53236,12 +53636,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 617,
+          "line": 618,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 752,
+          "line": 753,
           "sink": "_set_rust_status"
         }
       ]
@@ -53276,7 +53676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 655,
+          "line": 685,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -53316,8 +53716,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 501,
-          "sink": "_set_rust_status"
+          "line": 517,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -53591,17 +53991,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 212,
+          "line": 213,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 213,
+          "line": 214,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 222,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -53611,17 +54011,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 212,
+          "line": 213,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 213,
+          "line": 214,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 222,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -53631,7 +54031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 533,
+          "line": 534,
           "sink": "_set_rust_status"
         }
       ]
@@ -53801,7 +54201,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 716,
+          "line": 719,
           "sink": "ValueError"
         }
       ]
@@ -53811,7 +54211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 289,
+          "line": 292,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -53906,7 +54306,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 90,
+          "line": 91,
           "sink": "RunCancelled"
         }
       ]
@@ -53936,7 +54336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 515,
+          "line": 516,
           "sink": "RuntimeError"
         }
       ]
@@ -54066,22 +54466,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 105,
+          "line": 108,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 127,
+          "line": 130,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 215,
+          "line": 221,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 319,
+          "line": 337,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -54166,7 +54566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 263,
+          "line": 269,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -54196,7 +54596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 97,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -54206,7 +54606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 339,
+          "line": 357,
           "sink": "RuntimeError"
         }
       ]
@@ -54216,7 +54616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 322,
+          "line": 340,
           "sink": "RuntimeError"
         }
       ]
@@ -54226,7 +54626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 335,
+          "line": 353,
           "sink": "RuntimeError"
         }
       ]
@@ -54268,6 +54668,26 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
           "line": 139,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "Mesh models",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 21,
+          "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Mesh models (*.obj *.dae *.gltf *.glb)",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 21,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -54631,12 +55051,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 729,
+          "line": 733,
           "sink": "RunCancelled"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 757,
+          "line": 789,
           "sink": "RunCancelled"
         }
       ]
@@ -54646,12 +55066,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 789,
+          "line": 822,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 792,
+          "line": 825,
           "sink": "emit"
         }
       ]
@@ -54711,7 +55131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1870,
+          "line": 1871,
           "sink": "ValueError"
         }
       ]
@@ -54866,7 +55286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 1911,
+          "line": 1912,
           "sink": "ValueError"
         }
       ]
@@ -54886,7 +55306,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 786,
+          "line": 819,
           "sink": "emit"
         }
       ]
@@ -54896,7 +55316,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 738,
+          "line": 742,
           "sink": "RuntimeError"
         }
       ]
@@ -55467,6 +55887,51 @@
       ]
     },
     {
+      "key": "Missing imported dependency: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 109,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Missing imported material library: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 94,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Missing imported texture: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 114,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 175,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Missing imported {value_0} texture: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 150,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Missing mapped animation and default",
       "origins": [
         {
@@ -55483,6 +55948,26 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 636,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "Missing prepared texture for {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement_materials.py",
+          "line": 57,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Missing required generated texture: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 196,
+          "sink": "ValueError"
         }
       ]
     },
@@ -57041,7 +57526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8469,
+          "line": 8502,
           "sink": "RuntimeError"
         }
       ]
@@ -57111,7 +57596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 419,
+          "line": 435,
           "sink": "ValueError"
         }
       ]
@@ -57121,7 +57606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8399,
+          "line": 8432,
           "sink": "RuntimeError"
         }
       ]
@@ -57131,7 +57616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8395,
+          "line": 8428,
           "sink": "RuntimeError"
         }
       ]
@@ -57141,7 +57626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8370,
+          "line": 8403,
           "sink": "RuntimeError"
         }
       ]
@@ -57256,7 +57741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2177,
+          "line": 2194,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -58091,7 +58576,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 154,
+          "line": 155,
           "sink": "RuntimeError"
         }
       ]
@@ -58151,7 +58636,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 126,
+          "line": 127,
           "sink": "RuntimeError"
         }
       ]
@@ -58181,7 +58666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 113,
+          "line": 116,
           "sink": "RuntimeError"
         }
       ]
@@ -58211,7 +58696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 136,
+          "line": 139,
           "sink": "RuntimeError"
         }
       ]
@@ -58221,7 +58706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 118,
+          "line": 121,
           "sink": "RuntimeError"
         }
       ]
@@ -58231,7 +58716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 141,
+          "line": 144,
           "sink": "RuntimeError"
         }
       ]
@@ -58241,7 +58726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 149,
+          "line": 152,
           "sink": "RuntimeError"
         }
       ]
@@ -58251,7 +58736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 121,
+          "line": 124,
           "sink": "RuntimeError"
         }
       ]
@@ -58261,7 +58746,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 145,
+          "line": 148,
           "sink": "RuntimeError"
         }
       ]
@@ -58271,7 +58756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 164,
+          "line": 167,
           "sink": "RuntimeError"
         }
       ]
@@ -59811,7 +60296,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 826,
+          "line": 829,
           "sink": "RuntimeError"
         }
       ]
@@ -62396,7 +62881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 283,
+          "line": 301,
           "sink": "RuntimeError"
         }
       ]
@@ -62537,6 +63022,16 @@
         {
           "path": "tools/placement_studio/prepared_move.py",
           "line": 171,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Non-finite replacement import placement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 94,
           "sink": "ValueError"
         }
       ]
@@ -64341,7 +64836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 371,
+          "line": 374,
           "sink": "emit"
         }
       ]
@@ -64711,7 +65206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 628,
+          "line": 644,
           "sink": "emit"
         }
       ]
@@ -64798,6 +65293,16 @@
           "path": "cdmw/ui/mesh_editor/tab_direct_output.py",
           "line": 20,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Open an archive mesh before importing a replacement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 13,
+          "sink": "ValueError"
         }
       ]
     },
@@ -65176,7 +65681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 222,
+          "line": 223,
           "sink": "setToolTip"
         }
       ]
@@ -66737,6 +67242,16 @@
       ]
     },
     {
+      "key": "Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
       "key": "Output folder",
       "origins": [
         {
@@ -67151,12 +67666,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1040,
+          "line": 1099,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1043,
+          "line": 1102,
           "sink": "emit"
         }
       ]
@@ -67758,6 +68273,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_composition.py",
           "line": 219,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "PAM replacement index conversion could not be proven.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 82,
+          "sink": "ValueError"
         }
       ]
     },
@@ -68517,6 +69042,36 @@
       ]
     },
     {
+      "key": "Paired LOD material has no target mapping: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 179,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Paired LOD material mapping is ambiguous: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 173,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Paired LOD writer changed the required section layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 191,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Pan modifier",
       "origins": [
         {
@@ -68823,6 +69378,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 91,
           "sink": "python-return:mesh_editor_action_authoring_blocker"
+        }
+      ]
+    },
+    {
+      "key": "Part {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
         }
       ]
     },
@@ -69521,22 +70086,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 329,
+          "line": 332,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 330,
+          "line": 333,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 349,
+          "line": 352,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 350,
+          "line": 353,
           "sink": "emit"
         }
       ]
@@ -72386,7 +72951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 574,
+          "line": 592,
           "sink": "RuntimeError"
         }
       ]
@@ -72396,7 +72961,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 392,
+          "line": 408,
           "sink": "RuntimeError"
         }
       ]
@@ -72406,7 +72971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 371,
+          "line": 385,
           "sink": "RuntimeError"
         }
       ]
@@ -72416,7 +72981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 564,
+          "line": 582,
           "sink": "RuntimeError"
         }
       ]
@@ -72426,7 +72991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 555,
+          "line": 573,
           "sink": "RuntimeError"
         }
       ]
@@ -72472,6 +73037,26 @@
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
           "line": 79,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Prepared replacement material preview could not be compiled: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement_materials.py",
+          "line": 75,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Prepared replacement materials produced no renderer resources.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement_materials.py",
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -72686,7 +73271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 602,
+          "line": 603,
           "sink": "_set_rust_status"
         }
       ]
@@ -73351,7 +73936,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 569,
+          "line": 570,
           "sink": "show_loading"
         },
         {
@@ -79016,12 +79601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 367,
+          "line": 370,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 381,
+          "line": 384,
           "sink": "emit"
         }
       ]
@@ -79066,12 +79651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 424,
+          "line": 427,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 425,
+          "line": 428,
           "sink": "emit"
         }
       ]
@@ -79081,22 +79666,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 329,
+          "line": 332,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 330,
+          "line": 333,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 349,
+          "line": 352,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 350,
+          "line": 353,
           "sink": "emit"
         }
       ]
@@ -79106,7 +79691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 605,
+          "line": 621,
           "sink": "emit"
         }
       ]
@@ -79116,7 +79701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 602,
+          "line": 618,
           "sink": "emit"
         }
       ]
@@ -79126,22 +79711,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 329,
+          "line": 332,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 330,
+          "line": 333,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 349,
+          "line": 352,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 350,
+          "line": 353,
           "sink": "emit"
         }
       ]
@@ -79161,7 +79746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 345,
+          "line": 346,
           "sink": "show_loading"
         }
       ]
@@ -79363,6 +79948,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_setup_state.py",
           "line": 73,
           "sink": "python-return:mesh_import_preview_rebuilt_status"
+        }
+      ]
+    },
+    {
+      "key": "Rebuilt replacement is invalid: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 159,
+          "sink": "ValueError"
         }
       ]
     },
@@ -79956,7 +80551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 454,
+          "line": 467,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -82101,7 +82696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 356,
+          "line": 357,
           "sink": "show_loading"
         }
       ]
@@ -82532,12 +83127,192 @@
       ]
     },
     {
+      "key": "Replacement cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 220,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 231,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Replacement cannot be combined with active Morph & Refit bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_replacement.py",
+          "line": 144,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement companion has an invalid or duplicate package path",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 903,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement companion has no captured baseline: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 780,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement coordinate conversion is not proven for this neutral appearance mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Replacement dependencies exceed the 512 MiB snapshot limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 105,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement dependency capture cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 97,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft cannot save stale resident geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1170,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft omitted its output state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 292,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft resource checksum changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 72,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft resource size changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 69,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft resources exceed the 512 MiB limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 30,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft save cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 27,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft snapshot session failed to open.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1174,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement draft target or workflow does not match.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 295,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Replacement far end",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 203,
           "sink": "python-return:_build_archive_static_placement_context_html"
+        }
+      ]
+    },
+    {
+      "key": "Replacement import cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 132,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 161,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Replacement imports",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -82552,12 +83327,37 @@
       ]
     },
     {
+      "key": "Replacement is stale because the mesh changed. Import again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 224,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 228,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Replacement length axis",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 203,
           "sink": "python-return:_build_archive_static_placement_context_html"
+        }
+      ]
+    },
+    {
+      "key": "Replacement mappings do not cover the original target sections.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 138,
+          "sink": "ValueError"
         }
       ]
     },
@@ -82578,6 +83378,76 @@
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 418,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Replacement material metadata exceeds the 16 MiB session limit",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement_materials.py",
+          "line": 102,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement material preparation cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 182,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "Replacement material sidecar is not readable text.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 20,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement output target no longer matches the captured archive identity.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 764,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement requires an eligible original PAC, PAM or PAMLOD archive mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 43,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement requires an eligible original PAC, PAM or PAMLOD at LOD0.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Replacement requires the original target part layout. Undo added or deleted parts first.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 46,
+          "sink": "ValueError"
         }
       ]
     },
@@ -82632,12 +83502,72 @@
       ]
     },
     {
+      "key": "Replacement supports one eligible PAC, PAM or PAMLOD at a time. Clear active Morph & Refit bindings first; unsupported layouts or missing dependencies block Apply.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Replacement target bytes no longer match the captured archive asset.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 47,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement target identity changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 49,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement target mapping is invalid or ambiguous.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 52,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Replacement text, maximum {value_0} UTF-8 byte(s):",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 354,
           "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Replacement writer changed the required LOD section layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 124,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Replacement writer changed the required target section layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 156,
+          "sink": "ValueError"
         }
       ]
     },
@@ -82868,6 +83798,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_02.py",
           "line": 55,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Required companion {value_0} could not be rebuilt: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 193,
+          "sink": "ValueError"
         }
       ]
     },
@@ -84581,7 +85521,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 373,
+          "line": 374,
           "sink": "_set_rust_status"
         }
       ]
@@ -85391,7 +86331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 426,
+          "line": 442,
           "sink": "ValueError"
         }
       ]
@@ -86596,7 +87536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 559,
+          "line": 575,
           "sink": "emit"
         }
       ]
@@ -86671,7 +87611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 284,
+          "line": 287,
           "sink": "emit"
         }
       ]
@@ -86756,7 +87696,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 587,
+          "line": 588,
           "sink": "emit"
         }
       ]
@@ -87236,7 +88176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 562,
+          "line": 578,
           "sink": "getSaveFileName"
         }
       ]
@@ -87571,7 +88511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 598,
+          "line": 614,
           "sink": "emit"
         }
       ]
@@ -91282,6 +92222,16 @@
       ]
     },
     {
+      "key": "Select at least one target part before importing a replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 83,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select at least one texture in the asset list.",
       "origins": [
         {
@@ -92008,6 +92958,16 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
           "line": 171,
           "sink": "python-return:build_retrofit_update_plan_html"
+        }
+      ]
+    },
+    {
+      "key": "Selected parts share a material with an untouched part. Select all parts using that material.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 46,
+          "sink": "ValueError"
         }
       ]
     },
@@ -102452,6 +103412,26 @@
       ]
     },
     {
+      "key": "The archive target and its dependency snapshot are required for replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_materials.py",
+          "line": 76,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archive target changed during replacement selection.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 29,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The archive was refreshed. Close and reopen this Finder for the new catalogue.",
       "origins": [
         {
@@ -103212,6 +104192,16 @@
       ]
     },
     {
+      "key": "The imported model has no editable triangle geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 144,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The imported skin weights reference bones outside the target palette.",
       "origins": [],
       "manual": true
@@ -103377,12 +104367,32 @@
       ]
     },
     {
+      "key": "The mesh changed after import preparation. Import again before applying.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The mesh file can open after the current Finish has stopped safely.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
           "line": 562,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "The mesh session closed during replacement selection.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 27,
+          "sink": "ValueError"
         }
       ]
     },
@@ -103573,6 +104583,16 @@
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
           "line": 149,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The original mesh bounds cannot provide a usable uniform fit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 273,
+          "sink": "ValueError"
         }
       ]
     },
@@ -103806,7 +104826,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 684,
+          "line": 685,
           "sink": "RuntimeError"
         }
       ]
@@ -103946,7 +104966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 221,
+          "line": 235,
           "sink": "RuntimeError"
         }
       ]
@@ -104173,6 +105193,16 @@
           "path": "cdmw/ui/texture_workflow/workers.py",
           "line": 260,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "The selected replacement parts are no longer available.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 139,
+          "sink": "ValueError"
         }
       ]
     },
@@ -104871,7 +105901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
-          "line": 197,
+          "line": 205,
           "sink": "setToolTip"
         }
       ]
@@ -105237,6 +106267,46 @@
       ]
     },
     {
+      "key": "This replacement mapping belongs to an older import. Review the current import before applying.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 94,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This replacement requires companion files. Use Build Mod to export the complete result.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_reports.py",
+          "line": 283,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_state_presentation.py",
+          "line": 188,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 634,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "This replacement requires companion files. Use Build Mod.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_rebuild.py",
+          "line": 702,
+          "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
       "key": "This reward entry already has a selected operation.",
       "origins": [
         {
@@ -105343,6 +106413,16 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 155,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "This session has no replacement output state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 131,
+          "sink": "ValueError"
         }
       ]
     },
@@ -107227,6 +108307,16 @@
       ]
     },
     {
+      "key": "Undo active Morph & Refit archive bindings before replacing parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Undo all changes",
       "origins": [
         {
@@ -107257,12 +108347,32 @@
       ]
     },
     {
+      "key": "Undo the active Morph & Refit archive bindings before using replacement.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_import.py",
+          "line": 41,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Undo the last Material Authority control change (Ctrl+Z).",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 333,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Undo the replacement operations before switching output policy.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1317,
+          "sink": "ValueError"
         }
       ]
     },
@@ -107542,6 +108652,26 @@
       ]
     },
     {
+      "key": "Unknown replacement comparison mode.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 61,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unknown replacement material choice.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 54,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unlimited stock",
       "origins": [
         {
@@ -107691,7 +108821,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 790,
+          "line": 793,
           "sink": "ValueError"
         }
       ]
@@ -107701,7 +108831,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 242,
+          "line": 248,
           "sink": "ValueError"
         }
       ]
@@ -107711,7 +108841,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 785,
+          "line": 818,
           "sink": "ValueError"
         }
       ]
@@ -107721,7 +108851,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1300,
+          "line": 1313,
           "sink": "ValueError"
         }
       ]
@@ -107876,7 +109006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1494,
+          "line": 1511,
           "sink": "ValueError"
         }
       ]
@@ -107911,7 +109041,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 714,
+          "line": 717,
           "sink": "ValueError"
         }
       ]
@@ -108012,6 +109142,26 @@
         {
           "path": "cdmw/services/mesh_service_morph.py",
           "line": 626,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported replacement command: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 115,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Unsupported replacement draft state.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 57,
           "sink": "ValueError"
         }
       ]
@@ -108721,7 +109871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 705,
+          "line": 737,
           "sink": "RuntimeError"
         }
       ]
@@ -108758,6 +109908,16 @@
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 230,
           "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -109053,6 +110213,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "Use an original archive mesh with Exact output before replacing parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
         }
       ]
     },
@@ -109831,7 +111001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 452,
+          "line": 465,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -111156,7 +112326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 571,
+          "line": 587,
           "sink": "emit"
         }
       ]
@@ -117251,7 +118421,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 499,
+          "line": 500,
           "sink": "FileNotFoundError"
         }
       ]
@@ -118286,7 +119456,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7201,
+          "line": 7214,
           "sink": "open_edit_session"
         },
         {
@@ -118686,12 +119856,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3241,
+          "line": 3242,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3257,
+          "line": 3258,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -118809,6 +119979,36 @@
     {
       "key": "error",
       "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1588,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1596,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1607,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1626,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1650,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1684,
+          "sink": "_result"
+        },
         {
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 652,
@@ -119031,7 +120231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 158,
+          "line": 159,
           "sink": "python-return:_validate_rust_executable_resolution"
         }
       ]
@@ -119301,7 +120501,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 275,
+          "line": 276,
           "sink": "RuntimeError"
         }
       ]
@@ -119941,7 +121141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3263,
+          "line": 3264,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -120286,7 +121486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3255,
+          "line": 3256,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -120471,7 +121671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3953,
+          "line": 3954,
           "sink": "ValueError"
         }
       ]
@@ -120611,12 +121811,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3228,
+          "line": 3229,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3261,
+          "line": 3262,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -121411,7 +122611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 303,
+          "line": 321,
           "sink": "ValueError"
         }
       ]
@@ -121421,7 +122621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 298,
+          "line": 316,
           "sink": "ValueError"
         }
       ]
@@ -121431,7 +122631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 307,
+          "line": 325,
           "sink": "ValueError"
         }
       ]
@@ -121856,12 +123056,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3239,
+          "line": 3240,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3267,
+          "line": 3268,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -121931,7 +123131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3594,
+          "line": 3595,
           "sink": "ValueError"
         }
       ]
@@ -121941,7 +123141,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3583,
+          "line": 3584,
           "sink": "ValueError"
         }
       ]
@@ -121951,7 +123151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3566,
+          "line": 3567,
           "sink": "ValueError"
         }
       ]
@@ -122266,7 +123466,7 @@
         },
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 112,
+          "line": 117,
           "sink": "TypeError"
         }
       ]
@@ -122286,7 +123486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 722,
+          "line": 754,
           "sink": "RuntimeError"
         }
       ]
@@ -122296,12 +123496,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 680,
+          "line": 691,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 635,
+          "line": 638,
           "sink": "RuntimeError"
         }
       ]
@@ -122311,7 +123511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 676,
+          "line": 687,
           "sink": "RuntimeError"
         }
       ]
@@ -122321,7 +123521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 707,
+          "line": 739,
           "sink": "RuntimeError"
         }
       ]
@@ -122396,7 +123596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3249,
+          "line": 3250,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -122661,12 +123861,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6576,
+          "line": 6577,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6674,
+          "line": 6675,
           "sink": "RuntimeError"
         }
       ]
@@ -122676,7 +123876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 584,
+          "line": 602,
           "sink": "TypeError"
         }
       ]
@@ -122826,7 +124026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 792,
+          "line": 795,
           "sink": "RuntimeError"
         }
       ]
@@ -122836,7 +124036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 816,
+          "line": 819,
           "sink": "RuntimeError"
         }
       ]
@@ -122846,7 +124046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 802,
+          "line": 805,
           "sink": "RuntimeError"
         }
       ]
@@ -122856,7 +124056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 827,
+          "line": 830,
           "sink": "RuntimeError"
         }
       ]
@@ -122961,7 +124161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2020,
+          "line": 2037,
           "sink": "RuntimeError"
         }
       ]
@@ -123036,7 +124236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2307,
+          "line": 2324,
           "sink": "RuntimeError"
         }
       ]
@@ -123046,7 +124246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1450,
+          "line": 1467,
           "sink": "RuntimeError"
         }
       ]
@@ -123056,12 +124256,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1427,
+          "line": 1444,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1461,
+          "line": 1478,
           "sink": "RuntimeError"
         }
       ]
@@ -123071,7 +124271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1439,
+          "line": 1456,
           "sink": "RuntimeError"
         }
       ]
@@ -123081,7 +124281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 410,
+          "line": 411,
           "sink": "RuntimeError"
         }
       ]
@@ -123091,7 +124291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 127,
+          "line": 132,
           "sink": "RuntimeError"
         }
       ]
@@ -123111,12 +124311,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1414,
+          "line": 1431,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 551,
+          "line": 552,
           "sink": "RuntimeError"
         }
       ]
@@ -123126,7 +124326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1899,
+          "line": 1916,
           "sink": "RuntimeError"
         }
       ]
@@ -123136,7 +124336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1346,
+          "line": 1363,
           "sink": "RuntimeError"
         }
       ]
@@ -123231,7 +124431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1709,
+          "line": 1726,
           "sink": "RuntimeError"
         }
       ]
@@ -123241,7 +124441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 306,
+          "line": 307,
           "sink": "RuntimeError"
         }
       ]
@@ -123261,7 +124461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2354,
+          "line": 2371,
           "sink": "RuntimeError"
         }
       ]
@@ -123271,7 +124471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2333,
+          "line": 2350,
           "sink": "RuntimeError"
         }
       ]
@@ -123291,7 +124491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2210,
+          "line": 2227,
           "sink": "RuntimeError"
         }
       ]
@@ -123301,7 +124501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2489,
+          "line": 2506,
           "sink": "RuntimeError"
         }
       ]
@@ -123341,7 +124541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 278,
+          "line": 286,
           "sink": "RuntimeError"
         }
       ]
@@ -123491,7 +124691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 622,
+          "line": 638,
           "sink": "RuntimeError"
         }
       ]
@@ -123572,16 +124772,41 @@
       ]
     },
     {
+      "key": "noop",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1559,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service.py",
+          "line": 1614,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_history.py",
+          "line": 301,
+          "sink": "_result"
+        },
+        {
+          "path": "cdmw/services/mesh_service_history.py",
+          "line": 405,
+          "sink": "_result"
+        }
+      ]
+    },
+    {
       "key": "normal",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3226,
+          "line": 3227,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3245,
+          "line": 3246,
           "sink": "python-return:_material_input_texture_role"
         },
         {
@@ -123816,7 +125041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 279,
+          "line": 293,
           "sink": "TypeError"
         }
       ]
@@ -123826,7 +125051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3251,
+          "line": 3252,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -124006,7 +125231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3259,
+          "line": 3260,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -124326,7 +125551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 391,
+          "line": 394,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -124826,7 +126051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_replacement.py",
-          "line": 549,
+          "line": 567,
           "sink": "TypeError"
         }
       ]
@@ -125176,7 +126401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 631,
+          "line": 647,
           "sink": "emit"
         }
       ]
@@ -125326,7 +126551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 385,
+          "line": 388,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -126391,7 +127616,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 178,
+          "line": 179,
           "sink": "RuntimeError"
         }
       ]
@@ -126561,7 +127786,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 124,
+          "line": 125,
           "sink": "ValueError"
         }
       ]
@@ -126571,7 +127796,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 121,
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -126656,7 +127881,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 105,
+          "line": 106,
           "sink": "RuntimeError"
         }
       ]
@@ -126696,7 +127921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 481,
+          "line": 482,
           "sink": "ValueError"
         }
       ]
@@ -126971,7 +128196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3247,
+          "line": 3248,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -128476,12 +129701,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3238,
+          "line": 3239,
           "sink": "python-return:_material_input_texture_role"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3253,
+          "line": 3254,
           "sink": "python-return:_material_input_texture_role"
         }
       ]
@@ -129166,7 +130391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_editor.py",
-          "line": 171,
+          "line": 172,
           "sink": "python-return:_rust_open_preflight_reason"
         }
       ]
@@ -129996,7 +131221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 301,
+          "line": 319,
           "sink": "ValueError"
         }
       ]
@@ -130006,12 +131231,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1864,
+          "line": 1881,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1903,
+          "line": 1920,
           "sink": "RuntimeError"
         }
       ]
@@ -132541,7 +133766,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1862,
+          "line": 1879,
           "sink": "RuntimeError"
         },
         {
@@ -132851,7 +134076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1523,
+          "line": 1540,
           "sink": "RuntimeError"
         }
       ]
@@ -132861,7 +134086,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1332,
+          "line": 1349,
           "sink": "ValueError"
         }
       ]
@@ -133536,7 +134761,7 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 509,
+          "line": 510,
           "sink": "RuntimeError"
         }
       ]
@@ -133546,7 +134771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1517,
+          "line": 1534,
           "sink": "RuntimeError"
         }
       ]
@@ -136081,42 +137306,42 @@
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 421,
+          "line": 422,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 466,
+          "line": 467,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 539,
+          "line": 540,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 608,
+          "line": 609,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 794,
+          "line": 827,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1045,
-          "sink": "emit"
-        },
-        {
-          "path": "cdmw/workers/mesh_editor_workers.py",
-          "line": 1072,
+          "line": 1104,
           "sink": "emit"
         },
         {
           "path": "cdmw/workers/mesh_editor_workers.py",
           "line": 1131,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_workers.py",
+          "line": 1190,
           "sink": "emit"
         },
         {
@@ -136439,6 +137664,11 @@
     {
       "key": "{value_0}:{value_1}",
       "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 50,
+          "sink": "python-return:replacement_ui_state"
+        },
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 192,

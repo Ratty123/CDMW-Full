@@ -906,11 +906,12 @@ impl LabApplication {
         let policy = state_str(&self.cdmw_state, "output_policy").unwrap_or("exact_game_asset");
         let exact = policy == "exact_game_asset";
         let free_edit = policy == "free_edit_rebuild";
-        let read_only = !exact && !free_edit;
+        let replacement = policy == "replacement_game_asset";
+        let read_only = !exact && !free_edit && !replacement;
         let archive_refit = self.cdmw_has_archive_refit();
         ui.label(RichText::new("Output").strong());
         ui.horizontal(|ui| {
-            if ui.add(Button::new("Exact").selected(exact)).clicked() && !exact {
+            if ui.add_enabled(!replacement, Button::new("Exact").selected(exact)).clicked() && !exact {
                 actions.push(UiAction::CdmwCommand {
                     command: "configure_output_policy",
                     arguments: json!({"policy": "exact_game_asset", "destination": ""}),
@@ -918,7 +919,7 @@ impl LabApplication {
                 });
             }
             if ui
-                .add_enabled(!archive_refit, Button::new("Free Edit").selected(free_edit))
+                .add_enabled(!archive_refit && !replacement, Button::new("Free Edit").selected(free_edit))
                 .on_hover_text("Allows adding and removing geometry. Choose a folder for a new OBJ package.")
                 .on_disabled_hover_text("Archive Refit keeps each original game file. Finish this session, then open a separate mesh for Free Edit.")
                 .clicked()
@@ -931,6 +932,8 @@ impl LabApplication {
         let reason = state_str(&self.cdmw_state, "output_policy_reason").unwrap_or("");
         ui.label(if archive_refit {
             "Archive Refit · original game files"
+        } else if replacement {
+            "Replacement · prepared game-asset output"
         } else if exact {
             "Protected game-asset output"
         } else if free_edit && ready {
@@ -2691,7 +2694,112 @@ impl LabApplication {
             });
     }
 
+    fn draw_cdmw_replacement(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let Some(replacement) = self.cdmw_state.get("replacement").cloned() else {
+            return;
+        };
+        let available = replacement["available"].as_bool().unwrap_or(false);
+        let comparison = replacement["comparison"].as_str().unwrap_or("edit");
+        let busy = self.cdmw_busy();
+        let rows = replacement["parts"].as_array().cloned().unwrap_or_default();
+        let selected = self.selected_part_indices();
+        let selected_ids: Vec<Value> = rows
+            .iter()
+            .filter(|row| {
+                row["index"]
+                    .as_u64()
+                    .is_some_and(|index| selected.contains(&(index as u32)))
+            })
+            .map(|row| row["id"].clone())
+            .collect();
+        ui.add_enabled_ui(!busy, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.add_enabled_ui(available && comparison == "edit", |ui| {
+                    ui.menu_button("Import Replacement…", |ui| {
+                        for (scope, title) in [("entire", "Entire Mesh"), ("selected", "Selected Parts")] {
+                            if ui.add_enabled(scope == "entire" || !selected_ids.is_empty(), Button::new(title)).clicked() {
+                                actions.push(UiAction::CdmwCommand {
+                                    command: "replacement_choose",
+                                    arguments: json!({"scope": scope, "part_ids": if scope == "selected" { selected_ids.clone() } else { Vec::new() }}),
+                                    label: "Import replacement",
+                                });
+                                ui.close();
+                            }
+                        }
+                    });
+                });
+                if replacement["has_import"].as_bool().unwrap_or(false) && comparison == "edit" {
+                    for (command, title) in [("replacement_fit", "Fit to Original"), ("replacement_reset", "Reset Placement")] {
+                        if ui.button(title).clicked() {
+                            actions.push(UiAction::CdmwCommand {command, arguments: json!({}), label: title});
+                        }
+                    }
+                }
+            });
+            if !available {
+                ui.small(replacement["reason"].as_str().unwrap_or("Replacement is unavailable"));
+            }
+            if replacement["active"].as_bool().unwrap_or(false) {
+                ui.horizontal_wrapped(|ui| {
+                    for (mode, title) in [("edit", "Edit"), ("original", "Original"), ("output", "Output Preview")] {
+                        if ui.selectable_label(comparison == mode, title).clicked() && comparison != mode {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_compare", arguments: json!({"mode": mode}), label: "Compare replacement output",
+                            });
+                        }
+                    }
+                });
+            }
+            if let Some(pending) = replacement.get("pending") {
+                ui.group(|ui| {
+                    ui.label(pending["source"].as_str().unwrap_or("Replacement"));
+                    ui.small("Preserve imported size and position · manual placement");
+                    let token = pending["token"].as_str().unwrap_or("");
+                    let targets = pending["targets"].as_array().cloned().unwrap_or_default();
+                    let sources = pending["sources"].as_array().cloned().unwrap_or_default();
+                    let mut choices = Vec::new();
+                    for (index, source) in sources.iter().enumerate() {
+                        let id = egui::Id::new(("replacement_target", token, index));
+                        let mut choice = ui.ctx().data_mut(|data| data.get_temp::<String>(id))
+                            .unwrap_or_else(|| source["target"].as_str().unwrap_or("").to_owned());
+                        ui.horizontal(|ui| {
+                            ui.label(source["name"].as_str().unwrap_or("Part"));
+                            let text = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))
+                                .and_then(|row| row["name"].as_str()).unwrap_or("Choose target…");
+                            ComboBox::from_id_salt(id).selected_text(text).width(140.0).show_ui(ui, |ui| {
+                                for target in &targets {
+                                    ui.selectable_value(&mut choice, target["id"].as_str().unwrap_or("").to_owned(), target["name"].as_str().unwrap_or("Part"));
+                                }
+                            });
+                        });
+                        ui.ctx().data_mut(|data| data.insert_temp(id, choice.clone()));
+                        choices.push(choice);
+                    }
+                    let material_id = egui::Id::new(("replacement_materials", token));
+                    let mut imported = ui.ctx().data_mut(|data| data.get_temp::<bool>(material_id)).unwrap_or(false);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.radio_value(&mut imported, false, "Keep Original Materials");
+                        ui.radio_value(&mut imported, true, "Imported Materials & Textures");
+                    });
+                    ui.ctx().data_mut(|data| data.insert_temp(material_id, imported));
+                    ui.horizontal(|ui| {
+                        if ui.add_enabled(choices.iter().all(|value| !value.is_empty()), Button::new("Apply Replacement")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_apply", arguments: json!({"token": token, "targets": choices, "materials": if imported { "imported" } else { "original" }}), label: "Apply replacement",
+                            });
+                        }
+                        if ui.button("Cancel Import").clicked() {
+                            actions.push(UiAction::CdmwCommand {command: "replacement_cancel", arguments: json!({}), label: "Cancel replacement import"});
+                        }
+                    });
+                });
+            }
+        });
+        ui.small("View  /  Include in mod");
+    }
+
     fn draw_cdmw_parts(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        self.draw_cdmw_replacement(ui, actions);
         let selected = self.selected_part_indices();
         let parts = self
             .document
@@ -2719,7 +2827,10 @@ impl LabApplication {
         ui.horizontal(|ui| {
             ui.weak(format!("{} / {} selected", selected.len(), parts.len()));
         });
-        ui.add_enabled_ui(!busy, |ui| {
+        let editing = self.cdmw_state["replacement"]["comparison"]
+            .as_str()
+            .is_none_or(|mode| mode == "edit");
+        ui.add_enabled_ui(!busy && editing, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(!available.is_empty(), Button::new("All")).clicked() {
                     actions.push(UiAction::SetPartSelection(available.clone()));
@@ -2757,6 +2868,21 @@ impl LabApplication {
                             .on_disabled_hover_text("Show this part's Geometry Layer first")
                             .changed() {
                             actions.push(UiAction::SetPartVisibility { indices: vec![*index], visible: shown });
+                        }
+                        if let Some(replacement) = self.cdmw_state.get("replacement")
+                            && let Some(binding) = replacement.get("parts").and_then(Value::as_array)
+                                .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(u64::from(*index)))) {
+                                let mut included = binding["included"].as_bool().unwrap_or(true);
+                                let enabled = replacement["available"].as_bool().unwrap_or(false)
+                                    && replacement["comparison"].as_str().unwrap_or("edit") == "edit";
+                                if ui.add_enabled(enabled, egui::Checkbox::new(&mut included, "Mod"))
+                                    .on_hover_text("Include in mod · independent of viewport visibility").changed() {
+                                    actions.push(UiAction::CdmwCommand {
+                                        command: "replacement_include",
+                                        arguments: json!({"part_ids": [binding["id"]], "included": included}),
+                                        label: "Change output inclusion",
+                                    });
+                                }
                         }
                         let active = selected.contains(index);
                         let row = ui.add_enabled(shown && in_visible_layer,
@@ -2863,6 +2989,15 @@ impl LabApplication {
     }
 
     pub(super) fn cdmw_visible_submeshes(&self) -> Option<HashSet<u32>> {
+        if self
+            .cdmw_state
+            .get("replacement")
+            .and_then(|value| value.get("comparison"))
+            .and_then(Value::as_str)
+            .is_some_and(|mode| mode != "edit")
+        {
+            return None;
+        }
         let layers = self.cdmw_layer_visible_submeshes();
         if self.cdmw_hidden_parts.is_empty() {
             return layers;

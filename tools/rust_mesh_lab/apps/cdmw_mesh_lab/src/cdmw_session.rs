@@ -336,6 +336,8 @@ pub struct SessionManifest {
     #[serde(default)]
     pub material_presentations: Vec<SessionMaterialPresentation>,
     #[serde(default)]
+    pub replacement_material_states: Vec<FileReference>,
+    #[serde(default)]
     pub texture_status: Value,
     #[serde(default)]
     pub source: Value,
@@ -480,7 +482,6 @@ impl LoadedCdmwSessionPackage {
         // without allocating a second full serde Value tree during startup.
         let _: IgnoredAny =
             serde_json::from_slice(&read_json_reference(&root, &manifest.channels)?)?;
-        reject_unexpected_initial_files(&root, &manifest)?;
         let document: MeshDocument = if expected_schema == PREVIEW_PACKAGE_SCHEMA {
             if let Some(geometry) = &manifest.preview_core_geometry {
                 let _: IgnoredAny = serde_json::from_slice(&document_bytes)?;
@@ -493,6 +494,7 @@ impl LoadedCdmwSessionPackage {
         };
         check_preview_cancelled(cancelled)?;
         validate_document(&document)?;
+        reject_unexpected_initial_files(&root, &manifest, &document)?;
         validate_material_presentations(&manifest, &document)?;
         check_preview_cancelled(cancelled)?;
         let mut textures = read_texture_resources(&root, &manifest, &document)?;
@@ -987,6 +989,7 @@ impl CdmwBridge {
                 textures: Vec::new(),
                 effect_textures: Vec::new(),
                 material_presentations: Vec::new(),
+                replacement_material_states: Vec::new(),
                 texture_status: Value::Null,
                 source: Value::Null,
                 output_policy: Value::Null,
@@ -2204,8 +2207,9 @@ fn read_limited(path: &Path, maximum: u64) -> Result<Vec<u8>, SessionError> {
 fn reject_unexpected_initial_files(
     root: &Path,
     manifest: &SessionManifest,
+    document: &MeshDocument,
 ) -> Result<(), SessionError> {
-    let allowed = [
+    let mut allowed = [
         "manifest.json",
         manifest.document.path.as_str(),
         manifest.channels.path.as_str(),
@@ -2235,7 +2239,62 @@ fn reject_unexpected_initial_files(
                 reference.map(|resource| resource.path.as_str())
             }),
     )
+    .map(str::to_owned)
     .collect::<BTreeSet<_>>();
+    if !manifest.replacement_material_states.is_empty() {
+        let active_key = manifest.state["archive_refit_materials"]["key"]
+            .as_str()
+            .unwrap_or_default();
+        if manifest.schema != PACKAGE_SCHEMA
+            || manifest.state["replacement"]["active"] != true
+            || manifest.replacement_material_states.len() > 2
+            || (active_key != "base"
+                && (active_key.len() != 32
+                    || !active_key.bytes().all(|byte| byte.is_ascii_hexdigit())))
+        {
+            return Err(SessionError::InvalidManifest(
+                "initial replacement material states are invalid".to_owned(),
+            ));
+        }
+        let mut keys = BTreeSet::new();
+        for reference in &manifest.replacement_material_states {
+            if reference.data_type != "mesh_materials_json"
+                || reference.count != 1
+                || reference.byte_length > MAX_MANIFEST_BYTES
+            {
+                return Err(SessionError::InvalidManifest(
+                    "initial replacement material reference is invalid".to_owned(),
+                ));
+            }
+            let bytes = read_json_reference(root, reference)?;
+            let payload: MaterialStatePayload = serde_json::from_slice(&bytes)?;
+            if (payload.key != "base" && payload.key != active_key)
+                || reference.path != format!("material-state-{}.json", payload.key)
+                || !keys.insert(payload.key.clone())
+            {
+                return Err(SessionError::InvalidManifest(
+                    "initial replacement material identity does not match".to_owned(),
+                ));
+            }
+            let mut material_manifest = manifest.clone();
+            material_manifest.textures = payload.textures;
+            material_manifest.material_presentations = payload.material_presentations;
+            validate_material_presentations(&material_manifest, document)?;
+            read_texture_resources(root, &material_manifest, document)?;
+            allowed.insert(reference.path.clone());
+            allowed.extend(
+                material_manifest
+                    .textures
+                    .iter()
+                    .map(|texture| texture.file.path.clone()),
+            );
+        }
+        if !keys.contains(active_key) || !keys.contains("base") {
+            return Err(SessionError::InvalidManifest(
+                "initial replacement materials omitted the original or active state".to_owned(),
+            ));
+        }
+    }
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -3107,6 +3166,74 @@ mod tests {
     }
 
     #[test]
+    fn replacement_package_reopens_only_declared_and_verified_material_states() {
+        let root = tempdir().expect("root");
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).expect("manifest bytes"))
+                .expect("manifest JSON");
+        let key = "0123456789abcdef0123456789abcdef";
+        let mut imported = manifest["textures"].clone();
+        let original_name = imported[0]["file"]["path"].as_str().expect("texture name");
+        let imported_name = original_name.replace("0000", "0001");
+        let texture_bytes = fs::read(root.path().join(original_name)).expect("texture bytes");
+        fs::write(root.path().join(&imported_name), &texture_bytes).expect("imported texture");
+        imported[0]["file"]["path"] = json!(imported_name);
+        let mut references = Vec::new();
+        for (material_key, textures) in [("base", manifest["textures"].clone()), (key, imported)] {
+            let payload = json!({
+                "key": material_key, "textures": textures,
+                "material_presentations": manifest["material_presentations"], "reason": ""
+            });
+            let bytes = serde_json::to_vec(&payload).expect("material state bytes");
+            let name = format!("material-state-{material_key}.json");
+            fs::write(root.path().join(&name), &bytes).expect("material state");
+            references.push(json!({
+                "path": name, "data_type": "mesh_materials_json", "count": 1,
+                "byte_length": bytes.len(), "sha256": sha256_upper(&bytes),
+                "content_type": "application/json"
+            }));
+        }
+        manifest["state"] = json!({
+            "replacement": {"active": true},
+            "archive_refit_materials": {"key": key, "file": references[1]}
+        });
+        manifest["replacement_material_states"] = json!(references);
+        let publish = |value: &Value| {
+            fs::write(
+                &manifest_path,
+                serde_json::to_vec(value).expect("manifest bytes"),
+            )
+            .expect("manifest");
+        };
+        publish(&manifest);
+        let loaded = LoadedCdmwSessionPackage::load(&manifest_path).expect("reopened replacement");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 1, 0);
+        bridge.manifest = loaded.manifest().clone();
+        let materials = bridge
+            .materials_from_state(&manifest["state"], "base", Some(loaded.document()))
+            .expect("active materials")
+            .expect("material update");
+        assert_eq!(materials.key, key);
+        assert_eq!(materials.textures.len(), 1);
+
+        manifest["replacement_material_states"] = json!([references[0]]);
+        publish(&manifest);
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        manifest["replacement_material_states"] = json!(references);
+        manifest["state"]["replacement"]["active"] = json!(false);
+        publish(&manifest);
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        manifest["state"]["replacement"]["active"] = json!(true);
+        publish(&manifest);
+        fs::write(root.path().join("unowned.json"), b"{}").expect("unowned state");
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+        fs::remove_file(root.path().join("unowned.json")).expect("remove unowned state");
+        fs::write(root.path().join(imported_name), b"changed DDS").expect("tampered DDS");
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
     fn pure_preview_loader_accepts_predecoded_external_geometry() {
         let root = tempdir().expect("root");
         let manifest_path = write_loaded_package_fixture(root.path());
@@ -3312,10 +3439,13 @@ mod tests {
         fs::create_dir_all(&presets).expect("profile directories");
         fs::write(presets.join("standing.json"), b"{\"values\":{}}").expect("profile payload");
 
-        reject_unexpected_initial_files(root.path(), bridge.manifest()).expect("owned profiles");
+        reject_unexpected_initial_files(root.path(), bridge.manifest(), &document())
+            .expect("owned profiles");
 
         fs::create_dir(root.path().join("unowned-directory")).expect("unowned directory");
-        assert!(reject_unexpected_initial_files(root.path(), bridge.manifest()).is_err());
+        assert!(
+            reject_unexpected_initial_files(root.path(), bridge.manifest(), &document()).is_err()
+        );
         fs::remove_dir(root.path().join("unowned-directory")).expect("remove unowned directory");
 
         let oversized = presets.join("oversized.json");
@@ -3326,7 +3456,9 @@ mod tests {
             .expect("oversized file")
             .set_len(MAX_PROFILE_FILE_BYTES + 1)
             .expect("size oversized file");
-        assert!(reject_unexpected_initial_files(root.path(), bridge.manifest()).is_err());
+        assert!(
+            reject_unexpected_initial_files(root.path(), bridge.manifest(), &document()).is_err()
+        );
     }
 
     #[test]

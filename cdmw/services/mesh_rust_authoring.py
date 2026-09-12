@@ -6926,6 +6926,8 @@ class RustMeshAuthoringSession:
     morph_profile_base_fingerprint: str = ""
     acknowledged_morph_profile_fingerprint: str = ""
     max_state_document_bytes: int = 0
+    pending_replacement: object | None = None
+    replacement_comparison: str = "edit"
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -7027,6 +7029,7 @@ class RustMeshAuthoringSession:
                 pass
             raise
         try:
+            shadow_service._session(shadow_view.session_id).replacement_state = authoritative_session.replacement_state
             shadow_view = _configure_shadow_session_seed(
                 shadow_service, shadow_view, geometry_layer_seed, rigging_seed,
                 authoritative_morph_state, authoritative_view,
@@ -7124,6 +7127,15 @@ class RustMeshAuthoringSession:
         # Session preparation owns this shadow exclusively until the manifest
         # is complete, so another full geometry clone only delays first paint.
         mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
+        if self.replacement_comparison == "output":
+            snapshot = self.shadow_service.capture_export_snapshot(self.shadow_session_id)
+            output = self.shadow_service._replacement_output_for_snapshot(snapshot)
+            from cdmw.modding.mesh_parser import parse_mesh
+            mesh = parse_mesh(output.data, snapshot.replacement_state.target_path)
+        elif self.replacement_comparison == "original":
+            from cdmw.modding.mesh_parser import parse_mesh
+            session = self.shadow_service._session(self.shadow_session_id)
+            mesh = parse_mesh(session.original_data, session.base_mesh.path)
         if _STATE_FILE_RE.fullmatch(name) is not None:
             reference = _atomic_write_state_payload(
                 self.root,
@@ -7644,6 +7656,23 @@ class RustMeshAuthoringSession:
             "theme": _json_safe(self.theme),
             "state": self.state_payload(include_document=False),
         }
+        if self.shadow_service._session(self.shadow_session_id).replacement_state is not None:
+            # Reopened replacements already have material snapshots before the
+            # helper starts. Declare their exact files for its initial allowlist.
+            manifest["replacement_material_states"] = list(
+                self.archive_refit_material_references.values()
+            )
+            material_key = manifest["state"]["archive_refit_materials"]["key"]
+            active_materials = self.archive_refit_material_cache[material_key]
+            manifest["textures"] = active_materials["textures"]
+            manifest["material_presentations"] = active_materials["material_presentations"]
+            self.texture_resource_count = len(active_materials["textures"])
+            self.texture_unavailable_reason = active_materials["reason"]
+            manifest["texture_status"].update(
+                available=bool(self.texture_resource_count),
+                resource_count=self.texture_resource_count,
+                reason=self.texture_unavailable_reason,
+            )
         _atomic_write_payload(
             self.root,
             self.manifest_path.name,
@@ -7751,11 +7780,20 @@ class RustMeshAuthoringSession:
         }
         if self.neutral_appearance is not None:
             state["loaded_mesh"] += " (neutral appearance)"
+        from cdmw.services.mesh_rust_replacement import replacement_ui_state
+        state["replacement"] = replacement_ui_state(self)
+        if self.replacement_comparison != "edit":
+            state["authoring_enabled"] = False
         if include_document:
             state["document"] = self._write_mesh_document(
                 f"state-{view.revision}-{uuid4().hex[:10]}.json"
             )
         material_key = getattr(shadow_session.archive_refit_context, "context_id", "base")
+        if shadow_session.replacement_state is not None:
+            from cdmw.services.mesh_rust_replacement_materials import stage_replacement_materials
+            material_key = stage_replacement_materials(self, shadow_session.working_mesh, shadow_session.replacement_state)
+            if self.replacement_comparison == "original":
+                material_key = "base"
         if material_key in self.archive_refit_material_references:
             state["archive_refit_materials"] = {"key": material_key, "file": self.archive_refit_material_references[material_key]}
         try:
@@ -7885,6 +7923,8 @@ class RustMeshAuthoringSession:
     @_with_pinned_session_root
     def apply_candidate(self, request: Mapping[str, object]) -> dict[str, object]:
         self._require_open()
+        if self.replacement_comparison != "edit":
+            raise RustMeshValidationError("Return to Edit before changing replacement geometry.")
         self.validate_message_identity(request)
         self._require_shadow_revision(request)
         _validate_owned_session_tree(self.root, self.root_identity)
@@ -8166,6 +8206,9 @@ class RustMeshAuthoringSession:
             "rig_transfer_weights",
         }:
             result = self._run_rig_weight_command(command, args)
+        elif command.startswith("replacement_"):
+            from cdmw.services.mesh_rust_replacement import run_replacement_command
+            result = run_replacement_command(self, command, args, stop_event)
         elif command == "configure_output_policy":
             result = self.shadow_service.configure_output_policy(
                 self.shadow_session_id,
@@ -8254,6 +8297,12 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
+            raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")
+        if shadow_session.replacement_state is not None and (
+            command.startswith("morph_") or command.startswith("refit_") or command in {"import_editable_package", "layer_delete", "layer_paste"}
+        ):
+            raise RustMeshValidationError("Undo replacement operations before using Morph & Refit or adding geometry layers.")
         if self.neutral_appearance is not None and command in {
             "refit_load_mesh", "import_editable_package",
         }:
@@ -8307,7 +8356,7 @@ class RustMeshAuthoringSession:
         }
         state = self.state_payload(
             include_document=(
-                command == "state" or (after_revision != before_revision and not state_only)
+                command in {"state", "replacement_compare"} or (after_revision != before_revision and not state_only)
             )
         )
         return {"result": _json_safe(result), "state": state}
@@ -8961,6 +9010,9 @@ class RustMeshAuthoringSession:
                 shadow_revision=shadow_view.revision,
                 stop_event=stop_event,
             )
+        elif shadow_view.output_policy == MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value:
+            replacement_snapshot = self.shadow_service.capture_export_snapshot(self.shadow_session_id, stop_event=stop_event)
+            self.shadow_service._replacement_output_for_snapshot(replacement_snapshot)
         shadow_session = self.shadow_service._session(self.shadow_session_id)
         with shadow_session.export_lock:
             shadow_edit_operations = tuple(copy.deepcopy(shadow_session.edit_operations))
@@ -8989,6 +9041,8 @@ class RustMeshAuthoringSession:
             validation_output_destination_ready=shadow_view.output_destination_ready,
             archive_refit_context=(replace(shadow_session.archive_refit_context, neutral_coordinates=False)
                                    if shadow_session.archive_refit_context is not None else None),
+            replacement_state=shadow_session.replacement_state,
+            replace_output_state=True,
         )
         if prepared.expected_revision != self.base_revision:
             raise RustMeshValidationError(

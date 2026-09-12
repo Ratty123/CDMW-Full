@@ -10,9 +10,66 @@ it does not replace the active Mesh Editor session.
 The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
-Texture/material assignment, recolour/glow authoring, replacement/import-preview
-workflows, in-game swaps, and Texture Editor handoffs are not Mesh Editor
-features. Dedicated texture tools and Create New Item own those jobs.
+Replacement imports and reversible output inclusion extend that foundation in
+the existing Parts panel. General material assignment, recolour/glow authoring,
+in-game swaps, and Texture Editor handoffs remain separate workflows.
+
+## Replacement workflow
+
+Open an archive mesh, choose **Import Replacement…**, and select **Entire Mesh**
+or **Selected Parts**. OBJ, DAE, glTF and GLB use the retained import pipeline.
+Review the source-to-target mapping before **Apply Replacement**. Selected-part
+replacement preserves every untouched part and its material binding. Multiple
+source parts can map to a target with original materials; imported-material mode
+requires one source material part per target.
+
+New imports preserve decoded coordinates: no automatic scaling, alignment or
+centering. Scale starts at 1, rotation and translation at 0. Use the existing
+transform tools for placement. **Fit to Original** explicitly fits the imported
+parts; **Reset Placement** restores their imported positions. Both are undoable.
+New Item fitting defaults are unchanged.
+
+**Keep Original Materials** is the default. **Imported Materials & Textures**
+prepares the required DDS and material sidecars before publishing the import.
+Missing textures, ambiguous material wrappers, shared selected/untouched material
+ownership, unsupported skinning, or unproven coordinate/layout conversion block
+Apply with a specific reason. This mode never silently uses original materials.
+
+The **Mod** checkbox means **Include in mod** and is independent of viewport
+visibility. Excluding a part retains all its editable geometry; re-enabling is
+lossless, and every part may be excluded. Only export creates the existing tiny
+triangle placeholders, retaining required target sections and their existing
+index convention. Output Preview ignores temporary viewport/layer hiding.
+
+**Edit**, **Original**, and **Output Preview** share the current viewport.
+Comparison views are read-only. Finish the edit, validate its current revision,
+then **Build Mod**. Preview, validation and packaging consume the same immutable
+rebuilt mesh/sidecar/texture/paired-LOD bundle. Single-file export is disabled
+when companions are required. Original archive bytes are never modified by
+preparation or package creation.
+
+This workflow handles one eligible PAC/PAM/PAMLOD at LOD0. Active Morph & Refit
+profiles/bindings and neutral-appearance coordinates are not combined with it.
+Unsupported target layouts remain blocked. Existing sessions without replacement
+state retain Exact Game Asset/Free Edit behavior. Replacement uses its own
+`replacement_game_asset` policy, not weakened Exact validation.
+
+Imports, inclusion and placement changes participate in normal Undo/Redo and
+Finish/cancel. Replacement-bearing drafts use version 2 and keep captured
+dependencies and output intent together; older apps reject them. Existing
+version-1 drafts still load unchanged. Source files are unnecessary after Apply.
+No bulk migration is performed.
+
+`mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
+`mesh_replacement_output.py` own detached preparation and complete output.
+`mesh_rust_replacement.py` and `mesh_rust_replacement_materials.py` publish through
+the existing shadow-session/control/material contracts. Task cancellation,
+revision checks and import tokens prevent stale candidates from taking over.
+
+Synthetic verification covers format round-trips and the packaged editor. It
+does not establish real-game rendering or animation compatibility.
+
+## Existing editing controls
 
 Rust's **Visible** selection compares projected depth with a floating-point
 rounding allowance, so fitted human meshes do not select the hidden back surface

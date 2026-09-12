@@ -1246,6 +1246,51 @@ fn integrated_session_retains_textures_when_a_shadow_revision_reloads_geometry()
 }
 
 #[test]
+fn integrated_replacement_comparison_rebinds_original_materials_after_layout_change() -> TestResult
+{
+    use sha2::{Digest, Sha256};
+    let root = tempdir()?;
+    let original = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("body.dds"),
+        MeshFormat::Pam,
+    )?;
+    let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "replacement-textures", 1, 0);
+    let mut application = LabApplication::new_cdmw(bridge, original.clone(), None)?;
+    let bytes = cdmw_texture::synthetic::rgba8_checker_dds();
+    let hash = format!("{:X}", Sha256::digest(&bytes));
+    let texture_name = format!("texture-0000-{}.dds", hash[..12].to_ascii_lowercase());
+    std::fs::write(root.path().join(&texture_name), &bytes)?;
+    let encoded = serde_json::to_vec(
+        &json!({"key": "base", "reason": "", "material_presentations": [], "textures": [
+            {"label": "original", "role": "base_color", "material_indices_by_lod": [[0]], "file": {
+                "path": texture_name, "data_type": "dds_texture", "count": 1, "byte_length": bytes.len(),
+                "sha256": hash, "content_type": "image/vnd-ms.dds"
+            }}
+        ]}),
+    )?;
+    std::fs::write(root.path().join("materials.json"), &encoded)?;
+    let state = json!({"replacement": {"active": true}, "archive_refit_materials": {"key": "base", "file": {
+        "path": "materials.json", "data_type": "mesh_materials_json", "count": 1,
+        "byte_length": encoded.len(), "sha256": format!("{:X}", Sha256::digest(&encoded)),
+        "content_type": "application/json"
+    }}});
+    let mut imported = original.clone();
+    imported.lods[0].submeshes[0].vertex_stride = 0;
+    application.install_validated_cdmw_state(state.clone(), Some(imported.clone()))?;
+    application.cdmw_hidden_parts.insert(0);
+    for document in [original.clone(), imported, original] {
+        application.install_validated_cdmw_state(state.clone(), Some(document))?;
+        assert_eq!(
+            application.cdmw_texture_resources[0].material_indices_by_lod,
+            vec![vec![0]]
+        );
+        assert_eq!(application.texture_entries.len(), 1);
+        assert!(application.cdmw_hidden_parts.contains(&0));
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_session_remaps_texture_ownership_after_part_reorder_and_invalidates_ambiguity()
 -> TestResult {
     let root = tempdir()?;

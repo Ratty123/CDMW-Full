@@ -13,6 +13,7 @@ from cdmw.domain.mesh import (
     MeshExportValidationReport,
 )
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.domain.mesh.replacement import MeshReplacementState
 
 
 @dataclass(slots=True)
@@ -75,6 +76,8 @@ class _MeshHistorySnapshot:
     object_transform: MeshObjectTransformState | None = None
     archive_refit_context: object | None = None
     restore_archive_refit_context: bool = False
+    replacement_state: MeshReplacementState | None = None
+    restore_replacement_state: bool = False
 
 
 @dataclass(slots=True)
@@ -161,6 +164,7 @@ class MeshExportSnapshot:
     material_authority_fingerprint: str = ""
     material_authority_revision: int = 0
     archive_refit_context: object | None = None
+    replacement_state: MeshReplacementState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +187,8 @@ class MeshPreparedWorkingMeshReplacement:
     requires_edit_operations: bool = False
     archive_refit_context: object | None = None
     previous_archive_refit_context: object | None = None
+    replacement_state: MeshReplacementState | None = None
+    previous_replacement_state: MeshReplacementState | None = None
 
 
 @dataclass(slots=True)
@@ -192,7 +198,9 @@ class _MeshEditSession:
     working_mesh: ParsedMesh
     original_data: bytes = b""
     archive_refit_context: object | None = None
+    replacement_state: MeshReplacementState | None = None
     mesh_asset_parse_confidence: str = ""
+    replacement_output: object | None = None
     mesh_asset_source_hash: str = ""
     mesh_asset_source_size: int = 0
     mesh_asset_inferred_bone_count: int = 0
