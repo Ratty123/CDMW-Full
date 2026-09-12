@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import threading
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -2024,15 +2026,16 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
     pamt = archive_dir / "0.pamt"
     paz = archive_dir / "0.paz"
     pamt.write_bytes(b"source index")
-    paz.write_bytes(b"source payload")
+    source_payload = b"source payload"
+    paz.write_bytes(source_payload)
     before = (pamt.read_bytes(), paz.read_bytes())
     entry = ArchiveEntry(
         path="character/model/test.pac",
         pamt_path=pamt,
         paz_file=paz,
         offset=0,
-        comp_size=4,
-        orig_size=4,
+        comp_size=len(source_payload),
+        orig_size=len(source_payload),
         flags=0,
         paz_index=0,
     )
@@ -2077,11 +2080,28 @@ def test_loose_output_captures_after_pending_work_and_never_writes_source_archiv
     assert '"manager_profile": "dmm"' in metadata
     assert sorted(path.relative_to(output_root).as_posix() for path in output_root.rglob("*") if path.is_file()) == [
         "README.txt",
+        "cdmw-baseline.zip",
+        "cdmw-compatibility.json",
         "character/model/test.pac",
         "manifest.json",
         "mesh-editor-session.json",
         "modinfo.json",
     ]
+    compatibility = json.loads((output_root / "cdmw-compatibility.json").read_text(encoding="utf-8"))
+    baseline_hash = hashlib.sha256(source_payload).hexdigest()
+    assert compatibility["format"] == "cdmw_mod_compatibility_v1"
+    assert compatibility["files"] == [{
+        "path": entry.path,
+        "sha256": hashlib.sha256(b"rebuilt mesh").hexdigest(),
+        "baseline_known": True,
+        "baseline_sha256": baseline_hash,
+    }]
+    assert compatibility["baseline_archive"] == "cdmw-baseline.zip"
+    baseline_archive = output_root / "cdmw-baseline.zip"
+    assert compatibility["baseline_archive_sha256"] == hashlib.sha256(baseline_archive.read_bytes()).hexdigest()
+    with zipfile.ZipFile(baseline_archive) as archive:
+        assert archive.namelist() == [baseline_hash]
+        assert archive.read(baseline_hash) == source_payload
     assert (pamt.read_bytes(), paz.read_bytes()) == before
 
 
