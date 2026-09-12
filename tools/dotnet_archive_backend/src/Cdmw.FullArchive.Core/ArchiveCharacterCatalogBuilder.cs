@@ -121,6 +121,7 @@ public static class ArchiveCharacterCatalogBuilder
                 foreach (var model in bodyModels.Where(id => resolver.ModelRole(byId[id]) == "body")) embedded.Add(model);
                 evidence.Add("Appearance uses a combined body/head mesh or has no resolved separate head. Body preview retains its embedded face; separate facial components remain independently discoverable.");
             }
+            var appearanceGroups = 0;
             foreach (var group in components.GroupBy(static component => component.Role))
             {
                 var role = group.Key;
@@ -130,6 +131,8 @@ public static class ArchiveCharacterCatalogBuilder
                 if (role == "head" && selected.All(static component => component.ModelEntryIds.Count == 0) && combined)
                     selected = selected.Concat(components.Where(static component => component.Role == "body")).ToArray();
                 var models = selected.SelectMany(static component => component.ModelEntryIds).Distinct().ToArray();
+                if (models.Length > 0 && models.All(id => resolver.ModelRole(byId[id]) == "excluded")) continue;
+                appearanceGroups++;
                 var context = selected.SelectMany(static component => component.ContextEntryIds).Concat(customIds).Distinct().ToArray();
                 var resolution = models.Length == 0 ? "unresolved" : selected.Any(static component => component.Resolution == "ambiguous") ? "ambiguous"
                     : selected.Any(static component => component.Resolution != "resolved") ? "inferred" : "resolved";
@@ -163,8 +166,9 @@ public static class ArchiveCharacterCatalogBuilder
                     keys.Add(key);
                 }
             }
-            Account(app, components.All(static component => component.Resolution == "resolved") ? "resolved" : "unresolved",
-                evidence.Count > 0 ? string.Join(" ", evidence.Take(3)) : "Appearance body and face references resolved.");
+            Account(app, appearanceGroups == 0 ? "excluded" : components.All(static component => component.Resolution == "resolved") ? "resolved" : "unresolved",
+                appearanceGroups == 0 ? "Appearance contains only equipment or non-body components."
+                    : evidence.Count > 0 ? string.Join(" ", evidence.Take(3)) : "Appearance body and face references resolved.");
         }
 
         foreach (var entry in candidates)

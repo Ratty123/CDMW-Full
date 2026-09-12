@@ -92,7 +92,8 @@ ItemInfo. It accounts for active models and appearance/prefab references, includ
 orphans, unresolved ownership and ambiguous basenames. Unique assets contain actual
 model files; unresolved descriptors remain in reference coverage and appearance
 details. Equipment remains part of its owning appearance assembly without becoming
-a standalone body result. Mesh/submesh metadata distinguishes bodies from hair,
+a standalone body result. Vehicle models and assemblies containing only non-body
+components are excluded. Mesh/submesh metadata distinguishes bodies from hair,
 fur and accessories. Unclassified models require the **Unclassified** component
 filter instead of appearing in default Bodies/Faces results. Mount precedence
 chooses active paths; complete CharacterInfo
