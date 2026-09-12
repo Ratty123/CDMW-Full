@@ -69,7 +69,7 @@ internal sealed class ArchiveCharacterReferences(
         var normalized = Normalize(path);
         var parts = normalized.Split('/');
         var stem = Path.GetFileNameWithoutExtension(normalized);
-        if (parts.Contains("armor") || parts.Contains("weapon") || Regex.IsMatch(stem, @"_(?:armor|ub|lb|hand|foot|hel|cloak|sword|shield|bow|saddle|parthide|bag|belt|chain|flail|floor|saliva|uw)_")) return "excluded";
+        if (parts.Contains("armor") || parts.Contains("weapon") || Regex.IsMatch(stem, @"_(?:armor|ub|lb|hand|foot|hel|cloak|sword|shield|bow|saddle|parthide|bag|belt|chain|flail|floor|saliva|uw|wagon|boat)_")) return "excluded";
         if (parts.Contains("hair") || Regex.IsMatch(stem, @"_(?:hair\d*|fur|fuzz)_")) return "hair";
         if (parts.Contains("beard") || stem.Contains("_beard_")) return "beard";
         if (parts.Contains("head_sub") || Regex.IsMatch(stem, @"_(?:head_sub|eyebrow|eyeline|eyelash|eye|eyeleft|eyeright|teeth|tooth|horn|tongue)_")) return "facial_detail";

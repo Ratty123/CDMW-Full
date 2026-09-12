@@ -62,6 +62,11 @@ internal static class CharacterCatalogTests
         Xml(creatureAppearance, "<Appearance><Nude Name=\"creature_nude_0001\"/></Appearance>");
         Xml("character/bin__/sequenceprefab/01_tool/cd_ani_cd_alchemy_bottle_03.prefab",
             "<Prefab FileName=\"object/products/alchemy/cd_alchemy_bottle_03.pami\"/>");
+        var wagon = Add("character/model/4_riding/vehicle/test_wagon_0002_nohorse.pac", [15]);
+        var boat = Add("character/model/4_riding/vehicle/test_boat_0001.pac", [16]);
+        Xml("character/modelproperty/4_riding/vehicle/test_wagon_0002_nohorse.pac_xml", "<Mesh _subMeshName=\"vehicle_body_01\"/>");
+        const string wagonAppearance = "character/appearance/4_riding/vehicle/test_wagon_0002.app_xml";
+        Xml(wagonAppearance, "<Appearance><Nude Name=\"test_wagon_0002_nohorse\"/></Appearance>");
         for (var i = 0; i < 80; i++) Add($"character/model/4_riding/nude/mount_body_{i:0000}.pac", [1]);
 
         const string table = "gamedata/binarystaticinfo__/bin/";
@@ -123,6 +128,11 @@ internal static class CharacterCatalogTests
             "reference-only descriptors were advertised as unique model assets");
         Check(!assets.Any(record => record.Row.Path == boots.Path || record.Row.Path == bag.Path),
             "appearance membership relabeled equipment as body assets");
+        Check(!assets.Any(record => record.Row.Path == wagon.Path || record.Row.Path == boat.Path),
+            "vehicle models were advertised as character bodies");
+        Check(!snapshot.Records.Any(record => record.Row.Path == wagonAppearance)
+            && snapshot.Coverage.Any(row => row.Path == wagonAppearance && row.Resolution == "excluded"),
+            "vehicle-only appearance was advertised as a body or lost from coverage");
         Check(catalogue.GetRequired("asset:" + fur.Path).Row.Role == "hair", "spline fur submesh was labeled as a body");
         Check(catalogue.GetRequired("asset:" + creature.Path).Row.Role is "body" or "whole_character", "actual creature body was lost");
         var creatureDetail = catalogue.GetRequired("appearance:" + creatureAppearance + "#body");
