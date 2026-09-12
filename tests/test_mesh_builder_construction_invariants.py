@@ -39,12 +39,13 @@ def test_builder_has_compact_sections_and_a_standalone_rust_preview(
         assert builder.control('advanced_setup_section').isHidden()
         assert builder.control('mesh_edit_enabled_checkbox').isHidden()
         assert builder.control('alignment_d3d11_preview_host').profile is DotNetPreviewProfile.PREVIEW
-        sections[0].set_expanded(True)
+        # Exercise the toggle and process Qt's queued layout updates before checking visibility.
+        builder.click(sections[0].toggle_button)
         if not modify_original_clone_mode:
             assert builder.control('complete_external_swap_checkbox').isVisibleTo(builder.dialog)
-            sections[-1].set_expanded(True)
+            builder.click(sections[-1].toggle_button)
             assert builder.control('add_archive_source_button').isVisibleTo(builder.dialog)
-        sections[1].set_expanded(True)
+        builder.click(sections[1].toggle_button)
         for name in ('offset_x_spin', 'rotate_y_spin', 'scale_z_spin', 'part_source_combo'):
             assert builder.control(name).isVisibleTo(builder.dialog), name
 

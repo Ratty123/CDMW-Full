@@ -402,9 +402,10 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
     def test_the_viewer_reads_the_description_and_announces_the_capability(self) -> None:
         runtime = (self.ROOT / "cdmw_preview.rs").read_text(encoding="utf-8")
         simulation = (self.ROOT / "preview_effects.rs").read_text(encoding="utf-8").split("#[cfg(test)]\nmod tests", 1)[0]
+        # Mass metadata does not scale authored force; Rust's low-mass torch test owns that behavior.
         for key in ("bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "speed_limit", "scale", "rotation",
                     "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color", "beam_width", "beam_length", "beam_axis",
-                    "mass", "simulation_speed", "sequence", "velocity_stretch", "texture", "blend"):
+                    "simulation_speed", "sequence", "velocity_stretch", "texture", "blend"):
             self.assertTrue(f'"{key}"' in simulation, key)
         self.assertTrue("fn effect_emitter_lines" in simulation)
         self.assertIn('"effect_particle_preview_v1"', runtime)
