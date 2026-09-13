@@ -315,7 +315,15 @@ def flush_native_preview_package_cache_accesses(cache_root: Path | None = None) 
     written = 0
     for (cached_root, cache_key), access_ns in pending.items():
         entry_dir = native_preview_package_cache_entry_dir(Path(cached_root), cache_key)
-        with native_preview_package_cache_build_lock(Path(cached_root), cache_key):
+        lock = native_preview_package_cache_build_lock(Path(cached_root), cache_key)
+        # A publisher may call maintenance while retaining its own build lock.
+        # Never wait for another publisher's lock; keep its timestamp for later.
+        if not lock.acquire(blocking=False):
+            with _CACHE_STATE_LOCK:
+                key_id = (cached_root, cache_key)
+                _PENDING_ACCESS_NS[key_id] = max(access_ns, _PENDING_ACCESS_NS.get(key_id, 0))
+            continue
+        try:
             metadata = _read_metadata(entry_dir)
             if int(metadata.get("schema", 0) or 0) != NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA:
                 continue
@@ -325,6 +333,8 @@ def flush_native_preview_package_cache_accesses(cache_root: Path | None = None) 
             except OSError:
                 continue
             written += 1
+        finally:
+            lock.release()
     return written
 
 
@@ -627,22 +637,23 @@ def prune_native_preview_package_cache(
             if not _staging_is_leased(entry_dir):
                 shutil.rmtree(entry_dir, ignore_errors=True)
             continue
-        with native_preview_package_cache_build_lock(cache_root, entry_dir.name):
-            if not entry_dir.is_dir():
-                continue
-            metadata = _read_metadata(entry_dir)
-            size = _metadata_package_bytes(metadata, entry_dir)
+        # Published metadata is replaced atomically. Size collection needs only
+        # a snapshot, and cannot acquire other builders' locks while publishing.
+        if not entry_dir.is_dir():
+            continue
+        metadata = _read_metadata(entry_dir)
+        size = _metadata_package_bytes(metadata, entry_dir)
+        try:
+            last_access_ns = int(metadata.get("last_access_ns", 0) or 0)
+        except (TypeError, ValueError):
+            last_access_ns = 0
+        if last_access_ns <= 0:
             try:
-                last_access_ns = int(metadata.get("last_access_ns", 0) or 0)
-            except (TypeError, ValueError):
+                last_access_ns = int(entry_dir.stat().st_mtime_ns)
+            except OSError:
                 last_access_ns = 0
-            if last_access_ns <= 0:
-                try:
-                    last_access_ns = int(entry_dir.stat().st_mtime_ns)
-                except OSError:
-                    last_access_ns = 0
-            total_bytes += size
-            entries.append((last_access_ns, size, entry_dir))
+        total_bytes += size
+        entries.append((last_access_ns, size, entry_dir))
     if total_bytes <= max_bytes:
         _set_cached_total_bytes(cache_root, total_bytes)
         return {"entries": len(entries), "bytes": total_bytes, "removed_entries": 0, "removed_bytes": 0}
@@ -651,7 +662,10 @@ def prune_native_preview_package_cache(
     for _last_access_ns, size, entry_dir in sorted(entries, key=lambda item: item[0]):
         if total_bytes <= target_bytes:
             break
-        with native_preview_package_cache_build_lock(cache_root, entry_dir.name):
+        lock = native_preview_package_cache_build_lock(cache_root, entry_dir.name)
+        if not lock.acquire(blocking=False):
+            continue
+        try:
             if entry_dir.name in protected or _cache_key_is_protected(cache_root, entry_dir.name):
                 continue
             if not entry_dir.is_dir():
@@ -662,6 +676,8 @@ def prune_native_preview_package_cache(
             total_bytes -= size
             removed_entries += 1
             removed_bytes += size
+        finally:
+            lock.release()
     _set_cached_total_bytes(cache_root, total_bytes)
     return {
         "entries": max(0, len(entries) - removed_entries),

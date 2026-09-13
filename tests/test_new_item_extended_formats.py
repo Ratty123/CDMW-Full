@@ -70,6 +70,18 @@ def test_skin_palette_uses_complete_metadata_and_excludes_geometry():
     assert resolve_pac_bone_palette(raw, wrong_rig) == ()
 
 
+def test_palette_vector_filter_keeps_unaligned_metadata_and_scalar_results(monkeypatch):
+    from cdmw.modding import mesh_parser as parser
+    raw, hashes = palette_pac()
+    data = bytearray(raw)
+    struct.pack_into("<H10I", data, 6103, 10, *hashes[:10])
+    raw = bytes(data)
+    fast = parser.pac_bone_palette_candidates(raw)
+    assert hashes[:10] in fast and hashes[:12] in fast and hashes not in fast
+    monkeypatch.setattr(parser, "_np_module", lambda: None)
+    assert parser.pac_bone_palette_candidates(raw) == fast
+
+
 def test_skin_palette_must_end_inside_declared_metadata():
     raw, hashes = palette_pac()
     data = bytearray(raw)

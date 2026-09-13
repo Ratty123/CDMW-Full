@@ -509,6 +509,9 @@ def _deform_positions(
     weights = tuple(getattr(submesh, "bone_weights", ()) or ())
     if len(indices) != len(vertices) or len(weights) != len(vertices):
         return [tuple(float(value) for value in vertex[:3]) for vertex in vertices]
+    accelerated = _deform_vectors_numpy(vertices, indices, weights, palette, matrices, normals=False)
+    if accelerated is not None:
+        return accelerated
     result: list[tuple[float, float, float]] = []
     for vertex, row_slots, row_weights in zip(vertices, indices, weights):
         influences = _influences(row_slots, row_weights, palette, len(matrices))
@@ -546,6 +549,9 @@ def _deform_normals(
                 inverse[2], inverse[6], inverse[10],
             )
         )
+    accelerated = _deform_vectors_numpy(normals, indices, weights, palette, inverse_linear_transposes, normals=True)
+    if accelerated is not None:
+        return accelerated
     result: list[tuple[float, float, float]] = []
     for normal, row_slots, row_weights in zip(normals, indices, weights):
         influences = _influences(row_slots, row_weights, palette, len(matrices))
@@ -562,6 +568,56 @@ def _deform_normals(
         result.append(
             tuple(value / length for value in moved) if length > 1e-12 else source
         )
+    return result
+
+
+def _deform_vectors_numpy(vectors, indices, weights, palette, matrices, *, normals):
+    """Batch neutral-pose math; retain the scalar path for unsupported layouts."""
+    from .mesh_parser import _np_module
+
+    np = _np_module()
+    if np is None or not vectors or not palette or not matrices:
+        return None
+    try:
+        source = np.asarray(vectors, dtype=np.float64)
+        width = max(map(len, indices), default=0)
+        if width > 64:
+            return None
+        slots = np.full((len(indices), width), -1, dtype=np.int64)
+        raw_weights = np.zeros((len(indices), width), dtype=np.float64)
+        for index, (row_slots, row_weights) in enumerate(zip(indices, weights)):
+            if len(row_slots) == len(row_weights):
+                slots[index, :len(row_slots)] = row_slots
+                raw_weights[index, :len(row_slots)] = row_weights
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if slots.ndim != 2 or slots.shape != raw_weights.shape or source.shape != (len(vectors), 3):
+        return None
+    matrix_width = 3 if normals else 4
+    transforms = np.asarray(matrices, dtype=np.float64).reshape((-1, matrix_width, matrix_width))
+    palette_values = np.asarray(palette, dtype=np.int64)
+    result = []
+    # Bound temporary matrix gathers for large bodies and release the GIL during
+    # the numerical work so other thumbnail jobs and the Qt thread can progress.
+    for start in range(0, len(vectors), 4096):
+        stop = start + 4096
+        chunk_slots = slots[start:stop]
+        chunk_weights = raw_weights[start:stop]
+        bones = palette_values[np.clip(chunk_slots, 0, len(palette) - 1)]
+        valid = ((chunk_slots >= 0) & (chunk_slots < len(palette)) &
+                 (bones >= 0) & (bones < len(matrices)) & np.isfinite(chunk_weights) & (chunk_weights > 0))
+        effective = np.where(valid, chunk_weights, 0.0)
+        totals = effective.sum(axis=1, keepdims=True)
+        effective = np.divide(effective, totals, out=np.zeros_like(effective), where=totals > 0)
+        blended = np.einsum("vs,vsij->vij", effective, transforms[np.clip(bones, 0, len(matrices) - 1)])
+        original = source[start:stop]
+        points = original if normals else np.column_stack((original, np.ones(len(original))))
+        moved = np.einsum("vi,vij->vj", points, blended)[:, :3]
+        if normals:
+            length = np.sqrt(np.sum(moved * moved, axis=1, keepdims=True))
+            moved = np.divide(moved, length, out=original.copy(), where=length > 1e-12)
+        moved = np.where(totals > 0, moved, original)
+        result.extend(tuple(row) for row in moved.tolist())
     return result
 
 

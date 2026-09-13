@@ -64,6 +64,7 @@ class Preview(QObject):
     def visible(self, rows, **kw): self.visible_rows = rows
     def clear_page(self): pass
     def shutdown(self): pass
+    def iter_shutdown_workers(self): return iter(())
 
 
 class Host(QWidget):
@@ -257,12 +258,17 @@ def test_scope_reaches_real_archive_bridge(finder, monkeypatch, include_related)
     assert bridge._item_scope_entry_ids == ids and dialog._closing
 
 
-def test_only_visible_cards_are_queued_and_late_thumbnails_are_ignored(finder, tmp_path):
+def test_whole_page_is_queued_with_visible_cards_first_and_late_thumbnails_ignored(finder, tmp_path):
     dialog, service, _ = finder
     publish_rows(dialog, service, [row(i) for i in range(72)])
     _APPLICATION.processEvents()
     dialog._visible()
-    assert 0 < len(dialog._preview.visible_rows) < 72
+    assert len(dialog._preview.visible_rows) == 72
+    dialog._grid.scrollToBottom()
+    _APPLICATION.processEvents()
+    dialog._visible()
+    assert dialog._preview.visible_rows[0].key != "asset:0"
+    assert {r.key for r in dialog._preview.visible_rows} == {f"asset:{i}" for i in range(72)}
     dialog._shutdown()
     dialog._thumbnail_ready("asset:1", CharacterRenderResult("cache", "package", str(tmp_path / "late.png"), "base_appearance", ()))
     assert "asset:1" not in dialog._thumbs
@@ -293,6 +299,7 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     monkeypatch.setattr(feature.QMessageBox, "information", lambda *args: messages.append(args[2]))
     window._build_archive_controls_panel(lambda *_: None)
     button = window.archive_character_finder_button
+    assert button.text() == "Body && Face Finder" and button.shortcut().isEmpty()
     assert not button.isEnabled() and button.parentWidget() is window.archive_asset_catalog_button.parentWidget()
     button.setEnabled(True)
     button.click()

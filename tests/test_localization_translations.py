@@ -443,6 +443,18 @@ def test_mnemonic_translation_leaves_a_real_accelerator_alone() -> None:
     assert german.translate_mnemonic("") == ""
 
 
+def test_literal_button_ampersands_translate_without_creating_shortcuts() -> None:
+    from PySide6.QtWidgets import QPushButton
+    app = QApplication.instance() or QApplication([])
+    localizer = UiLocalizer(language_dir=Path("__unused__"), language_code="de")
+    localizer.translations["Body & Face Finder"] = "Körper & Gesichter"
+    button = QPushButton("Body && Face Finder")
+    localizer.apply(button)
+    assert button.text() == "Körper && Gesichter" and button.shortcut().isEmpty()
+    button.deleteLater()
+    app.processEvents()
+
+
 def test_supported_documentation_languages_cover_all_topic_ids() -> None:
     from cdmw.ui.shell.about_documentation import AboutDocumentationMixin
 

@@ -17,4 +17,10 @@ package owns the Python-side package, cache, material, and texture inputs rather
 than a second renderer. Historical `d3d11_*`, `dotnet_*`, and
 `native_preview_*` names are compatibility aliases only.
 
+Preview cache maintenance never waits on another publisher's build lock. It
+reads atomically published metadata, defers busy access timestamps, and skips
+busy entries during eviction. Live/recent package leases still protect renderer
+inputs. This lets concurrent thumbnail jobs trim the shared cache without
+deadlocking each other or blocking cancellation.
+
 Related tests: native preview, model preview, and static replacement entries under `tests/`.

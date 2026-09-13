@@ -86,12 +86,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 541,
+          "line": 543,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 542,
+          "line": 544,
           "sink": "setText"
         }
       ]
@@ -1256,7 +1256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 521,
+          "line": 523,
           "sink": "setText"
         }
       ]
@@ -13895,18 +13895,13 @@
       "key": "Body & Face Finder",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/controls_panel.py",
-          "line": 73,
-          "sink": "QPushButton"
-        },
-        {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 99,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 635,
+          "line": 636,
           "sink": "information"
         },
         {
@@ -13931,7 +13926,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 635,
+          "line": 636,
           "sink": "information"
         }
       ]
@@ -18596,7 +18591,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 82,
+          "line": 127,
           "sink": "RunCancelled"
         }
       ]
@@ -18606,7 +18601,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 119,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -18616,7 +18611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 155,
+          "line": 191,
           "sink": "_fail"
         },
         {
@@ -57986,7 +57981,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 227,
+          "line": 280,
           "sink": "ValueError"
         }
       ]
@@ -103941,7 +103936,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 233,
+          "line": 286,
           "sink": "RuntimeError"
         }
       ]
@@ -104061,7 +104056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 573,
+          "line": 575,
           "sink": "_invalidate"
         }
       ]
@@ -104916,7 +104911,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 211,
+          "line": 264,
           "sink": "RuntimeError"
         }
       ]
@@ -104996,7 +104991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 508,
+          "line": 510,
           "sink": "_preview_failed"
         }
       ]
@@ -105336,7 +105331,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 202,
+          "line": 255,
           "sink": "RuntimeError"
         }
       ]
@@ -105776,7 +105771,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 274,
+          "line": 327,
           "sink": "RuntimeError"
         }
       ]
@@ -106351,7 +106346,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 281,
+          "line": 334,
           "sink": "RuntimeError"
         }
       ]

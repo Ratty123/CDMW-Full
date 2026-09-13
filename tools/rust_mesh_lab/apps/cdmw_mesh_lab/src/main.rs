@@ -108,6 +108,7 @@ fn main() -> Result<()> {
                 options.capture_cdmw_preview_session.is_some(),
                 options.capture_camera(),
                 options.capture_material_index,
+                options.capture_size.unwrap_or(1_024),
             )?;
         }
         return Ok(());
@@ -156,6 +157,7 @@ struct StartupOptions {
     capture_audit_full_model_only: bool,
     capture_audit_repetitions: Option<u32>,
     capture_report_json: Option<PathBuf>,
+    capture_size: Option<u32>,
     capture_yaw_degrees: Option<f32>,
     capture_pitch_degrees: Option<f32>,
     capture_material_index: Option<u32>,
@@ -197,6 +199,9 @@ fn parse_startup_options_from(
             }
             "--capture-output" => {
                 options.capture_output = Some(required_path(&mut arguments, "--capture-output")?);
+            }
+            "--capture-size" => {
+                options.capture_size = Some(required_u32(&mut arguments, "--capture-size")?);
             }
             "--capture-audit-output" => {
                 options.capture_audit_output =
@@ -275,6 +280,11 @@ fn parse_startup_options_from(
     }
     if options.capture_report_json.is_some() && options.capture_output.is_none() {
         bail!("--capture-report-json requires --capture-output");
+    }
+    if let Some(size) = options.capture_size {
+        if options.capture_output.is_none() || !(64..=2_048).contains(&size) {
+            bail!("--capture-size requires --capture-output and a size within 64..2048");
+        }
     }
     if options.capture_audit_full_model_only && options.capture_audit_output.is_none() {
         bail!("--capture-audit-full-model-only requires --capture-audit-output");
@@ -663,6 +673,7 @@ fn capture_cdmw_session(
     preview_package: bool,
     camera: Option<HeadlessMaterialCaptureCamera>,
     isolated_material_index: Option<u32>,
+    size: u32,
 ) -> Result<()> {
     let requested_paths = cdmw_capture_paths(output_path, report_path)?;
     let loaded = if preview_package {
@@ -724,10 +735,11 @@ fn capture_cdmw_session(
         &texture_uploads,
         &factor_uploads,
         HeadlessMaterialCaptureOptions {
+            width: size,
+            height: size,
             lod_index: source_lod_index,
             camera,
             isolated_material_index,
-            ..HeadlessMaterialCaptureOptions::default()
         },
         HeadlessMaterialCaptureOutput {
             textured_bmp: &temporary_paths.textured,
@@ -6774,6 +6786,45 @@ mod tests {
                 .map(str::to_owned),
         );
         assert!(standalone.is_err());
+    }
+
+    #[test]
+    fn preview_capture_cli_bounds_thumbnail_size() {
+        for size in ["0", "63", "2049", "wrong"] {
+            assert!(
+                parse_startup_options_from(
+                    [
+                        "--capture-cdmw-preview-session",
+                        "manifest.json",
+                        "--capture-output",
+                        "preview.bmp",
+                        "--capture-size",
+                        size
+                    ]
+                    .into_iter()
+                    .map(str::to_owned)
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            parse_startup_options_from(["--capture-size", "256"].into_iter().map(str::to_owned))
+                .is_err()
+        );
+        let options = parse_startup_options_from(
+            [
+                "--capture-cdmw-preview-session",
+                "manifest.json",
+                "--capture-output",
+                "preview.bmp",
+                "--capture-size",
+                "256",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert_eq!(options.capture_size, Some(256));
     }
 
     #[test]

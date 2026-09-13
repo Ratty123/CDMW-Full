@@ -2121,6 +2121,7 @@ class UiLocalizer(QObject):
                         "text",
                         "text",
                         "setText",
+                        mnemonic=isinstance(widget, QAbstractButton),
                     )
             elif isinstance(widget, QLineEdit) and _is_combo_box_editor(widget):
                 # The combo owns every string here, including the placeholder.

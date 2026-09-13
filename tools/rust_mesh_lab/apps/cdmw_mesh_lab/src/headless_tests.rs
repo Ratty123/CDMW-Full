@@ -2132,6 +2132,7 @@ fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -
         false,
         None,
         None,
+        1_024,
     )?;
 
     let paths = cdmw_capture_paths(&output, report_path.as_deref())?;
