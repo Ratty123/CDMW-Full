@@ -185,6 +185,34 @@ def test_combined_body_reuses_only_identical_rendered_components():
     assert character_preview_detail(replace(first, files=files[:2])).models == (body, head)
 
 
+def test_heads_share_complete_shape_and_material_inputs_but_keep_variants_distinct():
+    head = _dto(1, "character/head.pac")
+    component = CharacterCatalogComponent("head", "head_variant", (1,), (2,), .97, {"Name": "head_variant"}, "resolved")
+    shape = CharacterCatalogFile(2, "character/head_variant.prefabdata_xml", ".prefabdata_xml", "dependency", "fixture")
+    custom = CharacterCatalogFile(3, "character/custom.paccd", ".paccd", "dependency", "fixture")
+    owner = CharacterCatalogFile(4, "character/first.app_xml", ".app_xml", "direct", "fixture")
+    first = replace(detail(row(1, role="head")), models=(head,), components=(component,),
+        files=(shape, custom, owner), total_file_count=3, appearance_path=owner.path)
+    second = replace(first, row=replace(first.row, key="other-owner", label="Other owner"), context_key="other-owner",
+        appearance_path="character/second.app_xml", files=(shape, custom, replace(owner, entry_id=5, path="character/second.app_xml")))
+    settings = ModelPreviewRenderSettings()
+    key = character_render_key(first, "fp", settings)
+    assert character_render_key(second, "fp", settings) == key
+    assert character_preview_detail(first).files == (shape, custom)
+    assert first.files == (shape, custom, owner)
+    variants = (
+        replace(second, components=(replace(component, scale=1.0),)),
+        replace(second, components=(replace(component, name="other_shape"),)),
+        replace(second, components=(replace(component, attributes={"Name": "head_variant", "Color": "2"}),)),
+        replace(second, files=(replace(shape, path="character/other.pabc"), custom)),
+        replace(second, files=(shape, replace(custom, entry_id=6, path="character/other.paccd"))),
+        replace(second, total_file_count=300),
+    )
+    assert all(character_render_key(variant, "fp", settings) != key for variant in variants)
+    declared_app = replace(first, components=(replace(component, context_entry_ids=(2, 4)),))
+    assert owner in character_preview_detail(declared_app).files
+
+
 def test_extra_context_consumes_streamed_lookup_and_prepared_batches():
     service = Service()
     preparation = CharacterPreviewPreparation(service)
@@ -211,6 +239,32 @@ def test_extra_context_consumes_streamed_lookup_and_prepared_batches():
     assert str(results[0].entries_by_id[2].prepared_path).replace("\\", "/") == "C:/cache/2.pabc"
 
 
+def test_prepared_model_dependencies_keep_ids_for_authored_descriptor_selection():
+    service = Service()
+    preparation = CharacterPreviewPreparation(service)
+    model = _dto(1, "character/body.pac")
+    descriptor = _dto(2, "character/body_variant.prefabdata_xml")
+    selected = replace(detail(row(1)), models=(model,), files=(
+        CharacterCatalogFile(2, descriptor.path, ".prefabdata_xml", "dependency", "fixture"),), total_file_count=1)
+    snapshot = ArchivePreviewDependencySet.from_dtos(model, (descriptor,), total_candidates=1,
+        truncated=False, prepared={1: _prepared(model), 2: _prepared(descriptor)})
+    preparation._provider.request = lambda *_a, **_kw: True
+    results = []
+    preparation.ready.connect(lambda _token, value: results.append(value))
+    preparation.start(selected, 1)
+    preparation._model_ready(1, snapshot)
+    assert len(results) == 1 and results[0].entries_by_id[2].path == descriptor.path
+    assert not service.requests  # Already prepared; no repeated lookup/extraction.
+
+
+def test_incomplete_character_dependencies_cannot_trigger_an_archive_wide_native_scan(tmp_path):
+    worker = CharacterFinderRenderWorker(1, SimpleNamespace(dependencies_complete=False),
+        cache_root=tmp_path, fingerprint="fp", settings=ModelPreviewRenderSettings())
+    with pytest.raises(ValueError, match="dependencies are incomplete"):
+        worker._build_package("fixture")
+    assert not list(tmp_path.iterdir())
+
+
 def test_cancel_after_capture_preserves_existing_metadata(tmp_path):
     selected = detail(row(1))
     worker = CharacterFinderRenderWorker(1, SimpleNamespace(detail=selected), cache_root=tmp_path,
@@ -228,3 +282,61 @@ def test_cancel_after_capture_preserves_existing_metadata(tmp_path):
     worker.run()
     assert not delivered and metadata.read_text() == "old usable metadata"
     assert not list(tmp_path.rglob("*.tmp"))
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+def test_finder_passes_authored_shape_to_primary_and_attached_meshes(tmp_path, monkeypatch, unavailable):
+    import copy
+    import struct
+    from cdmw.domain.character_finder import CharacterPreviewInputs
+    from tests.test_release_inspired_improvements import _entry
+    from tests.test_pabc_neutral_bind_frames import _fixture
+
+    body = _entry("character/model/body_base.pac")
+    attached = _entry("character/model/underwear.pac")
+    variant = _entry("character/prefab/body_variant.prefabdata_xml")
+    base = _entry("character/prefab/body_base.prefabdata_xml")
+    component = CharacterCatalogComponent("body", "body_variant", (1, 2), (3, 4), 1.02, {}, "resolved")
+    selected = replace(detail(row(1, embedded_face=True)), models=(_dto(1, body.path), _dto(2, attached.path)),
+        components=(component,))
+    inputs = CharacterPreviewInputs(selected, {1: body, 2: attached, 3: variant, 4: base},
+        (body, attached, variant, base), True)
+    worker = CharacterFinderRenderWorker(1, inputs, cache_root=tmp_path, fingerprint="fp", settings=ModelPreviewRenderSettings())
+    _rig, raw = _fixture()
+    changed = copy.deepcopy(raw)
+    changed.submeshes[0].vertices[0] = (.2, 1.7, .03)
+    changed._cdmw_skeleton_variation_source = "character/variant.pabc"
+    calls = []
+
+    def appearance(entry, parsed, data, **kwargs):
+        assert kwargs["authored_descriptor"] == variant
+        if unavailable:
+            raise ValueError("The declared skeleton variation is unavailable")
+        return changed, ("Applied authored variant",)
+
+    def native(entry, **kwargs):
+        calls.append((entry, kwargs))
+        return SimpleNamespace(succeeded=True, package_path=str(tmp_path / "native"))
+
+    monkeypatch.setattr("cdmw.core.archive.read_archive_entry_data", lambda *a, **kw: (b"owned PAC", False, ""))
+    monkeypatch.setattr("cdmw.modding.mesh_parser.parse_mesh", lambda *a, **kw: raw)
+    monkeypatch.setattr("cdmw.core.archive_mesh_appearance.apply_archive_mesh_appearance", appearance)
+    monkeypatch.setattr("cdmw.workers.archive_preview_native.native_preview_model_property_indices", lambda *a: ())
+    monkeypatch.setattr("cdmw.rendering.native_preview_core.run_native_preview_core_preview_job", native)
+    monkeypatch.setattr("cdmw.services.preview_material_status.native_preview_missing_texture_reason", lambda *a: None)
+    monkeypatch.setattr("cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package", lambda *a, **kw: "package")
+    if unavailable:
+        with pytest.raises(ValueError, match="declared skeleton variation"):
+            worker._build_package("fixture")
+        assert not calls  # No raw-geometry retry advertised as the true appearance.
+        return
+    package, status, notes = worker._build_package("fixture")
+    assert package == "package" and status == "base_appearance" and "Applied authored variant" in notes
+    assert len(calls) == 1 and calls[0][0] == body
+    kwargs = calls[0][1]
+    primary = struct.unpack_from("<6f", kwargs["presentation_geometry_payload"], 24)[:3]
+    assert primary == pytest.approx(tuple(v * 1.02 for v in changed.submeshes[0].vertices[0]))
+    context = kwargs["preview_context_components"]
+    assert len(context) == 1 and context[0].entry == attached and context[0].scale == 1.02
+    assert context[0].presentation_geometry_source == changed._cdmw_skeleton_variation_source
+    assert struct.unpack_from("<6f", context[0].presentation_geometry_payload, 24)[:3] == pytest.approx(changed.submeshes[0].vertices[0])

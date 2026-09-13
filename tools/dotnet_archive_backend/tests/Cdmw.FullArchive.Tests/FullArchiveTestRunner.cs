@@ -1011,6 +1011,15 @@ internal static class FullArchiveTestRunner
                 && !appearanceAssociation.Truncated,
                 "character preview association did not include its descriptor, PAB, PABC and PAMT appearance chain");
 
+            var sharedRigHead = Enumerable.Range(0, checked((int)handle.EntryCount)).Select(index => session.ReadEntry(index))
+                .Single(static entry => entry.Path.EndsWith("cd_pgm_00_head_00_0004.pac", StringComparison.OrdinalIgnoreCase));
+            var sharedRigAssociation = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(handle.SessionId, sharedRigHead.EntryId, 128, ArchiveAssociationPurpose.Preview),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(!sharedRigAssociation.Truncated
+                && sharedRigAssociation.Candidates.Any(static entry => entry.Path == "character/model/1_pc/1_phm/phm_01.pab"),
+                "head with only a shared morph-set reference lost its verifiable PAB candidate");
+
             var preparation = new ArchiveEntryPreparationService(sessions, native);
             var entryIds = association.Candidates
                 .Select(static entry => entry.EntryId)

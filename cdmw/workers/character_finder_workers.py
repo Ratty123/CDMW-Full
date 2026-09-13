@@ -25,12 +25,16 @@ from cdmw.services.mesh_rust_preview_cache import RUST_PREVIEW_CACHE_SCHEMA
 def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderSettings) -> str:
     detail = character_preview_detail(detail)
     identity = {"row": detail.row.key, "context": detail.context_key}
-    if detail.row.embedded_face and detail.components and all(c.role in {"body", "whole_character"} for c in detail.components):
-        # Labels/ownership do not change a combined body's rendered base appearance.
-        # Keep authored scale, prefab, PABC/material dependencies and primary order.
-        identity = {"combined_body": [asdict(c) for c in detail.components],
+    needed = {entry_id for c in detail.components for entry_id in (*c.model_entry_ids, *c.context_entry_ids)}
+    available = {f.entry_id for f in detail.files} | {m.entry_id for m in detail.models}
+    if detail.components and detail.models and needed.issubset(available) and detail.total_file_count <= len(detail.files):
+        # Identical heads and bodies can belong to many named characters. Share
+        # only complete render inputs, retaining scale, prefab, PABC, material,
+        # customization and primary model order instead of an ownership key.
+        identity = {"role": detail.row.role, "embedded_face": detail.row.embedded_face,
+                    "components": [asdict(c) for c in detail.components],
                     "models": [m.entry_id for m in detail.models], "files": [asdict(f) for f in detail.files]}
-    context = {"schema": 4, "fingerprint": fingerprint, "identity": identity,
+    context = {"schema": 5, "fingerprint": fingerprint, "identity": identity,
                "renderer": RUST_MESH_RENDERER, "backend": RUST_PREVIEW_BACKEND,
                "package_schema": RUST_PREVIEW_CACHE_SCHEMA,
                "camera": "renderer-front-v2",
@@ -111,14 +115,15 @@ class CharacterFinderRenderWorker(QObject):
             self.finished.emit()
 
     def _build_package(self, key: str):
+        if not self.inputs.dependencies_complete:
+            raise ValueError("Character preview dependencies are incomplete. Inspect the selected model's files and resolution evidence.")
         from cdmw.core.archive import build_archive_entry_path_index, build_archive_entry_basename_index, read_archive_entry_data
-        from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance_for_preview
+        from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
         from cdmw.modding.mesh_parser import parse_mesh
         from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
         from cdmw.services.mesh_rust_preview_cache import build_or_lookup_rust_preview_package
         from cdmw.services.preview_material_status import native_preview_missing_texture_reason
         from cdmw.workers.archive_preview_native import _native_presentation_geometry_payload, native_preview_model_property_indices
-        from cdmw.workers.character_context_workers import prepare_character_context_presentation_components
         from cdmw.rendering.dotnet_preview_package_cache import dotnet_preview_package_cache_budget
 
         detail = self.inputs.detail
@@ -127,7 +132,26 @@ class CharacterFinderRenderWorker(QObject):
         basenames = build_archive_entry_basename_index(entries)
         source = self.inputs.entries_by_id[detail.models[0].entry_id]
         source_component = next((c for c in detail.components if detail.models[0].entry_id in c.model_entry_ids), None)
+        def presentation_geometry(entry, component, scale=1.0):
+            self._check()
+            if entry.extension != ".pac" and scale == 1.0:
+                return b"", "", ()
+            descriptor = self._authored_descriptor(component)
+            data = read_archive_entry_data(entry, stop_event=self._stop)[0]
+            parsed = parse_mesh(data, entry.path)
+            presentation, notes = apply_archive_mesh_appearance(entry, parsed, data,
+                archive_entries_by_normalized_path=paths, archive_entries_by_basename=basenames,
+                context_entries=entries, stop_event=self._stop, authored_descriptor=descriptor)
+            source_path = str(getattr(presentation, "_cdmw_skeleton_variation_source", "") or "")
+            if scale != 1.0:
+                presentation = replace(presentation, submeshes=[replace(mesh,
+                    vertices=[tuple(float(v) * scale for v in point) for point in mesh.vertices]) for mesh in presentation.submeshes])
+                source_path = (source_path + "; " if source_path else "") + f"authored scale {scale}"
+            payload = _native_presentation_geometry_payload(presentation, self._stop) if source_path else b""
+            return payload, source_path, notes
+
         components = []
+        notes = ()
         seen = {source.path.casefold()}
         combined_body = detail.row.embedded_face and detail.row.role in {"body", "whole_character"}
         for component in detail.components:
@@ -141,31 +165,20 @@ class CharacterFinderRenderWorker(QObject):
                     continue
                 seen.add(entry.path.casefold())
                 slot = "body" if component.role in {"body", "whole_character"} else "hair" if component.role == "hair" else "face"
+                payload, presentation_source, component_notes = presentation_geometry(entry, component)
+                notes = (*notes, *component_notes)
                 components.append(NativePreviewContextComponent(entry, slot, component.name, "authored",
-                    component.scale, detail.appearance_path, entries, self.inputs.dependencies_complete))
-        components, notes = prepare_character_context_presentation_components(components, path_index=paths,
-            basename_index=basenames, context_entries=entries, stop_event=self._stop)
+                    component.scale, detail.appearance_path, entries, self.inputs.dependencies_complete,
+                    presentation_geometry_payload=payload, presentation_geometry_source=presentation_source))
         if combined_body:
             notes = (*notes, "Combined body/head preview. Separate facial components remain available in Faces; replacing the embedded head requires customization support.")
         self._check()
-        payload = b""
-        presentation_source = ""
         source_scale = source_component.scale if source_component else 1.0
         # The primary model is separate from native context components. Apply its
         # supported PABC deformation and authored scale through the same immutable
         # presentation-geometry ABI, avoiding a duplicate primary mesh.
-        if source.extension == ".pac" or source_scale != 1.0:
-            data = read_archive_entry_data(source, stop_event=self._stop)[0]
-            parsed = parse_mesh(data, source.path)
-            presentation, source_notes = apply_archive_mesh_appearance_for_preview(source, parsed, data, paths, basenames, entries, self._stop)
-            notes = tuple(dict.fromkeys((*notes, *source_notes)))
-            presentation_source = str(getattr(presentation, "_cdmw_skeleton_variation_source", "") or "")
-            if source_scale != 1.0:
-                presentation = replace(presentation, submeshes=[replace(mesh,
-                    vertices=[tuple(float(v) * source_scale for v in point) for point in mesh.vertices]) for mesh in presentation.submeshes])
-                presentation_source = (presentation_source + "; " if presentation_source else "") + f"authored scale {source_scale}"
-            if presentation_source:
-                payload = _native_presentation_geometry_payload(presentation, self._stop)
+        payload, presentation_source, source_notes = presentation_geometry(source, source_component, source_scale)
+        notes = tuple(dict.fromkeys((*notes, *source_notes)))
         authored_stems = [c.name.casefold() for c in detail.components]
         ordered_entries = tuple(sorted(entries, key=lambda e: authored_stems.index(Path(e.path).stem.casefold())
             if e.extension == ".prefab" and Path(e.path).stem.casefold() in authored_stems else len(authored_stems)))
@@ -202,6 +215,17 @@ class CharacterFinderRenderWorker(QObject):
                 cancelled=self._stop.is_set,
                 metadata={"entry_path": source.path, "character_catalogue_key": detail.row.key})
         return package, status, tuple(notes)
+
+    def _authored_descriptor(self, component):
+        if component is None:
+            return None
+        name = Path(component.name.replace("\\", "/")).stem.casefold()
+        descriptors = [entry for entry_id in component.context_entry_ids
+            if (entry := self.inputs.entries_by_id.get(entry_id)) is not None
+            and Path(entry.path).name.casefold() in {name + ".prefabdata_xml", name + ".prefabdata.xml"}]
+        if len(descriptors) > 1:
+            raise ValueError(f"More than one authored appearance descriptor was resolved for {component.name}.")
+        return descriptors[0] if descriptors else None
 
     def _capture(self, package, key: str) -> Path:
         resolution = resolve_rust_mesh_editor()

@@ -31,6 +31,9 @@ internal static class CharacterCatalogTests
         var shadowed = Add(body, [1], "0038");
         var active = Add(body.ToUpperInvariant(), [2], "0036");
         var head = Add("character/model/1_pc/1_phm/head/hero_head_0001.pac", [3]);
+        var tears = Add("character/model/1_pc/1_phm/head/hero_head_0001_tear.pac", [3]);
+        var eyes = Add("character/model/1_pc/1_phm/head/hero_head_0001_eye.pac", [3]);
+        Xml("character/appearance/3_npc/tears.app_xml", "<Appearance><Head Name=\"hero_head_0001_tear\"/></Appearance>");
         Xml("character/modelproperty/1_pc/1_phm/head/hero_head_0001.pac_xml", "<Mesh _subMeshName=\"hero_body_neck_01\"/>");
         var orphan = Add("character/model/3_npc/nude/orphan_body_0001.pac", [4]);
         Add("character/model/1_pc/1_phm/armor/hero_ub_0001.pac", [5]);
@@ -140,6 +143,8 @@ internal static class CharacterCatalogTests
             var faces = catalogue.Search(new("fixture", View: view, Tab: "faces"));
             Check(faces.Rows.Count > 0 && faces.Rows.All(row => row.Role == "head" && !row.EmbeddedFace),
                 $"{view}: default Faces includes a whole body, embedded head or secondary component");
+            Check(!faces.Rows.Any(row => row.InternalName.Contains("_tear") || row.InternalName.EndsWith("_eye.pac")),
+                $"{view}: a terminal facial-detail token was classified as a head");
             var humanoids = catalogue.Search(new("fixture", View: view, SourceGroup: "humanoid"));
             Check(humanoids.Rows.Count > 0 && humanoids.Rows.All(row => row.SourceGroup is "1_pc" or "3_npc"),
                 $"{view}: humanoid filter includes creatures or mounts");
@@ -151,6 +156,9 @@ internal static class CharacterCatalogTests
         }
         Check(catalogue.Search(new("fixture", Tab: "faces", Role: "hair")).Rows.Any(row => row.Path == fur.Path),
             "explicit hair filter lost the secondary component");
+        var facialDetails = catalogue.Search(new("fixture", Tab: "faces", Role: "facial_detail"));
+        Check(facialDetails.Rows.Any(row => row.Path == tears.Path) && facialDetails.Rows.Any(row => row.Path == eyes.Path),
+            "tear/eye meshes disappeared instead of remaining available as facial details");
         var creatureDetail = catalogue.GetRequired("appearance:" + creatureAppearance + "#body");
         Check(creatureDetail.Components.SelectMany(component => component.ModelEntryIds).Contains(boots.EntryId)
             && creatureDetail.RelatedIds.Contains(bag.EntryId), "appearance assembly lost its equipment dependencies");

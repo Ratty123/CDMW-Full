@@ -761,6 +761,7 @@ def apply_archive_mesh_appearance(
     skeleton: object | None = None,
     bone_palette: Sequence[int] | None = None,
     stop_event: Optional[threading.Event] = None,
+    authored_descriptor: ArchiveEntry | None = None,
 ) -> tuple[ParsedMesh, tuple[str, ...]]:
     """Return a presentation clone with its linked PABC/PAMT appearance."""
 
@@ -785,11 +786,20 @@ def apply_archive_mesh_appearance(
         archive_entries_by_basename=archive_entries_by_basename,
         read_entry_data=read_payload,
         pac_data=pac_data,
+        authored_descriptor=authored_descriptor,
     )
+    if authored_descriptor is not None and (
+        descriptor_resolution.descriptor_entry is None or descriptor_resolution.blocking_errors
+    ):
+        raise ValueError("; ".join(descriptor_resolution.blocking_errors)
+                         or f"Authored appearance descriptor could not be resolved: {authored_descriptor.path}")
     pabc_candidates = tuple(entry for entry in related if str(entry.extension or "").lower() == ".pabc")
     pamt_candidates = tuple(entry for entry in related if str(entry.extension or "").lower() == ".pamt")
-    pabc_entry = descriptor_resolution.skeleton_variation_entry or (pabc_candidates[0] if pabc_candidates else None)
-    pamt_entry = descriptor_resolution.morph_target_entry or (pamt_candidates[0] if pamt_candidates else None)
+    pabc_entry = descriptor_resolution.skeleton_variation_entry
+    pamt_entry = descriptor_resolution.morph_target_entry
+    if authored_descriptor is None:
+        pabc_entry = pabc_entry or (pabc_candidates[0] if pabc_candidates else None)
+        pamt_entry = pamt_entry or (pamt_candidates[0] if pamt_candidates else None)
     if pabc_entry is None and not (include_morph_targets and pamt_entry is not None):
         return parsed_mesh, ()
     # Preserve rigid attachments if character-palette resolution fails. A
