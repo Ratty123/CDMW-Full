@@ -370,6 +370,11 @@ material bindings, startup camera, and D3D12 draw path without opening a window:
 .\target\release\cdmw_mesh_lab.exe --capture-cdmw-session "$env:TEMP\session\manifest.json" --capture-output "$env:TEMP\rust-mesh-capture\mesh-textured.bmp" --capture-report-json "$env:TEMP\rust-mesh-capture\report.json"
 ```
 
+Single captures also accept `--capture-size 256` for square thumbnails (64–2048 pixels;
+the default remains 1024). This applies to both authoring and preview-session captures,
+retaining the same camera, material inputs and capture validation. Audit batches keep
+their existing dimensions. Body & Face Finder requests 256px directly.
+
 The command also writes sibling Base Color and Part ID BMPs. All outputs must be
 distinct, outside the canonical session directory, and are staged before atomic
 publication. This is diagnostic evidence only; it does not mutate the session or

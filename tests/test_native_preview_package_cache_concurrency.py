@@ -67,6 +67,36 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
 
 
 class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
+    def test_parallel_publishers_can_prune_without_waiting_on_each_others_locks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            for key in ("first", "second"):
+                _raw_cache_entry(root, key)
+                self.assertIsNotNone(lookup_native_preview_package_cache(root, key, validate_package=_validate))
+            ready = threading.Barrier(2)
+            errors = []
+
+            def publish(key):
+                try:
+                    with cache_module.native_preview_package_cache_build_lock(root, key):
+                        ready.wait(timeout=2)
+                        prune_native_preview_package_cache(root, max_bytes=1, target_bytes=0)
+                except Exception as error:
+                    errors.append(error)
+
+            threads = [threading.Thread(target=publish, args=(key,), daemon=True) for key in ("first", "second")]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=2)
+            self.assertFalse(any(thread.is_alive() for thread in threads), "cache pruning deadlocked concurrent publishers")
+            self.assertEqual([], errors)
+            flush_native_preview_package_cache_accesses(root)
+            for key in ("first", "second"):
+                path = root / "packages" / key / "cache_entry.json"
+                self.assertGreater(json.loads(path.read_text())["last_access_ns"], 1)
+                self.assertTrue((path.parent / "package" / "manifest.json").is_file())
+
     def test_native_package_validation_rejects_non_conserved_material_graph(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package = Path(temp_dir) / "package"

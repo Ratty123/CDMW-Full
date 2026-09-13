@@ -105,12 +105,24 @@ chooses active paths; complete CharacterInfo
 table pairs and verified CharacterAppearanceIndexInfo full-path hashes supply
 names. Missing XML attribute separators are repaired only in memory and reported.
 
-The finder owns a separate Rust preview session. One background job at a time
-prepares the selected preview and visible-card 256px thumbnails. Catalogue caches
+The finder owns a separate Rust preview session. Bounded background jobs
+prepare previews and 256px thumbnails. Visible cards go first, then the rest of
+the current 72-result page loads automatically without scrolling. Selection takes
+priority in the first job slot, while the other slots continue the page. Scrolling
+reprioritizes waiting cards without restarting current page jobs. Thumbnail
+captures render at 256px; the interactive preview keeps its full geometry and textures.
+Head pages use up to eight jobs (half the logical processors); other component
+pages use at most four. Small systems use two jobs. Previously generated page
+thumbnails load together from a fingerprint- and settings-scoped index, without
+repeating character detail requests or geometry preparation. Saved images remain
+usable after their larger 3D packages leave the bounded cache; selecting one can
+rebuild its interactive package. Catalogue caches
 use archive generation, mount signature and format version; thumbnails also use
 appearance context, renderer/package schema, settings and camera preset. Refresh
-invalidates the finder. Search/selection changes cancel obsolete work; close retains
+invalidates the finder. Search changes cancel obsolete work; close retains
 threads and owned processes until asynchronous teardown finishes.
+Each native job keeps its temporary DDS files under its own staging directory,
+so another job's cache trimming cannot remove textures before package publication.
 Streamed appearance dependencies retain prepared DDS and skeleton-variation files
 in the complete preview snapshot, avoiding unnecessary archive-wide lookup and
 textureless retries. Thumbnails and **Reset view** use the renderer's front framing;

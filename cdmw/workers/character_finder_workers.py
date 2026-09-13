@@ -1,4 +1,4 @@
-"""Cancellable production Rust preview and serial 256px thumbnail jobs."""
+"""Cancellable production Rust preview and 256px thumbnail jobs."""
 
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ import subprocess
 import tempfile
 import threading
 import time
+from uuid import uuid4
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QImage
 
 from cdmw.domain.character_finder import CharacterPreviewInputs, CharacterRenderResult, character_preview_detail
@@ -20,6 +21,50 @@ from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER, RUST_PREVIEW_BACKEND, resolve_rust_mesh_editor
 from cdmw.services.mesh_rust_preview_cache import RUST_PREVIEW_CACHE_SCHEMA
+
+_CHARACTER_RENDER_SCHEMA = 5
+
+
+def character_row_cache_root(cache_root, fingerprint, settings):
+    identity = {"schema": _CHARACTER_RENDER_SCHEMA, "fingerprint": fingerprint,
+        "renderer": RUST_MESH_RENDERER, "backend": RUST_PREVIEW_BACKEND,
+        "package_schema": RUST_PREVIEW_CACHE_SCHEMA, "camera": "renderer-front-v2", "settings": asdict(settings)}
+    namespace = sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    return cache_root / "character_finder" / "rows" / namespace
+
+
+def _row_cache_path(root, row_key):
+    return root / (sha256(row_key.encode()).hexdigest() + ".json")
+
+
+def remember_character_thumbnail(root, row_key, result):
+    path = _row_cache_path(root, row_key)
+    temporary = path.with_name(path.name + f".{uuid4().hex}.tmp")
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(json.dumps({"row": row_key, "render": result.key}), encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError:
+        pass  # The optional row index must not prevent an existing preview from loading.
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def cached_character_row(cache_root, row_root, row_key):
+    path = _row_cache_path(row_root, row_key)
+    try:
+        if path.stat().st_size > 4096:
+            return None
+        value = json.loads(path.read_text(encoding="utf-8"))
+        key = value["render"]
+        if value["row"] != row_key or len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
+            return None
+        return cached_character_render(cache_root, key, require_package=False)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderSettings) -> str:
@@ -34,7 +79,7 @@ def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderS
         identity = {"role": detail.row.role, "embedded_face": detail.row.embedded_face,
                     "components": [asdict(c) for c in detail.components],
                     "models": [m.entry_id for m in detail.models], "files": [asdict(f) for f in detail.files]}
-    context = {"schema": 5, "fingerprint": fingerprint, "identity": identity,
+    context = {"schema": _CHARACTER_RENDER_SCHEMA, "fingerprint": fingerprint, "identity": identity,
                "renderer": RUST_MESH_RENDERER, "backend": RUST_PREVIEW_BACKEND,
                "package_schema": RUST_PREVIEW_CACHE_SCHEMA,
                "camera": "renderer-front-v2",
@@ -42,7 +87,7 @@ def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderS
     return sha256(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def cached_character_render(cache_root: Path, key: str) -> CharacterRenderResult | None:
+def cached_character_render(cache_root: Path, key: str, *, require_package: bool = True) -> CharacterRenderResult | None:
     path = cache_root / "character_finder" / "thumbnails" / (key + ".json")
     try:
         if path.stat().st_size > 64 * 1024:
@@ -50,7 +95,9 @@ def cached_character_render(cache_root: Path, key: str) -> CharacterRenderResult
         value = json.loads(path.read_text(encoding="utf-8"))
         image = path.with_suffix(".png")
         package = Path(value["package_path"])
-        if not image.is_file() or not (package / "manifest.json").is_file() or value["key"] != key:
+        if not image.is_file() or value["key"] != key:
+            return None
+        if require_package and not (package / "manifest.json").is_file():
             return None
         return CharacterRenderResult(key, str(package), str(image), value["status"], tuple(value["notes"]), True)
     except (OSError, ValueError, KeyError, TypeError):
@@ -81,12 +128,14 @@ class CharacterFinderRenderWorker(QObject):
         if self._stop.is_set():
             raise RunCancelled("Character preview cancelled.")
 
+    @Slot()
     def run(self) -> None:
         try:
             self._check()
             key = character_render_key(self.inputs.detail, self.fingerprint, self.settings)
             cached = cached_character_render(self.cache_root, key)
             if cached:
+                self._remember_thumbnail(cached)
                 self.package_ready.emit(self.token, cached)
                 self.completed.emit(self.token, cached)
                 return
@@ -98,13 +147,14 @@ class CharacterFinderRenderWorker(QObject):
             self._check()
             result = replace(result, thumbnail_path=str(image_path))
             metadata = image_path.with_suffix(".json")
-            temporary = metadata.with_suffix(".json.tmp")
+            temporary = metadata.with_name(metadata.name + f".{uuid4().hex}.tmp")
             try:
                 temporary.write_text(json.dumps({**asdict(result), "capture": self._capture_report}, ensure_ascii=False), encoding="utf-8")
                 self._check()
                 os.replace(temporary, metadata)
             finally:
                 temporary.unlink(missing_ok=True)
+            self._remember_thumbnail(result)
             self.completed.emit(self.token, result)
         except RunCancelled:
             pass
@@ -113,6 +163,11 @@ class CharacterFinderRenderWorker(QObject):
                 self.failed.emit(self.token, str(error))
         finally:
             self.finished.emit()
+
+    def _remember_thumbnail(self, result):
+        self._check()
+        remember_character_thumbnail(character_row_cache_root(self.cache_root, self.fingerprint, self.settings),
+                                     self.inputs.detail.row.key, result)
 
     def _build_package(self, key: str):
         if not self.inputs.dependencies_complete:
@@ -185,7 +240,10 @@ class CharacterFinderRenderWorker(QObject):
         indices = native_preview_model_property_indices(ordered_entries, self._stop)
 
         def run(settings, output_root):
-            return run_native_preview_core_preview_job(source, cache_root=self.cache_root / "character_finder" / "native",
+            # A job must not prune DDS files another native decoder is still
+            # preparing. These scratch inputs live until the Rust package owns
+            # its immutable copies, then leave with this job's staging directory.
+            return run_native_preview_core_preview_job(source, cache_root=output_root.parent / "native-cache",
                 render_settings=settings, dependency_entries=ordered_entries,
                 dependency_entries_complete=self.inputs.dependencies_complete, preview_context_components=components,
                 model_property_indices=indices, package_root=None, timeout_seconds=45.0, stop_event=self._stop,
@@ -242,7 +300,7 @@ class CharacterFinderRenderWorker(QObject):
             # Use the renderer's shared startup view, as the interactive host does.
             # Near-zero yaw points at the back of character heads.
             args = [str(resolution.resolved_path), "--capture-cdmw-preview-session", str(package.manifest_path),
-                    "--capture-output", str(capture), "--capture-report-json", str(report)]
+                    "--capture-output", str(capture), "--capture-report-json", str(report), "--capture-size", "256"]
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             deadline = time.monotonic() + 45
@@ -274,7 +332,7 @@ class CharacterFinderRenderWorker(QObject):
                 raise RuntimeError("The renderer did not publish a readable thumbnail.")
             target = self.cache_root / "character_finder" / "thumbnails" / (key + ".png")
             target.parent.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_suffix(".png.tmp")
+            temporary = target.with_name(target.name + f".{uuid4().hex}.tmp")
             try:
                 if not image.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio,
                                     Qt.TransformationMode.SmoothTransformation).save(str(temporary), "PNG"):

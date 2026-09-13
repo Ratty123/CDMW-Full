@@ -403,7 +403,7 @@ class CharacterFinderDialog(QDialog):
         if key is None or self._closing or self._invalid:
             self._buttons()
             return
-        self._preview.clear_page()
+        self._visible_timer.start()
         self._title.setText(self._rows[key].label)
         self._preview_status.setText("Preparing preview…")
         self._relations.clear()
@@ -491,7 +491,9 @@ class CharacterFinderDialog(QDialog):
         if self._closing or self._invalid or "search" in self._requests:
             return
         viewport = self._grid.viewport().rect()
-        rows = [self._rows[key] for key, item in self._items.items() if self._grid.visualItemRect(item).intersects(viewport)]
+        visible = {key for key, item in self._items.items() if self._grid.visualItemRect(item).intersects(viewport)}
+        rows = [self._rows[key] for key in self._items if key in visible]
+        rows.extend(self._rows[key] for key in self._items if key not in visible)
         self._preview.visible(rows, session_id=self._session_id, generation=self._bridge.controller.generation)
 
     def eventFilter(self, watched, event):
@@ -586,8 +588,7 @@ class CharacterFinderDialog(QDialog):
         self._buttons()
 
     def iter_shutdown_workers(self):
-        if self._preview._thread is not None:
-            yield "character_finder", self._preview._thread, self._preview._worker
+        yield from self._preview.iter_shutdown_workers()
 
     def request_shutdown(self):
         self.close()

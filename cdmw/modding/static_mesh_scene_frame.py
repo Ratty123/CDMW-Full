@@ -399,6 +399,8 @@ def _mesh_world_bounds(
     *,
     cancelled: Callable[[], bool] | None = None,
 ) -> StaticWorldBounds:
+    from .mesh_parser import _np_module
+    np = _np_module()
     minimum = [math.inf, math.inf, math.inf]
     maximum = [-math.inf, -math.inf, -math.inf]
     found = False
@@ -407,7 +409,23 @@ def _mesh_world_bounds(
             raise RuntimeError("authoritative scene-frame calculation cancelled")
         if _is_marker_submesh(submesh):
             continue
-        for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
+        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        if np is not None and vertices and len(vertices) <= 65_536:
+            try:
+                values = np.asarray(vertices, dtype=np.float64)
+            except (TypeError, ValueError, OverflowError):
+                values = None
+            if values is not None and values.ndim == 2 and values.shape[1] == 3 and np.isfinite(values).all():
+                # This frame's matrices are affine; match matrix_transform_point's
+                # row/column convention, including manual rotation and translation.
+                transformed = (values[:, 0, None] * np.asarray(matrix[0:3]) +
+                               values[:, 1, None] * np.asarray(matrix[4:7]) +
+                               values[:, 2, None] * np.asarray(matrix[8:11]) + np.asarray(matrix[12:15]))
+                minimum = np.minimum(minimum, transformed.min(axis=0)).tolist()
+                maximum = np.maximum(maximum, transformed.max(axis=0)).tolist()
+                found = True
+                continue
+        for vertex in vertices:
             transformed = matrix_transform_point(matrix, _vec3(vertex))
             found = True
             for axis in range(3):

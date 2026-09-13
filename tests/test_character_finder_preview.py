@@ -7,7 +7,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -30,7 +30,8 @@ _APP = None
 def wait_for(predicate, timeout=3):
     until = time.monotonic() + timeout
     while not predicate() and time.monotonic() < until:
-        QTest.qWait(5)
+        _APP.processEvents()
+        time.sleep(.001)
     assert predicate(), "Qt operation did not complete within the focused test deadline"
 
 
@@ -57,13 +58,183 @@ def controller(monkeypatch, tmp_path):
     _APP = QApplication.instance() or QApplication([])
     service = Service()
     monkeypatch.setattr(module, "CharacterPreviewPreparation", Preparation)
-    controller = module.CharacterFinderPreviewController(service, fingerprint="fp", cache_root=tmp_path,
+    controller = module._CharacterPreviewLane(service, fingerprint="fp", cache_root=tmp_path,
         settings=ModelPreviewRenderSettings())
     yield controller, service
     controller.shutdown()
     wait_for(lambda: not controller.busy)
     controller.deleteLater()
     _APP.processEvents()
+
+
+def test_parallel_page_continues_without_scroll_and_preserves_selection_priority(monkeypatch, tmp_path):
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(module.os, "cpu_count", lambda: 8)
+    service = Service()
+    original_detail = service.get_character_catalog_detail
+    def get_detail(request, **kw):
+        token = original_detail(request, **kw)
+        selected = detail(row(int(request.key.split(":")[-1])))
+        QTimer.singleShot(0, lambda: service.result_ready.emit(token, "get_character_catalog_detail", selected))
+        return token
+    service.get_character_catalog_detail = get_detail
+    monkeypatch.setattr(module, "CharacterPreviewPreparation", Preparation)
+    monkeypatch.setattr(module, "cached_character_render", lambda *_: None)
+    jobs, delivered, packages = [], [], []
+    release = threading.Event()
+
+    class Worker(QObject):
+        package_ready = Signal(int, object)
+        completed = Signal(int, object)
+        failed = Signal(int, str)
+        finished = Signal()
+        def __init__(self, token, selected, **kw):
+            super().__init__()
+            self.token, self.selected = token, selected
+            self.stopped = threading.Event()
+            jobs.append(self)
+        def stop(self): self.stopped.set()
+        def run(self):
+            try:
+                while not release.wait(.005):
+                    if self.stopped.is_set(): return
+                result = CharacterRenderResult(self.selected.row.key, "package", "thumbnail", "base_appearance", ())
+                self.package_ready.emit(self.token, result)
+                self.completed.emit(self.token, result)
+            finally:
+                self.finished.emit()
+
+    monkeypatch.setattr(module, "CharacterFinderRenderWorker", Worker)
+    owner = module.CharacterFinderPreviewController(service, fingerprint="fp", cache_root=tmp_path,
+        settings=ModelPreviewRenderSettings())
+    owner.thumbnail_ready.connect(lambda key, _: delivered.append(key))
+    owner.package_ready.connect(lambda key, _: packages.append(key))
+    try:
+        owner.visible([row(i) for i in range(9)], session_id="session-a", generation=1)
+        wait_for(lambda: len(jobs) == 4)
+        assert len(list(owner.iter_shutdown_workers())) == 4
+        owner.visible([row(i) for i in reversed(range(9))], session_id="session-a", generation=1)
+        QTest.qWait(25)
+        assert len(jobs) == 4 and not any(job.stopped.is_set() for job in jobs)
+        owner.select(detail(row(99)), 2)
+        wait_for(lambda: len(jobs) == 5)
+        assert sum(job.stopped.is_set() for job in jobs[:4]) == 1
+        assert jobs[-1].selected.row.key == "asset:99"
+        release.set()
+        wait_for(lambda: len(set(delivered)) == 10 and not owner.busy)
+        assert packages == ["asset:99"]
+        assert len(delivered) == 10
+    finally:
+        owner.shutdown()
+        release.set()
+        wait_for(lambda: not owner.busy)
+        owner.deleteLater()
+        _APP.processEvents()
+
+
+def test_revisited_page_without_row_index_can_reload_its_exact_cache(monkeypatch, tmp_path):
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    service = Service()
+    original = service.get_character_catalog_detail
+    selected = detail(row(1))
+    result = CharacterRenderResult("cache", "package", "thumbnail", "base_appearance", ())
+    def get_detail(request, **kwargs):
+        token = original(request, **kwargs)
+        QTimer.singleShot(0, lambda: service.result_ready.emit(token, "get_character_catalog_detail", selected))
+        return token
+    service.get_character_catalog_detail = get_detail
+    monkeypatch.setattr(module, "cached_character_row", lambda *_: None)
+    monkeypatch.setattr(module, "cached_character_render", lambda *_: result)
+    owner = module.CharacterFinderPreviewController(service, fingerprint="fp", cache_root=tmp_path,
+        settings=ModelPreviewRenderSettings())
+    delivered = []
+    owner.thumbnail_ready.connect(lambda key, _: delivered.append(key))
+    try:
+        owner._done.add(selected.row.key)
+        owner.visible([selected.row], session_id="session-a", generation=1)
+        wait_for(lambda: delivered == [selected.row.key] and not owner.busy)
+        assert len(service.requests) == 1
+    finally:
+        owner.shutdown()
+        wait_for(lambda: not owner.busy)
+        owner.deleteLater()
+        _APP.processEvents()
+
+
+def test_page_cache_close_retains_worker_and_rejects_late_results(monkeypatch, tmp_path):
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    started, release = threading.Event(), threading.Event()
+    result = CharacterRenderResult("cache", "package", "thumbnail", "base_appearance", ())
+
+    def lookup(*_):
+        started.set()
+        assert release.wait(3)
+        return result
+
+    monkeypatch.setattr(module, "cached_character_row", lookup)
+    owner = module.CharacterFinderPreviewController(Service(), fingerprint="fp", cache_root=tmp_path,
+        settings=ModelPreviewRenderSettings())
+    delivered = []
+    owner.thumbnail_ready.connect(lambda key, _: delivered.append(key))
+    try:
+        owner.visible([row(1)], session_id="session-a", generation=1)
+        wait_for(started.is_set)
+        owner.shutdown()
+        assert owner.busy and len(list(owner.iter_shutdown_workers())) == 1
+        release.set()
+        wait_for(lambda: not owner.busy)
+        assert not delivered
+    finally:
+        release.set()
+        owner.shutdown()
+        wait_for(lambda: not owner.busy)
+        owner.deleteLater()
+        _APP.processEvents()
+
+
+def test_cached_page_loads_without_catalogue_details_and_invalidates_stale_links(monkeypatch, tmp_path):
+    from cdmw.workers.character_finder_workers import remember_character_thumbnail, cached_character_row, character_row_cache_root
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    service = Service()
+    service.get_character_catalog_detail = lambda *_a, **_kw: pytest.fail("A cached page repeated catalogue detail requests")
+    owner = module.CharacterFinderPreviewController(service, fingerprint="fp", cache_root=tmp_path,
+        settings=ModelPreviewRenderSettings())
+    package = tmp_path / "package"
+    package.mkdir()
+    manifest = package / "manifest.json"
+    manifest.write_text("{}")
+    thumbnail_root = tmp_path / "character_finder" / "thumbnails"
+    thumbnail_root.mkdir(parents=True)
+    for index in range(72):
+        key = f"{index:064x}"
+        path = thumbnail_root / (key + ".png")
+        path.write_bytes(b"fixture")
+        result = CharacterRenderResult(key, str(package), str(path), "base_appearance", ())
+        path.with_suffix(".json").write_text(json.dumps(asdict(result)))
+        remember_character_thumbnail(owner._row_root, row(index).key, result)
+    delivered = []
+    owner.thumbnail_ready.connect(lambda key, _: delivered.append(key))
+    try:
+        owner.visible([row(i) for i in range(72)], session_id="session-a", generation=1)
+        wait_for(lambda: len(delivered) == 72 and not owner.busy)
+        assert not service.requests
+        assert cached_character_row(tmp_path, character_row_cache_root(tmp_path, "changed", owner._settings), row(0).key) is None
+        manifest.unlink()
+        assert cached_character_row(tmp_path, owner._row_root, row(0).key) is not None
+        assert cached_character_render(tmp_path, f"{0:064x}") is None
+        token = owner._cache_token
+        owner.clear_page()
+        owner._page_cache_ready(token, [("stale", result)])
+        assert len(delivered) == 72
+    finally:
+        owner.shutdown()
+        wait_for(lambda: not owner.busy)
+        owner.deleteLater()
+        _APP.processEvents()
 
 
 def test_selected_job_cancels_old_thread_and_rejects_its_late_result(controller, monkeypatch):
@@ -334,6 +505,8 @@ def test_finder_passes_authored_shape_to_primary_and_attached_meshes(tmp_path, m
     assert package == "package" and status == "base_appearance" and "Applied authored variant" in notes
     assert len(calls) == 1 and calls[0][0] == body
     kwargs = calls[0][1]
+    assert kwargs["cache_root"] == kwargs["output_root"].parent / "native-cache"
+    assert not kwargs["cache_root"].parent.exists()  # Owned scratch retires after package publication.
     primary = struct.unpack_from("<6f", kwargs["presentation_geometry_payload"], 24)[:3]
     assert primary == pytest.approx(tuple(v * 1.02 for v in changed.submeshes[0].vertices[0]))
     context = kwargs["preview_context_components"]

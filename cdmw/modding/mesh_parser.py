@@ -2775,6 +2775,12 @@ def pac_bone_palette_candidates(
     would silently mis-name bones.
     """
 
+    return _pac_bone_palette_candidates(data, search_limit=search_limit,
+        minimum_entries=minimum_entries, maximum_entries=maximum_entries)
+
+
+def _pac_bone_palette_candidates(data, *, search_limit=None, minimum_entries=8,
+                                 maximum_entries=512, matching_hashes=None):
     search_start = 16
     if search_limit is None:
         # Current garments can carry more than 60 KB of metadata before their
@@ -2787,15 +2793,25 @@ def pac_bone_palette_candidates(
             search_limit = min(search_limit, *(section["offset"] for section in sections if section["index"] != 0), len(data))
     found: list[tuple[int, tuple[int, ...]]] = []
     limit = min(int(search_limit), max(0, len(data) - 6))
-    for offset in range(search_start, limit):
+    offsets = range(search_start, limit)
+    np = _np_module()
+    if np is not None and limit > search_start:
+        # Metadata counts can begin at either byte alignment. Reject impossible
+        # counts in one bounded view before unpacking candidate hash tables.
+        counts = np.ndarray((limit - search_start,), dtype="<u2", buffer=data,
+                            offset=search_start, strides=(1,))
+        offsets = (np.flatnonzero((counts >= minimum_entries) & (counts <= maximum_entries)) + search_start).tolist()
+    for offset in offsets:
         count = struct.unpack_from("<H", data, offset)[0]
         if not minimum_entries <= count <= maximum_entries:
             continue
         if offset + 2 + count * 4 > min(int(search_limit), len(data)):
             continue
+        if matching_hashes is not None and struct.unpack_from("<I", data, offset + 2)[0] not in matching_hashes:
+            continue
         values = struct.unpack_from(f"<{count}I", data, offset + 2)
         # Real hashes are large and unique; counts and offsets are neither.
-        if any(value < 0x10000 for value in values) or len(set(values)) != count:
+        if (values and min(values) < 0x10000) or len(set(values)) != count:
             continue
         found.append((count, values))
     found.sort(key=lambda item: -item[0])
@@ -2822,12 +2838,10 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
             continue
         by_hash.setdefault(name_hash, position)
     best: tuple[int, ...] = ()
-    for candidate in pac_bone_palette_candidates(data):
-        resolved = tuple(by_hash.get(value, -1) for value in candidate)
-        if any(index < 0 for index in resolved):
+    for candidate in _pac_bone_palette_candidates(data, matching_hashes=by_hash):
+        if len(candidate) <= len(best) or any(value not in by_hash for value in candidate):
             continue
-        if len(resolved) > len(best):
-            best = resolved
+        best = tuple(by_hash[value] for value in candidate)
     return best
 
 

@@ -70,7 +70,7 @@ class ArchiveControlsPanelMixin:
             "Selecting a row can scope the Archive Browser to that asset's likely files."
         )
         self.archive_asset_catalog_button.setEnabled(False)
-        self.archive_character_finder_button = QPushButton("Body & Face Finder")
+        self.archive_character_finder_button = QPushButton("Body & Face Finder".replace("&", "&&"))
         self.archive_character_finder_button.setToolTip("Find character bodies, faces and appearance variants in the installed archives.")
         self.archive_character_finder_button.setEnabled(False)
         self.archive_character_finder_button.clicked.connect(self._show_archive_character_finder_dialog)
