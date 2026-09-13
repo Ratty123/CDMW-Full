@@ -7,7 +7,7 @@ namespace Cdmw.FullArchive.Core;
 
 public static class ArchiveCharacterCatalogBuilder
 {
-    public const int Version = 4;
+    public const int Version = 5;
     private static readonly HashSet<string> CharacterExtensions = new(StringComparer.OrdinalIgnoreCase) {
         ".pac", ".pam", ".pamlod", ".app_xml", ".prefab", ".prefabdata_xml", ".pappt",
         ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".pab", ".pabc", ".pamt", ".pabv", ".paccd", ".xml", ".dds", ".hkt", ".papr" };

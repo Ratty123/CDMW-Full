@@ -18,6 +18,7 @@ The format is intentionally simple:
 - **Body & Face Finder** browses character bodies, heads, facial details, hair and beards across player, NPC, creature and mount families. Search unique assets or appearance variants, inspect shared ownership and dependencies, preview visible results, and open their files in Archive Browser. Unresolved models and unsupported customization remain explicit.
 
 ### Fixed
+- Body & Face Finder applies each appearance's declared neutral body/head shape and attached-mesh scale, including variants that share a base PAC and heads that share another family's rig. Identical complete head/body previews reuse their cache across character names; distinct shape and material inputs remain separate. Tear and eye meshes stay under Facial detail instead of appearing as heads.
 - Body & Face Finder starts with humanoid bodies and separate heads in both browsing modes. Creatures and secondary facial components remain available through filters. Face previews retain their prepared textures and avoid an unnecessary full archive scan and textureless retry; thumbnails and Reset view now face the front, with clearer directional lighting.
 
 - Mesh Editor selected-part replacements preserve untouched PAC parts at every LOD. Reset Placement and Fit to Original restore imported normal orientation along with placement, including after draft reopening.

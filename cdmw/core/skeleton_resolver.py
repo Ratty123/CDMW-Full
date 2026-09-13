@@ -641,6 +641,7 @@ def resolve_skeleton_descriptor_for_model(
     archive_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     read_entry_data: Optional[Callable[[ArchiveEntry], bytes]] = None,
     pac_data: bytes = b"",
+    authored_descriptor: ArchiveEntry | None = None,
 ) -> SkeletonDescriptorResolution:
     if read_entry_data is None:
         return SkeletonDescriptorResolution()
@@ -653,13 +654,17 @@ def resolve_skeleton_descriptor_for_model(
     errors: list[str] = []
     palettes = pac_bone_palette_candidates(pac_data) if pac_data.startswith(b"PAR ") else ()
     skeleton_matches: dict[str, bool] = {}
-    for descriptor_entry in _descriptor_candidates_for_model(
+    candidates = (authored_descriptor,) if authored_descriptor is not None else _descriptor_candidates_for_model(
         model_entry,
         archive_entries=archive_entries,
         archive_entries_by_normalized_path=archive_entries_by_normalized_path,
         archive_entries_by_basename=archive_entries_by_basename,
-    ):
-        if not _descriptor_model_identity_compatible(model_path, descriptor_entry.path):
+    )
+    for descriptor_entry in candidates:
+        # An appearance can deliberately bind a differently named prefab (and
+        # its variation) to a shared PAC. Its explicit association outranks name
+        # heuristics; the linked skeleton must still resolve this PAC's palette.
+        if authored_descriptor is None and not _descriptor_model_identity_compatible(model_path, descriptor_entry.path):
             continue
         try:
             text = read_entry_data(descriptor_entry).decode("utf-8", "ignore")
@@ -702,6 +707,8 @@ def resolve_skeleton_descriptor_for_model(
                 if entry is not None:
                     resolved[attr] = entry
                     score += 40
+                elif authored_descriptor is not None and attr in {"skeletonname", "skeletonvariationname"}:
+                    errors.append(f"{descriptor_entry.path}: unresolved {attr} reference {raw_value}")
         attempted_all.extend(attempted)
         skeleton_entry = resolved.get("skeletonname")
         if palettes and skeleton_entry is not None:
@@ -738,6 +745,7 @@ def resolve_skeleton_descriptor_for_model(
             score=score,
             reason=f"prefabdata descriptor {descriptor_entry.path}",
             attempted_paths=tuple(dict.fromkeys(attempted)),
+            blocking_errors=tuple(errors) if authored_descriptor is not None else (),
         )
         if resolution.skeleton_entry is not None:
             skeleton_candidates.append(resolution)

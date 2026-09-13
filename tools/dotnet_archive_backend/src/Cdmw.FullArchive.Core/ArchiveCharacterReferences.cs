@@ -72,7 +72,7 @@ internal sealed class ArchiveCharacterReferences(
         if (parts.Contains("armor") || parts.Contains("weapon") || Regex.IsMatch(stem, @"_(?:armor|ub|lb|hand|foot|hel|cloak|sword|shield|bow|saddle|parthide|bag|belt|chain|flail|floor|saliva|uw|wagon|boat)_")) return "excluded";
         if (parts.Contains("hair") || Regex.IsMatch(stem, @"_(?:hair\d*|fur|fuzz)_")) return "hair";
         if (parts.Contains("beard") || stem.Contains("_beard_")) return "beard";
-        if (parts.Contains("head_sub") || Regex.IsMatch(stem, @"_(?:head_sub|eyebrow|eyeline|eyelash|eye|eyeleft|eyeright|teeth|tooth|horn|tongue)_")) return "facial_detail";
+        if (parts.Contains("head_sub") || Regex.IsMatch(stem, @"_(?:head_sub|eyebrow|eyeline|eyelash|eye|eyeleft|eyeright|teeth|tooth|horn|tongue|tear)(?:_|$)")) return "facial_detail";
         if (parts.Contains("head") || parts.Contains("face") || Regex.IsMatch(stem, @"_(?:head|face)_")) return "head";
         if (parts.Contains("nude") || parts.Contains("body") || Regex.IsMatch(stem, @"_(?:nude|body)_")) return "body";
         if (normalized.Contains("/6_object/") || normalized.Contains("/7_montower/")) return "excluded";

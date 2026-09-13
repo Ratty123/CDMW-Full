@@ -7,6 +7,7 @@ import pytest
 
 from cdmw.core.skeleton_resolver import (
     _descriptor_model_identity_compatible,
+    resolve_skeleton_descriptor_for_model,
     resolve_skeleton_for_model,
 )
 from tests.test_mesh_pac_topology_serializer import _pac_fixture
@@ -102,3 +103,33 @@ def test_equal_complete_palettes_require_a_distinguishing_identity():
     })
     assert selected is None
     assert report.confidence == "ambiguous_palette"
+
+
+@pytest.mark.parametrize("failure", [None, "missing_variation", "wrong_palette"])
+def test_authored_variant_outranks_shared_model_basename_without_bypassing_rig_checks(failure):
+    model = _entry("character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac")
+    base = _entry("character/prefab/1_pc/02_phw/nude/cd_phw_00_nude_00_0001.prefabdata_xml")
+    authored = _entry("character/prefab/1_pc/02_phw/nude/cd_phw_00_nude_01_0001_bone02.prefabdata_xml")
+    rig = _entry("character/model/1_pc/2_phw/phw_01.pab")
+    variation = _entry("character/binary/skeletonvariation/1_pc/2_phw/nude/variant.pabc")
+    base_variation = _entry("character/binary/skeletonvariation/1_pc/2_phw/nude/base.pabc")
+    payloads = {
+        base.path: f'<NudePrefabData><SkeletonName FileName="{rig.path}"/><SkeletonVariationName FileName="{base_variation.path}"/></NudePrefabData>'.encode(),
+        authored.path: f'<NudePrefabData><SkeletonName FileName="{rig.path}"/><SkeletonVariationName FileName="{variation.path}"/></NudePrefabData>'.encode(),
+        rig.path: _pab(HASHES if failure != "wrong_palette" else HASHES[:-1]),
+    }
+    entries = [base, authored, rig, base_variation]
+    if failure != "missing_variation":
+        entries.append(variation)
+    arguments = dict(archive_entries_by_normalized_path={e.path: (e,) for e in entries},
+        archive_entries_by_basename={e.basename: (e,) for e in entries},
+        pac_data=_with_resolvable_bone_palette(_pac_fixture(skinned=True), HASHES),
+        read_entry_data=lambda e: payloads[e.path])
+    resolved = resolve_skeleton_descriptor_for_model(model, authored_descriptor=authored, **arguments)
+    if failure:
+        assert resolved.blocking_errors
+        assert resolved.skeleton_variation_entry is None
+    else:
+        assert resolved.descriptor_entry == authored and resolved.skeleton_variation_entry == variation
+        assert not resolved.blocking_errors
+        assert resolve_skeleton_descriptor_for_model(model, **arguments).skeleton_variation_entry == base_variation

@@ -86,7 +86,7 @@ filters. English character names are displayed; discovered character languages
 remain searchable. **Used by / Components** links appearances to shared models.
 Both views start with **Humanoids** (player and NPC families); choose **Creatures**,
 another type, or **All types** to widen the results. **Faces** starts with separate
-heads. Hair, beards and facial details require their component filter; a face
+heads. Hair, beards and facial details (including tear and eye meshes) require their component filter; a face
 embedded in a full body remains in **Bodies**. **Clear filters** restores these
 defaults. An explicitly selected type is remembered, including **All types**.
 **Show exact files** and **Show related files** return a bounded entry-ID scope to
@@ -115,12 +115,22 @@ Streamed appearance dependencies retain prepared DDS and skeleton-variation file
 in the complete preview snapshot, avoiding unnecessary archive-wide lookup and
 textureless retries. Thumbnails and **Reset view** use the renderer's front framing;
 the finder uses directional lighting to keep facial form readable.
-Combined-body previews prepare only their rendered body components and share a
-cached preview when model order, authored scale, prefab and dependency identities
-match. Character labels and ownership remain separate in the catalogue.
+Combined-body previews prepare only their rendered body components. Heads and
+bodies share a cached preview when complete model order, authored scale, component
+attributes, prefab and dependency identities match. Different shape, material or
+customization inputs retain separate caches; ownership links require no additional
+extraction. Character labels and ownership remain separate in the catalogue.
 
-**Base appearance** applies supported model/skeleton variations and scales;
-customization/material/morph references remain in Details. Declared combined
+**Base appearance** applies supported model/skeleton variations and scales.
+The selected appearance's exact prefab descriptor takes precedence over the shared
+PAC's base descriptor, including for its attached meshes. Shared-rig heads also
+retain a PAB candidate linked by their morph set; its bone palette must match.
+An unresolved declared variation reports a preview failure instead of substituting
+raw geometry under the base-appearance label. Existing thumbnails rebuild for the
+corrected shape selection.
+Incomplete dependency snapshots stop with an explanation; they cannot trigger
+an archive-wide native scan or be presented as complete appearances.
+Customization/material/morph references remain in Details. Declared combined
 body/head meshes retain their embedded face instead of stacking a separate head.
 **Textures unavailable** means geometry is shown without claiming textured parity.
 **Unresolved model** remains browsable with its source evidence. Exact customization

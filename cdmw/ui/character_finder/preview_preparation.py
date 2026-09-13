@@ -135,6 +135,12 @@ class CharacterPreviewPreparation(QObject):
     def _publish(self) -> None:
         detail, self._detail = self._detail, None
         if detail is not None:
+            # Context may already have arrived with a model's prepared material
+            # closure. Preserve its catalogue ID as well as its path so the
+            # renderer can follow the exact authored appearance descriptor.
+            for file in detail.files:
+                if (entry := self._entries.get(file.path.casefold())) is not None:
+                    self._models_by_id.setdefault(file.entry_id, entry)
             self.ready.emit(self._token, CharacterPreviewInputs(detail, dict(self._models_by_id),
                 tuple(self._entries.values()), self._complete))
 

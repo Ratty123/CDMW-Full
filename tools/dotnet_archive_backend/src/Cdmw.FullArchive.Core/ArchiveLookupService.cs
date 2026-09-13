@@ -620,6 +620,15 @@ public sealed class ArchiveLookupService(
         {
             referencePaths.Add(normalized[..^6] + ".dds");
         }
+        else if (normalized.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)
+            && (normalized.StartsWith("character/model/", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("1_pc/", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Some head families share another family's rig and name only its
+            // morph set. Deliver the matching PAB as a candidate; the appearance
+            // resolver must validate the PAC palette before using that skeleton.
+            referencePaths.Add(normalized[..^5] + ".pab");
+        }
         foreach (var referencePath in referencePaths)
         {
             incomplete |= AddExactPathMatches(session.Index, referencePath, ids, cancellationToken);
