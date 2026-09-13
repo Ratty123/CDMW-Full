@@ -36,6 +36,7 @@ def _publish_prepared_replacement(
     session.requires_edit_operations = prepared.requires_edit_operations
     session.archive_refit_context = prepared.archive_refit_context
     session.replacement_state = prepared.replacement_state
+    session.hair_state = prepared.hair_state
     session.object_transform = MeshObjectTransformState(pivot=session.object_transform.pivot)
     session.revision += 1
 
@@ -52,6 +53,7 @@ def _restore_previous_replacement_state(
     session.requires_edit_operations = prepared.previous_requires_edit_operations
     session.archive_refit_context = prepared.previous_archive_refit_context
     session.replacement_state = prepared.previous_replacement_state
+    session.hair_state = prepared.previous_hair_state
     session.revision = prepared.expected_revision
 
 
@@ -105,6 +107,8 @@ class MeshWorkingReplacementServiceMixin:
         validation_output_destination_ready: bool | None = None,
         archive_refit_context: object | None = None,
         replacement_state: MeshReplacementState | None = None,
+        hair_state: object | None = None,
+        replace_hair_state: bool = False,
         replace_output_state: bool = False,
     ) -> MeshPreparedWorkingMeshReplacement:
         """Build and validate an immutable candidate without publishing live state."""
@@ -115,6 +119,11 @@ class MeshWorkingReplacementServiceMixin:
                 raise KeyError(f"Unknown mesh edit session: {session_id}")
             if not isinstance(mesh, ParsedMesh):
                 raise TypeError("mesh must be a ParsedMesh")
+            if replace_hair_state and hair_state is not None:
+                from cdmw.domain.mesh.hair import HairAuthoringState, hair_state_from_payload
+                if not isinstance(hair_state, HairAuthoringState):
+                    raise TypeError("hair_state must be a validated HairAuthoringState")
+                hair_state_from_payload(hair_state.payload)
 
             previous_working_mesh = _service_call(
                 "_clone_mesh_for_service_native_snapshot",
@@ -202,6 +211,8 @@ class MeshWorkingReplacementServiceMixin:
                 previous_archive_refit_context=session.archive_refit_context,
                 replacement_state=output_state,
                 previous_replacement_state=session.replacement_state,
+                hair_state=hair_state if replace_hair_state else session.hair_state,
+                previous_hair_state=session.hair_state,
             )
 
     def _validate_replacement_export(
@@ -399,6 +410,8 @@ class MeshWorkingReplacementServiceMixin:
             history_snapshot.restore_archive_refit_context = True
             history_snapshot.replacement_state = session.replacement_state
             history_snapshot.restore_replacement_state = True
+            history_snapshot.hair_state = session.hair_state
+            history_snapshot.restore_hair_state = True
             if session.native_editor_mesh_dirty:
                 previous_native_snapshot = _service_call(
                     "snapshot_native_mesh_submeshes",
@@ -463,6 +476,8 @@ class MeshWorkingReplacementServiceMixin:
                 after_snapshot = _MeshHistorySnapshot(
                     replacement_state=prepared.replacement_state,
                     restore_replacement_state=True,
+                    hair_state=prepared.hair_state,
+                    restore_hair_state=True,
                     archive_refit_context=prepared.archive_refit_context,
                     restore_archive_refit_context=True,
                     mesh=prepared.working_mesh,

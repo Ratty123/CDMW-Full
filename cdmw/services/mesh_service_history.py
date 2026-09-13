@@ -93,6 +93,7 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             snapshot.object_transform,
             snapshot.archive_refit_context,
             snapshot.replacement_state,
+            snapshot.hair_state,
         )
     )
     if snapshot.native_submesh_snapshot is not None:
@@ -812,6 +813,9 @@ def _capture_history_session_state(
     if template.restore_replacement_state:
         snapshot.replacement_state = session.replacement_state
         snapshot.restore_replacement_state = True
+    if template.restore_hair_state:
+        snapshot.hair_state = session.hair_state
+        snapshot.restore_hair_state = True
     if template.restore_geometry_layer_state:
         snapshot.geometry_layers = tuple(session.geometry_layers)
         snapshot.active_geometry_layer_id = session.active_geometry_layer_id
@@ -848,6 +852,8 @@ def _restore_history_session_state(
         session.archive_refit_context = snapshot.archive_refit_context
     if snapshot.restore_replacement_state:
         session.replacement_state = snapshot.replacement_state
+    if snapshot.restore_hair_state:
+        session.hair_state = snapshot.hair_state
     if snapshot.restore_geometry_layer_state:
         target_layers = tuple(snapshot.geometry_layers or ())
         target_active = str(snapshot.active_geometry_layer_id or "base")

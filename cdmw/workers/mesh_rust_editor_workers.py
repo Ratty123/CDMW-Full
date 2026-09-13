@@ -75,6 +75,7 @@ class MeshRustSessionPrepareWorker(QObject):
         *,
         process_generation: int,
         theme: dict[str, object] | None = None,
+        hair_start_mode: str = "",
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -91,6 +92,7 @@ class MeshRustSessionPrepareWorker(QObject):
         self.session_root = Path(session_root)
         self.process_generation = int(process_generation)
         self.theme = dict(theme or {})
+        self.hair_start_mode = hair_start_mode
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -123,6 +125,7 @@ class MeshRustSessionPrepareWorker(QObject):
                 process_generation=self.process_generation,
                 theme=self.theme,
                 stop_event=self._stop_event,
+                **({"hair_start_mode": self.hair_start_mode} if self.hair_start_mode else {}),
             )
             if (
                 self._stop_event.is_set()
@@ -212,14 +215,21 @@ class MeshRustProtocolWorker(QObject):
                 raise ValueError(self._preparation_error)
             finish_accepted = False
             if event_name == "transaction_request":
-                payload = self.session.apply_candidate(self.protocol_event)
+                payload = self.session.apply_candidate(self.protocol_event, stop_event=self._stop_event)
                 result_name = "transaction_result"
             elif event_name == "command_request":
-                if self.protocol_event.get("command") == "refit_choose_archive":
+                if self.protocol_event.get("command") in {"refit_choose_archive", "hair_begin"}:
                     from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source
                     self.protocol_event["arguments"] = prepare_archive_refit_source(
                         dict(self.protocol_event.get("arguments") or {}), self._stop_event,
                     )
+                    args = self.protocol_event["arguments"]
+                    if self.protocol_event.get("command") == "hair_begin" and args.get("_body_archive_entry") is not None:
+                        body = prepare_archive_refit_source({"_archive_entry": args["_body_archive_entry"],
+                            "_archive_dependencies": args["_body_archive_dependencies"]}, self._stop_event)
+                        args["_body_snapshot"] = body["_archive_snapshot"]
+                        args["_body_neutral_appearance"] = body["_archive_neutral_appearance"]
+                        args["_body_preview_lease"] = body["_archive_preview_lease"]
                 payload = self.session.run_command(
                     self.protocol_event,
                     stop_event=self._stop_event,
@@ -291,6 +301,12 @@ class MeshRustProtocolWorker(QObject):
                     recovery,
                 )
         finally:
+            if self.protocol_event.get("command") == "hair_begin":
+                for key in ("_archive_preview_lease", "_body_preview_lease"):
+                    lease = dict(self.protocol_event.get("arguments") or {}).get(key)
+                    if lease is not None and lease.lease is not None:
+                        lease.lease.release()
+                        lease.lease = None
             self.finished.emit()
 
     def _response_revision(self) -> int:

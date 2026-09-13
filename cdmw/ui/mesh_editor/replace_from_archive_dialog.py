@@ -347,6 +347,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
         self.choose_button = QPushButton("Review Replacement")
         if refit_role:
             self.choose_button.setText("Load Body" if refit_role == "body" else "Load Armor")
+            if refit_role == "hair":
+                self.choose_button.setText("Use as Hair Reference")
         cancel_button = QPushButton("Cancel")
         self.choose_button.setEnabled(False)
         buttons.addWidget(self.choose_button)
@@ -399,6 +401,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
 
     def _build_picker_header(self, layout):
         self.setWindowTitle("Choose Refit Body from Archive" if self._refit_role == "body" else "Choose Refit Armor from Archive" if self._refit_role else "Replace from Archive")
+        if self._refit_role == "hair":
+            self.setWindowTitle("Choose Damiane Head Reference")
         self.resize(1360, 820)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -414,6 +418,8 @@ class ReplaceFromArchivePickerDialog(QDialog):
         elif self._refit_role == "armor":
             intro.setText("Choose clothing or armor to fit to the body. Both browsers show the same archive catalogue; "
                           "Load Armor adds and selects the garment. Bind it to make it follow body shape changes.")
+        elif self._refit_role == "hair":
+            intro.setText("Choose Damiane's head as a scalp and fitting reference. Reference geometry stays outside hairstyle output.")
         layout.addWidget(intro)
 
         self.search_edit = QLineEdit()

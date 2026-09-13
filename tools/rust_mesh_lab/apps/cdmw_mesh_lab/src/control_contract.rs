@@ -128,9 +128,11 @@ fn all_anchors_present(source: &str, anchors: &str) -> bool {
 const CDMW_UI_SOURCE: &str = concat!(
     include_str!("cdmw_ui.rs"),
     "\n",
-    include_str!("cdmw_rig.rs")
+    include_str!("cdmw_rig.rs"),
+    "\n",
+    include_str!("cdmw_hair.rs")
 );
-const MAIN_SOURCE: &str = include_str!("main.rs");
+const MAIN_SOURCE: &str = concat!(include_str!("main.rs"), "\n", include_str!("cdmw_hair.rs"));
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
     "key",
@@ -646,6 +648,19 @@ policy.exact_free_edit|exact_free_edit|executable|session_policy|true|
 
 // Product controls whose UI and dispatcher anchors are both verified directly.
 const PRODUCT_COMPILED_ANCHOR_ROWS: &str = r#"
+hair.create|hair|"Create Hair"|command: "hair_begin"
+hair.edit|hair|"Edit Hair"|command: "hair_begin"
+hair.preset|hair|"Fill upper scalp from preset"|Preparation::Fill
+hair.groom|hair|"Comb"|hair::groom
+hair.bind|hair|"Bind existing group"|hair::bind_existing
+hair.root|hair|"Correct roots"|HairTool::Root
+hair.rebind|hair|"Rebind roots"|Preparation::Rebind
+hair.appearance|hair|"Apply appearance"|HairAction::Settings
+hair.texture|hair|"Apply edited DDS…"|"hair_texture"
+hair.motion|hair|"Motion"|sim.advance
+hair.settle|hair|"Use settled shape"|.settled_state
+hair.convert|hair|"Convert to ordinary mesh"|state.converted = true
+hair.registration|hair|"Apply registration name"|HairAction::Registration
 tool.rotate|transform|CdmwRailPage::Rotate|ViewportTool::Rotate
 tool.scale|transform|CdmwRailPage::Scale|ViewportTool::Scale
 transform.numeric_rotate|transform|UiAction::RotateStep|UiAction::RotateStep

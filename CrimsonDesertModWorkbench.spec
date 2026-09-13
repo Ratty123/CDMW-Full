@@ -254,7 +254,7 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "executable": expected_files["executable"].name,
         "control_contract": expected_files["control_contract"].name,
         "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-        "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1"],
+        "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v1"],
     }
     mismatches = [
         f"{field}={manifest.get(field)!r}"

@@ -12,7 +12,53 @@ transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
 Replacement imports and reversible output inclusion extend that foundation in
 the existing Parts panel. General material assignment, recolour/glow authoring,
-in-game swaps, and Texture Editor handoffs remain separate workflows.
+in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
+
+## Hair creation
+
+Open a compatible Damiane player hairstyle at LOD0 and choose **Create Hair** or
+**Edit Hair** in Mesh Editor or Body & Face Finder. Choose the head and base body
+references. The face surface and the body's crown form the scalp; neck and
+shoulders are fitting references. Reference geometry never enters output.
+
+The compact Hair panel contains Setup, Groom, Appearance and Motion. Creation
+uses cropped, bob, long and ponytail guides and textured cards. Coverage/guide
+painting, root correction, comb, smooth, cut, lengthen, curl, clump and symmetry
+operate on guides. Card width, density and atlas bounds apply to generated groups.
+The default atlas region comes from a connected donor card. Existing hair keeps
+its UVs and topology: select Parts, create explicit groups, plant/correct their
+roots, and **Bind existing group** before grooming them.
+
+Motion is a Rust CPU XPBD approximation with fixed roots, stretch/bend constraints,
+gravity, damping, wind and head/neck/shoulder capsules. Play/Pause/Reset and turn/nod
+tests deform the rendered hair. Grooming pauses simulation for the stroke and
+restarts it afterwards. Frames do not enter history or output. **Use settled shape**
+is an explicit undoable edit; **Convert to ordinary mesh** enables direct topology
+work and Undo restores the complete guide state.
+
+**Open in Texture Editor** opens a captured DDS using the existing editor. Export
+that DDS and use **Apply edited DDS** to publish it as one hair transaction. Keep
+the template dimensions, compression and mip count. Missing required DDS files
+block validation. The donor material's colour and alpha are retained.
+
+Hair drafts use `mesh_layer_project_v4`/`mesh_layer_generation_v4`; reads of v1–3
+remain supported. Hair state, output inclusion, material files and geometry save
+together. A changed reference needs explicit rebinding. Rust advertises
+`hair_authoring_v1`; candidates and Finish use the existing revision-checked
+authoring protocol, and the Finder stays read-only until handoff.
+
+**Build Mod** prepares a new DMM folder outside the game. It clones the donor
+registration and required mesh/material/texture/physics assets into distinct
+identities, reparses every packaged payload and checks source/catalogue conflicts
+before atomic publication. The donor must be a current Damiane barber choice;
+additional PAC LODs currently block this route. Normal loose export is disabled
+for hair drafts so registration companions cannot be omitted.
+
+The package is an unverified game integration candidate. Additional barber
+selection, save/load, headgear, running, game physics and LOD transitions still
+require in-game acceptance. No executable hooks or installed-archive writes are
+part of hair authoring. See [the hair document](../../../docs/hair-authoring-feasibility.md)
+for evidence and remaining acceptance work.
 
 ## Replacement workflow
 

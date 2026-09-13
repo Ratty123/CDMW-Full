@@ -738,6 +738,17 @@ class MeshDirectOutputWorker(QObject):
                 stop_event=self.stop_event,
                 expected_mesh_revision=self.expected_mesh_revision,
             )
+            if snapshot.hair_state is not None:
+                if self.kind != "overlay_package" or self.manager_profile != "dmm" or self.output_path is None:
+                    raise ValueError("Hairstyles require Build Mod → DMM Archive Group to add the complete barber choice.")
+                from cdmw.services.mesh_hair_output import export_hair_package
+                rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
+                output = export_hair_package(snapshot, rebuilt, self.entry, self.output_path,
+                    stop_event=self.stop_event,
+                    on_log=lambda message: self.progress_changed.emit(self.request_id, 25, message))
+                self.completed.emit(self.request_id, MeshDirectOutputResult(
+                    kind=self.kind, output_path=output, manager_profile="dmm", rebuild_report=report))
+                return
             if snapshot.texture_resources or int(snapshot.material_generation) > 0:
                 raise RuntimeError(
                     "Mesh-only outputs cannot contain texture or material authoring changes"

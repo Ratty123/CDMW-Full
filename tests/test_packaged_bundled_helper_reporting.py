@@ -110,7 +110,7 @@ def _packaged_rust_editor_fixture(
             "executable": "cdmw_mesh_lab.exe",
             "control_contract": "cdmw_mesh_lab.control-contract.json",
             "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1"],
+            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v1"],
             "preview_capabilities": list(RUST_PREVIEW_REQUIRED_CAPABILITIES),
             "source_revision": "c" * 40,
             "source_tree_sha256": "d" * 64,

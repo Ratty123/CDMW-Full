@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod hair;
+
 use cdmw_evidence::sha256_bytes;
 use cdmw_formats::{MeshDocument, Submesh};
 use glam::{Quat, Vec2, Vec3};

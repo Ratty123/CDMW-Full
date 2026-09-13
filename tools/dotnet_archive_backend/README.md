@@ -11,6 +11,12 @@ decode.
 
 Persistent data lives beneath the cache root passed with `--cache-root`:
 
+The read-only `probe_hair_registration.py` creates a cloned additional Damiane
+barber-choice test package. `probe_hair_authoring.py` prepares the real Rust hair
+handoff and reparses an authored package after the Rust production-render probe.
+Both require explicit game/cache/output paths and never install their output.
+See [the hair workflow and acceptance status](../../docs/hair-authoring-feasibility.md).
+
 ```text
 index/
   c2/<root-id>/

@@ -169,8 +169,23 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             from cdmw.modding.mesh_pac_builder import _pac_submesh_channels_unchanged
             preserved = tuple(part.target_index for part in state.parts if part.included and
                 _pac_submesh_channels_unchanged(original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
-        data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options,
-                                              preserve_original_pac_submesh_indices=preserved)
+        hair = getattr(snapshot, "hair_state", None)
+        preserve_hair_records = (original.format.lower() == "pac" and hair is not None
+            and all(group["mode"] == "existing" for group in hair.payload["groups"])
+            and all(part.included for part in state.parts)
+            and all(len(before.vertices) == len(after.vertices) and before.faces == after.faces
+                    and before.uvs == after.uvs and before.bone_indices == after.bone_indices
+                    and before.bone_weights == after.bone_weights
+                    for before, after in zip(original.submeshes, snapshot.mesh.submeshes, strict=True)))
+        if preserve_hair_records:
+            # Existing PAC hair can use eight encoded influences. Geometry-only
+            # grooming must retain those exact records, not pass them through the
+            # six-lane new-topology weight writer.
+            from cdmw.modding.mesh_pac_builder import build_pac
+            data = build_pac(snapshot.mesh, snapshot.original_data)
+        else:
+            data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options,
+                                                  preserve_original_pac_submesh_indices=preserved)
         if original.format.lower() == "pam":
             data = _preserve_pam_index_convention(data, snapshot.original_data)
     parsed = parse_mesh(data, state.target_path)

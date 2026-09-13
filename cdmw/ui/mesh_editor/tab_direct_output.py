@@ -34,6 +34,31 @@ class MeshEditorDirectOutputMixin:
         if not self._standalone_export_validation_ok():
             self.status_message_requested.emit("Run validation successfully before building a mesh mod.", True)
             return
+        controller = self.standalone_controller
+        hair = controller.mesh_service._session(controller.active_session_id).hair_state
+        if hair is not None:
+            session_id = controller.active_session_id
+            revision = self.standalone_export_validation_revision
+            parent = _tab.QFileDialog.getExistingDirectory(self, "Build Additional Hairstyle — DMM Package",
+                str(self.settings.value("mesh_editor/last_mod_output_dir", "") or ""))
+            if parent:
+                current_target = self._current_target_entry()
+                if (
+                    self.standalone_controller is not controller
+                    or controller.active_session_id != session_id
+                    or current_target is None
+                    or current_target.identity != entry.identity
+                    or self.standalone_export_validation_revision != revision
+                    or not self._standalone_export_validation_ok()
+                ):
+                    self.status_message_requested.emit(
+                        "The hairstyle changed while choosing output. Validate it again before building.", True,
+                    )
+                    return
+                self.settings.setValue("mesh_editor/last_mod_output_dir", parent)
+                output = find_available_output_path(Path(parent) / (hair.payload["template"]["target_stem"] + "-hair-mod"))
+                self._start_mesh_direct_output_worker("overlay_package", entry, output_path=output, manager_profile="dmm")
+            return
         choice = _tab.QMessageBox(self)
         choice.setWindowTitle("Build Mod")
         choice.setText("Choose the mesh-only mod package and manager.")

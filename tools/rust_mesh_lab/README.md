@@ -128,6 +128,14 @@ not resolve, launch, hash, or read a Vortice executable or report.
 
 ## Materials in CDMW previews
 
+The integrated Hair section creates cards from scalp guides or binds explicitly
+grouped existing hair. Rust owns grooming, background generation and transient
+XPBD simulation; Python owns versioned drafts, DDS handoff and additional-choice
+package validation. `hair_authoring_v1` is required by the host. Simulation does
+not change export until **Use settled shape**; Finish waits for hair generation.
+See [Hair creation](../../cdmw/ui/mesh_editor/README.md#hair-creation) and
+[hair acceptance](../../docs/hair-authoring-feasibility.md). Game acceptance remains pending.
+
 CDMW-imported glTF materials preserve OPAQUE, MASK and BLEND and scalar opacity.
 Blended triangles render after opaque geometry, with depth testing and without
 depth writes, sorted for each view and current placement. The same draw path serves

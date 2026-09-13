@@ -2,6 +2,7 @@
 
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_mesh::{Provenance, WorkingMesh};
+use cdmw_mesh::hair::HairState;
 use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
@@ -360,6 +361,12 @@ enum Incoming {
 #[derive(Debug, Clone)]
 enum Outbound {
     Message(Value),
+    HairTransaction {
+        request_id: u64,
+        base_revision: u64,
+        label: String,
+        candidate: Candidate,
+    },
     Transaction {
         request_id: u64,
         base_revision: u64,
@@ -773,6 +780,7 @@ impl CdmwBridge {
                 "host_topology_v1",
                 "host_layers_v1",
                 "host_morph_refit_v1",
+                "hair_authoring_v1",
                 "control_contract_v2"
             ]
         }))?;
@@ -806,6 +814,43 @@ impl CdmwBridge {
             })
             .map_err(|error| SessionError::Protocol(format!("outbound queue is busy: {error}")))?;
         Ok(request_id)
+    }
+
+    pub fn submit_hair_transaction(&mut self, document: &MeshDocument, hair: &HairState,
+                                   label: &str) -> Result<u64, SessionError> {
+        hair.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+        let lod = document.lods.get(self.source_lod_index)
+            .ok_or_else(|| SessionError::InvalidPayload("missing hair LOD".into()))?;
+        let candidate = Candidate { schema: CANDIDATE_SCHEMA, session_id: self.manifest.session_id.clone(),
+            hair: Some(hair.clone()), selection: CandidateSelection::default(),
+            submeshes: lod.submeshes.iter().map(|part| CandidateSubmesh {
+                positions: part.positions.clone(), normals: part.normals.clone(),
+                uvs: part.uvs.clone(), indices: part.indices.clone(),
+            }).collect() };
+        let request_id = self.take_request_id();
+        self.outbound.try_send(Outbound::HairTransaction { request_id, base_revision: self.shadow_revision,
+            label: label.to_owned(), candidate })
+            .map_err(|e| SessionError::Protocol(format!("outbound queue is busy: {e}")))?;
+        Ok(request_id)
+    }
+
+    pub fn hair_from_state(&self, state: &Value) -> Result<Option<HairState>, SessionError> {
+        let Some(reference) = state.get("hair").and_then(|h| h.get("file")) else { return Ok(None); };
+        let reference: FileReference = serde_json::from_value(reference.clone())?;
+        if reference.data_type != "hair_authoring_json" || reference.byte_length > 64 * 1024 * 1024 {
+            return Err(SessionError::InvalidPayload("invalid hair rest-state reference".into()));
+        }
+        let data = read_json_reference(&self.root, &reference)?;
+        let hair: HairState = serde_json::from_slice(&data)?;
+        if hair.version != cdmw_mesh::hair::HAIR_VERSION {
+            return Err(SessionError::InvalidPayload("unsupported hair rest-state version".into()));
+        }
+        if hair.bound_reference == hair.scalp.identity {
+            hair.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+        } else {
+            hair.scalp.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+        }
+        Ok(Some(hair))
     }
 
     pub fn submit_command(&mut self, command: &str, arguments: Value) -> Result<u64, SessionError> {
@@ -2241,6 +2286,14 @@ fn reject_unexpected_initial_files(
     )
     .map(str::to_owned)
     .collect::<BTreeSet<_>>();
+    if let Some(reference) = manifest.state.get("hair").and_then(|h| h.get("file")) {
+        let reference: FileReference = serde_json::from_value(reference.clone())?;
+        if reference.path != "hair-state.json" || reference.data_type != "hair_authoring_json" {
+            return Err(SessionError::InvalidManifest("invalid initial hair state reference".into()));
+        }
+        let _: HairState = serde_json::from_slice(&read_json_reference(root, &reference)?)?;
+        allowed.insert(reference.path);
+    }
     if !manifest.replacement_material_states.is_empty() {
         let active_key = manifest.state["archive_refit_materials"]["key"]
             .as_str()
@@ -2531,6 +2584,10 @@ fn spawn_output_writer(
             for outbound in receiver {
                 let result = match outbound {
                     Outbound::Message(value) => write_control_message(&mut writer, &value),
+                    Outbound::HairTransaction { request_id, base_revision, label, candidate } => {
+                        write_candidate(&root, &session_id, process_generation, request_id,
+                                        base_revision, &label, &candidate, &mut writer)
+                    }
                     Outbound::Transaction {
                         request_id,
                         base_revision,
@@ -2567,15 +2624,17 @@ fn write_control_message(writer: &mut impl Write, value: &Value) -> Result<(), S
     Ok(())
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct Candidate {
     schema: &'static str,
     session_id: String,
     submeshes: Vec<CandidateSubmesh>,
     selection: CandidateSelection,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hair: Option<HairState>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct CandidateSubmesh {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
@@ -2583,7 +2642,7 @@ struct CandidateSubmesh {
     indices: Vec<u32>,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 struct CandidateSelection {
     vertices_by_submesh: BTreeMap<String, Vec<u32>>,
     edges_by_submesh: BTreeMap<String, Vec<[u32; 2]>>,
@@ -2604,6 +2663,12 @@ fn write_transaction(
     writer: &mut impl Write,
 ) -> Result<(), SessionError> {
     let candidate = build_candidate(session_id, document, mesh, lod_index)?;
+    write_candidate(root, session_id, process_generation, request_id, base_revision, label, &candidate, writer)
+}
+
+fn write_candidate(root: &Path, session_id: &str, process_generation: u64,
+                   request_id: u64, base_revision: u64, label: &str,
+                   candidate: &Candidate, writer: &mut impl Write) -> Result<(), SessionError> {
     let bytes = serde_json::to_vec(&candidate)?;
     if bytes.len() as u64 > MAX_PAYLOAD_BYTES {
         return Err(SessionError::InvalidPayload(
@@ -2687,6 +2752,7 @@ fn build_candidate(
         session_id: session_id.to_owned(),
         submeshes,
         selection: candidate_selection(mesh)?,
+        hair: None,
     })
 }
 

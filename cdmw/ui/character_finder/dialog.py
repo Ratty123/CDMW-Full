@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+from dataclasses import replace
 from pathlib import Path
 from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QPixmap
@@ -53,6 +54,8 @@ class CharacterFinderDialog(QDialog):
         self._related_key = None
         self._select_after_search = None
         self._pending_package = None
+        self._hair_preparation = None
+        self._hair_handoff = None
         self._shown_key = ""
         self._thumbs = {}
         self._build_ui()
@@ -209,7 +212,11 @@ class CharacterFinderDialog(QDialog):
         self._related.clicked.connect(lambda: self._scope(True))
         self._copy = QPushButton("Copy path")
         self._copy.clicked.connect(self._copy_path)
-        for button in (self._exact, self._related, self._copy):
+        self._create_hair = QPushButton("Create Hair")
+        self._create_hair.clicked.connect(lambda: self._start_hair("generated"))
+        self._edit_hair = QPushButton("Edit Hair")
+        self._edit_hair.clicked.connect(lambda: self._start_hair("existing"))
+        for button in (self._exact, self._related, self._copy, self._create_hair, self._edit_hair):
             button.setEnabled(False)
             actions.addWidget(button)
         right_layout.addLayout(actions)
@@ -487,6 +494,64 @@ class CharacterFinderDialog(QDialog):
         if self._details is not None:
             QApplication.clipboard().setText(self._details.row.path)
 
+    def _hair_model(self):
+        if self._details is None:
+            return None
+        models = [item for item in self._details.models if
+            "1_pc/2_phw/head/hair/" in item.path.casefold() and item.path.casefold().endswith("_player.pac")]
+        return models[0] if len(models) == 1 else None
+
+    def _start_hair(self, mode):
+        model = self._hair_model()
+        if model is None or self._closing or self._invalid:
+            return
+        from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
+        if self._hair_preparation is None:
+            self._hair_preparation = CharacterPreviewPreparation(self._service, self)
+            self._hair_preparation.ready.connect(self._hair_prepared)
+            self._hair_preparation.failed.connect(self._hair_failed)
+        self._hair_handoff = (self._details.row.key, model.entry_id, mode)
+        detail = replace(self._details, models=(model,),
+            components=tuple(c for c in self._details.components if model.entry_id in c.model_entry_ids))
+        self._status.setText("Preparing hair and its materials for Mesh Editor…")
+        self._hair_preparation.start(detail, self._bridge.controller.generation)
+        self._buttons()
+
+    def _hair_failed(self, _token, message):
+        self._hair_handoff = None
+        if not self._closing:
+            self._status.setText(message)
+            self._buttons()
+
+    def _hair_prepared(self, token, inputs):
+        pending, self._hair_handoff = self._hair_handoff, None
+        if (pending is None or self._closing or self._invalid or token != self._bridge.controller.generation
+                or self._selected_key() != pending[0] or inputs.detail.session_id != self._session_id):
+            if not self._closing:
+                self._buttons()
+            return
+        if not inputs.dependencies_complete:
+            self._hair_failed(token, "The hairstyle's material dependencies are incomplete.")
+            return
+        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+        target = inputs.entries_by_id[pending[1]]
+        paths, names = {}, {}
+        for entry in inputs.entries:
+            paths.setdefault(entry.path.casefold(), []).append(entry)
+            names.setdefault(entry.basename.casefold(), []).append(entry)
+        dependencies = ArchiveWorkflowDependencyContext(target, inputs.entries, paths, names, True)
+        shell = self._window.shell
+        if not shell._prepare_mesh_editor_archive_launch(target):
+            self._buttons()
+            return
+        tab = shell.mesh_editor_tab
+        tab._pending_hair_start = (target.identity, pending[2])
+        tab.open_archive_session(target, archive_dependencies=dependencies)
+        shell._activate_tool_widget(tab)
+        self._status.setText("Hair opened in Mesh Editor. Choose its head reference there.")
+        self._buttons()
+        self.hide()
+
     def _visible(self):
         if self._closing or self._invalid or "search" in self._requests:
             return
@@ -569,6 +634,8 @@ class CharacterFinderDialog(QDialog):
         self._next_button.setEnabled(not busy and not self._invalid and self._page_start + 72 < self._total)
         for button in (self._exact, self._related, self._copy):
             button.setEnabled(self._details is not None and not busy and not self._invalid)
+        for button in (self._create_hair, self._edit_hair):
+            button.setEnabled(self._hair_model() is not None and not busy and not self._invalid and self._hair_handoff is None)
 
     def _session_changed(self, session):
         if session.session_id != self._session_id or session.fingerprint != self._fingerprint:
@@ -603,6 +670,9 @@ class CharacterFinderDialog(QDialog):
         for kind in tuple(self._requests):
             self._cancel(kind)
         self._preview.shutdown()
+        if self._hair_preparation is not None:
+            self._hair_preparation.cancel()
+        self._hair_handoff = None
         self._host.controller.shutdown()
         for signal, slot in ((self._service.result_ready, self._result), (self._service.request_failed, self._failed),
                              (self._service.progress, self._progress), (self._service.session_published, self._session_changed),
