@@ -2308,6 +2308,81 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
 }
 
 #[test]
+fn integrated_replacement_import_menu_opens_from_the_painted_button() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["replacement"] = json!({
+        "available": true, "active": false, "comparison": "edit",
+        "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
+    });
+    ui.click("Import Replacement…")?;
+    assert!(
+        ui.label_rect("Entire Mesh").is_some(),
+        "replacement scope menu did not open"
+    );
+    let actions = ui.actions_from_click("Entire Mesh")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_choose", arguments, .. }
+            if arguments["scope"] == "entire"
+    )));
+    Ok(())
+}
+
+#[test]
+fn integrated_replacement_view_checkbox_toggles_from_its_painted_square() -> TestResult {
+    for available in [true, false] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+            triangle_application()?,
+            egui::vec2(1440.0, 980.0),
+        );
+        ui.application.cdmw_state["replacement"] = json!({
+            "available": available, "active": false, "comparison": "edit",
+            "reason": if available { "" } else { "Replacement coordinate conversion is not proven for this neutral appearance mesh." },
+            "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
+        });
+        ui.settle_layout();
+        let label = ui.reveal("Mod")?;
+        let checkbox = ui
+            .output
+            .shapes
+            .iter()
+            .filter_map(|clipped| {
+                let egui::Shape::Rect(shape) = &clipped.shape else {
+                    return None;
+                };
+                let rect = shape.rect;
+                (rect.width() >= 8.0
+                    && rect.width() <= 28.0
+                    && rect.height() >= 8.0
+                    && rect.height() <= 28.0
+                    && (rect.center().y - label.center().y).abs() < 3.0
+                    && rect.right() < label.left()
+                    && label.left() - rect.right() < 100.0)
+                .then_some(rect)
+            })
+            .min_by(|a, b| a.left().total_cmp(&b.left()))
+            .ok_or("view checkbox")?;
+        ui.last_actions.clear();
+        ui.click_at(checkbox.center());
+        assert!(
+            ui.application.cdmw_hidden_parts.contains(&0),
+            "view checkbox ignored the click (replacement available: {available})"
+        );
+        assert!(!has_host_command(&ui.last_actions, "replacement_include"));
+        ui.click_at(checkbox.center());
+        assert!(ui.application.cdmw_hidden_parts.is_empty());
+        if !available {
+            assert!(ui.actions_from_click("Mod")?.is_empty());
+            assert!(ui.actions_from_click("Import Replacement…")?.is_empty());
+            assert!(ui.label_rect("Entire Mesh").is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_replacement_controls_keep_visibility_independent() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,
