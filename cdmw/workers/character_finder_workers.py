@@ -15,7 +15,7 @@ import time
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QImage
 
-from cdmw.domain.character_finder import CharacterPreviewInputs, CharacterRenderResult
+from cdmw.domain.character_finder import CharacterPreviewInputs, CharacterRenderResult, character_preview_detail
 from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER, RUST_PREVIEW_BACKEND, resolve_rust_mesh_editor
@@ -23,10 +23,17 @@ from cdmw.services.mesh_rust_preview_cache import RUST_PREVIEW_CACHE_SCHEMA
 
 
 def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderSettings) -> str:
-    context = {"schema": 3, "fingerprint": fingerprint, "row": detail.row.key, "context": detail.context_key,
+    detail = character_preview_detail(detail)
+    identity = {"row": detail.row.key, "context": detail.context_key}
+    if detail.row.embedded_face and detail.components and all(c.role in {"body", "whole_character"} for c in detail.components):
+        # Labels/ownership do not change a combined body's rendered base appearance.
+        # Keep authored scale, prefab, PABC/material dependencies and primary order.
+        identity = {"combined_body": [asdict(c) for c in detail.components],
+                    "models": [m.entry_id for m in detail.models], "files": [asdict(f) for f in detail.files]}
+    context = {"schema": 4, "fingerprint": fingerprint, "identity": identity,
                "renderer": RUST_MESH_RENDERER, "backend": RUST_PREVIEW_BACKEND,
                "package_schema": RUST_PREVIEW_CACHE_SCHEMA,
-               "camera": "head-front-v1" if detail.row.role in {"head", "facial_detail", "hair", "beard"} and not detail.row.embedded_face else "body-front-v1",
+               "camera": "renderer-front-v2",
                "settings": asdict(settings)}
     return sha256(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -208,9 +215,10 @@ class CharacterFinderRenderWorker(QObject):
             stage = Path(stage_text)
             capture = stage / "preview.bmp"
             report = stage / "report.json"
+            # Use the renderer's shared startup view, as the interactive host does.
+            # Near-zero yaw points at the back of character heads.
             args = [str(resolution.resolved_path), "--capture-cdmw-preview-session", str(package.manifest_path),
-                    "--capture-output", str(capture), "--capture-report-json", str(report),
-                    "--capture-yaw-degrees", "-10", "--capture-pitch-degrees", "5"]
+                    "--capture-output", str(capture), "--capture-report-json", str(report)]
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             deadline = time.monotonic() + 45

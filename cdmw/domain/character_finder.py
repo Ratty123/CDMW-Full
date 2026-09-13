@@ -1,7 +1,24 @@
 """Immutable input and output boundaries for character preview jobs."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from .archives.character_catalogue import CharacterCatalogDetailResult
 from cdmw.models import ArchiveEntry
+
+
+def character_preview_detail(detail: CharacterCatalogDetailResult) -> CharacterCatalogDetailResult:
+    """Limit combined-body preparation to the components the renderer displays."""
+    if not detail.row.embedded_face or detail.row.role not in {"body", "whole_character"}:
+        return detail
+    components = tuple(c for c in detail.components if c.role in {"body", "whole_character"})
+    model_ids = {entry_id for c in components for entry_id in c.model_entry_ids}
+    if not model_ids or not model_ids.issubset(model.entry_id for model in detail.models):
+        return detail
+    needed = model_ids | {entry_id for c in components for entry_id in c.context_entry_ids}
+    files = tuple(f for f in detail.files if f.entry_id in needed)
+    # Incomplete detail pages still use the existing conservative preparation path.
+    if not needed.issubset(f.entry_id for f in files):
+        return detail
+    return replace(detail, components=components, models=tuple(m for m in detail.models if m.entry_id in model_ids),
+                   files=files, total_file_count=len(files))
 
 
 @dataclass(frozen=True, slots=True)

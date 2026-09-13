@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
 
 from cdmw.domain.archives.character_catalogue import CharacterCatalogDetailRequest, CharacterCatalogDetailResult
-from cdmw.domain.character_finder import CharacterRenderResult
+from cdmw.domain.character_finder import CharacterRenderResult, character_preview_detail
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
 from cdmw.workers.character_finder_workers import CharacterFinderRenderWorker, character_render_key, cached_character_render
 
@@ -42,7 +42,8 @@ class CharacterFinderPreviewController(QObject):
         self._service = service
         self._fingerprint = fingerprint
         self._cache_root = cache_root
-        self._settings = replace(settings, use_textures_by_default=True)
+        self._settings = replace(settings, use_textures_by_default=True, ambient_strength=0.45,
+            diffuse_light_scale=0.9, d3d11_light_azimuth_degrees=-35.0, d3d11_light_elevation_degrees=30.0)
         self._preparation = CharacterPreviewPreparation(service, self)
         self._preparation.ready.connect(self._prepared)
         self._preparation.failed.connect(self._preparation_failed)
@@ -154,6 +155,7 @@ class CharacterFinderPreviewController(QObject):
             self._fail("Character preview preparation was cancelled.")
 
     def _check_cache(self, detail):
+        detail = character_preview_detail(detail)
         self._active_detail = detail
         worker = _CacheLookup(self._token, self._cache_root, character_render_key(detail, self._fingerprint, self._settings))
         worker.completed.connect(self._cache_ready)

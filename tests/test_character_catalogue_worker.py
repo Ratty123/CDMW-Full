@@ -43,7 +43,7 @@ def test_actual_worker_catalogue_paging_details_scope_and_refresh(tmp_path):
         assert not {r.key for r in page.rows} & {r.key for r in next_page.rows}
         assert all(r.path.endswith(".pac") and r.model_count == 1 and r.role in {"body", "whole_character"}
                    and "_foot_" not in r.path and "_spline" not in r.path for r in (*page.rows, *next_page.rows))
-        fur = awaiter.wait(service.search_character_catalog(replace(request, query="spline", tab="faces"), ui_generation=1))
+        fur = awaiter.wait(service.search_character_catalog(replace(request, query="spline", tab="faces", role="hair"), ui_generation=1))
         assert len(fur.rows) == 1 and fur.rows[0].role == "hair"
         unknown = awaiter.wait(service.search_character_catalog(replace(request, role="unclassified"), ui_generation=1))
         assert len(unknown.rows) == 1 and unknown.rows[0].path.endswith("mystery.pac") and unknown.rows[0].preview_status == "base_appearance"

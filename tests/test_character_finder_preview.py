@@ -12,8 +12,9 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue import ArchiveLookupResult
-from cdmw.domain.archives.character_catalogue import CharacterCatalogFile
-from cdmw.domain.character_finder import CharacterRenderResult
+from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult
+from cdmw.domain.archives.character_catalogue import CharacterCatalogFile, CharacterCatalogComponent
+from cdmw.domain.character_finder import CharacterRenderResult, character_preview_detail
 from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.character_finder import preview_controller as module
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
@@ -160,6 +161,54 @@ def test_extra_context_lookup_cannot_publish_missing_entries_as_complete():
     preparation.failed.connect(lambda token, message: failures.append((token, message)))
     service.request_cancelled.emit(preparation._request)
     assert failures[0][0] == 10 and preparation._detail is None
+
+
+def test_combined_body_reuses_only_identical_rendered_components():
+    body, head = _dto(1, "character/body.pac"), _dto(2, "character/head.pac")
+    body_component = CharacterCatalogComponent("body", "body_variant", (1,), (3,), 1.02, {}, "resolved")
+    head_component = CharacterCatalogComponent("head", "head_variant", (2,), (4,), .95, {}, "resolved")
+    files = tuple(CharacterCatalogFile(i, f"character/{i}.pabc", ".pabc", "dependency", "fixture") for i in range(1, 5))
+    first = replace(detail(row(1, embedded_face=True)), models=(body, head),
+                    components=(body_component, head_component), files=files, total_file_count=4)
+    preview = character_preview_detail(first)
+    assert preview.models == (body,) and preview.components == (body_component,)
+    assert {f.entry_id for f in preview.files} == {1, 3} and preview.total_file_count == 2
+    assert first.models == (body, head)  # UI ownership/details remain complete.
+    settings = ModelPreviewRenderSettings()
+    key = character_render_key(first, "fp", settings)
+    other_owner = replace(first, row=replace(first.row, key="other-owner"), context_key="other-owner",
+                          components=(body_component, replace(head_component, name="different_head")))
+    assert character_render_key(other_owner, "fp", settings) == key
+    assert character_render_key(replace(first, components=(replace(body_component, scale=1.1), head_component)), "fp", settings) != key
+    assert character_render_key(replace(first, components=(replace(body_component, name="other_pabc_variant"), head_component)), "fp", settings) != key
+    assert character_render_key(replace(first, files=(*files[:2], replace(files[2], path="different/material.dds"), files[3])), "fp", settings) != key
+    assert character_preview_detail(replace(first, files=files[:2])).models == (body, head)
+
+
+def test_extra_context_consumes_streamed_lookup_and_prepared_batches():
+    service = Service()
+    preparation = CharacterPreviewPreparation(service)
+    model = _dto(1, "character/head.pac")
+    extra = _dto(2, "character/head.pabc")
+    selected = replace(detail(row(1)), models=(model,), files=(
+        CharacterCatalogFile(2, extra.path, ".pabc", "dependency", "fixture"),), total_file_count=1)
+    snapshot = ArchivePreviewDependencySet.from_dtos(model, (), total_candidates=0, truncated=False,
+        prepared={1: _prepared(model)})
+    preparation._provider.request = lambda *_a, **_kw: True
+    results = []
+    preparation.ready.connect(lambda _token, value: results.append(value))
+    preparation.start(selected, 9)
+    preparation._model_ready(9, snapshot)
+    request = preparation._request
+    service.batch_ready.emit(request, "resolve_entries", ArchiveLookupResult("session-a", (extra,), 1, False))
+    service.result_ready.emit(request, "resolve_entries", ArchiveLookupResult("session-a", (), 1, False))
+    assert not results
+    request = preparation._request
+    service.batch_ready.emit(request, "prepare_entry", PrepareEntriesResult("session-a", (_prepared(extra),), 1, 1, 40))
+    service.result_ready.emit(request, "prepare_entry", PrepareEntriesResult("session-a", (), 1, 1, 40))
+    assert len(results) == 1 and results[0].dependencies_complete
+    assert {entry.path for entry in results[0].entries} == {model.path, extra.path}
+    assert str(results[0].entries_by_id[2].prepared_path).replace("\\", "/") == "C:/cache/2.pabc"
 
 
 def test_cancel_after_capture_preserves_existing_metadata(tmp_path):

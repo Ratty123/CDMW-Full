@@ -42,13 +42,16 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
             && (related is null || related.Contains(row.Key))
             && tokens.All(token => (_search.GetValueOrDefault(row.Key) ?? SearchText(row, [])).Contains(token, StringComparison.Ordinal)))
             .ToArray();
-        var rows = matching.Where(row => Matches(row.Role, request.Role)
+        var role = request.Tab == "faces" && string.IsNullOrEmpty(request.Role) ? "head" : request.Role;
+        var rows = matching.Where(row => Matches(row.Role, role)
             && (row.Role != "unclassified" || request.Tab == "all" || request.Role == "unclassified")
-            && Matches(row.SourceGroup, request.SourceGroup) && Matches(row.BodyFamily, request.BodyFamily)
+            && (request.SourceGroup == "humanoid" ? IsHumanoid(row) : Matches(row.SourceGroup, request.SourceGroup))
+            && Matches(row.BodyFamily, request.BodyFamily)
             && Matches(row.Resolution, request.Resolution))
             .OrderBy(static row => row.Label, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static row => row.Key, StringComparer.Ordinal).ToArray();
         var facets = new List<CharacterCatalogFacet>();
+        facets.Add(new("source_group", "humanoid", matching.Count(IsHumanoid)));
         foreach (var (field, values) in new (string, IEnumerable<string>)[] {
             ("role", matching.Select(static row => row.Role)),
             ("source_group", matching.Select(static row => row.SourceGroup)),
@@ -65,7 +68,8 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
     private static bool InTab(CharacterCatalogRow row, string tab) => tab == "all"
         || row.Role == "unclassified"
         || tab == "bodies" && row.Role is "body" or "whole_character"
-        || tab == "faces" && (row.EmbeddedFace || row.Role is "head" or "facial_detail" or "hair" or "beard");
+        || tab == "faces" && !row.EmbeddedFace && row.Role is "head" or "facial_detail" or "hair" or "beard";
+    private static bool IsHumanoid(CharacterCatalogRow row) => row.SourceGroup is "1_pc" or "3_npc";
     private static bool Matches(string value, string? filter) => string.IsNullOrEmpty(filter) || value == filter;
     private static string SearchText(CharacterCatalogRow row, IEnumerable<string> names) =>
         string.Join(' ', new[] { row.Label, row.InternalName, row.Path, row.Role, row.SourceGroup, row.BodyFamily }

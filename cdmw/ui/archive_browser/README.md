@@ -84,6 +84,11 @@ After scanning, open **Body & Face Finder** beside Item Finder. **Bodies** and
 name/ID/path search, and component, source-family, body-family and resolution
 filters. English character names are displayed; discovered character languages
 remain searchable. **Used by / Components** links appearances to shared models.
+Both views start with **Humanoids** (player and NPC families); choose **Creatures**,
+another type, or **All types** to widen the results. **Faces** starts with separate
+heads. Hair, beards and facial details require their component filter; a face
+embedded in a full body remains in **Bodies**. **Clear filters** restores these
+defaults. An explicitly selected type is remembered, including **All types**.
 **Show exact files** and **Show related files** return a bounded entry-ID scope to
 Archive Browser, where existing extraction/export/editor actions remain available.
 
@@ -106,6 +111,13 @@ use archive generation, mount signature and format version; thumbnails also use
 appearance context, renderer/package schema, settings and camera preset. Refresh
 invalidates the finder. Search/selection changes cancel obsolete work; close retains
 threads and owned processes until asynchronous teardown finishes.
+Streamed appearance dependencies retain prepared DDS and skeleton-variation files
+in the complete preview snapshot, avoiding unnecessary archive-wide lookup and
+textureless retries. Thumbnails and **Reset view** use the renderer's front framing;
+the finder uses directional lighting to keep facial form readable.
+Combined-body previews prepare only their rendered body components and share a
+cached preview when model order, authored scale, prefab and dependency identities
+match. Character labels and ownership remain separate in the catalogue.
 
 **Base appearance** applies supported model/skeleton variations and scales;
 customization/material/morph references remain in Details. Declared combined

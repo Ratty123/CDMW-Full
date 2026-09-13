@@ -135,6 +135,22 @@ internal static class CharacterCatalogTests
             "vehicle-only appearance was advertised as a body or lost from coverage");
         Check(catalogue.GetRequired("asset:" + fur.Path).Row.Role == "hair", "spline fur submesh was labeled as a body");
         Check(catalogue.GetRequired("asset:" + creature.Path).Row.Role is "body" or "whole_character", "actual creature body was lost");
+        foreach (var view in new[] { "assets", "appearances" })
+        {
+            var faces = catalogue.Search(new("fixture", View: view, Tab: "faces"));
+            Check(faces.Rows.Count > 0 && faces.Rows.All(row => row.Role == "head" && !row.EmbeddedFace),
+                $"{view}: default Faces includes a whole body, embedded head or secondary component");
+            var humanoids = catalogue.Search(new("fixture", View: view, SourceGroup: "humanoid"));
+            Check(humanoids.Rows.Count > 0 && humanoids.Rows.All(row => row.SourceGroup is "1_pc" or "3_npc"),
+                $"{view}: humanoid filter includes creatures or mounts");
+            Check(humanoids.Facets.Any(facet => facet.Field == "source_group" && facet.Value == "2_mon")
+                && humanoids.Facets.Any(facet => facet.Field == "source_group" && facet.Value == "humanoid" && facet.Count > 0),
+                $"{view}: type filters lost humanoid counts or access to creatures");
+            Check(catalogue.Search(new("fixture", View: view, SourceGroup: "2_mon")).Rows.Count > 0,
+                $"{view}: explicit creature browsing became inaccessible");
+        }
+        Check(catalogue.Search(new("fixture", Tab: "faces", Role: "hair")).Rows.Any(row => row.Path == fur.Path),
+            "explicit hair filter lost the secondary component");
         var creatureDetail = catalogue.GetRequired("appearance:" + creatureAppearance + "#body");
         Check(creatureDetail.Components.SelectMany(component => component.ModelEntryIds).Contains(boots.EntryId)
             && creatureDetail.RelatedIds.Contains(bag.EntryId), "appearance assembly lost its equipment dependencies");

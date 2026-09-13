@@ -52,6 +52,7 @@ class CharacterPreviewPreparation(QObject):
         self._complete = detail.total_file_count <= len(detail.files)
         self._prepared = {}
         self._extra_dtos = ()
+        self._extra_lookup = {}
         self._next_model()
 
     def _next_model(self) -> None:
@@ -93,9 +94,12 @@ class CharacterPreviewPreparation(QObject):
         self._next_model()
 
     def _batch(self, request: str, _operation: str, result: object) -> None:
-        if request == self._request and isinstance(result, PrepareEntriesResult):
+        if request == self._request and isinstance(result, ArchiveLookupResult):
+            self._extra_lookup.update((entry.entry_id, entry) for entry in result.entries)
+            self._complete &= not result.truncated
+        elif request == self._request and isinstance(result, PrepareEntriesResult):
             for item in result.items:
-                self._prepared[item.entry_id] = item
+                self._prepared[item.entry.entry_id] = item
 
     def _result(self, request: str, _operation: str, result: object) -> None:
         detail = self._detail
@@ -103,8 +107,9 @@ class CharacterPreviewPreparation(QObject):
             return
         self._request = None
         if isinstance(result, ArchiveLookupResult):
-            self._extra_dtos = result.entries
-            self._complete &= not result.truncated and self._extra_ids == {e.entry_id for e in result.entries}
+            self._extra_lookup.update((entry.entry_id, entry) for entry in result.entries)
+            self._extra_dtos = tuple(self._extra_lookup.values())
+            self._complete &= not result.truncated and self._extra_ids == set(self._extra_lookup)
             if not self._extra_dtos:
                 self._complete = False
                 self._publish()
@@ -116,7 +121,7 @@ class CharacterPreviewPreparation(QObject):
                 self._failed(self._token, str(error))
         elif isinstance(result, PrepareEntriesResult):
             for item in result.items:
-                self._prepared[item.entry_id] = item
+                self._prepared[item.entry.entry_id] = item
             try:
                 snapshot = ArchivePreviewDependencySet.from_dtos(self._extra_dtos[0], self._extra_dtos[1:],
                     total_candidates=len(self._extra_dtos), truncated=False, prepared=self._prepared)

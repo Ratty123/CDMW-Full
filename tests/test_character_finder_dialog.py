@@ -74,12 +74,14 @@ class Host(QWidget):
         super().__init__(parent)
         self.controller = self
         self.loaded = []
+        self.canonical_views = 0
 
     def load_package(self, path, **kw):
         self.loaded.append(path)
         return True
 
     def reset_view(self): pass
+    def request_canonical_view(self): self.canonical_views += 1
     def shutdown(self): pass
 
 
@@ -175,16 +177,54 @@ def test_refresh_invalidates_requests_and_actions(finder):
     assert dialog._details is None and not scopes
 
 
-def test_related_unclassified_model_selects_its_explicit_filter(finder):
+@pytest.mark.parametrize("role", ["unclassified", "facial_detail", "hair", "beard"])
+def test_related_component_selects_its_explicit_filter(finder, role):
     dialog, service, _ = finder
     publish_rows(dialog, service, [row(1)])
-    unknown = row(2, role="unclassified")
+    unknown = row(2, role=role, source_group="2_mon")
     service.result_ready.emit(dialog._requests["detail"], "get_character_catalog_detail", detail(row(1), [unknown]))
     dialog._navigate(dialog._relations.item(0))
     dialog._search_timer.stop()
     dialog._search()
     request = service.calls[-1][1]
-    assert request.role == "unclassified" and request.query == unknown.path
+    assert request.role == role and request.query == unknown.path
+    assert request.source_group is None  # Explicit links can leave the humanoid default.
+
+
+def test_default_filters_and_tab_switches_request_humanoids_and_heads(finder):
+    dialog, service, _ = finder
+    assert service.calls[-1][1].source_group == "humanoid"
+    dialog._set_filter("role", "body")
+    dialog._tabs.setCurrentIndex(1)
+    dialog._search_timer.stop()
+    dialog._search()
+    request = service.calls[-1][1]
+    assert request.tab == "faces" and request.role is None and request.source_group == "humanoid"
+    assert dialog._filters["role"].currentText() == "Head"
+    dialog._set_filter("source_group", "2_mon")
+    dialog._set_filter("role", "hair")
+    dialog._clear_filters()
+    dialog._search_timer.stop()
+    dialog._search()
+    assert service.calls[-1][1].source_group == "humanoid" and service.calls[-1][1].role is None
+    from PySide6.QtWidgets import QPushButton
+    next(button for button in dialog.findChildren(QPushButton) if button.text() == "Reset view").click()
+    assert dialog._host.canonical_views == 1
+
+
+@pytest.mark.parametrize("saved, expected", [("", "humanoid"), ("all", ""), ("2_mon", "2_mon")])
+def test_legacy_default_migrates_and_explicit_all_types_persists(finder, tmp_path, saved, expected):
+    from PySide6.QtCore import QSettings
+    dialog, _, _ = finder
+    settings = QSettings(str(tmp_path / "finder.ini"), QSettings.Format.IniFormat)
+    settings.setValue("ui/character_finder/source_group", saved)
+    dialog._settings = settings
+    dialog._restore()
+    assert dialog._filters["source_group"].currentData() == expected
+    dialog._set_filter("source_group", "")
+    dialog._save()
+    dialog._restore()
+    assert dialog._filters["source_group"].currentData() == ""
 
 
 @pytest.mark.parametrize("include_related", [False, True])
@@ -278,6 +318,8 @@ def test_finder_cards_and_filters_translate_without_changing_ids(finder, tmp_pat
     assert dialog._grid.item(0).data(feature.Qt.ItemDataRole.UserRole) == "asset:1"
     assert "Détail du visage" in dialog._grid.item(0).text()
     assert "Modèle non résolu" in dialog._grid.item(0).text()
+    assert dialog._filters["source_group"].currentData() == "humanoid"
+    assert "Humanoïdes" in dialog._filters["source_group"].currentText()
     assert dialog._view.currentData() == "assets"
     dialog._thumbnail_ready("asset:1", CharacterRenderResult("cache", "package", "thumbnail.png", "textures_unavailable", ()))
     localizer.apply_registered_roots()
