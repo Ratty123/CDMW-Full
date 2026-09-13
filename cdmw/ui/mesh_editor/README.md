@@ -46,6 +46,8 @@ remain supported. Hair state, output inclusion, material files and geometry save
 together. A changed reference needs explicit rebinding. Rust advertises
 `hair_authoring_v1`; candidates and Finish use the existing revision-checked
 authoring protocol, and the Finder stays read-only until handoff.
+Hair-specific host prompts and diagnostics currently retain English in the
+built-in catalogs, matching the Rust editor's English controls.
 
 **Build Mod** prepares a new DMM folder outside the game. It clones the donor
 registration and required mesh/material/texture/physics assets into distinct
