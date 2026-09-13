@@ -7,6 +7,10 @@ replacement writer; it has no relationship to viewport visibility.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,10 @@ class MeshReplacementState:
     target_location: tuple[str, str, int, int, int, int, int] | None = None
     dependencies: tuple[ReplacementFile, ...] = ()
     companion_files: tuple[ReplacementFile, ...] = ()
+    # Present only after explicit experimental opt-in. Drafts retain the exact
+    # display transform; the shadow edits neutral coordinates, Finish stores source.
+    neutral_appearance: NeutralMeshAppearance | None = None
+    neutral_coordinates: bool = False
 
 
 PART_ID_ATTRIBUTE = "_cdmw_replacement_part_id"

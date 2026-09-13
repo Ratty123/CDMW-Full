@@ -32057,6 +32057,21 @@
       ]
     },
     {
+      "key": "Enable experimental replacement",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Enable experimental replacement to import or change mod inclusion on this neutral appearance mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 55,
+          "sink": "python-return:replacement_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Enable incremental resume",
       "origins": [
         {
@@ -33362,6 +33377,26 @@
       ]
     },
     {
+      "key": "Experimental replacement draft omitted its coordinate transform.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 309,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Experimental replacement is missing its neutral coordinate transform.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 43,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Experimental: allow five to eight perks",
       "origins": [
         {
@@ -33370,6 +33405,11 @@
           "sink": "QCheckBox"
         }
       ]
+    },
+    {
+      "key": "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Experimental: up to eight slots",
@@ -46042,6 +46082,16 @@
         {
           "path": "tools/placement_studio/event_timeline.py",
           "line": 27,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid experimental replacement coordinate frame.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 122,
           "sink": "ValueError"
         }
       ]
@@ -59658,6 +59708,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 455,
           "sink": "_manual_rgb"
+        }
+      ]
+    },
+    {
+      "key": "Neutral-appearance meshes offer Try Experimental Replacement to enable imports and Mod inclusion. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 331,
+          "sink": "python-return:_build_archive_mesh_sections"
         }
       ]
     },
@@ -83702,16 +83762,6 @@
       ]
     },
     {
-      "key": "Replacement coordinate conversion is not proven for this neutral appearance mesh.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 50,
-          "sink": "python-return:replacement_ui_state"
-        }
-      ]
-    },
-    {
       "key": "Replacement dependencies exceed the 512 MiB snapshot limit.",
       "origins": [
         {
@@ -87143,6 +87193,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 192,
           "sink": "python-return:_build_workflow_planning_sections"
+        }
+      ]
+    },
+    {
+      "key": "Review the experimental replacement warning before enabling it.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_replacement.py",
+          "line": 77,
+          "sink": "ValueError"
         }
       ]
     },
@@ -108345,6 +108405,11 @@
           "sink": "QTreeWidgetItem"
         }
       ]
+    },
+    {
+      "key": "Try Experimental Replacement",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Try a different item or use Search Index from the placement source dialog.",

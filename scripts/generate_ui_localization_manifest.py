@@ -47,6 +47,10 @@ PYTHON_SOURCE_ROOTS = (
 )
 MANUAL_SOURCE_KEYS = frozenset(
     {
+        # Experimental replacement controls are drawn by the compiled Rust UI.
+        "Try Experimental Replacement",
+        "Enable experimental replacement",
+        "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.",
         # Body & Face Finder facets/statuses arrive through typed worker rows.
         "Whole character", "Head", "Facial detail", "Beard", "Unclassified",
         "Humanoids", "Player families", "Creatures", "NPCs", "Mounts", "Objects", "Towers",

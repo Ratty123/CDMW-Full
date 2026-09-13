@@ -30,6 +30,8 @@ MESH_LAYER_PROJECT_FORMAT = "mesh_layer_project_v1"
 MESH_LAYER_GENERATION_FORMAT = "mesh_layer_generation_v1"
 MESH_REPLACEMENT_PROJECT_FORMAT = "mesh_layer_project_v2"
 MESH_REPLACEMENT_GENERATION_FORMAT = "mesh_layer_generation_v2"
+MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT = "mesh_layer_project_v3"
+MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT = "mesh_layer_generation_v3"
 
 _BINARY_OUTPUT_KEYS = (
     ("vertices_output_path", "vertices"),
@@ -180,8 +182,10 @@ def save_mesh_layer_project(
         stop,
     )
     from cdmw.services.mesh_replacement_draft import save_replacement_state
+    experimental = replacement_state is not None and replacement_state.neutral_appearance is not None
     generation_payload = {
-        "format": MESH_REPLACEMENT_GENERATION_FORMAT if replacement_state is not None else MESH_LAYER_GENERATION_FORMAT,
+        "format": (MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT if experimental else
+                   MESH_REPLACEMENT_GENERATION_FORMAT if replacement_state is not None else MESH_LAYER_GENERATION_FORMAT),
         "source_asset_sha256": source_hash,
         "created_at": time.time(),
         "mesh_revision": int(mesh_revision),
@@ -208,7 +212,7 @@ def save_mesh_layer_project(
     if target.is_file():
         try:
             previous = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT}:
+            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT}:
                 previous_generation = str(previous.get("current_generation") or "")
                 previous_generation_manifest_sha256 = str(
                     previous.get("current_generation_manifest_sha256") or ""
@@ -217,7 +221,8 @@ def save_mesh_layer_project(
             previous_generation = ""
             previous_generation_manifest_sha256 = ""
     descriptor = {
-        "format": MESH_REPLACEMENT_PROJECT_FORMAT if replacement_state is not None else MESH_LAYER_PROJECT_FORMAT,
+        "format": (MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT if experimental else
+                   MESH_REPLACEMENT_PROJECT_FORMAT if replacement_state is not None else MESH_LAYER_PROJECT_FORMAT),
         "source_asset_sha256": source_hash,
         "current_generation": generation_name,
         "current_generation_manifest_sha256": generation_sha256,
@@ -251,7 +256,7 @@ def load_mesh_layer_project(
     if not target.is_file():
         return None
     descriptor = json.loads(target.read_text(encoding="utf-8"))
-    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT}:
+    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()
     stored_hash = str(descriptor.get("source_asset_sha256") or "").strip().lower()
@@ -284,7 +289,7 @@ def load_mesh_layer_project(
             load_archive_refit_materials(
                 payload["snapshot"], payload.get("archive_refit_material_files"), target.parent, stop,
             )
-            if descriptor.get("format") == MESH_REPLACEMENT_PROJECT_FORMAT and payload.get("format") != MESH_REPLACEMENT_GENERATION_FORMAT:
+            if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")
             snapshot = payload.get("snapshot")
             if not isinstance(snapshot, Mapping) or not restore_native_mesh_submesh_snapshot(
@@ -298,8 +303,10 @@ def load_mesh_layer_project(
             from cdmw.services.mesh_replacement_draft import load_replacement_state
             from cdmw.domain.mesh.replacement import bound_part_indices
             replacement = load_replacement_state(payload.get("replacement"), target.parent)
-            if payload.get("format") == MESH_REPLACEMENT_GENERATION_FORMAT and replacement is None:
+            if payload.get("format") in {MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT} and replacement is None:
                 raise ValueError("Replacement draft omitted its output state.")
+            if payload.get("format") == MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT and replacement.neutral_appearance is None:
+                raise ValueError("Experimental replacement draft omitted its coordinate transform.")
             if replacement is not None:
                 if replacement.target_sha256 != stored_hash or refit_context is not None:
                     raise ValueError("Replacement draft target or workflow does not match.")
@@ -325,7 +332,7 @@ def _load_generation(
     if expected_manifest_sha256 and _sha256_file(manifest_path) != expected_manifest_sha256:
         raise ValueError("layer generation manifest checksum mismatch")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT}:
+    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT}:
         raise ValueError("unsupported layer generation")
     if str(payload.get("source_asset_sha256") or "").strip().lower() != source_hash:
         raise ValueError("layer generation fingerprint mismatch")

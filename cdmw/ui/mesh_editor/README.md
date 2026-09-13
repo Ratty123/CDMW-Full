@@ -35,7 +35,7 @@ New Item fitting defaults are unchanged.
 **Keep Original Materials** is the default. **Imported Materials & Textures**
 prepares the required DDS and material sidecars before publishing the import.
 Missing textures, ambiguous material wrappers, shared selected/untouched material
-ownership, unsupported skinning, or unproven coordinate/layout conversion block
+ownership, unsupported skinning, or invalid coordinate/layout conversion block
 Apply with a specific reason. This mode never silently uses original materials.
 
 The **Mod** checkbox means **Include in mod** and is independent of viewport
@@ -52,10 +52,22 @@ when companions are required. Original archive bytes are never modified by
 preparation or package creation.
 
 This workflow handles one eligible PAC/PAM/PAMLOD at LOD0. Active Morph & Refit
-profiles/bindings and neutral-appearance coordinates are not combined with it.
+profiles/bindings must be cleared before replacement.
 Unsupported target layouts remain blocked. Existing sessions without replacement
 state retain Exact Game Asset/Free Edit behavior. Replacement uses its own
 `replacement_game_asset` policy, not weakened Exact validation.
+
+Neutral-appearance meshes offer **Try Experimental Replacement** above the
+import controls. Read the warning, then click it to enable imports and **Mod**
+inclusion for that editor session. Positioning, scale or animation may be wrong
+in game. Imports still preserve their decoded placement. Skin weights transfer
+from the displayed original part; export uses those weights to invert the
+neutral display transform. Output Preview reparses the actual written mesh and
+displays it in the same neutral frame. Singular transforms, unsupported skin
+layouts, invalid geometry and missing dependencies still block the operation.
+The left part checkbox controls viewport visibility; the right **Mod** checkbox
+controls output inclusion. Enabling the option alone does not change geometry
+or output; cancelling the editor discards it.
 
 Imports, inclusion and placement changes participate in normal Undo/Redo and
 Finish/cancel. Replacement-bearing drafts use version 2 and keep captured
@@ -66,6 +78,9 @@ still reopen and export, but require reimporting before Reset Placement or Fit
 to Original because their original normal orientation was not saved. Older
 applications reject the new replacement payload version. No bulk migration is
 performed.
+Experimental replacement drafts use project and payload version 3, retaining
+the exact neutral transform and coordinate frame. Older apps reject this format
+before attempting generation recovery. Ordinary replacement drafts remain v2.
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.

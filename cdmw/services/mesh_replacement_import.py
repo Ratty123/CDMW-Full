@@ -201,6 +201,12 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         # presentation comes from the prepared sidecar/DDS bundle, not source paths.
         imported.name, imported.material, imported.texture = donor.name, donor.material, donor.texture
         copy_extra_submesh_attrs(donor, imported)
+        if pending.state.neutral_appearance is not None:
+            # Transfer on the displayed target surface before any inverse
+            # transform. Never let the writer guess weights in source space.
+            from cdmw.modding.mesh_skinning import ensure_final_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY
+            imported.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
+            ensure_final_target_skin_weights(imported, donor, target_index=index, summary=None)
         setattr(imported, PART_ID_ATTRIBUTE, binding.part_id)
         candidate.submeshes[index] = imported
         parts.append(replace(binding, included=True, material_choice=material_choice,
@@ -267,6 +273,8 @@ def reset_or_fit_import(service, snapshot, *, fit=False, stop_event=None):
     scale, offset = 1.0, (0.0, 0.0, 0.0)
     if fit:
         original = parse_mesh(snapshot.original_data, state.target_path)
+        if state.neutral_appearance is not None:
+            original = state.neutral_appearance.to_neutral(original)
         reference = [point for part in affected for point in original.submeshes[part.target_index].vertices]
         low = tuple(min(point[axis] for point in reference) for axis in range(3))
         high = tuple(max(point[axis] for point in reference) for axis in range(3))
