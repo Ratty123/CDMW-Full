@@ -264,7 +264,7 @@ impl LabApplication {
         // while the host records it; cdmw_busy still guards edits until the reply.
         self.cdmw_pending_request
             .as_ref()
-            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection))
+            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection)) || self.hair.preparing()
     }
 
     fn draw_cdmw_session_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -2668,6 +2668,7 @@ impl LabApplication {
             .resizable(true)
             .show(root_ui, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
+                    ui.add_enabled_ui(!self.cdmw_busy(), |ui| self.draw_hair_controls(ui, actions));
                     ui.add_enabled_ui(!busy, |ui| {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());
@@ -3263,6 +3264,7 @@ impl LabApplication {
             }
             self.paint_viewport_overlay(ui, rectangle);
             self.paint_rig_overlay(ui, rectangle);
+            self.paint_hair_guides(ui, rectangle);
             let mode = if self.cdmw_orbit_mode {
                 "Orbit"
             } else {

@@ -1734,6 +1734,7 @@ def _validate_owned_session_tree(
         "document.json",
         "channels.json",
         "shadow-mesh-layers.json",
+        "hair-state.json",
     }
     entry_count = 0
     total_bytes = 0
@@ -6916,6 +6917,8 @@ class RustMeshAuthoringSession:
     theme: Mapping[str, object]
     preview_material_binding_count: int = 0
     texture_resource_count: int = 0
+    hair_file_cache: tuple[bytes, dict[str, object]] | None = None
+    hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
     archive_refit_material_references: dict[str, dict[str, object]] = field(default_factory=dict)
     texture_unavailable_reason: str = ""
@@ -6948,6 +6951,7 @@ class RustMeshAuthoringSession:
         process_generation: int,
         theme: Mapping[str, object] | None = None,
         stop_event: threading.Event | None = None,
+        hair_start_mode: str = "",
     ) -> "RustMeshAuthoringSession":
         if stop_event is not None and stop_event.is_set():
             raise RustMeshCancellationError("Mesh session preparation was cancelled")
@@ -7039,6 +7043,7 @@ class RustMeshAuthoringSession:
             raise
         try:
             shadow_service._session(shadow_view.session_id).replacement_state = authoritative_session.replacement_state
+            shadow_service._session(shadow_view.session_id).hair_state = authoritative_session.hair_state
             if replacement_state is not None and replacement_state.neutral_appearance is not None:
                 shadow_service._session(shadow_view.session_id).replacement_state = replace(replacement_state, neutral_coordinates=True)
             shadow_view = _configure_shadow_session_seed(
@@ -7065,6 +7070,7 @@ class RustMeshAuthoringSession:
                 ),
                 manifest_path=session_root / "manifest.json",
                 theme=dict(theme or {}),
+                hair_start_mode=hair_start_mode if hair_start_mode in {"generated", "existing"} else "",
                 preview_material_binding_count=preview_material_binding_count,
                 texture_unavailable_reason=texture_unavailable_reason,
                 material_package_path=str(
@@ -7802,6 +7808,8 @@ class RustMeshAuthoringSession:
             state["loaded_mesh"] += " (neutral appearance)"
         from cdmw.services.mesh_rust_replacement import replacement_ui_state
         state["replacement"] = replacement_ui_state(self)
+        from cdmw.services.mesh_rust_hair import hair_ui_state
+        state["hair"] = hair_ui_state(self)
         if self.replacement_comparison != "edit":
             state["authoring_enabled"] = False
         if include_document:
@@ -7941,7 +7949,7 @@ class RustMeshAuthoringSession:
 
     @_with_protocol_lock
     @_with_pinned_session_root
-    def apply_candidate(self, request: Mapping[str, object]) -> dict[str, object]:
+    def apply_candidate(self, request: Mapping[str, object], *, stop_event: threading.Event | None = None) -> dict[str, object]:
         self._require_open()
         if self.replacement_comparison != "edit":
             raise RustMeshValidationError("Return to Edit before changing replacement geometry.")
@@ -7975,6 +7983,13 @@ class RustMeshAuthoringSession:
             raise RustMeshProtocolError("Mesh candidate schema does not match")
         if str(payload.get("session_id", "") or "") != self.session_id:
             raise RustMeshProtocolError("Mesh candidate belongs to another session")
+        if "hair" in payload:
+            from cdmw.services.mesh_rust_hair import apply_hair_candidate
+            apply_hair_candidate(self, payload, str(request.get("label") or "Groom hair"), stop_event)
+            self._advance_shadow_protocol_revision(before_revision=before_revision, before_signature=before_signature)
+            return self.state_payload(include_document=True)
+        if shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]:
+            raise RustMeshValidationError("Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.")
         candidate = self.shadow_service.working_mesh(self.shadow_session_id, clone=True)
         active_lod_index = self.shadow_service.session_view(
             self.shadow_session_id
@@ -8162,7 +8177,13 @@ class RustMeshAuthoringSession:
 
 
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
-        if command == "undo":
+        if command == "hair_begin":
+            from cdmw.services.mesh_rust_hair import setup_hair
+            result = setup_hair(self, args, stop_event)
+        elif command in {"hair_texture", "hair_texture_export"}:
+            from cdmw.services.mesh_rust_hair import hair_texture_command
+            result = hair_texture_command(self, args, stop_event, export=command == "hair_texture_export")
+        elif command == "undo":
             result = self.shadow_service.undo(self.shadow_session_id)
         elif command == "redo":
             result = self._run_history_command("redo")
@@ -8317,6 +8338,11 @@ class RustMeshAuthoringSession:
         arguments = request.get("arguments")
         args = dict(arguments) if isinstance(arguments, Mapping) else {}
         shadow_session = self.shadow_service._session(self.shadow_session_id)
+        if (shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]
+                and (command in {"topology", "mesh_action", "import_editable_package", "layer_delete", "layer_paste"}
+                     or command.startswith(("morph_", "refit_"))
+                     or command.startswith("replacement_") and command not in {"replacement_compare", "replacement_cancel"})):
+            raise RustMeshValidationError("Convert hair guides to ordinary geometry before using these mesh operations.")
         if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
             raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")
         if shadow_session.replacement_state is not None and (
@@ -9040,6 +9066,9 @@ class RustMeshAuthoringSession:
             )
         elif shadow_view.output_policy == MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value:
             replacement_snapshot = self.shadow_service.capture_export_snapshot(self.shadow_session_id, stop_event=stop_event)
+            if replacement_snapshot.hair_state is not None:
+                from cdmw.services.mesh_hair_output import validate_hair_output
+                validate_hair_output(replacement_snapshot)
             self.shadow_service._replacement_output_for_snapshot(replacement_snapshot)
         shadow_session = self.shadow_service._session(self.shadow_session_id)
         with shadow_session.export_lock:
@@ -9071,6 +9100,8 @@ class RustMeshAuthoringSession:
                                    if shadow_session.archive_refit_context is not None else None),
             replacement_state=(replace(shadow_session.replacement_state, neutral_coordinates=False)
                                if shadow_session.replacement_state is not None else None),
+            hair_state=shadow_session.hair_state,
+            replace_hair_state=True,
             replace_output_state=True,
         )
         if prepared.expected_revision != self.base_revision:

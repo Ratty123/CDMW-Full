@@ -59,7 +59,7 @@ class ArchiveMeshComparisonPreview(QFrame):
             label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         controls.addWidget(QLabel("Current target"), 0, 0)
         controls.addWidget(self.target_mode_combo, 0, 1)
-        controls.addWidget(QLabel("Body" if refit_role == "body" else "Armour"), 0, 2)
+        controls.addWidget(QLabel("Body" if refit_role == "body" else "Head" if refit_role == "hair" else "Armour"), 0, 2)
         controls.addWidget(self.source_mode_combo, 0, 3)
         controls.addWidget(self._target_name, 1, 0, 1, 2)
         controls.addWidget(self._source_name, 1, 2, 1, 2)

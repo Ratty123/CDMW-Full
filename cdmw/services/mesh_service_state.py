@@ -14,6 +14,7 @@ from cdmw.domain.mesh import (
 )
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.domain.mesh.replacement import MeshReplacementState
+from cdmw.domain.mesh.hair import HairAuthoringState
 
 
 @dataclass(slots=True)
@@ -78,6 +79,8 @@ class _MeshHistorySnapshot:
     restore_archive_refit_context: bool = False
     replacement_state: MeshReplacementState | None = None
     restore_replacement_state: bool = False
+    hair_state: HairAuthoringState | None = None
+    restore_hair_state: bool = False
 
 
 @dataclass(slots=True)
@@ -165,6 +168,7 @@ class MeshExportSnapshot:
     material_authority_revision: int = 0
     archive_refit_context: object | None = None
     replacement_state: MeshReplacementState | None = None
+    hair_state: HairAuthoringState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +193,8 @@ class MeshPreparedWorkingMeshReplacement:
     previous_archive_refit_context: object | None = None
     replacement_state: MeshReplacementState | None = None
     previous_replacement_state: MeshReplacementState | None = None
+    hair_state: HairAuthoringState | None = None
+    previous_hair_state: HairAuthoringState | None = None
 
 
 @dataclass(slots=True)
@@ -199,6 +205,7 @@ class _MeshEditSession:
     original_data: bytes = b""
     archive_refit_context: object | None = None
     replacement_state: MeshReplacementState | None = None
+    hair_state: HairAuthoringState | None = None
     mesh_asset_parse_confidence: str = ""
     replacement_output: object | None = None
     mesh_asset_source_hash: str = ""

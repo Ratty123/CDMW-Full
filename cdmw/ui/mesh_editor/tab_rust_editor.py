@@ -586,6 +586,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             self.standalone_rust_session_root,
             process_generation=process_generation,
             theme=self._rust_theme_payload(),
+            **self._hair_start_options(),
         )
         thread = QThread(self)
         worker.moveToThread(thread)

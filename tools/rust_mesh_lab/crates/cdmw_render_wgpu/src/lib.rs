@@ -3935,6 +3935,38 @@ pub async fn run_headless_material_capture_batch(
     factors: &[HeadlessMaterialFactors<'_>],
     requests: &[HeadlessMaterialCaptureRequest<'_>],
 ) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
+    material_capture_batch(snapshot, textures, factors, requests, None).await
+}
+
+/// Offscreen production shader/upload proof. Timings include CPU deformation,
+/// GPU completion and readback, but exclude device setup and ten warmup frames.
+pub async fn run_headless_motion_capture(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    request: HeadlessMaterialCaptureRequest<'_>,
+    frame_count: u32,
+    update: &mut dyn FnMut(&mut DrawSnapshot) -> Result<(), RenderError>,
+) -> Result<(HeadlessMaterialCaptureReport, Vec<[f64; 2]>), RenderError> {
+    if !(1..=3600).contains(&frame_count) { return Err(RenderError::ResourceLimit); }
+    let mut run = MotionCapture { update, frame_count, timings: vec![] };
+    let mut reports = material_capture_batch(snapshot, textures, factors, &[request], Some(&mut run)).await?;
+    Ok((reports.remove(0), run.timings))
+}
+
+struct MotionCapture<'a> {
+    update: &'a mut dyn FnMut(&mut DrawSnapshot) -> Result<(), RenderError>,
+    frame_count: u32,
+    timings: Vec<[f64; 2]>,
+}
+
+async fn material_capture_batch(
+    snapshot: &DrawSnapshot,
+    textures: &[HeadlessMaterialTexture<'_>],
+    factors: &[HeadlessMaterialFactors<'_>],
+    requests: &[HeadlessMaterialCaptureRequest<'_>],
+    mut motion: Option<&mut MotionCapture<'_>>,
+) -> Result<Vec<HeadlessMaterialCaptureReport>, RenderError> {
     let batch_started = std::time::Instant::now();
     let Some(first_request) = requests.first() else {
         return Err(RenderError::InvalidSnapshot(
@@ -4110,13 +4142,35 @@ pub async fn run_headless_material_capture_batch(
         let capture_snapshot = isolated_snapshot.as_ref().unwrap_or(snapshot);
         let capture_view = resolved_headless_capture_view(capture_snapshot, options.camera)?;
         let capture_error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let mesh = GpuMeshBuffers::upload(&device, capture_snapshot)?;
+        let mut mesh = GpuMeshBuffers::upload(&device, capture_snapshot)?;
         let view_projection = headless_capture_view_projection(
             capture_snapshot,
             options.width,
             options.height,
             capture_view,
         );
+        if let Some(run) = motion.as_deref_mut() {
+            let mut frame = capture_snapshot.clone();
+            for index in 0..run.frame_count + 10 {
+                let started = std::time::Instant::now();
+                (run.update)(&mut frame)?;
+                let update_ms = started.elapsed().as_secs_f64() * 1000.0;
+                frame.draw_revision += 1;
+                if topology_signature(&frame) != topology_signature(capture_snapshot) {
+                    return Err(RenderError::InvalidSnapshot("motion changed topology".into()));
+                }
+                mesh.refresh_geometry(&queue, &frame, None, 0, None, 0, GeometryUpdateMode::Interactive)?;
+                let readback = render_headless_readback_at(&device, &queue, format, &mesh,
+                    &default_material_binding.bind_group, &active_material_bindings, &camera_bind_group,
+                    &pipelines, &mut camera_uniform, &camera_buffer, ViewMode::TexturedSolid,
+                    options.width, options.height, view_projection, None, false, None);
+                let pixels = read_headless_pixels(&device, &readback.0, readback.1, readback.2)?;
+                if index == run.frame_count + 9 && headless_frame_stats(&pixels)?.non_background_pixels == 0 {
+                    return Err(RenderError::Device("motion frame contains only background".into()));
+                }
+                if index >= 10 { run.timings.push([update_ms, started.elapsed().as_secs_f64() * 1000.0]); }
+            }
+        }
         let mut render = |view_mode| {
             render_headless_readback_at(
                 &device,

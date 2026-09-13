@@ -433,6 +433,7 @@ class MeshRebuildServiceMixin:
                 material_authority_revision=int(session.material_authority_revision),
                 archive_refit_context=session.archive_refit_context,
                 replacement_state=session.replacement_state,
+                hair_state=session.hair_state,
             )
 
     def _capture_texture_resources(
@@ -578,6 +579,12 @@ class MeshRebuildServiceMixin:
             from cdmw.services.mesh_replacement_output import validate_replacement_geometry
             from cdmw.domain.mesh.export_validation import MeshExportValidationIssue
             report = validate_replacement_geometry(snapshot.mesh, snapshot.replacement_state, snapshot.original_data)
+            if snapshot.hair_state is not None:
+                from cdmw.services.mesh_hair_output import validate_hair_output
+                try:
+                    validate_hair_output(snapshot)
+                except ValueError as exc:
+                    report = replace(report, issues=report.issues + (MeshExportValidationIssue("blocker", "hair_output", str(exc)),))
             if report.ok:
                 try:
                     self._replacement_output_for_snapshot(snapshot)

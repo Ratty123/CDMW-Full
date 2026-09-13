@@ -451,7 +451,10 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
         if service is None or not session_id:
             return False
         try:
-            state = service._session(session_id).replacement_state
+            session = service._session(session_id)
+            if session.hair_state is not None:
+                return True
+            state = session.replacement_state
         except (KeyError, AttributeError):
             return False
         return bool(state and (state.companion_files or (

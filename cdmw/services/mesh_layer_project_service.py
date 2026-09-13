@@ -32,6 +32,8 @@ MESH_REPLACEMENT_PROJECT_FORMAT = "mesh_layer_project_v2"
 MESH_REPLACEMENT_GENERATION_FORMAT = "mesh_layer_generation_v2"
 MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT = "mesh_layer_project_v3"
 MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT = "mesh_layer_generation_v3"
+MESH_HAIR_PROJECT_FORMAT = "mesh_layer_project_v4"
+MESH_HAIR_GENERATION_FORMAT = "mesh_layer_generation_v4"
 
 _BINARY_OUTPUT_KEYS = (
     ("vertices_output_path", "vertices"),
@@ -96,6 +98,7 @@ def save_mesh_layer_project(
     stop_event: threading.Event | None = None,
     archive_refit_context: object | None = None,
     replacement_state: object | None = None,
+    hair_state: object | None = None,
 ) -> dict[str, object]:
     """Write one complete generation, then atomically point the project at it."""
 
@@ -184,7 +187,8 @@ def save_mesh_layer_project(
     from cdmw.services.mesh_replacement_draft import save_replacement_state
     experimental = replacement_state is not None and replacement_state.neutral_appearance is not None
     generation_payload = {
-        "format": (MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT if experimental else
+        "format": (MESH_HAIR_GENERATION_FORMAT if hair_state is not None else
+                   MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT if experimental else
                    MESH_REPLACEMENT_GENERATION_FORMAT if replacement_state is not None else MESH_LAYER_GENERATION_FORMAT),
         "source_asset_sha256": source_hash,
         "created_at": time.time(),
@@ -203,6 +207,13 @@ def save_mesh_layer_project(
         )
     if replacement_state is not None:
         generation_payload["replacement"] = save_replacement_state(replacement_state, project_root, generation_dir, stop)
+    if hair_state is not None:
+        from cdmw.domain.mesh.hair import hair_state_from_payload
+        generation_payload["hair"] = hair_state_from_payload(hair_state.payload).payload
+        if archive_refit_context is None:
+            generation_payload["archive_refit_material_files"] = save_archive_refit_materials(
+                persisted_snapshot, project_root, stop,
+            )
     generation_manifest = generation_dir / "generation.json"
     atomic_write_text(generation_manifest, json.dumps(generation_payload, indent=2, sort_keys=True))
     generation_sha256 = _sha256_file(generation_manifest)
@@ -212,7 +223,7 @@ def save_mesh_layer_project(
     if target.is_file():
         try:
             previous = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT}:
+            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT}:
                 previous_generation = str(previous.get("current_generation") or "")
                 previous_generation_manifest_sha256 = str(
                     previous.get("current_generation_manifest_sha256") or ""
@@ -221,7 +232,8 @@ def save_mesh_layer_project(
             previous_generation = ""
             previous_generation_manifest_sha256 = ""
     descriptor = {
-        "format": (MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT if experimental else
+        "format": (MESH_HAIR_PROJECT_FORMAT if hair_state is not None else
+                   MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT if experimental else
                    MESH_REPLACEMENT_PROJECT_FORMAT if replacement_state is not None else MESH_LAYER_PROJECT_FORMAT),
         "source_asset_sha256": source_hash,
         "current_generation": generation_name,
@@ -256,7 +268,7 @@ def load_mesh_layer_project(
     if not target.is_file():
         return None
     descriptor = json.loads(target.read_text(encoding="utf-8"))
-    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT}:
+    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()
     stored_hash = str(descriptor.get("source_asset_sha256") or "").strip().lower()
@@ -289,11 +301,12 @@ def load_mesh_layer_project(
             load_archive_refit_materials(
                 payload["snapshot"], payload.get("archive_refit_material_files"), target.parent, stop,
             )
-            if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
+            if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")
             snapshot = payload.get("snapshot")
+            restore_target = copy.deepcopy(mesh) if descriptor.get("format") == MESH_HAIR_PROJECT_FORMAT else mesh
             if not isinstance(snapshot, Mapping) or not restore_native_mesh_submesh_snapshot(
-                mesh,
+                restore_target,
                 snapshot,
                 stop_event=stop,
                 timeout_seconds=30.0,
@@ -302,17 +315,23 @@ def load_mesh_layer_project(
             refit_context = load_archive_refit_context(payload.get("archive_refit"), target.parent)
             from cdmw.services.mesh_replacement_draft import load_replacement_state
             from cdmw.domain.mesh.replacement import bound_part_indices
+            from cdmw.domain.mesh.hair import hair_state_from_payload
+            hair = hair_state_from_payload(payload.get("hair"))
+            if payload.get("format") == MESH_HAIR_GENERATION_FORMAT and hair is None:
+                raise ValueError("Hair draft omitted its authoring state.")
             replacement = load_replacement_state(payload.get("replacement"), target.parent)
-            if payload.get("format") in {MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT} and replacement is None:
+            if payload.get("format") in {MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT} and replacement is None:
                 raise ValueError("Replacement draft omitted its output state.")
             if payload.get("format") == MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT and replacement.neutral_appearance is None:
                 raise ValueError("Experimental replacement draft omitted its coordinate transform.")
             if replacement is not None:
                 if replacement.target_sha256 != stored_hash or refit_context is not None:
                     raise ValueError("Replacement draft target or workflow does not match.")
-                bound_part_indices(mesh, replacement)
+                bound_part_indices(restore_target, replacement)
+            if restore_target is not mesh:
+                mesh.__dict__.update(restore_target.__dict__)
             return {**dict(payload), "loaded_generation": generation_name, "archive_refit_context": refit_context,
-                    "replacement_state": replacement}
+                    "replacement_state": replacement, "hair_state": hair}
         except (OSError, RuntimeError, ValueError) as exc:
             failures.append(f"{generation_name}: {exc}")
     raise RuntimeError("No valid Mesh Editor layer-project generation: " + "; ".join(failures))
@@ -332,7 +351,7 @@ def _load_generation(
     if expected_manifest_sha256 and _sha256_file(manifest_path) != expected_manifest_sha256:
         raise ValueError("layer generation manifest checksum mismatch")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT}:
+    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT}:
         raise ValueError("unsupported layer generation")
     if str(payload.get("source_asset_sha256") or "").strip().lower() != source_hash:
         raise ValueError("layer generation fingerprint mismatch")

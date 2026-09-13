@@ -259,6 +259,7 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
                     "capabilities": [
                         "embedded_child_window_v1",
                         "rust_preview_runtime_v1",
+                        "hair_authoring_v1",
                     ],
                     "preview_capabilities": [
                         "preview_profile_read_only_v1",

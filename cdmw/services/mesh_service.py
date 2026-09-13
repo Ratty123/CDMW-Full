@@ -765,6 +765,7 @@ class _MeshServiceSessionLayerCore(
         if loaded_layer_project is not None:
             session.archive_refit_context = loaded_layer_project.get("archive_refit_context")
             session.replacement_state = loaded_layer_project.get("replacement_state")
+            session.hair_state = loaded_layer_project.get("hair_state")
             if session.replacement_state is not None:
                 session.output_policy = MeshOutputPolicy.REPLACEMENT_GAME_ASSET.value
         self._sessions[session_key] = session
@@ -1175,7 +1176,7 @@ class _MeshServiceSessionLayerCore(
             session.native_editor_session_ready = True
             session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
         layer_payload = _geometry_layer_state_payload(session)
-        promote = len(session.geometry_layers) > 1 or session.replacement_state is not None
+        promote = len(session.geometry_layers) > 1 or session.replacement_state is not None or session.hair_state is not None
         descriptor = save_mesh_layer_project(
             session_id=session.session_id,
             mesh=session.working_mesh,
@@ -1197,6 +1198,7 @@ class _MeshServiceSessionLayerCore(
             stop_event=stop_event,
             archive_refit_context=session.archive_refit_context,
             replacement_state=session.replacement_state,
+            hair_state=session.hair_state,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)

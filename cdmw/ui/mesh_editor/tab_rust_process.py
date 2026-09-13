@@ -58,6 +58,14 @@ def _rust_stderr_backtrace_note(line: str) -> bool:
 
 
 class MeshEditorRustProcessMixin:
+    def _hair_start_options(self):
+        pending = getattr(self, "_pending_hair_start", None)
+        self._pending_hair_start = None
+        target = self._current_target_entry()
+        if pending and target is not None and pending[0] == target.identity:
+            return {"hair_start_mode": pending[1]}
+        return {}
+
     def _launch_rust_editor_process(self, session: object) -> None:
         executable = self.standalone_rust_executable_path
         resolution = self._rust_executable_resolution()
@@ -340,6 +348,19 @@ class MeshEditorRustProcessMixin:
                 incompatible=True,
             )
             return
+        session = self.standalone_rust_authoring_session
+        if session is not None and (
+            session.hair_start_mode
+            or session.shadow_service._session(session.shadow_session_id).hair_state is not None
+        ):
+            from cdmw.services.mesh_rust_contract import RUST_HAIR_AUTHORING_CAPABILITY
+
+            if RUST_HAIR_AUTHORING_CAPABILITY not in capability_set:
+                self._fail_rust_editor(
+                    "This hair draft requires an updated Hair-capable Rust helper.",
+                    incompatible=True,
+                )
+                return
         try:
             child_hwnd = int(payload.get("child_hwnd", 0) or 0)
             embedded_parent_hwnd = int(payload.get("embedded_parent_hwnd", 0) or 0)
@@ -404,6 +425,33 @@ class MeshEditorRustProcessMixin:
             return
         event = self.standalone_rust_protocol_queue.pop(0)
         preparation_error = ""
+        if event.get("command") == "hair_begin":
+            from cdmw.ui.mesh_editor.hair_flow import prepare_hair_event
+            self._archive_refit_picker_active = True
+            try:
+                event = prepare_hair_event(self, session, event)
+            except Exception as exc:
+                preparation_error = str(exc) or type(exc).__name__
+            finally:
+                self._archive_refit_picker_active = False
+            if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
+        if event.get("command") == "hair_texture":
+            from PySide6.QtWidgets import QFileDialog
+            self._archive_refit_picker_active = True
+            try:
+                path, _ = QFileDialog.getOpenFileName(self, "Apply Edited Hair DDS", "", "DDS textures (*.dds)")
+            finally:
+                self._archive_refit_picker_active = False
+            if self.standalone_rust_authoring_session is not session or self.standalone_rust_closing:
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
+            if not path:
+                self._send_rust_error_response(event, "DDS selection cancelled.")
+                QTimer.singleShot(0, self._start_next_rust_protocol_worker)
+                return
+            event = {**event, "arguments": {**dict(event.get("arguments") or {}), "_dds_path": path}}
         if event.get("command") in {"replacement_choose", "replacement_include"}:
             from cdmw.ui.mesh_editor.replacement_flow import prepare_replacement_event
             self._archive_refit_picker_active = True
@@ -492,6 +540,9 @@ class MeshEditorRustProcessMixin:
         else:
             payload = response.get("payload", {})
             result = payload.get("result", {}) if isinstance(payload, dict) else {}
+            if isinstance(result, dict) and result.get("hair_texture_source"):
+                from cdmw.ui.mesh_editor.hair_flow import open_hair_texture_source
+                open_hair_texture_source(self, result["hair_texture_source"])
             warning = str(result.get("appearance_warning") or "") if isinstance(result, dict) else ""
             self._publish_rust_protocol_status(warning or "Mesh Editor command completed.")
 
@@ -760,6 +811,9 @@ class MeshEditorRustProcessMixin:
         picker = getattr(self, "_archive_refit_picker", None)
         if picker is not None:
             picker.request_shutdown()
+        hair_picker = getattr(self, "_hair_picker", None)
+        if hair_picker is not None:
+            hair_picker.request_shutdown()
         self.standalone_rust_ready_timer.stop()
         self.standalone_rust_finish_timer.stop()
         self.standalone_rust_protocol_queue.clear()

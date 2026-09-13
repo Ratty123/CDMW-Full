@@ -3,6 +3,7 @@
 
 mod camera;
 mod cdmw_preview;
+mod cdmw_hair;
 mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
@@ -46,6 +47,7 @@ use cdmw_session::{
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
+use cdmw_hair::{HairAction, HairEditor};
 use loader::{LoadEvent, LoadedMaterialFactors, LoadedMesh, LoadedTexture, Loader};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -1483,6 +1485,7 @@ enum UiAction {
         params: Value,
     },
     SetPartSelection(Vec<u32>),
+    Hair(HairAction),
     SetPartVisibility {
         indices: Vec<u32>,
         visible: bool,
@@ -2055,6 +2058,7 @@ struct LabApplication {
     raw_pan_captured: bool,
     cdmw_bridge: Option<CdmwBridge>,
     cdmw_state: Value,
+    hair: HairEditor,
     cdmw_pending_request: Option<CdmwPendingRequest>,
     cdmw_normals_feedback: Option<String>,
     cdmw_uv_feedback: Option<String>,
@@ -2212,6 +2216,7 @@ impl LabApplication {
             raw_pan_captured: false,
             cdmw_bridge: None,
             cdmw_state: Value::Null,
+            hair: HairEditor::default(),
             cdmw_pending_request: None,
             cdmw_normals_feedback: None,
             cdmw_uv_feedback: None,
@@ -2340,14 +2345,18 @@ impl LabApplication {
         if let Some(mesh) = &application.mesh {
             application.camera.frame_integrated_startup(mesh);
         }
+        let hair = bridge.hair_from_state(&initial_state)?;
         application.cdmw_state = initial_state;
+        application.hair.pending_start = application.cdmw_state["hair"]["start_mode"].as_str()
+            .filter(|mode| matches!(*mode, "generated" | "existing")).map(String::from);
+        application.hydrate_hair(hair);
         application.cdmw_bridge = Some(bridge);
         application.cdmw_texture_resources = cdmw_texture_resources;
         application.cdmw_material_presentations = cdmw_material_presentations;
         application.cdmw_texture_package_reason = cdmw_texture_package_reason;
         application.refresh_cdmw_skeleton_overlay();
         application.apply_cdmw_theme();
-        application.cdmw_orbit_mode = true;
+        application.cdmw_orbit_mode = application.hair.state.is_none();
         application.status = format!(
             "CDMW shadow session loaded · Orbit mode · {output_policy} · base {authoritative_base_revision} · shadow {initial_shadow_revision} · edits are isolated until Finish Edit Mesh"
         );
@@ -2613,9 +2622,9 @@ impl LabApplication {
     }
 
     fn submit_cdmw_finish(&mut self) {
-        if self.cdmw_busy() {
+        if self.cdmw_busy() || self.hair.preparing() {
             self.status =
-                "Finish Edit Mesh is waiting for the current shadow transaction".to_owned();
+                "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
             return;
         }
         let Some(bridge) = &mut self.cdmw_bridge else {
@@ -2839,6 +2848,7 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
+        let hair = self.cdmw_bridge.as_ref().map(|bridge| bridge.hair_from_state(&state)).transpose()?.flatten();
         // Replacement targets keep their material slots when imported layouts
         // differ from the archive layout. Reload the explicit immutable binding
         // in that case instead of letting ordinary source-identity remapping
@@ -2894,6 +2904,7 @@ impl LabApplication {
             self.cdmw_state = previous_state;
         } else {
             self.refresh_cdmw_skeleton_overlay();
+            self.hydrate_hair(hair);
         }
         result
     }
@@ -4623,6 +4634,7 @@ impl LabApplication {
                     label,
                     params,
                 } => self.submit_cdmw_topology(action, label, params),
+                UiAction::Hair(action) => self.run_hair_action(action),
                 UiAction::SetPartSelection(indices) => {
                     let visible_submeshes = self.cdmw_visible_submeshes();
                     if let Some(mesh) = &mut self.mesh {
@@ -5025,6 +5037,7 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.hair.invalidate_scene();
         self.face_selection_overlay = None;
         self.cdmw_rig.overlay_key = None;
         self.selected_counts_cache.set(None);
@@ -5197,6 +5210,7 @@ impl LabApplication {
         rectangle: egui::Rect,
         response: &egui::Response,
     ) {
+        if self.handle_hair_input(ui, rectangle) { return; }
         if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.cancel_active_gesture("Gesture cancelled");
         }
@@ -6095,6 +6109,7 @@ impl LabApplication {
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+        self.poll_hair();
         let Some(window) = self.window.clone() else {
             return;
         };
@@ -6113,6 +6128,7 @@ impl LabApplication {
             );
         }
         self.handle_actions(actions);
+        self.render_hair();
         if self.deformation_heatmap_applied != self.deformation_heatmap_enabled {
             self.deformation_heatmap_applied = self.deformation_heatmap_enabled;
             self.publish_mesh_snapshot();
