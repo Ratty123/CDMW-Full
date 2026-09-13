@@ -49,7 +49,8 @@ MANUAL_SOURCE_KEYS = frozenset(
     {
         # Body & Face Finder facets/statuses arrive through typed worker rows.
         "Whole character", "Head", "Facial detail", "Beard", "Unclassified",
-        "Player families", "Creatures", "NPCs", "Mounts", "Objects", "Towers",
+        "Humanoids", "Player families", "Creatures", "NPCs", "Mounts", "Objects", "Towers",
+        "Humanoids ({value_0})", "Head ({value_0})",
         "Unresolved model", "Ambiguous", "Embedded face",
         "The previous preview is still shown.",
         # Preview Core selects recovery guidance by the native filesystem error.

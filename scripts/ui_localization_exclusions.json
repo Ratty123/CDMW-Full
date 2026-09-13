@@ -1,5 +1,11 @@
 [
   {
+    "path": "cdmw/ui/character_finder/dialog.py",
+    "symbol": "_set_filter",
+    "source": "humanoid",
+    "reason": "Catalogue filter identity; the displayed Humanoids label is translated separately."
+  },
+  {
     "path": "cdmw/services/archive_overlay_manager.py",
     "symbol": "read",
     "source": "changes.json",

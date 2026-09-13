@@ -57,14 +57,11 @@ def run(args):
         dialog = CharacterFinderDialog(window)
         window._character_finder_dialogs.add(dialog)
         dialog._view.setCurrentIndex(1 if args.view == "appearances" else 0)
-        dialog._tabs.setCurrentIndex(1 if args.role in {"head", "facial_detail", "hair", "beard"} else 0)
-        for combo in dialog._filters.values():
-            combo.setCurrentIndex(0)
+        dialog._tabs.setCurrentIndex(1 if args.tab == "faces" or args.role in {"head", "facial_detail", "hair", "beard"} else 0)
         for field, value in (("role", args.role), ("source_group", args.source_group)):
-            if value:
-                combo = dialog._filters[field]
-                combo.addItem(value, value)
-                combo.setCurrentIndex(combo.count() - 1)
+            if value is not None:
+                value = "" if value == "all" or (field == "role" and value == "head") else value
+                dialog._set_filter(field, value)
         dialog._search_edit.setText(args.query)
         packages, thumbnails, failures, states = [], [], [], []
         dialog._host.controller.state_changed.connect(lambda state, message: states.append((state, message)))
@@ -106,7 +103,7 @@ def run(args):
             before_path, after_path = args.output / "front.png", args.output / "orbit.png"
             if not dialog._host.controller.request_capture(before_path) or not _Awaiter._wait_until(lambda: bool(captures), timeout_ms=10_000):
                 raise RuntimeError("Interactive host did not capture its current scene")
-            if not dialog._host.set_view(yaw=35, pitch=5, zoom_factor=1.15, fit_to_view=False):
+            if not dialog._host.set_view(yaw=215, pitch=5, zoom_factor=1.15, fit_to_view=False):
                 raise RuntimeError("Interactive host rejected its camera command")
             # Absolute camera commands and the following capture share the ordered
             # protocol stream. view_state_changed is reserved for native gestures.
@@ -116,7 +113,9 @@ def run(args):
             if not changed:
                 raise RuntimeError("Camera change did not change the rendered scene")
             report["interactive_camera"] = {"render_changed": changed, "capture_events": captures, "view_events": views}
-            dialog._host.reset_view()
+            dialog._reset_view()
+            if not dialog._host.controller.request_capture(args.output / "reset.png") or not _Awaiter._wait_until(lambda: len(captures) >= 3, timeout_ms=10_000):
+                raise RuntimeError("Interactive host did not capture its restored front view")
         tick()
         # Qt's backing-store capture omits the native D3D child. Briefly raise
         # this owned window above other apps and verify the capture is its own.
@@ -183,8 +182,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--query", default="")
     parser.add_argument("--view", choices=("assets", "appearances"), default="appearances")
-    parser.add_argument("--role", default="body")
-    parser.add_argument("--source-group", default="")
+    parser.add_argument("--tab", choices=("bodies", "faces"), default="bodies")
+    parser.add_argument("--role")
+    parser.add_argument("--source-group")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--min-thumbnails", type=int, default=1)
     parser.add_argument("--expect-unresolved", action="store_true")

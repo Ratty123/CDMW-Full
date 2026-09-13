@@ -24,7 +24,7 @@ from cdmw.ui.shell.close_controller import register_transient_worker_controller
 
 ROLE_LABELS = {"body": "Body", "whole_character": "Whole character", "head": "Head",
                "facial_detail": "Facial detail", "hair": "Hair", "beard": "Beard", "unclassified": "Unclassified"}
-SOURCE_LABELS = {"1_pc": "Player families", "2_mon": "Creatures", "3_npc": "NPCs", "4_riding": "Mounts",
+SOURCE_LABELS = {"humanoid": "Humanoids", "1_pc": "Player families", "2_mon": "Creatures", "3_npc": "NPCs", "4_riding": "Mounts",
                  "6_object": "Objects", "7_montower": "Towers", "unknown": "Unknown"}
 STATUS_LABELS = {"base_appearance": "Base appearance", "textures_unavailable": "Textures unavailable",
                  "unresolved_model": "Unresolved model"}
@@ -77,7 +77,7 @@ class CharacterFinderDialog(QDialog):
         self._host.controller.package_applied.connect(self._package_applied)
         self._host.controller.package_failed.connect(self._package_failed)
         self._search_edit.textChanged.connect(self._queue_search)
-        self._tabs.currentChanged.connect(self._queue_search)
+        self._tabs.currentChanged.connect(self._tab_changed)
         self._view.currentIndexChanged.connect(self._queue_search)
         for combo in self._filters.values():
             combo.currentIndexChanged.connect(self._queue_search)
@@ -188,7 +188,7 @@ class CharacterFinderDialog(QDialog):
         right_layout.addWidget(self._host, 3)
         preview_tools = QHBoxLayout()
         reset = QPushButton("Reset view")
-        reset.clicked.connect(self._host.reset_view)
+        reset.clicked.connect(self._reset_view)
         preview_tools.addWidget(reset)
         preview_tools.addStretch(1)
         right_layout.addLayout(preview_tools)
@@ -221,15 +221,20 @@ class CharacterFinderDialog(QDialog):
         layout.addWidget(self._status)
 
     def _restore(self):
+        self._set_filter("source_group", "humanoid")
         if self._settings is None:
             return
-        for field, combo in self._filters.items():
-            value = str(self._settings.value("ui/character_finder/" + field, "") or "")
-            if value:
-                combo.addItem(value, value)
-                combo.setCurrentIndex(1)
         self._tabs.setCurrentIndex(1 if self._settings.value("ui/character_finder/tab", "bodies") == "faces" else 0)
         self._view.setCurrentIndex(1 if self._settings.value("ui/character_finder/view", "assets") == "appearances" else 0)
+        for field, combo in self._filters.items():
+            value = str(self._settings.value("ui/character_finder/" + field, "") or "")
+            if field == "source_group":
+                # Legacy empty values were the old all-types default. Preserve an
+                # intentional all-types choice with an explicit persisted value.
+                value = "" if value == "all" else value or "humanoid"
+            if field == "role" and self._tabs.currentIndex() and value == "head":
+                value = ""
+            self._set_filter(field, value)
         geometry = self._settings.value("ui/character_finder/geometry")
         if geometry:
             self.restoreGeometry(geometry)
@@ -240,11 +245,29 @@ class CharacterFinderDialog(QDialog):
     def _save(self):
         if self._settings is not None:
             for field, combo in self._filters.items():
-                self._settings.setValue("ui/character_finder/" + field, combo.currentData() or "")
+                value = combo.currentData() or ("all" if field == "source_group" else "")
+                self._settings.setValue("ui/character_finder/" + field, value)
             self._settings.setValue("ui/character_finder/tab", "faces" if self._tabs.currentIndex() else "bodies")
             self._settings.setValue("ui/character_finder/view", self._view.currentData())
             self._settings.setValue("ui/character_finder/geometry", self.saveGeometry())
             self._settings.setValue("ui/character_finder/splitter", self._splitter.saveState())
+
+    def _set_filter(self, field, value):
+        combo = self._filters[field]
+        index = combo.findData(value)
+        if index < 0:
+            labels = SOURCE_LABELS if field == "source_group" else ROLE_LABELS if field == "role" else {}
+            combo.addItem(labels.get(value, value), value)
+            index = combo.count() - 1
+        combo.setCurrentIndex(index)
+
+    def _tab_changed(self, *_args):
+        combo = self._filters["role"]
+        label = "Head" if self._tabs.currentIndex() else "All components"
+        combo.setProperty("allLabel", label)
+        combo.setItemText(0, label)
+        combo.setCurrentIndex(0)
+        self._queue_search()
 
     def _cancel(self, kind):
         request = self._requests.pop(kind, None)
@@ -345,10 +368,14 @@ class CharacterFinderDialog(QDialog):
             labels = ROLE_LABELS if field == "role" else SOURCE_LABELS if field == "source_group" else RESOLUTION_LABELS if field == "resolution" else {}
             for facet in result.facets:
                 if facet.field == field:
-                    combo.addItem(f"{labels.get(facet.value, facet.value)} ({facet.count:,})", facet.value)
+                    label = f"{labels.get(facet.value, facet.value)} ({facet.count:,})"
+                    if field == "role" and self._tabs.currentIndex() and facet.value == "head":
+                        combo.setItemText(0, label)
+                    else:
+                        combo.addItem(label, facet.value)
             index = combo.findData(value)
             if index < 0 and value:
-                combo.addItem(value + " (0)", value)
+                combo.addItem(labels.get(value, value) + " (0)", value)
                 index = combo.count() - 1
             combo.setCurrentIndex(max(0, index))
             combo.blockSignals(False)
@@ -424,13 +451,8 @@ class CharacterFinderDialog(QDialog):
         self._tabs.setCurrentIndex(1 if target.role in {"head", "facial_detail", "hair", "beard"} else 0)
         for combo in self._filters.values():
             combo.setCurrentIndex(0)
-        if target.role == "unclassified":
-            role_filter = self._filters["role"]
-            index = role_filter.findData("unclassified")
-            if index < 0:
-                role_filter.addItem(ROLE_LABELS[target.role], target.role)
-                index = role_filter.count() - 1
-            role_filter.setCurrentIndex(index)
+        if target.role in {"unclassified", "facial_detail", "hair", "beard"}:
+            self._set_filter("role", target.role)
         self._search_edit.setText(target.path)
         self._relation_banner.setText("Related results · Show all results")
         self._relation_banner.setVisible(True)
@@ -442,7 +464,11 @@ class CharacterFinderDialog(QDialog):
         self._search_edit.clear()
         for combo in self._filters.values():
             combo.setCurrentIndex(0)
+        self._set_filter("source_group", "humanoid")
         self._queue_search()
+
+    def _reset_view(self):
+        self._host.request_canonical_view()
 
     def _page(self, direction):
         self._page_start = max(0, self._page_start + direction * 72)
