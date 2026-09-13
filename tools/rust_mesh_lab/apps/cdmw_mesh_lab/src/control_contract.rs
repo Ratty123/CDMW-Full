@@ -691,6 +691,7 @@ topology.refine_parameters|topology|cdmw_refine_strength|cdmw_refine_strength
 topology.weld_distance|topology|cdmw_weld_distance|cdmw_weld_distance
 output.host_handoff|import_output_export|Button::new("Finish Edit Mesh")|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
+replacement.experimental|import_output_export|"replacement_enable_experimental"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand
 replacement.inclusion|parts|"replacement_include"|UiAction::CdmwCommand
 replacement.fit|transform|"replacement_fit"|UiAction::CdmwCommand

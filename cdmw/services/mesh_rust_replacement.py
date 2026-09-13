@@ -3,29 +3,33 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE
 from cdmw.services.mesh_replacement_import import (
     initial_replacement_state, prepare_import, compose_import, commit_replacement,
     set_part_inclusion, reset_or_fit_import,
+    mesh_with_part_ids,
 )
 
 
 def replacement_ui_state(authoring):
     session = authoring.shadow_service._session(authoring.shadow_session_id)
+    state = session.replacement_state
+    experimental = bool(state and state.neutral_appearance is not None) or authoring.experimental_replacement_enabled
     reason = ""
     if session.archive_refit_context is not None:
         reason = "Undo active Morph & Refit archive bindings before replacing parts."
     elif getattr(authoring.shadow_service._morph_sessions.get(authoring.shadow_session_id), "profile", None) is not None:
         reason = "Clear the active Morph & Refit profile before replacing parts."
-    elif authoring.neutral_appearance is not None:
-        reason = "Replacement coordinate conversion is not proven for this neutral appearance mesh."
     elif session.mesh_format not in {"pac", "pam", "pamlod"} or not session.original_data or session.lod_index != 0:
         reason = "Replacement requires an eligible original PAC, PAM or PAMLOD at LOD0."
     elif session.output_policy not in {"exact_game_asset", "replacement_game_asset"}:
         reason = "Use an original archive mesh with Exact output before replacing parts."
-    state = session.replacement_state
+    can_try = not reason and authoring.neutral_appearance is not None and not experimental
+    if can_try:
+        reason = "Enable experimental replacement to import or change mod inclusion on this neutral appearance mesh."
     digest = state.target_sha256 if state else (session.mesh_asset_source_hash or hashlib.sha256(session.original_data).hexdigest()).lower()
     bindings = {part.part_id: part for part in state.parts} if state else {}
     parts = []
@@ -36,6 +40,7 @@ def replacement_ui_state(authoring):
                       "included": binding.included if binding else True})
     pending = authoring.pending_replacement
     payload = {"available": not reason, "reason": reason, "active": state is not None,
+               "can_try_experimental": can_try, "experimental": experimental,
                "comparison": authoring.replacement_comparison, "parts": parts,
                "has_import": bool(state and any(part.import_positions for part in state.parts))}
     if pending is not None:
@@ -67,6 +72,11 @@ def run_replacement_command(authoring, command, args, stop_event):
         authoring.replacement_comparison = mode
         return {"comparison": mode}
     ui = replacement_ui_state(authoring)
+    if command == "replacement_enable_experimental":
+        if not ui["can_try_experimental"] or args.get("acknowledged") is not True:
+            raise ValueError("Review the experimental replacement warning before enabling it.")
+        authoring.experimental_replacement_enabled = True
+        return {"status": "experimental_enabled"}
     if not ui["available"]:
         raise ValueError(ui["reason"])
     if command == "replacement_choose" and args.get("cancelled"):
@@ -77,6 +87,10 @@ def run_replacement_command(authoring, command, args, stop_event):
     if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include"}:
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(entry, args.get("_archive_dependencies"), stop_event)
+        if authoring.neutral_appearance is not None:
+            state = replace(initial_replacement_state(snapshot, entry, dependencies),
+                            neutral_appearance=authoring.neutral_appearance, neutral_coordinates=True)
+            snapshot = replace(snapshot, mesh=mesh_with_part_ids(snapshot, state), replacement_state=state)
     if command == "replacement_choose":
         selected = tuple(str(value) for value in args.get("part_ids", ()))
         if args.get("scope") == "selected" and not selected:

@@ -195,6 +195,12 @@ normals/tangents, UVs, and layers where the active mesh supports them. The Parts
 list controls visibility and whole-part selection. Rig & Weights is temporarily
 hidden from the product tool rail; its underlying implementation is retained.
 
+The Parts panel also offers **Import Replacement…** and reversible **Mod**
+inclusion. Imports keep their size and placement by default. Neutral-appearance
+meshes provide **Try Experimental Replacement**, with a warning about possible
+positioning, scale and animation errors. Use **Output Preview** before Finish
+and Build Mod; required geometry and dependency checks remain active.
+
 **Morph & Refit** supports body shape sliders and fitting armor or clothing:
 
 1. Use **Browse Body...** and **Browse Armor...** to load assets from the current

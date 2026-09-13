@@ -35,6 +35,21 @@ def manual_replacement_options(mappings=(), *, removed=()):
     )
 
 
+def replacement_source_mesh(mesh, state, original):
+    """Invert the displayed skin transform once, using the candidate's weights."""
+    if not state.neutral_coordinates:
+        return mesh
+    if state.neutral_appearance is None:
+        raise ValueError("Experimental replacement is missing its neutral coordinate transform.")
+    indices = bound_part_indices(mesh, state)
+    reference = copy.copy(original)
+    reference.submeshes = [None] * len(mesh.submeshes)
+    for part in state.parts:
+        reference.submeshes[indices[part.part_id]] = original.submeshes[part.target_index]
+    reference.lod_levels = [reference.submeshes, *original.lod_levels[1:]] if original.lod_levels else []
+    return state.neutral_appearance.to_source(mesh, reference)
+
+
 def validate_replacement_geometry(mesh, state: MeshReplacementState, original_data: bytes):
     report = validate_mesh_export(
         mesh, exact_output=False, edit_operations=(), requires_edit_operations=False,
@@ -136,6 +151,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     indices = bound_part_indices(snapshot.mesh, state)
     if {part.target_index for part in state.parts} != set(range(len(original.submeshes))):
         raise ValueError("Replacement mappings do not cover the original target sections.")
+    snapshot = replace(snapshot, mesh=replacement_source_mesh(snapshot.mesh, state, original))
     mappings = [StaticSubmeshMapping(
         part.target_index, original.submeshes[part.target_index].name,
         [indices[part.part_id]] if part.included else [], part.target_index,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import asdict
 import math
 from pathlib import Path
 import struct
@@ -38,7 +39,10 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     return {
-        "version": 2, "target_path": state.target_path, "target_sha256": state.target_sha256,
+        "version": 3 if state.neutral_appearance is not None else 2,
+        **({"neutral_appearance": {"version": 1, **asdict(state.neutral_appearance)},
+            "neutral_coordinates": state.neutral_coordinates} if state.neutral_appearance is not None else {}),
+        "target_path": state.target_path, "target_sha256": state.target_sha256,
         "target_location": state.target_location, "revision": state.revision,
         "parts": [{"part_id": part.part_id, "target_index": part.target_index,
                    "source_part_ids": list(part.source_part_ids), "included": part.included,
@@ -55,7 +59,8 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
 def load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if not isinstance(payload, dict) or payload.get("version") not in {1, 2}:
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3}
+            or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
     total = 0
@@ -95,9 +100,9 @@ def load_replacement_state(payload, project_root):
         if any(not math.isfinite(coordinate) for point in positions for coordinate in point):
             raise ValueError("Non-finite replacement import placement.")
         normals = None
-        if payload["version"] == 2 and "import_normals" not in value:
+        if payload["version"] >= 2 and "import_normals" not in value:
             raise ValueError("Replacement draft is missing saved import normals.")
-        if payload["version"] == 2 and value["import_normals"] is not None:
+        if payload["version"] >= 2 and value["import_normals"] is not None:
             normal_data = blob(value["import_normals"])
             if len(normal_data) not in {0, len(data)}:
                 raise ValueError("Saved import normals do not match the replacement geometry.")
@@ -109,7 +114,14 @@ def load_replacement_state(payload, project_root):
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
             value["material_choice"], str(value["source_label"]), positions, normals))
+    appearance, neutral = None, False
+    if payload["version"] == 3:
+        from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
+        appearance = _load_obj_neutral_appearance(payload.get("neutral_appearance"))
+        neutral = payload.get("neutral_coordinates")
+        if type(neutral) is not bool:
+            raise ValueError("Invalid experimental replacement coordinate frame.")
     return MeshReplacementState(str(payload["target_path"]), str(payload["target_sha256"]),
         tuple(parts), int(payload["revision"]), location(payload.get("target_location")),
         tuple(file(v) for v in payload.get("dependencies", [])),
-        tuple(file(v) for v in payload.get("companion_files", [])))
+        tuple(file(v) for v in payload.get("companion_files", [])), appearance, neutral)

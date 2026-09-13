@@ -6928,6 +6928,7 @@ class RustMeshAuthoringSession:
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
     replacement_comparison: str = "edit"
+    experimental_replacement_enabled: bool = False
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
@@ -6981,6 +6982,14 @@ class RustMeshAuthoringSession:
             else:
                 preview_material_binding_count = count_dotnet_own_material_bindings(shadow_mesh)
             neutral_appearance = authoritative_session.neutral_appearance
+            replacement_state = authoritative_session.replacement_state
+            if replacement_state is not None and replacement_state.neutral_appearance is not None:
+                neutral_appearance = replacement_state.neutral_appearance
+                if replacement_state.neutral_coordinates:
+                    from cdmw.services.mesh_replacement_output import replacement_source_mesh
+                    from cdmw.modding.mesh_parser import parse_mesh
+                    shadow_mesh = replacement_source_mesh(shadow_mesh, replacement_state,
+                        parse_mesh(authoritative_session.original_data, replacement_state.target_path))
             neutral_source_mesh = shadow_mesh if neutral_appearance is not None else None
             refit_context = geometry_layer_seed.get("archive_refit_context")
             if refit_context is not None:
@@ -7030,6 +7039,8 @@ class RustMeshAuthoringSession:
             raise
         try:
             shadow_service._session(shadow_view.session_id).replacement_state = authoritative_session.replacement_state
+            if replacement_state is not None and replacement_state.neutral_appearance is not None:
+                shadow_service._session(shadow_view.session_id).replacement_state = replace(replacement_state, neutral_coordinates=True)
             shadow_view = _configure_shadow_session_seed(
                 shadow_service, shadow_view, geometry_layer_seed, rigging_seed,
                 authoritative_morph_state, authoritative_view,
@@ -7136,6 +7147,8 @@ class RustMeshAuthoringSession:
             from cdmw.modding.mesh_parser import parse_mesh
             session = self.shadow_service._session(self.shadow_session_id)
             mesh = parse_mesh(session.original_data, session.base_mesh.path)
+        if self.replacement_comparison != "edit" and self.neutral_appearance is not None:
+            mesh = self.neutral_appearance.to_neutral(mesh)
         if _STATE_FILE_RE.fullmatch(name) is not None:
             reference = _atomic_write_state_payload(
                 self.root,
@@ -8614,6 +8627,12 @@ class RustMeshAuthoringSession:
         raise RustMeshProtocolError(f"Unsupported Mesh morph command: {command}")
 
     def _source_coordinate_mesh(self, mesh: ParsedMesh) -> ParsedMesh:
+        state = self.shadow_service._session(self.shadow_session_id).replacement_state
+        if state is not None and state.neutral_appearance is not None:
+            from cdmw.services.mesh_replacement_output import replacement_source_mesh
+            from cdmw.modding.mesh_parser import parse_mesh
+            original = parse_mesh(self.shadow_service._session(self.shadow_session_id).original_data, state.target_path)
+            return replacement_source_mesh(mesh, state, original)
         context = self.shadow_service._session(self.shadow_session_id).archive_refit_context
         if context is not None and context.neutral_coordinates:
             from cdmw.services.mesh_archive_refit import transform_archive_refit_mesh
@@ -8666,6 +8685,8 @@ class RustMeshAuthoringSession:
                        self.authoritative_service._session(self.authoritative_session_id).base_mesh),
             edit_operations=tuple(getattr(source_mesh, "_cdmw_edit_operations", ()) or ()),
             archive_refit_context=replace(context, neutral_coordinates=False) if context is not None else None,
+            replacement_state=(replace(snapshot.replacement_state, neutral_coordinates=False)
+                               if snapshot.replacement_state is not None else None),
         )
 
     def _validate_exact_output_writer(
@@ -9048,7 +9069,8 @@ class RustMeshAuthoringSession:
             validation_output_destination_ready=shadow_view.output_destination_ready,
             archive_refit_context=(replace(shadow_session.archive_refit_context, neutral_coordinates=False)
                                    if shadow_session.archive_refit_context is not None else None),
-            replacement_state=shadow_session.replacement_state,
+            replacement_state=(replace(shadow_session.replacement_state, neutral_coordinates=False)
+                               if shadow_session.replacement_state is not None else None),
             replace_output_state=True,
         )
         if prepared.expected_revision != self.base_revision:

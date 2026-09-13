@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor offers **Try Experimental Replacement** for neutral-appearance meshes, enabling replacement imports and Mod inclusion after a visible warning. Preview and export share the retained coordinate transform; versioned drafts preserve it, while structural validation stays enabled.
 - Mesh Editor imports replacement models into the existing Parts panel with manual placement by default, reversible Include in mod controls, original/output comparison, and complete mesh/material/texture/paired-LOD packages. Replacement state follows Undo/Redo and versioned drafts; ordinary editing and New Item fitting keep their existing behavior.
 - **Body & Face Finder** browses character bodies, heads, facial details, hair and beards across player, NPC, creature and mount families. Search unique assets or appearance variants, inspect shared ownership and dependencies, preview visible results, and open their files in Archive Browser. Unresolved models and unsupported customization remain explicit.
 
