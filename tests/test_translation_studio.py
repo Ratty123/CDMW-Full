@@ -226,7 +226,7 @@ class ModelTests(unittest.TestCase):
         model, _cat = self._model()
         model.setData(model.index(0, 2), "Changed.", Qt.EditRole)
         self.assertIsNotNone(model.data(model.index(0, 0), Qt.BackgroundRole))
-        self.assertIn("Ships as:", str(model.data(model.index(0, 2), Qt.ToolTipRole)))
+        self.assertIn("Loaded as:", str(model.data(model.index(0, 2), Qt.ToolTipRole)))
 
     def test_reverting_a_row_clears_the_mark(self) -> None:
         from PySide6.QtCore import Qt
@@ -949,6 +949,7 @@ class TabAiTests(unittest.TestCase):
         self.assertTrue(tab.load_button.isEnabled())
 
     def test_warm_cache_validation_is_always_background_and_shutdown_drops_its_result(self) -> None:
+        from types import SimpleNamespace
         from PySide6.QtCore import QTimer
         from tools.translation_studio import tab as tab_module
 
@@ -969,7 +970,9 @@ class TabAiTests(unittest.TestCase):
         timer.start()
         try:
             construction_started = time.perf_counter()
-            tab = tab_module.TranslationStudioTab()
+            tab = tab_module.TranslationStudioTab(
+                settings=SimpleNamespace(value=lambda key, default="": "configured-installation")
+            )
             construction_elapsed = time.perf_counter() - construction_started
             self._built_tabs.append(tab)
             self.assertLess(construction_elapsed, 0.1)
@@ -996,7 +999,7 @@ class TabAiTests(unittest.TestCase):
     def test_a_failed_listing_says_so_rather_than_raising(self) -> None:
         tab, _cat = self._tab()
         tab._on_languages(None, "the archives are not where you said")
-        self.assertIn("not where you said", tab.status_label.text())
+        self.assertIn("not where you said", tab.archive_label.text())
 
     def test_the_load_worker_hands_over_a_parsed_catalogue(self) -> None:
         """Parsing 187,521 entries belongs on the worker, not the loaded handler.

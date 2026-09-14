@@ -98,7 +98,7 @@ class TranslationTableModel(QAbstractTableModel):
                 return row.reference
             if column == TEXT:
                 shipped = self._catalogue.table.entries[entry_index].text
-                return f"Ships as: {shipped}" if row.edited else row.text
+                return f"Loaded as: {shipped}" if row.edited else row.text
         return None
 
     def setData(self, index: QModelIndex, value, role=Qt.EditRole) -> bool:  # noqa: N802
