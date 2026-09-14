@@ -13,11 +13,15 @@ The format is intentionally simple:
 
 ### Changed
 
-- Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka, with preset and thumbnail choices, verified compatible bases, cancellable preparation and retry. The current scene stays open until its replacement is ready; changing a generated preset is one undoable edit.
+- Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka. Create starts on an empty scalp; Edit loads the chosen existing hairstyle. Compatible bases, cancellable preparation and retry preserve the current scene until its replacement is ready.
+- Hair uses a clean fitting mannequin without opaque eye covers, lashes or brows. Create skips hairstyle thumbnails, and reference loading skips editable sessions and DDS preparation.
 - Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.
 
 ### Fixed
 
+- Draw follows the curved scalp and accounts for follower-card width. Drawing beyond the scalp outline or holding Ctrl lets the stroke lift away while contacts remain active. Motion retains the authored groom with adjustable Shape softness and explains its limits as an editor preview.
+- Existing hair with overly broad root groups now explains why motion is unavailable instead of displaying severely distorted cards. Smaller root selections or rigid scalp sections resolve the limitation; Use settled shape requires a valid preview that has played.
+- Converting hair after cutting or erasing preserves short valid guide segments across the editor and host's numeric encodings.
 - Creating or editing a hairstyle no longer fails when loading the registered hairstyle choices.
 - Consecutive Draw strokes, Lengthen, Undo/Redo and draft reopening retain the original PAC skin donor and eight-influence records. Reopened drafts can be saved again without losing part identities; Mod inclusion remains reversible in Hair mode.
 - Lengthen acquires a clicked lock and keeps roots fixed. Hair tools explain unavailable selections, and scalp contacts check guide segments and card width during motion. Character references retain their authored head proportions and matching neck/shoulder placement; facial details follow the head without becoming hair planting or collision surfaces.

@@ -184,16 +184,14 @@ fn hair_existing_bind_groom_retains_uv_and_conversion_preserves_current_geometry
 #[test]
 fn hair_cancelled_generation_and_rebind_leave_input_unchanged() {
     let (state, doc) = fixture();
-    assert!(
-        prepare(
-            state.clone(),
-            doc,
-            "fill".into(),
-            Preparation::Fill(0, Preset::Bob, 0.3),
-            &AtomicBool::new(true)
-        )
-        .is_err()
-    );
+    assert!(prepare(
+        state.clone(),
+        doc,
+        "fill".into(),
+        Preparation::Fill(0, Preset::Bob, 0.3),
+        &AtomicBool::new(true)
+    )
+    .is_err());
     let mut state = state;
     hair::plant_guide(
         &mut state,
@@ -208,11 +206,9 @@ fn hair_cancelled_generation_and_rebind_leave_input_unchanged() {
     )
     .unwrap();
     let before = state.clone();
-    assert!(
-        state
-            .rebind_cancellable(state.scalp.clone(), &AtomicBool::new(true))
-            .is_err()
-    );
+    assert!(state
+        .rebind_cancellable(state.scalp.clone(), &AtomicBool::new(true))
+        .is_err());
     assert_eq!(state, before);
 }
 
@@ -321,7 +317,11 @@ fn hair_production_render_and_benchmark() {
     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
     app.viewport_rect = Some(rect);
     let mut preparation_ms = vec![];
-    for (name, preset, length) in if generated {
+    let reference_only =
+        std::env::var("CDMW_HAIR_PROBE_OPERATION").ok().as_deref() == Some("mannequin");
+    for (name, preset, length) in if reference_only {
+        vec![("mannequin", Preset::Bob, 0.7)]
+    } else if generated {
         vec![
             ("bob", Preset::Bob, 0.7),
             ("cropped", Preset::Cropped, 0.18),
@@ -336,7 +336,9 @@ fn hair_production_render_and_benchmark() {
             source.clone(),
             document.clone(),
             name.into(),
-            if generated {
+            if reference_only {
+                Preparation::Empty
+            } else if generated {
                 Preparation::Fill(source.groups[0].id, preset, span * length)
             } else {
                 Preparation::Analyze
@@ -378,15 +380,20 @@ fn hair_production_render_and_benchmark() {
             ))
             .unwrap();
             assert!(
-                report.dds_textures_uploaded > 0 && report.textured.non_background_pixels > 1000
+                (reference_only || report.dds_textures_uploaded > 0)
+                    && report.textured.non_background_pixels > 1000
             );
             assert!(
-                report.owner_coverage.iter().any(|o| o.material_index
-                    < document.lods[0].submeshes.len() as u32
-                    && o.pixel_count > 10),
+                reference_only
+                    || report.owner_coverage.iter().any(|o| o.material_index
+                        < document.lods[0].submeshes.len() as u32
+                        && o.pixel_count > 10),
                 "hair must appear in the captured image"
             );
         }
+    }
+    if reference_only {
+        return;
     }
     let topology_probe =
         std::env::var("CDMW_HAIR_PROBE_OPERATION").ok().as_deref() == Some("cut_delete");
@@ -438,11 +445,9 @@ fn hair_production_render_and_benchmark() {
             );
             await_hair(&mut app);
         }
-        assert!(
-            app.hair_motion_reason().is_ok(),
-            "Explicit root correction: {}",
-            app.hair.feedback
-        );
+        if let Err(reason) = app.hair_motion_reason() {
+            assert!(reason.contains("too wide for stable motion"), "{reason}");
+        }
     }
     // Benchmark Bob in the requested 256 x 16 / roughly 50k-vertex workload.
     if generated {
@@ -481,19 +486,20 @@ fn hair_production_render_and_benchmark() {
         app.hair.selected = HashSet::from([other as usize]);
         app.run_hair_action(HairAction::DeleteGuides);
         await_hair(&mut app);
-        assert!(
-            !app.hair
-                .state
-                .as_ref()
-                .unwrap()
-                .locks
-                .iter()
-                .any(|l| l.id == other)
-        );
-        assert!(
-            app.hair_motion_reason().is_ok(),
-            "Cut/deletion bindings failed for {id}"
-        );
+        assert!(!app
+            .hair
+            .state
+            .as_ref()
+            .unwrap()
+            .locks
+            .iter()
+            .any(|l| l.id == other));
+        if let Err(reason) = app.hair_motion_reason() {
+            assert!(
+                !generated && reason.contains("too wide for stable motion"),
+                "Cut/deletion bindings failed for {id}: {reason}"
+            );
+        }
     }
     let bounds = app.hair.scene.as_ref().unwrap().frame.positions.clone();
     app.camera
@@ -828,11 +834,9 @@ fn hair_production_contact_regression() {
     )
     .unwrap();
     println!("{}", serde_json::to_string(&report).unwrap());
-    assert!(
-        report
-            .iter()
-            .all(|v| v["max_card_penetration_m"].as_f64().unwrap() <= 0.002)
-    );
+    assert!(report
+        .iter()
+        .all(|v| v["max_card_penetration_m"].as_f64().unwrap() <= 0.002));
 }
 
 fn ready_hair_app() -> (LabApplication, egui::Rect) {
@@ -1002,7 +1006,10 @@ fn capture_hair_workflow_step(
         },
     ))
     .unwrap();
-    assert!(report.dds_textures_uploaded > 0 && report.textured.non_background_pixels > 1000);
+    assert!(report.textured.non_background_pixels > 1000);
+    if app.hair.scene.as_ref().unwrap().reference_start > 0 {
+        assert!(report.dds_textures_uploaded > 0);
+    }
 }
 
 #[test]
@@ -1015,6 +1022,8 @@ fn hair_production_workflow_matrix() {
     let mailbox = PathBuf::from(std::env::var("CDMW_HAIR_PROBE_MAILBOX").unwrap());
     let state: HairState = serde_json::from_value(input["hair"].clone()).unwrap();
     let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
+    let empty_start = std::env::var_os("CDMW_HAIR_PROBE_EMPTY_START").is_some();
+    assert!(!empty_start || generated);
     let mut app = LabApplication::new(None, None);
     app.document = Some(serde_json::from_value(input["document"].clone()).unwrap());
     app.cdmw_state = input["host"].clone();
@@ -1031,16 +1040,23 @@ fn hair_production_workflow_matrix() {
     app.render_hair();
     let mut results = vec![];
     if generated {
-        app.hair.requested_preset = Some("bob".into());
+        app.hair.requested_preset = Some(if empty_start { "empty" } else { "bob" }.into());
         app.poll_hair();
     } else {
         app.run_hair_action(HairAction::Prepare);
     }
     await_hair_host(&mut app);
-    results.push(json!({"tool":"preset/setup","revision":app.hair.state.as_ref().unwrap().revision,"acknowledged":true}));
+    if empty_start {
+        assert!(app.hair.state.as_ref().unwrap().guides.is_empty());
+        assert_eq!(app.hair.scene.as_ref().unwrap().reference_start, 0);
+    }
+    results.push(json!({"tool":"preset/setup","revision":app.hair.state.as_ref().unwrap().revision,"blank_start":empty_start}));
     capture_hair_workflow_step(&app, &input, &mailbox, "setup");
     if generated {
-        for preset in ["empty", "cropped", "long", "ponytail", "bob", "bob"] {
+        for preset in ["empty", "cropped", "long", "ponytail", "bob", "bob"]
+            .into_iter()
+            .filter(|_| !empty_start)
+        {
             let before = app.hair.state.clone().unwrap();
             app.hair.requested_preset = Some(preset.into());
             app.poll_hair();
@@ -1166,8 +1182,11 @@ fn hair_production_workflow_matrix() {
             }
             await_hair_host(&mut app);
         }
-        assert!(app.hair_motion_reason().is_ok(), "{}", app.hair.feedback);
-        results.push(json!({"tool":"root/group and rigid attachment","acknowledged":true}));
+        let motion_blocker = app.hair_motion_reason().err();
+        if let Some(reason) = &motion_blocker {
+            assert!(reason.contains("too wide for stable motion"), "{reason}");
+        }
+        results.push(json!({"tool":"root/group and rigid attachment","acknowledged":true,"motion_blocker":motion_blocker}));
     }
     capture_hair_workflow_step(&app, &input, &mailbox, "prepared");
     app.camera
@@ -1235,13 +1254,11 @@ fn hair_production_workflow_matrix() {
             app.hair.feedback
         );
         let after = app.hair.state.clone().unwrap();
-        assert!(
-            after
-                .guides
-                .iter()
-                .zip(&before.guides)
-                .all(|(a, b)| a.points[0] == b.points[0])
-        );
+        assert!(after
+            .guides
+            .iter()
+            .zip(&before.guides)
+            .all(|(a, b)| a.points[0] == b.points[0]));
         capture_hair_workflow_step(&app, &input, &mailbox, &format!("{tool:?}"));
         results.push(json!({"tool":format!("{tool:?}"),"lock":id,"geometry_changed":true,"roots_fixed":true,"acknowledged":true}));
         if tool == HairTool::Lengthen {
@@ -1251,6 +1268,15 @@ fn hair_production_workflow_matrix() {
             app.submit_cdmw_command("redo", json!({}), "Redo");
             await_hair_host(&mut app);
             assert_eq!(app.hair.state.as_ref().unwrap().guides, after.guides);
+            if empty_start {
+                results.push(json!({"tool":"Lengthen Undo/Redo","acknowledged":true}));
+                std::fs::write(
+                    mailbox.join("tools.json"),
+                    serde_json::to_vec_pretty(&results).unwrap(),
+                )
+                .unwrap();
+                return;
+            }
         }
     }
     for action in [HairAction::Settings, HairAction::DeleteGuides] {
@@ -1293,45 +1319,64 @@ fn hair_production_workflow_matrix() {
         results
             .push(json!({"tool":format!("{tool:?}"),"geometry_changed":true,"acknowledged":true}));
     }
-    app.hair.playing = true;
-    for _ in 0..30 {
-        app.hair.last_tick = Instant::now() - std::time::Duration::from_secs_f64(1.0 / 60.0);
+    if let Err(reason) = app.hair_motion_reason() {
+        assert!(
+            !generated && reason.contains("too wide for stable motion"),
+            "{reason}"
+        );
+        let before = app.hair.state.clone();
+        app.hair.playing = true;
         app.render_hair();
+        assert!(!app.hair.playing);
+        app.run_hair_action(HairAction::Settle);
+        assert_eq!(app.hair.feedback, reason);
+        assert_eq!(app.hair.state, before);
+        assert!(!app.hair.preparing());
+        results.push(
+            json!({"tool":"Motion / settled shape","unavailable":reason,"state_unchanged":true}),
+        );
+    } else {
+        app.hair.playing = true;
+        for _ in 0..30 {
+            app.hair.last_tick = Instant::now() - std::time::Duration::from_secs_f64(1.0 / 60.0);
+            app.render_hair();
+        }
+        let before_settle = app.hair.state.as_ref().unwrap().guides.clone();
+        std::fs::write(
+            mailbox.join("before-settle.json"),
+            serde_json::to_vec(app.hair.state.as_ref().unwrap()).unwrap(),
+        )
+        .unwrap();
+        app.run_hair_action(HairAction::Settle);
+        await_hair_host(&mut app);
+        let settled = app.hair.state.as_ref().unwrap().guides.clone();
+        assert!(
+            settled != before_settle,
+            "Settled shape was not published: {}",
+            app.hair.feedback
+        );
+        app.submit_cdmw_command("undo", json!({}), "Undo settled shape");
+        await_hair_host(&mut app);
+        assert!(
+            app.hair.state.as_ref().unwrap().guides == before_settle,
+            "Undo did not restore the pre-settled guides"
+        );
+        app.submit_cdmw_command("redo", json!({}), "Redo settled shape");
+        await_hair_host(&mut app);
+        assert!(
+            app.hair.state.as_ref().unwrap().guides == settled,
+            "Redo did not restore the settled guides"
+        );
+        capture_hair_workflow_step(&app, &input, &mailbox, "settled");
+        results.push(json!({"tool":"Settle and Undo/Redo","acknowledged":true}));
     }
-    let before_settle = app.hair.state.as_ref().unwrap().guides.clone();
-    std::fs::write(
-        mailbox.join("before-settle.json"),
-        serde_json::to_vec(app.hair.state.as_ref().unwrap()).unwrap(),
-    )
-    .unwrap();
-    app.run_hair_action(HairAction::Settle);
-    await_hair_host(&mut app);
-    let settled = app.hair.state.as_ref().unwrap().guides.clone();
-    assert!(
-        settled != before_settle,
-        "Settled shape was not published: {}",
-        app.hair.feedback
-    );
-    app.submit_cdmw_command("undo", json!({}), "Undo settled shape");
-    await_hair_host(&mut app);
-    assert!(
-        app.hair.state.as_ref().unwrap().guides == before_settle,
-        "Undo did not restore the pre-settled guides"
-    );
-    app.submit_cdmw_command("redo", json!({}), "Redo settled shape");
-    await_hair_host(&mut app);
-    assert!(
-        app.hair.state.as_ref().unwrap().guides == settled,
-        "Redo did not restore the settled guides"
-    );
-    capture_hair_workflow_step(&app, &input, &mailbox, "settled");
     app.run_hair_action(HairAction::Convert);
     await_hair_host(&mut app);
     assert!(app.hair.state.as_ref().unwrap().converted);
     app.submit_cdmw_command("undo", json!({}), "Undo conversion");
     await_hair_host(&mut app);
     assert!(!app.hair.state.as_ref().unwrap().converted);
-    results.push(json!({"tool":"Settle, convert and Undo","acknowledged":true}));
+    results.push(json!({"tool":"Convert and Undo","acknowledged":true}));
     std::fs::write(
         mailbox.join("tools.json"),
         serde_json::to_vec_pretty(&results).unwrap(),
@@ -1424,15 +1469,14 @@ fn hair_production_dispatch_select_move_delete_and_restore() {
     let saved_doc = app.hair.preview.clone().unwrap();
     app.run_hair_action(HairAction::DeleteGuides);
     await_hair(&mut app);
-    assert!(
-        !app.hair
-            .state
-            .as_ref()
-            .unwrap()
-            .locks
-            .iter()
-            .any(|l| l.id == id)
-    );
+    assert!(!app
+        .hair
+        .state
+        .as_ref()
+        .unwrap()
+        .locks
+        .iter()
+        .any(|l| l.id == id));
     assert!(
         app.hair.preview.as_ref().unwrap().lods[0].submeshes[0]
             .positions
@@ -1490,6 +1534,61 @@ fn hair_production_motion_deforms_hair_not_only_reference_and_reset_is_neutral()
     app.run_hair_action(HairAction::Reset);
     app.render_hair();
     assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, rest);
+    app.run_hair_action(HairAction::Settle);
+    assert_eq!(app.hair.feedback, "Play motion first");
+    assert_eq!(app.hair.state.as_ref().unwrap(), &before);
+    assert!(!app.hair.preparing());
+}
+
+#[test]
+fn hair_existing_motion_rejects_wide_bindings_and_allows_rigid_correction() {
+    let (mut app, _) = ready_hair_app();
+    let state = app.hair.state.as_mut().unwrap();
+    state.groups[0].mode = GroupMode::Existing;
+    for lock in &mut state.locks {
+        lock.kind = LockKind::Bound;
+    }
+    state.revision += 1;
+    assert!(
+        app.hair_motion_reason().is_ok(),
+        "Narrow existing cards can simulate"
+    );
+    let state = app.hair.state.as_mut().unwrap();
+    let guide = state.bindings[0].guide;
+    state.bindings[0].offset[0] = 0.10;
+    state.revision += 1;
+    let id = state
+        .locks
+        .iter()
+        .find(|l| l.guide == Some(guide))
+        .unwrap()
+        .id;
+    let before = state.clone();
+    let reason = app.hair_motion_reason().unwrap_err();
+    assert!(reason.contains("too wide for stable motion"));
+    app.hair.playing = true;
+    app.render_hair();
+    assert!(!app.hair.playing);
+    app.run_hair_action(HairAction::Settle);
+    assert_eq!(app.hair.feedback, reason);
+    assert_eq!(app.hair.state.as_ref().unwrap(), &before);
+    assert!(!app.hair.preparing());
+    app.hair.selected = HashSet::from([id as usize]);
+    app.run_hair_action(HairAction::Rigid);
+    await_hair(&mut app);
+    assert!(app.hair_motion_reason().is_ok(), "{}", app.hair.feedback);
+    assert_eq!(
+        app.hair
+            .state
+            .as_ref()
+            .unwrap()
+            .locks
+            .iter()
+            .find(|l| l.id == id)
+            .unwrap()
+            .kind,
+        LockKind::Rigid
+    );
 }
 
 #[test]
@@ -1622,6 +1721,8 @@ fn hair_draw_is_visible_during_stroke_and_symmetry_cut_erase_remove_geometry() {
     await_hair(&mut app);
     let state = app.hair.state.clone().unwrap();
     assert_eq!(state.locks[0].mirrored, Some(state.locks[1].id));
+    app.camera
+        .set_standard_view(crate::camera::StandardView::Top);
     let (point, id) = visible_lock(&app, rect);
     app.hair.tool = Some(HairTool::Cut);
     app.dispatch_hair_pointer(
@@ -1676,11 +1777,99 @@ fn hair_draw_is_visible_during_stroke_and_symmetry_cut_erase_remove_geometry() {
     );
     await_hair(&mut app);
     assert!(app.hair.state.as_ref().unwrap().locks.is_empty());
-    assert!(
-        app.hair.preview.as_ref().unwrap().lods[0].submeshes[0]
-            .indices
-            .is_empty()
-    );
+    assert!(app.hair.preview.as_ref().unwrap().lods[0].submeshes[0]
+        .indices
+        .is_empty());
+}
+
+#[test]
+fn hair_draw_follows_curved_scalp_and_ctrl_lifts_away_without_entering_it() {
+    for free in [false, true] {
+        let (mut state, doc) = fixture();
+        for p in &mut state.scalp.positions {
+            p[1] = (0.25_f32.powi(2) - p[0] * p[0] - p[2] * p[2]).sqrt();
+        }
+        state.collisions.clear();
+        let mut app = LabApplication::new(None, None);
+        app.document = Some(doc);
+        app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
+        app.hydrate_hair(Some(state.clone()));
+        app.hair.pending_preset = false;
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
+        app.viewport_rect = Some(rect);
+        app.camera
+            .set_standard_view(crate::camera::StandardView::Top);
+        app.camera.frame_positions_in_viewport(
+            state.scalp.positions.iter().copied().map(Vec3::from),
+            rect,
+        );
+        app.run_hair_action(HairAction::Empty);
+        await_hair(&mut app);
+        app.hair.tool = Some(HairTool::Guide);
+        let mut screen = Vec2::ZERO;
+        for step in 0..17 {
+            let x = if free {
+                step as f32 * 0.008
+            } else {
+                -0.128 + step as f32 * 0.016
+            };
+            let p = Vec3::new(x, (0.25_f32.powi(2) - x * x).sqrt(), 0.0);
+            screen = app.camera.project(p, rect).unwrap().screen;
+            let event = if step == 0 {
+                ViewportPointerEvent::PrimaryPressed(screen)
+            } else {
+                ViewportPointerEvent::PrimaryMoved(screen)
+            };
+            app.dispatch_hair_pointer(event, rect, free, false, false);
+        }
+        app.dispatch_hair_pointer(
+            ViewportPointerEvent::PrimaryReleased(screen),
+            rect,
+            free,
+            false,
+            false,
+        );
+        await_hair(&mut app);
+        let after = app.hair.state.as_ref().unwrap();
+        assert_eq!(after.guides.len(), 1, "{}", app.hair.feedback);
+        let guide = &after.guides[0];
+        assert!(guide.points.len() > 8);
+        assert!(
+            Vec3::from(guide.points[0]).distance(after.scalp.point(&guide.root).unwrap()) < 1e-6
+        );
+        let scene = app.hair.scene.as_ref().unwrap();
+        for p in guide.points.iter().skip(1).copied().map(Vec3::from) {
+            let (surface, normal) = scene
+                .scalp_picking
+                .nearest(&after.scalp.positions, &scene.scalp_indices, p)
+                .unwrap();
+            assert!((p - surface).dot(normal) >= -0.0003, "stroke entered scalp");
+        }
+        let tip = Vec3::from(*guide.points.last().unwrap());
+        let (surface, _) = scene
+            .scalp_picking
+            .nearest(&after.scalp.positions, &scene.scalp_indices, tip)
+            .unwrap();
+        if free {
+            assert!(tip.distance(surface) > 0.025, "Ctrl did not lift the tip");
+        } else {
+            assert!(
+                tip.distance(surface) < 0.012,
+                "Draw did not follow the scalp"
+            );
+        }
+        for p in &app.hair.preview.as_ref().unwrap().lods[0].submeshes[0].positions {
+            let p = Vec3::from(*p);
+            assert!(
+                scene
+                    .scalp_picking
+                    .contact(&after.scalp.positions, &scene.scalp_indices, p, 0.0)
+                    .distance(p)
+                    < 0.0003,
+                "generated follower card entered scalp: {p:?}"
+            );
+        }
+    }
 }
 
 #[test]

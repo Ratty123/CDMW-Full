@@ -86,25 +86,43 @@ impl SurfaceIndex {
         point: Vec3,
         radius: f32,
     ) -> Vec3 {
+        self.contact_with_reach(positions, indices, point, radius, radius)
+    }
+
+    /// Include the card's full width when checking an open fitting surface.
+    /// Clearance and search reach differ for vertices offset from a guide.
+    pub fn contact_with_reach(
+        &self,
+        positions: &[[f32; 3]],
+        indices: &[u32],
+        point: Vec3,
+        radius: f32,
+        reach: f32,
+    ) -> Vec3 {
         let Some(bounds) = self.nodes.first() else {
             return point;
         };
-        if point.distance_squared(point.clamp(bounds.min, bounds.max)) > radius * radius {
+        if point.distance_squared(point.clamp(bounds.min, bounds.max)) > reach.max(radius).powi(2) {
             return point;
         }
-        let Some((surface, normal)) = self.nearest(positions, indices, point) else {
-            return point;
-        };
-        let offset = point - surface;
-        let signed = offset.dot(normal);
-        // At an open scalp boundary, a point far along the tangent is outside
-        // the finite surface; do not extend that boundary into an infinite wall.
-        let tangent = offset - normal * signed;
-        if signed < radius && tangent.length_squared() <= radius.max(0.0001).powi(2) {
-            point + normal * (radius - signed)
-        } else {
-            point
+        let mut corrected = point;
+        // A correction beside an ear or a joined face seam can make an adjacent
+        // triangle the nearest surface. Resolve that new contact too, otherwise
+        // an apparently clear guide can still carry its card into the crease.
+        for _ in 0..4 {
+            let Some((surface, normal)) = self.nearest(positions, indices, corrected) else {
+                break;
+            };
+            let offset = corrected - surface;
+            let signed = offset.dot(normal);
+            // Keep open boundaries finite rather than extending an infinite wall.
+            let tangent = offset - normal * signed;
+            if signed >= radius - 1e-7 || tangent.length_squared() > radius.max(0.0001).powi(2) {
+                break;
+            }
+            corrected += normal * (radius - signed);
         }
+        corrected
     }
 
     pub fn new(positions: &[[f32; 3]], indices: &[u32]) -> Self {

@@ -758,6 +758,8 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
         "generated hair exceeds the vertex budget",
     )?;
     let mut result = Vec::new();
+    let scalp_indices: Vec<_> = state.scalp.triangles.iter().flatten().copied().collect();
+    let scalp = surface::SurfaceIndex::new(&state.scalp.positions, &scalp_indices);
     for group in state
         .groups
         .iter()
@@ -801,8 +803,15 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
                             * (edge * group.width * width_scale * 0.5 * (1.0 - t * 0.94)
                                 + spread * t);
                         let vertex = mesh.positions.len() as u32;
-                        mesh.positions
-                            .push((Vec3::from(*point) + offset).to_array());
+                        let p = scalp.contact_with_reach(
+                            &state.scalp.positions,
+                            &scalp_indices,
+                            Vec3::from(*point) + offset,
+                            0.0002,
+                            group.width * width_scale + 0.0002,
+                        );
+                        let offset = p - Vec3::from(*point);
+                        mesh.positions.push(p.to_array());
                         mesh.normals.push(normal.to_array());
                         mesh.uvs.push([
                             if edge < 0.0 {
@@ -1113,7 +1122,16 @@ impl Simulation {
             contact_correction.clear();
             contact_correction.resize(points.len(), Vec3::ZERO);
             for i in 1..points.len() {
-                velocity[i] += force * dt;
+                // Length and bend constraints alone allow the entire strand to
+                // rotate around its root and collapse under gravity. Retain the
+                // authored shape in head space, with softer, mobile tips.
+                let t = i as f32 / (points.len() - 1) as f32;
+                let stiffness =
+                    1000.0 / (1.0 + settings.bend_compliance * 50_000.0) * (1.0 - 0.5 * t * t);
+                let target =
+                    self.pivot + self.translation + rotation * (Vec3::from(rest[i]) - self.pivot);
+                velocity[i] += (force + (target - Vec3::from(points[i])) * stiffness) * dt;
+                velocity[i] /= 1.0 + stiffness * dt * dt + stiffness.sqrt() * 0.5 * dt;
                 points[i] = (Vec3::from(points[i]) + velocity[i] * dt).to_array();
             }
             length_lambda.clear();
@@ -1494,6 +1512,52 @@ mod tests {
                     .unwrap();
                 simulation.settled_state(&state, pose.head).unwrap();
             }
+        }
+    }
+
+    #[test]
+    fn hair_motion_retains_authored_shape_instead_of_falling_from_the_root() {
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        for (i, point) in state.guides[0].points.iter_mut().enumerate() {
+            let t = i as f32 / 15.0;
+            *point = (root + Vec3::new(t * 0.3, t * 0.12, 0.0)).to_array();
+        }
+        let mut simulation = Simulation::new(&state).unwrap();
+        for _ in 0..300 {
+            simulation
+                .advance(1.0 / 60.0, MotionSettings::default(), &[], Quat::IDENTITY)
+                .unwrap();
+        }
+        let tip = Vec3::from(*simulation.points[0].last().unwrap());
+        let original = Vec3::from(*state.guides[0].points.last().unwrap());
+        assert!(
+            tip.distance(original) < 0.06,
+            "authored shape collapsed: {tip:?}"
+        );
+        assert!(tip.distance(original) > 0.0001, "preview is rigid");
+        assert_eq!(simulation.points[0][0], state.guides[0].points[0]);
+    }
+
+    #[test]
+    fn hair_generated_card_contacts_roundtrip_through_bindings() {
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        for (i, point) in state.guides[0].points.iter_mut().enumerate() {
+            *point = (root + Vec3::X * (i as f32 * 0.001)).to_array();
+        }
+        let mesh = generate(&state, &AtomicBool::new(false)).unwrap().remove(0);
+        let mut positions = mesh.positions.clone();
+        deform(
+            &mesh.bindings,
+            &[state.guides[0].points.clone()],
+            0,
+            &mut positions,
+        )
+        .unwrap();
+        for (a, b) in mesh.positions.iter().zip(&positions) {
+            assert!(Vec3::from(*a).distance(Vec3::from(*b)) < 1e-6);
+            assert!(a[1] >= root.y, "follower card entered scalp");
         }
     }
 

@@ -9,7 +9,7 @@ from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
 _CREATE_MODE, _EDIT_MODE = "generated", "existing"
 
 class HairSetupDialog(QDialog):
-    def __init__(self, owner, *, character=None, mode="generated", preset="bob", target_path="", reuse_target=None, draft_root=None):
+    def __init__(self, owner, *, character=None, mode="generated", preset="empty", target_path="", reuse_target=None, draft_root=None):
         super().__init__(owner)
         self._owner = owner
         self._service = owner.archive.archive_catalogue_service
@@ -34,19 +34,20 @@ class HairSetupDialog(QDialog):
         self.mode.addItem("Create hairstyle", _CREATE_MODE)
         self.mode.addItem("Edit hairstyle", _EDIT_MODE)
         self.mode.setCurrentIndex(max(0, self.mode.findData(mode)))
-        self.preset = QComboBox()
-        for value in ("Cropped", "Bob", "Long", "Ponytail", "Empty"):
-            self.preset.addItem(value, value.casefold())
-        self.preset.setCurrentIndex(max(0, self.preset.findData(preset)))
+        # Retain the compatibility selection for the handoff; new creation is
+        # always blank. Optional procedural fills belong inside the editor.
+        self.preset = QComboBox(self)
+        self.preset.addItem("Empty", "empty")
+        self.preset.hide()
         form.addRow("Character", self.character)
         form.addRow("Action", self.mode)
-        form.addRow("Preset", self.preset)
         layout.addLayout(form)
         self.status = QLabel("Choose a character. The current scene stays open until you start its replacement.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.waiting_start = QPushButton("Start")
         self.waiting_start.setEnabled(False)
+        self.waiting_start.clicked.connect(self._start)
         layout.addWidget(self.waiting_start)
         self.retry = QPushButton("Retry loading choices")
         layout.addWidget(self.retry)
@@ -57,21 +58,23 @@ class HairSetupDialog(QDialog):
         self._resolver.failed.connect(self._failed)
         self._service.session_published.connect(self._session_changed)
         self.character.currentIndexChanged.connect(self._load)
-        self.mode.currentIndexChanged.connect(self._mode_changed)
+        self.mode.currentIndexChanged.connect(self._load)
         self.retry.clicked.connect(self._load)
         self.cancel_button.clicked.connect(self.reject)
-        self._mode_changed()
         if character:
             self.character.setCurrentIndex(max(0, self.character.findData(character)))
         else:
             self._load()
 
-    def _mode_changed(self):
-        self.preset.setVisible(self.mode.currentData() == "generated")
+    def _start(self):
+        if self._picker is not None and self.waiting_start.isEnabled():
+            self._picker._choose()
 
     def _load(self):
         if self._closed:
             return
+        self.resize(620, 320) if self.mode.currentData() == "generated" else self.resize(1060, 800)
+        self.waiting_start.setEnabled(False)
         for control in (self.character, self.mode, self.preset, self.retry):
             control.setEnabled(True)
         self._generation += 1
@@ -114,17 +117,28 @@ class HairSetupDialog(QDialog):
         def ready(choices):
             if self._closed or generation != self._generation:
                 return
+            creating = self.mode.currentData() == "generated"
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
-                styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True, preferred_path=self._target_path)
+                styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
+                preferred_path=self._target_path, base_only=creating)
             self._picker = picker
-            self.waiting_start.hide()
             picker.setParent(self, Qt.Widget)
             picker.choose.setText("Start")
             picker.finished.connect(lambda result: self._selected(picker, result))
             picker.preparation_failed.connect(self._failed)
-            self.layout().insertWidget(2, picker, 1)
-            picker.show()
-            self.status.setText("Choose a compatible base hairstyle. Start loads the editor with these choices.")
+            if creating:
+                picker.hide()
+                def base_ready():
+                    if not self._closed and generation == self._generation and picker is self._picker:
+                        self.waiting_start.setEnabled(True)
+                        self.status.setText("Start opens an empty scalp. Use Draw to create your hair.")
+                picker.base_ready.connect(base_ready)
+                self.status.setText("Checking character compatibility for an empty hairstyle…")
+            else:
+                self.waiting_start.hide()
+                self.layout().insertWidget(2, picker, 1)
+                picker.show()
+                self.status.setText("Choose an existing hairstyle to load and edit.")
         def failed(message):
             if generation == self._generation:
                 self._failed(message)
@@ -140,6 +154,7 @@ class HairSetupDialog(QDialog):
             self._picker = None
             self.layout().removeWidget(picker)
             self.waiting_start.show()
+            self.waiting_start.setEnabled(False)
             if (self._reuse_target == (self.context.character, self.selected_entry.identity)
                     and self.mode.currentData() == "generated"):
                 self.accept()

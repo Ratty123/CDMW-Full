@@ -15,14 +15,17 @@ from cdmw.domain.hair_characters import hair_character
 
 class HairReferencePickerDialog(QDialog):
     preparation_failed = Signal(str)
+    base_ready = Signal()
 
-    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path=""):
+    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path="", base_only=False):
         super().__init__(owner)
         if role not in {"head", "body", "hair"}:
             raise ValueError("Unknown Hair reference role")
         self._owner, self._role = owner, role
         self._profile = hair_character(character)
         self._audit_hair = audit_hair
+        self._base_only = base_only
+        self._base_remaining = []
         self._verified, self._audit_queue = {}, []
         self._audit_active = None
         self._preferred_path, self._selection_touched = preferred_path.casefold(), False
@@ -113,7 +116,10 @@ class HairReferencePickerDialog(QDialog):
         self._audit_prepare.cancel(); self._audit_queue.clear(); self._audit_active = None
         try:
             if self._role == "hair":
-                for index, stem in (self._styles[:1] if self.auto_choose_first else self._styles):
+                if self._base_only:
+                    self._base_remaining = list(self._styles)
+                    self._request_next_base()
+                for index, stem in (() if self._base_only else self._styles[:1] if self.auto_choose_first else self._styles):
                     key = f"asset:{self._profile.hair_root}{stem}.pac"
                     request = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(self._session_id, key), ui_generation=self._generation)
                     self._requests[request] = ("style", index)
@@ -153,7 +159,7 @@ class HairReferencePickerDialog(QDialog):
                 self._details[result.row.key] = result
                 self._preview.select(result, self._generation)
                 self.choose.setEnabled(len(result.models) == 1)
-        if not self.auto_choose_first:
+        if not self.auto_choose_first and not self._base_only:
             self._preview.visible(tuple(self._rows.values()), session_id=self._session_id, generation=self._generation)
         if self.grid.currentRow() < 0 and self.grid.count(): self.grid.setCurrentRow(0)
         if self.auto_choose_first and self.choose.isEnabled():
@@ -187,7 +193,7 @@ class HairReferencePickerDialog(QDialog):
         if key is None or self._closed: return
         detail = self._details.get(key)
         if detail:
-            if not self.auto_choose_first:
+            if not self.auto_choose_first and not self._base_only:
                 self._preview.select(detail, self._generation)
             self.choose.setEnabled(len(detail.models) == 1 and (not self._audit_hair or key in self._verified))
             if self._audit_hair:
@@ -218,6 +224,20 @@ class HairReferencePickerDialog(QDialog):
         detail = self._audit_queue.pop(0)
         self._audit_active = detail.row.key
         self._audit_prepare.start(detail, self._generation)
+
+    def _request_next_base(self):
+        if self._closed:
+            return
+        if not self._base_remaining:
+            self.preparation_failed.emit("No compatible hairstyle base is available for this character.")
+            return
+        index, stem = self._base_remaining.pop(0)
+        try:
+            request = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(
+                self._session_id, f"asset:{self._profile.hair_root}{stem}.pac"), ui_generation=self._generation)
+            self._requests[request] = ("style", index)
+        except Exception as error:
+            self._error(str(error))
 
     def _audit_prepared(self, token, inputs):
         if self._closed or token != self._generation or self._audit_active != inputs.detail.row.key:
@@ -267,6 +287,12 @@ class HairReferencePickerDialog(QDialog):
         self._select()
         if error and self._key() == key:
             self.status.setText(error)
+        if self._base_only:
+            if inputs is not None:
+                self.base_ready.emit()
+            else:
+                self._request_next_base()
+            return
         self._audit_next()
 
     def _prepared(self, token, inputs):
@@ -298,7 +324,11 @@ class HairReferencePickerDialog(QDialog):
 
     def _failed(self, request, error):
         if request in self._requests and not self._closed:
-            self._requests.pop(request); self._error(str(getattr(error, "message", error)))
+            self._requests.pop(request)
+            if self._base_only:
+                self._request_next_base()
+            else:
+                self._error(str(getattr(error, "message", error)))
 
     def _error(self, message):
         if self._closed: return

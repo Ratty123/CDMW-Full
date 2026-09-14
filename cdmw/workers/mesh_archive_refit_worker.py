@@ -27,7 +27,7 @@ _hair_reference_lock = threading.Lock()
 def prepare_hair_reference_source(args, stop_event):
     generation = args.get("_hair_context_identity")
     if not generation:
-        return prepare_archive_refit_source(args, stop_event)
+        return _prepare_hair_geometry_source(args, stop_event)
     entry = args["_archive_entry"]
     descriptors = args.get("_hair_authored_descriptors")
     authored = descriptors is not None and entry.path.casefold() in descriptors
@@ -42,28 +42,21 @@ def prepare_hair_reference_source(args, stop_event):
         restored = copy.deepcopy(cached[0])
         raise_if_cancelled(stop_event, "Hair reference loading cancelled")
         return {**args, **restored, "_archive_preview_lease": None}
-    prepared = prepare_archive_refit_source(args, stop_event)
+    prepared = _prepare_hair_geometry_source(args, stop_event)
     try:
         raise_if_cancelled(stop_event, "Hair reference loading cancelled")
-        if authored:
-            # Mounted component identity is authoritative. Generic basename
-            # resolution can otherwise apply another character's PABC to a
-            # shared base body, separating its skull from the selected face.
-            prepared["_archive_neutral_appearance"] = None
-            if descriptor is not None:
-                from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
-                snapshot = prepared["_archive_snapshot"]
-                dependencies = args["_archive_dependencies"]
-                appearance, _notes = apply_archive_mesh_appearance(entry, snapshot.mesh, snapshot.original_data,
-                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
-                    archive_entries_by_basename=dependencies.entries_by_basename,
-                    context_entries=dependencies.entries, authored_descriptor=descriptor, stop_event=stop_event)
-                prepared["_archive_neutral_appearance"] = getattr(appearance, "_cdmw_neutral_appearance", None)
-        from cdmw.services.mesh_service_history import _history_value_retained_bytes
         retained = {field: prepared[field] for field in (
             "_archive_snapshot", "_archive_neutral_appearance", "_archive_appearance_warning", "_archive_material_reason")}
         retained["_archive_skeleton"] = prepared.get("_archive_skeleton")
-        size = _history_value_retained_bytes(retained)
+        # A conservative per-row bound avoids recursively walking millions of
+        # scalar objects just to budget this known, geometry-only cache record.
+        snapshot = prepared["_archive_snapshot"]
+        parts = {id(part): part for part in snapshot.mesh.submeshes}
+        for lod in getattr(snapshot.mesh, "lod_levels", ()):
+            parts.update((id(part), part) for part in lod)
+        size = len(snapshot.original_data) * 2 + sum(
+            len(part.vertices) * 2048 + len(part.faces) * 128 for part in parts.values())
+        size += len(getattr(prepared.get("_archive_skeleton"), "bones", ())) * 4096
         if size <= 64 * 1024 * 1024:
             saved = copy.deepcopy(retained)
             with _hair_reference_lock:
@@ -88,6 +81,56 @@ def prepare_hair_reference_source(args, stop_event):
             except Exception:
                 pass  # The lease destructor can retry without hiding the error.
         raise
+
+
+def _prepare_hair_geometry_source(args, stop_event):
+    """Load the fitting mannequin without editor sessions or material decoding."""
+    from cdmw.services.mesh_refit_loading import MAX_REFIT_INPUT_BYTES
+    from cdmw.services.archive_read_service import read_archive_entry_data
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.modding.skeleton_parser import parse_pab
+    from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
+    from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+
+    entry = args["_archive_entry"]
+    dependencies = args["_archive_dependencies"]
+    if not 0 < max(int(entry.orig_size), int(entry.comp_size), int(entry.prepared_size or 0)) <= MAX_REFIT_INPUT_BYTES:
+        raise ValueError("Hair reference must be a non-empty mesh no larger than 256 MiB")
+    if entry.prepared_path is not None and entry.prepared_path.stat().st_size > MAX_REFIT_INPUT_BYTES:
+        raise ValueError("Prepared hair reference exceeds 256 MiB")
+    if dependencies.entry_matching(entry) is None:
+        raise ValueError("The selected archive mesh is outside its prepared dependency context")
+    raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+    payloads = {}
+    def read(candidate):
+        if candidate.identity not in payloads:
+            payloads[candidate.identity] = read_archive_entry_data(candidate, stop_event=stop_event)[0]
+        return payloads[candidate.identity]
+    payload = read(entry)
+    mesh = parse_mesh(payload, entry.path)
+    raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+    skeleton_entry, _report = resolve_skeleton_for_model(entry,
+        archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+        archive_entries_by_basename=dependencies.entries_by_basename,
+        pac_data=payload, read_entry_data=read)
+    skeleton = parse_pab(read(skeleton_entry), skeleton_entry.path) if skeleton_entry is not None else None
+    descriptors = args.get("_hair_authored_descriptors")
+    authored = descriptors is not None and entry.path.casefold() in descriptors
+    descriptor = descriptors.get(entry.path.casefold()) if authored else None
+    appearance = None
+    # A mounted component without a PABC is authoritative too: do not apply
+    # another character's basename-matched appearance to a shared body.
+    if not authored or descriptor is not None:
+        transformed, _notes = apply_archive_mesh_appearance(entry, mesh, payload,
+            archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+            archive_entries_by_basename=dependencies.entries_by_basename,
+            context_entries=dependencies.entries, authored_descriptor=descriptor,
+            skeleton=skeleton, stop_event=stop_event)
+        appearance = getattr(transformed, "_cdmw_neutral_appearance", None)
+    raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+    return {**args, "_archive_snapshot": SimpleNamespace(mesh=mesh, original_data=payload),
+        "_archive_skeleton": skeleton, "_archive_neutral_appearance": appearance,
+        "_archive_preview_lease": None, "_archive_material_reason": "", "_archive_appearance_warning": ""}
 
 
 def _run(worker, signal, stop_event):

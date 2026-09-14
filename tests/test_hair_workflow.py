@@ -130,7 +130,8 @@ def test_single_setup_requires_character_and_catalogue_and_rejects_stale_choices
     hair_flow.build_hair_entry_bar(owner)
     dialog = setup.HairSetupDialog(owner)
     assert dialog.character.currentData() is None
-    assert dialog.preset.currentData() == "bob" and not dialog.waiting_start.isEnabled()
+    assert dialog.preset.currentData() == "empty" and dialog.preset.isHidden()
+    assert not dialog.waiting_start.isEnabled()
     assert not owner.archive_catalogue_service.calls
     dialog.character.setCurrentIndex(dialog.character.findData("Oongka"))
     request = owner.archive_catalogue_service.calls[-1][1]
@@ -161,7 +162,7 @@ def test_reference_geometry_cache_is_bounded_generation_scoped_and_returns_isola
         calls.append(args)
         return {**args,"_archive_snapshot":SimpleNamespace(original_data=b"owned",mesh=SimpleNamespace(submeshes=[SimpleNamespace(vertices=[[0,0,0]],faces=[])])),
             "_archive_preview_lease":None,"_archive_neutral_appearance":None,"_archive_appearance_warning":"","_archive_material_reason":""}
-    monkeypatch.setattr(worker,"prepare_archive_refit_source",prepare)
+    monkeypatch.setattr(worker,"_prepare_hair_geometry_source",prepare)
     monkeypatch.setattr(worker,"_hair_references",worker.OrderedDict())
     args={"_archive_entry":SimpleNamespace(identity="head"),"_hair_context_identity":("session","generation1")}
     first=worker.prepare_hair_reference_source(args,threading.Event())
@@ -302,10 +303,106 @@ def test_unsupported_registered_style_is_disabled_and_next_verified_base_selecte
     dialog.reject()
 
 
+def test_create_checks_one_base_at_a_time_and_waits_for_start_without_thumbnails(owner):
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=((0, "first"), (1, "second"), (2, "third")), audit_hair=True, base_only=True)
+    ready = []
+    dialog.base_ready.connect(lambda: ready.append(True))
+    QApplication.processEvents()
+    service = owner.archive_catalogue_service
+    assert len(service.calls) == 1
+    for index, supported in [(0, False), (1, True)]:
+        token = service.calls[-1][0]
+        item = row(index + 1)
+        value = replace(detail(item), models=(SimpleNamespace(entry_id=index),))
+        service.result_ready.emit(token, "get_character_catalog_detail", value)
+        target = SimpleNamespace(path=f"hair{index}.pac", basename=f"hair{index}.pac")
+        inputs = SimpleNamespace(detail=dialog._details[item.key], dependencies_complete=True,
+            entries=(target,), entries_by_id={index:target})
+        dialog._audit_done(dialog._generation, inputs if supported else None, "" if supported else "Unsupported multi-PAC style")
+    assert len(service.calls) == 2 and ready == [True]
+    assert dialog._preview.selected == [] and dialog._preview.visible_rows == []
+    assert dialog.choose.isEnabled() and dialog.selected_entry is None
+    dialog._choose()
+    assert dialog.selected_entry is target and dialog._closed
+
+
+def test_create_dialog_loads_scene_only_after_start_and_mode_change_invalidates_base(owner):
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    dialog = HairSetupDialog(owner, character="Damiane")
+    context = SimpleNamespace(character="Damiane", dependencies=SimpleNamespace(entry_for_path=lambda _: object()))
+    dialog._context_ready(context)
+    tasks.pop()["on_complete"]([SimpleNamespace(index=0, prefab_stem="first")])
+    picker = dialog._picker
+    assert picker.isHidden() and dialog.preset.currentData() == "empty"
+    started = []
+    picker._choose = lambda: started.append(True)
+    picker.base_ready.emit()
+    assert not started and dialog.waiting_start.isEnabled()
+    dialog.waiting_start.click()
+    assert started == [True]
+    dialog.mode.setCurrentIndex(dialog.mode.findData("existing"))
+    picker.base_ready.emit()
+    assert dialog._picker is None and not dialog.waiting_start.isEnabled()
+    dialog.reject()
+
+
+def test_clean_context_keeps_eyes_and_excludes_shader_dependent_facial_layers(owner):
+    service = owner.archive_catalogue_service
+    resolver = context_module.HairContextPreparation(service)
+    resolver.start()
+    prefix = "character/model/1_pc/2_phw/"
+    models = [SimpleNamespace(entry_id=i, extension=".pac", path=prefix + path)
+        for i,path in enumerate(("head/head/cd_phw_00_head_00_0111.pac", "nude/cd_phw_00_nude_00_0001_damian.pac", "head/head_sub/eyeleft.pac",
+            "head/head_sub/eyeright.pac", "head/head_sub/eyelash.pac", "head/head_sub/eyebrow.pac",
+            "head/head_sub/eyecover.pac", "head/head_sub/tooth.pac"))]
+    value = replace(detail(row()), models=tuple(models))
+    service.result_ready.emit(service.calls[-1][0], "get_character_catalog_detail", value)
+    assert resolver._preparation.started[-1][0].models == tuple(models[:4])
+
+
+def test_reference_geometry_loader_preserves_authored_transform_without_material_or_editor_work(monkeypatch, tmp_path):
+    import threading
+    from cdmw.models import ArchiveEntry
+    from cdmw.workers import mesh_archive_refit_worker as worker
+    from cdmw.services import archive_read_service
+    from cdmw.modding import mesh_parser, skeleton_parser
+    from cdmw.core import skeleton_resolver, archive_mesh_appearance
+    entry = ArchiveEntry("head.pac", tmp_path/"0.pamt", tmp_path/"0.paz", 0, 4, 4, 0, 0)
+    skeleton_entry = replace(entry, path="head.pab")
+    descriptor = SimpleNamespace(identity="mounted-pabc")
+    dependencies = SimpleNamespace(entry_matching=lambda _: entry, entries=(), entries_by_normalized_path={}, entries_by_basename={})
+    mesh, skeleton, transform = object(), object(), object()
+    calls = []
+    monkeypatch.setattr(archive_read_service, "read_archive_entry_data", lambda entry, **_: (b"data", "", ""))
+    monkeypatch.setattr(mesh_parser, "parse_mesh", lambda *args: mesh)
+    monkeypatch.setattr(skeleton_resolver, "resolve_skeleton_for_model", lambda *args, **kwargs: (skeleton_entry, None))
+    monkeypatch.setattr(skeleton_parser, "parse_pab", lambda *args: skeleton)
+    def appearance(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(_cdmw_neutral_appearance=transform), ()
+    monkeypatch.setattr(archive_mesh_appearance, "apply_archive_mesh_appearance", appearance)
+    def forbidden(*args, **kwargs): raise AssertionError("Fitting geometry must not open an editor or decode DDS")
+    monkeypatch.setattr(worker, "MeshArchiveSessionLoadWorker", forbidden)
+    monkeypatch.setattr(worker, "MeshArchiveMaterialContextWorker", forbidden)
+    args = {"_archive_entry":entry, "_archive_dependencies":dependencies, "_hair_authored_descriptors":{"head.pac":descriptor}}
+    prepared = worker.prepare_hair_reference_source(args, threading.Event())
+    assert prepared["_archive_snapshot"].mesh is mesh
+    assert prepared["_archive_neutral_appearance"] is transform
+    assert calls[0]["authored_descriptor"] is descriptor and calls[0]["skeleton"] is skeleton
+    args["_hair_authored_descriptors"]["head.pac"] = None
+    prepared = worker.prepare_hair_reference_source(args, threading.Event())
+    assert prepared["_archive_neutral_appearance"] is None and len(calls) == 1
+
+
 @pytest.mark.parametrize("ending", ["replace", "cancel", "resume", "invalid"])
-def test_queued_prepared_hair_scene_has_one_owner_and_releases_obsolete_result(tmp_path, ending):
+def test_queued_prepared_hair_scene_has_one_owner_and_releases_obsolete_result(tmp_path, ending, monkeypatch):
     from cdmw.models import ArchiveEntry
     from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
+    from cdmw.ui.mesh_editor import tab_session_runtime
+    monkeypatch.setattr(tab_session_runtime, "_tab", SimpleNamespace(ArchiveEntry=ArchiveEntry))
     disposed, opened = [], []
     class Queue(MeshEditorSessionMixin):
         _discard_archive_session_result = staticmethod(disposed.append)
@@ -344,10 +441,10 @@ def test_reference_cache_cancellation_releases_unpublished_assets(monkeypatch, f
     lease = SimpleNamespace(lease=SimpleNamespace(release=lambda: released.append(True)))
     def prepare(args, _stop):
         if failure == "cancel_after_load": stop.set()
-        return {**args, "_archive_snapshot": SimpleNamespace(original_data=b"owned", mesh=None),
+        return {**args, "_archive_snapshot": SimpleNamespace(original_data=b"owned", mesh=SimpleNamespace(submeshes=[])),
                 "_archive_preview_lease": lease, "_archive_neutral_appearance": None,
                 "_archive_appearance_warning": "", "_archive_material_reason": ""}
-    monkeypatch.setattr(worker, "prepare_archive_refit_source", prepare)
+    monkeypatch.setattr(worker, "_prepare_hair_geometry_source", prepare)
     monkeypatch.setattr(worker, "_hair_references", worker.OrderedDict())
     args = {"_archive_entry": SimpleNamespace(identity="head"), "_hair_context_identity": ("session", "generation")}
     if failure == "cancel_cached_copy":

@@ -267,10 +267,14 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         args.get("_archive_skeleton"), appearance, incoming.original_data)
     positions, triangles = [], []
     for part in reference.submeshes:
+        if any(word in (part.name + " " + part.material).casefold()
+               for word in ("eyecover", "eye_cover", "eyelash", "eyebrow")):
+            continue
         first = len(positions)
         positions.extend([list(p) for p in part.vertices])
         triangles.extend([[first + i for i in face] for face in part.faces])
     identity = path + ":" + hashlib.sha256(incoming.original_data).hexdigest()
+    face_count = len(triangles)
     if not positions or not triangles:
         raise ValueError("The head reference has no usable scalp surface.")
     bounds_min = [min(p[i] for p in positions) for i in range(3)]
@@ -291,25 +295,25 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
             args.get("_body_skeleton"), appearance, body.original_data, body=True)
         vertices, faces = [], []
         cutoff = bounds_min[1] - height * .9
-        neck_top = bounds_min[1] + height * .1
-        scalp_bottom = bounds_max[1] - height * .4
+        neck_top = bounds_min[1]
+        scalp_bottom = bounds_max[1] - height * .02
+        face_back = bounds_max[2] - height * .02
         for part in mesh.submeshes:
             # The separate head PAC can be only a face mask. The base body's
             # crown/back completes the scalp; keep its neck/shoulders separate.
             scalp_faces = [face for face in part.faces
                 if sum(part.vertices[i][1] for i in face) / 3 >= neck_top
                 and (sum(part.vertices[i][1] for i in face) / 3 >= scalp_bottom
-                     or sum(part.vertices[i][2] for i in face) / 3 >= center[2])]
+                     or sum(part.vertices[i][2] for i in face) / 3 >= face_back)]
             scalp_indices = sorted({i for face in scalp_faces for i in face})
             scalp_map = {index: i + len(positions) for i, index in enumerate(scalp_indices)}
             positions.extend([list(part.vertices[i]) for i in scalp_indices])
             triangles.extend([[scalp_map[i] for i in face] for face in scalp_faces])
-            # Assign faces crossing the neck boundary once rather than dropping
-            # them from both references and leaving a visible ring-shaped hole.
+            # Keep the lower body once; the face perimeter is joined below.
             scalp_face_set = set(tuple(face) for face in scalp_faces)
             selected = [face for face in part.faces if tuple(face) not in scalp_face_set
                         and all(part.vertices[i][1] >= cutoff for i in face)
-                        and any(part.vertices[i][1] <= neck_top for i in face)]
+                        and sum(part.vertices[i][1] for i in face) / 3 <= neck_top]
             indices = sorted({i for face in selected for i in face})
             mapping = {index: i + len(vertices) for i, index in enumerate(indices)}
             vertices.extend([list(part.vertices[i]) for i in indices])
@@ -318,6 +322,8 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
             raise ValueError("The selected body does not overlap the head's neck and shoulder area.")
         references = [dict(identity=body_path + ":" + hashlib.sha256(body.original_data).hexdigest(),
                            positions=vertices, triangles=faces)]
+        from cdmw.domain.mesh.hair_reference import join_face_reference
+        positions, triangles = join_face_reference(positions, triangles, face_count, vertices, faces)
         identity = path + ":" + hashlib.sha256(incoming.original_data + body.original_data).hexdigest()
         bounds_min = [min(p[i] for p in positions) for i in range(3)]
         bounds_max = [max(p[i] for p in positions) for i in range(3)]
@@ -347,7 +353,7 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
             first = len(detail_positions)
             detail_positions.extend([list(p) for p in part.vertices])
             detail_triangles.extend([[first + i for i in face] for face in part.faces])
-    # Eyes, brows and teeth are head-rigid references, not planting/collision
+    # Eyes are head-rigid fitting references, not planting/collision
     # surfaces. Keep them in one existing reference slot (old drafts need no migration).
     references = [r for r in references if not r["identity"].startswith("head:")]
     if detail_triangles:

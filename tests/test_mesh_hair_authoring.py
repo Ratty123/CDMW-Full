@@ -83,6 +83,27 @@ def payload(digest="a" * 64, mode="generated"):
         "bindings": [], "collisions": []}
 
 
+def test_short_guide_survives_full_and_incremental_float_encodings():
+    import struct
+    value = payload()
+    value["guides"][0]["points"] = [[0, 0, 0], [0, 1.0000001, 0], [0, 1.0000002, 0]]
+    state = hair_state_from_payload(value)
+    value = state.payload
+    value["converted"] = True
+    assert hair_state_from_payload(value).payload["converted"]
+    for point in value["guides"][0]["points"]:
+        point[:] = struct.unpack("<3f", struct.pack("<3f", *point))
+    assert hair_state_from_payload(value)
+
+
+@pytest.mark.parametrize("tip", [1.00000013, 1e100])
+def test_guide_rejects_collapsed_or_unrepresentable_renderer_coordinates(tip):
+    value = payload()
+    value["guides"][0]["points"] = [[0, 0, 0], [0, 1.0000001, 0], [0, tip, 0]]
+    with pytest.raises(ValueError, match="zero-length|Invalid guide"):
+        hair_state_from_payload(value)
+
+
 @pytest.fixture
 def editor(tmp_path):
     authority, authoring = _fixtures.RustMeshAuthoringTests()._create(tmp_path / "session")
@@ -385,7 +406,7 @@ def test_cancel_during_body_loading_releases_head_reference_lease(monkeypatch):
         if len(calls)==2:
             raise ValueError('Body loading cancelled')
         return {**args,'_archive_preview_lease':lease}
-    monkeypatch.setattr(mesh_archive_refit_worker,'prepare_archive_refit_source',prepare)
+    monkeypatch.setattr(mesh_archive_refit_worker,'prepare_hair_reference_source',prepare)
     session=SimpleNamespace(closed=True)
     worker=MeshRustProtocolWorker(1,session,{'event':'command_request','command':'hair_begin','request_id':1,
         'arguments':{'_body_archive_entry':object(),'_body_archive_dependencies':object()}})

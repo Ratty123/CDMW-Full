@@ -109,7 +109,12 @@ class HairContextPreparation(QObject):
             return
         self._head_id, self._body_id = heads[0].entry_id, bodies[0].entry_id
         self._scales = {model_id: component.scale for component in detail.components for model_id in component.model_entry_ids}
-        extras = tuple(m for m in detail.models if "/head/head_sub/" in m.path.casefold() and m.extension == ".pac")
+        # The neutral fitting mannequin keeps eyes, but not shader-dependent
+        # lashes/brows/covers or hidden mouth detail. Those alpha cards render as
+        # opaque shells without the game's material pipeline.
+        extras = tuple(m for m in detail.models if "/head/head_sub/" in m.path.casefold()
+            and m.extension == ".pac" and "eye" in m.path.casefold()
+            and not any(word in m.path.casefold() for word in ("brow", "lash", "cover", "line")))
         self._extra_ids = tuple(m.entry_id for m in extras)
         # Retain the appearance and all its dependencies, but decode only the
         # fitting roles. CharacterPreviewPreparation remains the dependency owner.

@@ -691,10 +691,12 @@ impl LabApplication {
                     return Ok("");
                 }
                 HairAction::Settle => {
+                    self.hair_motion_reason()?;
                     state = self
                         .hair
                         .simulation
                         .as_ref()
+                        .filter(|simulation| simulation.elapsed > 0.0)
                         .ok_or("Play motion first")?
                         .settled_state(&state, self.hair.rotation)
                         .map_err(|e| e.to_string())?;
@@ -831,7 +833,29 @@ impl LabApplication {
             })
             .map(|(i, p)| (i as u32, p.positions.len()))
             .collect();
-        let result = locks::readiness(state, &parts).map_err(|e| e.to_string());
+        let result = locks::readiness(state, &parts)
+            .map_err(|e| e.to_string())
+            .and_then(|()| {
+                // A guide cannot safely rotate an entire scalp-sized section.
+                // Keep these explicit bindings usable for static editing, but
+                // require smaller root groups before simulating their offsets.
+                let (min, max) = hair_bounds(state);
+                let max_radius = (max - min).max_element() * 0.15;
+                let existing: BTreeSet<_> = state
+                    .locks
+                    .iter()
+                    .filter(|lock| lock.kind == LockKind::Bound)
+                    .filter_map(|lock| lock.guide.map(|guide| (lock.part, guide)))
+                    .collect();
+                if state.bindings.iter().any(|binding| {
+                    existing.contains(&(binding.part, binding.guide))
+                        && binding.offset[0].hypot(binding.offset[1]) > max_radius
+                }) {
+                    Err("Existing hair sections are too wide for stable motion. Assign roots to smaller selections, or mark scalp sections rigid.".into())
+                } else {
+                    Ok(())
+                }
+            });
         self.hair.readiness_cache = Some((revision, materials, result.as_ref().err().cloned()));
         result
     }
@@ -925,7 +949,7 @@ impl LabApplication {
             let help=match self.hair.tool {
                 Some(HairTool::Select)=>"Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
                 Some(HairTool::Move)=>"Drag a selected lock. The root stays attached.",
-                Some(HairTool::Guide)=>"Drag from the scalp to draw a lock. Escape cancels the stroke.",
+                Some(HairTool::Guide)=>"Drag over the scalp to follow it; drag beyond its outline to pull hair away. Hold Ctrl for free drawing. Escape cancels.",
                 Some(HairTool::Erase)=>"Click or brush across visible locks to remove their geometry.",
                 Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
                 Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
@@ -996,6 +1020,7 @@ impl LabApplication {
         });
         ui.separator();
         ui.strong("Motion");
+        ui.weak("Editor motion preview. In-game movement depends on the donor's rig and physics; this preview does not simulate them.");
         let reason = self.hair_motion_reason().err();
         ui.horizontal(|ui| {
             if ui
@@ -1012,7 +1037,7 @@ impl LabApplication {
                 actions.push(UiAction::Hair(HairAction::Reset));
             }
         });
-        if let Some(reason) = reason {
+        if let Some(reason) = &reason {
             ui.weak(reason);
         }
         let tests = [
@@ -1038,7 +1063,7 @@ impl LabApplication {
             ui.add(egui::Slider::new(&mut self.hair.motion.damping, 0.0..=20.0).text("Damping"));
             ui.add(
                 egui::Slider::new(&mut self.hair.motion.bend_compliance, 0.0..=0.005)
-                    .text("Bend softness"),
+                    .text("Shape softness"),
             );
             ui.add(
                 egui::Slider::new(&mut self.hair.motion.gravity[1], -20.0..=0.0).text("Gravity"),
@@ -1050,7 +1075,16 @@ impl LabApplication {
                 }
             });
             if ui
-                .add_enabled(ready, egui::Button::new("Use settled shape"))
+                .add_enabled(
+                    ready
+                        && reason.is_none()
+                        && self
+                            .hair
+                            .simulation
+                            .as_ref()
+                            .is_some_and(|s| s.elapsed > 0.0),
+                    egui::Button::new("Use settled shape"),
+                )
                 .clicked()
             {
                 actions.push(UiAction::Hair(HairAction::Settle));
@@ -1181,6 +1215,20 @@ fn build_scene(
                 document.lods[0].submeshes.len() as u32,
                 indices.len() / 3,
             ));
+        }
+        // Scalp and neck remain separate motion roles but share a fitting seam.
+        // Average coincident reference normals so that boundary and PAC UV seams
+        // do not appear as a hard collar on the untextured mannequin.
+        let key = |p: [f32; 3]| p.map(|v| (v * 100_000.0).round() as i64);
+        let mut shared = std::collections::HashMap::<[i64; 3], Vec3>::new();
+        for i in reference_start..snapshot.positions.len() {
+            *shared.entry(key(snapshot.positions[i])).or_default() +=
+                Vec3::from(snapshot.normals[i]);
+        }
+        for i in reference_start..snapshot.positions.len() {
+            snapshot.normals[i] = shared[&key(snapshot.positions[i])]
+                .normalize_or_zero()
+                .to_array();
         }
     }
     let mut vertex_locks = vec![None; snapshot.positions.len()];
