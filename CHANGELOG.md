@@ -23,6 +23,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Translations automatically detects the current game's per-language `.paloc` tables, loads named-key dialogue files correctly, and exports edits to each table's original archive path. Old empty language caches refresh automatically.
+
 - Translations now uses the configured game folder on any drive and refreshes its language list when that path changes. Obsolete scans are cancelled, failed file loads preserve current edits, and manual text edits immediately enable mod export.
 
 - Draw follows the curved scalp and accounts for follower-card width. Drawing beyond the scalp outline or holding Ctrl lets the stroke lift away while contacts remain active. Motion retains the authored groom with adjustable Shape softness and explains its limits as an editor preview.

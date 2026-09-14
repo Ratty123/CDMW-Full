@@ -269,40 +269,15 @@ def _looks_like_plain_text_payload(data: bytes) -> bool:
 
 
 def _looks_like_paloc_payload(data: bytes) -> bool:
-    if len(data) < 16:
+    # Current split tables may contain only named keys, a single row, or no rows.
+    # Validate the actual records/footer instead of searching for numeric key samples.
+    from cdmw.core.paloc_format import PalocFormatError, parse_paloc
+
+    try:
+        parse_paloc(data)
+    except PalocFormatError:
         return False
-    pos = 0
-    matches = 0
-    scan_limit = min(len(data), 4_000_000)
-    while pos + 8 < scan_limit and matches < 8:
-        try:
-            slen = struct.unpack_from("<I", data, pos)[0]
-        except struct.error:
-            break
-        if slen == 0 or slen > 50_000 or pos + 4 + slen > len(data):
-            pos += 1
-            continue
-        key_bytes = data[pos + 4 : pos + 4 + slen]
-        if not (6 <= slen <= 20 and all(0x30 <= value <= 0x39 for value in key_bytes)):
-            pos += 1
-            continue
-        text_pos = pos + 4 + slen
-        if text_pos + 4 >= len(data):
-            pos += 1
-            continue
-        text_len = struct.unpack_from("<I", data, text_pos)[0]
-        if not (0 < text_len < 50_000 and text_pos + 4 + text_len <= len(data)):
-            pos += 1
-            continue
-        text_bytes = data[text_pos + 4 : text_pos + 4 + text_len]
-        try:
-            text_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            pos += 1
-            continue
-        matches += 1
-        pos = text_pos + 4 + text_len
-    return matches >= 2
+    return True
 
 
 def _looks_like_structured_binary_payload(extension: str, data: bytes) -> bool:
@@ -334,8 +309,8 @@ def _looks_like_decrypted_payload(entry: ArchiveEntry, data: bytes) -> bool:
             candidate = reconstruct_partial_dds(entry, data)
         except Exception:
             return False
-    if entry.extension == ".paloc" and _looks_like_paloc_payload(candidate):
-        return True
+    if entry.extension == ".paloc":
+        return _looks_like_paloc_payload(candidate)
     if _looks_like_plain_text_payload(candidate):
         return True
     if entry.extension in _ARCHIVE_STRUCTURED_BINARY_PREVIEW_EXTENSIONS or entry.extension in ARCHIVE_MODEL_EXTENSIONS:

@@ -1,4 +1,8 @@
-"""Which languages the archives ship, and which package table holds each one.
+"""Which languages the archives ship, and the source package of every string table.
+
+Current installs split languages into named tables under binary__/<language>/.
+Older installs use localizationstring_<language>.paloc. Keep each file's provenance
+so loading a language and exporting its edits preserve the game's table boundaries.
 
 Opening the panel listed the languages by parsing all 33 package tables -- 3.6 s on this
 machine, on the UI thread, inside the tab's constructor. Pressing Load then paid the same
@@ -20,8 +24,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Mapping, Optional, Tuple
 
@@ -29,7 +34,7 @@ from typing import Callable, Mapping, Optional, Tuple
 PALOC_DIR = "gamedata/stringtable/binary__"
 PALOC_PREFIX = "localizationstring_"
 
-_CACHE_VERSION = 1
+_CACHE_VERSION = 2
 
 
 def _install_root() -> Path:
@@ -55,12 +60,17 @@ def cache_path() -> Path:
 
 
 def language_of(game_path: str) -> str:
-    """`.../localizationstring_eng.paloc` -> `eng`."""
+    """Recognize both legacy monolithic tables and current language folders."""
 
-    name = str(game_path or "").rsplit("/", 1)[-1]
-    if not name.startswith(PALOC_PREFIX) or not name.endswith(".paloc"):
-        return ""
-    return name[len(PALOC_PREFIX):-len(".paloc")]
+    path = str(game_path or "").replace("\\", "/").strip("/").lower()
+    name = path.rsplit("/", 1)[-1]
+    if name.startswith(PALOC_PREFIX) and name.endswith(".paloc"):
+        return name[len(PALOC_PREFIX):-len(".paloc")]
+    if path.startswith(PALOC_DIR + "/"):
+        parts = path[len(PALOC_DIR) + 1:].split("/")
+        if len(parts) == 2 and re.fullmatch(r"[a-z]{3}(?:-[a-z]{2})?", parts[0]) and parts[1].endswith(".paloc"):
+            return parts[0]
+    return ""
 
 
 def game_path_for(language: str) -> str:
@@ -75,6 +85,8 @@ class LanguageIndex:
     languages: Tuple[str, ...] = ()
     #: language -> the `.pamt` that lists its table, as a string path.
     sources: Mapping[str, str] = None  # type: ignore[assignment]
+    #: Exact game path -> package table; a language can span multiple files/packages.
+    tables: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.sources is None:
@@ -83,6 +95,9 @@ class LanguageIndex:
     def source_for(self, language: str) -> Optional[Path]:
         found = self.sources.get(language)
         return Path(found) if found else None
+
+    def tables_for(self, language: str) -> Mapping[str, Path]:
+        return {path: Path(source) for path, source in self.tables.items() if language_of(path) == language}
 
 
 # ------------------------------------------------------------------ fingerprint
@@ -129,6 +144,7 @@ def _write_cache(index: LanguageIndex, fingerprint) -> None:
         "fingerprint": [list(entry) for entry in fingerprint],
         "languages": list(index.languages),
         "sources": dict(index.sources),
+        "tables": dict(index.tables),
     }
     target = cache_path()
     try:
@@ -155,7 +171,8 @@ def load_cached(root: Path) -> Optional[LanguageIndex]:
         return None
     sources = {str(k): str(v) for k, v in (payload.get("sources") or {}).items()}
     languages = tuple(str(name) for name in payload.get("languages") or ())
-    return LanguageIndex(root=str(root), languages=languages, sources=sources)
+    tables = {str(path): str(source) for path, source in (payload.get("tables") or {}).items()}
+    return LanguageIndex(root=str(root), languages=languages, sources=sources, tables=tables)
 
 
 # ---------------------------------------------------------------------- build
@@ -189,13 +206,17 @@ def build_index(
             language = language_of(path)
             if not language:
                 continue
-            previous = found.get(language)
+            previous = found.get(path)
             if previous is None or package >= previous[0]:
-                found[language] = (package, str(pamt))
+                found[path] = (package, str(pamt))
+    sources = {}
+    for path, (_package, source) in sorted(found.items(), key=lambda item: item[1]):
+        sources[language_of(path)] = source
     index = LanguageIndex(
         root=str(root),
-        languages=tuple(sorted(found)),
-        sources={language: source for language, (_package, source) in found.items()},
+        languages=tuple(sorted(sources)),
+        sources=sources,
+        tables={path: source for path, (_package, source) in found.items()},
     )
     _write_cache(index, fingerprint)
     return index

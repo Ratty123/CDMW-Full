@@ -66,6 +66,11 @@ class PathTests(unittest.TestCase):
         self.assertEqual(language_of("character/model/x.pac"), "")
         self.assertEqual(language_of("gamedata/stringtable/binary__/other.paloc"), "")
 
+    def test_current_language_folders_are_detected(self) -> None:
+        self.assertEqual(language_of("gamedata/stringtable/binary__/eng/questdialog.paloc"), "eng")
+        self.assertEqual(language_of(r"gamedata\stringtable\binary__\zho-cn\ui.paloc"), "zho-cn")
+        self.assertEqual(language_of("unrelated/eng/ui.paloc"), "")
+
 
 class CatalogueTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -382,6 +387,27 @@ class LanguageIndexTests(unittest.TestCase):
         ]
         index = self.module.build_index(self.root)
         self.assertEqual(index.source_for("eng"), self.tables["0019"])
+
+    def test_split_tables_are_indexed_individually_across_packages(self) -> None:
+        bank = "gamedata/stringtable/binary__/eng/bank.paloc"
+        ui = "gamedata/stringtable/binary__/eng/ui.paloc"
+        self.contents[self.tables["0000"]] = [bank, ui]
+        self.contents[self.tables["0019"]] = [ui]
+        index = self.module.build_index(self.root)
+        self.assertEqual(index.tables_for("eng"), {bank: self.tables["0000"], ui: self.tables["0019"]})
+        self.assertEqual(self.module.load_cached(self.root).tables_for("eng"), index.tables_for("eng"))
+
+    def test_old_empty_language_cache_is_rebuilt(self) -> None:
+        import json
+        self.contents[self.tables["0019"]] = ["gamedata/stringtable/binary__/eng/ui.paloc"]
+        self.module.build_index(self.root)
+        path = self.module.cache_path()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload.update(version=1, languages=[], sources={})
+        payload.pop("tables", None)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertIsNone(self.module.load_cached(self.root))
+        self.assertIn("eng", self.module.language_index(self.root).languages)
 
 
 class PlaceholderTests(unittest.TestCase):
@@ -1013,14 +1039,14 @@ class TabAiTests(unittest.TestCase):
         results: list = []
         worker = tab_module._LoadWorker("eng", "kor")
         worker.done.connect(lambda catalogue, error: results.append((catalogue, error)))
-        original = tab_module.read_language
-        tab_module.read_language = (
-            lambda language, root=None: ENGLISH if language == "eng" else KOREAN
+        original = tab_module.read_language_tables
+        tab_module.read_language_tables = (
+            lambda language, root=None, **kwargs: ENGLISH if language == "eng" else KOREAN
         )
         try:
             worker.run()
         finally:
-            tab_module.read_language = original
+            tab_module.read_language_tables = original
         catalogue, error = results[0]
         self.assertEqual(error, "")
         self.assertEqual(catalogue.language, "eng")
@@ -1095,11 +1121,11 @@ class VanillaTranslationTests(unittest.TestCase):
 
     def _data(self, language: str):
         from tools.placement_studio import corpus
-        from tools.translation_studio.catalogue import read_language
+        from tools.translation_studio.catalogue import read_language_tables
 
         if not corpus.game_root().is_dir():
             self.skipTest("needs the installed game")
-        return read_language(language)
+        return read_language_tables(language)
 
     def test_the_english_table_loads_and_searches(self) -> None:
         cat = load_catalogue(self._data("eng"), "eng")
@@ -1111,9 +1137,11 @@ class VanillaTranslationTests(unittest.TestCase):
         hits = cat.find("questdialog", limit=1)
         self.assertTrue(hits)
         cat.set_text(hits[0], "A line a mod wrote.")
-        rebuilt = parse_paloc(list(cat.changed_files().values())[0])
-        self.assertEqual(rebuilt.entries[hits[0]].text, "A line a mod wrote.")
-        self.assertEqual(len(rebuilt), len(cat))
+        path, payload = next(iter(cat.changed_files().items()))
+        start, end = cat.source_ranges[path]
+        rebuilt = parse_paloc(payload)
+        self.assertEqual(rebuilt.entries[hits[0] - start].text, "A line a mod wrote.")
+        self.assertEqual(len(rebuilt), end - start)
 
     def test_every_shipped_language_is_offered(self) -> None:
         from tools.placement_studio import corpus
