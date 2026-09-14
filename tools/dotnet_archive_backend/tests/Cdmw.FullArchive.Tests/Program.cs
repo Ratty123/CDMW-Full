@@ -7,9 +7,18 @@ internal static class Program
             ? SyntheticBaselineProbe.RunAsync(args[1])
             : args.Length >= 2 && args[0] == "--cache-scale-report"
                 ? SyntheticCacheScaleProbe.RunAsync(args[1])
-                : args.Length == 1 && args[0] == "--character-catalogue"
-                    ? CharacterAsync()
-                    : FullArchiveTestRunner.RunAsync();
+                : args.Length == 1 && args[0] == "--preview-preparation"
+                    ? PreparationAsync()
+                    : args.Length == 1 && args[0] == "--character-catalogue"
+                        ? CharacterAsync()
+                        : FullArchiveTestRunner.RunAsync();
+
+    private static async Task<int> PreparationAsync()
+    {
+        await PreviewPreparationTests.ConcurrentAsync();
+        await PreviewPreparationTests.CancellationAsync();
+        return 0;
+    }
 
     private static async Task<int> CharacterAsync()
     {

@@ -84,12 +84,14 @@ class Host(QWidget):
         self.controller = self
         self.loaded = []
         self.canonical_views = 0
+        self.hidden_parts = []
 
     def load_package(self, path, **kw):
         self.loaded.append(path)
         return True
 
     def reset_view(self): pass
+    def set_hidden_source_submeshes(self, indices): self.hidden_parts.append(tuple(indices))
     def request_canonical_view(self): self.canonical_views += 1
     def shutdown(self): pass
 
@@ -132,6 +134,44 @@ def finder(monkeypatch, tmp_path):
 def publish_rows(dialog, service, rows, *, total=None, page_start=0):
     service.result_ready.emit(dialog._requests["search"], "search_character_catalog",
         CharacterCatalogSearchResult("session-a", len(rows) if total is None else total, page_start, 72, tuple(rows), (), ()))
+
+
+def test_underwear_toggle_updates_the_loaded_preview_without_preparation_and_follows_page_selection(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1), row(2)])
+    assert not dialog._show_underwear.isEnabled()
+    first = CharacterRenderResult("render-1", "package-1", "image", "base_appearance", (),
+        underwear_submesh_indices=(3, 7))
+    dialog._preview.package_ready.emit("asset:1", first)
+    dialog._host.package_applied.emit(first.package_path, 4)
+    assert dialog._show_underwear.isEnabled() and dialog._show_underwear.isChecked()
+    calls, selected = len(service.calls), len(dialog._preview.selected)
+    dialog._show_underwear.setChecked(False)
+    assert dialog._host.hidden_parts[-1] == (3, 7)
+    assert len(service.calls) == calls and len(dialog._preview.selected) == selected
+    assert dialog._host.loaded == [first.package_path]
+    dialog._grid.setCurrentItem(dialog._items["asset:2"])
+    second = replace(first, key="render-2", package_path="package-2", underwear_submesh_indices=(5,))
+    dialog._preview.package_ready.emit("asset:2", second)
+    dialog._host.package_applied.emit(first.package_path, 4)  # Stale completion keeps the last shown model's controls.
+    assert dialog._underwear_parts == (3, 7)
+    dialog._host.package_applied.emit(second.package_path, 4)
+    assert dialog._host.hidden_parts[-1] == (5,)
+    dialog._show_underwear.setChecked(True)
+    assert dialog._host.hidden_parts[-1] == ()
+
+
+def test_failed_cards_show_the_error_state_and_successful_retry_restores_the_caption(finder, tmp_path):
+    from PySide6.QtGui import QImage
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1)])
+    dialog._preview.failed.emit("asset:1", "Access to the path is denied.")
+    assert "Preview unavailable" in dialog._items["asset:1"].text()
+    assert "Access to the path" in dialog._preview_status.text()
+    image = tmp_path / "ready.png"
+    QImage(4, 4, QImage.Format.Format_RGB32).save(str(image))
+    dialog._preview.thumbnail_ready.emit("asset:1", CharacterRenderResult("ready", "package", str(image), "base_appearance", ()))
+    assert "Preview unavailable" not in dialog._items["asset:1"].text()
 
 
 def test_next_page_request_starts_immediately_and_is_promoted_without_requery(finder):

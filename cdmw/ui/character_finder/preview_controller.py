@@ -113,6 +113,10 @@ class _CharacterPreviewLane(QObject):
         self._worker = None
         self._next = None
         self._closed = False
+        self._retry_count = 0
+        self._retry_timer = QTimer(self)
+        self._retry_timer.setSingleShot(True)
+        self._retry_timer.timeout.connect(self._retry)
         self._kick_timer = QTimer(self)
         self._kick_timer.setSingleShot(True)
         self._kick_timer.timeout.connect(self._kick)
@@ -152,6 +156,7 @@ class _CharacterPreviewLane(QObject):
 
     def _cancel(self):
         self._token += 1
+        self._retry_timer.stop()
         self._next = None
         self._active_key = ""
         self._active_detail = None
@@ -184,6 +189,7 @@ class _CharacterPreviewLane(QObject):
             self.idle.emit()
             return
         self._token = max(self._token + 1, self._generation)
+        self._retry_count = 0
         self._active_key = key
         self._active_package = None
         if detail is None:
@@ -265,6 +271,8 @@ class _CharacterPreviewLane(QObject):
             self._preparation.start(self._active_detail, self._token)
         elif action == "capture" and self._active_detail is not None:
             self._prepared(self._token, CharacterPreviewInputs(self._active_detail, {}, (), False), cache_only=True)
+        elif action == "retry" and self._active_detail is not None:
+            self._retry_timer.start(200 * self._retry_count)
         else:
             self._kick_timer.start(0)
 
@@ -311,6 +319,17 @@ class _CharacterPreviewLane(QObject):
             self._fail(message)
 
     def _fail(self, message):
+        transient = any(marker in str(message).casefold() for marker in (
+            "access to the path", "being used by another process", "[winerror 5]", "[winerror 32]"))
+        if self._active_detail is not None and transient and self._retry_count < 2:
+            # Keep the assignment and retry its cache after the failed worker has
+            # retired. Other lanes keep loading; page changes cancel this timer.
+            self._retry_count += 1
+            if self._thread is not None:
+                self._next = "retry"
+            else:
+                self._retry_timer.start(200 * self._retry_count)
+            return
         key = self._active_key
         self._done.add(key)
         self._active_key = ""
@@ -318,6 +337,10 @@ class _CharacterPreviewLane(QObject):
         self.failed.emit(key, message)
         if self._thread is None:
             self._kick_timer.start(0)
+
+    def _retry(self):
+        if not self._closed and self._active_key and self._active_detail is not None:
+            self._check_cache(self._active_detail)
 
 
 class CharacterFinderPreviewController(QObject):

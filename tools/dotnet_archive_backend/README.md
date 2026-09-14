@@ -37,6 +37,10 @@ are readable, while new generations use `g/`. Existing `prepared/` payloads are
 reused and new payloads use `p/`. Root IDs, generation IDs, full content hashes,
 checksums and leases are unchanged. Directory labels save 27 characters for
 fresh prepared paths; temporary publications use short unique sibling names.
+Concurrent requests for a prepared artifact share bounded asynchronous gates
+through decoding, metadata and optional content-analysis publication. Waiting
+requests reuse the completed artifact instead of racing to replace its metadata;
+waiting remains cancellable and each request still checks the source hash.
 
 The base generation is staged and validated before `current.json` is replaced.
 Mapped generations remain protected while a session owns them. Corrupt base

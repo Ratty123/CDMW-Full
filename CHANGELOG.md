@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Body & Face Finder adds **Show underwear** to instantly hide or restore separate underwear parts in the interactive preview.
 - Textures adds a **Replace** tab for bulk PNG/DDS replacement: open or reload a folder, append files, remove selected textures or clear the batch, auto-match originals, and build a mod without opening every file in the editor. Cancelled or failed folder loads preserve the previous batch, and deliberate editor changes remain available for export.
 
 - Mesh Editor adds Damiane hair authoring: guide presets, grooming, explicit existing-hair binding, textured cards, head/shoulder references, and collision-aware motion preview. Guides, geometry and DDS edits share Undo/Redo, versioned drafts and Finish. A validated read-only package workflow creates additional barber registrations and distinct assets; in-game selection, save/load, headgear and physics acceptance remain pending.
@@ -23,6 +24,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Parallel Body & Face Finder previews no longer race while publishing shared prepared-cache metadata, which caused "Access to the path is denied" and blank cards. Temporary access failures retry automatically; persistent failures are labelled on the affected card while other previews continue.
 - Textures > Replace now gives the queue the available height, keeps selected-file details compact, and separates bulk Auto-Match sources from single-file overrides. Choose Game archives or a whole Local DDS folder; matching a local folder again discovers newly added originals.
 - Texture replacement builds now update the current-file progress label on the GUI thread, avoiding unsafe widget updates during bulk packaging.
 - Hair reference choices can be retried after preparation fails, and late results or errors from earlier choices no longer replace the current selection. Cancelled reference preparation releases temporary assets promptly; edit acknowledgements avoid decoding the full hair document just to read its revision.

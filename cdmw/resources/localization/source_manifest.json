@@ -81,17 +81,17 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 430,
+          "line": 448,
           "sink": "QListWidgetItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 710,
+          "line": 736,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 711,
+          "line": 737,
           "sink": "setText"
         }
       ]
@@ -1256,7 +1256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 674,
+          "line": 696,
           "sink": "setText"
         }
       ]
@@ -6146,7 +6146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 144,
+          "line": 147,
           "sink": "addItem"
         }
       ]
@@ -6176,12 +6176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 144,
+          "line": 147,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 284,
+          "line": 293,
           "sink": "setItemText"
         }
       ]
@@ -6421,7 +6421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 144,
+          "line": 147,
           "sink": "addItem"
         }
       ]
@@ -6496,7 +6496,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 144,
+          "line": 147,
           "sink": "addItem"
         }
       ]
@@ -7786,7 +7786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 128,
+          "line": 131,
           "sink": "addItem"
         },
         {
@@ -13996,12 +13996,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 111,
+          "line": 114,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 815,
+          "line": 849,
           "sink": "information"
         },
         {
@@ -14026,7 +14026,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 815,
+          "line": 849,
           "sink": "information"
         }
       ]
@@ -14481,7 +14481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 117,
+          "line": 120,
           "sink": "QLabel"
         }
       ]
@@ -15251,7 +15251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -18736,7 +18736,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 150,
+          "line": 168,
           "sink": "RunCancelled"
         }
       ]
@@ -18746,7 +18746,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 234,
+          "line": 253,
           "sink": "ValueError"
         }
       ]
@@ -18756,7 +18756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 213,
+          "line": 222,
           "sink": "_fail"
         },
         {
@@ -21746,7 +21746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 134,
+          "line": 137,
           "sink": "QPushButton"
         }
       ]
@@ -24706,7 +24706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 222,
+          "line": 231,
           "sink": "QPushButton"
         }
       ]
@@ -25666,7 +25666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 224,
+          "line": 233,
           "sink": "QPushButton"
         }
       ]
@@ -28611,7 +28611,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 215,
+          "line": 224,
           "sink": "addTab"
         },
         {
@@ -28671,7 +28671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 533,
+          "line": 551,
           "sink": "setHtml"
         }
       ]
@@ -31131,7 +31131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 226,
+          "line": 235,
           "sink": "QPushButton"
         }
       ]
@@ -31791,7 +31791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -39546,7 +39546,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -42276,7 +42276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 637,
+          "line": 655,
           "sink": "setText"
         }
       ]
@@ -42616,7 +42616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 284,
+          "line": 293,
           "sink": "setItemText"
         },
         {
@@ -46046,7 +46046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 234,
+          "line": 243,
           "sink": "QLabel"
         }
       ]
@@ -52676,7 +52676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -52786,17 +52786,17 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -57241,7 +57241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -59141,7 +59141,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 345,
+          "line": 366,
           "sink": "ValueError"
         }
       ]
@@ -61151,7 +61151,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 174,
+          "line": 177,
           "sink": "QPushButton"
         },
         {
@@ -62996,7 +62996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 475,
+          "line": 492,
           "sink": "setText"
         }
       ]
@@ -63876,7 +63876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 527,
+          "line": 545,
           "sink": "addItem"
         }
       ]
@@ -75411,7 +75411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 602,
+          "line": 620,
           "sink": "setText"
         }
       ]
@@ -75631,7 +75631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 494,
+          "line": 512,
           "sink": "setText"
         }
       ]
@@ -79051,7 +79051,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 172,
+          "line": 175,
           "sink": "QPushButton"
         },
         {
@@ -81526,7 +81526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -83771,7 +83771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 550,
+          "line": 568,
           "sink": "setText"
         }
       ]
@@ -86371,7 +86371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 202,
+          "line": 205,
           "sink": "QPushButton"
         },
         {
@@ -87056,7 +87056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -89986,7 +89986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         }
       ]
@@ -90911,7 +90911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 44,
+          "line": 45,
           "sink": "ValueError"
         }
       ]
@@ -91641,7 +91641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 131,
+          "line": 134,
           "sink": "setPlaceholderText"
         }
       ]
@@ -91831,7 +91831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 331,
+          "line": 341,
           "sink": "setText"
         }
       ]
@@ -92736,7 +92736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 186,
+          "line": 189,
           "sink": "QLabel"
         }
       ]
@@ -93411,7 +93411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 465,
+          "line": 483,
           "sink": "setText"
         }
       ]
@@ -96831,7 +96831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 149,
+          "line": 152,
           "sink": "QPushButton"
         }
       ]
@@ -96931,7 +96931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 218,
+          "line": 227,
           "sink": "QPushButton"
         },
         {
@@ -97092,6 +97092,16 @@
       ]
     },
     {
+      "key": "Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 211,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Show or hide session Activity and the current tool's log.",
       "origins": [
         {
@@ -97156,7 +97166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 220,
+          "line": 229,
           "sink": "QPushButton"
         },
         {
@@ -97348,6 +97358,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 247,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show underwear",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 208,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -98281,7 +98301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -105426,7 +105446,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 351,
+          "line": 372,
           "sink": "RuntimeError"
         }
       ]
@@ -105566,7 +105586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 746,
+          "line": 780,
           "sink": "_invalidate"
         }
       ]
@@ -106491,7 +106511,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 329,
+          "line": 348,
           "sink": "RuntimeError"
         }
       ]
@@ -106521,7 +106541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 620,
+          "line": 638,
           "sink": "_hair_failed"
         }
       ]
@@ -106601,7 +106621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 193,
+          "line": 196,
           "sink": "QLabel"
         }
       ]
@@ -106611,7 +106631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 661,
+          "line": 680,
           "sink": "_preview_failed"
         }
       ]
@@ -106981,7 +107001,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 320,
+          "line": 339,
           "sink": "RuntimeError"
         }
       ]
@@ -107431,7 +107451,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 392,
+          "line": 413,
           "sink": "RuntimeError"
         }
       ]
@@ -108046,7 +108066,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 399,
+          "line": 420,
           "sink": "RuntimeError"
         }
       ]
@@ -111051,7 +111071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 127,
+          "line": 130,
           "sink": "addItem"
         },
         {
@@ -112371,7 +112391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -112951,7 +112971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -113446,7 +113466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 212,
+          "line": 221,
           "sink": "addTab"
         },
         {
@@ -119321,7 +119341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 128,
+          "line": 131,
           "sink": "addItem"
         }
       ]
@@ -119501,7 +119521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 127,
+          "line": 130,
           "sink": "addItem"
         }
       ]
@@ -135877,6 +135897,21 @@
       ]
     },
     {
+      "key": "{value_0}\n{value_1}\nPreview unavailable",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 748,
+          "sink": "setData"
+        },
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 749,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0}\n{value_1}\nSocket template: {value_2}\n{value_3}",
       "origins": [
         {
@@ -136121,7 +136156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 460,
+          "line": 478,
           "sink": "addItem"
         }
       ]
@@ -136351,12 +136386,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 455,
+          "line": 473,
           "sink": "setItemText"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 457,
+          "line": 475,
           "sink": "addItem"
         },
         {
@@ -136571,22 +136606,22 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 361,
+          "line": 363,
           "sink": "python-return:_build_comparison_rows"
         },
         {
@@ -136686,7 +136721,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant/workers.py",
-          "line": 247,
+          "line": 249,
           "sink": "emit"
         },
         {
@@ -139496,7 +139531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 518,
+          "line": 536,
           "sink": "QListWidgetItem"
         }
       ]
@@ -139546,12 +139581,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 533,
+          "line": 551,
           "sink": "setHtml"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 533,
+          "line": 551,
           "sink": "setHtml"
         },
         {
@@ -139586,7 +139621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 522,
+          "line": 540,
           "sink": "QListWidgetItem"
         }
       ]
@@ -141376,7 +141411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 464,
+          "line": 482,
           "sink": "setText"
         }
       ]

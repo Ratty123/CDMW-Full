@@ -16,6 +16,10 @@ public sealed class ArchiveEntryPreparationService(
     private const int HashBufferSize = 128 * 1024;
     private const int HashProgressIntervalBytes = 8 * 1024 * 1024;
     private readonly ArchiveContentArtifactService _contentArtifacts = new();
+    // Fixed stripes bound memory while coordinating identical prepared paths,
+    // including requests from separate sessions/services in this worker.
+    private static readonly SemaphoreSlim[] PreparationGates =
+        Enumerable.Range(0, 256).Select(_ => new SemaphoreSlim(1, 1)).ToArray();
 
     public async Task<PrepareEntryResult> PrepareAsync(
         PrepareEntryRequest request,
@@ -28,6 +32,30 @@ public sealed class ArchiveEntryPreparationService(
         var sourceSha256 = await HashArchiveRangeAsync(entry, cancellationToken, progress).ConfigureAwait(false);
         var identityText = $"{session.Fingerprint}\n{entry.Identity.NormalizedPath}\n{entry.Identity.SourcePamt}\n{entry.PazIndex}\n{entry.Offset}\n{sourceSha256}";
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identityText))).ToLowerInvariant();
+        var gate = PreparationGates[Convert.ToByte(key[..2], 16)];
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await PrepareCachedAsync(request, session, entry, key, sourceSha256, cancellationToken, progress)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<PrepareEntryResult> PrepareCachedAsync(
+        PrepareEntryRequest request,
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        string key,
+        string sourceSha256,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress)
+    {
+        // Check again after earlier requests have published their complete file,
+        // metadata and optional analysis; only one request decodes shared inputs.
         var preparedRoot = Path.Combine(session.GenerationPath, "p", key[..2]);
         var extension = entry.Extension.Length <= 16 ? entry.Extension : string.Empty;
         var destination = Path.Combine(preparedRoot, key + extension);
@@ -162,9 +190,9 @@ public sealed class ArchiveEntryPreparationService(
         }
 
         // Preparation is per-entry hashing, decoding, and file publication with
-        // no cross-entry state; the native decode and the write path already
-        // tolerate concurrent requests, so a batch runs its entries with
-        // bounded parallelism. Results keep request order because the shell
+        // no cross-entry state; identical destinations share their preparation
+        // gate while distinct entries run with bounded parallelism.
+        // Results keep request order because the shell
         // asserts it, and the first failure fails the whole batch with its own
         // exception, exactly as the sequential loop did.
         var entryIds = request.EntryIds;

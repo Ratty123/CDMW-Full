@@ -120,6 +120,10 @@ priority; selecting a card already being prepared reuses that job and can displa
 its ready 3D package while thumbnail capture finishes. Other slots continue the page. Scrolling
 reprioritizes waiting cards without restarting current page jobs. Thumbnail
 captures render at 256px; the interactive preview keeps its full geometry and textures.
+The **Show underwear** checkbox toggles separately identified underwear meshes in
+the interactive preview immediately, without extracting or rebuilding the model.
+The choice carries across selections within the dialog. Thumbnails keep the base
+appearance; clothing painted into the skin texture cannot be hidden this way.
 Catalogue lookahead starts as soon as a page appears and fetches up to four more
 pages, with one catalogue request outstanding at a time. Once the on-screen cards
 finish, up to two render jobs share the available slots with the rest of the
@@ -155,6 +159,11 @@ selection receives the ready 3D package while that capture is still running.
 Packages stay pinned during capture. Up to 576 recent full catalogue details are
 retained per controller and reused for card selection and page revisits, with
 archive-session checks preventing reuse after a rescan.
+Shared archive inputs coordinate decoding and publication through bounded
+preparation gates, preventing concurrent previews from replacing the same cache
+metadata at once. Temporary access/sharing failures retry twice after worker
+teardown without a click or scroll; persistent failures label the affected card
+**Preview unavailable** while the rest of the page continues.
 Each native job keeps its temporary DDS files under its own staging directory,
 so another job's cache trimming cannot remove textures before package publication.
 Streamed appearance dependencies retain prepared DDS and skeleton-variation files

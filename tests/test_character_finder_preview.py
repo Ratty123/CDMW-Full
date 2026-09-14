@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 from cdmw.domain.archives.catalogue import ArchiveLookupResult
 from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult
 from cdmw.domain.archives.character_catalogue import CharacterCatalogFile, CharacterCatalogComponent
-from cdmw.domain.character_finder import CharacterRenderResult, character_preview_detail
+from cdmw.domain.character_finder import CharacterRenderResult, character_preview_detail, character_underwear_submesh_indices
 from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.character_finder import preview_controller as module
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
@@ -199,6 +199,117 @@ def test_scheduling_pause_finishes_active_startup_jobs_without_starting_more(pag
     for job in jobs:
         job.release.set()
     wait_for(lambda: owner.page_complete)
+
+
+@pytest.mark.parametrize("failures", [1, 99])
+def test_temporary_path_failure_retries_automatically_and_remains_bounded(page_scheduler, monkeypatch, failures):
+    owner, jobs = page_scheduler
+    attempts, errors = {}, []
+    owner.failed.connect(lambda key, message: errors.append((key, message)))
+    def install(preparation):
+        def start(selected, token):
+            key = selected.row.key
+            attempts[key] = attempts.get(key, 0) + 1
+            if key == "asset:1" and attempts[key] <= failures:
+                preparation.failed.emit(token, "Access to the path is denied.")
+            else:
+                preparation.ready.emit(token, selected)
+        monkeypatch.setattr(preparation, "start", start)
+    for lane in owner._lanes:
+        install(lane._preparation)
+    owner.visible([row(1), row(2), row(3)], session_id="session-a", generation=1)
+    expected = 2 if failures == 1 else 3
+    wait_for(lambda: attempts.get("asset:1") == expected)
+    wait_for(lambda: (any(job.selected.row.key == "asset:1" for job in jobs) if failures == 1 else bool(errors)))
+    for job in jobs:
+        job.release.set()
+    wait_for(lambda: any(job.selected.row.key == "asset:3" for job in jobs))
+    for job in jobs:
+        job.release.set()
+    wait_for(lambda: owner.page_complete)
+    assert attempts["asset:1"] == expected
+    assert len(errors) == (0 if failures == 1 else 1)
+    assert attempts["asset:2"] == attempts["asset:3"] == 1
+
+
+def test_page_change_cancels_a_pending_path_failure_retry(page_scheduler, monkeypatch):
+    owner, jobs = page_scheduler
+    for lane in owner._lanes:
+        preparation = lane._preparation
+        monkeypatch.setattr(preparation, "start", lambda selected, token, p=preparation:
+            p.failed.emit(token, "Access to the path is denied."))
+    owner.visible([row(1)], session_id="session-a", generation=1)
+    wait_for(lambda: any(lane._retry_timer.isActive() for lane in owner._lanes))
+    owner.clear_page()
+    QTest.qWait(250)
+    assert not jobs and not owner.busy
+    assert not any(lane._retry_timer.isActive() for lane in owner._lanes)
+
+
+def test_underwear_visibility_uses_explicit_part_identity_and_keeps_skin():
+    parts = [
+        {"source_submesh_index": 0, "material": "CD_PHW_00_Nude_0001", "name": "body"},
+        {"source_submesh_index": 3, "material": "CD_PHW_00_UW_00_0001", "name": "body"},
+        {"source_submesh_index": 7, "material": "cloth", "name": "character/38_underwear/inner.pac"},
+        {"source_submesh_index": 8, "material": "glowing_skin", "name": "head"},
+        {"source_submesh_index": -1, "material": "underwear"},
+    ]
+    assert character_underwear_submesh_indices(parts) == (3, 7)
+
+
+def test_legacy_cached_preview_discovers_underwear_without_rebuilding(tmp_path):
+    package = tmp_path / "package"
+    package.mkdir()
+    manifest = package / "manifest.json"
+    manifest.write_text(json.dumps({"state": {"preview_scene": {"part_identities": [
+        {"source_submesh_index": 4, "material": "CD_PHW_00_UW_00_0001"}]}}}))
+    directory = tmp_path / "character_finder" / "thumbnails"
+    directory.mkdir(parents=True)
+    (directory / "fixture.png").write_bytes(b"image")
+    metadata = {"key": "fixture", "package_path": str(package), "status": "base_appearance", "notes": []}
+    (directory / "fixture.json").write_text(json.dumps(metadata))
+    assert cached_character_render(tmp_path, "fixture").underwear_submesh_indices == (4,)
+    # A page lookup still uses its saved image after the 3D package was evicted.
+    manifest.unlink()
+    assert cached_character_render(tmp_path, "fixture", require_package=False).underwear_submesh_indices == ()
+
+
+def test_render_failure_waits_for_thread_retirement_before_retrying(controller, monkeypatch):
+    lane, _ = controller
+    jobs, ready = [], []
+    release = threading.Event()
+    class Worker(QObject):
+        package_ready = Signal(int, object)
+        completed = Signal(int, object)
+        failed = Signal(int, str)
+        finished = Signal()
+        def __init__(self, token, inputs, **kwargs):
+            super().__init__()
+            self.token = token
+            self.first = not jobs
+            jobs.append(self)
+        def stop(self): release.set()
+        def run(self):
+            try:
+                if self.first:
+                    self.failed.emit(self.token, "[WinError 32] The file is being used by another process.")
+                    release.wait(5)
+                else:
+                    self.completed.emit(self.token, CharacterRenderResult("ready", "package", "image", "base_appearance", ()))
+            finally:
+                self.finished.emit()
+    monkeypatch.setattr(module, "CharacterFinderRenderWorker", Worker)
+    lane.thumbnail_ready.connect(lambda key, _: ready.append(key))
+    try:
+        lane.select(detail(row(1)), 1)
+        wait_for(lambda: lane._next == "retry")
+        QTest.qWait(250)
+        assert len(jobs) == 1 and not lane._retry_timer.isActive()
+        release.set()
+        wait_for(lambda: ready == ["asset:1"] and not lane.busy)
+        assert len(jobs) == 2
+    finally:
+        release.set()
 
 
 def test_prefetch_runs_one_job_after_visible_cards_and_promotes_it_on_next_page(page_scheduler):
