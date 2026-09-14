@@ -153,3 +153,68 @@ def test_context_rejects_stale_preparation_failures_and_reports_catalogue_change
     assert errors==[]
     owner.archive_catalogue_service.session_published.emit(owner.archive_catalogue_service.current_session)
     assert len(errors)==1 and "changed" in errors[0]
+
+
+def test_picker_selection_owns_preparation_and_can_retry_failure(owner):
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=((0, "first"), (1, "second")))
+    QApplication.processEvents()
+    first, second = row(1), row(2)
+    dialog._details = {item.key: replace(detail(item), models=(SimpleNamespace(entry_id=i),))
+                       for i, item in enumerate((first, second))}
+    dialog._add(first)
+    dialog._add(second)
+    dialog.grid.setCurrentRow(0)
+    dialog.choose.click()
+    first_token = dialog._prepare.started[-1][1]
+    dialog.grid.setCurrentRow(1)
+    dialog.choose.click()
+    second_token = dialog._prepare.started[-1][1]
+    before = dialog.status.text()
+    dialog._prepare.failed.emit(first_token, "Obsolete failure")
+    assert dialog.status.text() == before
+    dialog._prepare.failed.emit(second_token, "Try again")
+    assert dialog.status.text() == "Try again" and dialog.choose.isEnabled()
+    dialog.choose.click()
+    retry_token = dialog._prepare.started[-1][1]
+    assert len({first_token, second_token, retry_token}) == 3
+    dialog._prepare.failed.emit(second_token, "Late retry failure")
+    assert dialog.status.text() == "Preparing character materials…"
+    dialog._preview.failed.emit(first.key, "Unselected thumbnail failure")
+    assert dialog.status.text() == "Preparing character materials…"
+    target = SimpleNamespace(path="hair.pac", basename="hair.pac")
+    inputs = SimpleNamespace(detail=dialog._details[second.key], dependencies_complete=True,
+                             entries=(target,), entries_by_id={1: target})
+    dialog._prepare.ready.emit(second_token, inputs)
+    assert dialog.selected_entry is None and not dialog._closed
+    dialog._prepare.ready.emit(retry_token, inputs)
+    assert dialog.selected_entry is target and dialog._closed
+
+
+@pytest.mark.parametrize("failure", ["cancel_after_load", "cancel_after_copy", "copy_failure", "cancel_cached_copy"])
+def test_reference_cache_cancellation_releases_unpublished_assets(monkeypatch, failure):
+    import threading
+    from cdmw.workers import mesh_archive_refit_worker as worker
+
+    stop = threading.Event()
+    released = []
+    lease = SimpleNamespace(lease=SimpleNamespace(release=lambda: released.append(True)))
+    def prepare(args, _stop):
+        if failure == "cancel_after_load": stop.set()
+        return {**args, "_archive_snapshot": SimpleNamespace(original_data=b"owned", mesh=None),
+                "_archive_preview_lease": lease, "_archive_neutral_appearance": None,
+                "_archive_appearance_warning": "", "_archive_material_reason": ""}
+    monkeypatch.setattr(worker, "prepare_archive_refit_source", prepare)
+    monkeypatch.setattr(worker, "_hair_references", worker.OrderedDict())
+    args = {"_archive_entry": SimpleNamespace(identity="head"), "_hair_context_identity": ("session", "generation")}
+    if failure == "cancel_cached_copy":
+        worker.prepare_hair_reference_source(args, stop)
+    original = worker.copy.deepcopy
+    def interrupted(value, *args, **kwargs):
+        if failure == "copy_failure": raise ValueError("Copy failed")
+        if failure in {"cancel_after_copy", "cancel_cached_copy"}: stop.set()
+        return original(value, *args, **kwargs)
+    monkeypatch.setattr(worker.copy, "deepcopy", interrupted)
+    with pytest.raises((RuntimeError, ValueError)):
+        worker.prepare_hair_reference_source(args, stop)
+    assert released == ([] if failure == "cancel_cached_copy" else [True])
+    assert len(worker._hair_references) == (1 if failure == "cancel_cached_copy" else 0)

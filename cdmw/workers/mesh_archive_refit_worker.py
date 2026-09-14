@@ -36,23 +36,40 @@ def prepare_hair_reference_source(args, stop_event):
             _hair_references.move_to_end(key)
     raise_if_cancelled(stop_event, "Hair reference loading cancelled")
     if cached is not None:
-        return {**args, **copy.deepcopy(cached[0]), "_archive_preview_lease": None}
-    prepared = prepare_archive_refit_source(args, stop_event)
-    from cdmw.services.mesh_service_history import _history_value_retained_bytes
-    retained = {field: prepared[field] for field in (
-        "_archive_snapshot", "_archive_neutral_appearance", "_archive_appearance_warning", "_archive_material_reason")}
-    size = _history_value_retained_bytes(retained)
-    if size <= 64 * 1024 * 1024:
-        saved = copy.deepcopy(retained)
+        restored = copy.deepcopy(cached[0])
         raise_if_cancelled(stop_event, "Hair reference loading cancelled")
-        with _hair_reference_lock:
-            for old in tuple(_hair_references):
-                if old[0] != key[0]:
-                    _hair_references.pop(old)
-            _hair_references[key] = (saved, size)
-            while len(_hair_references) > 4 or sum(row[1] for row in _hair_references.values()) > 128 * 1024 * 1024:
-                _hair_references.popitem(last=False)
-    return prepared
+        return {**args, **restored, "_archive_preview_lease": None}
+    prepared = prepare_archive_refit_source(args, stop_event)
+    try:
+        raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+        from cdmw.services.mesh_service_history import _history_value_retained_bytes
+        retained = {field: prepared[field] for field in (
+            "_archive_snapshot", "_archive_neutral_appearance", "_archive_appearance_warning", "_archive_material_reason")}
+        size = _history_value_retained_bytes(retained)
+        if size <= 64 * 1024 * 1024:
+            saved = copy.deepcopy(retained)
+            with _hair_reference_lock:
+                raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+                for old in tuple(_hair_references):
+                    if old[0] != key[0]:
+                        _hair_references.pop(old)
+                _hair_references[key] = (saved, size)
+                while len(_hair_references) > 4 or sum(row[1] for row in _hair_references.values()) > 128 * 1024 * 1024:
+                    _hair_references.popitem(last=False)
+        else:
+            raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+        return prepared
+    except BaseException:
+        # This lease has not been handed to a session. Release it even while an
+        # exception traceback still retains the prepared snapshot and our frame.
+        owner = prepared.get("_archive_preview_lease")
+        if owner is not None and owner.lease is not None:
+            try:
+                owner.lease.release()
+                owner.lease = None
+            except Exception:
+                pass  # The lease destructor can retry without hiding the error.
+        raise
 
 
 def _run(worker, signal, stop_event):

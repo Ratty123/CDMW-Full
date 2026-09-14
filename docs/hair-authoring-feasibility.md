@@ -16,6 +16,10 @@ work. Scalp binding identities also include the actual appearance geometry, so
 changed transforms invalidate attachments even when the PAC bytes are identical.
 Alternative pickers apply `hair_head`/`hair_body` eligibility before facets,
 counts and pagination, with a defensive UI check.
+Each selection/preparation attempt has its own token, so late failures cannot
+overwrite another choice and a failed attempt can be retried. Cancellation during
+reference cache preparation releases untransferred material leases immediately;
+cached copies also check cancellation before delivery.
 
 Rust owns visible locks, guide/card generation, picking, grooming and simulation.
 Qt owns entry points and lifecycle. Python owns archive/material loading, host
@@ -48,6 +52,8 @@ Topology changes still use complete replacement validation. Acknowledgements upd
 revisions without installing another scene. Stale
 acks are rejected. Finish waits for pending generation and publication. Host work
 remains off the Qt thread; the previous scene stays available.
+Validated hair states retain their revision separately from the canonical bytes,
+avoiding a full document decode for each acknowledgement or status request.
 
 Motion uses fixed 120 Hz CPU XPBD, with root, length/bend, gravity, damping, wind
 and capsule constraints. The procedural torso/neck/head pose drives the reference,
@@ -137,6 +143,9 @@ warm-open and 500-ms acknowledgement targets have not been established. An isola
 metadata publication fell from about 4.8 seconds to 686 ms after removing full-mesh
 transactions; this is neither a grooming-latency nor presentation measurement.
 History accounting was further optimized without changing retained-byte semantics.
+On the saved 256-guide, 49,152-bound-vertex scene, revision lookup alone previously
+decoded 10.5 MB and took about 101 ms p95; cached validated revision reads avoid
+that work. This component measurement excludes transaction validation and display.
 Full host/presentation measurements remain required. Normal-window picker/editor
 captures and the complete real-user tool matrix are also outstanding.
 

@@ -46,6 +46,9 @@ show compatible heads or base bodies, filtered in the resident catalogue before
 pagination. There is no fallback to an unrestricted archive list. Changed heads
 invalidate bindings until explicit rebinding. Setup, Appearance and Advanced are
 collapsed; unrelated topology, rigging and UV controls stay hidden in Hair mode.
+Switching choices cancels the previous preparation; its late results and errors
+cannot replace the current selection. A failed preparation leaves **Use selection**
+available to retry. Cancelled reference loads release their unpublished assets.
 
 **Play** becomes available when roots, geometry ownership and required textures
 are ready. **Head and shoulders** is the default test; Turn, Nod, Body sway and
@@ -72,6 +75,8 @@ Parts, action history, guides/roots and collision overlays remain available in
 collapsed panels; visibility never removes hair from the exported result.
 Incremental candidates reuse immutable references; acknowledgements preserve the
 camera, selection and newer local edits. Finish drains pending actions first.
+Acknowledgements read the validated revision without decoding the complete hair
+document again.
 
 Packages retain the additional-choice contract, automatically allocate distinct
 internal identities and use the readable name in their manifest. Retained existing
