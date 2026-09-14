@@ -41,6 +41,41 @@ def fixture():
     return files
 
 
+@pytest.mark.parametrize("resources,reason", [([MESH, MESH.replace("00_0008", "uptail_0008")], "multiple PAC"),
+                                            ([MESH.replace("_player.pac", ".pac")], "different PAC")])
+def test_prefab_donor_gate_explains_multi_mesh_and_alias_choices(monkeypatch, resources, reason):
+    from cdmw.services import hair_registration
+    monkeypatch.setattr(hair_registration, "decode_prefab_binary", lambda data:
+        SimpleNamespace(resource_strings=lambda: [SimpleNamespace(text=path) for path in resources]))
+    with pytest.raises(HairRegistrationError, match=reason):
+        hair_registration.validate_hair_prefab_donor(b"prefab", MESH)
+
+
+@pytest.mark.parametrize("character", ["Kliff", "Damiane", "Oongka"])
+def test_registration_uses_selected_characters_barber_document(character):
+    from cdmw.domain.hair_characters import hair_character
+    from cdmw.services.hair_registration import prepare_hair_registration
+    profile = hair_character(character)
+    stem = STEM if character == "Damiane" else STEM.replace("phw", "phm")
+    mesh = profile.hair_root + stem + ".pac"
+    files = fixture()
+    files[profile.mesh_param_path] = files.pop(DAMIANE_MESH_PARAM).replace(STEM.encode(), stem.encode())
+    record = PartPrefabRecord(stem, "1_pc/01_phm/head/hair" if character != "Damiane" else "1_pc/02_phw/head/hair",
+                              "", flag=0, parts=(PartPrefabPart("CD_Hair"),))
+    old_record = parse_pappt(files[PART_PREFAB_TABLE]).records[0]
+    files.pop(old_record.prefab_path)
+    files[PART_PREFAB_TABLE] = encode_pappt(PartPrefabTable((record,), tag_prefix=b"\x01"))
+    files[record.prefab_path] = _build(mesh)
+    for path in tuple(files):
+        if MESH in path or STEM in path:
+            value = files.pop(path)
+            files[path.replace("2_phw", profile.hair_family).replace(STEM, stem)] = value
+    plan = prepare_hair_registration(files, character=character, new_stem="my_added_hair", existing_paths=tuple(files))
+    outputs = {item.path: item.data for item in plan.replacements}
+    assert read_hair_choices(outputs[profile.mesh_param_path])[-1].prefab_stem == "my_added_hair"
+    assert len(plan.additions) == 5
+
+
 def test_append_retains_every_source_byte_and_existing_option():
     result = append_hair_choice(XML, template_index=0, prefab_stem=NEW, icon_path=ICON)
     assert result.data[:result.insertion_offset] + result.data[result.insertion_offset + len(result.inserted_bytes):] == XML

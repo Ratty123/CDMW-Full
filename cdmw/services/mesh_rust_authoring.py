@@ -6936,6 +6936,7 @@ class RustMeshAuthoringSession:
     preview_material_binding_count: int = 0
     texture_resource_count: int = 0
     hair_file_cache: tuple[bytes, dict[str, object]] | None = None
+    hair_skin_donor_mesh: ParsedMesh | None = None
     hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
     archive_refit_material_references: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -8365,7 +8366,7 @@ class RustMeshAuthoringSession:
         if (shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]
                 and (command in {"topology", "mesh_action", "import_editable_package", "layer_delete", "layer_paste"}
                      or command.startswith(("morph_", "refit_"))
-                     or command.startswith("replacement_") and command not in {"replacement_compare", "replacement_cancel"})):
+                     or command.startswith("replacement_") and command not in {"replacement_compare", "replacement_cancel", "replacement_include"})):
             raise RustMeshValidationError("Convert hair guides to ordinary geometry before using these mesh operations.")
         if self.replacement_comparison != "edit" and command not in {"state", "replacement_compare", "replacement_cancel"}:
             raise RustMeshValidationError("Return to Edit comparison before changing the mesh.")

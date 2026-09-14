@@ -34,6 +34,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.archive_session_open_pending = None
         if not isinstance(pending, Mapping):
             return
+        if pending.get("prepared_result") is not None:
+            self._discard_archive_session_result(pending["prepared_result"])
         lease = pending.get("material_package_lease")
         if lease is preserve_lease or lease is getattr(
             self, "archive_material_context_package_lease", None
@@ -58,8 +60,12 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_context_verified_for_rust: bool,
         material_source_identity: object | None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
+        prepared_result: object | None = None,
     ) -> None:
         previous = getattr(self, "archive_session_open_pending", None)
+        previous_result = previous.get("prepared_result") if isinstance(previous, Mapping) else None
+        if previous_result is not None and previous_result is not prepared_result:
+            self._discard_archive_session_result(previous_result)
         previous_lease = (
             previous.get("material_package_lease")
             if isinstance(previous, Mapping)
@@ -86,6 +92,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             ),
             "material_source_identity": material_source_identity,
             "archive_dependencies": archive_dependencies,
+            "prepared_result": prepared_result,
         }
 
     def _resume_queued_archive_session_open(self) -> None:
@@ -96,6 +103,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         payload = dict(pending)
         entry = payload.pop("entry", None)
         if not isinstance(entry, _tab.ArchiveEntry):
+            if payload.get("prepared_result") is not None:
+                self._discard_archive_session_result(payload["prepared_result"])
             lease = payload.get("material_package_lease")
             release = getattr(lease, "release", None)
             if callable(release):
@@ -115,10 +124,14 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         material_context_verified_for_rust: bool = False,
         material_source_identity: object | None = None,
         archive_dependencies: ArchiveWorkflowDependencyContext | None = None,
+        prepared_result: object | None = None,
     ) -> int | None:
         """Open an archive mesh directly in the resident authoring workspace."""
         if not isinstance(entry, _tab.ArchiveEntry):
             raise TypeError("entry must be ArchiveEntry")
+        if prepared_result is not None and (not isinstance(prepared_result, _tab.MeshArchiveSessionLoadResult)
+                or str(prepared_result.mesh.path).casefold() != entry.path.casefold()):
+            raise ValueError("Prepared editor geometry belongs to another archive target")
         if (
             archive_dependencies is not None
             and archive_dependencies.selected_entry.identity != entry.identity
@@ -127,6 +140,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         if str(_tab.QApplication.platformName() or "").strip().lower() != "offscreen":
             preflight_reason = self._rust_open_preflight_reason()
             if preflight_reason:
+                if prepared_result is not None:
+                    self._discard_archive_session_result(prepared_result)
                 message = f"Mesh Editor cannot open: {preflight_reason}."
                 self.empty_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
@@ -160,6 +175,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 material_context_verified_for_rust=material_context_verified_for_rust,
                 material_source_identity=material_source_identity,
                 archive_dependencies=archive_dependencies,
+                prepared_result=prepared_result,
             )
             self.status_message_requested.emit(
                 "Mesh Editor will open the requested mesh after the current Finish has stopped safely.",
@@ -215,11 +231,12 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
         self.update_editor_session_state(None)
         self._sync_state()
-        self._start_archive_session_load_when_indexes_ready(
-            request_id,
-            entry_snapshot,
-            resume_manifest_path=resume_path,
-        )
+        if prepared_result is not None:
+            self._handle_archive_session_loaded(request_id, prepared_result)
+        else:
+            self._start_archive_session_load_when_indexes_ready(
+                request_id, entry_snapshot, resume_manifest_path=resume_path,
+            )
         self.status_message_requested.emit(f"Mesh Editor loading archive mesh: {entry.basename}", False)
         return request_id
 

@@ -99,7 +99,7 @@ def commit_hair_vertices(authoring, snapshot, state, new, old, updates, label, s
                     if p.target_index in changed else p for p in snapshot.replacement_state.parts))
     with session.export_lock:
         if (session.closed or session.revision != snapshot.mesh_revision or session.hair_state is not snapshot.hair_state
-                or session.native_editor_mesh_dirty or session.native_editor_session_ready):
+                or session.native_editor_mesh_dirty):
             raise ValueError("Hair edit became stale before publication.")
         marker = _MeshHistorySnapshot(
             mesh=None, mode=session.mode, selection=session.selection,
@@ -122,6 +122,10 @@ def commit_hair_vertices(authoring, snapshot, state, new, old, updates, label, s
         while len(next_undo) > max(1, int(service.max_history)) or _history_stack_retained_bytes(next_undo) > limit:
             discarded.append(next_undo.pop(0))
         authoring._raise_if_cancelled(stop_event)
+        # Draft saving and history can leave a clean native snapshot resident.
+        # Invalidate that cache before changing its Python-owned coordinates.
+        from cdmw.services.mesh_service_native_session import _close_native_editor_session
+        _close_native_editor_session(session)
         # Build the new containers first; shared unmodified parts remain live
         # only in the current mesh, never retained as a history snapshot.
         candidate = copy.copy(session.working_mesh)

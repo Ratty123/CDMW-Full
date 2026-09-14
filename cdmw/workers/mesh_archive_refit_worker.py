@@ -29,7 +29,10 @@ def prepare_hair_reference_source(args, stop_event):
     if not generation:
         return prepare_archive_refit_source(args, stop_event)
     entry = args["_archive_entry"]
-    key = (tuple(generation), entry.identity)
+    descriptors = args.get("_hair_authored_descriptors")
+    authored = descriptors is not None and entry.path.casefold() in descriptors
+    descriptor = descriptors.get(entry.path.casefold()) if authored else None
+    key = (tuple(generation), entry.identity, descriptor.identity if descriptor is not None else None, authored)
     with _hair_reference_lock:
         cached = _hair_references.get(key)
         if cached is not None:
@@ -42,9 +45,24 @@ def prepare_hair_reference_source(args, stop_event):
     prepared = prepare_archive_refit_source(args, stop_event)
     try:
         raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+        if authored:
+            # Mounted component identity is authoritative. Generic basename
+            # resolution can otherwise apply another character's PABC to a
+            # shared base body, separating its skull from the selected face.
+            prepared["_archive_neutral_appearance"] = None
+            if descriptor is not None:
+                from cdmw.core.archive_mesh_appearance import apply_archive_mesh_appearance
+                snapshot = prepared["_archive_snapshot"]
+                dependencies = args["_archive_dependencies"]
+                appearance, _notes = apply_archive_mesh_appearance(entry, snapshot.mesh, snapshot.original_data,
+                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    archive_entries_by_basename=dependencies.entries_by_basename,
+                    context_entries=dependencies.entries, authored_descriptor=descriptor, stop_event=stop_event)
+                prepared["_archive_neutral_appearance"] = getattr(appearance, "_cdmw_neutral_appearance", None)
         from cdmw.services.mesh_service_history import _history_value_retained_bytes
         retained = {field: prepared[field] for field in (
             "_archive_snapshot", "_archive_neutral_appearance", "_archive_appearance_warning", "_archive_material_reason")}
+        retained["_archive_skeleton"] = prepared.get("_archive_skeleton")
         size = _history_value_retained_bytes(retained)
         if size <= 64 * 1024 * 1024:
             saved = copy.deepcopy(retained)
@@ -90,6 +108,46 @@ def _run(worker, signal, stop_event):
     return results[0]
 
 
+def prepare_hair_editor_session(entry, dependencies, args, draft_root, stop_event):
+    """Prepare target, mounted references and materials without replacing live work."""
+    from dataclasses import replace
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup, validate_hair_donor
+    loader = MeshArchiveSessionLoadWorker(1, entry, draft_root=draft_root,
+        archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+        archive_entries_by_basename=dependencies.entries_by_basename)
+    loaded = _run(loader, loader.loaded, stop_event)
+    leases = []
+    try:
+        validate_hair_donor(loaded.mesh, args["character"])
+        prepared = prepare_hair_reference_source(args, stop_event)
+        leases.append(prepared.get("_archive_preview_lease"))
+        body = prepare_hair_reference_source({**args, "_archive_entry": args["_body_archive_entry"],
+            "_archive_dependencies": args["_body_archive_dependencies"]}, stop_event)
+        leases.append(body.get("_archive_preview_lease"))
+        prepared.update(_body_snapshot=body["_archive_snapshot"],
+            _body_neutral_appearance=body["_archive_neutral_appearance"], _body_skeleton=body.get("_archive_skeleton"))
+        prepared["_prepared_head_details"] = []
+        for detail_entry, scale in args.get("_head_details", ()):
+            detail = prepare_hair_reference_source({**args, "_archive_entry": detail_entry}, stop_event)
+            leases.append(detail.get("_archive_preview_lease"))
+            detail["_scale"] = scale
+            prepared["_prepared_head_details"].append(detail)
+        prepared.update(_target_entry=entry, _target_dependencies=dependencies)
+        session = loaded.service._session(loaded.view.session_id)
+        prepare_hair_setup(loaded.service, session.session_id, prepared, stop_event,
+            neutral_appearance=session.neutral_appearance, neutral_coordinates=False)
+        raise_if_cancelled(stop_event, "Hair setup cancelled")
+        return replace(loaded, view=loaded.service.session_view(session.session_id), mesh=session.working_mesh)
+    except BaseException:
+        loaded.service.close_edit_session(loaded.view.session_id, force_without_saving=True)
+        raise
+    finally:
+        for owner in leases:
+            if owner is not None and owner.lease is not None:
+                owner.lease.release()
+                owner.lease = None
+
+
 def prepare_archive_refit_source(args, stop_event):
     from cdmw.services.mesh_refit_loading import MAX_REFIT_INPUT_BYTES
 
@@ -125,6 +183,7 @@ def prepare_archive_refit_source(args, stop_event):
         )
         raise_if_cancelled(stop_event, "Archive Refit loading cancelled")
         return {**args, "_archive_snapshot": snapshot, "_archive_preview_lease": lease,
+                "_archive_skeleton": loaded.source_skeleton,
                 "_archive_material_reason": reason, "_archive_neutral_appearance": appearance,
                 "_archive_appearance_warning": getattr(loaded, "appearance_warning", "")}
     finally:

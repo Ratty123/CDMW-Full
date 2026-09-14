@@ -171,7 +171,9 @@ fn closest_barycentric(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> [f32; 3] {
         return [0.0, 1.0 - w, w];
     }
     let denominator = va + vb + vc;
-    if denominator.abs() < 1e-12 {
+    // The denominator is proportional to squared triangle area. Real scalp
+    // triangles can be below one square millimetre without being degenerate.
+    if denominator <= f32::MIN_POSITIVE {
         return [1.0, 0.0, 0.0];
     }
     [va / denominator, vb / denominator, vc / denominator]
@@ -897,6 +899,10 @@ pub struct Simulation {
     pub elapsed: f64,
     pub pivot: Vec3,
     pub translation: Vec3,
+    surface: surface::SurfaceIndex,
+    scalp_positions: Vec<[f32; 3]>,
+    scalp_indices: Vec<u32>,
+    widths: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1034,7 +1040,25 @@ impl Simulation {
             (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
             |(a, b), p| (a.min(Vec3::from(*p)), b.max(Vec3::from(*p))),
         );
+        let mut widths = vec![0.0_f32; state.guides.len()];
+        for binding in &state.bindings {
+            widths[binding.guide as usize] =
+                widths[binding.guide as usize].max(Vec3::from(binding.offset).length());
+        }
         Ok(Self {
+            surface: surface::SurfaceIndex::new(
+                &state.scalp.positions,
+                &state
+                    .scalp
+                    .triangles
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .collect::<Vec<_>>(),
+            ),
+            scalp_positions: state.scalp.positions.clone(),
+            scalp_indices: state.scalp.triangles.iter().flatten().copied().collect(),
+            widths,
             translation: Vec3::ZERO,
             velocities: rest.iter().map(|g| vec![Vec3::ZERO; g.len()]).collect(),
             points: rest.clone(),
@@ -1074,23 +1098,32 @@ impl Simulation {
 
     fn step(&mut self, dt: f32, settings: MotionSettings, capsules: &[Capsule], rotation: Quat) {
         let force = Vec3::from(settings.gravity) + Vec3::from(settings.wind);
-        for ((points, velocity), rest) in self
+        let mut previous = Vec::new();
+        let mut contact_correction = Vec::new();
+        let mut length_lambda = Vec::new();
+        let mut bend_lambda = Vec::new();
+        for (guide_index, ((points, velocity), rest)) in self
             .points
             .iter_mut()
             .zip(&mut self.velocities)
             .zip(&self.rest)
+            .enumerate()
         {
-            let previous = points.clone();
+            previous.clone_from(points);
+            contact_correction.clear();
+            contact_correction.resize(points.len(), Vec3::ZERO);
             for i in 1..points.len() {
                 velocity[i] += force * dt;
                 points[i] = (Vec3::from(points[i]) + velocity[i] * dt).to_array();
             }
-            let mut length_lambda = vec![0.0; points.len() - 1];
-            let mut bend_lambda = vec![0.0; points.len().saturating_sub(2)];
+            length_lambda.clear();
+            length_lambda.resize(points.len() - 1, 0.0);
+            bend_lambda.clear();
+            bend_lambda.resize(points.len().saturating_sub(2), 0.0);
             let root =
                 self.pivot + self.translation + rotation * (Vec3::from(rest[0]) - self.pivot);
             points[0] = root.to_array();
-            for _ in 0..settings.iterations {
+            for iteration in 0..settings.iterations {
                 for i in 0..points.len() - 2 {
                     distance_constraint(
                         points,
@@ -1137,10 +1170,83 @@ impl Simulation {
                     }
                     *point = world.to_array();
                 }
+                // Solve in the same local scalp coordinates used for rendering.
+                // Probe the whole segment, with the follower-card extent, while
+                // pinning the first point exactly to its authored attachment.
+                if iteration + 1 != settings.iterations {
+                    continue;
+                }
+                let radius = settings.collision_margin + self.widths[guide_index];
+                for i in 1..points.len() {
+                    let local = |p: [f32; 3]| {
+                        self.pivot
+                            + rotation.inverse() * (Vec3::from(p) - self.pivot - self.translation)
+                    };
+                    let a = local(points[i - 1]);
+                    let b = local(points[i]);
+                    let samples =
+                        ((a.distance(b) / radius.max(0.002)).ceil() as usize).clamp(2, 16);
+                    let mut correction = Vec3::ZERO;
+                    for sample in 1..samples {
+                        let t = sample as f32 / samples as f32;
+                        let p = a.lerp(b, t);
+                        let margin = if i == 1 { radius * t } else { radius };
+                        let delta = self.surface.contact(
+                            &self.scalp_positions,
+                            &self.scalp_indices,
+                            p,
+                            margin,
+                        ) - p;
+                        if delta.length_squared() > correction.length_squared() {
+                            correction = delta;
+                        }
+                    }
+                    if correction.length_squared() > 0.0 {
+                        let world = rotation * correction;
+                        if i > 1 {
+                            points[i - 1] = (Vec3::from(points[i - 1]) + world).to_array();
+                            contact_correction[i - 1] += world;
+                        }
+                        let delta = world * if i == 1 { 2.0 } else { 1.0 };
+                        points[i] = (Vec3::from(points[i]) + delta).to_array();
+                        contact_correction[i] += delta;
+                    }
+                }
+                // A segment correction also moves its predecessor. Resolve
+                // every free point last so the next segment cannot push a
+                // previously resolved card row back into the scalp.
+                for i in 1..points.len() {
+                    let p = self.pivot
+                        + rotation.inverse()
+                            * (Vec3::from(points[i]) - self.pivot - self.translation);
+                    let corrected =
+                        self.surface
+                            .contact(&self.scalp_positions, &self.scalp_indices, p, radius);
+                    let delta = rotation * (corrected - p);
+                    points[i] = (Vec3::from(points[i]) + delta).to_array();
+                    contact_correction[i] += delta;
+                }
+            }
+            // Cut tips can approach float32 precision, and contacts can bring
+            // adjacent points together. Keep them distinct before deformation
+            // and settled-state validation without changing pinned roots.
+            for i in 1..points.len() {
+                let a = Vec3::from(points[i - 1]);
+                let delta = Vec3::from(points[i]) - a;
+                if delta.length_squared() < 1e-10 {
+                    let direction = delta.try_normalize().unwrap_or_else(|| {
+                        rotation * (Vec3::from(rest[i]) - Vec3::from(rest[i - 1])).normalize()
+                    });
+                    let corrected = a + direction * 1e-5;
+                    contact_correction[i] += corrected - Vec3::from(points[i]);
+                    points[i] = corrected.to_array();
+                }
             }
             let damping = (-settings.damping * dt).exp();
             for i in 1..points.len() {
-                velocity[i] = (Vec3::from(points[i]) - Vec3::from(previous[i])) / dt * damping;
+                velocity[i] =
+                    (Vec3::from(points[i]) - Vec3::from(previous[i]) - contact_correction[i]) / dt
+                        * damping;
             }
             velocity[0] = Vec3::ZERO;
         }
@@ -1367,6 +1473,66 @@ mod tests {
                 .collect::<Vec<_>>()
         );
     }
+    #[test]
+    fn hair_short_cut_tip_survives_motion_and_settling() {
+        let mut state = planted();
+        let points = &mut state.guides[0].points;
+        let last = points.len() - 1;
+        points[last] = (Vec3::from(points[last - 1]) + Vec3::Y * 1.2e-7).to_array();
+        state.validate().unwrap();
+        for movement in 0..6 {
+            let mut simulation = Simulation::new(&state).unwrap();
+            for _ in 0..60 {
+                let pose = simulation
+                    .advance_test(
+                        1.0 / 60.0,
+                        MotionSettings::default(),
+                        &state.collisions,
+                        movement,
+                        0.2,
+                    )
+                    .unwrap();
+                simulation.settled_state(&state, pose.head).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn hair_settled_shape_remains_valid_after_flat_contacts() {
+        let mut state = planted();
+        let root = Vec3::from(state.guides[0].points[0]);
+        for (i, point) in state.guides[0].points.iter_mut().enumerate() {
+            *point = (root - Vec3::Y * (i as f32 * 0.00005)).to_array();
+        }
+        state.validate().unwrap();
+        let mut simulation = Simulation::new(&state).unwrap();
+        for _ in 0..30 {
+            simulation
+                .advance(
+                    1.0 / 60.0,
+                    MotionSettings {
+                        gravity: [0.0; 3],
+                        ..Default::default()
+                    },
+                    &[],
+                    Quat::IDENTITY,
+                )
+                .unwrap();
+            simulation.settled_state(&state, Quat::IDENTITY).unwrap();
+        }
+    }
+
+    #[test]
+    fn hair_small_scalp_triangles_keep_interior_attachments() {
+        let bary = closest_barycentric(
+            Vec3::new(0.000125, 0.000125, 0.0002),
+            Vec3::ZERO,
+            Vec3::new(0.0005, 0.0, 0.0),
+            Vec3::new(0.0, 0.0005, 0.0),
+        );
+        assert!(Vec3::from(bary).distance(Vec3::new(0.5, 0.25, 0.25)) < 1e-6);
+    }
+
     #[test]
     fn hair_collision_pushes_vertices_outside_capsule() {
         let s = planted();

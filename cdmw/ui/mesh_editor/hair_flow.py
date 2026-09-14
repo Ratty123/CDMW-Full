@@ -6,7 +6,7 @@ from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 
 def build_hair_entry_bar(tab):
-    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPushButton
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
     bar = QFrame(tab)
     layout = QHBoxLayout(bar)
     layout.setContentsMargins(8, 6, 8, 6)
@@ -16,95 +16,79 @@ def build_hair_entry_bar(tab):
     font = button.font()
     font.setBold(True)
     button.setFont(font)
-    button.setToolTip("Create or edit Damiane hairstyles")
-    menu = QMenu(button)
-    create = menu.addMenu("Create hairstyle")
-    for preset in ("Cropped", "Bob", "Long", "Ponytail", "Empty"):
-        create.addAction(preset, lambda preset=preset: start_hair_workflow(tab, "generated", preset.casefold()))
-    menu.addAction("Edit hairstyle", lambda: start_hair_workflow(tab, "existing"))
-    button.setMenu(menu)
+    button.setToolTip("Create or edit Kliff, Damiane, and Oongka hairstyles")
+    button.clicked.connect(lambda: start_hair_workflow(tab))
     layout.addWidget(button)
     tab.hair_entry_status = QLabel("", bar)
     layout.addWidget(tab.hair_entry_status, 1)
     return bar
 
 
-def start_hair_workflow(tab, mode, preset="bob"):
-    """Read the mounted barber registration and prepare a real hairstyle choice."""
-    from cdmw.core.archive_extraction import read_archive_entry_data
-    from cdmw.domain.hair_registration import read_hair_choices
-    from cdmw.services.hair_registration import DAMIANE_MESH_PARAM
-    from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
-    from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
+def start_hair_workflow(tab, mode="generated", preset="bob", *, character=None, target_path=""):
+    """All entry points use the same choices, preflight, and explicit Start."""
+    from cdmw.domain.hair_characters import unique_hair_character
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
-    service = owner.archive.archive_catalogue_service
-    session = service.current_session
-    token = getattr(tab, "_hair_entry_generation", 0) + 1
-    tab._hair_entry_generation = token
-
-    def current():
-        return token == tab._hair_entry_generation and service.current_session is session
-
-    def failed(message):
-        if current():
-            tab.hair_entry_status.setText(str(message))
-
-    def choices_ready(choices):
-        if not current():
+    previous = getattr(tab, "_hair_setup_dialog", None)
+    if previous is not None and not previous._closed:
+        previous.reject()
+    current_target = getattr(tab, "_current_target_entry", lambda: None)()
+    authoring = getattr(tab, "standalone_rust_authoring_session", None)
+    active_hair = None
+    if authoring is not None:
+        active_hair = authoring.shadow_service._session(authoring.shadow_session_id).hair_state
+    if character is None:
+        profile = unique_hair_character(current_target.path) if current_target is not None else None
+        character = active_hair.payload["template"]["character"] if active_hair else profile.name if profile else None
+    reuse_target = (active_hair.payload["template"]["character"], current_target.identity) if (
+        active_hair and not active_hair.payload["converted"] and current_target is not None and all(g["mode"] == "generated" for g in active_hair.payload["groups"])) else None
+    if not target_path and active_hair and current_target is not None:
+        target_path = current_target.path
+    dialog = HairSetupDialog(owner, character=character, mode=mode, preset=preset, target_path=target_path,
+                             reuse_target=reuse_target, draft_root=getattr(tab, "mesh_editor_draft_root", None))
+    tab._hair_setup_dialog = dialog
+    def selected(result):
+        if getattr(tab, "_hair_setup_dialog", None) is not dialog:
             return
-        picker = HairReferencePickerDialog(owner, "hair", styles=tuple((c.index, c.prefab_stem) for c in choices))
-        picker.preparation_failed.connect(failed)
-        tab.hair_entry_status.setText("Choose a hairstyle to edit" if mode == "existing" else "Preparing hair materials…")
-
-        def selected(result):
-            if result != QDialog.Accepted or not current():
+        if result != QDialog.Accepted:
+            tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
+            return
+        target = dialog.selected_entry
+        chosen_mode, chosen_preset = dialog.mode.currentData(), dialog.preset.currentData()
+        live_target = getattr(tab, "_current_target_entry", lambda: None)()
+        if dialog.prepared_result is None and getattr(tab, "standalone_rust_authoring_session", None) is not authoring:
+            tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
+            return
+        same = live_target is not None and live_target.identity == target.identity
+        same_character = active_hair and active_hair.payload["template"]["character"] == dialog.context.character
+        if same and same_character and not active_hair.payload["converted"] and chosen_mode == "generated" and all(g["mode"] == "generated" for g in active_hair.payload["groups"]):
+            if not tab._send_rust_message(tab._rust_host_message("hair_preset", request_id=0, extra={"preset": chosen_preset})):
+                tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
                 return
-            target = picker.selected_entry
-            if not owner.shell._prepare_mesh_editor_archive_launch(target):
-                return
-            tab._pending_hair_start = (target.identity, mode)
-            tab._pending_hair_preset = preset
-            tab.open_archive_session(target, archive_dependencies=picker.selected_dependencies)
             owner.shell._activate_tool_widget(tab)
-            tab.hair_entry_status.setText("Loading character…")
-        picker.finished.connect(selected)
-        if mode == "generated":
-            # The first registered choice supplies compatibility and materials;
-            # the Rust workspace replaces its visible hair with the chosen preset.
-            picker.auto_choose_first = True
-        else:
-            picker.open()
-
-    def prepared(context):
-        if not current():
+            tab.hair_entry_status.setText("Applying hairstyle preset…")
             return
-        entry = context.dependencies.entry_for_path(DAMIANE_MESH_PARAM)
-        if entry is None:
-            failed("The mounted character is missing its barber registration. Refresh the catalogue.")
+        # Same-target setup must still allow switching mode or character, and
+        # use the existing unsaved-work confirmation before replacing a scene.
+        if not owner.shell._prepare_mesh_editor_archive_launch(target, replace_same=same):
+            if dialog.prepared_result is not None:
+                tab._discard_archive_session_result(dialog.prepared_result)
+                dialog.prepared_result = None
+            tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
             return
-        def read_choices(_log):
-            if entry.orig_size > 2 * 1024 * 1024:
-                raise ValueError("The barber registration exceeds its supported size.")
-            return read_hair_choices(read_archive_entry_data(entry)[0])
-        owner._run_utility_task_when_idle(status_message="Loading Damiane's hairstyles…", task=read_choices,
-            on_complete=choices_ready, on_error=failed)
-
-    resolver = getattr(tab, "_hair_context_preparation", None)
-    if resolver is None:
-        resolver = HairContextPreparation(service, tab)
-        tab._hair_context_preparation = resolver
-    resolver.cancel()
-    for signal in (resolver.ready, resolver.failed):
-        try:
-            signal.disconnect()
-        except (RuntimeError, TypeError):
-            pass
-    resolver.ready.connect(prepared)
-    resolver.failed.connect(failed)
-    tab.hair_entry_status.setText("Loading character…")
-    resolver.start()
+        tab._pending_hair_start = (target.identity, chosen_mode)
+        tab._pending_hair_preset = chosen_preset
+        tab._pending_hair_character = dialog.context.character
+        tab._pending_hair_context = dialog.context
+        tab.open_archive_session(target, archive_dependencies=dialog.selected_dependencies, prepared_result=dialog.prepared_result)
+        dialog.prepared_result = None
+        owner.shell._activate_tool_widget(tab)
+        tab.hair_entry_status.setText("Loading character…")
+    dialog.finished.connect(selected)
+    dialog.open()
+    return dialog
 
 
 def begin_hair_context(tab, session, event):
@@ -115,7 +99,7 @@ def begin_hair_context(tab, session, event):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
-        raise ValueError("Open a Damiane hairstyle before entering Hair.")
+        raise ValueError("Open a registered player hairstyle before entering Hair.")
     dependencies = getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)
     previous = getattr(tab, "_hair_context_preparation", None)
     if previous is not None:
@@ -144,7 +128,13 @@ def begin_hair_context(tab, session, event):
         tab._start_next_rust_protocol_worker()
     previous.ready.connect(resume)
     previous.failed.connect(lambda message: resume(error=message))
-    previous.start()
+    context = getattr(tab, "_pending_hair_context", None)
+    tab._pending_hair_context = None
+    if context is not None:
+        resume(context)
+    else:
+        state = session.shadow_service._session(session.shadow_session_id).hair_state
+        previous.start(state.payload["template"]["character"] if state else getattr(tab, "_pending_hair_character", "Damiane"))
 
 
 def open_hair_texture_source(tab, path):
@@ -161,14 +151,15 @@ def prepare_hair_event(tab, session, event):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
-        raise ValueError("Open a Damiane hairstyle before changing references.")
+        raise ValueError("Open a registered player hairstyle before changing references.")
     service = owner.archive.archive_catalogue_service
     archive_session = service.current_session
     arguments = {**dict(event.get("arguments") or {}), "_target_entry": target,
                  "_target_dependencies": getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)}
     for role, entry_key, dependencies_key in (("head", "_archive_entry", "_archive_dependencies"),
                                              ("body", "_body_archive_entry", "_body_archive_dependencies")):
-        picker = HairReferencePickerDialog(owner, role)
+        state = session.shadow_service._session(session.shadow_session_id).hair_state
+        picker = HairReferencePickerDialog(owner, role, character=state.payload["template"]["character"] if state else "Damiane")
         if picker.exec() != QDialog.Accepted:
             raise ValueError("Reference selection cancelled; the current hairstyle is unchanged.")
         if (service.current_session is not archive_session or tab.standalone_rust_authoring_session is not session

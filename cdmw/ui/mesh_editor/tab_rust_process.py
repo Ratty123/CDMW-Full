@@ -426,8 +426,7 @@ class MeshEditorRustProcessMixin:
         event = self.standalone_rust_protocol_queue.pop(0)
         preparation_error = str(event.get("_hair_preparation_error", ""))
         if (event.get("command") == "hair_begin"
-                and not dict(event.get("arguments") or {}).get("_hair_context_ready")
-                and not dict(event.get("arguments") or {}).get("change_references")):
+                and not dict(event.get("arguments") or {}).get("_hair_context_ready")):
             from cdmw.ui.mesh_editor.hair_flow import begin_hair_context
             try:
                 begin_hair_context(self, session, event)
@@ -539,7 +538,9 @@ class MeshEditorRustProcessMixin:
         active_event = dict(self.standalone_rust_active_event or {})
         self._send_rust_message(response)
         hair_status = getattr(self, "hair_entry_status", None)
-        if hair_status is not None and active_event.get("command") == "hair_begin":
+        hair_active = getattr(self, "standalone_rust_authoring_session", None)
+        hair_active = hair_active is not None and hair_active.shadow_service._session(hair_active.shadow_session_id).hair_state is not None
+        if hair_status is not None and (active_event.get("command") == "hair_begin" or hair_active and active_event.get("event") == "transaction_request"):
             hair_status.setText("Ready — select visible hair to begin editing.")
         if finish_accepted:
             self.standalone_rust_finish_accepted = True
@@ -571,7 +572,7 @@ class MeshEditorRustProcessMixin:
         request = dict(self.standalone_rust_active_event or {})
         self._send_rust_error_response(request, message, recovery=recovery)
         hair_status = getattr(self, "hair_entry_status", None)
-        if hair_status is not None and request.get("command") == "hair_begin":
+        if hair_status is not None and (request.get("command") == "hair_begin" or request.get("event") == "transaction_request"):
             hair_status.setText(str(message))
         if self.standalone_rust_closing and str(
             request.get("event", "") or ""

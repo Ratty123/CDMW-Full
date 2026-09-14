@@ -612,6 +612,86 @@ fn hair_production_render_and_benchmark() {
         values[(values.len() * 95 / 100).min(values.len() - 1)]
     }
     let mean = timings.iter().map(|v| v[1]).sum::<f64>() / timings.len().max(1) as f64;
+    let mut contacts = vec![];
+    if reason.is_none() {
+        let surface = hair::surface::SurfaceIndex::new(
+            &authored.scalp.positions,
+            &authored
+                .scalp
+                .triangles
+                .iter()
+                .flatten()
+                .copied()
+                .collect::<Vec<_>>(),
+        );
+        let indices: Vec<_> = authored.scalp.triangles.iter().flatten().copied().collect();
+        for movement in 0..6 {
+            app.run_hair_action(HairAction::Reset);
+            app.hair.head_test = movement;
+            app.hair.playing = true;
+            for _ in 0..120 {
+                app.hair.last_tick =
+                    Instant::now() - std::time::Duration::from_secs_f64(1.0 / 60.0);
+                app.render_hair();
+            }
+            app.hair.playing = false;
+            let scene = app.hair.scene.as_ref().unwrap();
+            let sim = app.hair.simulation.as_ref().unwrap();
+            let mut penetration = 0.0_f32;
+            for binding in &authored.bindings {
+                if binding.segment == 0 && binding.t == 0.0 {
+                    continue;
+                }
+                let first = scene.parts.iter().find(|p| p.0 == binding.part).unwrap().1;
+                let world = Vec3::from(scene.frame.positions[first + binding.vertex as usize]);
+                let local =
+                    sim.pivot + app.hair.rotation.inverse() * (world - sim.pivot - sim.translation);
+                penetration = penetration.max(
+                    surface
+                        .contact(&authored.scalp.positions, &indices, local, 0.0)
+                        .distance(local),
+                );
+            }
+            let textured = root.join(format!("movement-{movement}.bmp"));
+            let base = root.join(format!("movement-{movement}-base.bmp"));
+            let ids = root.join(format!("movement-{movement}-ids.bmp"));
+            pollster::block_on(run_headless_material_capture(
+                &scene.frame,
+                &textures,
+                &factors,
+                HeadlessMaterialCaptureOptions {
+                    width: 1920,
+                    height: 1080,
+                    ..Default::default()
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &textured,
+                    base_color_bmp: &base,
+                    part_id_bmp: &ids,
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))
+            .unwrap();
+            let paused = scene.frame.positions.clone();
+            app.render_hair();
+            assert_eq!(paused, app.hair.scene.as_ref().unwrap().frame.positions);
+            assert_eq!(app.hair.state.as_ref().unwrap(), &authored);
+            app.run_hair_action(HairAction::Reset);
+            app.render_hair();
+            let reset = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+            app.run_hair_action(HairAction::Reset);
+            app.render_hair();
+            assert_eq!(reset, app.hair.scene.as_ref().unwrap().frame.positions);
+            contacts.push(json!({"movement":movement,"max_card_penetration_m":penetration,"pause_reset":true,"transient":true}));
+        }
+        std::fs::write(
+            root.join("motion-contacts.json"),
+            serde_json::to_vec_pretty(&contacts).unwrap(),
+        )
+        .unwrap();
+    }
     let report = json!({"proof":"production pointer dispatcher and draw snapshots; DX12 offscreen capture; desktop presentation unmeasured",
         "guides":authored.guides.len(),"hair_vertices":rest.positions.len()-app.hair.state.as_ref().unwrap().scalp.positions.len()-app.hair.state.as_ref().unwrap().references.iter().map(|r|r.positions.len()).sum::<usize>(),
         "locks":kinds,"preparation_ms":preparation_ms,"selection_cpu_p95_ms":p95(picking),"input_to_draw_snapshot_p95_ms":p95(grooming),
@@ -626,7 +706,133 @@ fn hair_production_render_and_benchmark() {
     if generated {
         assert!(reason.is_none());
         assert!(mean <= 1000.0 / 30.0, "offscreen frame budget exceeded");
+        assert!(
+            contacts
+                .iter()
+                .all(|v| v["max_card_penetration_m"].as_f64().unwrap() <= 0.002),
+            "Visible card penetration: {contacts:?}"
+        );
     }
+}
+
+#[test]
+#[ignore = "requires an authorized real hairstyle state and temporary evidence directory"]
+fn hair_production_settle_regression() {
+    let input = std::env::var("CDMW_HAIR_PROBE_INPUT").unwrap();
+    let root = std::path::PathBuf::from(std::env::var("CDMW_HAIR_PROBE_OUTPUT").unwrap());
+    std::fs::create_dir_all(&root).unwrap();
+    let state: HairState = serde_json::from_slice(&std::fs::read(input).unwrap()).unwrap();
+    let (min, max) = hair_bounds(&state);
+    let mut cases = vec![];
+    for extra in [0.0, 0.0001, 0.0005] {
+        for movement in 0..6 {
+            let mut simulation = Simulation::new(&state).unwrap();
+            for frame in 0..120 {
+                let pose = simulation
+                    .advance_test(
+                        1.0 / 60.0 + extra,
+                        hair::MotionSettings::default(),
+                        &state.collisions,
+                        movement,
+                        max.y - min.y,
+                    )
+                    .unwrap();
+                simulation
+                    .settled_state(&state, pose.head)
+                    .unwrap_or_else(|e| {
+                        panic!("Settling movement {movement}, frame {frame}, jitter {extra}: {e}")
+                    });
+            }
+            cases.push(json!({"movement":movement,"frame_jitter_seconds":extra,"valid_settled_frames":120}));
+        }
+    }
+    std::fs::write(
+        root.join("settle-regression.json"),
+        serde_json::to_vec_pretty(&cases).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+#[ignore = "requires a real prepared hair candidate and a temporary evidence directory"]
+fn hair_production_contact_regression() {
+    let input = std::env::var("CDMW_HAIR_PROBE_INPUT").unwrap();
+    let root = std::path::PathBuf::from(std::env::var("CDMW_HAIR_PROBE_OUTPUT").unwrap());
+    std::fs::create_dir_all(&root).unwrap();
+    let candidate: Value = serde_json::from_slice(&std::fs::read(input).unwrap()).unwrap();
+    let state: HairState = serde_json::from_value(candidate["hair"].clone()).unwrap();
+    let (min, max) = hair_bounds(&state);
+    let indices: Vec<_> = state.scalp.triangles.iter().flatten().copied().collect();
+    let surface = hair::surface::SurfaceIndex::new(&state.scalp.positions, &indices);
+    let parts: Vec<(u32, Vec<[f32; 3]>)> = candidate["submeshes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(i, part)| {
+            (
+                i as u32,
+                serde_json::from_value(part["positions"].clone()).unwrap(),
+            )
+        })
+        .collect();
+    let mut report = vec![];
+    for movement in 0..6 {
+        let mut simulation = Simulation::new(&state).unwrap();
+        let mut worst = 0.0_f32;
+        let mut detail = Value::Null;
+        let mut elapsed = 0.0;
+        for frame in 0..120 {
+            let start = Instant::now();
+            let pose = simulation
+                .advance_test(
+                    1.0 / 60.0,
+                    hair::MotionSettings::default(),
+                    &state.collisions,
+                    movement,
+                    max.y - min.y,
+                )
+                .unwrap();
+            elapsed += start.elapsed().as_secs_f64();
+            if frame % 10 != 9 {
+                continue;
+            }
+            for (part, rest) in &parts {
+                let mut positions = rest.clone();
+                hair::deform(&state.bindings, &simulation.points, *part, &mut positions).unwrap();
+                for binding in state
+                    .bindings
+                    .iter()
+                    .filter(|b| b.part == *part && !(b.segment == 0 && b.t == 0.0))
+                {
+                    let local = simulation.pivot
+                        + pose.head.inverse()
+                            * (Vec3::from(positions[binding.vertex as usize])
+                                - simulation.pivot
+                                - simulation.translation);
+                    let penetration = surface
+                        .contact(&state.scalp.positions, &indices, local, 0.0)
+                        .distance(local);
+                    if penetration > worst {
+                        worst = penetration;
+                        detail = json!({"frame":frame,"binding":binding,"point":local.to_array(),"guide":simulation.points[binding.guide as usize]});
+                    }
+                }
+            }
+        }
+        report.push(json!({"movement":movement,"max_card_penetration_m":worst,"simulation_frame_ms":elapsed*1000.0/120.0,"worst":detail}));
+    }
+    std::fs::write(
+        root.join("contact-regression.json"),
+        serde_json::to_vec_pretty(&report).unwrap(),
+    )
+    .unwrap();
+    println!("{}", serde_json::to_string(&report).unwrap());
+    assert!(
+        report
+            .iter()
+            .all(|v| v["max_card_penetration_m"].as_f64().unwrap() <= 0.002)
+    );
 }
 
 fn ready_hair_app() -> (LabApplication, egui::Rect) {
@@ -690,6 +896,447 @@ fn await_hair(app: &mut LabApplication) {
         app.poll_hair();
     }
     app.render_hair();
+}
+
+fn await_hair_host(app: &mut LabApplication) {
+    let deadline = Instant::now() + std::time::Duration::from_secs(120);
+    loop {
+        app.poll_cdmw();
+        app.poll_hair();
+        assert!(!app.cdmw_exit_requested, "{}", app.status);
+        if !app.hair.preparing() && !app.cdmw_busy() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Host acknowledgement timed out: {} / {}",
+            app.status,
+            app.hair.feedback
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(!app.status.contains("rejected"), "{}", app.status);
+    app.render_hair();
+}
+
+fn capture_hair_workflow_step(
+    app: &LabApplication,
+    input: &Value,
+    root: &std::path::Path,
+    name: &str,
+) {
+    if std::env::var_os("CDMW_HAIR_PROBE_CAPTURE_STEPS").is_none() {
+        return;
+    }
+    let package = PathBuf::from(input["session_root"].as_str().unwrap());
+    let material: Value = serde_json::from_slice(
+        &std::fs::read(
+            package.join(
+                input["host"]["archive_refit_materials"]["file"]["path"]
+                    .as_str()
+                    .unwrap(),
+            ),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let rows = material["textures"].as_array().unwrap();
+    let bytes: Vec<_> = rows
+        .iter()
+        .map(|r| std::fs::read(package.join(r["file"]["path"].as_str().unwrap())).unwrap())
+        .collect();
+    let ownership: Vec<Vec<Vec<u32>>> = rows
+        .iter()
+        .map(|r| serde_json::from_value(r["material_indices_by_lod"].clone()).unwrap())
+        .collect();
+    let textures: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .map(|(i, r)| HeadlessMaterialTexture {
+            bytes: &bytes[i],
+            role: serde_json::from_value(r["role"].clone()).unwrap(),
+            material_indices_by_lod: &ownership[i],
+        })
+        .collect();
+    let presentations: Vec<SessionMaterialPresentation> =
+        serde_json::from_value(material["material_presentations"].clone()).unwrap();
+    let factor_owners: Vec<_> = presentations
+        .iter()
+        .map(|p| cdmw_material_ownership(p, 1))
+        .collect();
+    let factors: Vec<_> = presentations
+        .iter()
+        .zip(&factor_owners)
+        .map(|(p, o)| HeadlessMaterialFactors {
+            factors: cdmw_material_preview_factors(p),
+            material_indices_by_lod: o,
+        })
+        .collect();
+    assert!(
+        !textures.is_empty() && !factors.is_empty(),
+        "materials must come from the real loader"
+    );
+    let textured = root.join(format!("tool-{name}.bmp"));
+    let base = root.join(format!("tool-{name}-base.bmp"));
+    let ids = root.join(format!("tool-{name}-ids.bmp"));
+    let report = pollster::block_on(run_headless_material_capture(
+        &app.hair.scene.as_ref().unwrap().frame,
+        &textures,
+        &factors,
+        HeadlessMaterialCaptureOptions {
+            width: 1280,
+            height: 900,
+            camera: Some(HeadlessMaterialCaptureCamera {
+                yaw_degrees: 180.0,
+                pitch_degrees: 0.0,
+            }),
+            ..Default::default()
+        },
+        HeadlessMaterialCaptureOutput {
+            textured_bmp: &textured,
+            base_color_bmp: &base,
+            part_id_bmp: &ids,
+            normal_map: None,
+            material_response: None,
+            layer_mask: None,
+        },
+    ))
+    .unwrap();
+    assert!(report.dds_textures_uploaded > 0 && report.textured.non_background_pixels > 1000);
+}
+
+#[test]
+#[ignore = "requires authorized installed assets and the Python production host"]
+fn hair_production_workflow_matrix() {
+    let input: Value = serde_json::from_slice(
+        &std::fs::read(std::env::var("CDMW_HAIR_PROBE_INPUT").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let mailbox = PathBuf::from(std::env::var("CDMW_HAIR_PROBE_MAILBOX").unwrap());
+    let state: HairState = serde_json::from_value(input["hair"].clone()).unwrap();
+    let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(serde_json::from_value(input["document"].clone()).unwrap());
+    app.cdmw_state = input["host"].clone();
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0));
+    app.viewport_rect = Some(rect);
+    app.hydrate_hair(Some(state));
+    app.hair.pending_preset = false;
+    app.cdmw_bridge = Some(crate::cdmw_session::CdmwBridge::for_hair_probe(
+        PathBuf::from(input["session_root"].as_str().unwrap()),
+        input["session_id"].as_str().unwrap(),
+        input["host"]["base_revision"].as_u64().unwrap(),
+        mailbox.clone(),
+    ));
+    app.render_hair();
+    let mut results = vec![];
+    if generated {
+        app.hair.requested_preset = Some("bob".into());
+        app.poll_hair();
+    } else {
+        app.run_hair_action(HairAction::Prepare);
+    }
+    await_hair_host(&mut app);
+    results.push(json!({"tool":"preset/setup","revision":app.hair.state.as_ref().unwrap().revision,"acknowledged":true}));
+    capture_hair_workflow_step(&app, &input, &mailbox, "setup");
+    if generated {
+        for preset in ["empty", "cropped", "long", "ponytail", "bob", "bob"] {
+            let before = app.hair.state.clone().unwrap();
+            app.hair.requested_preset = Some(preset.into());
+            app.poll_hair();
+            await_hair_host(&mut app);
+            let after = app.hair.state.clone().unwrap();
+            // Bounded history may evict an older action. Verify the single
+            // undoable edit itself, not growth of the retained stack.
+            app.submit_cdmw_command("undo", json!({}), "Undo preset");
+            await_hair_host(&mut app);
+            assert_eq!(app.hair.state.as_ref().unwrap().guides, before.guides);
+            assert_eq!(app.hair.state.as_ref().unwrap().locks, before.locks);
+            app.submit_cdmw_command("redo", json!({}), "Redo preset");
+            await_hair_host(&mut app);
+            assert_eq!(app.hair.state.as_ref().unwrap().guides, after.guides);
+            assert_eq!(app.hair.state.as_ref().unwrap().locks, after.locks);
+            assert_eq!(
+                app.hair.state.as_ref().unwrap().locks.is_empty(),
+                preset == "empty"
+            );
+            results.push(
+                json!({"tool":format!("Preset {preset}"),"one_undo":true,"acknowledged":true}),
+            );
+        }
+        for stroke in 0..2 {
+            app.camera
+                .set_standard_view(crate::camera::StandardView::Top);
+            let scalp = &app.hair.state.as_ref().unwrap().scalp;
+            app.camera
+                .frame_positions_in_viewport(scalp.positions.iter().copied().map(Vec3::from), rect);
+            let root = scalp
+                .triangles
+                .iter()
+                .map(|face| {
+                    face.iter()
+                        .map(|i| Vec3::from(scalp.positions[*i as usize]))
+                        .sum::<Vec3>()
+                        / 3.0
+                })
+                .max_by(|a, b| a.y.total_cmp(&b.y))
+                .unwrap();
+            let point =
+                app.camera.project(root, rect).unwrap().screen + Vec2::X * stroke as f32 * 12.0;
+            app.hair.tool = Some(HairTool::Guide);
+            app.hair.symmetry = stroke == 1;
+            let count = app.hair.state.as_ref().unwrap().locks.len();
+            for event in [
+                ViewportPointerEvent::PrimaryPressed(point),
+                ViewportPointerEvent::PrimaryMoved(point + Vec2::new(25.0, 40.0)),
+                ViewportPointerEvent::PrimaryReleased(point + Vec2::new(25.0, 40.0)),
+            ] {
+                app.dispatch_hair_pointer(event, rect, false, false, false);
+            }
+            await_hair_host(&mut app);
+            assert!(
+                app.hair.state.as_ref().unwrap().locks.len() > count,
+                "Draw {stroke}: {}",
+                app.hair.feedback
+            );
+            capture_hair_workflow_step(&app, &input, &mailbox, &format!("draw-{}", stroke + 1));
+            results.push(json!({"tool":format!("Draw {}",stroke+1),"symmetry":stroke==1,"geometry_changed":true,"acknowledged":true}));
+        }
+    } else {
+        let unresolved = app
+            .hair
+            .state
+            .as_ref()
+            .unwrap()
+            .locks
+            .iter()
+            .filter(|l| l.kind == LockKind::Unresolved)
+            .count();
+        if unresolved > 0 {
+            assert!(app.hair_motion_reason().is_err());
+            results.push(
+                json!({"tool":"existing preparation","unresolved":unresolved,"motion_gated":true}),
+            );
+        }
+        app.camera
+            .set_standard_view(crate::camera::StandardView::Top);
+        let groups = app.hair.state.as_ref().unwrap().groups.clone();
+        for group in groups {
+            let ids: HashSet<_> = app
+                .hair
+                .state
+                .as_ref()
+                .unwrap()
+                .locks
+                .iter()
+                .filter(|l| l.part == group.part && l.kind == LockKind::Unresolved)
+                .map(|l| l.id as usize)
+                .collect();
+            if ids.is_empty() {
+                continue;
+            }
+            app.hair.selected = ids.clone();
+            app.run_hair_action(HairAction::Rigid);
+            await_hair_host(&mut app);
+            app.submit_cdmw_command("undo", json!({}), "Undo rigid attachment");
+            await_hair_host(&mut app);
+            app.hair.selected = ids;
+            app.hair.group = group.id;
+            app.hair.tool = Some(HairTool::Root);
+            let scalp = &app.hair.state.as_ref().unwrap().scalp;
+            app.camera
+                .frame_positions_in_viewport(scalp.positions.iter().copied().map(Vec3::from), rect);
+            let root = scalp
+                .triangles
+                .iter()
+                .map(|f| {
+                    f.iter()
+                        .map(|i| Vec3::from(scalp.positions[*i as usize]))
+                        .sum::<Vec3>()
+                        / 3.0
+                })
+                .max_by(|a, b| a.y.total_cmp(&b.y))
+                .unwrap();
+            let point = app.camera.project(root, rect).unwrap().screen;
+            for event in [
+                ViewportPointerEvent::PrimaryPressed(point),
+                ViewportPointerEvent::PrimaryReleased(point),
+            ] {
+                app.dispatch_hair_pointer(event, rect, false, false, false);
+            }
+            await_hair_host(&mut app);
+        }
+        assert!(app.hair_motion_reason().is_ok(), "{}", app.hair.feedback);
+        results.push(json!({"tool":"root/group and rigid attachment","acknowledged":true}));
+    }
+    capture_hair_workflow_step(&app, &input, &mailbox, "prepared");
+    app.camera
+        .set_standard_view(crate::camera::StandardView::Front);
+    app.camera.frame_positions_in_viewport(
+        app.hair
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .positions
+            .iter()
+            .copied()
+            .map(Vec3::from),
+        rect,
+    );
+    let (point, id) = visible_lock(&app, rect);
+    app.hair.tool = Some(HairTool::Select);
+    let selection_state = app.hair.state.clone();
+    for ctrl in [false, true, false] {
+        for event in [
+            ViewportPointerEvent::PrimaryPressed(point),
+            ViewportPointerEvent::PrimaryReleased(point),
+        ] {
+            app.dispatch_hair_pointer(event, rect, ctrl, false, false);
+        }
+        assert_eq!(app.hair.selected.contains(&(id as usize)), !ctrl);
+    }
+    for event in [
+        ViewportPointerEvent::PrimaryPressed(Vec2::splat(1.0)),
+        ViewportPointerEvent::PrimaryMoved(Vec2::new(1278.0, 898.0)),
+        ViewportPointerEvent::PrimaryReleased(Vec2::new(1278.0, 898.0)),
+    ] {
+        app.dispatch_hair_pointer(event, rect, false, false, false);
+    }
+    assert!(!app.hair.selected.is_empty());
+    assert_eq!(app.hair.state, selection_state);
+    results.push(json!({"tool":"Select, Ctrl-select, marquee","selection_only":true}));
+    for tool in [
+        HairTool::Lengthen,
+        HairTool::Move,
+        HairTool::Comb,
+        HairTool::Smooth,
+        HairTool::Curl,
+        HairTool::Clump,
+    ] {
+        let (point, id) = visible_lock(&app, rect);
+        app.hair.selected.clear();
+        app.hair.tool = Some(tool);
+        app.hair.radius = 100.0;
+        let before = app.hair.state.clone().unwrap();
+        let frame = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+        for event in [
+            ViewportPointerEvent::PrimaryPressed(point),
+            ViewportPointerEvent::PrimaryMoved(point + Vec2::new(8.0, 4.0)),
+            ViewportPointerEvent::PrimaryReleased(point + Vec2::new(8.0, 4.0)),
+        ] {
+            app.dispatch_hair_pointer(event, rect, false, false, false);
+        }
+        await_hair_host(&mut app);
+        assert_ne!(
+            frame,
+            app.hair.scene.as_ref().unwrap().frame.positions,
+            "{tool:?}: {}",
+            app.hair.feedback
+        );
+        let after = app.hair.state.clone().unwrap();
+        assert!(
+            after
+                .guides
+                .iter()
+                .zip(&before.guides)
+                .all(|(a, b)| a.points[0] == b.points[0])
+        );
+        capture_hair_workflow_step(&app, &input, &mailbox, &format!("{tool:?}"));
+        results.push(json!({"tool":format!("{tool:?}"),"lock":id,"geometry_changed":true,"roots_fixed":true,"acknowledged":true}));
+        if tool == HairTool::Lengthen {
+            app.submit_cdmw_command("undo", json!({}), "Undo");
+            await_hair_host(&mut app);
+            assert_eq!(app.hair.state.as_ref().unwrap().guides, before.guides);
+            app.submit_cdmw_command("redo", json!({}), "Redo");
+            await_hair_host(&mut app);
+            assert_eq!(app.hair.state.as_ref().unwrap().guides, after.guides);
+        }
+    }
+    for action in [HairAction::Settings, HairAction::DeleteGuides] {
+        let (_, id) = visible_lock(&app, rect);
+        app.hair.selected = HashSet::from([id as usize]);
+        app.hair.width *= 1.2;
+        app.hair.density = 3;
+        let before = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+        app.run_hair_action(action.clone());
+        await_hair_host(&mut app);
+        assert_ne!(
+            before,
+            app.hair.scene.as_ref().unwrap().frame.positions,
+            "{action:?}: {}",
+            app.hair.feedback
+        );
+        capture_hair_workflow_step(&app, &input, &mailbox, &format!("{action:?}"));
+        results.push(
+            json!({"tool":format!("{action:?}"),"geometry_changed":true,"acknowledged":true}),
+        );
+    }
+    for tool in [HairTool::Cut, HairTool::Erase] {
+        let (point, _) = visible_lock(&app, rect);
+        app.hair.tool = Some(tool);
+        let before = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+        for event in [
+            ViewportPointerEvent::PrimaryPressed(point),
+            ViewportPointerEvent::PrimaryReleased(point),
+        ] {
+            app.dispatch_hair_pointer(event, rect, false, false, false);
+        }
+        await_hair_host(&mut app);
+        assert_ne!(
+            before,
+            app.hair.scene.as_ref().unwrap().frame.positions,
+            "{tool:?}: {}",
+            app.hair.feedback
+        );
+        capture_hair_workflow_step(&app, &input, &mailbox, &format!("{tool:?}"));
+        results
+            .push(json!({"tool":format!("{tool:?}"),"geometry_changed":true,"acknowledged":true}));
+    }
+    app.hair.playing = true;
+    for _ in 0..30 {
+        app.hair.last_tick = Instant::now() - std::time::Duration::from_secs_f64(1.0 / 60.0);
+        app.render_hair();
+    }
+    let before_settle = app.hair.state.as_ref().unwrap().guides.clone();
+    std::fs::write(
+        mailbox.join("before-settle.json"),
+        serde_json::to_vec(app.hair.state.as_ref().unwrap()).unwrap(),
+    )
+    .unwrap();
+    app.run_hair_action(HairAction::Settle);
+    await_hair_host(&mut app);
+    let settled = app.hair.state.as_ref().unwrap().guides.clone();
+    assert!(
+        settled != before_settle,
+        "Settled shape was not published: {}",
+        app.hair.feedback
+    );
+    app.submit_cdmw_command("undo", json!({}), "Undo settled shape");
+    await_hair_host(&mut app);
+    assert!(
+        app.hair.state.as_ref().unwrap().guides == before_settle,
+        "Undo did not restore the pre-settled guides"
+    );
+    app.submit_cdmw_command("redo", json!({}), "Redo settled shape");
+    await_hair_host(&mut app);
+    assert!(
+        app.hair.state.as_ref().unwrap().guides == settled,
+        "Redo did not restore the settled guides"
+    );
+    capture_hair_workflow_step(&app, &input, &mailbox, "settled");
+    app.run_hair_action(HairAction::Convert);
+    await_hair_host(&mut app);
+    assert!(app.hair.state.as_ref().unwrap().converted);
+    app.submit_cdmw_command("undo", json!({}), "Undo conversion");
+    await_hair_host(&mut app);
+    assert!(!app.hair.state.as_ref().unwrap().converted);
+    results.push(json!({"tool":"Settle, convert and Undo","acknowledged":true}));
+    std::fs::write(
+        mailbox.join("tools.json"),
+        serde_json::to_vec_pretty(&results).unwrap(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -843,6 +1490,46 @@ fn hair_production_motion_deforms_hair_not_only_reference_and_reset_is_neutral()
     app.run_hair_action(HairAction::Reset);
     app.render_hair();
     assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, rest);
+}
+
+#[test]
+fn hair_facial_references_follow_the_head_below_the_neck_blend() {
+    let (mut app, _) = ready_hair_app();
+    let detail = hair::Scalp {
+        identity: "head:facial-details".into(),
+        positions: vec![[0.02, 0.16, 0.0], [0.03, 0.16, 0.0], [0.02, 0.17, 0.0]],
+        triangles: vec![[0, 1, 2]],
+    };
+    app.hair
+        .state
+        .as_mut()
+        .unwrap()
+        .references
+        .push(detail.clone());
+    app.hair.scene = None;
+    app.hair.playing = true;
+    app.hair.head_test = 3;
+    for _ in 0..30 {
+        app.hair.last_tick = Instant::now() - std::time::Duration::from_secs_f64(1.0 / 60.0);
+        app.render_hair();
+    }
+    let state = app.hair.state.as_ref().unwrap();
+    let scene = app.hair.scene.as_ref().unwrap();
+    let sim = app.hair.simulation.as_ref().unwrap();
+    let (min, max) = hair_bounds(state);
+    let pose = hair::PreviewPose::at(sim.pivot, (max.y - min.y).max(0.01), sim.elapsed as f32, 3);
+    let first = scene.frame.positions.len() - detail.positions.len();
+    for (rest, actual) in detail.positions.iter().zip(&scene.frame.positions[first..]) {
+        assert!(
+            pose.head_point(Vec3::from(*rest))
+                .distance(Vec3::from(*actual))
+                < 1e-6
+        );
+    }
+    assert_eq!(
+        state.scalp.positions.len(),
+        fixture().0.scalp.positions.len()
+    );
 }
 
 #[test]
@@ -1009,9 +1696,10 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
         let (point, id) = visible_lock(&app, rect);
         app.hair.tool = Some(tool);
         app.hair.radius = 100.0;
-        if tool == HairTool::Lengthen {
-            app.hair.selected = HashSet::from([id as usize]);
-        }
+        assert!(
+            app.hair.selected.is_empty(),
+            "tools must work without a prior selection"
+        );
         let before = app.hair.state.clone().unwrap();
         let frame = app.hair.scene.as_ref().unwrap().frame.positions.clone();
         app.dispatch_hair_pointer(
@@ -1028,6 +1716,9 @@ fn hair_shaping_tools_change_rendered_hair_keep_roots_and_lengthen_only_tips() {
             false,
             false,
         );
+        if tool == HairTool::Lengthen {
+            assert_eq!(app.hair.selected, HashSet::from([id as usize]));
+        }
         app.render_hair();
         assert_ne!(
             app.hair.scene.as_ref().unwrap().frame.positions,

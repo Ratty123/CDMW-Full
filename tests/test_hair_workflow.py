@@ -108,61 +108,49 @@ def test_automatic_context_selects_matching_roles_cancels_stale_work_and_reuses_
     assert len(service.calls) == count + 1
 
 
-def test_hair_menu_exposes_presets_and_registered_style_entry(owner, monkeypatch):
+def test_hair_button_opens_single_setup(owner, monkeypatch):
     from cdmw.ui.mesh_editor import hair_flow
     calls = []
     monkeypatch.setattr(hair_flow, "start_hair_workflow", lambda *args: calls.append(args))
     bar = hair_flow.build_hair_entry_bar(owner)
     from PySide6.QtWidgets import QPushButton
     button = bar.findChild(QPushButton, "MeshEditorHairMenu")
-    assert button.text() == "Hair Tools"
-    create, edit = button.menu().actions()
-    assert [a.text() for a in create.menu().actions()] == ["Cropped", "Bob", "Long", "Ponytail", "Empty"]
-    create.menu().actions()[1].trigger()
-    edit.trigger()
-    assert calls == [(owner, "generated", "bob"), (owner, "existing")]
+    assert button.text() == "Hair Tools" and button.menu() is None
+    button.click()
+    assert calls == [(owner,)]
 
 
-@pytest.mark.parametrize("mode", ["generated", "existing"])
-def test_hair_entry_loads_choices_through_utility_worker(owner, monkeypatch, mode):
-    from cdmw.core import archive_extraction
+def test_single_setup_requires_character_and_catalogue_and_rejects_stale_choices(owner, monkeypatch):
+    from cdmw.ui.mesh_editor import hair_setup_dialog as setup
     from cdmw.ui.mesh_editor import hair_flow
-    from cdmw.workers.utility_workers import UtilityWorker
     from tests.test_hair_registration import XML, STEM
-
-    class Context(QObject):
-        ready = Signal(object)
-        failed = Signal(str)
-
-        def __init__(self, _service, parent): super().__init__(parent)
-        def cancel(self): pass
-        def start(self):
-            entry = SimpleNamespace(orig_size=len(XML))
-            self.ready.emit(SimpleNamespace(dependencies=SimpleNamespace(entry_for_path=lambda _path: entry)))
-
-    monkeypatch.setattr(context_module, "HairContextPreparation", Context)
-    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda _entry: (XML, ""))
-    choices, errors = [], []
-    class Picker(QObject):
-        preparation_failed = Signal(str)
-        finished = Signal(int)
-
-        def __init__(self, parent, role, *, styles):
-            super().__init__(parent)
-            choices.append((role, styles))
-        def open(self): pass
-
-    monkeypatch.setattr(picker_module, "HairReferencePickerDialog", Picker)
-    def run_task(**kwargs):
-        worker = UtilityWorker(kwargs["task"])
-        worker.completed.connect(kwargs["on_complete"])
-        worker.error.connect(errors.append)
-        worker.run()
-    owner._run_utility_task_when_idle = run_task
+    from cdmw.core import archive_extraction
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
     hair_flow.build_hair_entry_bar(owner)
-    hair_flow.start_hair_workflow(owner, mode)
-    assert errors == []
-    assert choices == [("hair", ((0, STEM),))]
+    dialog = setup.HairSetupDialog(owner)
+    assert dialog.character.currentData() is None
+    assert dialog.preset.currentData() == "bob" and not dialog.waiting_start.isEnabled()
+    assert not owner.archive_catalogue_service.calls
+    dialog.character.setCurrentIndex(dialog.character.findData("Oongka"))
+    request = owner.archive_catalogue_service.calls[-1][1]
+    assert "oongka" in request.key
+    context = SimpleNamespace(character="Oongka", dependencies=SimpleNamespace(entry_for_path=lambda path: SimpleNamespace(orig_size=len(XML))))
+    dialog._context_ready(context)
+    assert len(tasks) == 1
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda entry: (XML, ""))
+    # The real utility callable accepts its logger argument.
+    choices = tasks[0]["task"](lambda _: None)
+    assert choices[0].prefab_stem == STEM
+    dialog.character.setCurrentIndex(dialog.character.findData("Kliff"))
+    tasks[0]["on_complete"](choices)
+    assert dialog._picker is None
+    dialog.reject()
+    assert dialog._closed
+    owner.archive_catalogue_service.current_session = None
+    unavailable = setup.HairSetupDialog(owner, character="Damiane")
+    assert not unavailable.waiting_start.isEnabled() and "catalogue" in unavailable.status.text()
+    unavailable.reject()
 
 
 def test_reference_geometry_cache_is_bounded_generation_scoped_and_returns_isolated_snapshots(monkeypatch):
@@ -186,6 +174,65 @@ def test_reference_geometry_cache_is_bounded_generation_scoped_and_returns_isola
     assert len(worker._hair_references)==1
     stop=threading.Event();stop.set()
     with pytest.raises(RuntimeError):worker.prepare_hair_reference_source(args,stop)
+
+
+@pytest.mark.parametrize("ending", ["ready", "failure", "cancel", "catalogue_change"])
+def test_setup_waits_for_prepared_scene_and_disposes_obsolete_results(owner, ending):
+    from PySide6.QtWidgets import QDialog
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+    tasks, accepted, closed = [], [], []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    dialog = HairSetupDialog(owner, character="Damiane")
+    dialog.context = SimpleNamespace(character="Damiane", arguments=lambda: {"character":"Damiane"})
+    picker = QDialog(dialog)
+    picker._closed = True
+    picker.selected_entry = SimpleNamespace(identity="chosen")
+    picker.selected_dependencies = object()
+    dialog._picker = picker
+    dialog.accepted.connect(lambda: accepted.append(True))
+    dialog._selected(picker, QDialog.Accepted)
+    assert not accepted and len(tasks) == 1
+    assert not dialog.mode.isEnabled() and not dialog.character.isEnabled()
+    prepared = SimpleNamespace(service=SimpleNamespace(close_edit_session=lambda *args, **kwargs: closed.append(args)),
+                               view=SimpleNamespace(session_id="isolated"))
+    if ending == "failure":
+        tasks[0]["on_error"]("Failed reference")
+        assert dialog.retry.isEnabled() and "Failed reference" in dialog.status.text()
+        assert not accepted
+    else:
+        if ending == "cancel": dialog.reject()
+        if ending == "catalogue_change": dialog._session_changed(None)
+        tasks[0]["on_complete"](prepared)
+        assert bool(accepted) == (ending == "ready")
+        assert bool(closed) == (ending != "ready")
+    dialog.reject()
+
+
+def test_same_generated_style_uses_preset_message_and_no_archive_reopen(owner, monkeypatch):
+    from PySide6.QtWidgets import QDialog, QComboBox
+    from cdmw.ui.mesh_editor import hair_setup_dialog, hair_flow
+    sent, opened = [], []
+    target = SimpleNamespace(path="character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0008_01_player.pac", identity="hair")
+    state = SimpleNamespace(payload={"template":{"character":"Damiane"}, "groups":[{"mode":"generated"}], "converted":False})
+    owner.standalone_rust_authoring_session = SimpleNamespace(shadow_service=SimpleNamespace(_session=lambda _: SimpleNamespace(hair_state=state)), shadow_session_id="current")
+    owner._current_target_entry = lambda: target
+    owner.shell = SimpleNamespace(_activate_tool_widget=lambda _: None, _prepare_mesh_editor_archive_launch=lambda *args, **kwargs: opened.append(args))
+    owner._rust_host_message = lambda event, **kwargs: {"event":event, **kwargs}
+    owner._send_rust_message = lambda message: sent.append(message) or True
+    hair_flow.build_hair_entry_bar(owner)
+    class Setup(QDialog):
+        def __init__(self, owner, **kwargs):
+            super().__init__(owner)
+            self._closed = False
+            self.selected_entry, self.prepared_result = target, None
+            self.context = SimpleNamespace(character="Damiane")
+            self.mode, self.preset = QComboBox(), QComboBox()
+            self.mode.addItem("Create", "generated")
+            self.preset.addItem("Long", "long")
+    monkeypatch.setattr(hair_setup_dialog, "HairSetupDialog", Setup)
+    dialog = hair_flow.start_hair_workflow(owner)
+    dialog.accept()
+    assert not opened and sent == [{"event":"hair_preset", "request_id":0, "extra":{"preset":"long"}}]
 
 
 def test_context_rejects_stale_preparation_failures_and_reports_catalogue_change(owner):
@@ -231,6 +278,60 @@ def test_picker_selection_owns_preparation_and_can_retry_failure(owner):
     assert dialog.selected_entry is None and not dialog._closed
     dialog._prepare.ready.emit(retry_token, inputs)
     assert dialog.selected_entry is target and dialog._closed
+
+
+def test_unsupported_registered_style_is_disabled_and_next_verified_base_selected(owner):
+    from PySide6.QtCore import Qt
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=((0, "first"), (1, "second")), audit_hair=True)
+    QApplication.processEvents()
+    first, second = row(1), row(2)
+    dialog._details = {item.key: replace(detail(item), models=(SimpleNamespace(entry_id=i),))
+                       for i, item in enumerate((first, second))}
+    dialog._add(first)
+    dialog._add(second)
+    dialog.grid.setCurrentRow(0)
+    dialog._audit_active = first.key
+    dialog._audit_done(dialog._generation, None, "This registered hairstyle uses multiple PAC meshes.")
+    assert not dialog.grid.item(0).flags() & Qt.ItemIsEnabled
+    assert "multiple PAC" in dialog.grid.item(0).toolTip() and not dialog.choose.isEnabled()
+    inputs = SimpleNamespace(detail=dialog._details[second.key])
+    dialog._audit_active = second.key
+    dialog._audit_done(dialog._generation, inputs, "")
+    assert dialog._key() == second.key and dialog.choose.isEnabled()
+    assert dialog.selected_entry is None  # Choices are checked without starting the editor.
+    dialog.reject()
+
+
+@pytest.mark.parametrize("ending", ["replace", "cancel", "resume", "invalid"])
+def test_queued_prepared_hair_scene_has_one_owner_and_releases_obsolete_result(tmp_path, ending):
+    from cdmw.models import ArchiveEntry
+    from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
+    disposed, opened = [], []
+    class Queue(MeshEditorSessionMixin):
+        _discard_archive_session_result = staticmethod(disposed.append)
+        def open_archive_session(self, entry, **kwargs): opened.append(kwargs["prepared_result"])
+    queue = Queue()
+    entry = ArchiveEntry("hair.pac", tmp_path / "0.pamt", tmp_path / "0.paz", 0, 4, 4, 0, 0)
+    prepared, replacement = object(), object()
+    kwargs = dict(resume_manifest_path=None, material_preview_model=None, material_companion_entry=None,
+        material_package_path=None, material_package_lease=None, material_context_verified_for_rust=False,
+        material_source_identity=None, archive_dependencies=None)
+    queue._queue_archive_session_open(entry, prepared_result=prepared, **kwargs)
+    if ending == "replace":
+        queue._queue_archive_session_open(entry, prepared_result=replacement, **kwargs)
+        assert disposed == [prepared]
+        queue._resume_queued_archive_session_open()
+        assert opened == [replacement]
+    elif ending == "cancel":
+        queue._discard_queued_archive_session_open()
+        queue._discard_queued_archive_session_open()
+        assert disposed == [prepared] and not opened
+    else:
+        if ending == "invalid": queue.archive_session_open_pending["entry"] = None
+        queue._resume_queued_archive_session_open()
+        assert disposed == ([prepared] if ending == "invalid" else [])
+        assert opened == ([] if ending == "invalid" else [prepared])
+    assert queue.archive_session_open_pending is None
 
 
 @pytest.mark.parametrize("failure", ["cancel_after_load", "cancel_after_copy", "copy_failure", "cancel_cached_copy"])

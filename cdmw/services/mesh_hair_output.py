@@ -1,4 +1,4 @@
-"""Publish an authored hairstyle as a new Damiane choice, never a donor replacement.
+"""Publish an authored hairstyle as a new playable-character choice.
 
 All archive access is read-only and belongs on the existing output worker. The
 writer pins the mounted catalogue and every dependency until atomic publication.
@@ -21,15 +21,14 @@ from cdmw.core.pappt_format import parse_pappt
 from cdmw.core.papgt_format import parse_papgt
 from cdmw.core.pathc_format import encode_pathc, parse_pathc, register_texture
 from cdmw.core.pbd_cloth import parse_pbd_config_materials
-from cdmw.core.prefab_binary import decode_prefab_binary
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.hair_registration import read_hair_choices
 from cdmw.domain.mesh.hair import hair_state_from_payload
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.services.hair_registration import (
-    DAMIANE_MESH_PARAM, PART_PREFAB_TABLE, HairRegistrationFile,
-    prepare_damiane_hair_registration,
+    PART_PREFAB_TABLE, HairRegistrationFile,
+    prepare_hair_registration, validate_hair_prefab_donor,
 )
 from cdmw.services.new_item_provenance import SourceTracker
 
@@ -37,11 +36,13 @@ PBD_CONFIG = "character/descriptors/pbd/pbdconfig.xml"
 
 
 def material_texture_paths(data):
+    from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
     if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
         raise ValueError("Hair materials must not contain XML entities.")
     root = ET.fromstring("<Root>" + data.decode("utf-8-sig") + "</Root>")
     return root, tuple(sorted({node.get("_path") for node in root.iter()
-                              if node.get("_path", "").casefold().endswith(".dds")}))
+                              if node.get("_path", "").casefold().endswith(".dds")
+                              and not _is_placeholder_model_texture(node.get("_path", ""))}))
 
 
 def validate_hair_output(snapshot):
@@ -90,13 +91,16 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
     from cdmw.modding.mesh_parser import parse_mesh
     state = validate_hair_output(snapshot)
     template = state["template"]
+    from cdmw.domain.hair_characters import hair_character
+    profile = hair_character(template["character"])
     donor_stem = PurePosixPath(template["path"].replace("\\", "/")).stem
-    choices = read_hair_choices(files[DAMIANE_MESH_PARAM])
+    choices = read_hair_choices(files[profile.mesh_param_path])
     indices = [choice.index for choice in choices if choice.prefab_stem == donor_stem]
     if len(indices) != 1:
-        raise ValueError("The donor must be one unambiguous current Damiane barber choice.")
-    plan = prepare_damiane_hair_registration(files, new_stem=template["target_stem"],
-                                            template_index=indices[0], existing_paths=existing_paths)
+        raise ValueError("The donor must be one unambiguous current barber choice for this character.")
+    plan = prepare_hair_registration(files, new_stem=template["target_stem"],
+                                     template_index=indices[0], existing_paths=existing_paths,
+                                     character=profile.name)
     donor_path = template["path"].replace("\\", "/").casefold()
     if files[donor_path] != snapshot.original_data:
         raise ValueError("The mounted donor changed since this hair draft was created.")
@@ -106,7 +110,7 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
         raise ValueError("Hair export changed its required material section table.")
     if len(original.lod_levels) != len(result.lod_levels):
         raise ValueError("Hair export lost an affected LOD.")
-    # Current Damiane hair PACs expose LOD0. Refuse a later multi-LOD donor until
+    # Supported hair PACs expose LOD0. Refuse a later multi-LOD donor until
     # every affected lower-level mapping is supported rather than emitting old hair.
     if len(original.lod_levels) > 1:
         raise ValueError("This donor has additional PAC LODs requiring a verified hair LOD writer.")
@@ -165,6 +169,8 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
     if output.exists() or output.is_relative_to(root) or root.is_relative_to(output):
         raise ValueError("Hair output must be a new folder outside the installed game.")
     state = validate_hair_output(snapshot)
+    from cdmw.domain.hair_characters import hair_character
+    profile = hair_character(state["template"]["character"])
     donor_path = state["template"]["path"].replace("\\", "/").casefold()
     new_stem = state["template"]["target_stem"]
     tracker = SourceTracker(lambda item: read_archive_entry_data(item, stop_event)[0])
@@ -187,7 +193,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
                 raise_if_cancelled(stop_event, "Hair catalogue scan cancelled.")
                 key = item.path.replace("\\", "/").casefold()
                 if ("/hair/" in key or key.startswith(("character/texture/", "ui/texture/image/customizeimage/",
-                        "character/descriptors/pbd/")) or key in {DAMIANE_MESH_PARAM, PART_PREFAB_TABLE}
+                        "character/descriptors/pbd/")) or key in {profile.mesh_param_path, PART_PREFAB_TABLE}
                         or new_stem in key):
                     entries.setdefault(key, item)
     files = {}
@@ -201,17 +207,15 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
             files[key] = tracker.read(item)
         return files[key]
 
-    choices = read_hair_choices(read(DAMIANE_MESH_PARAM))
+    choices = read_hair_choices(read(profile.mesh_param_path))
     donor_stem = PurePosixPath(donor_path).stem
     choice = next((row for row in choices if row.prefab_stem == donor_stem), None)
     if choice is None:
-        raise ValueError("The loaded hair is not a current Damiane barber choice.")
+        raise ValueError("The loaded hair is not a current barber choice for this character.")
     record = parse_pappt(read(PART_PREFAB_TABLE)).find(donor_stem)
     if record is None:
         raise ValueError("The donor hair prefab registration is missing.")
-    resources = tuple(item.text.casefold() for item in decode_prefab_binary(read(record.prefab_path)).resource_strings())
-    if resources != (donor_path,):
-        raise ValueError("The registered donor does not own the edited mesh.")
+    validate_hair_prefab_donor(read(record.prefab_path), donor_path)
     read(donor_path)
     physics_path = donor_path.replace("character/model/", "character/bin__/meshphysics/", 1)[:-4] + ".hkx"
     read(physics_path)
@@ -244,7 +248,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         for item in packaged:
             if read_archive_entry_data(item, stop_event)[0] != wanted[item.path]:
                 raise ValueError(f"Hair package payload failed reparsing: {item.path}")
-        title = f"Damiane - {state['style_name']}"
+        title = f"{profile.name} - {state['style_name']}"
         description = "An additional authored hairstyle. In-game selection, save/load and motion checks are pending."
         manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod", "name": title,
             "title": title, "game": "Crimson Desert", "target_game": shared.target_game, "version": "1.0",

@@ -13,12 +13,15 @@ The format is intentionally simple:
 
 ### Changed
 
-- Mesh Editor exposes hair creation and editing through a larger **Hair Tools** button above the viewport.
+- Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka, with preset and thumbnail choices, verified compatible bases, cancellable preparation and retry. The current scene stays open until its replacement is ready; changing a generated preset is one undoable edit.
 - Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.
 
 ### Fixed
 
 - Creating or editing a hairstyle no longer fails when loading the registered hairstyle choices.
+- Consecutive Draw strokes, Lengthen, Undo/Redo and draft reopening retain the original PAC skin donor and eight-influence records. Reopened drafts can be saved again without losing part identities; Mod inclusion remains reversible in Hair mode.
+- Lengthen acquires a clicked lock and keeps roots fixed. Hair tools explain unavailable selections, and scalp contacts check guide segments and card width during motion. Character references retain their authored head proportions and matching neck/shoulder placement; facial details follow the head without becoming hair planting or collision surfaces.
+- Hair setup rejects multi-mesh prefab registrations before Start, and package export preserves unbound engine texture markers without treating them as missing DDS files.
 - Mesh Editor's Mod checkbox can exclude and restore unchanged PAC hair with seven or eight skin influences without rewriting its original skin records.
 - Hair preview retains the base texture and transparency selected by Archive Browser when a material wrapper differs from the geometry part, avoiding solid pale hair cards.
 - Cancelled dependency requests and unexpected preview-cache errors no longer strand a Finder thumbnail slot. Other cards continue loading automatically, and obsolete loading updates cannot overwrite a new selection or page.

@@ -382,6 +382,7 @@ pub enum HostEvent {
     Hello,
     Ready,
     Theme(Value),
+    HairPreset(String),
     Result {
         event: String,
         request_id: u64,
@@ -1200,6 +1201,76 @@ impl CdmwBridge {
         bridge
     }
 
+    /// Real host round trips for the authorized, read-only hair workflow probe.
+    /// Uses the production candidate serializer and identity-checked receiver.
+    #[cfg(test)]
+    pub(crate) fn for_hair_probe(
+        root: PathBuf,
+        session_id: &str,
+        revision: u64,
+        mailbox: PathBuf,
+    ) -> Self {
+        let mut bridge = Self::for_test(root.clone(), session_id, 1, revision);
+        let (outbound, receiver) = bounded(OUTBOUND_QUEUE_BOUND);
+        let (sender, incoming) = bounded(CONTROL_QUEUE_BOUND);
+        bridge.outbound = outbound;
+        bridge.incoming = incoming;
+        let session_id = session_id.to_owned();
+        thread::spawn(move || {
+            for request in receiver {
+                let mut wire = Vec::new();
+                let request_id = match request {
+                    Outbound::HairTransaction {
+                        request_id,
+                        base_revision,
+                        label,
+                        candidate,
+                    } => {
+                        write_candidate(
+                            &root,
+                            &session_id,
+                            1,
+                            request_id,
+                            base_revision,
+                            &label,
+                            &candidate,
+                            &mut wire,
+                        )
+                        .unwrap();
+                        request_id
+                    }
+                    Outbound::Message(value) => {
+                        write_control_message(&mut wire, &value).unwrap();
+                        value["request_id"].as_u64().unwrap()
+                    }
+                    _ => panic!("unsupported hair probe transaction"),
+                };
+                let temporary = mailbox.join(format!("request-{request_id}.tmp"));
+                fs::write(&temporary, wire).unwrap();
+                fs::rename(
+                    temporary,
+                    mailbox.join(format!("request-{request_id}.json")),
+                )
+                .unwrap();
+                let response = mailbox.join(format!("response-{request_id}.json"));
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+                while !response.is_file() {
+                    if std::time::Instant::now() >= deadline {
+                        let _ =
+                            sender.send(Incoming::LocalError("Hair host probe timed out".into()));
+                        return;
+                    }
+                    thread::sleep(std::time::Duration::from_millis(10));
+                }
+                let value = serde_json::from_slice(&fs::read(response).unwrap()).unwrap();
+                if sender.send(Incoming::Message(value)).is_err() {
+                    return;
+                }
+            }
+        });
+        bridge
+    }
+
     #[cfg(test)]
     pub(crate) fn for_test_with_textures(
         root: PathBuf,
@@ -1223,6 +1294,15 @@ impl CdmwBridge {
             match event {
                 "hello" => Ok(HostEvent::Hello),
                 "ready" => Ok(HostEvent::Ready),
+                "hair_preset" => {
+                    let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
+                    if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {
+                        return Err(SessionError::Protocol(
+                            "unknown hairstyle preset".to_owned(),
+                        ));
+                    }
+                    Ok(HostEvent::HairPreset(preset.to_owned()))
+                }
                 "state_snapshot" => Ok(HostEvent::StateSnapshot(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
@@ -4028,6 +4108,32 @@ mod tests {
             "accepted request replay was not rejected"
         );
         assert_eq!(bridge.shadow_revision(), 5);
+    }
+
+    #[test]
+    fn hair_preset_event_checks_identity_and_leaves_revision_to_the_transaction() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let mut value = json!({"event":"hair_preset", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3, "preset":"bob"});
+        for preset in ["cropped", "bob", "long", "ponytail", "empty"] {
+            value["preset"] = json!(preset);
+            assert!(
+                matches!(bridge.decode_host_event(value.clone()), HostEvent::HairPreset(p) if p == preset)
+            );
+            assert_eq!(bridge.shadow_revision(), 4);
+        }
+        value["preset"] = json!("unsupported");
+        assert!(matches!(
+            bridge.decode_host_event(value.clone()),
+            HostEvent::Fatal(_)
+        ));
+        value["preset"] = json!("bob");
+        value["process_generation"] = json!(2);
+        assert!(matches!(
+            bridge.decode_host_event(value),
+            HostEvent::Fatal(_)
+        ));
     }
 
     #[test]

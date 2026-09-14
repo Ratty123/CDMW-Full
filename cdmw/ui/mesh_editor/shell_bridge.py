@@ -548,7 +548,7 @@ class MeshEditorShellBridgeMixin:
         launch_selected(controller)
         return True
 
-    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry) -> bool:
+    def _prepare_mesh_editor_archive_launch(self, entry: ArchiveEntry, *, replace_same: bool = False) -> bool:
         if not isinstance(entry, ArchiveEntry):
             return False
         if not hasattr(self, "mesh_editor_tab"):
@@ -559,7 +559,7 @@ class MeshEditorShellBridgeMixin:
             return True
         if has_standalone:
             current_target = self.mesh_editor_tab._current_target_entry()
-            if self._mesh_editor_entry_key(current_target) == self._mesh_editor_entry_key(entry):
+            if not replace_same and self._mesh_editor_entry_key(current_target) == self._mesh_editor_entry_key(entry):
                 self._activate_tool_widget(self.mesh_editor_tab)
                 if self._relaunch_idle_rust_editor_for_active_session(entry):
                     return False

@@ -103,8 +103,23 @@ internal static class CharacterCatalogTests
         Add("character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac", [1]);
         Add("character/model/1_pc/2_phw/nude/cd_phw_00_fuzz_00_0001_damian.pac", [1]);
         Xml("character/modelproperty/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac_xml", "<Mesh _subMeshName=\"cd_phw_nude\"/><Mesh _subMeshName=\"cd_phw_head\"/>");
+        foreach (var (family, prefix) in new[] { ("1_phm", "phm"), ("5_pom", "pom") })
+        {
+            Add($"character/model/1_pc/{family}/head/head/cd_{prefix}_00_head_00_0001.pac", [1]);
+            Add($"character/model/1_pc/{family}/nude/cd_{prefix}_00_nude_00_0001.pac", [1]);
+            Add($"character/model/1_pc/{family}/nude/cd_{prefix}_00_fuzz_00_0001.pac", [1]);
+        }
         var snapshot = Build();
         var catalogue = new ArchiveCharacterCatalog(snapshot);
+        foreach (var family in new[] { "1_phm", "5_pom" })
+        {
+            foreach (var role in new[] { "head", "body" })
+            {
+                var choices = catalogue.Search(new("fixture", Tab: "all", BodyFamily: family, SelectionPurpose: "hair_" + role));
+                Check(choices.TotalMatches == 1 && choices.Rows.Single().BodyFamily == family,
+                    $"{family}: {role} eligibility did not respect the mounted reference family");
+            }
+        }
         var hairHeads = catalogue.Search(new("fixture", Tab: "all", SelectionPurpose: "hair_head", PageStart: 72));
         Check(hairHeads.TotalMatches == 80 && hairHeads.Rows.Count == 8 && hairHeads.Rows.All(row => row.Role == "head" && row.BodyFamily == "2_phw"),
             "hair reference filtering did not precede pagination");

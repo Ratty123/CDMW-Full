@@ -2679,6 +2679,9 @@ impl LabApplication {
             HostEvent::Theme(theme) => {
                 self.apply_cdmw_theme_payload(&theme);
             }
+            HostEvent::HairPreset(preset) => {
+                self.hair.requested_preset = Some(preset);
+            }
             HostEvent::Result {
                 event,
                 request_id,
