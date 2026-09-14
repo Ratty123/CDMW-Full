@@ -19,7 +19,7 @@ from __future__ import annotations
 import threading
 from typing import Callable, Mapping, Optional, Sequence
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -42,7 +42,8 @@ from PySide6.QtWidgets import (
 
 from .ai_job import BatchResult, JobSummary, run_job
 from .ai_provider import PRESETS, ProviderConfig, load_config, preset_for, save_config
-from .ai_translate import Line, TranslationBrief
+from .ai_translate import CatalogueLines, Line, TranslationBrief, token_mismatch
+from .tab import _run_detached
 
 #: Offered in the target-language box. It is editable -- any language the model knows works.
 _COMMON_LANGUAGES = (
@@ -66,6 +67,8 @@ class ProviderSettingsDialog(QDialog):
         self.config = load_config()
         self._test_thread: Optional[QThread] = None
         self._test_worker: Optional[QObject] = None
+        self._closed = False
+        self.finished.connect(self.request_shutdown)
         self._build()
         self._load_into_widgets()
 
@@ -206,6 +209,8 @@ class ProviderSettingsDialog(QDialog):
     # ---------------------------------------------------------------- test / save
 
     def _on_test(self) -> None:
+        if self._closed or self._test_thread is not None:
+            return
         config = self.collect()
         problems = config.problems()
         if problems:
@@ -213,22 +218,40 @@ class ProviderSettingsDialog(QDialog):
             return
         self.test_button.setEnabled(False)
         self.test_result.setText("Asking the provider...")
-        self._test_thread = QThread(self)
+        self._test_thread = QThread()
         self._test_worker = _TestWorker(config)
-        self._test_worker.moveToThread(self._test_thread)
-        self._test_thread.started.connect(self._test_worker.run)
-        self._test_worker.done.connect(self._on_tested)
-        self._test_worker.done.connect(self._test_thread.quit)
-        self._test_thread.finished.connect(self._test_worker.deleteLater)
-        self._test_thread.start()
+        self.destroyed.connect(self._test_thread.requestInterruption)
+        self._test_thread.finished.connect(self._on_test_idle, Qt.ConnectionType.QueuedConnection)
+        _run_detached(self._test_thread, self._test_worker, on_done=self._on_tested)
 
+    @Slot(bool, str)
     def _on_tested(self, ok: bool, message: str) -> None:
-        self.test_button.setEnabled(True)
+        if self._closed or self.sender() is not self._test_worker:
+            return
         self.test_result.setText(("Works. " if ok else "Failed. ") + message)
+
+    @Slot()
+    def _on_test_idle(self):
+        self._test_thread = None
+        self._test_worker = None
+        if not self._closed:
+            self.test_button.setEnabled(True)
+
+    def iter_shutdown_workers(self):
+        return (("translation provider test", self._test_thread, self._test_worker),) if self._test_thread is not None else ()
+
+    def request_shutdown(self):
+        self._closed = True
+        if self._test_thread is not None:
+            self._test_thread.requestInterruption()
 
     def _on_save(self) -> None:
         config = self.collect()
-        self.config = save_config(config)
+        try:
+            self.config = save_config(config)
+        except OSError as error:
+            self.test_result.setText(f"Could not save settings: {error}")
+            return
         if config.api_key and not self.config.key_is_encrypted:
             QMessageBox.warning(
                 self,
@@ -256,6 +279,9 @@ class _TestWorker(QObject):
         brief = TranslationBrief(target_language="French", source_language="English")
         batch = (Line(index=0, text="Take the sword.<br/>{Key:Key_Roll}"),)
         try:
+            if QThread.currentThread().isInterruptionRequested():
+                self.done.emit(False, "cancelled")
+                return
             text = send_once(
                 self._config,
                 brief.system_prompt(),
@@ -271,6 +297,10 @@ class _TestWorker(QObject):
             answer = ""
         if not answer:
             self.done.emit(False, "the model replied, but not with a translation: " + text[:160])
+            return
+        changed = token_mismatch(batch[0].text, answer)
+        if changed:
+            self.done.emit(False, "markup changed: " + ", ".join(changed))
             return
         self.done.emit(True, f"Test line came back as: {answer}")
 
@@ -295,7 +325,7 @@ class _JobWorker(QObject):
         super().__init__()
         self._config = config
         self._brief = brief
-        self._lines = list(lines)
+        self._lines = lines if isinstance(lines, CatalogueLines) else tuple(lines)
         self._skip = skip_on_mismatch
         self._stop = stop_event
         self._transport = transport
@@ -339,6 +369,9 @@ class TranslateDialog(QDialog):
         self._stop = threading.Event()
         self._thread: Optional[QThread] = None
         self._worker: Optional[_JobWorker] = None
+        self._closed = False
+        self.finished.connect(self.request_shutdown)
+        self.destroyed.connect(self._stop.set)
         self._rejected_examples: list[str] = []
         self.summary: Optional[JobSummary] = None
         self._build()
@@ -419,6 +452,8 @@ class TranslateDialog(QDialog):
         return ()
 
     def _on_start(self) -> None:
+        if self._closed or self._thread is not None:
+            return
         lines = self.selected_lines()
         target = self.target_box.currentText().strip()
         if not lines or not target:
@@ -452,14 +487,13 @@ class TranslateDialog(QDialog):
         self._note(f"Translating {len(lines):,} line(s) into {target}...")
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.close_button.setEnabled(False)
 
         brief = TranslationBrief(
             target_language=target,
             source_language=self.source_box.text().strip(),
             instructions=self.instructions.text().strip(),
         )
-        self._thread = QThread(self)
+        self._thread = QThread()
         self._worker = _JobWorker(
             config,
             brief,
@@ -468,25 +502,27 @@ class TranslateDialog(QDialog):
             stop_event=self._stop,
             transport=self._transport,
         )
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.progress.connect(self._on_progress)
-        self._worker.batch.connect(self._on_batch)
-        self._worker.finished.connect(self._on_finished)
-        self._worker.finished.connect(self._thread.quit)
-        self._thread.finished.connect(self._worker.deleteLater)
-        self._thread.start()
+        self._worker.progress.connect(self._on_progress, Qt.ConnectionType.QueuedConnection)
+        self._worker.batch.connect(self._on_batch, Qt.ConnectionType.QueuedConnection)
+        self._thread.finished.connect(self._on_job_idle, Qt.ConnectionType.QueuedConnection)
+        _run_detached(self._thread, self._worker, on_done=self._on_finished, done_signal=self._worker.finished)
 
     def _on_stop(self) -> None:
         self._stop.set()
         self.stop_button.setEnabled(False)
         self._note("Stopping after the requests already in flight...")
 
+    @Slot(int, int)
     def _on_progress(self, done: int, total: int) -> None:
+        if self._closed or self.sender() is not self._worker:
+            return
         self.progress.setRange(0, max(1, total))
         self.progress.setValue(done)
 
+    @Slot(object)
     def _on_batch(self, result: BatchResult) -> None:
+        if self._closed or self.sender() is not self._worker:
+            return
         if result.error:
             self._note(f"Request {result.number} failed: {result.error}")
             return
@@ -500,11 +536,13 @@ class TranslateDialog(QDialog):
             + (f", {len(result.rejected)} left alone" if result.rejected else "")
         )
 
+    @Slot(object)
     def _on_finished(self, summary: JobSummary) -> None:
+        if self._closed or self.sender() is not self._worker:
+            return
         self.summary = summary
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
-        self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.close_button.setEnabled(True)
         self._note(summary.describe())
@@ -517,11 +555,24 @@ class TranslateDialog(QDialog):
         self.log.setVisible(True)
         self.log.appendPlainText(message)
 
-    def reject(self) -> None:  # noqa: D102 - Qt override
+    @Slot()
+    def _on_job_idle(self):
+        self._thread = None
+        self._worker = None
+        if not self._closed:
+            self.start_button.setEnabled(True)
+
+    def iter_shutdown_workers(self):
+        return (("AI translation", self._thread, self._worker),) if self._thread is not None else ()
+
+    def request_shutdown(self):
+        self._closed = True
         self._stop.set()
-        if self._thread is not None and self._thread.isRunning():
-            self._thread.quit()
-            self._thread.wait(5000)
+        if self._thread is not None:
+            self._thread.requestInterruption()
+
+    def reject(self) -> None:  # noqa: D102 - Qt override
+        self.request_shutdown()
         super().reject()
 
 

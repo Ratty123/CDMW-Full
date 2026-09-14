@@ -65,6 +65,27 @@ class Line:
     context: str = ""
 
 
+class CatalogueLines(Sequence[Line]):
+    """An immutable selection without constructing a whole language's prompt rows on Qt."""
+
+    def __init__(self, catalogue, indexes):
+        self._entries = catalogue.table.entries
+        self._edits = dict(catalogue.edits)
+        self._categories = catalogue.categories()
+        self._indexes = tuple(index for index in indexes
+                              if self._edits.get(index, self._entries[index].text).strip())
+
+    def __len__(self):
+        return len(self._indexes)
+
+    def __getitem__(self, position):
+        if isinstance(position, slice):
+            return tuple(self[index] for index in range(*position.indices(len(self))))
+        index = self._indexes[position]
+        entry = self._entries[index]
+        return Line(index, self._edits.get(index, entry.text), str(self._categories.get(entry.category, "")))
+
+
 def build_batches(
     lines: Sequence[Line], *, batch_size: int, max_chars: int = _MAX_BATCH_CHARS
 ) -> Tuple[Tuple[Line, ...], ...]:
@@ -160,7 +181,7 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
 
     base = config.resolved_base_url()
     model = str(config.model or "").strip()
-    key = str(config.api_key or "").strip()
+    key = str(config.api_key or "").strip() if config.needs_key else ""
     api = config.api
 
     if api == ANTHROPIC:
@@ -180,7 +201,8 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
         }
         if key:
             headers["x-api-key"] = key
-        return HttpRequest(f"{base}/v1/messages", headers, _encode(body))
+        versioned = base if base.endswith("/v1") else f"{base}/v1"
+        return HttpRequest(f"{versioned}/messages", headers, _encode(body))
 
     if api == GEMINI:
         body = {
@@ -195,9 +217,8 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
         if key:
             # The header form, not `?key=`, so the secret never lands in a URL.
             headers["x-goog-api-key"] = key
-        return HttpRequest(
-            f"{base}/v1beta/models/{model}:generateContent", headers, _encode(body)
-        )
+        versioned = base if base.endswith("/v1beta") else f"{base}/v1beta"
+        return HttpRequest(f"{versioned}/models/{model.removeprefix('models/')}:generateContent", headers, _encode(body))
 
     body = {
         "model": model,
@@ -206,10 +227,13 @@ def build_request(config: ProviderConfig, system: str, user: str) -> HttpRequest
             {"role": "user", "content": user},
         ],
     }
+    token_field = "max_completion_tokens" if config.preset == "openai" else "max_tokens"
+    body[token_field] = int(config.max_tokens)
     headers = {"content-type": "application/json"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
-    return HttpRequest(f"{base}/v1/chat/completions", headers, _encode(body))
+    versioned = base if base.endswith("/v1") else f"{base}/v1"
+    return HttpRequest(f"{versioned}/chat/completions", headers, _encode(body))
 
 
 def _encode(body: Mapping[str, object]) -> bytes:
@@ -283,14 +307,23 @@ def parse_translations(text: str) -> Dict[int, str]:
     if parsed is None:
         raise ProviderError("the reply contained no JSON")
     out: Dict[int, str] = {}
+
+    def accept(identifier, value):
+        # A malformed reply must not turn null/objects into literal game text, or
+        # round a fractional id onto a different row.
+        if not isinstance(value, str) or not value.strip():
+            return
+        if isinstance(identifier, bool) or not isinstance(identifier, (int, str)):
+            return
+        if not re.fullmatch(r"\d+", str(identifier)):
+            return
+        out[int(identifier)] = value
+
     if isinstance(parsed, dict):
         entries: Iterable = parsed.get("translations") or parsed.get("lines") or []
         if not entries:
             for key, value in parsed.items():
-                try:
-                    out[int(key)] = str(value)
-                except (TypeError, ValueError):
-                    continue
+                accept(key, value)
             return out
     else:
         entries = parsed
@@ -301,10 +334,7 @@ def parse_translations(text: str) -> Dict[int, str]:
         value = entry.get("t", entry.get("text", entry.get("translation")))
         if identifier is None or value is None:
             continue
-        try:
-            out[int(identifier)] = str(value)
-        except (TypeError, ValueError):
-            continue
+        accept(identifier, value)
     return out
 
 

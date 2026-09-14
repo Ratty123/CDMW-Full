@@ -25,7 +25,8 @@ document only when exporting. That keeps "what have I changed" answerable and Re
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+import tempfile
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
@@ -199,7 +200,8 @@ class TranslationCatalogue:
 
     def describe_changes(self, limit: int = 6) -> Tuple[str, ...]:
         lines = []
-        for row in self.edited_rows()[:limit]:
+        for index in sorted(self.edits)[:limit]:
+            row = self.row(index)
             was = self.table.entries[row.index].text
             lines.append(f"{row.key}: {was[:40]!r} -> {row.text[:40]!r}")
         return tuple(lines)
@@ -352,14 +354,24 @@ def export_packages(
     author: str = "",
     version: str = "1.0.0",
     managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    is_cancelled: Optional[Callable[[], bool]] = None,
 ):
     """Write one mod package per manager. Returns the results, or () when unchanged."""
 
+    if not name.strip() or re.search(r'[<>:"/\\|?*\x00-\x1f]', name) or name in {".", ".."}:
+        raise ValueError("Use a mod name without folder separators or reserved filename characters.")
+
+    def check_cancelled():
+        if is_cancelled is not None and is_cancelled():
+            raise InterruptedError("Export cancelled")
+
+    check_cancelled()
     files = catalogue.changed_files()
     if not files:
         return ()
     from tools.placement_studio.ops import Plan
     from tools.placement_studio.packaging import PackageMetadata, build_all
+    from cdmw.core.atomic_file import atomic_publish_paths
 
     metadata = PackageMetadata(
         name=name,
@@ -369,10 +381,17 @@ def export_packages(
             f"{catalogue.edit_count} retranslated line(s) for {catalogue.language}."
         ),
     )
-    return tuple(
-        build_all(Plan(name=name), files, metadata, out_root=Path(out_root),
-                  managers=tuple(managers))
-    )
+    root = Path(out_root)
+    root.mkdir(parents=True, exist_ok=True)
+    # Build all layouts before replacing any previous output. Repeated exports must
+    # not retain tables whose edits have since been reverted.
+    with tempfile.TemporaryDirectory(prefix=".translation-", dir=root) as staging:
+        results = build_all(Plan(name=name), files, metadata, out_root=Path(staging),
+                            managers=tuple(managers))
+        check_cancelled()
+        targets = [(result.root, root / result.root.name) for result in results]
+        atomic_publish_paths(targets)
+        return tuple(replace(result, root=target) for result, (_stage, target) in zip(results, targets))
 
 
 #: `language_of`, `game_path_for` and the path constants live in `language_index.py` now

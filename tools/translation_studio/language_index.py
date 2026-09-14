@@ -34,7 +34,7 @@ from typing import Callable, Mapping, Optional, Tuple
 PALOC_DIR = "gamedata/stringtable/binary__"
 PALOC_PREFIX = "localizationstring_"
 
-_CACHE_VERSION = 2
+_CACHE_VERSION = 3
 
 
 def _install_root() -> Path:
@@ -106,14 +106,32 @@ class LanguageIndex:
 def _package_tables(root: Path):
     from cdmw.core.archive_format import discover_pamt_files
 
-    return list(discover_pamt_files(Path(root)))
+    tables = list(discover_pamt_files(Path(root)))
+    from cdmw.core.papgt_format import parse_papgt
+
+    priorities = {}
+    for parent in {path.parent.parent for path in tables}:
+        mount_file = parent / "meta" / "0.papgt"
+        if not mount_file.is_file():
+            continue
+        if mount_file.stat().st_size > 1024 * 1024:
+            raise ValueError(f"Archive mount table is unexpectedly large: {mount_file}")
+        mounts = parse_papgt(mount_file.read_bytes())
+        order = {row.name.casefold(): -index for index, row in enumerate(mounts)}
+        tables = [path for path in tables if path.parent.parent != parent or path.parent.name.casefold() in order]
+        priorities.update({path: order[path.parent.name.casefold()] for path in tables if path.parent.parent == parent})
+    # Last candidate wins below. With a mount list, its first package has priority;
+    # legacy installations without a list retain their numeric package ordering.
+    return sorted(tables, key=lambda path: (priorities.get(path, 0), str(path)))
 
 
 def _fingerprint(paths) -> Tuple[Tuple[str, int, int], ...]:
     """Size and mtime per package table: cheap enough to run on every open."""
 
+    paths = list(paths)
+    mounts = {path.parent.parent / "meta" / "0.papgt" for path in paths}
     out = []
-    for path in paths:
+    for path in [*paths, *(path for path in mounts if path.is_file())]:
         try:
             stat = path.stat()
         except OSError:
@@ -165,13 +183,21 @@ def load_cached(root: Path) -> Optional[LanguageIndex]:
         return None
     if str(payload.get("root") or "") != str(root):
         return None
-    stored = tuple(tuple(entry) for entry in payload.get("fingerprint") or ())
-    stored = tuple((str(a), int(b), int(c)) for a, b, c in stored)
+    try:
+        stored = tuple((str(a), int(b), int(c)) for a, b, c in payload.get("fingerprint") or ())
+        sources = dict(payload["sources"])
+        languages = tuple(payload["languages"])
+        tables = dict(payload["tables"])
+        if not all(isinstance(path, str) and isinstance(source, str) for path, source in tables.items()):
+            return None
+        if tuple(sorted({language_of(path) for path in tables})) != languages or "" in languages:
+            return None
+        if set(sources) != set(languages) or not set(tables.values()) <= {entry[0] for entry in stored}:
+            return None
+    except (TypeError, ValueError, KeyError):
+        return None
     if stored != _fingerprint(_package_tables(root)):
         return None
-    sources = {str(k): str(v) for k, v in (payload.get("sources") or {}).items()}
-    languages = tuple(str(name) for name in payload.get("languages") or ())
-    tables = {str(path): str(source) for path, source in (payload.get("tables") or {}).items()}
     return LanguageIndex(root=str(root), languages=languages, sources=sources, tables=tables)
 
 
@@ -183,8 +209,7 @@ def build_index(
 ) -> LanguageIndex:
     """Sweep every package table once and record where each language lives.
 
-    Later packages patch earlier ones, so the highest-numbered package wins -- the same
-    rule `corpus.extract_baseline` applies when it resolves a path.
+    Use the game's mount order when available and retain every selected file path.
     """
 
     from cdmw.core.archive_format import parse_archive_pamt
@@ -192,33 +217,36 @@ def build_index(
     root = Path(root)
     tables = _package_tables(root)
     fingerprint = _fingerprint(tables)
-    found: dict[str, tuple[str, str]] = {}
+    found: dict[str, str] = {}
+    failed = []
     for done, pamt in enumerate(tables, start=1):
         if on_progress is not None:
             on_progress(done, len(tables))
         try:
             entries = parse_archive_pamt(pamt)
         except Exception:  # noqa: BLE001 - one unreadable package must not hide the rest
+            failed.append(str(pamt))
             continue
-        package = pamt.parent.name
         for entry in entries:
             path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().strip("/").lower()
             language = language_of(path)
             if not language:
                 continue
-            previous = found.get(path)
-            if previous is None or package >= previous[0]:
-                found[path] = (package, str(pamt))
-    sources = {}
-    for path, (_package, source) in sorted(found.items(), key=lambda item: item[1]):
-        sources[language_of(path)] = source
+            found[path] = str(pamt)
+    split_languages = {language_of(path) for path in found if not path.rsplit("/", 1)[-1].startswith(PALOC_PREFIX)}
+    found = {path: source for path, source in found.items()
+             if not (path.rsplit("/", 1)[-1].startswith(PALOC_PREFIX) and language_of(path) in split_languages)}
+    sources = {language_of(path): source for path, source in found.items()}
     index = LanguageIndex(
         root=str(root),
         languages=tuple(sorted(sources)),
         sources=sources,
-        tables={path: source for path, (_package, source) in found.items()},
+        tables=found,
     )
-    _write_cache(index, fingerprint)
+    if not failed:
+        _write_cache(index, fingerprint)
+    elif not found:
+        raise ValueError(f"Could not read archive package: {failed[0]}")
     return index
 
 
