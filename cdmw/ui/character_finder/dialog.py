@@ -19,6 +19,7 @@ from cdmw.domain.archives.character_catalogue import (
     CharacterCatalogDetailRequest, CharacterCatalogDetailResult,
     CharacterCatalogScopeRequest, CharacterCatalogScopeResult,
 )
+from cdmw.domain.character_finder import CHARACTER_FINDER_CACHED_PAGES, CHARACTER_FINDER_LOOKAHEAD_PAGES
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
 from cdmw.ui.preview.rust_host import RustPreviewHostFrame
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
@@ -50,6 +51,7 @@ class CharacterFinderDialog(QDialog):
         self._requests = {}
         self._active_search = None
         self._prefetch_search = None
+        self._prefetch_failed = set()
         self._search_cache = OrderedDict()
         self._rows = {}
         self._items = {}
@@ -314,6 +316,7 @@ class CharacterFinderDialog(QDialog):
         self._cancel("scope")
         self._cancel("prefetch")
         self._prefetch_search = None
+        self._prefetch_failed.clear()
         self._active_search = None
         self._details = None
         self._pending_package = None
@@ -334,10 +337,9 @@ class CharacterFinderDialog(QDialog):
             related_key=self._related_key, page_start=self._page_start,
             **{key: combo.currentData() or None for key, combo in self._filters.items()})
         self._active_search = request
+        self._prefetch_failed.clear()
         cached = self._cached_search(request)
         if cached is not None:
-            self._cancel("prefetch")
-            self._prefetch_search = None
             self._populate(cached)
             self._buttons()
             return
@@ -368,28 +370,36 @@ class CharacterFinderDialog(QDialog):
             return
         self._search_cache[request] = result
         self._search_cache.move_to_end(request)
-        while len(self._search_cache) > 4:
+        while len(self._search_cache) > CHARACTER_FINDER_CACHED_PAGES:
             self._search_cache.popitem(last=False)
 
     def _preload_next_page(self):
         if (self._closing or self._invalid or self._active_search is None
-                or "search" in self._requests or "build" in self._requests
-                or not self._preview.page_complete or self._page_start + 72 >= self._total):
+                or "search" in self._requests or "build" in self._requests):
             return
-        request = replace(self._active_search, page_start=self._page_start + 72)
-        if request == self._prefetch_search:
+        wanted = [replace(self._active_search, page_start=self._page_start + offset * 72)
+            for offset in range(1, CHARACTER_FINDER_LOOKAHEAD_PAGES + 1)
+            if self._page_start + offset * 72 < self._total]
+        self._prefetch_failed.intersection_update(wanted)
+        if self._prefetch_search not in wanted:
+            self._cancel("prefetch")
+            self._prefetch_search = None
+        pages = [(request, self._cached_search(request)) for request in wanted]
+        rows = tuple(row for _, page in pages if page is not None for row in page.rows)
+        self._preview.prefetch(rows, session_id=self._session_id, generation=self._bridge.controller.generation)
+        if "prefetch" in self._requests:
             return
-        self._cancel("prefetch")
-        self._prefetch_search = request
-        cached = self._cached_search(request)
-        if cached is not None:
-            self._preview.prefetch(cached.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
-            return
-        try:
-            self._requests["prefetch"] = self._service.search_character_catalog(
-                request, ui_generation=self._bridge.controller.generation)
-        except Exception:
-            pass  # Next still uses the ordinary visible search/retry path.
+        for request, cached in pages:
+            if cached is not None or request in self._prefetch_failed:
+                continue
+            self._prefetch_search = request
+            try:
+                self._requests["prefetch"] = self._service.search_character_catalog(
+                    request, ui_generation=self._bridge.controller.generation)
+                return  # At most one lookahead catalogue request is outstanding.
+            except Exception:
+                self._prefetch_failed.add(request)
+        self._prefetch_search = None
 
     def _result(self, request_id, _operation, result):
         if self._closing or self._invalid or getattr(result, "session_id", None) != self._session_id:
@@ -405,7 +415,8 @@ class CharacterFinderDialog(QDialog):
             self._populate(result)
         elif kind == "prefetch" and isinstance(result, CharacterCatalogSearchResult):
             self._remember_search(self._prefetch_search, result)
-            self._preview.prefetch(result.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
+            self._prefetch_search = None
+            self._preload_next_page()
         elif kind == "detail" and isinstance(result, CharacterCatalogDetailResult):
             if result.row.key == self._selected_key():
                 self._show_detail(result)
@@ -465,7 +476,6 @@ class CharacterFinderDialog(QDialog):
         self._status.setText(" · ".join(result.warnings) if result.warnings else "Select a result to preview it. Thumbnails load as you browse.")
         # Promote preloaded jobs before selection signals can reprioritize them.
         self._preview.visible(result.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
-        self._preview.prefetch((), session_id=self._session_id, generation=self._bridge.controller.generation)
         selected = self._items.get(self._select_after_search) or (self._grid.item(0) if result.rows else None)
         self._select_after_search = None
         if selected:
@@ -475,6 +485,7 @@ class CharacterFinderDialog(QDialog):
             self._title.setText("No matching bodies or faces")
         self._visible()
         self._visible_timer.start()
+        self._preload_next_page()
 
     def _selected_key(self):
         item = self._grid.currentItem()
@@ -645,7 +656,8 @@ class CharacterFinderDialog(QDialog):
         visible = {key for key, item in self._items.items() if self._grid.visualItemRect(item).intersects(viewport)}
         rows = [self._rows[key] for key in self._items if key in visible]
         rows.extend(self._rows[key] for key in self._items if key not in visible)
-        self._preview.visible(rows, session_id=self._session_id, generation=self._bridge.controller.generation)
+        self._preview.visible(rows, session_id=self._session_id, generation=self._bridge.controller.generation,
+            priority_keys=visible or None)
 
     def eventFilter(self, watched, event):
         if watched is self._grid.viewport() and event.type() in (QEvent.Type.Resize, QEvent.Type.Show):
@@ -687,7 +699,7 @@ class CharacterFinderDialog(QDialog):
                 return icon
             self._thumbnail_icons[path] = icon
         self._thumbnail_icons.move_to_end(path)
-        while len(self._thumbnail_icons) > 288:
+        while len(self._thumbnail_icons) > 72 * CHARACTER_FINDER_CACHED_PAGES:
             self._thumbnail_icons.popitem(last=False)
         return icon
 
@@ -697,7 +709,7 @@ class CharacterFinderDialog(QDialog):
         if result.thumbnail_path:
             self._thumbs[key] = result.thumbnail_path
             self._thumbs.move_to_end(key)
-            while len(self._thumbs) > 288:
+            while len(self._thumbs) > 72 * CHARACTER_FINDER_CACHED_PAGES:
                 self._thumbs.popitem(last=False)
             icon = self._thumbnail_icon(result.thumbnail_path)
             item = self._items.get(key)
@@ -723,6 +735,10 @@ class CharacterFinderDialog(QDialog):
         if kind is not None and not self._closing:
             self._requests.pop(kind)
             if kind == "prefetch":
+                if self._prefetch_search is not None:
+                    self._prefetch_failed.add(self._prefetch_search)
+                self._prefetch_search = None
+                self._preload_next_page()
                 return
             self._status.setText(str(getattr(error, "message", error)))
             self._buttons()

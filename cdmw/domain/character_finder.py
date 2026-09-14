@@ -3,6 +3,9 @@ from dataclasses import dataclass, replace
 from .archives.character_catalogue import CharacterCatalogDetailResult
 from cdmw.models import ArchiveEntry
 
+CHARACTER_FINDER_LOOKAHEAD_PAGES = 4
+CHARACTER_FINDER_CACHED_PAGES = 8
+
 
 def character_preview_detail(detail: CharacterCatalogDetailResult) -> CharacterCatalogDetailResult:
     """Keep render inputs while leaving ownership information in the UI detail."""

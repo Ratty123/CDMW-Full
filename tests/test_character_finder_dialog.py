@@ -134,13 +134,10 @@ def publish_rows(dialog, service, rows, *, total=None, page_start=0):
         CharacterCatalogSearchResult("session-a", len(rows) if total is None else total, page_start, 72, tuple(rows), (), ()))
 
 
-def test_next_page_request_waits_for_visible_cards_and_is_promoted_without_requery(finder):
+def test_next_page_request_starts_immediately_and_is_promoted_without_requery(finder):
     dialog, service, _ = finder
     publish_rows(dialog, service, [row(i) for i in range(72)], total=144)
-    dialog._preview.idle.emit()
-    assert "prefetch" not in dialog._requests
-    dialog._preview.page_complete = True
-    dialog._preview.idle.emit()
+    assert not dialog._preview.page_complete
     request = dialog._requests["prefetch"]
     assert service.calls[-1][1].page_start == 72
     assert service.calls[-1][1].source_group == "humanoid"
@@ -157,6 +154,52 @@ def test_next_page_request_waits_for_visible_cards_and_is_promoted_without_reque
     dialog._page(-1)
     assert sum(token.startswith("search-") for token, _, _ in service.calls) == searches
     assert dialog._preview.visible_rows[0].key == "asset:0"
+
+
+def test_four_page_lookahead_rolls_forward_and_retains_a_useful_pending_request(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=720)
+    for start in (72, 144, 216, 288):
+        token = dialog._requests["prefetch"]
+        assert dialog._prefetch_search.page_start == start
+        assert "search" not in dialog._requests
+        service.result_ready.emit(token, "search_character_catalog", CharacterCatalogSearchResult(
+            "session-a", 720, start, 72, tuple(row(i) for i in range(start, start + 72)), (), ()))
+    assert "prefetch" not in dialog._requests
+    assert len(dialog._preview.prefetch_rows) == 288
+    assert dialog._preview.visible_rows[0].key == "asset:0"
+    dialog._page(1)
+    assert dialog._preview.visible_rows[0].key == "asset:72"
+    token = dialog._requests["prefetch"]
+    assert dialog._prefetch_search.page_start == 360
+    calls = len(service.calls)
+    dialog._page(1)
+    assert dialog._preview.visible_rows[0].key == "asset:144"
+    assert dialog._requests["prefetch"] == token and token not in service.cancelled
+    assert not any(request.startswith("search-") for request, _, _ in service.calls[calls:])
+    service.result_ready.emit(token, "search_character_catalog", CharacterCatalogSearchResult(
+        "session-a", 720, 360, 72, tuple(row(i) for i in range(360, 432)), (), ()))
+    assert dialog._prefetch_search.page_start == 432
+    assert len(dialog._search_cache) == 6  # More than the previous four-page cache.
+    dialog._search_edit.setText("new filter")
+    dialog._search_timer.stop()
+    assert "prefetch" not in dialog._requests and not dialog._preview.prefetch_rows
+
+
+def test_failed_lookahead_page_does_not_stop_later_pages_or_repeat_the_failed_request(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=720)
+    first = dialog._requests["prefetch"]
+    before = dialog._status.text()
+    service.request_failed.emit(first, "fixture failure")
+    assert dialog._prefetch_search.page_start == 144
+    pending = dialog._requests["prefetch"]
+    dialog._preview.idle.emit()
+    assert dialog._requests["prefetch"] == pending
+    assert dialog._status.text() == before and dialog._next_button.isEnabled()
+    dialog._page(1)
+    assert service.calls[-1][1].page_start == 72
+    assert "search" in dialog._requests and pending in service.cancelled
 
 
 def test_next_page_reuses_preloaded_rows_without_replacing_the_current_grid_early(finder):

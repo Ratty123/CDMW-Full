@@ -135,9 +135,11 @@ def test_parallel_page_continues_without_scroll_and_preserves_selection_priority
 
 
 @pytest.fixture
-def page_scheduler(monkeypatch, tmp_path):
+def page_scheduler(monkeypatch, tmp_path, request):
     global _APP
     _APP = QApplication.instance() or QApplication([])
+    if hasattr(request, "param"):
+        monkeypatch.setattr(module.os, "cpu_count", lambda: 16)
     service = Service()
     original = service.get_character_catalog_detail
     def get_detail(request, **kwargs):
@@ -171,7 +173,7 @@ def page_scheduler(monkeypatch, tmp_path):
                 self.finished.emit()
     monkeypatch.setattr(module, "CharacterFinderRenderWorker", Worker)
     owner = module.CharacterFinderPreviewController(service, fingerprint="fp", cache_root=tmp_path,
-        settings=ModelPreviewRenderSettings(), max_lanes=2)
+        settings=ModelPreviewRenderSettings(), max_lanes=getattr(request, "param", 2))
     yield owner, jobs
     owner.shutdown()
     for job in jobs:
@@ -250,6 +252,69 @@ def test_prefetch_yields_to_a_new_selection_and_rejects_obsolete_pages(page_sche
     jobs[-1].release.set()
     wait_for(lambda: owner.page_complete)
     assert jobs[-1].selected.row.key == "asset:7"
+
+
+@pytest.mark.parametrize("page_scheduler", [6], indirect=True)
+def test_lookahead_starts_after_on_screen_cards_while_offscreen_cards_are_still_loading(page_scheduler):
+    owner, jobs = page_scheduler
+    rows = [row(i) for i in range(1, 9)]
+    owner.visible(rows, session_id="session-a", generation=1, priority_keys={"asset:1", "asset:2"})
+    owner.prefetch([row(i) for i in range(100, 390)], session_id="session-a", generation=1)
+    wait_for(lambda: len(jobs) == 4)
+    assert {job.selected.row.key for job in jobs} == {"asset:1", "asset:2", "asset:3", "asset:4"}
+    for job in jobs[:2]:
+        job.release.set()
+    wait_for(lambda: len(jobs) == 6)
+    assert {job.selected.row.key for job in jobs[4:]} == {"asset:100", "asset:101"}
+    assert not any(job.release.is_set() or job.stopped.is_set() for job in jobs[2:4])
+    assert len(owner._prefetch_rows) == 288
+    # Scrolling to an unfinished card cancels speculative jobs and uses their slots.
+    owner.visible([row(7), *[item for item in rows if item.key != "asset:7"]],
+        session_id="session-a", generation=1, priority_keys={"asset:7"})
+    wait_for(lambda: len(jobs) >= 7)
+    assert all(job.stopped.is_set() for job in jobs[4:6])
+    assert jobs[6].selected.row.key == "asset:7"
+
+
+@pytest.mark.parametrize("page_scheduler", [6], indirect=True)
+def test_completed_page_uses_four_parallel_lookahead_jobs_without_restarting_them(page_scheduler):
+    owner, jobs = page_scheduler
+    owner.visible([row(1)], session_id="session-a", generation=1)
+    wait_for(lambda: len(jobs) == 1)
+    jobs[0].release.set()
+    wait_for(lambda: owner.page_complete)
+    future = [row(i) for i in range(2, 74)]
+    owner.prefetch(future, session_id="session-a", generation=1)
+    wait_for(lambda: len(jobs) == 5)
+    assert {job.selected.row.key for job in jobs[1:]} == {"asset:2", "asset:3", "asset:4", "asset:5"}
+    owner.prefetch(future, session_id="session-a", generation=1)
+    QTest.qWait(25)
+    assert len(jobs) == 5 and not any(job.stopped.is_set() for job in jobs[1:])
+
+
+def test_page_change_cancels_the_old_cache_scan_without_waiting_for_its_remaining_rows(page_scheduler, monkeypatch):
+    owner, jobs = page_scheduler
+    blocked, release = threading.Event(), threading.Event()
+    def lookup(_root, _rows, key):
+        if key == "asset:1":
+            blocked.set()
+            release.wait(10)
+        return None
+    monkeypatch.setattr(module, "cached_character_row", lookup)
+    try:
+        owner.visible([row(1), row(2)], session_id="session-a", generation=1)
+        wait_for(blocked.is_set)
+        old = owner._cache_worker
+        owner.visible([row(3)], session_id="session-a", generation=1)
+        assert old._stop.is_set()
+        release.set()
+        wait_for(lambda: len(jobs) == 1)
+        assert jobs[0].selected.row.key == "asset:3"
+        jobs[0].release.set()
+        wait_for(lambda: owner.page_complete)
+        assert len(jobs) == 1
+    finally:
+        release.set()
 
 
 def test_revisited_page_without_row_index_can_reload_its_exact_cache(monkeypatch, tmp_path):
@@ -337,11 +402,11 @@ def test_detail_memory_is_bounded_and_scoped_to_the_archive_session(tmp_path):
     owner = module.CharacterFinderPreviewController(Service(), fingerprint="fp", cache_root=tmp_path,
         settings=ModelPreviewRenderSettings())
     try:
-        for index in range(144):
+        for index in range(576):
             owner._remember_detail(detail(row(index)))
         assert owner.cached_detail("asset:0", "session-a") is not None
-        owner._remember_detail(detail(row(144)))
-        assert len(owner._details) == 144
+        owner._remember_detail(detail(row(576)))
+        assert len(owner._details) == 576
         assert owner.cached_detail("asset:1", "session-a") is None
         assert owner.cached_detail("asset:0", "session-a") is not None
         assert owner.cached_detail("asset:0", "different-session") is None
@@ -1087,7 +1152,12 @@ def test_finder_passes_authored_shape_to_primary_and_attached_meshes(tmp_path, m
     monkeypatch.setattr("cdmw.workers.archive_preview_native.native_preview_model_property_indices", lambda *a: ())
     monkeypatch.setattr("cdmw.rendering.native_preview_core.run_native_preview_core_preview_job", native)
     monkeypatch.setattr("cdmw.services.preview_material_status.native_preview_missing_texture_reason", lambda *a: None)
-    monkeypatch.setattr("cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package", lambda *a, **kw: "package")
+    def cache_package(*args, **kwargs):
+        assert kwargs["cache_mode"] == "aggressive"
+        assert kwargs["max_bytes"] == 2 * 1024 ** 3
+        assert kwargs["target_bytes"] == 1536 * 1024 ** 2
+        return "package"
+    monkeypatch.setattr("cdmw.services.mesh_rust_preview_cache.build_or_lookup_rust_preview_package", cache_package)
     if unavailable:
         with pytest.raises(ValueError, match="declared skeleton variation"):
             worker._build_package("fixture")
