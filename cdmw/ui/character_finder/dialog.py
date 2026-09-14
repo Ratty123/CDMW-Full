@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+from collections import OrderedDict
 from dataclasses import replace
 from pathlib import Path
 from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt
@@ -43,9 +44,13 @@ class CharacterFinderDialog(QDialog):
             raise ValueError("Scan the archives before opening Body & Face Finder.")
         self._session_id, self._fingerprint = session.session_id, session.fingerprint
         self._settings = getattr(window.shell, "settings", None)
+        self._warmup = getattr(window.archive, "archive_character_finder_warmup_controller", None)
         self._closing = False
         self._invalid = False
         self._requests = {}
+        self._active_search = None
+        self._prefetch_search = None
+        self._search_cache = OrderedDict()
         self._rows = {}
         self._items = {}
         self._details = None
@@ -57,7 +62,8 @@ class CharacterFinderDialog(QDialog):
         self._hair_preparation = None
         self._hair_handoff = None
         self._shown_key = ""
-        self._thumbs = {}
+        self._thumbs = OrderedDict()
+        self._thumbnail_icons = OrderedDict()
         self._build_ui()
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -77,6 +83,7 @@ class CharacterFinderDialog(QDialog):
         self._preview.thumbnail_ready.connect(self._thumbnail_ready)
         self._preview.failed.connect(self._preview_failed)
         self._preview.idle.connect(self._release)
+        self._preview.idle.connect(self._preload_next_page)
         self._host.controller.package_applied.connect(self._package_applied)
         self._host.controller.package_failed.connect(self._package_failed)
         self._search_edit.textChanged.connect(self._queue_search)
@@ -96,6 +103,8 @@ class CharacterFinderDialog(QDialog):
         available = self.screen().availableGeometry()
         self.resize(min(self.width(), available.width() - 24), min(self.height(), available.height() - 60))
         register_transient_worker_controller(window, self)
+        if self._warmup is not None:
+            self._warmup.pause(self)
         QTimer.singleShot(0, self._build)
 
     def _build_ui(self):
@@ -285,6 +294,11 @@ class CharacterFinderDialog(QDialog):
         if self._closing or self._invalid:
             return
         self._search_timer.stop()
+        cached = self._warmup.cached_summary(self._session_id) if self._warmup is not None else None
+        if cached is not None:
+            self._catalogue_summary = cached
+            self._search()
+            return
         try:
             self._requests["build"] = self._service.build_character_catalog(self._session_id,
                 ui_generation=self._bridge.controller.generation)
@@ -298,28 +312,84 @@ class CharacterFinderDialog(QDialog):
         self._cancel("search")
         self._cancel("detail")
         self._cancel("scope")
+        self._cancel("prefetch")
+        self._prefetch_search = None
+        self._active_search = None
         self._details = None
         self._pending_package = None
         self._preview.clear_page()
         self._buttons()
         self._search_timer.start()
 
-    def _search(self):
+    def _search(self, *, keep_prepared=False):
         if self._closing or self._invalid or "build" in self._requests:
             return
         self._cancel("search")
         self._cancel("detail")
-        self._preview.clear_page()
+        if not keep_prepared:
+            self._preview.clear_page()
         self._status.setText("Searching character catalogue…")
         request = CharacterCatalogSearchRequest(self._session_id, query=self._search_edit.text(),
             view=self._view.currentData(), tab="faces" if self._tabs.currentIndex() else "bodies",
             related_key=self._related_key, page_start=self._page_start,
             **{key: combo.currentData() or None for key, combo in self._filters.items()})
+        self._active_search = request
+        cached = self._cached_search(request)
+        if cached is not None:
+            self._cancel("prefetch")
+            self._prefetch_search = None
+            self._populate(cached)
+            self._buttons()
+            return
+        if self._prefetch_search == request and "prefetch" in self._requests:
+            # Next was clicked before the background catalogue request returned.
+            # Promote that exact request instead of cancelling and repeating it.
+            self._requests["search"] = self._requests.pop("prefetch")
+            self._prefetch_search = None
+            self._buttons()
+            return
+        self._cancel("prefetch")
+        self._prefetch_search = None
         try:
             self._requests["search"] = self._service.search_character_catalog(request, ui_generation=self._bridge.controller.generation)
         except Exception as error:
             self._status.setText(str(error))
         self._buttons()
+
+    def _cached_search(self, request):
+        cached = self._search_cache.get(request)
+        if cached is not None:
+            self._search_cache.move_to_end(request)
+            return cached
+        return self._warmup.cached_search(request) if self._warmup is not None else None
+
+    def _remember_search(self, request, result):
+        if request is None:
+            return
+        self._search_cache[request] = result
+        self._search_cache.move_to_end(request)
+        while len(self._search_cache) > 4:
+            self._search_cache.popitem(last=False)
+
+    def _preload_next_page(self):
+        if (self._closing or self._invalid or self._active_search is None
+                or "search" in self._requests or "build" in self._requests
+                or not self._preview.page_complete or self._page_start + 72 >= self._total):
+            return
+        request = replace(self._active_search, page_start=self._page_start + 72)
+        if request == self._prefetch_search:
+            return
+        self._cancel("prefetch")
+        self._prefetch_search = request
+        cached = self._cached_search(request)
+        if cached is not None:
+            self._preview.prefetch(cached.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
+            return
+        try:
+            self._requests["prefetch"] = self._service.search_character_catalog(
+                request, ui_generation=self._bridge.controller.generation)
+        except Exception:
+            pass  # Next still uses the ordinary visible search/retry path.
 
     def _result(self, request_id, _operation, result):
         if self._closing or self._invalid or getattr(result, "session_id", None) != self._session_id:
@@ -333,6 +403,9 @@ class CharacterFinderDialog(QDialog):
             self._search()
         elif kind == "search" and isinstance(result, CharacterCatalogSearchResult):
             self._populate(result)
+        elif kind == "prefetch" and isinstance(result, CharacterCatalogSearchResult):
+            self._remember_search(self._prefetch_search, result)
+            self._preview.prefetch(result.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
         elif kind == "detail" and isinstance(result, CharacterCatalogDetailResult):
             if result.row.key == self._selected_key():
                 self._show_detail(result)
@@ -344,6 +417,7 @@ class CharacterFinderDialog(QDialog):
         self._buttons()
 
     def _populate(self, result):
+        self._remember_search(self._active_search, result)
         self._total = result.total_matches
         self._rows = {row.key: row for row in result.rows}
         self._items.clear()
@@ -359,7 +433,8 @@ class CharacterFinderDialog(QDialog):
             item.setSizeHint(QSize(176, 250))
             thumb = self._thumbs.get(row.key)
             if thumb:
-                item.setIcon(QIcon(thumb))
+                self._thumbs.move_to_end(row.key)
+                item.setIcon(self._thumbnail_icon(thumb))
             else:
                 placeholder = QPixmap(158, 158)
                 placeholder.fill(self._grid.palette().alternateBase().color())
@@ -388,6 +463,9 @@ class CharacterFinderDialog(QDialog):
             combo.blockSignals(False)
         self._page_label.setText(f"{self._page_start + 1 if result.rows else 0:,}–{self._page_start + len(result.rows):,} of {self._total:,}")
         self._status.setText(" · ".join(result.warnings) if result.warnings else "Select a result to preview it. Thumbnails load as you browse.")
+        # Promote preloaded jobs before selection signals can reprioritize them.
+        self._preview.visible(result.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
+        self._preview.prefetch((), session_id=self._session_id, generation=self._bridge.controller.generation)
         selected = self._items.get(self._select_after_search) or (self._grid.item(0) if result.rows else None)
         self._select_after_search = None
         if selected:
@@ -395,6 +473,7 @@ class CharacterFinderDialog(QDialog):
         else:
             self._details = None
             self._title.setText("No matching bodies or faces")
+        self._visible()
         self._visible_timer.start()
 
     def _selected_key(self):
@@ -415,6 +494,13 @@ class CharacterFinderDialog(QDialog):
         self._preview_status.setText("Preparing preview…")
         self._relations.clear()
         self._evidence.clear()
+        cached = self._preview.cached_detail(key, self._session_id)
+        if cached is None and self._warmup is not None:
+            cached = self._warmup.cached_detail(key, self._session_id)
+        if cached is not None:
+            self._show_detail(cached)
+            self._buttons()
+            return
         try:
             self._requests["detail"] = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(self._session_id, key),
                 ui_generation=self._bridge.controller.generation)
@@ -480,7 +566,7 @@ class CharacterFinderDialog(QDialog):
     def _page(self, direction):
         self._page_start = max(0, self._page_start + direction * 72)
         self._cancel("scope")
-        self._search()
+        self._search(keep_prepared=True)
 
     def _scope(self, related):
         if self._details is None:
@@ -593,14 +679,30 @@ class CharacterFinderDialog(QDialog):
         if self._pending_package:
             self._preview_failed(self._pending_package[0], message)
 
+    def _thumbnail_icon(self, path):
+        icon = self._thumbnail_icons.get(path)
+        if icon is None:
+            icon = QIcon(path)
+            if icon.isNull():
+                return icon
+            self._thumbnail_icons[path] = icon
+        self._thumbnail_icons.move_to_end(path)
+        while len(self._thumbnail_icons) > 288:
+            self._thumbnail_icons.popitem(last=False)
+        return icon
+
     def _thumbnail_ready(self, key, result):
         if self._closing:
             return
         if result.thumbnail_path:
             self._thumbs[key] = result.thumbnail_path
+            self._thumbs.move_to_end(key)
+            while len(self._thumbs) > 288:
+                self._thumbs.popitem(last=False)
+            icon = self._thumbnail_icon(result.thumbnail_path)
             item = self._items.get(key)
             if item:
-                item.setIcon(QIcon(result.thumbnail_path))
+                item.setIcon(icon)
                 row = self._rows[key]
                 text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\n" + STATUS_LABELS.get(result.status, result.status)
                 text += "\nEmbedded face" if row.embedded_face else ""
@@ -620,11 +722,13 @@ class CharacterFinderDialog(QDialog):
         kind = next((kind for kind, token in self._requests.items() if token == request), None)
         if kind is not None and not self._closing:
             self._requests.pop(kind)
+            if kind == "prefetch":
+                return
             self._status.setText(str(getattr(error, "message", error)))
             self._buttons()
 
     def _progress(self, request, update):
-        if request in self._requests.values() and not self._closing:
+        if request in self._requests.values() and request != self._requests.get("prefetch") and not self._closing:
             self._status.setText((update.current_item or "Indexing bodies and faces…") +
                                  (f" · {update.completed:,}/{update.total:,}" if update.total else ""))
 
@@ -651,6 +755,9 @@ class CharacterFinderDialog(QDialog):
         for kind in tuple(self._requests):
             self._cancel(kind)
         self._preview.clear_page()
+        self._search_cache.clear()
+        self._thumbs.clear()
+        self._thumbnail_icons.clear()
         self._status.setText(message)
         self._buttons()
 
@@ -694,6 +801,8 @@ class CharacterFinderDialog(QDialog):
         if any(p.state() != QProcess.ProcessState.NotRunning for p in self.findChildren(QProcess)):
             return
         self._release_timer.stop()
+        if self._warmup is not None:
+            self._warmup.resume(self)
         retained = getattr(self._window, "_character_finder_dialogs", None)
         if retained is not None:
             retained.discard(self)

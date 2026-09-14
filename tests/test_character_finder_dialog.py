@@ -52,6 +52,7 @@ class Preview(QObject):
     failed = Signal(str, str)
     idle = Signal()
     busy = False
+    page_complete = False
     _thread = None
     _worker = None
 
@@ -59,10 +60,17 @@ class Preview(QObject):
         super().__init__(parent)
         self.selected = []
         self.visible_rows = []
+        self.prefetch_rows = []
+        self.cleared = 0
 
     def select(self, detail, generation): self.selected.append(detail)
+    def cached_detail(self, key, session_id): return None
     def visible(self, rows, **kw): self.visible_rows = rows
-    def clear_page(self): pass
+    def prefetch(self, rows, **kw): self.prefetch_rows = rows
+    def clear_page(self):
+        self.cleared += 1
+        self.visible_rows = []
+        self.prefetch_rows = []
     def shutdown(self): pass
     def iter_shutdown_workers(self): return iter(())
 
@@ -121,9 +129,125 @@ def finder(monkeypatch, tmp_path):
     window.deleteLater()
 
 
-def publish_rows(dialog, service, rows):
+def publish_rows(dialog, service, rows, *, total=None, page_start=0):
     service.result_ready.emit(dialog._requests["search"], "search_character_catalog",
-        CharacterCatalogSearchResult("session-a", len(rows), 0, 72, tuple(rows), (), ()))
+        CharacterCatalogSearchResult("session-a", len(rows) if total is None else total, page_start, 72, tuple(rows), (), ()))
+
+
+def test_next_page_request_waits_for_visible_cards_and_is_promoted_without_requery(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=144)
+    dialog._preview.idle.emit()
+    assert "prefetch" not in dialog._requests
+    dialog._preview.page_complete = True
+    dialog._preview.idle.emit()
+    request = dialog._requests["prefetch"]
+    assert service.calls[-1][1].page_start == 72
+    assert service.calls[-1][1].source_group == "humanoid"
+    assert dialog._next_button.isEnabled()
+    before = dialog._status.text()
+    dialog._progress(request, SimpleNamespace(current_item="background progress", completed=1, total=2))
+    assert dialog._status.text() == before
+    cleared = dialog._preview.cleared
+    dialog._page(1)
+    assert dialog._requests["search"] == request and request not in service.cancelled
+    assert dialog._preview.cleared == cleared
+    publish_rows(dialog, service, [row(i) for i in range(72, 144)], total=144, page_start=72)
+    searches = sum(token.startswith("search-") for token, _, _ in service.calls)
+    dialog._page(-1)
+    assert sum(token.startswith("search-") for token, _, _ in service.calls) == searches
+    assert dialog._preview.visible_rows[0].key == "asset:0"
+
+
+def test_next_page_reuses_preloaded_rows_without_replacing_the_current_grid_early(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=144)
+    dialog._preview.page_complete = True
+    dialog._preview.idle.emit()
+    future = tuple(row(i) for i in range(72, 144))
+    service.result_ready.emit(dialog._requests["prefetch"], "search_character_catalog",
+        CharacterCatalogSearchResult("session-a", 144, 72, 72, future, (), ()))
+    assert dialog._preview.prefetch_rows == future
+    assert dialog._preview.visible_rows[0].key == "asset:0"
+    searches = sum(token.startswith("search-") for token, _, _ in service.calls)
+    cleared = dialog._preview.cleared
+    dialog._page(1)
+    assert dialog._preview.visible_rows == list(future)
+    assert dialog._preview.cleared == cleared
+    assert sum(token.startswith("search-") for token, _, _ in service.calls) == searches
+
+
+def test_obsolete_prefetch_is_cancelled_and_late_results_cannot_warm_a_new_filter(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=144)
+    dialog._preview.page_complete = True
+    dialog._preview.idle.emit()
+    request = dialog._requests["prefetch"]
+    dialog._search_edit.setText("other body")
+    dialog._search_timer.stop()
+    assert request in service.cancelled
+    service.result_ready.emit(request, "search_character_catalog",
+        CharacterCatalogSearchResult("session-a", 144, 72, 72, (row(99),), (), ()))
+    assert not dialog._preview.prefetch_rows and len(dialog._search_cache) == 1
+    dialog._preview.idle.emit()
+    assert "prefetch" not in dialog._requests
+
+
+def test_next_page_retries_a_failed_prefetch_without_disturbing_current_status(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(i) for i in range(72)], total=144)
+    dialog._preview.page_complete = True
+    dialog._preview.idle.emit()
+    request = dialog._requests["prefetch"]
+    before = dialog._status.text()
+    service.request_failed.emit(request, "background fixture failure")
+    assert dialog._status.text() == before and dialog._next_button.isEnabled()
+    dialog._page(1)
+    assert dialog._requests["search"] != request
+    assert service.calls[-1][1].page_start == 72
+
+
+@pytest.mark.parametrize("cache_source", ["preview", "warmup"])
+def test_selection_uses_prepared_details_without_another_catalogue_request(finder, cache_source):
+    dialog, service, _ = finder
+    selected = detail(row(1))
+    lookup = lambda key, session: selected if (key, session) == (selected.row.key, selected.session_id) else None
+    if cache_source == "preview":
+        dialog._preview.cached_detail = lookup
+    else:
+        dialog._warmup = SimpleNamespace(cached_detail=lookup, resume=lambda *_: None)
+    publish_rows(dialog, service, [selected.row])
+    assert dialog._details is selected and dialog._preview.selected[-1] is selected
+    assert not any(token.startswith("detail-") for token, _, _ in service.calls)
+
+
+def test_revisited_and_shared_thumbnails_reuse_the_same_icon(finder, monkeypatch, tmp_path):
+    dialog, service, _ = finder
+    path = str(tmp_path / "thumbnail.png")
+    pixmap = feature.QPixmap(16, 16)
+    pixmap.fill(feature.Qt.GlobalColor.red)
+    assert pixmap.save(path)
+    original_icon = feature.QIcon
+    icon_reads = []
+    def icon(source):
+        if isinstance(source, str):
+            icon_reads.append(source)
+        return original_icon(source)
+    monkeypatch.setattr(feature, "QIcon", icon)
+    rows = [row(1), row(2)]
+    publish_rows(dialog, service, rows)
+    result = CharacterRenderResult("shared", "package", path, "base_appearance", ())
+    dialog._thumbnail_ready("asset:1", result)
+    dialog._thumbnail_ready("asset:2", result)
+    assert icon_reads == [path]
+    first_icon = dialog._grid.item(0).icon().cacheKey()
+    assert dialog._grid.item(1).icon().cacheKey() == first_icon
+    dialog._populate(CharacterCatalogSearchResult("session-a", 2, 0, 72, tuple(rows), (), ()))
+    assert icon_reads == [path]
+    assert dialog._grid.item(0).icon().cacheKey() == first_icon
+    # A preloaded card outside the current grid shares that icon too.
+    dialog._thumbnail_ready("asset:3", result)
+    assert icon_reads == [path]
 
 
 def test_selection_rejects_old_details_and_old_previews(finder):
@@ -261,6 +385,8 @@ def test_scope_reaches_real_archive_bridge(finder, monkeypatch, include_related)
 def test_whole_page_is_queued_with_visible_cards_first_and_late_thumbnails_ignored(finder, tmp_path):
     dialog, service, _ = finder
     publish_rows(dialog, service, [row(i) for i in range(72)])
+    # Publication itself must enqueue the page; no scroll or timer is required.
+    assert len(dialog._preview.visible_rows) == 72
     _APPLICATION.processEvents()
     dialog._visible()
     assert len(dialog._preview.visible_rows) == 72

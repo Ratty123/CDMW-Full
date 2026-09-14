@@ -22,6 +22,7 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
 from cdmw.ui.archive_browser.remote_finder_warmup import RemoteItemFinderWarmupController
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
+from cdmw.ui.character_finder.warmup import CharacterFinderWarmupController
 from cdmw.ui.widgets import FlatSectionPanel, responsive_sidebar_bounds
 
 
@@ -108,6 +109,7 @@ class ArchiveFilesPanelMixin:
                     background_allowed=self._archive_browser_background_work_allowed,
                     parent=self,
                 )
+                self.archive_character_finder_warmup_controller = CharacterFinderWarmupController(self)
                 self.archive_remote_bridge.backendFailed.connect(
                     self._handle_archive_backend_v2_failure
                 )

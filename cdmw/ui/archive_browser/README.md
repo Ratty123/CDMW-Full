@@ -105,22 +105,51 @@ chooses active paths; complete CharacterInfo
 table pairs and verified CharacterAppearanceIndexInfo full-path hashes supply
 names. Missing XML attribute separators are repaired only in memory and reported.
 
+After the archive view is ready, two background jobs preload the first saved
+Finder page and the first page of the other tab (up to 144 results).
+The catalogue results and rendered thumbnails are reused when the finder opens.
+Opening the finder pauses queued startup work while already assigned previews
+finish and remain reusable. Closing it resumes the remaining queue.
+New archives invalidate the warmup, and the shell retains its threads through
+shutdown. The first uncached render still requires model and texture preparation.
+
 The finder owns a separate Rust preview session. Bounded background jobs
 prepare previews and 256px thumbnails. Visible cards go first, then the rest of
 the current 72-result page loads automatically without scrolling. Selection takes
-priority in the first job slot, while the other slots continue the page. Scrolling
+priority; selecting a card already being prepared reuses that job and can display
+its ready 3D package while thumbnail capture finishes. Other slots continue the page. Scrolling
 reprioritizes waiting cards without restarting current page jobs. Thumbnail
 captures render at 256px; the interactive preview keeps its full geometry and textures.
+Once the current page finishes, one background job prepares the next page.
+Selecting a card takes priority over that work. **Next** reuses prepared cards or
+promotes the pending page request, and the four most recent result pages are
+retained for navigation. Background results do not change the current grid or
+interactive preview; changing filters cancels obsolete work.
 Head pages use up to eight jobs (half the logical processors); other component
 pages use at most four. Small systems use two jobs. Previously generated page
-thumbnails load together from a fingerprint- and settings-scoped index, without
-repeating character detail requests or geometry preparation. Saved images remain
+thumbnails appear as each is found in a fingerprint- and settings-scoped index, without
+repeating character detail requests or geometry preparation. Uncached cards start
+preparing as soon as their own cache check finishes, while later records are still
+being read. This applies to both the current page and the next-page preload.
+Up to 288 thumbnail records and icons (four pages) stay in memory for revisits.
+Shared image paths reuse one icon, and returning to cached cards skips their
+row/render JSON reads. Image existence is checked in the background; removed
+images return to the normal cache lookup and regeneration path. The remembered
+records are scoped to the archive session, and a rescan clears the dialog caches.
+Saved images remain
 usable after their larger 3D packages leave the bounded cache; selecting one can
 rebuild its interactive package. Catalogue caches
 use archive generation, mount signature and format version; thumbnails also use
 appearance context, renderer/package schema, settings and camera preset. Refresh
 invalidates the finder. Search changes cancel obsolete work; close retains
 threads and owned processes until asynchronous teardown finishes.
+Completed 3D packages are saved before thumbnail capture, so an interrupted image
+does not require preparing the model again. Matching shape/material requests
+share one build and capture across startup and open Finder jobs; a waiting
+selection receives the ready 3D package while that capture is still running.
+Packages stay pinned during capture. Up to 144 recent full catalogue details are
+retained per controller and reused for card selection and page revisits, with
+archive-session checks preventing reuse after a rescan.
 Each native job keeps its temporary DDS files under its own staging directory,
 so another job's cache trimming cannot remove textures before package publication.
 Streamed appearance dependencies retain prepared DDS and skeleton-variation files

@@ -197,6 +197,9 @@ class ArchiveRemoteWindowBridge(QObject):
         invalidate_item_finder = getattr(item_finder_warmup, "invalidate", None)
         if callable(invalidate_item_finder):
             invalidate_item_finder()
+        character_finder_warmup = getattr(self._window, "archive_character_finder_warmup_controller", None)
+        if character_finder_warmup is not None:
+            character_finder_warmup.invalidate()
         current_session = self.current_session
         # Every open creates a fresh backend session, not only a forced Refresh, so
         # recording this only for Refresh meant an ordinary Scan -- or a root change --
@@ -684,6 +687,9 @@ class ArchiveRemoteWindowBridge(QObject):
                     current_session,
                     ui_generation=self._controller.generation,
                 )
+            character_finder_warmup = getattr(window.archive, "archive_character_finder_warmup_controller", None)
+            if character_finder_warmup is not None:
+                character_finder_warmup.start(current_session, ui_generation=self._controller.generation)
             for warning in current_session.discovery_warnings:
                 window.shell.append_archive_log(f"Warning: {warning}")
         window.archive.archive_remote_query_pending = False

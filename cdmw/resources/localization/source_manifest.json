@@ -81,17 +81,17 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 356,
+          "line": 430,
           "sink": "QListWidgetItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 608,
+          "line": 710,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 609,
+          "line": 711,
           "sink": "setText"
         }
       ]
@@ -1256,7 +1256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 588,
+          "line": 674,
           "sink": "setText"
         }
       ]
@@ -4686,7 +4686,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 250,
+          "line": 255,
           "sink": "QPushButton"
         },
         {
@@ -4711,7 +4711,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 251,
+          "line": 256,
           "sink": "QPushButton"
         }
       ]
@@ -4791,7 +4791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 326,
+          "line": 331,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -6146,7 +6146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 135,
+          "line": 144,
           "sink": "addItem"
         }
       ]
@@ -6176,12 +6176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 135,
+          "line": 144,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 275,
+          "line": 284,
           "sink": "setItemText"
         }
       ]
@@ -6421,7 +6421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 135,
+          "line": 144,
           "sink": "addItem"
         }
       ]
@@ -6471,7 +6471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 523,
+          "line": 528,
           "sink": "_add_combo_choice"
         },
         {
@@ -6496,7 +6496,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 135,
+          "line": 144,
           "sink": "addItem"
         }
       ]
@@ -7786,7 +7786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 119,
+          "line": 128,
           "sink": "addItem"
         },
         {
@@ -8366,7 +8366,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 354,
+          "line": 357,
           "sink": "_begin_pending"
         }
       ]
@@ -8456,7 +8456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 393,
+          "line": 396,
           "sink": "_begin_pending"
         }
       ]
@@ -9176,12 +9176,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 69,
+          "line": 87,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 108,
+          "line": 126,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9296,7 +9296,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 80,
+          "line": 98,
           "sink": "ValueError"
         }
       ]
@@ -9306,7 +9306,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 71,
+          "line": 89,
           "sink": "RuntimeError"
         }
       ]
@@ -9521,7 +9521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 332,
+          "line": 335,
           "sink": "append_archive_log"
         }
       ]
@@ -9531,7 +9531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 295,
+          "line": 298,
           "sink": "append_archive_log"
         }
       ]
@@ -9541,7 +9541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 907,
+          "line": 913,
           "sink": "append_archive_log"
         }
       ]
@@ -9581,12 +9581,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 878,
+          "line": 884,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 879,
+          "line": 885,
           "sink": "append_archive_log"
         }
       ]
@@ -9691,17 +9691,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 270,
+          "line": 273,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 271,
+          "line": 274,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 272,
+          "line": 275,
           "sink": "append_archive_log"
         }
       ]
@@ -9736,22 +9736,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 711,
+          "line": 717,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 713,
+          "line": 719,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 714,
+          "line": 720,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 715,
+          "line": 721,
           "sink": "append_archive_log"
         }
       ]
@@ -10821,17 +10821,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 270,
+          "line": 273,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 271,
+          "line": 274,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 272,
+          "line": 275,
           "sink": "append_archive_log"
         }
       ]
@@ -11096,7 +11096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 850,
+          "line": 856,
           "sink": "append_archive_log"
         }
       ]
@@ -11106,7 +11106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 646,
+          "line": 649,
           "sink": "append_archive_log"
         }
       ]
@@ -12241,7 +12241,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 447,
+          "line": 452,
           "sink": "QLabel"
         },
         {
@@ -12471,7 +12471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 254,
+          "line": 259,
           "sink": "QPushButton"
         },
         {
@@ -13281,7 +13281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 520,
+          "line": 525,
           "sink": "_add_combo_choice"
         },
         {
@@ -13976,12 +13976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 102,
+          "line": 111,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 706,
+          "line": 815,
           "sink": "information"
         },
         {
@@ -14006,7 +14006,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 706,
+          "line": 815,
           "sink": "information"
         }
       ]
@@ -14391,17 +14391,17 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 358,
+          "line": 363,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 534,
+          "line": 539,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 542,
+          "line": 547,
           "sink": "QPushButton"
         },
         {
@@ -14461,7 +14461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 108,
+          "line": 117,
           "sink": "QLabel"
         }
       ]
@@ -14861,7 +14861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 370,
+          "line": 375,
           "sink": "QPushButton"
         }
       ]
@@ -14981,7 +14981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 344,
+          "line": 349,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -15236,7 +15236,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 374,
+          "line": 379,
           "sink": "QLabel"
         }
       ]
@@ -16456,7 +16456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 407,
+          "line": 412,
           "sink": "addItem"
         },
         {
@@ -16481,7 +16481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 460,
+          "line": 465,
           "sink": "_make_help_button"
         }
       ]
@@ -16671,7 +16671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 706,
+          "line": 712,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -16711,7 +16711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 706,
+          "line": 712,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -16751,12 +16751,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 265,
+          "line": 268,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 867,
+          "line": 873,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -16836,7 +16836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 873,
+          "line": 879,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -16856,7 +16856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 258,
+          "line": 261,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -17116,7 +17116,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 634,
+          "line": 637,
           "sink": "setText"
         },
         {
@@ -17161,7 +17161,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 57,
+          "line": 58,
           "sink": "QPushButton"
         },
         {
@@ -17236,7 +17236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 253,
+          "line": 258,
           "sink": "QPushButton"
         }
       ]
@@ -17286,7 +17286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 635,
+          "line": 638,
           "sink": "setToolTip"
         }
       ]
@@ -18716,7 +18716,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 129,
+          "line": 150,
           "sink": "RunCancelled"
         }
       ]
@@ -18726,7 +18726,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 174,
+          "line": 234,
           "sink": "ValueError"
         }
       ]
@@ -18736,7 +18736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 191,
+          "line": 213,
           "sink": "_fail"
         },
         {
@@ -21311,7 +21311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 259,
+          "line": 264,
           "sink": "QPushButton"
         },
         {
@@ -21631,7 +21631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 125,
+          "line": 134,
           "sink": "QPushButton"
         }
       ]
@@ -22401,7 +22401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 522,
+          "line": 527,
           "sink": "_add_combo_choice"
         },
         {
@@ -22421,7 +22421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 521,
+          "line": 526,
           "sink": "_add_combo_choice"
         },
         {
@@ -22611,7 +22611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 322,
+          "line": 327,
           "sink": "setToolTip"
         }
       ]
@@ -22691,7 +22691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -23541,7 +23541,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 458,
+          "line": 463,
           "sink": "QLabel"
         },
         {
@@ -24591,7 +24591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 213,
+          "line": 222,
           "sink": "QPushButton"
         }
       ]
@@ -25551,7 +25551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 215,
+          "line": 224,
           "sink": "QPushButton"
         }
       ]
@@ -26091,7 +26091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 408,
+          "line": 413,
           "sink": "addItem"
         },
         {
@@ -26631,7 +26631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 426,
+          "line": 431,
           "sink": "addItem"
         },
         {
@@ -27311,7 +27311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 427,
+          "line": 432,
           "sink": "addItem"
         },
         {
@@ -27696,7 +27696,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 405,
+          "line": 410,
           "sink": "addItem"
         },
         {
@@ -28211,7 +28211,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 449,
+          "line": 454,
           "sink": "QLabel"
         },
         {
@@ -28496,7 +28496,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 206,
+          "line": 215,
           "sink": "addTab"
         },
         {
@@ -28556,7 +28556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 447,
+          "line": 533,
           "sink": "setHtml"
         }
       ]
@@ -28931,7 +28931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 489,
+          "line": 494,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -30176,7 +30176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 141,
+          "line": 143,
           "sink": "setToolTip"
         }
       ]
@@ -31016,7 +31016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 217,
+          "line": 226,
           "sink": "QPushButton"
         }
       ]
@@ -31531,7 +31531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 299,
+          "line": 304,
           "sink": "setHeaderLabels"
         }
       ]
@@ -33636,7 +33636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 386,
+          "line": 391,
           "sink": "_make_help_button"
         }
       ]
@@ -33856,7 +33856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 525,
+          "line": 530,
           "sink": "QCheckBox"
         },
         {
@@ -36906,7 +36906,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 409,
+          "line": 414,
           "sink": "addItem"
         },
         {
@@ -36921,7 +36921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 428,
+          "line": 433,
           "sink": "addItem"
         },
         {
@@ -37151,7 +37151,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 78,
+          "line": 79,
           "sink": "FlatSectionPanel"
         },
         {
@@ -37661,7 +37661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 37,
+          "line": 38,
           "sink": "setPlaceholderText"
         }
       ]
@@ -37816,7 +37816,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 594,
+          "line": 597,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -38511,7 +38511,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 709,
+          "line": 714,
           "sink": "QPushButton"
         },
         {
@@ -40376,7 +40376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 424,
+          "line": 429,
           "sink": "addItem"
         },
         {
@@ -42146,7 +42146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 551,
+          "line": 637,
           "sink": "setText"
         }
       ]
@@ -42486,7 +42486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 275,
+          "line": 284,
           "sink": "setItemText"
         },
         {
@@ -43601,7 +43601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 572,
+          "line": 577,
           "sink": "setFormat"
         },
         {
@@ -43811,7 +43811,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 635,
+          "line": 638,
           "sink": "setToolTip"
         }
       ]
@@ -44481,7 +44481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 326,
+          "line": 331,
           "sink": "EmptyStatePanel"
         }
       ]
@@ -45916,7 +45916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 225,
+          "line": 234,
           "sink": "QLabel"
         }
       ]
@@ -47726,7 +47726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -48271,7 +48271,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 406,
+          "line": 411,
           "sink": "addItem"
         },
         {
@@ -48766,7 +48766,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 299,
+          "line": 304,
           "sink": "setHeaderLabels"
         },
         {
@@ -50856,7 +50856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 224,
+          "line": 227,
           "sink": "_begin_pending"
         },
         {
@@ -51016,7 +51016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 49,
+          "line": 50,
           "sink": "QLabel"
         }
       ]
@@ -51336,7 +51336,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 256,
+          "line": 261,
           "sink": "QPushButton"
         },
         {
@@ -52381,7 +52381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 511,
+          "line": 516,
           "sink": "_add_combo_choice"
         },
         {
@@ -52406,7 +52406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 510,
+          "line": 515,
           "sink": "_add_combo_choice"
         },
         {
@@ -52431,7 +52431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 509,
+          "line": 514,
           "sink": "_add_combo_choice"
         },
         {
@@ -52521,7 +52521,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 356,
+          "line": 361,
           "sink": "addItem"
         }
       ]
@@ -57161,7 +57161,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 372,
+          "line": 377,
           "sink": "QPushButton"
         }
       ]
@@ -57916,7 +57916,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 546,
+          "line": 551,
           "sink": "QLabel"
         },
         {
@@ -58301,7 +58301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 538,
+          "line": 543,
           "sink": "QLabel"
         },
         {
@@ -58981,7 +58981,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 285,
+          "line": 345,
           "sink": "ValueError"
         }
       ]
@@ -59716,7 +59716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 530,
+          "line": 535,
           "sink": "QLabel"
         },
         {
@@ -59731,7 +59731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 557,
+          "line": 562,
           "sink": "QLabel"
         },
         {
@@ -59856,7 +59856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -60991,12 +60991,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 165,
+          "line": 174,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 54,
+          "line": 55,
           "sink": "QPushButton"
         },
         {
@@ -61841,7 +61841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 128,
+          "line": 130,
           "sink": "setText"
         }
       ]
@@ -62341,7 +62341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 244,
+          "line": 249,
           "sink": "QLabel"
         }
       ]
@@ -62836,7 +62836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 397,
+          "line": 475,
           "sink": "setText"
         }
       ]
@@ -63716,7 +63716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 441,
+          "line": 527,
           "sink": "addItem"
         }
       ]
@@ -64746,7 +64746,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 439,
+          "line": 444,
           "sink": "addItem"
         },
         {
@@ -65711,7 +65711,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 508,
+          "line": 513,
           "sink": "_add_combo_choice"
         },
         {
@@ -66191,7 +66191,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 255,
+          "line": 260,
           "sink": "QPushButton"
         },
         {
@@ -66326,7 +66326,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 273,
+          "line": 278,
           "sink": "setText"
         },
         {
@@ -66491,7 +66491,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 371,
+          "line": 376,
           "sink": "QPushButton"
         },
         {
@@ -67011,7 +67011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 275,
+          "line": 280,
           "sink": "setText"
         },
         {
@@ -68131,7 +68131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 461,
+          "line": 466,
           "sink": "_make_help_button"
         }
       ]
@@ -68316,7 +68316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 442,
+          "line": 447,
           "sink": "setPlaceholderText"
         },
         {
@@ -68501,12 +68501,12 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 257,
+          "line": 262,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 299,
+          "line": 304,
           "sink": "setHeaderLabels"
         },
         {
@@ -69771,7 +69771,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 440,
+          "line": 445,
           "sink": "addItem"
         },
         {
@@ -70161,7 +70161,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -70206,7 +70206,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 299,
+          "line": 304,
           "sink": "setHeaderLabels"
         },
         {
@@ -70276,7 +70276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 393,
+          "line": 398,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -70421,7 +70421,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 456,
+          "line": 461,
           "sink": "QLabel"
         },
         {
@@ -70436,7 +70436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 378,
+          "line": 383,
           "sink": "QLabel"
         }
       ]
@@ -71881,7 +71881,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -74046,7 +74046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 559,
+          "line": 564,
           "sink": "QLabel"
         },
         {
@@ -74611,7 +74611,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 82,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -74771,7 +74771,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 594,
+          "line": 597,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -74781,12 +74781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 38,
+          "line": 39,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 600,
+          "line": 603,
           "sink": "_set_archive_warmup_overlay"
         },
         {
@@ -75176,7 +75176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 181,
+          "line": 185,
           "sink": "setText"
         }
       ]
@@ -75256,7 +75256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 516,
+          "line": 602,
           "sink": "setText"
         }
       ]
@@ -75476,7 +75476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 415,
+          "line": 494,
           "sink": "setText"
         }
       ]
@@ -76096,7 +76096,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 702,
+          "line": 707,
           "sink": "FlatSectionPanel"
         },
         {
@@ -78896,12 +78896,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 163,
+          "line": 172,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 53,
+          "line": 54,
           "sink": "QPushButton"
         },
         {
@@ -80821,12 +80821,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 270,
+          "line": 273,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 713,
+          "line": 719,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -81041,7 +81041,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 574,
+          "line": 579,
           "sink": "QLabel"
         },
         {
@@ -81376,7 +81376,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 352,
+          "line": 357,
           "sink": "addItem"
         }
       ]
@@ -83091,7 +83091,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 634,
+          "line": 637,
           "sink": "setText"
         },
         {
@@ -83206,7 +83206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 498,
+          "line": 503,
           "sink": "QPushButton"
         },
         {
@@ -83336,7 +83336,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 224,
+          "line": 227,
           "sink": "_begin_pending"
         }
       ]
@@ -83616,7 +83616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 464,
+          "line": 550,
           "sink": "setText"
         }
       ]
@@ -83821,7 +83821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 252,
+          "line": 257,
           "sink": "QPushButton"
         },
         {
@@ -84001,7 +84001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 258,
+          "line": 263,
           "sink": "QPushButton"
         },
         {
@@ -84591,7 +84591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 288,
+          "line": 293,
           "sink": "FlatSectionPanel"
         }
       ]
@@ -84601,7 +84601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 359,
+          "line": 364,
           "sink": "QCheckBox"
         }
       ]
@@ -84901,7 +84901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 274,
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -86216,7 +86216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 193,
+          "line": 202,
           "sink": "QPushButton"
         },
         {
@@ -87981,7 +87981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 528,
+          "line": 533,
           "sink": "QCheckBox"
         },
         {
@@ -88796,7 +88796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -90441,7 +90441,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 553,
+          "line": 558,
           "sink": "QLabel"
         },
         {
@@ -90736,7 +90736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 43,
+          "line": 44,
           "sink": "ValueError"
         }
       ]
@@ -91061,7 +91061,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 384,
+          "line": 387,
           "sink": "setText"
         }
       ]
@@ -91466,7 +91466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 122,
+          "line": 131,
           "sink": "setPlaceholderText"
         }
       ]
@@ -91646,7 +91646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 313,
+          "line": 331,
           "sink": "setText"
         }
       ]
@@ -92551,7 +92551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 177,
+          "line": 186,
           "sink": "QLabel"
         }
       ]
@@ -92786,7 +92786,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 721,
+          "line": 726,
           "sink": "QLabel"
         }
       ]
@@ -93171,7 +93171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 751,
+          "line": 756,
           "sink": "QLabel"
         }
       ]
@@ -93221,7 +93221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 390,
+          "line": 465,
           "sink": "setText"
         }
       ]
@@ -93901,7 +93901,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 706,
+          "line": 711,
           "sink": "QLabel"
         }
       ]
@@ -94831,7 +94831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 742,
+          "line": 747,
           "sink": "setPlaceholderText"
         }
       ]
@@ -96621,7 +96621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 140,
+          "line": 149,
           "sink": "QPushButton"
         }
       ]
@@ -96721,7 +96721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 209,
+          "line": 218,
           "sink": "QPushButton"
         },
         {
@@ -96946,7 +96946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 211,
+          "line": 220,
           "sink": "QPushButton"
         },
         {
@@ -97941,7 +97941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -98076,7 +98076,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 376,
+          "line": 381,
           "sink": "QLabel"
         },
         {
@@ -99396,7 +99396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 512,
+          "line": 517,
           "sink": "_add_combo_choice"
         },
         {
@@ -99416,7 +99416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 518,
+          "line": 523,
           "sink": "_add_combo_choice"
         },
         {
@@ -99441,7 +99441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 517,
+          "line": 522,
           "sink": "_add_combo_choice"
         },
         {
@@ -100926,7 +100926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 91,
+          "line": 92,
           "sink": "setHeaderLabels"
         },
         {
@@ -101281,7 +101281,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 299,
+          "line": 304,
           "sink": "setHeaderLabels"
         },
         {
@@ -102736,7 +102736,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 451,
+          "line": 456,
           "sink": "QLabel"
         },
         {
@@ -102896,7 +102896,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 459,
+          "line": 464,
           "sink": "QLabel"
         },
         {
@@ -104141,7 +104141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 583,
+          "line": 588,
           "sink": "setPlaceholderText"
         }
       ]
@@ -104486,7 +104486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 561,
+          "line": 566,
           "sink": "QLabel"
         }
       ]
@@ -105216,7 +105216,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 291,
+          "line": 351,
           "sink": "RuntimeError"
         }
       ]
@@ -105346,7 +105346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 217,
+          "line": 227,
           "sink": "_error"
         }
       ]
@@ -105356,7 +105356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 642,
+          "line": 746,
           "sink": "_invalidate"
         }
       ]
@@ -106281,7 +106281,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 269,
+          "line": 329,
           "sink": "RuntimeError"
         }
       ]
@@ -106311,7 +106311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 534,
+          "line": 620,
           "sink": "_hair_failed"
         }
       ]
@@ -106391,7 +106391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 184,
+          "line": 193,
           "sink": "QLabel"
         }
       ]
@@ -106401,7 +106401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 575,
+          "line": 661,
           "sink": "_preview_failed"
         }
       ]
@@ -106771,7 +106771,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 260,
+          "line": 320,
           "sink": "RuntimeError"
         }
       ]
@@ -107221,7 +107221,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 332,
+          "line": 392,
           "sink": "RuntimeError"
         }
       ]
@@ -107401,7 +107401,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 85,
+          "line": 103,
           "sink": "ValueError"
         }
       ]
@@ -107716,7 +107716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 600,
+          "line": 603,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -107836,7 +107836,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 339,
+          "line": 399,
           "sink": "RuntimeError"
         }
       ]
@@ -109011,7 +109011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 555,
+          "line": 560,
           "sink": "QLabel"
         },
         {
@@ -109216,7 +109216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 443,
+          "line": 448,
           "sink": "QLabel"
         },
         {
@@ -110831,7 +110831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 118,
+          "line": 127,
           "sink": "addItem"
         },
         {
@@ -112156,7 +112156,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 353,
+          "line": 358,
           "sink": "addItem"
         }
       ]
@@ -112686,7 +112686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 524,
+          "line": 529,
           "sink": "QCheckBox"
         },
         {
@@ -112741,7 +112741,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 355,
+          "line": 360,
           "sink": "addItem"
         }
       ]
@@ -112956,7 +112956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 55,
+          "line": 56,
           "sink": "QPushButton"
         }
       ]
@@ -113231,7 +113231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 203,
+          "line": 212,
           "sink": "addTab"
         },
         {
@@ -113996,7 +113996,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 445,
+          "line": 450,
           "sink": "QLabel"
         },
         {
@@ -114986,7 +114986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 844,
+          "line": 850,
           "sink": "append_archive_log"
         }
       ]
@@ -115081,7 +115081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 733,
+          "line": 739,
           "sink": "append_archive_log"
         }
       ]
@@ -115101,7 +115101,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 688,
+          "line": 694,
           "sink": "append_archive_log"
         },
         {
@@ -116656,7 +116656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/files_panel.py",
-          "line": 46,
+          "line": 47,
           "sink": "setFormat"
         },
         {
@@ -118745,6 +118745,11 @@
       "key": "add",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_payload_apply.py",
+          "line": 67,
+          "sink": "select"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/workspace_views.py",
           "line": 318,
           "sink": "python-return:_selection_operation_from_modifiers"
@@ -119071,7 +119076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 119,
+          "line": 128,
           "sink": "addItem"
         }
       ]
@@ -119246,7 +119251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 118,
+          "line": 127,
           "sink": "addItem"
         }
       ]
@@ -120406,7 +120411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 407,
+          "line": 412,
           "sink": "addItem"
         },
         {
@@ -121951,7 +121956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 405,
+          "line": 410,
           "sink": "addItem"
         },
         {
@@ -123691,7 +123696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 425,
+          "line": 430,
           "sink": "addItem"
         },
         {
@@ -124496,17 +124501,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 265,
+          "line": 268,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 706,
+          "line": 712,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 867,
+          "line": 873,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -125246,7 +125251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 406,
+          "line": 411,
           "sink": "addItem"
         },
         {
@@ -128261,7 +128266,7 @@
         },
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
-          "line": 440,
+          "line": 445,
           "sink": "addItem"
         },
         {
@@ -130209,6 +130214,56 @@
     {
       "key": "replace",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/static_replacement_mesh_edit_payload_apply.py",
+          "line": 67,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_actions.py",
+          "line": 29,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_actions.py",
+          "line": 32,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_actions.py",
+          "line": 36,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_actions.py",
+          "line": 117,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_embedded_parts.py",
+          "line": 18,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_embedded_parts.py",
+          "line": 40,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_embedded_parts.py",
+          "line": 43,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_embedded_parts.py",
+          "line": 47,
+          "sink": "select"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_embedded_parts.py",
+          "line": 87,
+          "sink": "select"
+        },
         {
           "path": "cdmw/ui/mesh_editor/workspace_interaction.py",
           "line": 238,
@@ -133931,7 +133986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 873,
+          "line": 879,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -134001,7 +134056,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 258,
+          "line": 261,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -135771,7 +135826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 385,
+          "line": 460,
           "sink": "addItem"
         }
       ]
@@ -136001,12 +136056,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 380,
+          "line": 455,
           "sink": "setItemText"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 382,
+          "line": 457,
           "sink": "addItem"
         },
         {
@@ -137056,7 +137111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 128,
+          "line": 130,
           "sink": "setText"
         }
       ]
@@ -139146,7 +139201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 432,
+          "line": 518,
           "sink": "QListWidgetItem"
         }
       ]
@@ -139196,12 +139251,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 447,
+          "line": 533,
           "sink": "setHtml"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 447,
+          "line": 533,
           "sink": "setHtml"
         },
         {
@@ -139236,7 +139291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 436,
+          "line": 522,
           "sink": "QListWidgetItem"
         }
       ]
@@ -141026,7 +141081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 389,
+          "line": 464,
           "sink": "setText"
         }
       ]
