@@ -16,7 +16,9 @@ from uuid import uuid4
 from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QImage
 
-from cdmw.domain.character_finder import CharacterPreviewInputs, CharacterRenderResult, character_preview_detail
+from cdmw.domain.character_finder import (
+    CharacterPreviewInputs, CharacterRenderResult, character_preview_detail, character_underwear_submesh_indices,
+)
 from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER, RUST_PREVIEW_BACKEND, resolve_rust_mesh_editor
@@ -91,6 +93,19 @@ def character_render_key(detail, fingerprint: str, settings: ModelPreviewRenderS
     return sha256(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def _underwear_parts(package_path):
+    # Run on the preparation/cache worker, including for packages saved before
+    # the visibility option existed. Page-only image lookups skip this read.
+    manifest = Path(package_path) / "manifest.json"
+    try:
+        if manifest.stat().st_size > 8 * 1024 * 1024:
+            return ()
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+        return character_underwear_submesh_indices(value["state"]["preview_scene"]["part_identities"])
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return ()
+
+
 def cached_character_render(cache_root: Path, key: str, *, require_package: bool = True) -> CharacterRenderResult | None:
     path = cache_root / "character_finder" / "thumbnails" / (key + ".json")
     try:
@@ -103,7 +118,9 @@ def cached_character_render(cache_root: Path, key: str, *, require_package: bool
             return None
         if require_package and not (package / "manifest.json").is_file():
             return None
-        return CharacterRenderResult(key, str(package), str(image), value["status"], tuple(value["notes"]), True)
+        parts = tuple(value["underwear_submesh_indices"]) if "underwear_submesh_indices" in value else (
+            _underwear_parts(package) if require_package else ())
+        return CharacterRenderResult(key, str(package), str(image), value["status"], tuple(value["notes"]), True, parts)
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -118,7 +135,8 @@ def cached_character_package(cache_root: Path, key: str) -> CharacterRenderResul
         if value["key"] != key:
             return None
         package = rust_preview_package_from_path(value["package_path"])
-        return CharacterRenderResult(key, str(package.package_dir), "", value["status"], tuple(value["notes"]), True)
+        parts = tuple(value["underwear_submesh_indices"]) if "underwear_submesh_indices" in value else _underwear_parts(package.package_dir)
+        return CharacterRenderResult(key, str(package.package_dir), "", value["status"], tuple(value["notes"]), True, parts)
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -196,7 +214,8 @@ class CharacterFinderRenderWorker(QObject):
             return
         else:
             package, status, notes = self._build_package(key)
-            result = CharacterRenderResult(key, str(package.package_dir), "", status, notes)
+            result = CharacterRenderResult(key, str(package.package_dir), "", status, notes,
+                underwear_submesh_indices=_underwear_parts(package.package_dir))
             # Publish the finished 3D package separately from the image. A
             # cancelled/failed capture must not discard expensive model work.
             self._write_metadata(self.cache_root / "character_finder" / "thumbnails" / (key + ".package.json"), result)

@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
     QListView, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
     QSplitter, QTabBar, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
@@ -64,6 +64,7 @@ class CharacterFinderDialog(QDialog):
         self._hair_preparation = None
         self._hair_handoff = None
         self._shown_key = ""
+        self._underwear_parts = ()
         self._thumbs = OrderedDict()
         self._thumbnail_icons = OrderedDict()
         self._build_ui()
@@ -204,6 +205,12 @@ class CharacterFinderDialog(QDialog):
         reset = QPushButton("Reset view")
         reset.clicked.connect(self._reset_view)
         preview_tools.addWidget(reset)
+        self._show_underwear = QCheckBox("Show underwear")
+        self._show_underwear.setChecked(True)
+        self._show_underwear.setEnabled(False)
+        self._show_underwear.setToolTip("Show or hide separate underwear meshes in the 3D preview. Clothing painted into skin textures is unaffected.")
+        self._show_underwear.toggled.connect(self._apply_underwear_visibility)
+        preview_tools.addWidget(self._show_underwear)
         preview_tools.addStretch(1)
         right_layout.addLayout(preview_tools)
         self._info_tabs = QTabWidget()
@@ -680,6 +687,9 @@ class CharacterFinderDialog(QDialog):
         if Path(path) != Path(result.package_path):
             return
         self._shown_key = key
+        self._underwear_parts = result.underwear_submesh_indices
+        self._show_underwear.setEnabled(bool(self._underwear_parts))
+        self._apply_underwear_visibility()
         status = STATUS_LABELS.get(result.status, result.status)
         if self._details and self._details.row.embedded_face:
             status += " · Embedded face; preview uses the owning body."
@@ -690,6 +700,10 @@ class CharacterFinderDialog(QDialog):
     def _package_failed(self, _path, _generation, message):
         if self._pending_package:
             self._preview_failed(self._pending_package[0], message)
+
+    def _apply_underwear_visibility(self):
+        if self._shown_key and not self._closing:
+            self._host.set_hidden_source_submeshes(() if self._show_underwear.isChecked() else self._underwear_parts)
 
     def _thumbnail_icon(self, path):
         icon = self._thumbnail_icons.get(path)
@@ -729,6 +743,10 @@ class CharacterFinderDialog(QDialog):
         item = self._items.get(key)
         if item:
             item.setToolTip(item.toolTip() + "\n" + message)
+            row = self._rows[key]
+            text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\nPreview unavailable"
+            item.setData(int(Qt.ItemDataRole.UserRole) + 1000, text)
+            item.setText(text)
 
     def _failed(self, request, error):
         kind = next((kind for kind, token in self._requests.items() if token == request), None)

@@ -1,10 +1,23 @@
 """Immutable input and output boundaries for character preview jobs."""
 from dataclasses import dataclass, replace
+import re
 from .archives.character_catalogue import CharacterCatalogDetailResult
 from cdmw.models import ArchiveEntry
 
 CHARACTER_FINDER_LOOKAHEAD_PAGES = 4
 CHARACTER_FINDER_CACHED_PAGES = 8
+
+
+def character_underwear_submesh_indices(parts) -> tuple[int, ...]:
+    """Hide explicitly identified underwear without classifying body skin as clothing."""
+    indices = set()
+    for part in parts:
+        tokens = set(re.findall(r"[a-z0-9]+", str(part.get("material", "")).casefold()))
+        tokens.update(re.findall(r"[a-z0-9]+", str(part.get("name", "")).casefold()))
+        index = part.get("source_submesh_index")
+        if tokens.intersection({"uw", "underwear", "underpants"}) and type(index) is int and index >= 0:
+            indices.add(index)
+    return tuple(sorted(indices))
 
 
 def character_preview_detail(detail: CharacterCatalogDetailResult) -> CharacterCatalogDetailResult:
@@ -47,3 +60,4 @@ class CharacterRenderResult:
     status: str
     notes: tuple[str, ...]
     cache_hit: bool = False
+    underwear_submesh_indices: tuple[int, ...] = ()

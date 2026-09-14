@@ -20,6 +20,8 @@ internal static class FullArchiveTestRunner
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
+            ("concurrent_preview_preparation", PreviewPreparationTests.ConcurrentAsync),
+            ("preview_preparation_wait_cancellation", PreviewPreparationTests.CancellationAsync),
             ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
             ("preview_material_dependency_bounds", PreviewMaterialDependencyBoundsAsync),
             ("query_sort_parity", QuerySortParityAsync),
