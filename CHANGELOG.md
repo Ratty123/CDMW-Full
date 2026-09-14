@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.17] - 2026-09-14
+
+Pre-release. Hair Tools is experimental: hairstyles and motion have not been tested in game and may not work correctly. The reporter has confirmed that the bulk replacement workflow introduced in alpha.16 resolves [issue #22](https://github.com/Ratty123/CDMW-Full/issues/22).
+
 ### Added
 
 - Hair Draw offers Freehand, Straight, Arc and Circle strokes, with stroke smoothing, arc bend and adjustable Move reach.
@@ -47,6 +51,10 @@ The format is intentionally simple:
 - Mesh Editor's Mod checkbox can exclude and restore unchanged PAC hair with seven or eight skin influences without rewriting its original skin records.
 - Hair preview retains the base texture and transparency selected by Archive Browser when a material wrapper differs from the geometry part, avoiding solid pale hair cards.
 - Cancelled dependency requests and unexpected preview-cache errors no longer strand a Finder thumbnail slot. Other cards continue loading automatically, and obsolete loading updates cannot overwrite a new selection or page.
+
+### Docs
+
+- Updated the README, bundled help and Mesh Editor guide for the three-character Hair Tools setup, empty-scalp creation, drawing shapes, original-hair preparation and experimental limits. Translation guidance now covers existing PALOC files, split language tables and complete-package export; bundled help changes are translated in all 14 interface languages.
 
 ## [0.11.0-alpha.16] - 2026-09-14
 

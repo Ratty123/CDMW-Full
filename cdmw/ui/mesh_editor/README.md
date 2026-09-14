@@ -16,7 +16,8 @@ in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handof
 
 ## Hair creation
 
-Use **Hair Tools** above the viewport. One setup dialog contains Character
+Use **Hair Tools (Experimental)** above the viewport. Hairstyles have not been
+tested in game and may not work correctly. One setup dialog contains Character
 (Kliff, Damiane or Oongka) and Create/Edit. **Create starts with an empty scalp**;
 the first verified compatible base supplies skinning and materials only. Create
 does not load a thumbnail gallery. Edit shows registered hairstyles with
@@ -28,8 +29,10 @@ Mounted appearance and customization documents supply the head, facial details,
 scalp, neck and shoulders. Authored head scales use the head joint as their pivot;
 the common character scale cancels in the donor's authoring coordinates. Oongka
 uses his `5_pom` references even though his registered hair belongs to `1_phm`.
-The clean, untextured mannequin keeps the face and eyes, excluding transparent
-eye covers, lashes and brows. Reference loading parses fitting geometry and
+The clean, untextured mannequin uses the head's fitted eye-cover surfaces as
+smooth eyes, excluding separate shader-dependent iris/lens meshes, lashes and
+brows. Heads without fitted covers retain their separate eye reference.
+Reference loading parses fitting geometry and
 authored transforms directly, without opening editable sessions or decoding DDS.
 Eyes follow the head but remain outside the scalp planting and collision surface.
 Compatible single-mesh `_player.pac` registrations at LOD0 are supported. Entries
@@ -44,10 +47,21 @@ generated hairstyle can change presets as one undoable edit without reopening it
 archive target. Repeated Create requests use the same route.
 
 Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
-drag empty space for a marquee. **Draw** starts on the scalp, follows its curved
-surface and displays cards while dragging. Drag outside its outline to extend
-away, or hold **Ctrl** for free drawing; scalp contacts remain active. Card width
-is included in contact checks. **Erase** and Delete remove the selected geometry; **Cut** removes
+drag empty space for a marquee. **Move reach** sets how much of the lock follows
+the grabbed point, with a smooth falloff and fixed roots. **Draw** offers
+**Freehand**, **Straight**, **Arc** and **Circle**. Drag the endpoints of a line or
+arc, or the diameter of a circle. **Bend** adjusts an arc's direction and depth;
+**Stroke smoothing** reduces freehand jitter without trailing behind the pointer.
+
+**Follow scalp** starts enabled for Freehand; the shape tools start in the view
+plane. Toggle it to choose surface following, or hold **Ctrl** temporarily to draw
+away from the scalp. Contacts remain active in either mode, including card width.
+Cards start narrow and follow the scalp before widening into the lock. Long
+strokes retain evenly spaced guides; cached scalp data keeps live preview work
+local to the active locks. Older strokes with a baked-in straight root retain
+their saved shape and need redrawing.
+
+**Erase** and Delete remove the selected geometry; **Cut** removes
 the pointed distal section. **Lengthen** acquires a clicked lock like Move,
 respects an existing selection and extends tips without moving roots. Empty,
 rigid and unresolved selections explain what is required.
@@ -57,12 +71,14 @@ cards. Symmetry uses explicit pairs created while drawing. Escape cancels a
 stroke; Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits,
 Shift-drag pans, and the wheel zooms.
 
-Existing hair retains its original UVs and material sections. Preparation joins
-unambiguous connected cards and recognizes rigid scalp sections. Amber sections
-need correction: select a preparation group or visible locks, choose **Set root /
-group selected sections**, then click the scalp. This explicitly combines selected
-sections sharing a material. Mark genuinely rigid scalp pieces as rigid. Draw and
-follower density are available for generated hair; unsupported controls explain
+Existing hair retains its original geometry, UVs, skinning and material sections.
+Sections without editor guides are not broken: unchanged sections can be exported
+without preparation. To groom them or preview their motion, expand preparation,
+select a group or visible locks, choose **Set root / group selected sections**,
+then click the scalp. This explicitly combines selected sections sharing a
+material. Changed sections without valid guides remain blocked. Mark rigid scalp
+pieces as rigid. Draw and follower density are available for generated hair;
+unsupported controls explain
 that limitation. Existing locks support grooming, cutting and deletion once bound.
 
 Setup contains the readable hairstyle name and **Change references**. Alternatives
@@ -97,8 +113,9 @@ mesh** is an explicit undoable action under Advanced.
 Hair state v2 records stable locks, geometry ownership and retained source vertices.
 Drafts use `mesh_layer_project_v5`/`mesh_layer_generation_v5`, with reads of v1-4.
 Legacy generated bindings recover lock ownership without regenerating geometry;
-legacy existing hair needs explicit preparation. Hair, geometry, materials and
-output inclusion are saved atomically. The helper advertises `hair_authoring_v2`.
+legacy existing hair needs explicit preparation for grooming or motion. Hair,
+geometry, materials and output inclusion are saved atomically. The helper
+advertises `hair_authoring_v2`.
 Small grooming updates publish only changed positions and authored normals;
 unchanged UVs, materials and skin records remain resident. Each completed action
 keeps its own Undo step. Pending Undo/Redo and Finish wait for ordered publication.
