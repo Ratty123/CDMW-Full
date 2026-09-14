@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.16-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.17-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.16` is the current source version and is offered as a pre-release.
+> `0.11.0-alpha.17` is the current source version and is offered as a pre-release.
 > See [Releases](https://github.com/Ratty123/CDMW-Full/releases) for downloads.
 
 ---
@@ -37,6 +37,7 @@ is smaller and safer to hand to someone who is not modding.
 - [What it does](#what-it-does)
 - [Documentation and languages](#documentation-and-languages)
 - [Bulk texture replacement](#bulk-texture-replacement)
+- [Translations](#translations)
 - [Create New Item](#create-new-item)
 - [Mesh Editor](#mesh-editor)
 - [Placement & Animations](#placement--animations)
@@ -98,7 +99,7 @@ including supported material-color sidecars and manager profiles.
 | **Textures** | Bulk-replace loose PNG/DDS folders through Replace, edit layered documents, recolor mod textures and supported material values, upscale selected assets, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, with editing limits and evidence from the maintained [capability manifest](schemas/archive_content_capabilities.v1.json). |
-| **Translations** | Edit language catalogue entries with reference-language context and export reviewed translation data. |
+| **Translations** | Load the game's current language tables or existing `.paloc` mods, edit with reference-language context, and export a complete translation package. Loose files can be edited without a game installation. |
 | **Research** | Inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local research notes. |
 | **Text Search** | Search archive or loose text-like assets such as XML, JSON, CFG, and Lua with preview and export. |
 
@@ -136,6 +137,18 @@ To match against extracted originals, choose **Local DDS folder** and use
 including subfolders. **Choose Local DDS...** and **Choose Archive DDS...** in
 the **Selected file** row are overrides for one texture. Replacement package
 builds read the source files and do not modify game archives.
+
+## Translations
+
+Use the configured game folder to load the current language tables, or open an
+existing `.paloc` file without a game installation. Split language tables and
+named dialogue keys retain their original archive paths. Search, group filters,
+Edited only, Revert line and Reset all help review the changes before export.
+
+Manual editing does not require an AI provider. Optional AI translation validates
+returned text and markup, supports session-only keys, and cancels safely when its
+dialog closes. Exports run in the background and replace the complete package only
+after success; a failed export preserves the previous package.
 
 ## Create New Item
 
@@ -229,10 +242,21 @@ meshes show an **Experimental** warning about possible
 positioning, scale and animation errors. Use **Output Preview** before Finish
 and Build Mod; required geometry and dependency checks remain active.
 
-**Hair** adds Damiane presets, guide grooming, textured cards and head/shoulder
-references. Hair edits support Undo/Redo, saved drafts and motion preview.
-Additional barber choices can be exported as a separate mod package. In-game
-selection, save/load, headgear and physics behavior still need testing.
+**Hair Tools (Experimental)** opens one Create/Edit setup for Kliff, Damiane and
+Oongka. Create starts on an empty fitting scalp; Edit loads a registered hairstyle.
+The compatible base supplies materials and skinning, and the clean mannequin
+provides head, scalp, neck and shoulder references. Loading begins after Start.
+
+Draw uses Freehand, Straight, Arc or Circle shapes, with Stroke smoothing, Bend
+and Follow scalp controls. Move reach adjusts how much of a lock follows a drag;
+Lengthen extends its tips while keeping roots fixed. Untouched in-game sections
+keep their original geometry and skinning; prepare their guides only when needed
+for grooming or motion. Hair edits share Undo/Redo, saved drafts and package export.
+
+Hair and motion have **not been tested in game and may not work correctly**.
+Motion is an editor fitting preview and does not reproduce the game's hair rig or
+physics. Additional barber choices can be exported as separate packages, but
+in-game selection, save/load, headgear and animation compatibility remain unverified.
 
 **Morph & Refit** supports body shape sliders and fitting armor or clothing:
 
@@ -639,6 +663,12 @@ export and share them. External pages open only from explicit user actions such
 as download or help links.
 
 ## Known limitations
+
+**Hair Tools is experimental.** Drawing, grooming and package validation have
+local test coverage, including rendered checks, but in-game appearance and behavior
+are unverified. Multi-PAC hairstyles, additional LODs and unsupported skin layouts
+are gated before loading. See the [hair guide](docs/hair-authoring-feasibility.md)
+for supported sources and the limits of the available evidence.
 
 **Placement editing is deliberately bounded.** The operations listed under
 [Placement & Animations](#placement--animations) are the whole

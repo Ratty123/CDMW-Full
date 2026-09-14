@@ -1,8 +1,10 @@
 # Hair creation in the existing Mesh Editor
 
-Updated 2026-09-14. Hair authoring uses one setup dialog for Kliff, Damiane and
-Oongka. Local package creation is read-only against installed archives. Desktop
-interaction and in-game acceptance are separate from source and offscreen proof.
+Updated for 0.11.0-alpha.17 on 2026-09-14. Experimental hair authoring uses one
+setup dialog for Kliff, Damiane and Oongka. Hairstyles have not been tested in game
+and may not work correctly. Local package creation is read-only against installed
+archives. Desktop interaction and in-game acceptance are separate from source and
+offscreen proof.
 
 ## Setup and supported sources
 

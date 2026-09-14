@@ -432,6 +432,9 @@ class AboutDocumentationEnglishMixin:
                 <p>Neutral-appearance meshes show an Experimental warning; imports and Mod inclusion are available without an extra enable button. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.</p>
                 <p>Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.</p>
                 <p>Replacement supports one eligible PAC, PAM or PAMLOD at a time. Clear active Morph &amp; Refit bindings first; unsupported layouts or missing dependencies block Apply.</p>
+                <h4>Hair Tools (Experimental)</h4>
+                <p>Hair Tools is experimental for Kliff, Damiane and Oongka. Create starts on an empty fitting scalp; Edit loads an existing hairstyle. Hair and motion have not been tested in game and may not work correctly.</p>
+                <p>Draw offers Freehand, Straight, Arc and Circle. Use Stroke smoothing, Bend, Follow scalp and Move reach to control the shape. Ctrl temporarily draws away from the scalp while collision stays active.</p>
                 <h4>Rig &amp; Weights</h4>
                 <p>Rig &amp; Weights is temporarily hidden from the tool rail. Its implementation is retained.</p>
                 <h4>Morph &amp; Refit</h4>
@@ -555,6 +558,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "translations translation studio paloc language reference search group edit revert ai export mod",
                 "html": """
                 <p><b>Translations</b> is the game-text workspace for searchable <code>.paloc</code> tables. It keeps one working language and one optional reference language in view while edits remain separate until export.</p>
+                <p>Open existing .paloc files without a game installation, or use the configured game folder to load the current language tables. Export retains each table's original archive path and preserves the existing package if it fails.</p>
                 <ul>
                   <li>Choose a language and optional reference, load them, then search keys and text or filter by group.</li>
                   <li>Double-click the Text column to edit. Highlighting, original-text tooltips, <b>Revert line</b>, <b>Edited only</b>, and <b>Reset all</b> keep the change set explicit.</li>
