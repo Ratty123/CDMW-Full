@@ -12,20 +12,20 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
-from cdmw.models import TextureEditorSourceBinding
+from cdmw.models import ReplaceAssistantItem, TextureEditorSourceBinding
 from cdmw.ui.texture_workflow.editor_session import (
     _TextureEditorSession,
     texture_editor_document_composite_revision,
 )
 
 
-TEXTURE_MODES = ("edit", "recolor", "upscale")
+TEXTURE_MODES = ("edit", "replace", "recolor", "upscale")
 TEXTURE_MODE_SETTING = "ui/textures_mode"
 TEXTURE_TOOL_ALIASES = {
     "texture_editor": "edit",
     "recolor_variants": "recolor",
     "texture_workflow": "upscale",
-    "replace_assistant": "review",
+    "replace_assistant": "replace",
 }
 
 
@@ -47,6 +47,7 @@ class TextureJobAsset:
     package_target: object | None = None
     package_path: Path | None = None
     original_entry: object | None = None
+    replacement_item: ReplaceAssistantItem | None = None
 
     @property
     def source_binding(self) -> TextureEditorSourceBinding:

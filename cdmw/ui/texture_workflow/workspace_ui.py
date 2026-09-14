@@ -16,7 +16,7 @@ from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.texture_workflow.job import (
-    TEXTURE_MODE_SETTING, TEXTURE_TOOL_ALIASES, TextureJobAsset, normalize_texture_mode,
+    TEXTURE_MODE_SETTING, TEXTURE_TOOL_ALIASES, TextureJobAsset, _source_key, normalize_texture_mode,
 )
 
 
@@ -79,7 +79,7 @@ class TextureJobUiMixin:
         self.mode_buttons = {}
         self.mode_button_group = QButtonGroup(self)
         self.mode_button_group.setExclusive(True)
-        for key, label in (("edit", "Edit"), ("recolor", "Recolor"), ("upscale", "Upscale")):
+        for key, label in (("edit", "Edit"), ("replace", "Replace"), ("recolor", "Recolor"), ("upscale", "Upscale")):
             button = QPushButton()
             button.setText(label)
             button.setCheckable(True)
@@ -141,7 +141,10 @@ class TextureJobUiMixin:
         self.job_splitter.setStretchFactor(0, 0)
         self.job_splitter.setStretchFactor(1, 1)
         self.job_splitter.setSizes([300, 1180])
-        layout.addWidget(self.job_splitter, stretch=1)
+        self.texture_pages = QStackedWidget()
+        self.texture_pages.addWidget(self.job_splitter)
+        self.texture_pages.addWidget(matcher)
+        layout.addWidget(self.texture_pages, stretch=1)
         editor.when_created(self._install_texture_editor)
         recolor.when_created(self._install_recolor_controls)
         self.set_texture_mode(self.job.mode, activate=False)
@@ -182,6 +185,14 @@ class TextureJobUiMixin:
         self.shell.settings.setValue(TEXTURE_MODE_SETTING, mode)
         for key, button in self.mode_buttons.items():
             button.setChecked(key == mode)
+        for button in (self.add_texture_button, self.add_mod_button, self.review_export_button):
+            button.setVisible(mode != "replace")
+        self.texture_pages.setCurrentWidget(self.matcher_container if mode == "replace" else self.job_splitter)
+        if mode == "replace":
+            if activate:
+                self.matcher_container.when_created(lambda _matcher: self.prepare_replacement_review())
+                self.matcher_container.request_widget()
+            return
         if mode != "upscale":
             self.job_splitter.widget(0).setMaximumWidth(460)
         if mode == "upscale":
@@ -196,8 +207,13 @@ class TextureJobUiMixin:
         else:
             self.mode_controls.setCurrentIndex(0)
         self.preview_stack.setCurrentWidget(self.editor_container)
-        if activate:
+        if activate and not self.job.busy:
+            asset = self.job.assets.get(self.job.active_asset_key)
+            if mode == "edit" and asset is not None and asset.session is None and asset.source_path is not None:
+                if not any(_source_key(path) == _source_key(asset.source_path) for path, _ in self._pending_texture_sources):
+                    self._pending_texture_sources.append((asset.source_path, asset.source_binding))
             self.editor_container.request_widget()
+            self._queue_next_texture_source()
 
     def _fit_upscale_sidebar(self) -> None:
         if self.job.mode != "upscale" or not hasattr(self, "job_splitter"):
@@ -234,11 +250,14 @@ class TextureJobUiMixin:
         self.open_texture_sources([Path(path) for path in paths])
 
     def open_texture_sources(self, paths, *, binding=None) -> None:
+        pending = {_source_key(path) for path, _ in self._pending_texture_sources}
         for path in paths:
             source = Path(path).expanduser().resolve()
             source_binding = binding or TextureEditorSourceBinding(source_path=str(source))
             self.job.add_source(source, source_binding)
-            self._pending_texture_sources.append((source, source_binding))
+            if _source_key(source) not in pending:
+                self._pending_texture_sources.append((source, source_binding))
+                pending.add(_source_key(source))
         self._refresh_texture_assets()
         self._with_texture_editor(lambda _editor: self._queue_next_texture_source())
 
@@ -246,6 +265,8 @@ class TextureJobUiMixin:
         QTimer.singleShot(0, self, self._open_next_texture_source)
 
     def _open_next_texture_source(self) -> None:
+        if self.job.busy or self.job.mode == "replace":
+            return
         editor = created_tool_widget(self.editor_container)
         if editor is None or not hasattr(editor, "job") or editor._busy() or not self._pending_texture_sources:
             return
@@ -297,35 +318,25 @@ class TextureJobUiMixin:
         if self._syncing_texture_assets:
             return
         key = item.data(0, Qt.UserRole)
+        if key not in self.job.assets:
+            return
         if item.checkState(0) == Qt.Checked:
             self.job.selected.add(key)
         else:
             self.job.selected.discard(key)
 
     def _remove_texture_asset(self) -> None:
-        asset = self.job.assets.get(self.job.active_asset_key)
-        editor = created_tool_widget(self.editor_container)
-        if asset is None or self.job.busy or (editor is not None and editor._busy()):
-            return
-        if asset.session is not None and editor is not None:
-            editor._close_document_tab(self.job.sessions.index(asset.session))
-        self.job.assets.pop(asset.key)
-        self.job.selected.discard(asset.key)
-        if self.job.active_asset_key == asset.key:
-            self.job.active_asset_key = ""
-        self._pending_texture_sources = deque(
-            (path, binding) for path, binding in self._pending_texture_sources
-            if path != asset.source_path
-        )
-        if editor is not None:
-            editor.set_workspace_mode(self.job.mode)
-        self.preview_stack.setCurrentWidget(self.editor_container)
-        self._synchronize_texture_job()
+        self.remove_texture_assets((self.job.active_asset_key,), confirm=False)
 
     def _select_texture_asset(self, item, _previous=None) -> None:
         if self._syncing_texture_assets or item is None:
             return
-        asset = self.job.assets[item.data(0, Qt.UserRole)]
+        asset = self.job.assets.get(item.data(0, Qt.UserRole))
+        if asset is None:
+            return
+        if self.job.mode == "replace":
+            self.job.active_asset_key = asset.key
+            return
         editor = created_tool_widget(self.editor_container)
         if editor is not None and hasattr(editor, "set_workspace_mode"):
             editor.set_workspace_mode(self.job.mode)
@@ -384,6 +395,11 @@ class TextureJobUiMixin:
         self._with_texture_editor(lambda editor: editor.show_workspace_preview(source_image, result_image))
 
     def show_texture_review(self, _checked=False, *, operation: str | None = None) -> None:
+        if (operation or self.job.mode) in {"replace", "replacement"}:
+            if self._review_dialog is not None:
+                self._review_dialog.hide()
+            self.set_texture_mode("replace")
+            return
         self._synchronize_texture_job()
         if self._review_dialog is None:
             self._build_texture_review()
@@ -420,7 +436,7 @@ class TextureJobUiMixin:
             edit_layout.addWidget(button)
         edit_layout.addStretch(1)
         self.export_pages.addWidget(self.editor_export_page)
-        self.export_pages.addWidget(self.matcher_container)
+        self.export_pages.addWidget(QLabel("Open Replace to match textures and build a mod package."))
         self.recolor_export_page = QWidget()
         self.recolor_export_layout = QVBoxLayout(self.recolor_export_page)
         self.export_pages.addWidget(self.recolor_export_page)
@@ -438,9 +454,6 @@ class TextureJobUiMixin:
         self.export_pages.setCurrentIndex(index)
         key = self.export_operation.itemData(index)
         if key == "replacement":
-            self.matcher_container.when_created(lambda _matcher: self.prepare_replacement_review())
-            self.editor_container.when_created(lambda _editor: self.prepare_replacement_review())
-            self.editor_container.request_widget()
-            self.matcher_container.request_widget()
+            self.show_texture_review(operation="replacement")
         elif key == "recolor":
             self.recolor_container.request_widget()

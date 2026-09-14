@@ -353,8 +353,9 @@ def test_texture_aliases_share_documents_and_review(tmp_path, monkeypatch) -> No
         wait_for(lambda: len(matcher.items) == 1 and not editor._busy())
         assert matcher.workspace is window.textures
         assert matcher.main_splitter.count() == 2
-        assert all(button.isHidden() for button in (matcher.add_files_button, matcher.add_folder_button, matcher.remove_selected_button, matcher.clear_all_button))
-        assert window.textures.export_operation.currentData() == "replacement"
+        assert all(not button.isHidden() for button in (matcher.add_files_button, matcher.add_folder_button, matcher.remove_selected_button, matcher.clear_all_button))
+        assert window.textures.job.mode == "replace"
+        assert window.textures.texture_pages.currentWidget() is window.replace_assistant_tab
         assert matcher.items[0].source_path.is_file()
         assert editor._sessions[0] is session
         operation = window.textures.begin_texture_operation("test")

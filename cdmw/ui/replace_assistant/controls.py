@@ -126,6 +126,9 @@ class ReplaceAssistantControlMixin:
         uses_manager_metadata = any(mod_package_profile_uses_manager_metadata(profile) for profile in checked_profiles)
         self.add_files_button.setEnabled(not busy)
         self.add_folder_button.setEnabled(not busy)
+        self.reload_folder_button.setEnabled(not busy and self.last_import_folder is not None)
+        self.cancel_import_button.setEnabled(self._active_import_request is not None)
+        self.queue_tree.setEnabled(not busy)
         self.auto_match_button.setEnabled(not busy and has_items)
         self.choose_local_original_button.setEnabled(not busy and selected_count == 1)
         self.choose_archive_original_button.setEnabled(

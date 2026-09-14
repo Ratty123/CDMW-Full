@@ -70,7 +70,7 @@ class ReplaceAssistantBuildMixin:
         )
 
     def start_build(self) -> None:
-        if self.is_busy():
+        if self.is_busy() or self.external_busy:
             return
         if self.workspace is not None and not getattr(self, "_shared_review_ready", False):
             def prepared():
@@ -81,10 +81,11 @@ class ReplaceAssistantBuildMixin:
                     self._shared_review_ready = False
             self.workspace.prepare_replacement_review(prepared)
             return
-        if not self.items:
+        items = self.workspace.replacement_build_items(self) if self.workspace is not None else self.items
+        if not items:
             QMessageBox.information(self, APP_TITLE, "Add edited PNG or DDS files before building a mod package.")
             return
-        if any(item.status == "unresolved" for item in self.items):
+        if any(item.matched_original is None for item in items):
             QMessageBox.warning(
                 self,
                 APP_TITLE,
@@ -99,7 +100,7 @@ class ReplaceAssistantBuildMixin:
             except ValueError as exc:
                 self.status_message_requested.emit(str(exc), True)
                 return
-        self.progress_bar.setRange(0, len(self.items))
+        self.progress_bar.setRange(0, len(items))
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Working...")
         self.status_label.setText("Building replace package...")
@@ -108,7 +109,7 @@ class ReplaceAssistantBuildMixin:
             return
         self._launch_build_worker(
             options,
-            self.items,
+            items,
             archive_entries=self.archive_entries or self.get_archive_entries(),
         )
 
@@ -119,6 +120,8 @@ class ReplaceAssistantBuildMixin:
         *,
         archive_entries: Sequence[ArchiveEntry],
     ) -> None:
+        if self.workspace is not None:
+            items = [item for item in items if self.workspace.replacement_item_key(item) in self.workspace.job.selected]
         worker = ReplaceAssistantBuildWorker(
             items,
             options,

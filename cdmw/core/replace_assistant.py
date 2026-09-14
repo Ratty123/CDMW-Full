@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import tempfile
@@ -386,22 +387,32 @@ def match_replace_assistant_original(
     )
 
 
-def collect_replace_assistant_imports(paths: Sequence[Path | str]) -> List[Path]:
+def collect_replace_assistant_imports(
+    paths: Sequence[Path | str], *, stop_event: Optional[threading.Event] = None,
+) -> List[Path]:
     discovered: List[Path] = []
     seen: set[str] = set()
-    for raw in paths:
-        candidate = Path(raw).expanduser()
-        if not candidate.exists():
-            continue
+
+    def scan_error(error: OSError) -> None:
+        raise error
+
+    def files_in(candidate: Path):
         if candidate.is_dir():
-            files = sorted(
-                path
-                for path in candidate.rglob("*")
-                if path.is_file() and path.suffix.lower() in {".png", ".dds"}
-            )
+            for directory, _dirs, names in os.walk(candidate, onerror=scan_error):
+                raise_if_cancelled(stop_event, "Texture import cancelled.")
+                for name in sorted(names):
+                    raise_if_cancelled(stop_event, "Texture import cancelled.")
+                    yield Path(directory) / name
         else:
-            files = [candidate] if candidate.suffix.lower() in {".png", ".dds"} else []
-        for file_path in files:
+            yield candidate
+
+    for raw in paths:
+        raise_if_cancelled(stop_event, "Texture import cancelled.")
+        candidate = Path(raw).expanduser()
+        for file_path in files_in(candidate):
+            raise_if_cancelled(stop_event, "Texture import cancelled.")
+            if file_path.suffix.lower() not in {".png", ".dds"} or not file_path.is_file():
+                continue
             resolved = file_path.resolve()
             lowered = str(resolved).lower()
             if lowered in seen:
@@ -420,10 +431,11 @@ def build_replace_assistant_items(
     on_stage: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
     perform_matching: bool = True,
+    stop_event: Optional[threading.Event] = None,
 ) -> List[ReplaceAssistantItem]:
     if on_stage is not None:
         on_stage("Scanning selected files...")
-    discovered_paths = collect_replace_assistant_imports(imported_paths)
+    discovered_paths = collect_replace_assistant_imports(imported_paths, stop_event=stop_event)
     if not perform_matching:
         items: List[ReplaceAssistantItem] = []
         total = len(discovered_paths)
@@ -432,6 +444,7 @@ def build_replace_assistant_items(
         if on_progress is not None and total:
             on_progress(0, total, f"Queued 0 / {total} imported file(s)...")
         for index, source_path in enumerate(discovered_paths, start=1):
+            raise_if_cancelled(stop_event, "Texture import cancelled.")
             items.append(
                 ReplaceAssistantItem(
                     source_path=source_path,
@@ -440,12 +453,13 @@ def build_replace_assistant_items(
                     status_detail="ready to auto-match",
                 )
             )
-            if on_progress is not None and total:
+            if on_progress is not None and (index % 100 == 0 or index == total):
                 on_progress(index, total, f"Queued {index} / {total} imported file(s)...")
         return items
     active_index = archive_index or build_replace_assistant_archive_index(
         archive_entries,
         original_dds_root=original_dds_root,
+        stop_event=stop_event,
     )
     if on_stage is not None:
         on_stage("Matching imported files to original DDS entries...")
@@ -454,6 +468,7 @@ def build_replace_assistant_items(
     if on_progress is not None and total:
         on_progress(0, total, f"Matching 0 / {total} imported file(s)...")
     for index, source_path in enumerate(discovered_paths, start=1):
+        raise_if_cancelled(stop_event, "Texture import cancelled.")
         matched = match_replace_assistant_original(source_path, active_index)
         items.append(
             ReplaceAssistantItem(

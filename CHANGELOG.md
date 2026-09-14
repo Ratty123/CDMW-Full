@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Textures adds a **Replace** tab for bulk PNG/DDS replacement: open or reload a folder, append files, remove selected textures or clear the batch, auto-match originals, and build a mod without opening every file in the editor. Cancelled or failed folder loads preserve the previous batch, and deliberate editor changes remain available for export.
 - Mesh Editor adds Damiane hair authoring: guide presets, grooming, explicit existing-hair binding, textured cards, head/shoulder references, and collision-aware motion preview. Guides, geometry and DDS edits share Undo/Redo, versioned drafts and Finish. A validated read-only package workflow creates additional barber registrations and distinct assets; in-game selection, save/load, headgear and physics acceptance remain pending.
 
 - Mesh Editor offers **Try Experimental Replacement** for neutral-appearance meshes, enabling replacement imports and Mod inclusion after a visible warning. Preview and export share the retained coordinate transform; versioned drafts preserve it, while structural validation stays enabled.
