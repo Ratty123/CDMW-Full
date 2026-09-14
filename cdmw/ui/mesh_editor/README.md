@@ -16,19 +16,37 @@ in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handof
 
 ## Hair creation
 
-Use the **Hair Tools** button above the viewport, then **Create hairstyle > Bob**, to start without archive
-filenames. Cropped, Long, Ponytail and Empty are also available. Damiane's mounted
-head, ears, crown, neck and shoulders load automatically. A registered hairstyle
-supplies the materials and game compatibility; Create replaces its visible hair
-with generated cards. **Hair Tools > Edit hairstyle** offers the registered choices
-with thumbnails. Finder Create/Edit Hair enters this same workspace.
-The grooming workspace currently accepts Damiane's registered `_player.pac`
-variants at LOD0; opening an ordinary hair PAC leaves the general mesh tools active.
+Use **Hair Tools** above the viewport. One setup dialog contains Character
+(Kliff, Damiane or Oongka), Create/Edit, and the registered hairstyles with
+thumbnails. Create defaults to Bob and the first verified compatible base;
+Cropped, Long, Ponytail and Empty are also available. The active compatible
+character and hairstyle are preselected. **Start** stays disabled until the
+catalogue and donor checks are ready. Browsing choices does not replace the scene.
+Finder Create/Edit Hair uses this same dialog.
+
+Mounted appearance and customization documents supply the head, facial details,
+scalp, neck and shoulders. Authored head scales use the head joint as their pivot;
+the common character scale cancels in the donor's authoring coordinates. Oongka
+uses his `5_pom` references even though his registered hair belongs to `1_phm`.
+Eyes, brows and teeth follow the head as fitting references; hair roots and motion
+contacts use the head/scalp surface without these interior facial components.
+Compatible single-mesh `_player.pac` registrations at LOD0 are supported. Entries
+with multiple PAC references, additional LODs, unsupported layouts or incomplete
+dependencies explain their restriction before Start. Ordinary hair PACs retain
+the general mesh tools.
+
+Start prepares a complete replacement in isolation before the existing unsaved
+work confirmation and scene switch. Cancellation and failed preparation preserve
+the current scene; **Retry loading choices** restarts preparation. An active
+generated hairstyle can change presets as one undoable edit without reopening its
+archive target. Repeated Create requests use the same route.
 
 Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
 drag empty space for a marquee. **Draw** starts on the scalp and displays cards
 while dragging. **Erase** and Delete remove the selected geometry; **Cut** removes
-the pointed distal section. **Lengthen** extends tips without moving roots.
+the pointed distal section. **Lengthen** acquires a clicked lock like Move,
+respects an existing selection and extends tips without moving roots. Empty,
+rigid and unresolved selections explain what is required.
 Comb, Smooth, Curl and Clump use the highlighted brush region, restricted to the
 selection when one exists. Appearance controls width and generated follower
 cards. Symmetry uses explicit pairs created while drawing. Escape cancels a
@@ -49,13 +67,15 @@ pagination. There is no fallback to an unrestricted archive list. Changed heads
 invalidate bindings until explicit rebinding. Setup, Appearance and Advanced are
 collapsed; unrelated topology, rigging and UV controls stay hidden in Hair mode.
 Switching choices cancels the previous preparation; its late results and errors
-cannot replace the current selection. A failed preparation leaves **Use selection**
-available to retry. Cancelled reference loads release their unpublished assets.
+cannot replace the current selection. Failed reference choices remain retryable.
+Cancelled reference loads release their unpublished assets.
 
 **Play** becomes available when roots, geometry ownership and required textures
 are ready. **Head and shoulders** is the default test; Turn, Nod, Body sway and
 Wind are also available. The Rust XPBD solver drives the rendered cards and uses
-matching reference/root/collision transforms. A stroke pauses playback and resumes
+matching reference/root/collision transforms. Cached scalp-surface contacts check
+guide segments and card width while retaining neck and shoulder collision shapes.
+A stroke pauses playback and resumes
 from the edited rest shape at the current pose. Reset is deterministic. Simulation
 frames never modify drafts, output or history. **Use settled shape** explicitly
 accepts the neutral-coordinate result as one undoable edit.
@@ -83,8 +103,11 @@ document again.
 Packages retain the additional-choice contract, automatically allocate distinct
 internal identities and use the readable name in their manifest. Retained existing
 PAC vertices preserve their original skin records, including eight influences,
-when reshaped, cut or deleted. The primary verified donor has LOD0 only; a multi-LOD
-donor is blocked until a corresponding writer is verified. Installed archives stay
+when reshaped, cut or deleted. Generated geometry always transfers skinning from
+an immutable original PAC donor matched by stable part identity, including after
+consecutive Draw strokes, Undo/Redo and reopening. The 40-byte PAC layout guard
+remains in force. Drafts can be reopened and saved repeatedly without losing part
+identities. A multi-LOD donor is blocked until its writer is verified. Installed archives stay
 read-only. In-game barber selection, save/load, headgear and motion remain unverified.
 
 For implementation and evidence boundaries see [the hair document](../../../docs/hair-authoring-feasibility.md).

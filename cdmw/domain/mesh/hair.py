@@ -103,8 +103,10 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
     digest = template.get("sha256", "")
     if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
         raise ValueError("Hair template provenance requires its source SHA-256.")
-    if template.get("character") != "Damiane":
-        raise ValueError("This hair authoring release targets Damiane.")
+    from cdmw.domain.hair_characters import hair_character
+    profile = hair_character(template.get("character"))
+    if not profile.accepts_hair(template.get("path", "")):
+        raise ValueError("The hair template does not belong to the selected character's hair family.")
     groups, guides, bindings = state.get("groups"), state.get("guides"), state.get("bindings")
     references = state.get("reference_parts")
     if (not isinstance(groups, list) or len(groups) > 128 or not isinstance(guides, list) or len(guides) > 4096

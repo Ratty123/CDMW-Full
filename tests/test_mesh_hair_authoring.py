@@ -30,6 +30,49 @@ def dds():
     return stream.getvalue()
 
 
+def test_hair_material_ignores_engine_unbound_slots_but_retains_them_in_xml():
+    from cdmw.services.mesh_hair_output import material_texture_paths
+    data = b'<Material><Texture _path="texture/nonetexture0xffffffff.dds"/><Texture _path="character/texture/hair.dds"/></Material>'
+    root, textures = material_texture_paths(data)
+    assert textures == ("character/texture/hair.dds",)
+    assert next(root.iter("Texture")).get("_path") == "texture/nonetexture0xffffffff.dds"
+
+
+def test_hair_mode_allows_mod_inclusion_without_conversion(editor):
+    _, authoring = editor
+    live = authoring.shadow_service._session(authoring.shadow_session_id)
+    part_id = live.replacement_state.parts[0].part_id
+    original = live.hair_state
+    for included in (False, True):
+        request = _fixtures._request(authoring, "command_request", 810 + included)
+        request.update(command="replacement_include", arguments={"part_ids":[part_id], "included":included})
+        authoring.run_command(request)
+        assert live.replacement_state.parts[0].included is included
+        assert live.hair_state == original and not live.hair_state.payload["converted"]
+
+
+def test_reopened_hair_draft_can_save_and_export_again(editor, tmp_path):
+    from cdmw.domain.mesh.replacement import bound_part_indices
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    apply_hair_candidate(authoring, candidate(authoring, topology=True), "Draw")
+    for number in range(2):
+        live.mesh_layer_project_path = tmp_path / f"save-{number}" / "project.json"
+        service.retry_mesh_layer_autosave(sid)
+        restored = copy.deepcopy(live.base_mesh)
+        loaded = load_mesh_layer_project(restored, live.mesh_layer_project_path,
+            expected_source_asset_sha256=live.mesh_asset_source_hash)
+        bound_part_indices(restored, loaded["replacement_state"])
+        prepared = service.prepare_working_mesh_replacement(sid, restored, replacement_state=loaded["replacement_state"],
+            hair_state=loaded["hair_state"], replace_hair_state=True, validation_output_policy=REPLACEMENT_POLICY)
+        bound_part_indices(prepared.working_mesh, loaded["replacement_state"])
+        service.commit_prepared_working_mesh_replacement(prepared, history_action="hair_resume", history_label="Reopen",
+            output_policy=REPLACEMENT_POLICY, require_reversible_history=True)
+    snapshot = service.capture_export_snapshot(sid)
+    assert service._replacement_output_for_snapshot(snapshot).data
+
+
 def payload(digest="a" * 64, mode="generated"):
     return {"version": 1, "revision": 0, "converted": False,
         "scalp": {"identity": "head:a", "positions": [[0, 0, 0], [1, 0, 0], [0, 0, 1]], "triangles": [[0, 1, 2]]},
@@ -144,6 +187,28 @@ def test_topology_transaction_undo_redo_restores_all_state_and_writer(editor):
     assert redone.hair_state == after.hair_state
     assert redone.replacement_state == after.replacement_state
     assert redone.mesh.submeshes[0].vertices == after.mesh.submeshes[0].vertices
+
+
+def test_repeated_generated_topology_uses_original_skin_donor(editor):
+    from cdmw.modding.mesh_parser import parse_mesh
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    original = service.capture_export_snapshot(sid)
+    for label in ("Generate bob", "Draw first lock", "Draw second lock"):
+        before = service.capture_export_snapshot(sid)
+        apply_hair_candidate(authoring, candidate(authoring, topology=True), label)
+        after = service.capture_export_snapshot(sid)
+        assert len(after.mesh.submeshes[0].vertices) == 2 * len(before.mesh.submeshes[0].vertices)
+        rebuilt = service._replacement_output_for_snapshot(after)
+        parsed = parse_mesh(rebuilt.data, MESH)
+        assert len(parsed.submeshes[0].bone_weights) == len(after.mesh.submeshes[0].vertices)
+        assert all(abs(sum(row) - 1) < .01 for row in parsed.submeshes[0].bone_weights)
+    service.undo(sid)
+    assert service.capture_export_snapshot(sid).hair_state == before.hair_state
+    service.redo(sid)
+    assert service.capture_export_snapshot(sid).hair_state == after.hair_state
+    assert after.original_data == original.original_data
 
 
 @pytest.mark.parametrize("kind", ["stale", "donor", "uv", "cancel"])
@@ -333,28 +398,22 @@ def test_cancel_during_body_loading_releases_head_reference_lease(monkeypatch):
     assert lease.lease is None
 
 
-def test_finder_hair_button_hands_off_prepared_asset_without_editing_preview(finder, tmp_path):
-    dialog, catalogue, _=finder
-    selected=row(1,role='hair',path=MESH)
-    publish_rows(dialog,catalogue,[selected])
-    model=SimpleNamespace(entry_id=8,path=MESH)
-    dialog._details=replace(detail(selected),models=(model,))
-    calls=[]
-    dialog._hair_preparation=SimpleNamespace(start=lambda *args:calls.append(args), cancel=lambda:None)
+def test_finder_hair_button_routes_to_shared_setup_without_loading(finder, monkeypatch):
+    from cdmw.ui.mesh_editor import hair_flow
+    dialog, catalogue, _ = finder
+    selected = row(1, role="hair", path=MESH)
+    publish_rows(dialog, catalogue, [selected])
+    dialog._details = replace(detail(selected), models=(SimpleNamespace(entry_id=8, path=MESH),))
+    calls = []
+    monkeypatch.setattr(hair_flow, "start_hair_workflow", lambda *args, **kw: calls.append((args, kw)))
+    editor = SimpleNamespace()
+    dialog._window.shell.mesh_editor_tab = editor
+    dialog._window.shell._activate_tool_widget = lambda tab: None
     dialog._buttons()
     assert dialog._create_hair.isEnabled()
     dialog._create_hair.click()
-    assert len(calls)==1 and dialog._hair_handoff == (selected.key,8,'generated')
-    assert not dialog._create_hair.isEnabled()
-    target=_fixtures._prepared_dds_entry(tmp_path,MESH,b'owned')
-    editor=SimpleNamespace(open_archive_session=lambda *args,**kw:calls.append((args,kw)))
-    dialog._window.shell.mesh_editor_tab=editor
-    dialog._window.shell._prepare_mesh_editor_archive_launch=lambda target:True
-    dialog._window.shell._activate_tool_widget=lambda tab:calls.append(tab)
-    dialog._hair_prepared(dialog._bridge.controller.generation,SimpleNamespace(detail=dialog._details,
-        dependencies_complete=True,entries_by_id={8:target},entries=(target,)))
-    assert editor._pending_hair_start == (target.identity,'generated')
-    assert calls[-1] is editor
+    assert calls == [((editor, "generated"), {"character": "Damiane", "target_path": MESH})]
+    assert dialog._hair_handoff is None
     assert not dialog.isVisible()
 
 
@@ -615,6 +674,55 @@ def test_incremental_hair_vertex_patch_preserves_other_channels_and_reuses_state
         assert restored.hair_state==after.hair_state
         assert restored.mesh.submeshes[0].normals==after.mesh.submeshes[0].normals
         assert restored.mesh.submeshes[0].vertices==after.mesh.submeshes[0].vertices
+        # Saving after Redo opens a clean native snapshot. The next groom must
+        # invalidate that snapshot, retain skin channels, and remain undoable.
+        live = service._session(sid)
+        live.mesh_layer_project_path = authoring.root / "saved-after-redo" / "project.json"
+        service.retry_mesh_layer_autosave(sid)
+        assert live.native_editor_session_ready and not live.native_editor_mesh_dirty
+        value["hair"]["revision"] = live.hair_state.revision + 1
+        value["hair_update"]["base_hair_revision"] = live.hair_state.revision
+        value["hair_update"]["vertex_updates"][0]["positions"][0][0] += .01
+        apply_hair_candidate(authoring, value, "Groom after saved Redo")
+        assert live.working_mesh.submeshes[0].vertices[1][0] == pytest.approx(vertex[0])
+        assert live.working_mesh.submeshes[0].bone_weights == before.mesh.submeshes[0].bone_weights
+
+
+@pytest.mark.parametrize("scale", [.92, 1.02, .9])
+def test_mounted_head_scale_uses_head_joint_and_preserves_neck(scale, monkeypatch):
+    from cdmw.services.mesh_rust_hair import _head_component_scale
+    from cdmw.modding import mesh_parser
+    bones = [SimpleNamespace(index=i, parent_index=i-1, name=name, bind_matrix=[0.]*12+[0.,1.5,0.,1.])
+             for i,name in enumerate(("Bip01 Neck", "Bip01 Head", "Face"))]
+    skeleton = SimpleNamespace(bones=bones)
+    part = SimpleNamespace(vertices=[(0.,1.,0.), (0.,1.5,0.), (0.,2.,0.)],
+                           bone_indices=[[0], [1], [2]], bone_weights=[[1.], [1.], [1.]])
+    mesh = SimpleNamespace(submeshes=[part])
+    monkeypatch.setattr(mesh_parser, "resolve_pac_bone_palette", lambda *args: [0,1,2])
+    _head_component_scale(mesh, scale, skeleton, None, b"pac", body=True)
+    assert part.vertices[:2] == [(0.,1.,0.), (0.,1.5,0.)]
+    assert part.vertices[2] == (0., 1.5 + .5 * scale, 0.)
+
+
+def test_facial_details_are_head_references_not_hair_planting_surfaces(editor):
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    head = service.working_mesh(sid, clone=True)
+    detail = copy.deepcopy(head)
+    for part in detail.submeshes:
+        part.vertices = [(p[0] + 2., p[1], p[2]) for p in part.vertices]
+    source_data = service._session(sid).original_data
+    args = dict(character="Damiane", _archive_snapshot=SimpleNamespace(mesh=head, original_data=source_data),
+                _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+                _prepared_head_details=[dict(_archive_snapshot=SimpleNamespace(mesh=detail, original_data=source_data), _archive_neutral_appearance=None, _scale=1.)])
+    for _ in range(2):
+        prepare_hair_setup(service, sid, args, None)
+        state = service._session(sid).hair_state.payload
+        assert state["scalp"]["positions"] == [list(p) for part in head.submeshes for p in part.vertices]
+        assert len(state["references"]) == 1
+        assert state["references"][0]["identity"].startswith("head:")
+        assert state["references"][0]["positions"] == [list(p) for part in detail.submeshes for p in part.vertices]
 
 
 @pytest.mark.parametrize("failure", ["", "publish", "memory", "cancel"])

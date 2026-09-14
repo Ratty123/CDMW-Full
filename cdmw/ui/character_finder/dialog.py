@@ -638,27 +638,27 @@ class CharacterFinderDialog(QDialog):
             QApplication.clipboard().setText(self._details.row.path)
 
     def _hair_model(self):
+        from cdmw.domain.hair_characters import HAIR_CHARACTERS
         if self._details is None:
             return None
-        models = [item for item in self._details.models if
-            "1_pc/2_phw/head/hair/" in item.path.casefold() and item.path.casefold().endswith("_player.pac")]
+        models = [item for item in self._details.models if any(p.accepts_hair(item.path) for p in HAIR_CHARACTERS)]
         return models[0] if len(models) == 1 else None
 
     def _start_hair(self, mode):
-        model = self._hair_model()
-        if model is None or self._closing or self._invalid:
+        if self._closing or self._invalid or self._details is None:
             return
-        from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
-        if self._hair_preparation is None:
-            self._hair_preparation = CharacterPreviewPreparation(self._service, self)
-            self._hair_preparation.ready.connect(self._hair_prepared)
-            self._hair_preparation.failed.connect(self._hair_failed)
-        self._hair_handoff = (self._details.row.key, model.entry_id, mode)
-        detail = replace(self._details, models=(model,),
-            components=tuple(c for c in self._details.components if model.entry_id in c.model_entry_ids))
-        self._status.setText("Preparing hair and its materials for Mesh Editor…")
-        self._hair_preparation.start(detail, self._bridge.controller.generation)
-        self._buttons()
+        from cdmw.domain.hair_characters import character_for_appearance, unique_hair_character
+        from cdmw.ui.mesh_editor.hair_flow import start_hair_workflow
+        model = self._hair_model()
+        profile = character_for_appearance(self._details.appearance_path)
+        if profile is None and model is not None:
+            profile = unique_hair_character(model.path)
+        shell = self._window.shell
+        tab = shell.mesh_editor_tab
+        start_hair_workflow(tab, mode, character=profile.name if profile else None,
+                            target_path=model.path if model else "")
+        shell._activate_tool_widget(tab)
+        self.hide()
 
     def _hair_failed(self, _token, message):
         self._hair_handoff = None
@@ -861,7 +861,9 @@ class CharacterFinderDialog(QDialog):
         for button in (self._exact, self._related, self._copy):
             button.setEnabled(self._details is not None and not busy and not self._invalid)
         for button in (self._create_hair, self._edit_hair):
-            button.setEnabled(self._hair_model() is not None and not busy and not self._invalid and self._hair_handoff is None)
+            from cdmw.domain.hair_characters import character_for_appearance
+            compatible = self._hair_model() is not None or (self._details is not None and character_for_appearance(self._details.appearance_path) is not None)
+            button.setEnabled(compatible and not busy and not self._invalid and self._hair_handoff is None)
 
     def _session_changed(self, session):
         if session.session_id != self._session_id or session.fingerprint != self._fingerprint:

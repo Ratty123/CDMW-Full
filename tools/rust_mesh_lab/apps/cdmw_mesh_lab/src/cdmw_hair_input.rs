@@ -180,12 +180,14 @@ impl LabApplication {
                     }
                     return;
                 }
-                if self.hair.tool == Some(HairTool::Move) {
+                if matches!(self.hair.tool, Some(HairTool::Move | HairTool::Lengthen)) {
                     if let Some((id, _, _)) = hit {
                         if !self.hair.selected.contains(&(id as usize)) {
                             self.hair.selected = HashSet::from([id as usize]);
                         }
                     } else {
+                        self.hair.feedback =
+                            "Click a visible hair lock to select it, then drag.".into();
                         self.hair.stroke_start = None;
                         return;
                     }

@@ -56,6 +56,7 @@ struct HairScene {
     frame: DrawSnapshot,
     parts: Vec<(u32, usize, usize, Vec<u32>)>,
     reference_start: usize,
+    head_reference_ranges: Vec<std::ops::Range<usize>>,
     show_reference: bool,
     applied: bool,
     picking: hair::surface::SurfaceIndex,
@@ -97,6 +98,7 @@ pub(super) struct HairEditor {
     drawing: Vec<u64>,
     pub style_name: String,
     pub pending_preset: bool,
+    pub requested_preset: Option<String>,
     pub pending_finish: bool,
     pending_history: VecDeque<bool>,
     cut_preview: Option<(u64, u32, f32)>,
@@ -154,6 +156,7 @@ impl Default for HairEditor {
             drawing: vec![],
             style_name: "My hairstyle".into(),
             pending_preset: false,
+            requested_preset: None,
             pending_finish: false,
             cut_preview: None,
             motion_validated_revision: None,
@@ -455,6 +458,36 @@ impl LabApplication {
     }
 
     pub(super) fn poll_hair(&mut self) {
+        if self.hair_input_ready() && !self.hair.preparing() && !self.cdmw_busy() {
+            if let Some(preset) = self.hair.requested_preset.take() {
+                if let Some(state) = self.hair.state.as_ref().filter(|s| {
+                    !s.converted && s.groups.iter().all(|g| g.mode == GroupMode::Generated)
+                }) {
+                    self.hair.preset = match preset.as_str() {
+                        "cropped" => Preset::Cropped,
+                        "long" => Preset::Long,
+                        "ponytail" => Preset::Ponytail,
+                        _ => Preset::Bob,
+                    };
+                    let (minimum, maximum) = hair_bounds(state);
+                    self.hair.length = (maximum - minimum).max_element()
+                        * match self.hair.preset {
+                            Preset::Cropped => 0.18,
+                            Preset::Bob => 0.7,
+                            Preset::Long => 1.4,
+                            Preset::Ponytail => 1.6,
+                        };
+                    self.run_hair_action(if preset == "empty" {
+                        HairAction::Empty
+                    } else {
+                        HairAction::Fill
+                    });
+                } else {
+                    self.hair.feedback =
+                        "Start a generated hairstyle before applying a preset.".into();
+                }
+            }
+        }
         if !self.cdmw_busy() {
             if let Some(mode) = self.hair.pending_start.take() {
                 self.submit_cdmw_command("hair_begin", json!({"mode": mode}), "Loading character");
@@ -627,6 +660,7 @@ impl LabApplication {
 
     pub(super) fn run_hair_action(&mut self, action: HairAction) {
         if !self.hair_input_ready() && !matches!(action, HairAction::Reset) {
+            self.hair.feedback = "Wait for the current hair edit to finish, then try again.".into();
             return;
         }
         let Some(mut state) = self.hair.state.clone() else {
@@ -685,7 +719,7 @@ impl LabApplication {
                 }
                 HairAction::DeleteGuides => {
                     if selected.is_empty() {
-                        return Ok("");
+                        return Err("Select hair locks before deleting them".into());
                     }
                     operation = Preparation::Delete(selected.clone());
                     self.hair.selected.clear();
@@ -855,22 +889,7 @@ impl LabApplication {
         }
         ui.heading("Hair");
         if self.hair.state.is_none() {
-            ui.label("Damiane's matching head and shoulders load automatically.");
-            for (label, mode) in [
-                ("Create hairstyle", "generated"),
-                ("Edit hairstyle", "existing"),
-            ] {
-                if ui
-                    .add_enabled(!self.cdmw_busy(), egui::Button::new(label))
-                    .clicked()
-                {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "hair_begin",
-                        arguments: json!({"mode":mode}),
-                        label: "Loading character",
-                    });
-                }
-            }
+            ui.label("Use Hair Tools above the editor to choose a character and create or edit a hairstyle.");
             return;
         }
         if self.hair.state.as_ref().is_some_and(|s| s.converted) {
@@ -909,7 +928,7 @@ impl LabApplication {
                 Some(HairTool::Guide)=>"Drag from the scalp to draw a lock. Escape cancels the stroke.",
                 Some(HairTool::Erase)=>"Click or brush across visible locks to remove their geometry.",
                 Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
-                Some(HairTool::Lengthen)=>"Drag to extend selected tips along their current direction.",
+                Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
                 _=>"Drag over highlighted hair. Only selected or brushed locks change."
             };ui.label(help);
@@ -1142,9 +1161,13 @@ fn build_scene(
         ));
     }
     let reference_start = snapshot.positions.len();
+    let mut head_reference_ranges = vec![];
     if reference {
         for mesh in std::iter::once(&state.scalp).chain(&state.references) {
             let first = snapshot.positions.len() as u32;
+            if std::ptr::eq(mesh, &state.scalp) || mesh.identity.starts_with("head:") {
+                head_reference_ranges.push(first as usize..first as usize + mesh.positions.len());
+            }
             let indices: Vec<_> = mesh.triangles.iter().flatten().copied().collect();
             let mut reference_normals = vec![];
             normals(&mesh.positions, &indices, &mut reference_normals);
@@ -1192,6 +1215,7 @@ fn build_scene(
         frame: snapshot,
         parts,
         reference_start,
+        head_reference_ranges,
         show_reference: reference,
         applied: false,
     }

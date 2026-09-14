@@ -160,11 +160,13 @@ impl LabApplication {
                 }
             }
         }
-        let head_end =
-            (scene.reference_start + state.scalp.positions.len()).min(snapshot.positions.len());
         for i in scene.reference_start..snapshot.positions.len() {
             let rest = Vec3::from(scene.rest.positions[i]);
-            let weight = if i < head_end {
+            let weight = if scene
+                .head_reference_ranges
+                .iter()
+                .any(|range| range.contains(&i))
+            {
                 1.0
             } else {
                 ((rest.y - pivot.y + height * 0.22) / (height * 0.34)).clamp(0.0, 1.0)

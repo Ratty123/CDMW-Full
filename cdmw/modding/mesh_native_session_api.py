@@ -140,7 +140,11 @@ def open_native_mesh_editor_session(
             items: list[dict[str, object]] = []
             for submesh_index in indices:
                 cached_session_id = _cached_native_mesh_session_submesh(mesh, submesh_index)
-                item = {"index": submesh_index, "session_id": cached_session_id} if cached_session_id else None
+                # Restored native handles retain geometry, but their store does
+                # not retain Python part identities or material metadata. Supply
+                # that metadata even when reusing the resident vertex buffers.
+                item = {"index": submesh_index, "session_id": cached_session_id,
+                        **_submesh_snapshot_metadata(mesh.submeshes[submesh_index])} if cached_session_id else None
                 if item is None:
                     item = _native_mesh_session_store_item(
                         mesh.submeshes[submesh_index],

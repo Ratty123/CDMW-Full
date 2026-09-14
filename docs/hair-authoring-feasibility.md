@@ -1,163 +1,158 @@
 # Hair creation in the existing Mesh Editor
 
-Updated 2026-09-14. The current implementation follows the approved Hair UX
-repair. The user deferred in-game checks and authorized finishing code and local
-builds. Desktop interaction and game acceptance remain explicit gates.
+Updated 2026-09-14. Hair authoring uses one setup dialog for Kliff, Damiane and
+Oongka. Local package creation is read-only against installed archives. Desktop
+interaction and in-game acceptance are separate from source and offscreen proof.
 
-## Workflow and ownership
+## Setup and supported sources
 
-The Mesh Editor Hair menu provides Create (Cropped, Bob, Long, Ponytail, Empty)
-and thumbnail-based Edit choices from Damiane's mounted barber registration.
-Finder enters the same workflow. A typed character context resolves matching
-head and base-body roles through the resident catalogue; session/generation and
-source identities scope its cache. Reference geometry has a separate bounded
-cache (four entries, 128 MiB). Generation changes and cancellation reject stale
-work. Scalp binding identities also include the actual appearance geometry, so
-changed transforms invalidate attachments even when the PAC bytes are identical.
-Alternative pickers apply `hair_head`/`hair_body` eligibility before facets,
-counts and pagination, with a defensive UI check.
-Each selection/preparation attempt has its own token, so late failures cannot
-overwrite another choice and a failed attempt can be retried. Cancellation during
-reference cache preparation releases untransferred material leases immediately;
-cached copies also check cancellation before delivery.
+Hair Tools and Finder Create/Edit Hair open the same Character, Action and Preset
+choices. Bob and the first verified compatible registered hairstyle are the Create
+defaults. Cropped, Long, Ponytail and Empty are also available. Edit uses registered
+thumbnails. Start is disabled until the catalogue and donor checks finish.
 
-Rust owns visible locks, guide/card generation, picking, grooming and simulation.
-Qt owns entry points and lifecycle. Python owns archive/material loading, host
-validation, drafts and immutable packages. Hair references use neutral shaded
-geometry outside output. Actual donor DDS, tint, alpha, sidedness and normals use
-the production material handoff. The default Hair view is textured and faces the
-character; topology/rigging/UV controls are hidden while Hair is active.
+The character's mounted appearance and customization documents own fitting roles,
+scales and registration. Oongka uses `5_pom` head/body references and `1_phm` hair;
+a shared hair prefix cannot identify the character. HeadScale is applied around
+the authored head joint, including its weighted body descendants. CharacterScale
+is the shared parent transform and cancels in donor authoring coordinates. Facial
+details use the same head transform. The resulting scalp and neck/shoulder
+references stay outside output geometry.
 
-Stable locks own explicit vertex sets independently of material Parts. Presets
-replace their previous guides and sample scalp area. New locks draw textured cards
-before release. Movement changes buffers during the stroke. Cuts keep proximal
-shape and deletions remove geometry and output contribution. Width changes bound
-or generated locks; follower density and Draw require generated hair. Explicit
-mirror pairs govern drawing, grooming, cuts and deletion. Empty clicks and camera
-movement do not publish transactions. Legacy generated bindings recover ownership;
-legacy existing geometry remains unchanged until preparation.
+The mounted catalogue audited on this date contains:
 
-Existing-card preparation accepts connected geometry, uniquely paired seams and
-scalp-facing endpoints. Ambiguous sections remain highlighted and block Play/export.
-Users can select unprepared sections by material, explicitly group them and choose
-a root in the viewport, or classify actual scalp pieces as rigid. A material part
-is not silently treated as one simulated strand.
+| Character | Registered | Compatible | Unavailable registration |
+|---|---:|---:|---|
+| Kliff | 7 | 6 | `cd_phm_00_hair_00_0512_player` uses two PACs |
+| Damiane | 5 | 4 | `cd_phw_00_hair_00_0507_player` uses two PACs |
+| Oongka | 5 | 4 | `cd_phm_00_hair_00_0003_player` uses two different PACs |
 
-Stroke work and production vertex buffers stay in Rust. An ordered queue bounds
-pending actions at eight; each completed action retains its own host history step.
-Version 2 updates omit immutable head/collision geometry, unchanged guides/bindings
-and material parts. Same-topology changes carry only affected positions/normals;
-the host commits them with sparse history, retaining UVs and original skin records.
-Topology changes still use complete replacement validation. Acknowledgements update
-revisions without installing another scene. Stale
-acks are rejected. Finish waits for pending generation and publication. Host work
-remains off the Qt thread; the previous scene stays available.
-Validated hair states retain their revision separately from the canonical bytes,
-avoiding a full document decode for each acknowledgement or status request.
+Eligibility checks the actual mounted prefab's single PAC reference, material
+closure, LOD0, supported 40-byte skin layout and valid influence rows. Multi-mesh
+registrations, aliases, additional LODs and incomplete dependencies are gated in
+the chooser with a reason; successful loading of a similarly named PAC is
+insufficient. Oongka's first compatible base is registered choice 2, `0016_player`.
 
-Motion uses fixed 120 Hz CPU XPBD, with root, length/bend, gravity, damping, wind
-and capsule constraints. The procedural torso/neck/head pose drives the reference,
-roots, rigid sections and collision shapes. Simulated guide positions deform the
-production hair buffers every frame. Strokes edit rest geometry and resume at the
-current procedural pose. Reset and Use settled shape have separate semantics;
-frames never enter undo, drafts or export. New game rigs and hair-to-hair collision
-remain deferred.
+Only Start prepares the replacement editor. Preparation owns a cancellation token,
+rejects stale catalogue/character/selection results and retains the current scene
+until a complete isolated replacement is ready. Failures clear progress and allow
+Retry. Different targets, characters and edit modes use the existing unsaved-work
+confirmation. A preset change on the active generated target publishes one undoable
+edit without reopening the archive. Reference geometry uses the existing bounded
+cache (four entries, 128 MiB); identity includes source generation, authored
+descriptors and transformed geometry. Alternative reference pickers apply role and
+character eligibility before pagination.
 
-Hair state v2 and draft v5 publish geometry, guides/locks, materials, original
-vertex provenance and output inclusion atomically. Draft versions 1-4 remain
-readable; older helpers reject `hair_authoring_v2`. Retained existing vertices
-keep source UVs, exact skinning records and provenance through cuts/deletes. New
-internal identities are allocated automatically and conflicts rechecked before
-publication; package manifests use the readable hairstyle name.
+## Grooming, skinning and motion
 
-## Addition contract traced from installed data
+Rust owns guide/card generation, pointer dispatch, visible buffers and simulation.
+Qt owns setup and lifecycle. Python owns archive/material loading, host validation,
+atomic history, drafts and temporary packages. Actual loader-resolved DDS, tint,
+alpha and sidedness are retained; neutral shaded fitting geometry is separate.
 
-- Damiane's appearance references `meshparam_example_damian.xml` and its
-  customization descriptor. The `hairShape` slot has five contiguous choices.
-- A new choice clones a selector record, appends its independent prefab-table
-  registration and relocates the prefab's PAC reference. Original records remain.
-- Each new identity has its own PAC, PAC_XML, HKX, icon and DDS paths. The texture
-  registry receives independent entries; materials point to the packaged copies.
-- HKX and the Hair PBD profile retain the existing contract. New topology receives
-  weights from the donor palette through the existing native transfer/writer.
-  Geometry/weights/bounds are validated and packaged payloads reparsed.
-- Reshaping with unchanged topology uses the geometry-only PAC writer, preserving
-  the donor's original packed skinning records, including eight-influence vertices.
-- The inspected primary donor exposes only LOD0. A donor with additional PAC
-  LODs is rejected until an affected-LOD writer has been verified.
+Select, Ctrl-select and marquee change only selection. Move and Lengthen acquire
+a clicked lock while preserving an existing selected group. Lengthen changes tips
+and fixes roots. Comb, Smooth, Curl and Clump respect brush influence and selection.
+Draw supports consecutive strokes, visible cards during dragging and explicit
+mirror pairs. Cut removes distal geometry; Erase/Delete remove owned geometry.
+Width and generated follower density affect selected locks. Empty selections,
+rigid sections, unresolved groups and unsupported existing-hair operations report
+requirements rather than silently succeeding. Draw and follower generation require
+generated hair. Ambiguous existing sections require explicit root/group assignment
+or a rigid classification before Play/export.
 
-`hair_registration.py` owns immutable selector/identity preparation.
-`mesh_hair_output.py` composes authored geometry, textures and required metadata
-through `export_archive_overlay_package`. Source revisions, identity/catalogue
-conflicts and exact packed-payload readbacks are checked before atomic publication.
-Installed archives are only read. Shared selector/PAPPT/PATHC changes mean packages
-must be rebuilt against the currently mounted catalogue when combining hair mods;
-two independently built sixth-choice test packages are alternatives, not a merge.
+Each completed action uses the ordered publication queue and receives the normal
+host acknowledgement. Incremental edits retain unchanged channels and references;
+new topology uses complete output validation. An immutable original PAC skin donor
+is retained in authoring coordinates and matched by stable part identity. Generated
+preview geometry never becomes the donor for subsequent strokes. Exact vertex
+lineage preserves original packed records, including eight influences; new vertices
+use the existing validated weight transfer. The 40-byte layout guard stays enabled.
 
-## Validation and reproducible probes
+The XPBD preview keeps roots, scalp and reference transforms aligned. Cached scalp
+surface contacts check guide segments and card width; neck and shoulder collision
+shapes remain active. Card rows are resolved after their neighbouring segments,
+and consistent component winding preserves concave ear contacts. Eyes, brows and
+teeth share one `head:` reference identity and follow the head rigidly; they are
+excluded from scalp planting and contacts. This uses the existing reference fields
+and leaves the document version unchanged. Every movement
+preset is checked separately. Play/Pause/Reset
+are transient, Reset is deterministic, and editing during playback resumes from
+the edited rest shape. Use settled shape creates one undoable rest-shape edit.
+Simulation frames never enter drafts or output. Hair-to-hair collision and new
+game physics rigs remain outside this workflow.
 
-Focused Python tests cover the real Qt menu/request lifecycle, stale results,
-reference cache isolation/bounds, v5 reopening and legacy drafts, cancellation,
-revision rejection, atomic transactions/Finish, Undo/Redo and packed eight-influence
-reshape/cut/delete output. Resident catalogue fixtures cover filtering before
-pagination. Rust tests drive the production pointer dispatcher for selection,
-Move, Draw, symmetric Cut/Erase, Lengthen, Comb, Smooth, Curl, Clump and Escape;
-width/density and event-frequency checks inspect draw buffers and root stability.
-The incremental protocol is tested through its real file writer and host reader,
-including atomic failure, history bounds and Finish. Motion tests require hair
-deformation separately from reference movement, reset and transient authoring state.
+## Drafts, materials and output
 
-`tools/dotnet_archive_backend/probe_hair_workflow.py` opens the resident catalogue,
-resolves actual character dependencies and prepares an editor handoff on its normal
-worker path. It supports `--candidate` for host application, draft reopening and
-reparsed package output, `--skip-package` for repeated timing, and `--profile-host`
-for stage diagnosis. Required paths are `--game`, `--cache`, `--worker`, `--evidence`;
-`--mode` is generated or existing. Evidence stays outside installed archives.
+Hair state v2 and draft v5 remain unchanged; older supported drafts still load.
+Hair, geometry, materials, original vertex lineage, hairstyle identity and Mod
+inclusion share an atomic transaction. Visibility is independent of Mod inclusion.
+Reopening and saving again preserves native snapshot part identities and material
+metadata. A clean native snapshot opened for autosave is invalidated by subsequent
+grooming. Conversion is undoable. Finish waits for pending publications.
 
-Set `CDMW_HAIR_PROBE_INPUT` to that handoff's `input.json` and
-`CDMW_HAIR_PROBE_OUTPUT` to a new temporary folder, then run from the Rust workspace:
+Open in Texture Editor and Apply edited DDS retain material slots, dimensions,
+compression and mip counts. Required DDS are validated. The engine's unbound
+`nonetexture0xffffffff.dds` marker remains in XML but is not a missing texture.
+Qt setup text is included in all 14 built-in languages. The existing native Rust
+editor still displays English controls; this change does not add a native
+translation framework.
+
+`hair_registration.py` appends the selected character's barber record and clones
+its prefab, PAC, PAC_XML, HKX and icon under a distinct identity.
+`mesh_hair_output.py` creates independent DDS/PATHC entries and verifies geometry,
+weights, material closure and exact package payload readbacks before publication.
+Installed PAMT/PAZ files stay unchanged. Selector/PAPPT/PATHC data is shared, so
+independently built hair packages must be reconciled against the mounted catalogue
+before combining them. No in-game installation is performed by verification.
+
+## Verification and reproducible probes
+
+| Area | Evidence and acceptance |
+|---|---|
+| Setup and switching | Real Qt construction tests: no catalogue, required character, Start gating, accepted preparation, failure/retry, cancellation, stale results, same-target preset dispatch; existing archive-switch confirmation tests |
+| Grooming | Production pointer dispatcher plus normal serialized candidates and Python host acknowledgements; geometry changes and fixed roots, Select/Ctrl/marquee, consecutive Draw, Cut/Erase/Delete, Lengthen and all shaping tools |
+| Appearance | Production archive/material loaders; authored component-scale tests; root/group and rigid assignment; synthetic symmetry, width/density and DDS handoff/reapplication tests |
+| Motion | Production draw buffers and DX12 captures; six movement presets, scalp card penetration, transient state, Pause/Reset, editing during playback and settled-shape Undo/Redo |
+| Persistence and output | Generated and existing sequences, eight-influence preservation, repeated save/reopen, conversion/Undo, inclusion, pending Finish, PAC reparsing and complete temporary overlay packages |
+| Desktop and game | Offscreen captures do not prove normal-window interaction or presentation latency. Packaged startup/provenance is a separate check. In-game installation, barber selection, save/load, headgear and physics remain unverified. |
+
+Focused commands (run Python with a pytest base temp outside the checkout):
 
 ```powershell
-cargo test --release --locked -p cdmw_mesh_lab hair_production_render_and_benchmark -- --ignored --nocapture
+.\.venv\Scripts\python.exe -m pytest tests/test_hair_workflow.py tests/test_mesh_hair_authoring.py tests/test_hair_registration.py --basetemp "$env:TEMP\cdmw-hair-tests"
+cargo test --manifest-path tools/rust_mesh_lab/Cargo.toml --release --locked -p cdmw_mesh hair
+cargo test --manifest-path tools/rust_mesh_lab/Cargo.toml --release --locked -p cdmw_mesh_lab hair
+.\.venv\Scripts\python.exe scripts/generate_ui_localization_manifest.py --check
+.\.venv\Scripts\python.exe scripts/validate_ui_localization_catalogs.py
 ```
 
-This probe uses DDS and shader settings discovered by the real loader, without
-test-only material overrides. It captures four presets from three views and
-measures production pointer dispatch and draw snapshots with DX12 offscreen
-rendering at 1920x1080. The observed 256-guide, 16-point, 49,152-vertex scene was
-about 108 FPS and 1.1 ms p95 input-to-draw-buffer CPU time. This excludes desktop
-presentation and must not be reported as normal-window input latency.
+`tools/dotnet_archive_backend/probe_hair_workflow.py` requires explicitly authorized
+`--game`, `--cache`, `--worker` and temporary `--evidence` paths. `--character`
+selects the mounted context; `--mode` selects generated/existing. `--audit-all`
+checks every listed registration. `--prepared-setup` exercises the complete staged
+loader. `--live-renderer` points to the compiled Rust test executable and runs the
+production pointer/host matrix; `--capture-steps` also records textured per-tool
+DX12 captures from the real material loader. `--resume-draft` checks reopening,
+saving again and export. `--skip-package` limits an already covered output run.
+Every successful installed-data probe verifies unchanged archive fingerprints.
 
-A generated candidate reopened its v5 draft and published/reparsed all 13 files
-through the real package pipeline, with installed archive fingerprints unchanged.
-The original 49,516-vertex donor became 49,167 vertices including excluded-section
-placeholders. Existing-card preparation identifies ambiguous disconnected sections
-in the real donor; correction is required before motion or export. The probe's
-explicit root correction, Cut and Delete sequence reduced that donor to 49,477
-vertices, reopened its v5 draft and reparsed all 13 package payloads. Its release
-renderer measured about 63 FPS and 4.4 ms p95 input-to-buffer time, with measurable
-non-root hair deformation. No installed archive bytes were changed.
+The Rust ignored `hair_production_render_and_benchmark` test consumes the probe's
+`input.json` via `CDMW_HAIR_PROBE_INPUT` and writes into
+`CDMW_HAIR_PROBE_OUTPUT`. It records front/side/rear images of every nonempty preset,
+motion contacts and capture timings. These measurements exclude desktop compositor
+presentation. Keep generated assets, captures and packages outside Git.
 
-Cold editor setup measured roughly 11-17 seconds during investigation. The 3-second
-warm-open and 500-ms acknowledgement targets have not been established. An isolated
-metadata publication fell from about 4.8 seconds to 686 ms after removing full-mesh
-transactions; this is neither a grooming-latency nor presentation measurement.
-History accounting was further optimized without changing retained-byte semantics.
-On the saved 256-guide, 49,152-bound-vertex scene, revision lookup alone previously
-decoded 10.5 MB and took about 101 ms p95; cached validated revision reads avoid
-that work. This component measurement excludes transaction validation and display.
-Full host/presentation measurements remain required. Normal-window picker/editor
-captures and the complete real-user tool matrix are also outstanding.
+`hair_production_contact_regression` consumes the renderer probe's `candidate.json`
+through the same environment variables. It samples deformed card vertices during
+all six movements, records the worst contact and solver timing, and rejects scalp
+penetration over 2 mm beyond the pinned root row. This catches a later segment
+correction pushing an earlier card row back into the scalp.
 
-## Remaining acceptance
+`hair_production_settle_regression` consumes a captured hair-state JSON file and
+checks settled-state validity for every frame of six movements at three frame-time
+variations. Very short cut tips retain a small numerical separation during motion
+so float32 rounding cannot collapse their segments and reject the settled edit.
 
-The feature is not game-verified. The user must still confirm an additional
-choice appears, original choices remain usable, and selection survives save/load.
-Then validate one reshaped and one generated hairstyle for textures, attachment,
-head movement, running, relevant headgear, LOD transitions and game motion.
-Normal-window interaction and presentation performance also remain separate
-checks; offscreen renderer evidence does not establish them.
-
-If game data alone cannot provide additional selectable choices, stop and record
-the exact blocker. Replacements or executable hooks require revised scope. Keep
-the local-only Rust publication hold in force.
+The local-only Rust publication hold remains in force. New game rigs, additional
+LOD writers and multi-PAC hairstyle authoring need their own verified support.

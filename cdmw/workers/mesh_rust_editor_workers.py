@@ -228,10 +228,21 @@ class MeshRustProtocolWorker(QObject):
                     if self.protocol_event.get("command") == "hair_begin" and args.get("_body_archive_entry") is not None:
                         body = prepare_hair_reference_source({"_archive_entry": args["_body_archive_entry"],
                             "_archive_dependencies": args["_body_archive_dependencies"],
+                            "_hair_authored_descriptors": args.get("_hair_authored_descriptors"),
                             "_hair_context_identity": args.get("_hair_context_identity")}, self._stop_event)
                         args["_body_snapshot"] = body["_archive_snapshot"]
                         args["_body_neutral_appearance"] = body["_archive_neutral_appearance"]
+                        args["_body_skeleton"] = body.get("_archive_skeleton")
                         args["_body_preview_lease"] = body["_archive_preview_lease"]
+                    if self.protocol_event.get("command") == "hair_begin":
+                        args["_prepared_head_details"] = []
+                        for entry, scale in args.get("_head_details", ()):
+                            detail = prepare_hair_reference_source({"_archive_entry": entry,
+                                "_archive_dependencies": args["_archive_dependencies"],
+                                "_hair_authored_descriptors": args.get("_hair_authored_descriptors"),
+                                "_hair_context_identity": args.get("_hair_context_identity")}, self._stop_event)
+                            detail["_scale"] = scale
+                            args["_prepared_head_details"].append(detail)
                 payload = self.session.run_command(
                     self.protocol_event,
                     stop_event=self._stop_event,
@@ -304,6 +315,11 @@ class MeshRustProtocolWorker(QObject):
                 )
         finally:
             if self.protocol_event.get("command") == "hair_begin":
+                for detail in dict(self.protocol_event.get("arguments") or {}).get("_prepared_head_details", ()):
+                    lease = detail.get("_archive_preview_lease")
+                    if lease is not None and lease.lease is not None:
+                        lease.lease.release()
+                        lease.lease = None
                 for key in ("_archive_preview_lease", "_body_preview_lease"):
                     lease = dict(self.protocol_event.get("arguments") or {}).get(key)
                     if lease is not None and lease.lease is not None:

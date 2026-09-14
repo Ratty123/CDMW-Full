@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 from cdmw.domain.mesh.hair import hair_state_from_payload
 from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE, REPLACEMENT_POLICY
 from cdmw.domain.hair_registration import validate_hair_stem
+from cdmw.domain.hair_characters import HAIR_CHARACTERS, hair_character
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.services.mesh_replacement_import import initial_replacement_state, mesh_with_part_ids
@@ -19,7 +20,79 @@ from cdmw.services.mesh_replacement_import import initial_replacement_state, mes
 def hair_target_supported(session):
     path = str(session.working_mesh.path).replace("\\", "/").casefold()
     return (session.mesh_format == "pac" and session.lod_index == 0
-            and "1_pc/2_phw/head/hair/" in path and path.endswith("_player.pac"))
+            and any(profile.accepts_hair(path) for profile in HAIR_CHARACTERS))
+
+
+def validate_hair_donor(mesh, character="Damiane", lod_index=0):
+    """Preflight the original PAC; never infer its layout from preview geometry."""
+    from cdmw.modding.mesh_skinning import PAC_SKIN_WEIGHT_LAYOUT
+    import math
+    if lod_index != 0 or not hair_character(character).accepts_hair(mesh.path):
+        raise ValueError("Choose a registered player hairstyle at LOD0.")
+    if not mesh.submeshes or not any(p.vertices for p in mesh.submeshes):
+        raise ValueError("The hairstyle has no editable geometry at LOD0.")
+    if len(mesh.lod_levels) > 1:
+        raise ValueError("This donor has additional PAC LODs requiring a verified hair LOD writer.")
+    for part in mesh.submeshes:
+        if not part.vertices:
+            continue
+        if part.source_vertex_stride != 40:
+            raise ValueError(f"{part.name}: PAC vertex stride {part.source_vertex_stride} is unsupported; expected proven 40-byte.")
+        if (part.source_skin_weight_layout != PAC_SKIN_WEIGHT_LAYOUT
+                or len(part.bone_indices) != len(part.vertices) or len(part.bone_weights) != len(part.vertices)
+                or any(not 1 <= len(weights) <= 8 or len(indices) != len(weights)
+                       or any(type(index) is not int or index < 0 for index in indices)
+                       or any(not math.isfinite(weight) or weight < 0 for weight in weights)
+                       or sum(weights) <= 0
+                       for indices, weights in zip(part.bone_indices, part.bone_weights))):
+            raise ValueError(f"{part.name}: complete original PAC skin records are required.")
+
+
+def _scaled_reference(snapshot, appearance, scale):
+    import math
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError("The mounted reference has an invalid component scale.")
+    mesh = appearance.to_neutral(snapshot.mesh) if appearance is not None else copy.deepcopy(snapshot.mesh)
+    for part in mesh.submeshes:
+        part.vertices = [tuple(value * scale for value in point) for point in part.vertices]
+    return mesh
+
+
+def _head_component_scale(mesh, scale, skeleton, appearance, source_data, *, body=False):
+    """HeadScale is local to the head joint, never a translation from the feet.
+
+    CharacterScale is a common parent of head, body and hair. Authoring uses
+    the donor PAC's units, so that common parent is cancelled for every part.
+    Body vertices blend the head scale by their original head-joint lineage.
+    """
+    if scale == 1.0:
+        return mesh
+    bones = tuple(getattr(skeleton, "bones", ()))
+    heads = [bone for bone in bones if bone.name.casefold() in {"head", "bip01 head", "bip01_head"}]
+    if len(heads) != 1:
+        raise ValueError("The mounted character needs one resolved head joint for its authored scale.")
+    head = heads[0]
+    pivot = tuple(head.bind_matrix[12:15])
+    if appearance is not None:
+        pivot = appearance.bone_position(head.index, pivot)
+    descendants = {head.index}
+    for _ in bones:
+        expanded = descendants | {b.index for b in bones if b.parent_index in descendants}
+        if expanded == descendants:
+            break
+        descendants = expanded
+    if body:
+        from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+        palette = appearance.bone_palette if appearance is not None else resolve_pac_bone_palette(source_data, skeleton)
+    for part in mesh.submeshes:
+        vertices = []
+        for i, point in enumerate(part.vertices):
+            amount = (sum(weight for slot, weight in zip(part.bone_indices[i], part.bone_weights[i])
+                          if 0 <= slot < len(palette) and palette[slot] in descendants) if body else 1.0)
+            factor = 1.0 + (scale - 1.0) * amount
+            vertices.append(tuple(pivot[axis] + (point[axis] - pivot[axis]) * factor for axis in range(3)))
+        part.vertices = vertices
+    return mesh
 
 
 def _reference_geometry_identity(source, positions, triangles, references):
@@ -65,7 +138,7 @@ def hair_ui_state(authoring):
     available = hair_target_supported(session) and session.archive_refit_context is None
     result = {"available": available, "active": state is not None, "game_verified": False,
               "start_mode": authoring.hair_start_mode if available and state is None else "",
-              "reason": "" if available else "Open a Damiane player hair PAC at LOD0 to create or edit hair."}
+              "reason": "" if available else "Use Hair Tools to choose a playable character and a registered hairstyle at LOD0."}
     if state is not None:
         from cdmw.services.mesh_hair_output import material_texture_paths
         material_path = state.payload["template"]["path"].replace("character/model/", "character/modelproperty/", 1).casefold() + "_xml"
@@ -166,19 +239,32 @@ def hair_texture_command(authoring, args, stop_event, *, export=False):
 
 def setup_hair(authoring, args, stop_event):
     """The archive loader has prepared the explicit reference on this worker."""
-    service, session_id = authoring.shadow_service, authoring.shadow_session_id
+    return prepare_hair_setup(authoring.shadow_service, authoring.shadow_session_id, args, stop_event,
+                             neutral_appearance=authoring.neutral_appearance)
+
+
+def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appearance=None, neutral_coordinates=True):
+    """Validate and commit setup to an isolated session before replacing a scene."""
+    from cdmw.domain.cancellation import raise_if_cancelled
+    raise_if_cancelled(stop_event, "Hair setup cancelled")
     session = service._session(session_id)
+    character = args.get("character") or (session.hair_state.payload["template"]["character"] if session.hair_state else "Damiane")
+    profile = hair_character(character)
     if not hair_target_supported(session) or session.archive_refit_context is not None:
-        raise ValueError("Hair creation needs a Damiane player hair PAC without active Morph & Refit.")
+        raise ValueError("Hair creation needs a registered player hair PAC without active Morph & Refit.")
+    if not profile.accepts_hair(session.working_mesh.path):
+        raise ValueError("The selected hairstyle does not belong to this character's hair family.")
     incoming = args.get("_archive_snapshot")
     if incoming is None:
         raise ValueError("Choose the reference head through the archive picker.")
     head = args["_archive_entry"]
     path = head.path.replace("\\", "/").casefold()
-    if "/head/head/" not in path or "/2_phw/" not in path:
-        raise ValueError("Choose a compatible Damiane-family head, including its ears and neck.")
+    if not profile.accepts_reference(path, "head"):
+        raise ValueError("Choose a head from the selected character's mounted appearance.")
     appearance = args.get("_archive_neutral_appearance")
-    reference = appearance.to_neutral(incoming.mesh) if appearance is not None else incoming.mesh
+    head_scale = float(args.get("_head_scale", 1.0))
+    reference = _head_component_scale(_scaled_reference(incoming, appearance, 1.0), head_scale,
+        args.get("_archive_skeleton"), appearance, incoming.original_data)
     positions, triangles = [], []
     for part in reference.submeshes:
         first = len(positions)
@@ -198,10 +284,11 @@ def setup_hair(authoring, args, stop_event):
     body = args.get("_body_snapshot")
     if body is not None:
         body_path = str(args["_body_archive_entry"].path).replace("\\", "/").casefold()
-        if "/1_pc/2_phw/" not in body_path or not any(word in body_path for word in ("nude", "/body/")):
-            raise ValueError("Choose Damiane's base body for the neck and shoulder reference.")
+        if not profile.accepts_reference(body_path, "body"):
+            raise ValueError("Choose the selected character's base body for the neck and shoulder reference.")
         appearance = args.get("_body_neutral_appearance")
-        mesh = appearance.to_neutral(body.mesh) if appearance is not None else body.mesh
+        mesh = _head_component_scale(_scaled_reference(body, appearance, 1.0), head_scale,
+            args.get("_body_skeleton"), appearance, body.original_data, body=True)
         vertices, faces = [], []
         cutoff = bounds_min[1] - height * .9
         neck_top = bounds_min[1] + height * .1
@@ -248,6 +335,24 @@ def setup_hair(authoring, args, stop_event):
         half = min((body_max - body_min) * .4, (bounds_max[0] - bounds_min[0]) * 1.3)
         collisions.append(dict(a=[center[0] - half, shoulder_y, center[2]], b=[center[0] + half, shoulder_y, center[2]],
                                radius=max(height * .20, .001), follows_head=False))
+    detail_positions, detail_triangles = [], []
+    detail_sources = hashlib.sha256()
+    for detail in args.get("_prepared_head_details", ()):
+        source = detail["_archive_snapshot"]
+        appearance = detail["_archive_neutral_appearance"]
+        mesh = _head_component_scale(_scaled_reference(source, appearance, 1.0), detail["_scale"],
+            args.get("_archive_skeleton"), args.get("_archive_neutral_appearance"), source.original_data)
+        detail_sources.update(source.original_data)
+        for part in mesh.submeshes:
+            first = len(detail_positions)
+            detail_positions.extend([list(p) for p in part.vertices])
+            detail_triangles.extend([[first + i for i in face] for face in part.faces])
+    # Eyes, brows and teeth are head-rigid references, not planting/collision
+    # surfaces. Keep them in one existing reference slot (old drafts need no migration).
+    references = [r for r in references if not r["identity"].startswith("head:")]
+    if detail_triangles:
+        references.append(dict(identity="head:" + path + ":" + detail_sources.hexdigest(),
+                               positions=detail_positions, triangles=detail_triangles))
     identity = _reference_geometry_identity(identity, positions, triangles, references)
     if session.hair_state is not None:
         payload = session.hair_state.payload
@@ -260,7 +365,8 @@ def setup_hair(authoring, args, stop_event):
         if mode not in {"generated", "existing"}:
             raise ValueError("Choose Create Hair or Edit Hair.")
         from secrets import randbelow
-        target_stem = str(args.get("target_stem") or f"cd_phw_00_hair_00_{1000 + randbelow(8000):04d}_01_player")
+        prefix = "phw" if profile.hair_family == "2_phw" else "phm"
+        target_stem = str(args.get("target_stem") or f"cd_{prefix}_00_hair_00_{1000 + randbelow(8000):04d}_01_player")
         validate_hair_stem(target_stem)
         span = max(bounds_max[i] - bounds_min[i] for i in range(3))
         part_index = max(range(len(session.working_mesh.submeshes)), key=lambda i: len(session.working_mesh.submeshes[i].vertices))
@@ -271,7 +377,7 @@ def setup_hair(authoring, args, stop_event):
             "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
             "bound_reference": identity, "reference_parts": [],
             "template": {"path": str(session.working_mesh.path), "sha256": digest,
-                         "target_stem": target_stem, "character": "Damiane", "physics_profile": "Hair"},
+                         "target_stem": target_stem, "character": profile.name, "physics_profile": "Hair"},
             "groups": [{"id": 0, "name": session.working_mesh.submeshes[part_index].name, "part": part_index, "mode": mode, "width": max(span * .08, .001),
                         "cards_per_guide": 6, "uv_rect": template_card_uv_rect(session.working_mesh.submeshes[part_index])}],
             "guides": [], "bindings": [], "collisions": [],
@@ -289,19 +395,38 @@ def setup_hair(authoring, args, stop_event):
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(args.get("_target_entry"), args.get("_target_dependencies"), stop_event)
         output = initial_replacement_state(snapshot, args.get("_target_entry"), dependencies)
-        if authoring.neutral_appearance is not None:
-            output = replace(output, neutral_appearance=authoring.neutral_appearance, neutral_coordinates=True)
+        if neutral_appearance is not None:
+            output = replace(output, neutral_appearance=neutral_appearance, neutral_coordinates=neutral_coordinates)
     candidate = mesh_with_part_ids(snapshot, output)
     prepared = service.prepare_working_mesh_replacement(
         session_id, candidate, replacement_state=output, hair_state=hair, replace_hair_state=True,
         validation_output_policy=REPLACEMENT_POLICY,
     )
-    authoring._raise_if_cancelled(stop_event)
+    raise_if_cancelled(stop_event, "Hair setup cancelled")
     service.commit_prepared_working_mesh_replacement(
         prepared, history_action="hair_setup", history_label="Set hair reference",
         output_policy=REPLACEMENT_POLICY, require_reversible_history=True,
     )
     return {"status": "ready", "reference": path}
+
+
+def _original_hair_skin_donor(authoring, snapshot, part_id):
+    """Keep source records in authoring coordinates across generated edits."""
+    donor = authoring.hair_skin_donor_mesh
+    if donor is None:
+        from cdmw.modding.mesh_parser import parse_mesh
+        donor = parse_mesh(snapshot.original_data, snapshot.replacement_state.target_path)
+        if authoring.neutral_appearance is not None:
+            donor = authoring.neutral_appearance.to_neutral(donor)
+        for binding in snapshot.replacement_state.parts:
+            if not 0 <= binding.target_index < len(donor.submeshes):
+                raise ValueError("Hair part has no original skin donor.")
+            setattr(donor.submeshes[binding.target_index], PART_ID_ATTRIBUTE, binding.part_id)
+        authoring.hair_skin_donor_mesh = donor
+    matches = [part for part in donor.submeshes if getattr(part, PART_ID_ATTRIBUTE, None) == part_id]
+    if len(matches) != 1:
+        raise ValueError("Hair part has no unambiguous original skin donor.")
+    return matches[0]
 
 
 def apply_hair_candidate(authoring, payload, label, stop_event=None):
@@ -317,7 +442,7 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
         from types import SimpleNamespace
         live = service._session(session_id)
         with live.export_lock:
-            if live.closed or live.native_editor_mesh_dirty or live.native_editor_session_ready:
+            if live.closed or live.native_editor_mesh_dirty:
                 raise ValueError("Hair edit requires a current Rust authoring session.")
             snapshot = SimpleNamespace(mesh=live.working_mesh, mesh_revision=live.revision,
                 hair_state=live.hair_state, replacement_state=live.replacement_state,
@@ -492,7 +617,8 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
             copy_extra_submesh_attrs(donor, target)
             from cdmw.modding.mesh_skinning import ensure_final_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY
             target.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
-            ensure_final_target_skin_weights(target, donor, target_index=i, summary=None)
+            skin_donor = _original_hair_skin_donor(authoring, snapshot, getattr(donor, PART_ID_ATTRIBUTE))
+            ensure_final_target_skin_weights(target, skin_donor, target_index=i, summary=None)
             setattr(target, PART_ID_ATTRIBUTE, getattr(donor, PART_ID_ATTRIBUTE))
             candidate.submeshes[i] = target
     for binding in new["bindings"]:
