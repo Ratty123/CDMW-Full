@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-from PySide6.QtCore import QThread, QTimer, QUrl
+from PySide6.QtCore import QThread, QTimer, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
@@ -132,7 +132,7 @@ class ReplaceAssistantBuildMixin:
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.log_message.connect(self.append_log)
-        worker.current_file.connect(lambda text: self.status_label.setText(text))
+        worker.current_file.connect(self._show_build_current_file, Qt.QueuedConnection)
         worker.progress.connect(self._handle_build_progress)
         worker.completed.connect(self._handle_build_complete)
         worker.cancelled.connect(self._handle_build_cancelled)

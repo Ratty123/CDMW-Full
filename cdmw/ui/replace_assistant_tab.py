@@ -175,6 +175,11 @@ class ReplaceAssistantTab(
             else:
                 self._handle_queue_worker_event(event, payload)
 
+    @Slot(str)
+    def _show_build_current_file(self, text: str) -> None:
+        if not self._shutting_down:
+            self.status_label.setText(text)
+
     def __init__(
         self,
         *,
