@@ -656,10 +656,10 @@ import.open_package|import_output_export|executable|host_owned|true|
 policy.exact_free_edit|exact_free_edit|executable|session_policy|true|
 "#;
 
-// Product controls whose UI and dispatcher anchors are both verified directly.
+// Product controls whose Rust UI and dispatcher anchors are verified directly.
+// Create/Edit setup is owned by the shared Qt Hair Tools dialog; it is no
+// longer a pair of controls in the Rust panel.
 const PRODUCT_COMPILED_ANCHOR_ROWS: &str = r#"
-hair.create|hair|"Create hairstyle"|"hair_begin"
-hair.edit|hair|"Edit hairstyle"|"hair_begin"
 hair.preset|hair|"Apply preset (replace current hair)"|Preparation::Fill
 hair.groom|hair|"Comb"|hair::groom
 hair.bind|hair|"Prepare existing hair sections"|locks::prepare_existing
