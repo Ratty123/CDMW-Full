@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import struct
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -25,6 +26,7 @@ from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.hair_registration import read_hair_choices
 from cdmw.domain.mesh.hair import hair_state_from_payload
+from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
 from cdmw.services.hair_registration import (
     PART_PREFAB_TABLE, HairRegistrationFile,
@@ -45,32 +47,116 @@ def material_texture_paths(data):
                               and not _is_placeholder_model_texture(node.get("_path", ""))}))
 
 
+def _preserved_hair_vertices(snapshot, state, required):
+    """Prove unprepared vertices still use their original PAC geometry/skin.
+
+    Guide inference is not game skinning. Compare against immutable donor bytes,
+    in the displayed coordinate frame, including retained-triangle lineage.
+    Neither an unresolved label nor a draft's vertex map is proof on its own.
+    """
+    from cdmw.modding.mesh_parser import parse_mesh
+    from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
+
+    output = snapshot.replacement_state
+    donor = parse_mesh(snapshot.original_data, output.target_path)
+    if donor.format.lower() != "pac":
+        return {}
+    if output.neutral_coordinates:
+        if output.neutral_appearance is None:
+            raise ValueError("Experimental replacement is missing its neutral coordinate transform.")
+        donor = output.neutral_appearance.to_neutral(donor)
+    indices = bound_part_indices(snapshot.mesh, output)
+    targets = {indices[part.part_id]: part.target_index for part in output.parts}
+    existing = {group["part"] for group in state["groups"] if group["mode"] == "existing"}
+    preserved = {}
+    for index, vertices in required.items():
+        if index not in existing or index not in targets or not 0 <= targets[index] < len(donor.submeshes):
+            continue
+        original, part = donor.submeshes[targets[index]], snapshot.mesh.submeshes[index]
+        sources = part.source_vertex_map
+        # Saved drafts retain record offsets/maps but may omit the PAC layout.
+        # The parsed immutable donor owns the layout check, never draft geometry.
+        if (original.source_vertex_stride != 40 or part.source_vertex_stride not in (0, 40)
+                or part.source_vertex_map_authority == SOURCE_VERTEX_MAP_TOPOLOGY
+                or len(sources) != len(part.vertices)
+                or any(type(i) is not int or not 0 <= i < len(original.vertices) for i in sources)
+                or len(set(sources)) != len(sources)
+                or (part.source_descriptor_offset >= 0 and part.source_descriptor_offset != original.source_descriptor_offset)
+                or (str(index) in state["vertex_sources"] and state["vertex_sources"][str(index)] != sources)):
+            continue
+        # A cut may remove original triangles; it cannot invent connections.
+        original_faces = set(original.faces)
+        invalid = set()
+        for face in part.faces:
+            if any(type(v) is not int or not 0 <= v < len(sources) for v in face):
+                invalid.update(vertices)
+                break
+            if tuple(sources[v] for v in face) not in original_faces:
+                invalid.update(face)
+        retained = set()
+        for vertex in vertices - invalid:
+            if not 0 <= vertex < len(sources):
+                continue
+            source = sources[vertex]
+            unchanged = True
+            for channel in ("vertices", "normals", "uvs", "bone_indices", "bone_weights", "source_vertex_offsets"):
+                before, after = getattr(original, channel), getattr(part, channel)
+                if len(before) != len(original.vertices) or len(after) != len(part.vertices):
+                    unchanged = False
+                    break
+                a, b = before[source], after[vertex]
+                if channel in {"vertices", "normals", "uvs"}:
+                    # Rust publishes f32. Do not invent edits from JSON rounding;
+                    # a one-ULP geometry change must still fail this check.
+                    a, b = struct.pack(f"<{len(a)}f", *a), struct.pack(f"<{len(b)}f", *b)
+                if a != b:
+                    unchanged = False
+                    break
+            if unchanged:
+                retained.add(vertex)
+        preserved[index] = retained
+    return preserved
+
+
 def validate_hair_output(snapshot):
     state = hair_state_from_payload(snapshot.hair_state.payload, allow_unbound=False).payload
-    if not state["guides"] or not state["groups"]:
+    if not state["groups"] or (not state["guides"] and not any(g["mode"] == "existing" for g in state["groups"])):
         raise ValueError("Create and bind hair guides before building a hairstyle.")
     if snapshot.replacement_state is None:
         raise ValueError("Hair output has lost its donor and material mapping.")
     if state["template"]["sha256"] != hashlib.sha256(snapshot.original_data).hexdigest():
         raise ValueError("Hair donor source changed; reopen its draft against the original asset.")
-    included = {part.target_index for part in snapshot.replacement_state.parts if part.included}
+    indices = bound_part_indices(snapshot.mesh, snapshot.replacement_state)
+    included = {indices[part.part_id] for part in snapshot.replacement_state.parts if part.included}
     active = {group["part"] for group in state["groups"]
               if any(guide["group"] == group["id"] for guide in state["guides"])}
     active.update(lock["part"] for lock in state.get("locks", []) if lock["vertices"])
+    active.update(group["part"] for group in state["groups"]
+                  if group["mode"] == "existing" and group["part"] not in state["prepared_parts"])
     if not included.intersection(active):
         raise ValueError("No authored hair section is included in the hairstyle.")
     if not state["converted"]:
         bound = {}
         for item in state["bindings"]:
             bound.setdefault(item["part"], set()).add(item["vertex"])
+        unresolved = {}
         for lock in state.get("locks", []):
-            if lock["kind"] == "unresolved" and lock["part"] in included:
-                raise ValueError("Correct unresolved hair roots or mark scalp sections as rigid before exporting.")
+            if lock["kind"] == "unresolved":
+                unresolved.setdefault(lock["part"], set()).update(lock["vertices"])
             if lock["kind"] == "rigid":
                 bound.setdefault(lock["part"], set()).update(lock["vertices"])
+        required = {}
         for part in included.intersection(active):
-            if bound.get(part, set()) != set(range(len(snapshot.mesh.submeshes[part].vertices))):
+            vertices = set(range(len(snapshot.mesh.submeshes[part].vertices)))
+            if bound.get(part, set()) - vertices:
                 raise ValueError(f"Hair part {part + 1} needs complete guide binding before export.")
+            missing = (vertices - bound.get(part, set())) | unresolved.get(part, set())
+            if missing:
+                required[part] = missing
+        preserved = _preserved_hair_vertices(snapshot, state, required) if required else {}
+        for part, vertices in required.items():
+            if vertices != preserved.get(part, set()):
+                raise ValueError(f"Hair part {part + 1} has changed sections without grooming guides. Set their roots or restore the original hair before exporting.")
     dependencies = {item.path.casefold(): item.data for item in snapshot.replacement_state.dependencies}
     dependencies.update({item.path.casefold(): item.data for item in snapshot.replacement_state.companion_files})
     material_path = state["template"]["path"].replace("character/model/", "character/modelproperty/", 1).casefold() + "_xml"

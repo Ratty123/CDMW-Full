@@ -968,12 +968,14 @@ impl LabApplication {
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,"Select through");}
             if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Delete selected hair")).clicked() {actions.push(UiAction::Hair(HairAction::DeleteGuides));}
             if unresolved>0 {
-                ui.colored_label(Color32::YELLOW,format!("{unresolved} sections need a root or rigid attachment"));
+                ui.weak(format!("{unresolved} original sections have no grooming guides"));
+                ui.weak("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview.");
+                egui::CollapsingHeader::new("Prepare sections for grooming").show(ui, |ui| {
                 let groups:Vec<_>=self.hair.state.as_ref().unwrap().groups.iter().filter_map(|g|{
                     let ids:Vec<_>=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|l.part==g.part&&l.kind==LockKind::Unresolved).map(|l|l.id as usize).collect();
                     if ids.is_empty(){None}else{Some((g.name.clone(),ids))}
                 }).collect();
-                egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text("Select sections needing preparation").show_ui(ui,|ui|{
+                egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text("Select sections to prepare").show_ui(ui,|ui|{
                     for (name,ids) in &groups {
                         let label=if name.to_lowercase().contains("front"){"Front"}else if name.to_lowercase().contains("tail"){"Lengths"}else if name.to_lowercase().contains("top"){"Crown"}else{name};
                         if ui.button(format!("{label} · {} sections",ids.len())).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
@@ -981,6 +983,7 @@ impl LabApplication {
                 });
                 if ui.button("Set root / group selected sections").clicked(){self.hair.tool=Some(HairTool::Root);}
                 if ui.button("Mark selected scalp sections as rigid").clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
+                });
             }
             egui::CollapsingHeader::new("Setup").show(ui,|ui| {
                 ui.label("Hairstyle name");ui.text_edit_singleline(&mut self.hair.style_name);

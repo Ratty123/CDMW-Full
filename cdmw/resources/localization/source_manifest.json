@@ -3741,7 +3741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 182,
+          "line": 268,
           "sink": "ValueError"
         }
       ]
@@ -7971,7 +7971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 147,
+          "line": 233,
           "sink": "ValueError"
         }
       ]
@@ -24967,16 +24967,6 @@
       ]
     },
     {
-      "key": "Correct unresolved hair roots or mark scalp sections as rigid before exporting.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_hair_output.py",
-          "line": 68,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
       "key": "Correction action: {value_0}",
       "origins": [
         {
@@ -25941,7 +25931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 51,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -34030,6 +34020,11 @@
       "key": "Experimental replacement is missing its neutral coordinate transform.",
       "origins": [
         {
+          "path": "cdmw/services/mesh_hair_output.py",
+          "line": 66,
+          "sink": "ValueError"
+        },
+        {
           "path": "cdmw/services/mesh_replacement_output.py",
           "line": 43,
           "sink": "ValueError"
@@ -40996,7 +40991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 159,
+          "line": 245,
           "sink": "ValueError"
         }
       ]
@@ -42266,12 +42261,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 185,
+          "line": 271,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 193,
+          "line": 279,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -42291,7 +42286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 55,
+          "line": 128,
           "sink": "ValueError"
         }
       ]
@@ -42341,7 +42336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 110,
+          "line": 196,
           "sink": "ValueError"
         }
       ]
@@ -42351,7 +42346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 145,
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -42361,7 +42356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 112,
+          "line": 198,
           "sink": "ValueError"
         }
       ]
@@ -42436,7 +42431,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 151,
+          "line": 237,
           "sink": "ValueError"
         }
       ]
@@ -42446,7 +42441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 41,
+          "line": 43,
           "sink": "ValueError"
         }
       ]
@@ -42466,7 +42461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 53,
+          "line": 126,
           "sink": "ValueError"
         }
       ]
@@ -42476,7 +42471,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 170,
+          "line": 256,
           "sink": "ValueError"
         }
       ]
@@ -42486,7 +42481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 274,
+          "line": 360,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -42496,7 +42491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 250,
+          "line": 336,
           "sink": "ValueError"
         }
       ]
@@ -42522,11 +42517,21 @@
       ]
     },
     {
+      "key": "Hair part {value_0} has changed sections without grooming guides. Set their roots or restore the original hair before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_output.py",
+          "line": 159,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Hair part {value_0} needs complete guide binding before export.",
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 73,
+          "line": 152,
           "sink": "ValueError"
         }
       ]
@@ -42591,7 +42596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 81,
+          "line": 167,
           "sink": "ValueError"
         }
       ]
@@ -42636,7 +42641,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 139,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -57926,7 +57931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 206,
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -57956,12 +57961,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 84,
+          "line": 170,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 135,
+          "line": 221,
           "sink": "ValueError"
         }
       ]
@@ -62116,7 +62121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 61,
+          "line": 137,
           "sink": "ValueError"
         }
       ]
@@ -81091,7 +81096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 191,
+          "line": 277,
           "sink": "on_log"
         }
       ]
@@ -86251,7 +86256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 127,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -106651,7 +106656,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 229,
+          "line": 315,
           "sink": "ValueError"
         }
       ]
@@ -106661,7 +106666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 217,
+          "line": 303,
           "sink": "ValueError"
         }
       ]
@@ -106671,7 +106676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 100,
+          "line": 186,
           "sink": "ValueError"
         }
       ]
@@ -106941,7 +106946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 187,
+          "line": 273,
           "sink": "ValueError"
         }
       ]
@@ -106961,7 +106966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 273,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -107011,7 +107016,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 247,
+          "line": 333,
           "sink": "ValueError"
         }
       ]
@@ -107241,7 +107246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 214,
+          "line": 300,
           "sink": "ValueError"
         }
       ]
@@ -107496,7 +107501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 106,
+          "line": 192,
           "sink": "ValueError"
         }
       ]
@@ -108031,7 +108036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 78,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -108611,7 +108616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 119,
+          "line": 205,
           "sink": "ValueError"
         }
       ]
@@ -109051,7 +109056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 116,
+          "line": 202,
           "sink": "ValueError"
         },
         {
@@ -121611,7 +121616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 230,
+          "line": 316,
           "sink": "read"
         }
       ]
@@ -140646,7 +140651,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 221,
+          "line": 307,
           "sink": "read"
         }
       ]
@@ -141921,7 +141926,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 224,
+          "line": 310,
           "sink": "read"
         }
       ]

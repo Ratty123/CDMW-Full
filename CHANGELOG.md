@@ -25,6 +25,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Untouched in-game hair no longer appears to have broken roots in Hair Tools. Sections without editor guides retain verified original geometry and skinning for export, with preparation needed only for grooming or motion preview; changed unprepared sections remain blocked.
 - Hair Tools uses the head's fitted eye surfaces instead of protruding shader-dependent eyeballs for the clean mannequin.
 - Long Draw strokes keep evenly distributed guide points and consistent texture spacing and taper. Clear Selection, Select All and Invert operate on hair locks, and selection refreshes preserve drawn hair instead of revealing the original hairstyle.
 - Edit Translations now follows the game's mounted archive order, recovers malformed language caches, refreshes filters after edits and resets, and preserves the chosen game path for loose translation files. Exports run in the background and replace complete packages together, without stale reverted tables or partially overwritten output after a failure.
