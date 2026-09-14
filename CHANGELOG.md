@@ -17,6 +17,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor keeps the Experimental warning for neutral-appearance replacement and enables eligible import and Mod controls immediately, without an extra confirmation button.
 - Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka. Create starts on an empty scalp; Edit loads the chosen existing hairstyle. Compatible bases, cancellable preparation and retry preserve the current scene until its replacement is ready.
 - Hair uses a clean fitting mannequin without opaque eye covers, lashes or brows. Create skips hairstyle thumbnails, and reference loading skips editable sessions and DDS preparation.
 - Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.

@@ -2308,27 +2308,19 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
 }
 
 #[test]
-fn integrated_replacement_experimental_opt_in_unlocks_import_and_inclusion() -> TestResult {
+fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_available() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,
         egui::vec2(1440.0, 980.0),
     );
     ui.application.cdmw_state["replacement"] = json!({
-        "available": false, "active": false, "comparison": "edit",
-        "can_try_experimental": true, "experimental": false,
-        "reason": "Enable experimental replacement to import or change mod inclusion on this neutral appearance mesh.",
+        "available": true, "active": false, "comparison": "edit",
+        "experimental": true, "reason": "",
         "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": true}]
     });
-    assert!(ui.actions_from_click("Mod")?.is_empty());
-    let actions = ui.actions_from_click("Try Experimental Replacement")?;
-    assert!(actions.iter().any(|action| matches!(action,
-        UiAction::CdmwCommand { command: "replacement_enable_experimental", arguments, .. }
-            if arguments["acknowledged"] == true
-    )));
-    ui.application.cdmw_state["replacement"]["available"] = json!(true);
-    ui.application.cdmw_state["replacement"]["can_try_experimental"] = json!(false);
-    ui.application.cdmw_state["replacement"]["experimental"] = json!(true);
     ui.settle_layout();
+    assert!(ui.label_rect("Try Experimental Replacement").is_none());
+    assert!(ui.label_rect("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.").is_some());
     let actions = ui.actions_from_click("Mod")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_include", arguments, .. }

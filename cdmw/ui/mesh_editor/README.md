@@ -168,17 +168,17 @@ Unsupported target layouts remain blocked. Existing sessions without replacement
 state retain Exact Game Asset/Free Edit behavior. Replacement uses its own
 `replacement_game_asset` policy, not weakened Exact validation.
 
-Neutral-appearance meshes offer **Try Experimental Replacement** above the
-import controls. Read the warning, then click it to enable imports and **Mod**
-inclusion for that editor session. Positioning, scale or animation may be wrong
+Neutral-appearance meshes show an **Experimental** warning above the import
+controls. Imports and **Mod** inclusion are available immediately for eligible
+meshes, with no extra enable button. Positioning, scale or animation may be wrong
 in game. Imports still preserve their decoded placement. Skin weights transfer
 from the displayed original part; export uses those weights to invert the
 neutral display transform. Output Preview reparses the actual written mesh and
 displays it in the same neutral frame. Singular transforms, unsupported skin
 layouts, invalid geometry and missing dependencies still block the operation.
 The left part checkbox controls viewport visibility; the right **Mod** checkbox
-controls output inclusion. Enabling the option alone does not change geometry
-or output; cancelling the editor discards it.
+controls output inclusion. Opening the editor alone does not change geometry
+or output; cancelling the editor discards its edits.
 
 Imports, inclusion and placement changes participate in normal Undo/Redo and
 Finish/cancel. Replacement-bearing drafts use version 2 and keep captured

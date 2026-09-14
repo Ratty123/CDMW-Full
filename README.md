@@ -225,7 +225,7 @@ hidden from the product tool rail; its underlying implementation is retained.
 
 The Parts panel also offers **Import Replacement…** and reversible **Mod**
 inclusion. Imports keep their size and placement by default. Neutral-appearance
-meshes provide **Try Experimental Replacement**, with a warning about possible
+meshes show an **Experimental** warning about possible
 positioning, scale and animation errors. Use **Output Preview** before Finish
 and Build Mod; required geometry and dependency checks remain active.
 

@@ -32692,21 +32692,6 @@
       ]
     },
     {
-      "key": "Enable experimental replacement",
-      "origins": [],
-      "manual": true
-    },
-    {
-      "key": "Enable experimental replacement to import or change mod inclusion on this neutral appearance mesh.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 55,
-          "sink": "python-return:replacement_ui_state"
-        }
-      ]
-    },
-    {
       "key": "Enable incremental resume",
       "origins": [
         {
@@ -61232,7 +61217,7 @@
       ]
     },
     {
-      "key": "Neutral-appearance meshes offer Try Experimental Replacement to enable imports and Mod inclusion. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.",
+      "key": "Neutral-appearance meshes show an Experimental warning; imports and Mod inclusion are available without an extra enable button. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -89072,16 +89057,6 @@
       ]
     },
     {
-      "key": "Review the experimental replacement warning before enabling it.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 77,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
       "key": "Review the target in the viewport, adjust supported placement values, and route it to another compatible socket.",
       "origins": [
         {
@@ -110790,11 +110765,6 @@
           "sink": "QTreeWidgetItem"
         }
       ]
-    },
-    {
-      "key": "Try Experimental Replacement",
-      "origins": [],
-      "manual": true
     },
     {
       "key": "Try a different item or use Search Index from the placement source dialog.",

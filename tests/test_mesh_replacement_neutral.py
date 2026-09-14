@@ -17,10 +17,6 @@ from cdmw.services.mesh_service import MeshService
 from cdmw.models import ArchiveEntry
 
 
-def enable(host):
-    return command(host, "replacement_enable_experimental", {"acknowledged": True})
-
-
 def import_replacement(host, tmp_path):
     result = prepare_source(host, tmp_path)
     key = result["state"]["replacement"]["pending"]["targets"][0]["id"]
@@ -28,16 +24,12 @@ def import_replacement(host, tmp_path):
     return key
 
 
-def test_experimental_opt_in_import_finish_preview_and_reopen(tmp_path):
+def test_experimental_import_is_immediately_available_and_survives_finish_preview_and_reopen(tmp_path):
     original, service, host = _open_exact_session(tmp_path / "host", neutral_appearance=_appearance())
     try:
         ui = host.state_payload()["replacement"]
-        assert not ui["available"] and ui["can_try_experimental"]
-        with pytest.raises(ValueError, match="Enable experimental"):
-            prepare_source(host, tmp_path)
-        with pytest.raises(ValueError, match="Review"):
-            command(host, "replacement_enable_experimental")
-        assert enable(host)["state"]["replacement"]["available"]
+        assert ui["available"] and ui["experimental"]
+        assert ui["reason"] == ""
         assert host.shadow_service._session(host.shadow_session_id).replacement_state is None
         key = import_replacement(host, tmp_path)
         snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
@@ -78,7 +70,6 @@ def test_experimental_opt_in_import_finish_preview_and_reopen(tmp_path):
 def test_experimental_cancel_undo_and_failed_writer_preserve_state(tmp_path, monkeypatch):
     _, service, host = _open_exact_session(tmp_path / "host", neutral_appearance=_appearance())
     try:
-        enable(host)
         before = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
         prepare_source(host, tmp_path)
         command(host, "replacement_cancel")
@@ -107,7 +98,6 @@ def test_experimental_cancel_undo_and_failed_writer_preserve_state(tmp_path, mon
 def test_experimental_draft_requires_versioned_transform(tmp_path):
     _, service, host = _open_exact_session(tmp_path / "host", neutral_appearance=_appearance())
     try:
-        enable(host)
         import_replacement(host, tmp_path)
         state = host.shadow_service.capture_export_snapshot(host.shadow_session_id).replacement_state
         generation = tmp_path / "generation"
@@ -134,7 +124,6 @@ def test_experimental_full_draft_reopens_the_saved_coordinate_frame(tmp_path, fi
     reopened_service = MeshService()
     loaded_id = None
     try:
-        enable(host)
         import_replacement(host, tmp_path)
         if finish:
             host.finish(_request(host, "finish_request", 4))
@@ -178,7 +167,6 @@ def test_neutral_selected_import_preserves_other_parts_and_all_exclusion_is_reve
     service._session(sid).neutral_appearance = replace(_appearance(), skin_matrices=tuple(matrices))
     host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=sid), tmp_path / "host", process_generation=1)
     try:
-        enable(host)
         keys = [p["id"] for p in host.state_payload()["replacement"]["parts"]]
         entry = ArchiveEntry(mesh.path, tmp_path / "0.pamt", tmp_path / "0.paz", 0, 0, 0, 0, 0)
         context = SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})
@@ -202,10 +190,9 @@ def test_neutral_selected_import_preserves_other_parts_and_all_exclusion_is_reve
         service.close_edit_session(sid)
 
 
-def test_experimental_option_does_not_bypass_singular_transform_rejection(tmp_path):
+def test_experimental_replacement_keeps_singular_transform_rejection(tmp_path):
     _, service, host = _open_exact_session(tmp_path / "host", neutral_appearance=_appearance())
     try:
-        enable(host)
         host.neutral_appearance = replace(_appearance(), skin_matrices=((0.0,) * 16,) * 8)
         prepared = prepare_source(host, tmp_path)
         key = prepared["state"]["replacement"]["pending"]["targets"][0]["id"]
