@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.15-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.16-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
@@ -27,8 +27,8 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.15` is the current source version. See the Releases page for
-> published downloads; an existing executable does not include later source changes.
+> `0.11.0-alpha.16` is the current source version and is offered as a pre-release.
+> See [Releases](https://github.com/Ratty123/CDMW-Full/releases) for downloads.
 
 ---
 
@@ -36,6 +36,7 @@ is smaller and safer to hand to someone who is not modding.
 
 - [What it does](#what-it-does)
 - [Documentation and languages](#documentation-and-languages)
+- [Bulk texture replacement](#bulk-texture-replacement)
 - [Create New Item](#create-new-item)
 - [Mesh Editor](#mesh-editor)
 - [Placement & Animations](#placement--animations)
@@ -70,14 +71,17 @@ flowchart LR
     Authoring --> Textures
     Stack --> Utilities
     Textures --> Edit
+    Textures --> Replace
     Textures --> Recolor
     Textures --> Upscale
     Edit & Recolor & Upscale --> Review["Review & Export"]
+    Replace --> Package["Build Mod"]
 ```
 
 **Authoring > Textures** keeps one asset list and canvas across Edit, Recolor, and Upscale.
 Documents retain their layers, history, selection, original DDS, and target binding.
-Review & Export contains native DDS/PNG/project export, replacement matching,
+**Replace** provides its own folder import, original matching and mod build controls.
+Review & Export contains native DDS/PNG/project export, a shortcut to Replace,
 recolor packages, and upscale output. Ambiguous originals need an explicit match.
 Batch jobs stage their output and publish it only after success, preserving earlier
 results on cancellation or failure. Recolor accepts loose mod folders and ZIPs,
@@ -86,12 +90,12 @@ including supported material-color sidecars and manager profiles.
 | Workspace | What you can do |
 |---|---|
 | **Create New Item** | Create a new equipment identity through a guided seven-step workflow: choose and preview a shipped template, import and place a model, author its icon, stats, prices, perks and visual effect, choose distribution, review the exact file plan, then export a mod folder or install an overlay. Merge compatible mod folders into one DMM package. The template is read as a baseline and is never silently overwritten. |
-| **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
+| **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. Body & Face Finder browses character bodies, heads, hair and facial details with thumbnails and an interactive preview. |
 | **Model Library** | Scan and preview local or importable models, then send a selected model directly into Create New Item. |
 | **Icon Creator** | Prepare item-icon source images and build compatible icon replacement packages. |
 | **Mesh Editor** | Edit supported archive or local meshes with selection, transforms, sculpting, topology, UVs, layers, and Morph & Refit. Supports OBJ/FBX export, OBJ/DAE/glTF/GLB import. Load body and armor from archives and rebuild each asset separately in one mod. Exact/Free Edit controls explain their limits; Finish Edit Mesh validates the isolated session before accepting changes. |
 | **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
-| **Textures** | Edit layered documents, recolor mod textures and supported material values, upscale selected assets, review replacement matches, and export DDS, PNG, projects, or mod packages from one workspace. |
+| **Textures** | Bulk-replace loose PNG/DDS folders through Replace, edit layered documents, recolor mod textures and supported material values, upscale selected assets, and export DDS, PNG, projects, or mod packages from one workspace. |
 | **Retrofit/Repackage** | Inspect and normalize an existing loose mod for the supported manager layouts without mutating shipped game archives. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, with editing limits and evidence from the maintained [capability manifest](schemas/archive_content_capabilities.v1.json). |
 | **Translations** | Edit language catalogue entries with reference-language context and export reviewed translation data. |
@@ -108,6 +112,30 @@ and third-party notices. This README is also bundled with the application.
 language pack. The PySide interface and documentation use those catalogs. The
 embedded Rust Mesh Editor currently has English-only controls. **Translations**
 edits the game's PALOC text separately from the app's interface language.
+
+## Bulk texture replacement
+
+Use **Authoring > Textures > Replace** for textures edited outside the workbench.
+
+1. Load the game archives, then use **Open Folder** to select the folder of edited
+   PNG/DDS files. Subfolders are included and a successful load replaces the batch.
+2. Under **Auto-Match originals**, choose **Game archives** and click **Auto-Match**.
+   Files with unique original names can match without preserving archive folders.
+   Ambiguous or missing matches need an explicit original before building.
+3. Review the included files and package settings, then use **Build Mod**.
+4. After editing the files externally, use **Reload Folder**, run **Auto-Match**
+   again, and rebuild. Reload includes changed, added and removed files.
+
+**Add Files** appends to the batch. **Remove Selected** and **Clear All** remove
+queue entries without deleting files. Imports do not open every texture in the
+editor; **Open in Editor** opens only the file you choose. Failed or cancelled
+folder loads retain the previous batch, and failed builds retain earlier output.
+
+To match against extracted originals, choose **Local DDS folder** and use
+**Choose Folder...** to select that whole folder. Each Auto-Match rescans it,
+including subfolders. **Choose Local DDS...** and **Choose Archive DDS...** in
+the **Selected file** row are overrides for one texture. Replacement package
+builds read the source files and do not modify game archives.
 
 ## Create New Item
 
@@ -200,6 +228,11 @@ inclusion. Imports keep their size and placement by default. Neutral-appearance
 meshes provide **Try Experimental Replacement**, with a warning about possible
 positioning, scale and animation errors. Use **Output Preview** before Finish
 and Build Mod; required geometry and dependency checks remain active.
+
+**Hair** adds Damiane presets, guide grooming, textured cards and head/shoulder
+references. Hair edits support Undo/Redo, saved drafts and motion preview.
+Additional barber choices can be exported as a separate mod package. In-game
+selection, save/load, headgear and physics behavior still need testing.
 
 **Morph & Refit** supports body shape sliders and fitting armor or clothing:
 

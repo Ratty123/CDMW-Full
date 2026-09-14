@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.16] - 2026-09-14
+
+Pre-release. The bulk replacement changes address [issue #22](https://github.com/Ratty123/CDMW-Full/issues/22); reporter testing is still needed before confirming it is resolved.
+
 ### Added
 
 - Body & Face Finder adds **Show underwear** to instantly hide or restore separate underwear parts in the interactive preview.
@@ -40,6 +44,10 @@ The format is intentionally simple:
 - Morph & Refit accepts loose body/armor combinations with different bone-reference ranges and preserves original seventh/eighth skin influences. Exact PAC geometry edits also preserve original skin slots that exceed the attached rig's bone count; unsupported weight changes remain blocked.
 - Archive loading finds the player rig used by NPC outfits and rejects unrelated descriptor rigs. Rigid accessories remain editable, and meshes without a complete character palette open in source geometry with an explicit notice and named weight editing disabled.
 - Mesh Editor rejection messages include the affected mesh/vertex and expected/actual values when available, and appear in both Activity and Log.
+
+### Docs
+
+- Updated the README, feature guides, in-app help and interface translations for the new Replace workflow, Body & Face Finder and mesh authoring changes. The README includes folder import, archive/local matching and rebuilding after external texture edits.
 
 ## [0.11.0-alpha.15] - 2026-09-11
 
