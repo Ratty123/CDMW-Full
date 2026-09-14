@@ -32,6 +32,9 @@ pub(super) enum HairTool {
     Erase,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DrawShape { Freehand, Straight, Arc, Circle }
+
 struct PreparedHair {
     state: HairState,
     document: MeshDocument,
@@ -130,6 +133,12 @@ pub(super) struct HairEditor {
     pub show_collisions: bool,
     last_pointer: Option<Vec2>,
     drawing_samples: Vec<[f32; 3]>,
+    draw_shape: DrawShape,
+    draw_follow_scalp: bool,
+    draw_smoothing: f32,
+    arc_bend: f32,
+    move_reach: f32,
+    move_anchor: Option<(f32, Vec3)>,
     pub feedback: String,
     draw_revision: u64,
     scene: Option<HairScene>,
@@ -188,6 +197,12 @@ impl Default for HairEditor {
             show_collisions: false,
             last_pointer: None,
             drawing_samples: vec![],
+            draw_shape: DrawShape::Freehand,
+            draw_follow_scalp: true,
+            draw_smoothing: 0.6,
+            arc_bend: 0.5,
+            move_reach: 0.5,
+            move_anchor: None,
             feedback: String::new(),
             draw_revision: 0,
             scene: None,
@@ -952,14 +967,38 @@ impl LabApplication {
             ui.separator();
             let help=match self.hair.tool {
                 Some(HairTool::Select)=>"Click visible hair. Ctrl-click adds or removes locks. Drag empty space for a marquee.",
-                Some(HairTool::Move)=>"Drag a selected lock. The root stays attached.",
-                Some(HairTool::Guide)=>"Drag over the scalp to follow it; drag beyond its outline to pull hair away. Hold Ctrl for free drawing. Escape cancels.",
+                Some(HairTool::Move)=>"Drag the part of a lock you want to shape. Move reach controls how much nearby hair follows. The root stays attached.",
+                Some(HairTool::Guide)=>"Start on the scalp, then drag to shape the lock. Escape cancels.",
                 Some(HairTool::Erase)=>"Click or brush across visible locks to remove their geometry.",
                 Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
                 Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
                 _=>"Drag over highlighted hair. Only selected or brushed locks change."
             };ui.label(help);
+            if self.hair.tool == Some(HairTool::Guide) {
+                ui.horizontal_wrapped(|ui| {
+                    for (shape, label) in [(DrawShape::Freehand,"Freehand"), (DrawShape::Straight,"Straight"),
+                        (DrawShape::Arc,"Arc"), (DrawShape::Circle,"Circle")] {
+                        if ui.selectable_value(&mut self.hair.draw_shape, shape, label).changed() {
+                            self.hair.draw_follow_scalp = shape == DrawShape::Freehand;
+                        }
+                    }
+                });
+                ui.checkbox(&mut self.hair.draw_follow_scalp, "Follow scalp");
+                ui.weak("Scalp collision stays active. Hold Ctrl to temporarily draw in the view plane.");
+                match self.hair.draw_shape {
+                    DrawShape::Freehand => { ui.add(egui::Slider::new(&mut self.hair.draw_smoothing, 0.0..=1.0).text("Stroke smoothing")); }
+                    DrawShape::Arc => {
+                        ui.label("Drag from the scalp to set the endpoints. Bend controls the curve and its direction.");
+                        ui.add(egui::Slider::new(&mut self.hair.arc_bend, -1.5..=1.5).text("Bend"));
+                    }
+                    DrawShape::Circle => { ui.label("Drag from the scalp to set the circle diameter. Hold Ctrl to draw in the view plane."); }
+                    DrawShape::Straight => { ui.label("Drag from the scalp to the tip. Enable Follow scalp to fit the line to the head."); }
+                }
+            }
+            if self.hair.tool == Some(HairTool::Move) {
+                ui.add(egui::Slider::new(&mut self.hair.move_reach, 0.05..=1.0).text("Move reach"));
+            }
             if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Cut|HairTool::Guide|HairTool::Root)) {
                 ui.add(egui::Slider::new(&mut self.hair.radius,5.0..=160.0).text("Brush size"));
                 ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text("Strength"));

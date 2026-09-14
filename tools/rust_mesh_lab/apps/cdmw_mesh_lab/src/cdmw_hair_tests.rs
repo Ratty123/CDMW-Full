@@ -987,6 +987,10 @@ fn capture_hair_workflow_step(
     root: &std::path::Path,
     name: &str,
 ) {
+    capture_hair_workflow_view(app, input, root, name, 180.0);
+}
+
+fn capture_hair_workflow_view(app: &LabApplication, input: &Value, root: &std::path::Path, name: &str, yaw: f32) {
     if std::env::var_os("CDMW_HAIR_PROBE_CAPTURE_STEPS").is_none() {
         return;
     }
@@ -1049,7 +1053,7 @@ fn capture_hair_workflow_step(
             width: 1280,
             height: 900,
             camera: Some(HeadlessMaterialCaptureCamera {
-                yaw_degrees: 180.0,
+                yaw_degrees: yaw,
                 pitch_degrees: 0.0,
             }),
             ..Default::default()
@@ -1082,6 +1086,7 @@ fn hair_production_workflow_matrix() {
     let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
     let empty_start = std::env::var_os("CDMW_HAIR_PROBE_EMPTY_START").is_some();
     let long_draw = std::env::var_os("CDMW_HAIR_PROBE_LONG_DRAW").is_some();
+    let shape_draw = std::env::var_os("CDMW_HAIR_PROBE_SHAPES").is_some();
     assert!(!empty_start || generated);
     let mut app = LabApplication::new(None, None);
     app.cdmw_state = input["host"].clone();
@@ -1139,7 +1144,7 @@ fn hair_production_workflow_matrix() {
                 json!({"tool":format!("Preset {preset}"),"one_undo":true,"acknowledged":true}),
             );
         }
-        for stroke in 0..2 {
+        for stroke in 0..if shape_draw { 4 } else { 2 } {
             app.camera
                 .set_standard_view(if long_draw {
                     crate::camera::StandardView::Front
@@ -1164,6 +1169,10 @@ fn hair_production_workflow_matrix() {
                 app.camera.project(root, rect).unwrap().screen + Vec2::X * stroke as f32 * 12.0;
             app.hair.tool = Some(HairTool::Guide);
             app.hair.symmetry = stroke == 1;
+            if shape_draw {
+                app.hair.draw_shape = [DrawShape::Straight, DrawShape::Arc, DrawShape::Circle, DrawShape::Freehand][stroke];
+                app.hair.draw_follow_scalp = app.hair.draw_shape == DrawShape::Freehand;
+            }
             let count = app.hair.state.as_ref().unwrap().locks.len();
             let point = point + if long_draw { Vec2::new(60.0, 65.0) } else { Vec2::ZERO };
             let steps = if long_draw { 240 } else { 1 };
@@ -1171,7 +1180,7 @@ fn hair_production_workflow_matrix() {
                 let t = i as f32 / steps as f32;
                 point + if long_draw {
                     Vec2::new(90.0 * (t * 4.0).sin(), 600.0 * t)
-                } else { Vec2::new(25.0, 40.0) }
+                } else { Vec2::new(25.0, 40.0) * if shape_draw { 4.0 * t } else { 1.0 } }
             }).collect();
             for (step, event) in std::iter::once(ViewportPointerEvent::PrimaryPressed(point))
                 .chain(path.iter().copied().map(ViewportPointerEvent::PrimaryMoved))
@@ -1359,15 +1368,15 @@ fn hair_production_workflow_matrix() {
             .all(|(a, b)| a.points[0] == b.points[0]));
         capture_hair_workflow_step(&app, &input, &mailbox, &format!("{tool:?}"));
         results.push(json!({"tool":format!("{tool:?}"),"lock":id,"geometry_changed":true,"roots_fixed":true,"acknowledged":true}));
-        if tool == HairTool::Lengthen {
+        if tool == HairTool::Lengthen || (shape_draw && tool == HairTool::Move) {
             app.submit_cdmw_command("undo", json!({}), "Undo");
             await_hair_host(&mut app);
             assert_eq!(app.hair.state.as_ref().unwrap().guides, before.guides);
             app.submit_cdmw_command("redo", json!({}), "Redo");
             await_hair_host(&mut app);
             assert_eq!(app.hair.state.as_ref().unwrap().guides, after.guides);
-            if empty_start {
-                results.push(json!({"tool":"Lengthen Undo/Redo","acknowledged":true}));
+            if empty_start && (!shape_draw || tool == HairTool::Move) {
+                results.push(json!({"tool":format!("{tool:?} Undo/Redo"),"acknowledged":true}));
                 std::fs::write(
                     mailbox.join("tools.json"),
                     serde_json::to_vec_pretty(&results).unwrap(),
@@ -2375,4 +2384,122 @@ fn hair_brush_strength_depends_on_stroke_distance_not_event_count() {
             "{tool:?} event frequency changed the stroke by {error}"
         );
     }
+}
+
+#[test]
+fn hair_draw_shape_controls_make_smooth_roots_and_exact_templates() {
+    for shape in [DrawShape::Freehand, DrawShape::Straight, DrawShape::Arc, DrawShape::Circle] {
+        let (mut app, rect) = ready_hair_app();
+        app.run_hair_action(HairAction::Empty);
+        await_hair(&mut app);
+        app.camera.set_standard_view(crate::camera::StandardView::Top);
+        app.camera.frame_positions_in_viewport(
+            app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+        app.hair.tool = Some(HairTool::Guide);
+        app.hair.draw_shape = shape;
+        let start = app.camera.project(Vec3::new(-0.06, 0.2, 0.0), rect).unwrap().screen;
+        let end = app.camera.project(Vec3::new(0.06, 0.2, 0.0), rect).unwrap().screen;
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+        app.render_hair();
+        let frame = app.hair.draw_revision;
+        app.render_hair();
+        assert_eq!(frame, app.hair.draw_revision, "idle stroke regenerated geometry");
+        let guide = &app.hair.stroke.as_ref().unwrap().guides[0];
+        let tangent = (Vec3::from(guide.points[1]) - Vec3::from(guide.points[0])).normalize();
+        assert!(tangent.y.abs() < 0.2, "{shape:?} lifted a root stem: {tangent:?}");
+        let screen: Vec<_> = guide.points.iter().map(|p| app.camera.project(Vec3::from(*p), rect).unwrap().screen).collect();
+        assert_eq!(screen.len(), hair::MAX_POINTS);
+        match shape {
+            DrawShape::Straight | DrawShape::Freehand => {
+                assert!(screen.iter().all(|p| (p.y - start.y).abs() < 0.2));
+                assert!(screen.last().unwrap().distance(end) < 2.0, "{shape:?} tip drift: {}", screen.last().unwrap().distance(end));
+            }
+            DrawShape::Arc => {
+                assert!(screen.iter().map(|p| (p.y - start.y).abs()).fold(0.0_f32, f32::max) > 20.0);
+                assert!(screen.last().unwrap().distance(end) < 2.0, "{shape:?} tip drift: {}", screen.last().unwrap().distance(end));
+            }
+            DrawShape::Circle => {
+                let centre = (start + end) * 0.5;
+                let radius = start.distance(end) * 0.5;
+                assert!(screen.iter().all(|p| (p.distance(centre) - radius).abs() < 2.0));
+                assert!(screen.last().unwrap().distance(start) < 2.0);
+            }
+        }
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+        await_hair(&mut app);
+        assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), 1, "{}", app.hair.feedback);
+        app.hair.state.as_ref().unwrap().validate().unwrap();
+    }
+}
+
+#[test]
+fn hair_move_grab_falloff_is_smooth_pinned_and_independent_of_event_count() {
+    let mut outcomes = vec![];
+    for events in [1, 30] {
+        let (mut app, rect) = ready_hair_app();
+        let (screen, id) = visible_lock(&app, rect);
+        app.hair.tool = Some(HairTool::Move);
+        app.hair.move_reach = 0.35;
+        let before = app.hair.state.as_ref().unwrap().clone();
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(screen), rect, false, false, false);
+        for i in 1..=events {
+            app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(screen + Vec2::new(45.0, -20.0) * (i as f32 / events as f32)), rect, false, false, false);
+        }
+        let after = app.hair.stroke.as_ref().unwrap();
+        let gi = after.locks.iter().find(|l| l.id == id).unwrap().guide.unwrap() as usize;
+        assert_eq!(before.guides[gi].points[0], after.guides[gi].points[0]);
+        assert_ne!(before.guides[gi].points, after.guides[gi].points);
+        for (i, guide) in after.guides.iter().enumerate().filter(|(i, _)| *i != gi) {
+            assert_eq!(guide.points, before.guides[i].points);
+        }
+        outcomes.push(after.guides[gi].points.clone());
+    }
+    assert_eq!(outcomes[0], outcomes[1], "Move depends on mouse event frequency");
+}
+
+#[path = "cdmw_hair_shape_probe.rs"]
+mod shape_probe;
+
+#[test]
+fn hair_shape_picker_and_follow_scalp_checkbox_drive_the_live_tool() {
+    let (mut app, _) = ready_hair_app();
+    app.hair.tool = Some(HairTool::Guide);
+    let ctx = egui::Context::default();
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(500.0, 1800.0));
+    let frame = |app: &mut LabApplication, events| {
+        let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), events, ..Default::default() }, |ui| {
+            app.draw_hair_controls(ui, &mut vec![]);
+        });
+        output.textures_delta.clear();
+        output
+    };
+    for (name, expected) in [("Straight", DrawShape::Straight), ("Arc", DrawShape::Arc),
+        ("Circle", DrawShape::Circle), ("Freehand", DrawShape::Freehand)] {
+        let output = frame(&mut app, vec![]);
+        let point = output.shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Text(text) if text.galley.job.text == name =>
+                Some(text.pos + text.galley.rect.center().to_vec2()),
+            _ => None,
+        }).unwrap();
+        for pressed in [true, false] {
+            frame(&mut app, vec![egui::Event::PointerMoved(point), egui::Event::PointerButton {
+                pos: point, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+            }]);
+        }
+        assert_eq!(app.hair.draw_shape, expected);
+        assert_eq!(app.hair.draw_follow_scalp, expected == DrawShape::Freehand);
+    }
+    let output = frame(&mut app, vec![]);
+    let point = output.shapes.iter().find_map(|s| match &s.shape {
+        egui::Shape::Text(text) if text.galley.job.text == "Follow scalp" =>
+            Some(text.pos + text.galley.rect.center().to_vec2()),
+        _ => None,
+    }).unwrap();
+    for pressed in [true, false] {
+        frame(&mut app, vec![egui::Event::PointerMoved(point), egui::Event::PointerButton {
+            pos: point, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+        }]);
+    }
+    assert!(!app.hair.draw_follow_scalp);
 }
