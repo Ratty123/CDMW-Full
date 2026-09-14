@@ -11,6 +11,16 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+
+- Mesh Editor exposes hair creation and editing through a larger **Hair Tools** button above the viewport.
+
+### Fixed
+
+- Creating or editing a hairstyle no longer fails when loading the registered hairstyle choices.
+- Mesh Editor's Mod checkbox can exclude and restore unchanged PAC hair with seven or eight skin influences without rewriting its original skin records.
+- Hair preview retains the base texture and transparency selected by Archive Browser when a material wrapper differs from the geometry part, avoiding solid pale hair cards.
+
 ## [0.11.0-alpha.16] - 2026-09-14
 
 Pre-release. The bulk replacement changes address [issue #22](https://github.com/Ratty123/CDMW-Full/issues/22); reporter testing is still needed before confirming it is resolved.

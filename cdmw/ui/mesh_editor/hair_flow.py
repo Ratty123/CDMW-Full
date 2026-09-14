@@ -6,14 +6,17 @@ from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 
 def build_hair_entry_bar(tab):
-    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPushButton
     bar = QFrame(tab)
     layout = QHBoxLayout(bar)
-    layout.setContentsMargins(4, 0, 4, 0)
-    button = QToolButton(bar)
-    button.setText("Hair")
+    layout.setContentsMargins(8, 6, 8, 6)
+    button = QPushButton("Hair Tools", bar)
     button.setObjectName("MeshEditorHairMenu")
-    button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    button.setMinimumSize(132, 34)
+    font = button.font()
+    font.setBold(True)
+    button.setFont(font)
+    button.setToolTip("Create or edit Damiane hairstyles")
     menu = QMenu(button)
     create = menu.addMenu("Create hairstyle")
     for preset in ("Cropped", "Bob", "Long", "Ponytail", "Empty"):
@@ -81,7 +84,7 @@ def start_hair_workflow(tab, mode, preset="bob"):
         if entry is None:
             failed("The mounted character is missing its barber registration. Refresh the catalogue.")
             return
-        def read_choices():
+        def read_choices(_log):
             if entry.orig_size > 2 * 1024 * 1024:
                 raise ValueError("The barber registration exceeds its supported size.")
             return read_hair_choices(read_archive_entry_data(entry)[0])

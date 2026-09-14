@@ -34,6 +34,65 @@ def _import(service, sid, path):
     return service.capture_export_snapshot(sid)
 
 
+@pytest.mark.parametrize("influence_count", [7, 8])
+def test_mod_toggle_preserves_original_extra_skin_influences(tmp_path, influence_count):
+    from tests.test_pac_skin_extra_influences import _record
+
+    data, _ = _minimal_two_part_pac_original()
+    source = bytearray(data)
+    original = parse_mesh(data, "character/model/hair/owned.pac")
+    for part in original.submeshes:
+        for offset in part.source_vertex_offsets:
+            source[offset + 28] = 255
+    skin = _record(palette=(1, 2, 3, 4, 5, 6),
+                   weights=(60, 50, 40, 30, 20, 10, 25, 20 if influence_count == 8 else 0),
+                   extra=(0., 7.), gate=0)
+    for offset in original.submeshes[1].source_vertex_offsets:
+        source[offset + 12:offset + 16] = skin[12:16]
+        source[offset + 20:offset + 36] = skin[20:36]
+        source[offset + 39] = skin[39]
+    source = bytes(source)
+    original = parse_mesh(source, original.path)
+    assert len(original.submeshes[1].bone_indices[0]) == influence_count
+    original._cdmw_original_data = source
+    service = MeshService()
+    sid = service.open_edit_session(original).session_id
+    host = RustMeshAuthoringSession.create(
+        SimpleNamespace(mesh_service=service, active_session_id=sid),
+        tmp_path / "host", process_generation=1,
+    )
+    try:
+        before = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+        state = initial_replacement_state(before)
+        keys = [part.part_id for part in state.parts]
+        entry = ArchiveEntry(original.path, tmp_path / "0.pamt", tmp_path / "0.paz", 0, 0, 0, 0, 0)
+        context = SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})
+        for selected in ([keys[1]], keys):
+            for included in (False, True):
+                command(host, "replacement_include", {"part_ids": selected, "included": included,
+                    "_archive_entry": entry, "_archive_dependencies": context})
+                snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+                assert snapshot.hair_state is None
+                assert snapshot.mesh.submeshes[1].bone_weights == before.mesh.submeshes[1].bone_weights
+                assert snapshot.mesh.submeshes[1].vertices == before.mesh.submeshes[1].vertices
+                bundle = prepare_replacement_output(snapshot)
+                if included:
+                    assert bundle.data == source
+                else:
+                    parsed = parse_mesh(bundle.data, original.path)
+                    assert len(parsed.submeshes[1].vertices) == 3
+                    for offset in parsed.submeshes[1].source_vertex_offsets:
+                        assert bundle.data[offset + 12:offset + 16] == skin[12:16]
+                        assert bundle.data[offset + 20:offset + 36] == skin[20:36]
+                        assert bundle.data[offset + 39] == skin[39]
+        host.finish(_request(host, "finish_request", 9))
+        assert prepare_replacement_output(service.capture_export_snapshot(sid)).data == source
+    finally:
+        if not host.closed:
+            host.cancel()
+        service.close_edit_session(sid)
+
+
 @pytest.mark.parametrize("fit", [False, True])
 def test_reset_and_fit_after_rotation_restore_exported_authored_normals(editor, tmp_path, fit):
     service, sid = editor

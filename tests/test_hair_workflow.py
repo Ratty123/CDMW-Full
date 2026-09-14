@@ -113,13 +113,56 @@ def test_hair_menu_exposes_presets_and_registered_style_entry(owner, monkeypatch
     calls = []
     monkeypatch.setattr(hair_flow, "start_hair_workflow", lambda *args: calls.append(args))
     bar = hair_flow.build_hair_entry_bar(owner)
-    from PySide6.QtWidgets import QToolButton
-    button = bar.findChild(QToolButton, "MeshEditorHairMenu")
+    from PySide6.QtWidgets import QPushButton
+    button = bar.findChild(QPushButton, "MeshEditorHairMenu")
+    assert button.text() == "Hair Tools"
     create, edit = button.menu().actions()
     assert [a.text() for a in create.menu().actions()] == ["Cropped", "Bob", "Long", "Ponytail", "Empty"]
     create.menu().actions()[1].trigger()
     edit.trigger()
     assert calls == [(owner, "generated", "bob"), (owner, "existing")]
+
+
+@pytest.mark.parametrize("mode", ["generated", "existing"])
+def test_hair_entry_loads_choices_through_utility_worker(owner, monkeypatch, mode):
+    from cdmw.core import archive_extraction
+    from cdmw.ui.mesh_editor import hair_flow
+    from cdmw.workers.utility_workers import UtilityWorker
+    from tests.test_hair_registration import XML, STEM
+
+    class Context(QObject):
+        ready = Signal(object)
+        failed = Signal(str)
+
+        def __init__(self, _service, parent): super().__init__(parent)
+        def cancel(self): pass
+        def start(self):
+            entry = SimpleNamespace(orig_size=len(XML))
+            self.ready.emit(SimpleNamespace(dependencies=SimpleNamespace(entry_for_path=lambda _path: entry)))
+
+    monkeypatch.setattr(context_module, "HairContextPreparation", Context)
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda _entry: (XML, ""))
+    choices, errors = [], []
+    class Picker(QObject):
+        preparation_failed = Signal(str)
+        finished = Signal(int)
+
+        def __init__(self, parent, role, *, styles):
+            super().__init__(parent)
+            choices.append((role, styles))
+        def open(self): pass
+
+    monkeypatch.setattr(picker_module, "HairReferencePickerDialog", Picker)
+    def run_task(**kwargs):
+        worker = UtilityWorker(kwargs["task"])
+        worker.completed.connect(kwargs["on_complete"])
+        worker.error.connect(errors.append)
+        worker.run()
+    owner._run_utility_task_when_idle = run_task
+    hair_flow.build_hair_entry_bar(owner)
+    hair_flow.start_hair_workflow(owner, mode)
+    assert errors == []
+    assert choices == [("hair", ((0, STEM),))]
 
 
 def test_reference_geometry_cache_is_bounded_generation_scoped_and_returns_isolated_snapshots(monkeypatch):

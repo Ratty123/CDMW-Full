@@ -16,12 +16,14 @@ in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handof
 
 ## Hair creation
 
-Use **Hair > Create hairstyle > Bob** in Mesh Editor to start without archive
+Use the **Hair Tools** button above the viewport, then **Create hairstyle > Bob**, to start without archive
 filenames. Cropped, Long, Ponytail and Empty are also available. Damiane's mounted
 head, ears, crown, neck and shoulders load automatically. A registered hairstyle
 supplies the materials and game compatibility; Create replaces its visible hair
-with generated cards. **Hair > Edit hairstyle** offers the registered choices
+with generated cards. **Hair Tools > Edit hairstyle** offers the registered choices
 with thumbnails. Finder Create/Edit Hair enters this same workspace.
+The grooming workspace currently accepts Damiane's registered `_player.pac`
+variants at LOD0; opening an ordinary hair PAC leaves the general mesh tools active.
 
 Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
 drag empty space for a marquee. **Draw** starts on the scalp and displays cards
@@ -116,6 +118,10 @@ visibility. Excluding a part retains all its editable geometry; re-enabling is
 lossless, and every part may be excluded. Only export creates the existing tiny
 triangle placeholders, retaining required target sections and their existing
 index convention. Output Preview ignores temporary viewport/layer hiding.
+Inclusion-only changes retain the original PAC skin records, including seventh
+and eighth influences. Re-enabling every unchanged part restores the original
+mesh bytes. The textured editor retains the exact native-selected hair base DDS
+and its alpha even when its material wrapper differs from the geometry part index.
 
 **Edit**, **Original**, and **Output Preview** share the current viewport.
 Comparison views are read-only. Finish the edit, validate its current revision,

@@ -3602,6 +3602,62 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 ),
             )
 
+    def test_native_selected_hair_base_survives_other_wrapper_owner(self) -> None:
+        from PIL import Image
+        from cdmw.services.mesh_dotnet_material_bindings import (
+            apply_dotnet_native_material_batch_binding,
+            copy_dotnet_preview_material_bindings,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            base = root / "hair_base.dds"
+            pixels = Image.new("RGBA", (4, 4), (128, 112, 96, 255))
+            pixels.putpixel((0, 0), (128, 112, 96, 0))
+            pixels.save(base)
+            preview = SimpleNamespace(source_submesh_index=0)
+            apply_dotnet_native_material_batch_binding(preview, {
+                "material_category": "hair", "shader_family": "SkinnedMeshHair",
+                "alpha_mode": "alpha_cutout", "alpha_threshold": 0.18,
+                "dds_textures": {
+                    "base": {"source_path": str(base)},
+                    "material_inputs": [
+                        {"slot": "base", "source_path": str(base), "owner_slot_index": 1,
+                         "parameter_name": "_baseColorTexture", "semantic_type": "albedo",
+                         "shader_family": "SkinnedMeshHair", "source_authority": "exact_sidecar",
+                         "visible_class": "primary_visible", "layer_role": "layer"},
+                        {"slot": "material", "owner_slot_index": 2,
+                         "binding_authority": "authoritative", "layer_role": "material_response"},
+                    ],
+                },
+            })
+            mesh = _quad_mesh()
+            copy_dotnet_preview_material_bindings(mesh, SimpleNamespace(submeshes=[preview]))
+            part = mesh.submeshes[0]
+            self.assertEqual(0, part.preview_pac_material_owner_slot_index)
+            self.assertEqual(1, part.preview_material_texture_inputs[0].owner_slot_index)
+            destination = root / "session"
+            destination.mkdir()
+            with patch.object(rust_authoring_module, "_mesh_synthesized_texture_overrides", return_value={}):
+                resources = rust_authoring_module._mesh_texture_payloads(destination, mesh,
+                    expected_root_identity=rust_authoring_module._session_root_identity(destination))
+            base_resources = [row for row in resources if row["role"] == "base_color"]
+            self.assertEqual(1, len(base_resources))
+            self.assertEqual([[0]], base_resources[0]["material_indices_by_lod"])
+            self.assertEqual(base.read_bytes(), (destination / base_resources[0]["file"]["path"]).read_bytes())
+            self.assertEqual("alpha_cutout", part.preview_alpha_mode)
+            self.assertEqual(0.18, part.preview_native_material_overrides["alpha_cutoff"])
+
+            promoted = part.preview_material_texture_inputs[0]
+            for changed in (replace(promoted, source_kind="crimson_base_color"),
+                            replace(promoted, binding_authority="guess"),
+                            replace(promoted, binding_disposition="layer_only"),
+                            replace(promoted, layer_channel="r")):
+                self.assertFalse(rust_authoring_module._material_input_is_renderer_role_eligible(part, changed, "base_color"))
+            part.preview_texture_dds_path = str(root / "different.dds")
+            part.preview_texture_path = ""
+            self.assertFalse(rust_authoring_module._material_input_is_renderer_role_eligible(part, promoted, "base_color"))
+
     def test_hair_aging_color_never_becomes_global_base(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
