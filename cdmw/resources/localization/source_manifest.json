@@ -81,17 +81,17 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 448,
+          "line": 485,
           "sink": "QListWidgetItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 736,
+          "line": 784,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 737,
+          "line": 785,
           "sink": "setText"
         }
       ]
@@ -1256,7 +1256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 696,
+          "line": 738,
           "sink": "setText"
         }
       ]
@@ -6146,7 +6146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 147,
+          "line": 160,
           "sink": "addItem"
         }
       ]
@@ -6176,12 +6176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 147,
+          "line": 160,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 293,
+          "line": 322,
           "sink": "setItemText"
         }
       ]
@@ -6421,7 +6421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 147,
+          "line": 160,
           "sink": "addItem"
         }
       ]
@@ -6496,7 +6496,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 147,
+          "line": 160,
           "sink": "addItem"
         }
       ]
@@ -7786,7 +7786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 131,
+          "line": 144,
           "sink": "addItem"
         },
         {
@@ -10641,7 +10641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 303,
+          "line": 307,
           "sink": "_fail_pending"
         },
         {
@@ -13956,7 +13956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 20,
+          "line": 23,
           "sink": "addAction"
         }
       ]
@@ -13996,12 +13996,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 114,
+          "line": 127,
           "sink": "setWindowTitle"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 849,
+          "line": 939,
           "sink": "information"
         },
         {
@@ -14026,7 +14026,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 849,
+          "line": 939,
           "sink": "information"
         }
       ]
@@ -14481,7 +14481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 120,
+          "line": 133,
           "sink": "QLabel"
         }
       ]
@@ -18736,7 +18736,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 168,
+          "line": 169,
           "sink": "RunCancelled"
         }
       ]
@@ -18746,7 +18746,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 253,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -18755,13 +18755,18 @@
       "key": "Character preview preparation was cancelled.",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 367,
+          "sink": "emit"
+        },
+        {
           "path": "cdmw/ui/character_finder/preview_controller.py",
-          "line": 222,
+          "line": 231,
           "sink": "_fail"
         },
         {
           "path": "cdmw/ui/character_finder/preview_preparation.py",
-          "line": 153,
+          "line": 169,
           "sink": "_failed"
         }
       ]
@@ -19320,6 +19325,11 @@
           "sink": "_run"
         }
       ]
+    },
+    {
+      "key": "Checking preview cache…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Checking texture sidecar cache in background...",
@@ -20186,7 +20196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 56,
+          "line": 59,
           "sink": "setText"
         }
       ]
@@ -21746,7 +21756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 137,
+          "line": 150,
           "sink": "QPushButton"
         }
       ]
@@ -24706,7 +24716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 231,
+          "line": 260,
           "sink": "QPushButton"
         }
       ]
@@ -25666,7 +25676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 233,
+          "line": 262,
           "sink": "QPushButton"
         }
       ]
@@ -25826,7 +25836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 18,
+          "line": 21,
           "sink": "addMenu"
         }
       ]
@@ -26281,7 +26291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 20,
+          "line": 23,
           "sink": "addAction"
         }
       ]
@@ -28621,7 +28631,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 224,
+          "line": 253,
           "sink": "addTab"
         },
         {
@@ -28681,7 +28691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 551,
+          "line": 590,
           "sink": "setHtml"
         }
       ]
@@ -30706,7 +30716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 261,
+          "line": 270,
           "sink": "ValueError"
         }
       ]
@@ -31141,7 +31151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 235,
+          "line": 264,
           "sink": "QPushButton"
         }
       ]
@@ -31176,7 +31186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9240,
+          "line": 9258,
           "sink": "RuntimeError"
         }
       ]
@@ -31366,7 +31376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 21,
+          "line": 24,
           "sink": "addAction"
         }
       ]
@@ -32546,7 +32556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 20,
+          "line": 23,
           "sink": "addAction"
         }
       ]
@@ -33721,7 +33731,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 205,
+          "line": 214,
           "sink": "ValueError"
         }
       ]
@@ -38397,6 +38407,26 @@
       ]
     },
     {
+      "key": "Finding model files…",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Finding model files… · {value_0}/{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 800,
+          "sink": "_card_caption"
+        },
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 803,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Finding textures...",
       "origins": [
         {
@@ -42291,7 +42321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 655,
+          "line": 694,
           "sink": "setText"
         }
       ]
@@ -42631,7 +42661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 293,
+          "line": 322,
           "sink": "setItemText"
         },
         {
@@ -46061,7 +46091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 243,
+          "line": 272,
           "sink": "QLabel"
         }
       ]
@@ -47311,7 +47341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 259,
+          "line": 268,
           "sink": "ValueError"
         }
       ]
@@ -50916,7 +50946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 88,
+          "line": 91,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -51166,12 +51196,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 68,
+          "line": 71,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 103,
+          "line": 106,
           "sink": "setText"
         }
       ]
@@ -51781,7 +51811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 20,
+          "line": 23,
           "sink": "addAction"
         }
       ]
@@ -59156,7 +59186,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 366,
+          "line": 377,
           "sink": "ValueError"
         }
       ]
@@ -59216,7 +59246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8571,
+          "line": 8589,
           "sink": "RuntimeError"
         }
       ]
@@ -59296,7 +59326,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8501,
+          "line": 8519,
           "sink": "RuntimeError"
         }
       ]
@@ -59306,7 +59336,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8497,
+          "line": 8515,
           "sink": "RuntimeError"
         }
       ]
@@ -59316,7 +59346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8472,
+          "line": 8490,
           "sink": "RuntimeError"
         }
       ]
@@ -61166,7 +61196,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 177,
+          "line": 200,
           "sink": "QPushButton"
         },
         {
@@ -63011,7 +63041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 492,
+          "line": 530,
           "sink": "setText"
         }
       ]
@@ -63891,7 +63921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 545,
+          "line": 584,
           "sink": "addItem"
         }
       ]
@@ -66921,7 +66951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 161,
+          "line": 164,
           "sink": "ValueError"
         }
       ]
@@ -66931,7 +66961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 115,
+          "line": 118,
           "sink": "ValueError"
         }
       ]
@@ -67988,6 +68018,16 @@
           "path": "cdmw/workers/archive_scan_workers.py",
           "line": 617,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Opening interactive preview…",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 718,
+          "sink": "setText"
         }
       ]
     },
@@ -70871,7 +70911,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 239,
+          "line": 248,
           "sink": "ValueError"
         }
       ]
@@ -70881,7 +70921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 233,
+          "line": 242,
           "sink": "ValueError"
         }
       ]
@@ -70891,7 +70931,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 251,
+          "line": 260,
           "sink": "ValueError"
         }
       ]
@@ -73991,7 +74031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 20,
+          "line": 23,
           "sink": "addAction"
         }
       ]
@@ -75426,7 +75466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 620,
+          "line": 659,
           "sink": "setText"
         }
       ]
@@ -75436,7 +75476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 56,
+          "line": 59,
           "sink": "setText"
         }
       ]
@@ -75502,6 +75542,31 @@
       ]
     },
     {
+      "key": "Preparing model files…",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Preparing model files… · {value_0}/{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 800,
+          "sink": "_card_caption"
+        },
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 803,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Preparing model geometry…",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Preparing model library preview for {value_0}...",
       "origins": [
         {
@@ -75540,6 +75605,11 @@
           "sink": "_run_task"
         }
       ]
+    },
+    {
+      "key": "Preparing model textures…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Preparing preview - cloning model.",
@@ -75646,7 +75716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 512,
+          "line": 552,
           "sink": "setText"
         }
       ]
@@ -78685,6 +78755,11 @@
       "key": "Preview unavailable",
       "origins": [
         {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 834,
+          "sink": "_card_caption"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 892,
           "sink": "QLabel"
@@ -79066,7 +79141,7 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 175,
+          "line": 198,
           "sink": "QPushButton"
         },
         {
@@ -79947,6 +80022,11 @@
       ]
     },
     {
+      "key": "Queued",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Queued latest Preview placement preview...",
       "origins": [
         {
@@ -80655,6 +80735,11 @@
           "sink": "on_log"
         }
       ]
+    },
+    {
+      "key": "Reading model details…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Reading model file: {value_0}",
@@ -81871,7 +81956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 219,
+          "line": 228,
           "sink": "ValueError"
         }
       ]
@@ -83031,7 +83116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 170,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -83786,7 +83871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 568,
+          "line": 607,
           "sink": "setText"
         }
       ]
@@ -84625,6 +84710,11 @@
           "sink": "_set_archive_warmup_overlay"
         }
       ]
+    },
+    {
+      "key": "Rendering thumbnail…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Rendering...",
@@ -85541,7 +85631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 216,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -85781,7 +85871,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 253,
+          "line": 262,
           "sink": "ValueError"
         }
       ]
@@ -86386,7 +86476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 205,
+          "line": 234,
           "sink": "QPushButton"
         },
         {
@@ -88185,6 +88275,11 @@
           "sink": "QCheckBox"
         }
       ]
+    },
+    {
+      "key": "Retrying preview…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Return stats, prices, added levels, stack size and enhancement-row ownership to the template.",
@@ -90542,6 +90637,11 @@
       ]
     },
     {
+      "key": "Saving preview…",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Saving project {value_0}...",
       "origins": [
         {
@@ -90926,7 +91026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 45,
+          "line": 53,
           "sink": "ValueError"
         }
       ]
@@ -91656,7 +91756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 134,
+          "line": 147,
           "sink": "setPlaceholderText"
         }
       ]
@@ -91846,7 +91946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 341,
+          "line": 372,
           "sink": "setText"
         }
       ]
@@ -92751,7 +92851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 189,
+          "line": 212,
           "sink": "QLabel"
         }
       ]
@@ -93418,16 +93518,6 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 535,
           "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Select a result to preview it. Thumbnails load as you browse.",
-      "origins": [
-        {
-          "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 483,
-          "sink": "setText"
         }
       ]
     },
@@ -96846,7 +96936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 152,
+          "line": 165,
           "sink": "QPushButton"
         }
       ]
@@ -96946,7 +97036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 227,
+          "line": 256,
           "sink": "QPushButton"
         },
         {
@@ -97111,7 +97201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 211,
+          "line": 240,
           "sink": "setToolTip"
         }
       ]
@@ -97181,7 +97271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 229,
+          "line": 258,
           "sink": "QPushButton"
         },
         {
@@ -97381,7 +97471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 208,
+          "line": 237,
           "sink": "QCheckBox"
         }
       ]
@@ -105461,7 +105551,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 372,
+          "line": 383,
           "sink": "RuntimeError"
         }
       ]
@@ -105601,7 +105691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 780,
+          "line": 868,
           "sink": "_invalidate"
         }
       ]
@@ -105761,7 +105851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 315,
+          "line": 319,
           "sink": "_fail_pending"
         }
       ]
@@ -105801,22 +105891,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 279,
+          "line": 283,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 286,
+          "line": 290,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 294,
+          "line": 298,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 311,
+          "line": 315,
           "sink": "_fail_pending"
         }
       ]
@@ -105826,12 +105916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 283,
+          "line": 287,
           "sink": "_fail_pending"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 300,
+          "line": 304,
           "sink": "_fail_pending"
         }
       ]
@@ -105936,7 +106026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 86,
+          "line": 89,
           "sink": "ValueError"
         }
       ]
@@ -106226,7 +106316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 174,
+          "line": 177,
           "sink": "ValueError"
         }
       ]
@@ -106526,7 +106616,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 348,
+          "line": 358,
           "sink": "RuntimeError"
         }
       ]
@@ -106556,7 +106646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 638,
+          "line": 677,
           "sink": "_hair_failed"
         }
       ]
@@ -106636,7 +106726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 196,
+          "line": 219,
           "sink": "QLabel"
         }
       ]
@@ -106646,7 +106736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 680,
+          "line": 721,
           "sink": "_preview_failed"
         }
       ]
@@ -106941,7 +107031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_preparation.py",
-          "line": 43,
+          "line": 48,
           "sink": "emit"
         }
       ]
@@ -106971,7 +107061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 82,
+          "line": 85,
           "sink": "failed"
         }
       ]
@@ -107016,7 +107106,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 339,
+          "line": 348,
           "sink": "RuntimeError"
         }
       ]
@@ -107466,7 +107556,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 413,
+          "line": 424,
           "sink": "RuntimeError"
         }
       ]
@@ -108081,7 +108171,7 @@
       "origins": [
         {
           "path": "cdmw/workers/character_finder_workers.py",
-          "line": 420,
+          "line": 431,
           "sink": "RuntimeError"
         }
       ]
@@ -108406,7 +108496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/preview_preparation.py",
-          "line": 46,
+          "line": 51,
           "sink": "emit"
         }
       ]
@@ -109237,6 +109327,31 @@
         {
           "path": "cdmw/ui/new_item/effect_workspace_authoring.py",
           "line": 37,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Thumbnails load automatically. Upcoming pages preload in the background.",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 190,
+          "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 521,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Thumbnails: {value_0}/{value_1} ready · {value_2} loading · {value_3} queued · {value_4} unavailable",
+      "origins": [
+        {
+          "path": "cdmw/ui/character_finder/dialog.py",
+          "line": 810,
           "sink": "setText"
         }
       ]
@@ -111086,7 +111201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 130,
+          "line": 143,
           "sink": "addItem"
         },
         {
@@ -113481,7 +113596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 221,
+          "line": 250,
           "sink": "addTab"
         },
         {
@@ -115135,6 +115250,11 @@
           "sink": "_set_dotnet_status"
         }
       ]
+    },
+    {
+      "key": "Waiting for a matching preview…",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Waiting for a valid Crimson Desert folder or package root.",
@@ -119356,7 +119476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 131,
+          "line": 144,
           "sink": "addItem"
         }
       ]
@@ -119536,7 +119656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 130,
+          "line": 143,
           "sink": "addItem"
         }
       ]
@@ -119981,7 +120101,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 168,
+          "line": 171,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -122446,7 +122566,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7233,
+          "line": 7251,
           "sink": "open_edit_session"
         },
         {
@@ -124686,7 +124806,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3955,
+          "line": 3973,
           "sink": "ValueError"
         }
       ]
@@ -124701,7 +124821,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 54,
+          "line": 57,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -124776,7 +124896,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 168,
+          "line": 171,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -126181,7 +126301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3596,
+          "line": 3614,
           "sink": "ValueError"
         }
       ]
@@ -126191,7 +126311,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3585,
+          "line": 3603,
           "sink": "ValueError"
         }
       ]
@@ -126201,7 +126321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 3568,
+          "line": 3586,
           "sink": "ValueError"
         }
       ]
@@ -126911,12 +127031,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6578,
+          "line": 6596,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 6676,
+          "line": 6694,
           "sink": "RuntimeError"
         }
       ]
@@ -129938,6 +130058,11 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_02.py",
           "line": 90,
           "sink": "_set_alignment_d3d11_progress"
+        },
+        {
+          "path": "cdmw/ui/character_finder/preview_controller.py",
+          "line": 497,
+          "sink": "emit"
         }
       ]
     },
@@ -131179,6 +131304,11 @@
     {
       "key": "retrying",
       "origins": [
+        {
+          "path": "cdmw/ui/character_finder/preview_controller.py",
+          "line": 346,
+          "sink": "_report_progress"
+        },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 1882,
@@ -135912,21 +136042,6 @@
       ]
     },
     {
-      "key": "{value_0}\n{value_1}\nPreview unavailable",
-      "origins": [
-        {
-          "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 748,
-          "sink": "setData"
-        },
-        {
-          "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 749,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "{value_0}\n{value_1}\nSocket template: {value_2}\n{value_3}",
       "origins": [
         {
@@ -136171,7 +136286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 478,
+          "line": 516,
           "sink": "addItem"
         }
       ]
@@ -136401,12 +136516,12 @@
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 473,
+          "line": 511,
           "sink": "setItemText"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 475,
+          "line": 513,
           "sink": "addItem"
         },
         {
@@ -139546,7 +139661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 536,
+          "line": 575,
           "sink": "QListWidgetItem"
         }
       ]
@@ -139596,12 +139711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 551,
+          "line": 590,
           "sink": "setHtml"
         },
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 551,
+          "line": 590,
           "sink": "setHtml"
         },
         {
@@ -139636,7 +139751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 540,
+          "line": 579,
           "sink": "QListWidgetItem"
         }
       ]
@@ -141426,7 +141541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/character_finder/dialog.py",
-          "line": 482,
+          "line": 520,
           "sink": "setText"
         }
       ]

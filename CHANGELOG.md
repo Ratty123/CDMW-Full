@@ -14,12 +14,14 @@ The format is intentionally simple:
 ### Changed
 
 - Mesh Editor exposes hair creation and editing through a larger **Hair Tools** button above the viewport.
+- Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.
 
 ### Fixed
 
 - Creating or editing a hairstyle no longer fails when loading the registered hairstyle choices.
 - Mesh Editor's Mod checkbox can exclude and restore unchanged PAC hair with seven or eight skin influences without rewriting its original skin records.
 - Hair preview retains the base texture and transparency selected by Archive Browser when a material wrapper differs from the geometry part, avoiding solid pale hair cards.
+- Cancelled dependency requests and unexpected preview-cache errors no longer strand a Finder thumbnail slot. Other cards continue loading automatically, and obsolete loading updates cannot overwrite a new selection or page.
 
 ## [0.11.0-alpha.16] - 2026-09-14
 

@@ -10,7 +10,7 @@ from PySide6.QtCore import QEvent, QProcess, QSize, QTimer, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit,
-    QListView, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
+    QListView, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QPushButton,
     QSplitter, QTabBar, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
 )
 
@@ -21,6 +21,7 @@ from cdmw.domain.archives.character_catalogue import (
 )
 from cdmw.domain.character_finder import CHARACTER_FINDER_CACHED_PAGES, CHARACTER_FINDER_LOOKAHEAD_PAGES
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
+from cdmw.ui.character_finder.thumbnail_delegate import CharacterThumbnailDelegate, THUMBNAIL_ACTIVITY_ROLE
 from cdmw.ui.preview.rust_host import RustPreviewHostFrame
 from cdmw.ui.shell.close_controller import register_transient_worker_controller
 
@@ -32,6 +33,13 @@ SOURCE_LABELS = {"humanoid": "Humanoids", "1_pc": "Player families", "2_mon": "C
 STATUS_LABELS = {"base_appearance": "Base appearance", "textures_unavailable": "Textures unavailable",
                  "unresolved_model": "Unresolved model"}
 RESOLUTION_LABELS = {"resolved": "Resolved", "inferred": "Inferred", "ambiguous": "Ambiguous", "unresolved": "Unresolved"}
+PREVIEW_STAGES = {
+    "queued": "Queued", "reading_details": "Reading model details…", "checking_cache": "Checking preview cache…",
+    "finding_files": "Finding model files…", "preparing_files": "Preparing model files…",
+    "waiting_shared": "Waiting for a matching preview…", "preparing_geometry": "Preparing model geometry…",
+    "preparing_textures": "Preparing model textures…", "saving_preview": "Saving preview…",
+    "rendering_thumbnail": "Rendering thumbnail…", "retrying": "Retrying preview…",
+}
 
 
 class CharacterFinderDialog(QDialog):
@@ -67,7 +75,11 @@ class CharacterFinderDialog(QDialog):
         self._underwear_parts = ()
         self._thumbs = OrderedDict()
         self._thumbnail_icons = OrderedDict()
+        self._card_states = {}
         self._build_ui()
+        self._loading_timer = QTimer(self)
+        self._loading_timer.setInterval(100)
+        self._loading_timer.timeout.connect(self._grid.viewport().update)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(220)
@@ -85,6 +97,7 @@ class CharacterFinderDialog(QDialog):
         self._preview.package_ready.connect(self._package_ready)
         self._preview.thumbnail_ready.connect(self._thumbnail_ready)
         self._preview.failed.connect(self._preview_failed)
+        self._preview.progress.connect(self._preview_progress)
         self._preview.idle.connect(self._release)
         self._preview.idle.connect(self._preload_next_page)
         self._host.controller.package_applied.connect(self._package_applied)
@@ -161,6 +174,7 @@ class CharacterFinderDialog(QDialog):
         self._grid = QListWidget()
         self._grid.setProperty("_i18n_translate_items", True)
         self._grid.setObjectName("CharacterFinderGrid")
+        self._grid.setItemDelegate(CharacterThumbnailDelegate(self._grid))
         self._grid.setViewMode(QListView.ViewMode.IconMode)
         self._grid.setResizeMode(QListView.ResizeMode.Adjust)
         self._grid.setMovement(QListView.Movement.Static)
@@ -171,6 +185,15 @@ class CharacterFinderDialog(QDialog):
         self._grid.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self._grid.setUniformItemSizes(True)
         left_layout.addWidget(self._grid, 1)
+        self._loading_summary = QLabel()
+        self._loading_summary.setWordWrap(True)
+        self._loading_summary.setToolTip("Thumbnails load automatically. Upcoming pages preload in the background.")
+        left_layout.addWidget(self._loading_summary)
+        self._page_progress = QProgressBar()
+        self._page_progress.setTextVisible(False)
+        self._page_progress.setFixedHeight(6)
+        self._page_progress.hide()
+        left_layout.addWidget(self._page_progress)
         paging = QHBoxLayout()
         self._previous = QPushButton("Previous")
         self._previous.clicked.connect(lambda: self._page(-1))
@@ -197,6 +220,12 @@ class CharacterFinderDialog(QDialog):
         self._preview_status.setWordWrap(True)
         self._preview_status.setObjectName("HintLabel")
         right_layout.addWidget(self._preview_status)
+        self._preview_busy = QProgressBar()
+        self._preview_busy.setRange(0, 0)
+        self._preview_busy.setTextVisible(False)
+        self._preview_busy.setFixedHeight(6)
+        self._preview_busy.hide()
+        right_layout.addWidget(self._preview_busy)
         self._host = RustPreviewHostFrame(right, terminate_on_close=True,
             ui_localizer=getattr(self._window, "ui_localizer", None))
         self._host.setMinimumSize(360, 250)
@@ -328,6 +357,7 @@ class CharacterFinderDialog(QDialog):
         self._details = None
         self._pending_package = None
         self._preview.clear_page()
+        self._reset_loading()
         self._buttons()
         self._search_timer.start()
 
@@ -338,6 +368,7 @@ class CharacterFinderDialog(QDialog):
         self._cancel("detail")
         if not keep_prepared:
             self._preview.clear_page()
+        self._reset_loading()
         self._status.setText("Searching character catalogue…")
         request = CharacterCatalogSearchRequest(self._session_id, query=self._search_edit.text(),
             view=self._view.currentData(), tab="faces" if self._tabs.currentIndex() else "bodies",
@@ -439,17 +470,23 @@ class CharacterFinderDialog(QDialog):
         self._total = result.total_matches
         self._rows = {row.key: row for row in result.rows}
         self._items.clear()
+        self._card_states.clear()
         self._grid.blockSignals(True)
         self._grid.clear()
         for row in result.rows:
-            text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\n" + STATUS_LABELS.get(row.preview_status, row.preview_status)
+            thumb = self._thumbs.get(row.key)
+            eligible = row.model_count and row.resolution != "ambiguous"
+            if eligible:
+                self._card_states[row.key] = "ready" if thumb else "queued"
+            status = "Queued" if eligible and not thumb else STATUS_LABELS.get(row.preview_status, row.preview_status)
+            text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\n" + status
             if row.embedded_face:
                 text += "\nEmbedded face"
             item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, row.key)
+            item.setData(THUMBNAIL_ACTIVITY_ROLE, self._card_states.get(row.key))
             item.setToolTip(row.label + "\n" + row.path + "\n" + row.evidence)
             item.setSizeHint(QSize(176, 250))
-            thumb = self._thumbs.get(row.key)
             if thumb:
                 self._thumbs.move_to_end(row.key)
                 item.setIcon(self._thumbnail_icon(thumb))
@@ -460,6 +497,7 @@ class CharacterFinderDialog(QDialog):
             self._grid.addItem(item)
             self._items[row.key] = item
         self._grid.blockSignals(False)
+        self._update_loading()
         for field, combo in self._filters.items():
             value = combo.currentData() or ""
             combo.blockSignals(True)
@@ -480,7 +518,7 @@ class CharacterFinderDialog(QDialog):
             combo.setCurrentIndex(max(0, index))
             combo.blockSignals(False)
         self._page_label.setText(f"{self._page_start + 1 if result.rows else 0:,}–{self._page_start + len(result.rows):,} of {self._total:,}")
-        self._status.setText(" · ".join(result.warnings) if result.warnings else "Select a result to preview it. Thumbnails load as you browse.")
+        self._status.setText(" · ".join(result.warnings) if result.warnings else "Thumbnails load automatically. Upcoming pages preload in the background.")
         # Promote preloaded jobs before selection signals can reprioritize them.
         self._preview.visible(result.rows, session_id=self._session_id, generation=self._bridge.controller.generation)
         selected = self._items.get(self._select_after_search) or (self._grid.item(0) if result.rows else None)
@@ -490,6 +528,7 @@ class CharacterFinderDialog(QDialog):
         else:
             self._details = None
             self._title.setText("No matching bodies or faces")
+            self._preview_busy.hide()
         self._visible()
         self._visible_timer.start()
         self._preload_next_page()
@@ -505,11 +544,13 @@ class CharacterFinderDialog(QDialog):
         self._pending_package = None
         key = self._selected_key()
         if key is None or self._closing or self._invalid:
+            self._preview_busy.hide()
             self._buttons()
             return
         self._visible_timer.start()
         self._title.setText(self._rows[key].label)
         self._preview_status.setText("Preparing preview…")
+        self._preview_busy.show()
         self._relations.clear()
         self._evidence.clear()
         cached = self._preview.cached_detail(key, self._session_id)
@@ -523,14 +564,12 @@ class CharacterFinderDialog(QDialog):
             self._requests["detail"] = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(self._session_id, key),
                 ui_generation=self._bridge.controller.generation)
         except Exception as error:
-            self._preview_status.setText(str(error))
+            self._preview_failed(key, str(error))
         self._buttons()
 
     def _show_detail(self, detail):
         self._details = detail
         row = detail.row
-        self._preview_status.setText(STATUS_LABELS.get(row.preview_status, row.preview_status) +
-            (" · Embedded face; preview uses the owning body." if row.embedded_face else ""))
         self._relations.clear()
         for owner in detail.characters:
             item = QListWidgetItem(f"{owner.display_name or owner.internal_name} · ID {owner.character_id}")
@@ -676,6 +715,8 @@ class CharacterFinderDialog(QDialog):
         if self._closing or key != self._selected_key():
             return
         self._pending_package = (key, result)
+        self._preview_status.setText("Opening interactive preview…")
+        self._preview_busy.show()
         if not self._host.load_package(result.package_path, reset_view=True):
             self._preview_failed(key, "The interactive preview could not load this package.")
 
@@ -687,6 +728,7 @@ class CharacterFinderDialog(QDialog):
         if Path(path) != Path(result.package_path):
             return
         self._shown_key = key
+        self._preview_busy.hide()
         self._underwear_parts = result.underwear_submesh_indices
         self._show_underwear.setEnabled(bool(self._underwear_parts))
         self._apply_underwear_visibility()
@@ -698,7 +740,7 @@ class CharacterFinderDialog(QDialog):
             self._evidence.append("<p><b>Preview details</b></p>" + "".join("<p>" + escape(note) + "</p>" for note in result.notes))
 
     def _package_failed(self, _path, _generation, message):
-        if self._pending_package:
+        if self._pending_package and Path(_path) == Path(self._pending_package[1].package_path):
             self._preview_failed(self._pending_package[0], message)
 
     def _apply_underwear_visibility(self):
@@ -727,26 +769,70 @@ class CharacterFinderDialog(QDialog):
                 self._thumbs.popitem(last=False)
             icon = self._thumbnail_icon(result.thumbnail_path)
             item = self._items.get(key)
-            if item:
+            if item and key in self._card_states and not self._invalid:
                 item.setIcon(icon)
-                row = self._rows[key]
-                text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\n" + STATUS_LABELS.get(result.status, result.status)
-                text += "\nEmbedded face" if row.embedded_face else ""
-                # UiLocalizer retains the English list-item source at this role.
-                item.setData(int(Qt.ItemDataRole.UserRole) + 1000, text)
-                item.setText(text)
+                self._card_states[key] = "ready"
+                self._card_caption(key, STATUS_LABELS.get(result.status, result.status))
+                self._update_loading()
+
+    def _card_caption(self, key, status, message=""):
+        item = self._items[key]
+        row = self._rows[key]
+        text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\n" + status
+        text += "\nEmbedded face" if row.embedded_face else ""
+        # UiLocalizer retains the English list-item source at this role.
+        item.setData(int(Qt.ItemDataRole.UserRole) + 1000, text)
+        item.setText(text)
+        item.setData(THUMBNAIL_ACTIVITY_ROLE, self._card_states.get(key))
+        item.setToolTip(row.label + "\n" + row.path + "\n" + row.evidence + "\n" + (message or status))
+
+    def _preview_progress(self, key, stage, completed, total):
+        if self._closing or self._invalid or key not in self._card_states:
+            return
+        text = PREVIEW_STAGES.get(stage, "Preparing preview…")
+        if total > 0 and stage == "finding_files":
+            text = f"Finding model files… · {completed:,}/{total:,}"
+        elif total > 0 and stage == "preparing_files":
+            text = f"Preparing model files… · {completed:,}/{total:,}"
+        # A cached image stays usable while its selected 3D package is rebuilt.
+        if self._card_states[key] != "ready":
+            self._card_states[key] = stage
+            self._card_caption(key, text)
+            self._update_loading()
+        if key == self._selected_key() and not self._preview_busy.isHidden() and self._pending_package is None:
+            self._preview_status.setText(text)
+
+    def _update_loading(self):
+        states = tuple(self._card_states.values())
+        total = len(states)
+        ready, failed, queued = states.count("ready"), states.count("failed"), states.count("queued")
+        active = total - ready - failed - queued
+        self._loading_summary.setText(
+            f"Thumbnails: {ready}/{total} ready · {active} loading · {queued} queued · {failed} unavailable" if total else "")
+        self._page_progress.setRange(0, max(1, total))
+        self._page_progress.setValue(ready + failed)
+        self._page_progress.setVisible(total > 0)
+        if active and not self._loading_timer.isActive():
+            self._loading_timer.start()
+        elif not active:
+            self._loading_timer.stop()
+
+    def _reset_loading(self):
+        self._loading_timer.stop()
+        self._card_states.clear()
+        self._loading_summary.clear()
+        self._page_progress.hide()
+        self._preview_busy.hide()
 
     def _preview_failed(self, key, message):
         if not self._closing and key == self._selected_key():
+            self._preview_busy.hide()
             suffix = " The previous preview is still shown." if self._shown_key and self._shown_key != key else ""
             self._preview_status.setText(message + suffix)
-        item = self._items.get(key)
-        if item:
-            item.setToolTip(item.toolTip() + "\n" + message)
-            row = self._rows[key]
-            text = row.label + "\n" + ROLE_LABELS.get(row.role, row.role) + "\nPreview unavailable"
-            item.setData(int(Qt.ItemDataRole.UserRole) + 1000, text)
-            item.setText(text)
+        if not self._closing and key in self._card_states and self._card_states[key] != "ready":
+            self._card_states[key] = "failed"
+            self._card_caption(key, "Preview unavailable", message)
+            self._update_loading()
 
     def _failed(self, request, error):
         kind = next((kind for kind, token in self._requests.items() if token == request), None)
@@ -758,6 +844,8 @@ class CharacterFinderDialog(QDialog):
                 self._prefetch_search = None
                 self._preload_next_page()
                 return
+            if kind == "detail":
+                self._preview_failed(self._selected_key(), str(getattr(error, "message", error)))
             self._status.setText(str(getattr(error, "message", error)))
             self._buttons()
 
@@ -789,6 +877,7 @@ class CharacterFinderDialog(QDialog):
         for kind in tuple(self._requests):
             self._cancel(kind)
         self._preview.clear_page()
+        self._reset_loading()
         self._search_cache.clear()
         self._thumbs.clear()
         self._thumbnail_icons.clear()
@@ -806,6 +895,7 @@ class CharacterFinderDialog(QDialog):
             return
         self._save()
         self._closing = True
+        self._reset_loading()
         self._search_timer.stop()
         self._visible_timer.stop()
         for kind in tuple(self._requests):

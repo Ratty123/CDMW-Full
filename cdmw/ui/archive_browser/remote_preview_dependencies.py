@@ -131,10 +131,12 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
 
     ready = Signal(int, object)
     failed = Signal(int, str)
+    progress = Signal(int, str, int, int)
 
-    def __init__(self, service: object, parent: QObject | None = None) -> None:
+    def __init__(self, service: object, parent: QObject | None = None, *, include_content_analysis: bool = True) -> None:
         super().__init__(parent)
         self._service = service
+        self._include_content_analysis = include_content_analysis
         self._pending: _PendingPreviewDependencies | None = None
         self._snapshot: ArchivePreviewDependencySet | None = None
         self._snapshot_ui_request_id = -1
@@ -150,6 +152,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
         service.request_cancelled.connect(self._handle_cancelled)
+        service.progress.connect(self._handle_progress)
 
     @property
     def pending_ui_request_id(self) -> int | None:
@@ -252,6 +255,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             preferred_prefab_stems=normalized_prefab_stems,
             scope_entry_ids=bounded_scope_entry_ids,
         )
+        self.progress.emit(int(ui_request_id), "finding_files", 0, 0)
         return True
 
     def cancel(self, *, clear_snapshot: bool = False) -> None:
@@ -358,6 +362,15 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending = self._pending
         if pending is not None and pending.request_id == str(request_id):
             self._pending = None
+            # Our own cancel clears pending before cancelling the request. An
+            # external cancellation must release the caller's waiting slot too.
+            self.failed.emit(pending.ui_request_id, "Character preview preparation was cancelled.")
+
+    def _handle_progress(self, request_id: str, update: object) -> None:
+        pending = self._pending
+        if pending is not None and pending.request_id == str(request_id):
+            stage = "preparing_files" if pending.operation == "prepare_entries" else "finding_files"
+            self.progress.emit(pending.ui_request_id, stage, update.completed, update.total)
 
     def _matching_pending(
         self,
@@ -465,7 +478,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 PrepareEntriesRequest(
                     pending.selected.session_id,
                     entry_ids,
-                    content_analysis_entry_id=pending.selected.entry_id,
+                    content_analysis_entry_id=pending.selected.entry_id if self._include_content_analysis else None,
                 ),
                 ui_generation=pending.ui_request_id,
             )
@@ -474,6 +487,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             return
         pending.request_id = str(request_id)
         pending.operation = "prepare_entries"
+        self.progress.emit(pending.ui_request_id, "preparing_files", 0, len(entry_ids))
 
     def _start_association_lookup(self, pending: _PendingPreviewDependencies) -> None:
         try:

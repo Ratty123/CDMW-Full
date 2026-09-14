@@ -30,6 +30,7 @@ class _CatalogueService(QObject):
     result_ready = Signal(str, str, object)
     request_failed = Signal(str, object)
     request_cancelled = Signal(str)
+    progress = Signal(str, object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -118,6 +119,7 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
         ArchiveAssociationResult("session-a", 7, (), 2, False),
     )
     assert service.requests[1][0].entry_ids == (7, 8, 9)
+    assert service.requests[1][0].content_analysis_entry_id == 7
     service.batch_ready.emit(
         "prepare-2",
         "prepare_entry",
