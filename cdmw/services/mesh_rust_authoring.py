@@ -7987,6 +7987,12 @@ class RustMeshAuthoringSession:
             from cdmw.services.mesh_rust_hair import apply_hair_candidate
             apply_hair_candidate(self, payload, str(request.get("label") or "Groom hair"), stop_event)
             self._advance_shadow_protocol_revision(before_revision=before_revision, before_signature=before_signature)
+            if payload.get("hair_update") is not None:
+                view = self.shadow_service.session_view(self.shadow_session_id)
+                return {"session_id": self.session_id, "base_revision": int(view.revision),
+                        "hair_ack": self.shadow_service._session(self.shadow_session_id).hair_state.revision,
+                        "undo_count": view.undo_count, "redo_count": view.redo_count,
+                        "history_cursor": view.history_cursor}
             return self.state_payload(include_document=True)
         if shadow_session.hair_state is not None and not shadow_session.hair_state.payload["converted"]:
             raise RustMeshValidationError("Use Hair grooming, or explicitly convert guides before editing ordinary mesh geometry.")

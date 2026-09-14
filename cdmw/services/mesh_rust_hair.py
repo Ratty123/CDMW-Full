@@ -22,6 +22,18 @@ def hair_target_supported(session):
             and "1_pc/2_phw/head/hair/" in path and path.endswith("_player.pac"))
 
 
+def _reference_geometry_identity(source, positions, triangles, references):
+    """Appearance transforms can change the scalp while its PAC bytes stay equal."""
+    digest = hashlib.sha256(source.encode("utf-8"))
+    for mesh in [dict(positions=positions, triangles=triangles), *references]:
+        digest.update(struct.pack("<QQ", len(mesh["positions"]), len(mesh["triangles"])))
+        for point in mesh["positions"]:
+            digest.update(struct.pack("<3d", *point))
+        for face in mesh["triangles"]:
+            digest.update(struct.pack("<3I", *face))
+    return "hair-reference:" + digest.hexdigest()
+
+
 def template_card_uv_rect(part):
     """Reuse an actual connected donor card's atlas region, not the whole atlas."""
     if len(part.uvs) != len(part.vertices) or not part.faces:
@@ -60,6 +72,7 @@ def hair_ui_state(authoring):
         output = session.replacement_state
         files = {f.path.casefold(): f.data for f in (*output.dependencies, *output.companion_files)} if output else {}
         result["textures"] = list(material_texture_paths(files[material_path])[1]) if material_path in files else []
+        result["materials_ready"] = bool(result["textures"]) and all(path.casefold() in files for path in result["textures"])
         result["revision"] = state.revision
         cached = authoring.hair_file_cache
         if cached is None or cached[0] != state.canonical:
@@ -196,12 +209,20 @@ def setup_hair(authoring, args, stop_event):
         for part in mesh.submeshes:
             # The separate head PAC can be only a face mask. The base body's
             # crown/back completes the scalp; keep its neck/shoulders separate.
-            scalp_faces = [face for face in part.faces if all(part.vertices[i][1] >= scalp_bottom for i in face)]
+            scalp_faces = [face for face in part.faces
+                if sum(part.vertices[i][1] for i in face) / 3 >= neck_top
+                and (sum(part.vertices[i][1] for i in face) / 3 >= scalp_bottom
+                     or sum(part.vertices[i][2] for i in face) / 3 >= center[2])]
             scalp_indices = sorted({i for face in scalp_faces for i in face})
             scalp_map = {index: i + len(positions) for i, index in enumerate(scalp_indices)}
             positions.extend([list(part.vertices[i]) for i in scalp_indices])
             triangles.extend([[scalp_map[i] for i in face] for face in scalp_faces])
-            selected = [face for face in part.faces if all(cutoff <= part.vertices[i][1] <= neck_top for i in face)]
+            # Assign faces crossing the neck boundary once rather than dropping
+            # them from both references and leaving a visible ring-shaped hole.
+            scalp_face_set = set(tuple(face) for face in scalp_faces)
+            selected = [face for face in part.faces if tuple(face) not in scalp_face_set
+                        and all(part.vertices[i][1] >= cutoff for i in face)
+                        and any(part.vertices[i][1] <= neck_top for i in face)]
             indices = sorted({i for face in selected for i in face})
             mapping = {index: i + len(vertices) for i, index in enumerate(indices)}
             vertices.extend([list(part.vertices[i]) for i in indices])
@@ -227,6 +248,7 @@ def setup_hair(authoring, args, stop_event):
         half = min((body_max - body_min) * .4, (bounds_max[0] - bounds_min[0]) * 1.3)
         collisions.append(dict(a=[center[0] - half, shoulder_y, center[2]], b=[center[0] + half, shoulder_y, center[2]],
                                radius=max(height * .20, .001), follows_head=False))
+    identity = _reference_geometry_identity(identity, positions, triangles, references)
     if session.hair_state is not None:
         payload = session.hair_state.payload
         payload["scalp"] = {"identity": identity, "positions": positions, "triangles": triangles}
@@ -237,12 +259,15 @@ def setup_hair(authoring, args, stop_event):
         mode = str(args.get("mode", "existing"))
         if mode not in {"generated", "existing"}:
             raise ValueError("Choose Create Hair or Edit Hair.")
-        target_stem = str(args.get("target_stem") or "cd_phw_00_hair_00_9001_01_player")
+        from secrets import randbelow
+        target_stem = str(args.get("target_stem") or f"cd_phw_00_hair_00_{1000 + randbelow(8000):04d}_01_player")
         validate_hair_stem(target_stem)
         span = max(bounds_max[i] - bounds_min[i] for i in range(3))
         part_index = max(range(len(session.working_mesh.submeshes)), key=lambda i: len(session.working_mesh.submeshes[i].vertices))
         payload = {
-            "version": 1, "revision": 0, "converted": False,
+            "version": 2, "revision": 0, "converted": False,
+            "locks": [], "next_lock_id": 1, "style_name": "My hairstyle",
+            "startup_preset": args.get("start_preset", "bob"),
             "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
             "bound_reference": identity, "reference_parts": [],
             "template": {"path": str(session.working_mesh.path), "sha256": digest,
@@ -251,6 +276,10 @@ def setup_hair(authoring, args, stop_event):
                         "cards_per_guide": 6, "uv_rect": template_card_uv_rect(session.working_mesh.submeshes[part_index])}],
             "guides": [], "bindings": [], "collisions": [],
         }
+        if mode == "existing":
+            payload["groups"] = [dict(id=i, name=part.name, part=i, mode=mode,
+                width=max(span * .08, .001), cards_per_guide=6, uv_rect=template_card_uv_rect(part))
+                for i, part in enumerate(session.working_mesh.submeshes)]
     payload["references"] = references
     payload["collisions"] = collisions
     hair = hair_state_from_payload(payload)
@@ -282,14 +311,38 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     from cdmw.services.mesh_replacement_output import manual_replacement_options
 
     service, session_id = authoring.shadow_service, authoring.shadow_session_id
-    snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
+    update = payload.get("hair_update")
+    vertices_only = isinstance(update, dict) and update.get("parts") == [] and payload.get("submeshes") == []
+    if vertices_only:
+        from types import SimpleNamespace
+        live = service._session(session_id)
+        with live.export_lock:
+            if live.closed or live.native_editor_mesh_dirty or live.native_editor_session_ready:
+                raise ValueError("Hair edit requires a current Rust authoring session.")
+            snapshot = SimpleNamespace(mesh=live.working_mesh, mesh_revision=live.revision,
+                hair_state=live.hair_state, replacement_state=live.replacement_state,
+                original_data=live.original_data)
+    else:
+        snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     if snapshot.hair_state is None or snapshot.replacement_state is None:
         raise ValueError("Start hair authoring before submitting guides.")
     old = snapshot.hair_state.payload
-    state = hair_state_from_payload(payload.get("hair"), allow_unbound=False)
+    incoming = payload.get("hair")
+    if update is not None:
+        if (not isinstance(update, dict) or update.get("version") != 2 or update.get("reference") != old["scalp"]["identity"]
+                or not isinstance(incoming, dict) or any(key in incoming for key in ("scalp", "references", "collisions"))):
+            raise ValueError("Incremental hair update has a stale reference or unsupported version.")
+        incoming = {**incoming, **{field: old.get(field, []) for field in ("scalp", "references", "collisions")}}
+        reuse = update.get("reuse", [])
+        if (not isinstance(reuse, list) or any(not isinstance(field, str) or field not in {"bindings", "locks", "guides", "groups", "vertex_sources", "prepared_parts"} for field in reuse)
+                or len(reuse) != len(set(reuse)) or any(field in incoming for field in reuse)
+                or (reuse and update.get("base_hair_revision") != old["revision"])):
+            raise ValueError("Incremental hair state has a stale or conflicting base revision.")
+        incoming.update({field: old[field] for field in reuse})
+    from cdmw.domain.mesh.hair import _validated_hair_state
+    state, new = _validated_hair_state(incoming, allow_unbound=False)
     if state is None:
         raise ValueError("Hair transaction omitted its rest state.")
-    new = state.payload
     if new["revision"] <= old["revision"] or new["revision"] > old["revision"] + 100_000:
         raise ValueError("Hair transaction has a stale or invalid revision.")
     def wire(value):
@@ -297,18 +350,19 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
         # that exact f32 value, then retain the host's original reference bytes.
         if isinstance(value, float):
             return struct.pack("<f", value)
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple)):
             return [wire(item) for item in value]
         if isinstance(value, dict):
             return {key: wire(item) for key, item in value.items()}
         return value
-    if wire(new["scalp"]) != wire(old["scalp"]) or new["template"]["sha256"] != old["template"]["sha256"]:
+    if (update is None and wire(new["scalp"]) != wire(old["scalp"])) or new["template"]["sha256"] != old["template"]["sha256"]:
         raise ValueError("Hair transaction changed its reference or donor provenance.")
-    if wire(new.get("references", [])) != wire(old.get("references", [])) or wire(new["collisions"]) != wire(old["collisions"]):
+    if update is None and (wire(new.get("references", [])) != wire(old.get("references", [])) or wire(new["collisions"]) != wire(old["collisions"])):
         raise ValueError("Change fitting references through the host-owned reference picker.")
-    for field in ("scalp", "references", "collisions"):
-        new[field] = copy.deepcopy(old.get(field, []))
-    state = hair_state_from_payload(new, allow_unbound=False)
+    if update is None:
+        for field in ("scalp", "references", "collisions"):
+            new[field] = old.get(field, [])
+        state = hair_state_from_payload(new, allow_unbound=False)
     for field in ("path", "character", "physics_profile"):
         if new["template"].get(field) != old["template"].get(field):
             raise ValueError("Hair transaction changed its export template.")
@@ -316,19 +370,70 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     if old["converted"] and not new["converted"]:
         raise ValueError("Restore editable guides through Undo.")
     raw_parts = payload.get("submeshes")
+    vertex_updates = {}
+    if update is not None:
+        indices = update.get("parts")
+        if (not isinstance(indices, list) or not isinstance(raw_parts, list) or len(indices) != len(raw_parts)
+                or any(type(i) is not int or not 0 <= i < len(snapshot.mesh.submeshes) for i in indices) or len(set(indices)) != len(indices)):
+            raise ValueError("Invalid incremental hair part list.")
+        sparse = dict(zip(indices, raw_parts, strict=True))
+        raw_parts = [sparse.get(i) for i in range(len(snapshot.mesh.submeshes))]
+        rows = update.get("vertex_updates", [])
+        if not isinstance(rows, list) or len(rows) > len(raw_parts):
+            raise ValueError("Invalid incremental hair vertex updates.")
+        for row in rows:
+            if not isinstance(row, dict) or type(row.get("part")) is not int:
+                raise ValueError("Invalid incremental hair material part.")
+            part = row["part"]
+            if not 0 <= part < len(raw_parts) or part in vertex_updates or part in sparse:
+                raise ValueError("Conflicting incremental hair geometry updates.")
+            vertices = _integer_values(row.get("indices"), "hair vertex updates")
+            positions = _finite_rows(row.get("positions"), 3, "hair vertex positions")
+            normals = _finite_rows(row.get("normals"), 3, "hair vertex normals")
+            if (len(vertices) != len(set(vertices)) or len(vertices) != len(positions) or len(vertices) != len(normals)
+                    or any(v < 0 or v >= min(len(snapshot.mesh.submeshes[part].vertices), len(snapshot.mesh.submeshes[part].normals)) for v in vertices)):
+                raise ValueError("Invalid incremental hair vertex range.")
+            vertex_updates[part] = (vertices, positions, normals)
     if not isinstance(raw_parts, list) or len(raw_parts) != len(snapshot.mesh.submeshes):
         raise ValueError("Hair transaction changed the template's material part layout.")
     owned = {group["part"] for group in new["groups"]}
     if any(i >= len(raw_parts) for i in owned):
         raise ValueError("Hair group refers to a missing material part.")
+    if vertices_only:
+        from cdmw.services.mesh_service_hair_transaction import commit_hair_vertices
+        commit_hair_vertices(authoring, snapshot, state, new, old, vertex_updates, label, stop_event)
+        return
     candidate = mesh_with_part_ids(snapshot, snapshot.replacement_state)
     generated_source = ParsedMesh(format="obj", submeshes=[])
     changed_topology = []
+    retained_topology_changed = False
+    empty_parts = set()
+    donor_mesh = None
     for index, (raw, original) in enumerate(zip(raw_parts, candidate.submeshes, strict=True)):
+        if raw is None and update is not None:
+            if index in vertex_updates:
+                if index not in owned:
+                    raise ValueError("Hair transaction changed an unassigned part.")
+                vertices, positions, normals = vertex_updates[index]
+                original.vertices = list(original.vertices)
+                original.normals = list(original.normals)
+                for vertex, position, normal in zip(vertices, positions, normals, strict=True):
+                    original.vertices[vertex] = tuple(position)
+                    original.normals[vertex] = tuple(normal)
+            generated_source.submeshes.append(original)
+            continue
+        if not isinstance(raw, dict):
+            raise ValueError("Invalid hair geometry record.")
         vertices = _finite_rows(raw.get("positions"), 3, "hair positions")
         normals = _finite_rows(raw.get("normals"), 3, "hair normals")
         uvs = _finite_rows(raw.get("uvs"), 2, "hair UVs")
         indices = _integer_values(raw.get("indices"), "hair indices")
+        if not vertices and not indices and index in owned:
+            if any(lock["part"] == index and lock["vertices"] for lock in new["locks"]):
+                raise ValueError("Deleted hair still has visible lock ownership.")
+            empty_parts.add(index)
+            generated_source.submeshes.append(original)
+            continue
         if (not vertices or len(vertices) > 500_000 or len(normals) != len(vertices)
                 or len(uvs) != len(vertices) or not indices or len(indices) % 3
                 or any(i < 0 or i >= len(vertices) for i in indices)):
@@ -340,9 +445,37 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
         if index not in owned and (vertices != list(original.vertices) or faces != list(original.faces)
                                    or normals != list(original.normals) or uvs != list(original.uvs)):
             raise ValueError("Hair transaction changed an unassigned part.")
-        if any(g["part"] == index and g["mode"] == "existing" for g in new["groups"]) and (
-                uvs != list(original.uvs) or faces != list(original.faces)):
-            raise ValueError("Reshaping existing hair must preserve its topology and UV layout.")
+        existing = any(g["part"] == index and g["mode"] == "existing" for g in new["groups"])
+        if existing and (uvs != list(original.uvs) or faces != list(original.faces)):
+            from cdmw.modding.mesh_parser import parse_mesh
+            from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
+            if donor_mesh is None:
+                donor_mesh = parse_mesh(snapshot.original_data, snapshot.mesh.path)
+            donor = donor_mesh.submeshes[index]
+            source = raw.get("source_vertices")
+            if (not isinstance(source, list) or len(source) != len(vertices) or len(set(source)) != len(source)
+                    or any(type(i) is not int or not 0 <= i < len(donor.vertices) for i in source)):
+                raise ValueError("Cut and deleted existing hair require exact original vertex provenance.")
+            if new["vertex_sources"].get(str(index)) != source:
+                raise ValueError("Hair geometry and original vertex provenance were not published together.")
+            original_faces = set(tuple(face) for face in donor.faces)
+            if any(tuple(source[i] for i in face) not in original_faces for face in faces):
+                raise ValueError("Existing hair cuts may only retain original card triangles.")
+            expected_uvs = [donor.uvs[i] for i in source]
+            if wire(uvs) != wire(expected_uvs):
+                raise ValueError("Cut hair changed its original UV layout.")
+            retained = copy.deepcopy(original)
+            retained.vertices, retained.normals, retained.uvs, retained.faces = vertices, normals, expected_uvs, faces
+            for channel in ("bone_indices", "bone_weights", "source_vertex_offsets", "tangents"):
+                rows = getattr(donor, channel)
+                setattr(retained, channel, [rows[i] for i in source] if len(rows) == len(donor.vertices) else [])
+            retained.source_vertex_map = list(source)
+            retained.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
+            retained.vertex_count, retained.face_count = len(vertices), len(faces)
+            retained_topology_changed = True
+            candidate.submeshes[index] = retained
+            generated_source.submeshes.append(retained)
+            continue
         generated_source.submeshes.append(SubMesh(vertices=vertices, normals=normals, uvs=uvs, faces=faces))
         if index not in owned:
             continue
@@ -365,15 +498,18 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     for binding in new["bindings"]:
         if binding["vertex"] >= len(candidate.submeshes[binding["part"]].vertices):
             raise ValueError("Hair binding refers to a removed vertex.")
+    for lock in new["locks"]:
+        if any(v >= len(candidate.submeshes[lock["part"]].vertices) for v in lock["vertices"]):
+            raise ValueError("Hair lock refers to removed geometry.")
     from cdmw.services.mesh_service_kernel import _invalidate_tangents_after_edit
-    _invalidate_tangents_after_edit(candidate, "transform", owned, {}, topology_changed=bool(changed_topology))
+    _invalidate_tangents_after_edit(candidate, "transform", owned, {}, topology_changed=bool(changed_topology) or retained_topology_changed)
     refresh_mesh_totals(candidate)
     generated_only = all(group["mode"] == "generated" for group in new["groups"])
     active_parts = {group["part"] for group in new["groups"]
                     if any(guide["group"] == group["id"] for guide in new["guides"])}
     parts = tuple(replace(part, import_positions=tuple(candidate.submeshes[part.target_index].vertices),
                           import_normals=tuple(candidate.submeshes[part.target_index].normals),
-                          included=part.target_index in active_parts if generated_only else part.included,
+                          included=(part.target_index in active_parts if generated_only else part.included) and part.target_index not in empty_parts,
                           source_label="Hair guides")
                   if part.target_index in owned else replace(part, included=False) if generated_only else part
                   for part in snapshot.replacement_state.parts)

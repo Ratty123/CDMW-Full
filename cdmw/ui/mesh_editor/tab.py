@@ -227,6 +227,8 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
+        root.addWidget(build_hair_entry_bar(self))
         self.action_bar = MeshEditorActionBar(parent=self)
         self.action_bar.action_requested.connect(self._handle_action_requested)
         root.addWidget(self.action_bar)

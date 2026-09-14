@@ -183,6 +183,29 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             # six-lane new-topology weight writer.
             from cdmw.modding.mesh_pac_builder import build_pac
             data = build_pac(snapshot.mesh, snapshot.original_data)
+        elif (original.format.lower() == "pac" and hair is not None
+                and all(group["mode"] == "existing" for group in hair.payload["groups"])):
+            from cdmw.modding.mesh_pac_builder import _build_pac_full_rebuild
+            from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
+            from cdmw.modding.static_mesh_runtime_builder import _build_removed_runtime_placeholder_submesh
+            prepared = copy.deepcopy(snapshot.mesh)
+            for binding in state.parts:
+                index = binding.target_index
+                part = prepared.submeshes[indices[binding.part_id]]
+                if not binding.included:
+                    placeholder = _build_removed_runtime_placeholder_submesh(original.submeshes[index])
+                    # Retain the established hidden-section package contract,
+                    # including the donor's complete eight-influence records.
+                    placeholder.source_vertex_map = [0] * len(placeholder.vertices)
+                    placeholder.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
+                    placeholder.bone_indices = [original.submeshes[index].bone_indices[0]] * len(placeholder.vertices) if original.submeshes[index].bone_indices else []
+                    placeholder.bone_weights = [original.submeshes[index].bone_weights[0]] * len(placeholder.vertices) if original.submeshes[index].bone_weights else []
+                    prepared.submeshes[indices[binding.part_id]] = placeholder
+                elif len(part.source_vertex_map) != len(part.vertices):
+                    raise ValueError("Existing hair lost its original vertex record provenance.")
+            data = _build_pac_full_rebuild(original, prepared, snapshot.original_data,
+                preserve_original_submesh_indices=preserved,
+                preserve_source_skin_record_indices=tuple(range(len(prepared.submeshes))))
         else:
             data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options,
                                                   preserve_original_pac_submesh_indices=preserved)

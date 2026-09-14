@@ -1,6 +1,9 @@
 """Prepare archive geometry, rig and material context on the protocol worker."""
 
 from types import SimpleNamespace
+from collections import OrderedDict
+import copy
+import threading
 
 from PySide6.QtCore import Qt
 
@@ -13,6 +16,43 @@ from cdmw.services.mesh_rust_authoring import (
 from cdmw.workers.mesh_editor_aux_workers import (
     MeshArchiveMaterialContextWorker, MeshArchiveSessionLoadWorker,
 )
+
+
+# Bounded geometry cache for the immutable character context. Material leases
+# belong to each preparation; cached neutral fitting geometry needs no DDS lease.
+_hair_references = OrderedDict()
+_hair_reference_lock = threading.Lock()
+
+
+def prepare_hair_reference_source(args, stop_event):
+    generation = args.get("_hair_context_identity")
+    if not generation:
+        return prepare_archive_refit_source(args, stop_event)
+    entry = args["_archive_entry"]
+    key = (tuple(generation), entry.identity)
+    with _hair_reference_lock:
+        cached = _hair_references.get(key)
+        if cached is not None:
+            _hair_references.move_to_end(key)
+    raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+    if cached is not None:
+        return {**args, **copy.deepcopy(cached[0]), "_archive_preview_lease": None}
+    prepared = prepare_archive_refit_source(args, stop_event)
+    from cdmw.services.mesh_service_history import _history_value_retained_bytes
+    retained = {field: prepared[field] for field in (
+        "_archive_snapshot", "_archive_neutral_appearance", "_archive_appearance_warning", "_archive_material_reason")}
+    size = _history_value_retained_bytes(retained)
+    if size <= 64 * 1024 * 1024:
+        saved = copy.deepcopy(retained)
+        raise_if_cancelled(stop_event, "Hair reference loading cancelled")
+        with _hair_reference_lock:
+            for old in tuple(_hair_references):
+                if old[0] != key[0]:
+                    _hair_references.pop(old)
+            _hair_references[key] = (saved, size)
+            while len(_hair_references) > 4 or sum(row[1] for row in _hair_references.values()) > 128 * 1024 * 1024:
+                _hair_references.popitem(last=False)
+    return prepared
 
 
 def _run(worker, signal, stop_event):

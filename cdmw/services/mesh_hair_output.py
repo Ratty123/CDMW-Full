@@ -55,12 +55,18 @@ def validate_hair_output(snapshot):
     included = {part.target_index for part in snapshot.replacement_state.parts if part.included}
     active = {group["part"] for group in state["groups"]
               if any(guide["group"] == group["id"] for guide in state["guides"])}
+    active.update(lock["part"] for lock in state.get("locks", []) if lock["vertices"])
     if not included.intersection(active):
         raise ValueError("No authored hair section is included in the hairstyle.")
     if not state["converted"]:
         bound = {}
         for item in state["bindings"]:
             bound.setdefault(item["part"], set()).add(item["vertex"])
+        for lock in state.get("locks", []):
+            if lock["kind"] == "unresolved" and lock["part"] in included:
+                raise ValueError("Correct unresolved hair roots or mark scalp sections as rigid before exporting.")
+            if lock["kind"] == "rigid":
+                bound.setdefault(lock["part"], set()).update(lock["vertices"])
         for part in included.intersection(active):
             if bound.get(part, set()) != set(range(len(snapshot.mesh.submeshes[part].vertices))):
                 raise ValueError(f"Hair part {part + 1} needs complete guide binding before export.")
@@ -238,7 +244,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
         for item in packaged:
             if read_archive_entry_data(item, stop_event)[0] != wanted[item.path]:
                 raise ValueError(f"Hair package payload failed reparsing: {item.path}")
-        title = f"Damiane hair - {new_stem}"
+        title = f"Damiane - {state['style_name']}"
         description = "An additional authored hairstyle. In-game selection, save/load and motion checks are pending."
         manifest = {"format": "v1", "schema_version": 1, "kind": "archive_override_mod", "name": title,
             "title": title, "game": "Crimson Desert", "target_game": shared.target_game, "version": "1.0",

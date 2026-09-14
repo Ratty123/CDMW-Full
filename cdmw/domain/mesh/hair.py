@@ -7,7 +7,7 @@ import json
 import math
 from collections.abc import Mapping
 
-HAIR_STATE_VERSION = 1
+HAIR_STATE_VERSION = 2
 HAIR_MAX_BYTES = 64 * 1024 * 1024
 HAIR_MAX_VERTICES = 500_000
 
@@ -26,9 +26,14 @@ class HairAuthoringState:
 
 
 def hair_state_from_payload(value: object, *, allow_unbound: bool = True) -> HairAuthoringState | None:
+    return _validated_hair_state(value, allow_unbound=allow_unbound)[0]
+
+
+def _validated_hair_state(value: object, *, allow_unbound: bool = True):
+    """Return the normalized transaction with its immutable state without decoding twice."""
     if value is None:
-        return None
-    if not isinstance(value, Mapping) or type(value.get("version")) is not int or value.get("version") != HAIR_STATE_VERSION:
+        return None, None
+    if not isinstance(value, Mapping) or type(value.get("version")) is not int or value.get("version") not in {1, HAIR_STATE_VERSION}:
         raise ValueError("Unsupported hair authoring state version.")
     try:
         raw = json.dumps(dict(value), ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")).encode()
@@ -37,6 +42,20 @@ def hair_state_from_payload(value: object, *, allow_unbound: bool = True) -> Hai
     if len(raw) > HAIR_MAX_BYTES:
         raise ValueError("Hair authoring state exceeds the 64 MiB limit.")
     state = json.loads(raw)
+    normalized = state["version"] == 1 or any(key not in state for key in (
+        "startup_preset", "prepared_parts", "vertex_sources", "locks", "next_lock_id", "style_name"))
+    if state["version"] == 1:
+        # Keep old geometry and guides. Existing attachments need explicit card
+        # preparation; v1's nearest-guide guesses do not establish ownership.
+        state.update(version=2, locks=[], next_lock_id=1, style_name="My hairstyle")
+    state.setdefault("startup_preset", "bob")
+    if state["startup_preset"] not in ("cropped", "bob", "long", "ponytail", "empty"):
+        raise ValueError("Unknown hairstyle preset.")
+    state.setdefault("prepared_parts", [])
+    state.setdefault("vertex_sources", {})
+    state.setdefault("locks", [])
+    state.setdefault("next_lock_id", 1)
+    state.setdefault("style_name", "My hairstyle")
 
     def integer(number, limit):
         return type(number) is int and 0 <= number < limit
@@ -127,7 +146,8 @@ def hair_state_from_payload(value: object, *, allow_unbound: bool = True) -> Hai
         if (binding.get("part") != by_id[guide["group"]]["part"] or not integer(binding.get("vertex"), HAIR_MAX_VERTICES)
                 or not integer(binding.get("segment"), len(guide["points"]) - 1) or key in seen
                 or type(binding.get("t")) not in (int, float) or not 0 <= binding["t"] <= 1
-                or not rows([binding.get("offset")], 3, 1)):
+                or not rows([binding.get("offset")], 3, 1)
+                or not rows([binding.get("normal", [0., 0., 0.])], 3, 1)):
             raise ValueError("Invalid or ambiguous hair vertex binding.")
         seen.add(key)
     collisions = state.get("collisions")
@@ -138,4 +158,42 @@ def hair_state_from_payload(value: object, *, allow_unbound: bool = True) -> Hai
                 or type(item.get("follows_head", True)) is not bool
                 or type(item.get("radius")) not in (int, float) or not 0 < item["radius"] < 1000):
             raise ValueError("Invalid head, neck or shoulder collision capsule.")
-    return HairAuthoringState(raw)
+    locks = state["locks"]
+    prepared = state["prepared_parts"]
+    if not isinstance(prepared, list) or any(type(i) is not int or i not in parts for i in prepared) or len(set(prepared)) != len(prepared):
+        raise ValueError("Invalid prepared hair material parts.")
+    sources = state["vertex_sources"]
+    if not isinstance(sources, dict) or any(not key.isdigit() or int(key) not in parts or not isinstance(rows, list)
+            or len(rows) > HAIR_MAX_VERTICES or any(type(i) is not int or not -1 <= i < HAIR_MAX_VERTICES for i in rows)
+            for key, rows in sources.items()):
+        raise ValueError("Invalid original hair vertex provenance.")
+    if (not isinstance(locks, list) or len(locks) > 16_384 or not integer(state["next_lock_id"], 2**63)
+            or not isinstance(state["style_name"], str) or not state["style_name"].strip()
+            or len(state["style_name"].encode()) > 160):
+        raise ValueError("Invalid hair locks or hairstyle name.")
+    ids, owned = {}, set()
+    for lock in locks:
+        if (not isinstance(lock, dict) or not integer(lock.get("id"), state["next_lock_id"])
+                or lock["id"] == 0 or lock["id"] in ids or lock.get("part") not in parts
+                or lock.get("kind") not in {"generated", "bound", "rigid", "unresolved"}
+                or not integer(lock.get("cards", 0), 33)
+                or type(lock.get("width_scale")) not in (float, int) or not .02 <= lock["width_scale"] <= 20):
+            raise ValueError("Invalid hair lock identity or material assignment.")
+        guide = lock.get("guide")
+        if guide is not None and (not integer(guide, len(guides)) or by_id[guides[guide]["group"]]["part"] != lock["part"]):
+            raise ValueError("Hair lock refers to a missing or incompatible guide.")
+        vertices = lock.get("vertices")
+        if not isinstance(vertices, list) or len(vertices) > HAIR_MAX_VERTICES:
+            raise ValueError("Invalid hair lock geometry ownership.")
+        for vertex in vertices:
+            key = (lock["part"], vertex)
+            if not integer(vertex, HAIR_MAX_VERTICES) or key in owned:
+                raise ValueError("Ambiguous hair lock geometry ownership.")
+            owned.add(key)
+        ids[lock["id"]] = lock
+    for lock in locks:
+        pair = lock.get("mirrored")
+        if pair is not None and (not integer(pair, 2**63) or pair == lock["id"] or ids.get(pair, {}).get("mirrored") != lock["id"]):
+            raise ValueError("Hair symmetry requires an explicit mutual lock pair.")
+    canonical = json.dumps(state, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() if normalized else raw
+    return HairAuthoringState(canonical), state

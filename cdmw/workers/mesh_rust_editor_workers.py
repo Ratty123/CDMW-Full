@@ -219,14 +219,16 @@ class MeshRustProtocolWorker(QObject):
                 result_name = "transaction_result"
             elif event_name == "command_request":
                 if self.protocol_event.get("command") in {"refit_choose_archive", "hair_begin"}:
-                    from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source
-                    self.protocol_event["arguments"] = prepare_archive_refit_source(
+                    from cdmw.workers.mesh_archive_refit_worker import prepare_archive_refit_source, prepare_hair_reference_source
+                    prepare_source = prepare_hair_reference_source if self.protocol_event.get("command") == "hair_begin" else prepare_archive_refit_source
+                    self.protocol_event["arguments"] = prepare_source(
                         dict(self.protocol_event.get("arguments") or {}), self._stop_event,
                     )
                     args = self.protocol_event["arguments"]
                     if self.protocol_event.get("command") == "hair_begin" and args.get("_body_archive_entry") is not None:
-                        body = prepare_archive_refit_source({"_archive_entry": args["_body_archive_entry"],
-                            "_archive_dependencies": args["_body_archive_dependencies"]}, self._stop_event)
+                        body = prepare_hair_reference_source({"_archive_entry": args["_body_archive_entry"],
+                            "_archive_dependencies": args["_body_archive_dependencies"],
+                            "_hair_context_identity": args.get("_hair_context_identity")}, self._stop_event)
                         args["_body_snapshot"] = body["_archive_snapshot"]
                         args["_body_neutral_appearance"] = body["_archive_neutral_appearance"]
                         args["_body_preview_lease"] = body["_archive_preview_lease"]

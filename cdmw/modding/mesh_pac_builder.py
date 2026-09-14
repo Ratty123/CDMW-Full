@@ -1010,6 +1010,7 @@ def _build_pac_full_rebuild(
     output_descriptor_names: Sequence[str] = (),
     preserve_runtime_abi: bool = False,
     preserve_original_submesh_indices: Sequence[int] = (),
+    preserve_source_skin_record_indices: Sequence[int] = (),
 ) -> bytes:
     """Rebuild PAC geometry sections from scratch for topology-changing imports."""
     sections = _parse_par_sections(original_data)
@@ -1119,14 +1120,25 @@ def _build_pac_full_rebuild(
                 )
             donor_records.append(original_data[rec_off:rec_off + orig_sm.source_vertex_stride])
         donor_indices = _choose_pac_donor_indices(orig_sm, new_sm)
-        skin_export = pac_skin_export_enabled(orig_sm, new_sm, sm_idx)
+        preserve_skin = sm_idx in preserve_source_skin_record_indices
+        if preserve_skin:
+            if (not source_vertex_map_is_target_donor_lineage(orig_sm, new_sm)
+                    or (bool(orig_sm.bone_indices) != bool(new_sm.bone_indices))
+                    or (bool(orig_sm.bone_weights) != bool(new_sm.bone_weights))
+                    or (orig_sm.bone_indices and (len(new_sm.bone_indices) != len(new_sm.vertices)
+                        or len(new_sm.bone_weights) != len(new_sm.vertices)
+                        or any(tuple(new_sm.bone_indices[i]) != tuple(orig_sm.bone_indices[source])
+                               or tuple(new_sm.bone_weights[i]) != tuple(orig_sm.bone_weights[source])
+                               for i, source in enumerate(donor_indices))))):
+                raise ValueError(f"PAC part {sm_idx} cannot preserve unverified original skin records.")
+        skin_export = not preserve_skin and pac_skin_export_enabled(orig_sm, new_sm, sm_idx)
         normals = (
             new_sm.normals
             if len(new_sm.normals) == len(new_sm.vertices)
             else _compute_smooth_normals(new_sm.vertices, new_sm.faces)
         )
         new_uvs = new_sm.uvs if len(new_sm.uvs) == len(new_sm.vertices) else []
-        clean_shading_records = bool(
+        clean_shading_records = not preserve_skin and bool(
             getattr(new_sm, "clean_donor_shading_records", False)
             or getattr(working_mesh, "clean_donor_shading_records", False)
         )
@@ -1358,6 +1370,8 @@ def build_pac(mesh: ParsedMesh, original_data: bytes) -> bytes:  # noqa: F811
                 imported_mesh=working_mesh,
             )
         )
+        if preserve_skin:
+            clean_shading_records = False
 
     exact_skin_targets = _exact_pac_skin_weight_targets(working_mesh)
     any_skin_weights_changed = any(

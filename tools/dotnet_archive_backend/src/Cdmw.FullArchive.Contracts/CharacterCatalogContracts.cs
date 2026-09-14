@@ -10,7 +10,8 @@ public sealed record BuildCharacterCatalogResult(
 public sealed record CharacterCatalogSearchRequest(
     string SessionId, string Query = "", string View = "assets", string Tab = "bodies",
     string? Role = null, string? SourceGroup = null, string? BodyFamily = null,
-    string? Resolution = null, string? RelatedKey = null, int PageStart = 0, int PageSize = 72);
+    string? Resolution = null, string? RelatedKey = null, int PageStart = 0, int PageSize = 72,
+    string? SelectionPurpose = null);
 
 public sealed record CharacterCatalogRow(
     string Key, string View, string Role, string Label, string InternalName, string Path,

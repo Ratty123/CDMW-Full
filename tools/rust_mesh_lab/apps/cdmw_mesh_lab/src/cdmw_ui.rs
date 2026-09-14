@@ -253,7 +253,9 @@ impl LabApplication {
         let mut actions = Vec::new();
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
-        self.draw_cdmw_left_rail(root_ui, &mut actions);
+        if !self.hair.active() {
+            self.draw_cdmw_left_rail(root_ui, &mut actions);
+        }
         self.draw_cdmw_right_panels(root_ui, &mut actions);
         self.draw_cdmw_viewport(root_ui);
         actions
@@ -264,7 +266,8 @@ impl LabApplication {
         // while the host records it; cdmw_busy still guards edits until the reply.
         self.cdmw_pending_request
             .as_ref()
-            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection)) || self.hair.preparing()
+            .is_some_and(|pending| pending.origin != Some(CdmwRequestOrigin::Selection))
+            || self.hair.preparing()
     }
 
     fn draw_cdmw_session_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -398,8 +401,15 @@ impl LabApplication {
     ) {
         if ui
             .add_enabled(
-                !busy && authoring && self.cdmw_host_connected,
-                Button::new("Finish Edit Mesh"),
+                (!busy || self.hair.active())
+                    && !self.hair.pending_finish
+                    && authoring
+                    && self.cdmw_host_connected,
+                Button::new(if self.hair.pending_finish {
+                    "Saving hair before Finish…"
+                } else {
+                    "Finish Edit Mesh"
+                }),
             )
             .on_disabled_hover_text(if busy {
                 "Finish waits until the pending shadow transaction completes"
@@ -1817,7 +1827,10 @@ impl LabApplication {
                 REFIT_ARMOR_COLOUR,
                 format!("Bound · {} Parts", garments.len()),
             )
-            .on_hover_text(format!("Garments: {}", self.cdmw_morph_part_names(garments)));
+            .on_hover_text(format!(
+                "Garments: {}",
+                self.cdmw_morph_part_names(garments)
+            ));
         });
         let available_garments = if body.is_empty() {
             Vec::new()
@@ -2668,7 +2681,14 @@ impl LabApplication {
             .resizable(true)
             .show(root_ui, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
-                    ui.add_enabled_ui(!self.cdmw_busy(), |ui| self.draw_hair_controls(ui, actions));
+                    self.draw_hair_controls(ui, actions);
+                    if self.hair.active() {
+                        egui::CollapsingHeader::new("Parts")
+                            .show(ui, |ui| self.draw_hair_parts(ui, actions));
+                        egui::CollapsingHeader::new("Action History")
+                            .show(ui, |ui| self.draw_cdmw_history(ui));
+                        return;
+                    }
                     ui.add_enabled_ui(!busy, |ui| {
                         egui::Frame::group(ui.style()).show(ui, |ui| {
                             ui.set_width(ui.available_width());

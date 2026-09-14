@@ -2,9 +2,146 @@
 
 from PySide6.QtWidgets import QDialog
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
-from cdmw.ui.mesh_editor.archive_refit_flow import ArchiveRefitPickerController
-from cdmw.ui.mesh_editor.replace_from_archive_dialog import ReplaceFromArchivePickerDialog
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
+
+
+def build_hair_entry_bar(tab):
+    from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton
+    bar = QFrame(tab)
+    layout = QHBoxLayout(bar)
+    layout.setContentsMargins(4, 0, 4, 0)
+    button = QToolButton(bar)
+    button.setText("Hair")
+    button.setObjectName("MeshEditorHairMenu")
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    menu = QMenu(button)
+    create = menu.addMenu("Create hairstyle")
+    for preset in ("Cropped", "Bob", "Long", "Ponytail", "Empty"):
+        create.addAction(preset, lambda preset=preset: start_hair_workflow(tab, "generated", preset.casefold()))
+    menu.addAction("Edit hairstyle", lambda: start_hair_workflow(tab, "existing"))
+    button.setMenu(menu)
+    layout.addWidget(button)
+    tab.hair_entry_status = QLabel("", bar)
+    layout.addWidget(tab.hair_entry_status, 1)
+    return bar
+
+
+def start_hair_workflow(tab, mode, preset="bob"):
+    """Read the mounted barber registration and prepare a real hairstyle choice."""
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.domain.hair_registration import read_hair_choices
+    from cdmw.services.hair_registration import DAMIANE_MESH_PARAM
+    from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
+    from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
+    owner = tab.window()
+    if isinstance(owner, DetachedToolWindow):
+        owner = owner.owner
+    service = owner.archive.archive_catalogue_service
+    session = service.current_session
+    token = getattr(tab, "_hair_entry_generation", 0) + 1
+    tab._hair_entry_generation = token
+
+    def current():
+        return token == tab._hair_entry_generation and service.current_session is session
+
+    def failed(message):
+        if current():
+            tab.hair_entry_status.setText(str(message))
+
+    def choices_ready(choices):
+        if not current():
+            return
+        picker = HairReferencePickerDialog(owner, "hair", styles=tuple((c.index, c.prefab_stem) for c in choices))
+        picker.preparation_failed.connect(failed)
+        tab.hair_entry_status.setText("Choose a hairstyle to edit" if mode == "existing" else "Preparing hair materials…")
+
+        def selected(result):
+            if result != QDialog.Accepted or not current():
+                return
+            target = picker.selected_entry
+            if not owner.shell._prepare_mesh_editor_archive_launch(target):
+                return
+            tab._pending_hair_start = (target.identity, mode)
+            tab._pending_hair_preset = preset
+            tab.open_archive_session(target, archive_dependencies=picker.selected_dependencies)
+            owner.shell._activate_tool_widget(tab)
+            tab.hair_entry_status.setText("Loading character…")
+        picker.finished.connect(selected)
+        if mode == "generated":
+            # The first registered choice supplies compatibility and materials;
+            # the Rust workspace replaces its visible hair with the chosen preset.
+            picker.auto_choose_first = True
+        else:
+            picker.open()
+
+    def prepared(context):
+        if not current():
+            return
+        entry = context.dependencies.entry_for_path(DAMIANE_MESH_PARAM)
+        if entry is None:
+            failed("The mounted character is missing its barber registration. Refresh the catalogue.")
+            return
+        def read_choices():
+            if entry.orig_size > 2 * 1024 * 1024:
+                raise ValueError("The barber registration exceeds its supported size.")
+            return read_hair_choices(read_archive_entry_data(entry)[0])
+        owner._run_utility_task_when_idle(status_message="Loading Damiane's hairstyles…", task=read_choices,
+            on_complete=choices_ready, on_error=failed)
+
+    resolver = getattr(tab, "_hair_context_preparation", None)
+    if resolver is None:
+        resolver = HairContextPreparation(service, tab)
+        tab._hair_context_preparation = resolver
+    resolver.cancel()
+    for signal in (resolver.ready, resolver.failed):
+        try:
+            signal.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+    resolver.ready.connect(prepared)
+    resolver.failed.connect(failed)
+    tab.hair_entry_status.setText("Loading character…")
+    resolver.start()
+
+
+def begin_hair_context(tab, session, event):
+    """Return immediately; resume the ordered protocol queue after preparation."""
+    from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
+    owner = tab.window()
+    if isinstance(owner, DetachedToolWindow):
+        owner = owner.owner
+    target = tab._current_target_entry()
+    if target is None:
+        raise ValueError("Open a Damiane hairstyle before entering Hair.")
+    dependencies = getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)
+    previous = getattr(tab, "_hair_context_preparation", None)
+    if previous is not None:
+        previous.cancel()
+    else:
+        previous = HairContextPreparation(owner.archive.archive_catalogue_service, tab)
+        tab._hair_context_preparation = previous
+    # Disconnect only this operation's handlers; the cached resolver is reusable.
+    for signal in (previous.ready, previous.failed):
+        try:
+            signal.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+
+    def resume(context=None, error=""):
+        if (tab.standalone_rust_authoring_session is not session or tab.standalone_rust_closing
+                or tab._current_target_entry() is None or tab._current_target_entry().identity != target.identity):
+            return
+        args = {**dict(event.get("arguments") or {}), "_hair_context_ready": True,
+                "_target_entry": target, "_target_dependencies": dependencies}
+        args["start_preset"] = getattr(tab, "_pending_hair_preset", "bob")
+        tab._pending_hair_preset = "bob"
+        if context is not None:
+            args.update(context.arguments())
+        tab.standalone_rust_protocol_queue.insert(0, {**event, "arguments": args, "_hair_preparation_error": error})
+        tab._start_next_rust_protocol_worker()
+    previous.ready.connect(resume)
+    previous.failed.connect(lambda message: resume(error=message))
+    previous.start()
 
 
 def open_hair_texture_source(tab, path):
@@ -15,53 +152,26 @@ def open_hair_texture_source(tab, path):
 
 
 def prepare_hair_event(tab, session, event):
+    from cdmw.ui.mesh_editor.hair_reference_picker import HairReferencePickerDialog
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
-        raise ValueError("Open a Damiane hairstyle from the archive before creating hair.")
+        raise ValueError("Open a Damiane hairstyle before changing references.")
     service = owner.archive.archive_catalogue_service
     archive_session = service.current_session
-    dependencies = archive_workflow_dependency_context(owner, target)
-    picker = ReplaceFromArchivePickerDialog(
-        service, archive_session, target_entry=target, target_dependencies=dependencies,
-        refit_role="hair", parent=owner,
-    )
-    controller = getattr(tab, "_hair_picker", None)
-    if controller is None:
-        controller = ArchiveRefitPickerController(owner)
-        tab._hair_picker = controller
-    controller._active_picker = picker
-    try:
+    arguments = {**dict(event.get("arguments") or {}), "_target_entry": target,
+                 "_target_dependencies": getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)}
+    for role, entry_key, dependencies_key in (("head", "_archive_entry", "_archive_dependencies"),
+                                             ("body", "_body_archive_entry", "_body_archive_dependencies")):
+        picker = HairReferencePickerDialog(owner, role)
         if picker.exec() != QDialog.Accepted:
-            raise ValueError("Head selection cancelled; the current hairstyle is unchanged.")
+            raise ValueError("Reference selection cancelled; the current hairstyle is unchanged.")
         if (service.current_session is not archive_session or tab.standalone_rust_authoring_session is not session
-                or tab.standalone_rust_closing or tab._current_target_entry().identity != target.identity):
+                or tab.standalone_rust_closing or tab._current_target_entry() is None
+                or tab._current_target_entry().identity != target.identity):
             raise ValueError("The editor or archive changed during reference selection.")
-        arguments = {
-            **dict(event.get("arguments") or {}), "_archive_entry": picker.selected_entry,
-            "_archive_dependencies": picker.selected_dependencies,
-            "_target_entry": target, "_target_dependencies": dependencies,
-        }
-        # Keep actual upper-body geometry as a separate reference. It is never
-        # appended to the output part table or used as a generated hair donor.
-        body_picker = ReplaceFromArchivePickerDialog(service, archive_session,
-            target_entry=target, target_dependencies=dependencies, refit_role="body", parent=owner)
-        body_picker.setWindowTitle("Choose Damiane Body for Neck and Shoulder Reference")
-        body_picker.choose_button.setText("Use Body Reference")
-        controller._active_picker = body_picker
-        try:
-            if body_picker.exec() != QDialog.Accepted:
-                raise ValueError("Body reference selection cancelled; the current mesh is unchanged.")
-            if (service.current_session is not archive_session or tab.standalone_rust_authoring_session is not session
-                    or tab.standalone_rust_closing):
-                raise ValueError("The editor or archive changed during body selection.")
-            arguments["_body_archive_entry"] = body_picker.selected_entry
-            arguments["_body_archive_dependencies"] = body_picker.selected_dependencies
-        finally:
-            controller._retain_picker_until_idle(body_picker)
-        return {**event, "arguments": arguments}
-    finally:
-        controller._active_picker = None
-        controller._retain_picker_until_idle(picker)
+        arguments[entry_key] = picker.selected_entry
+        arguments[dependencies_key] = picker.selected_dependencies
+    return {**event, "arguments": arguments}

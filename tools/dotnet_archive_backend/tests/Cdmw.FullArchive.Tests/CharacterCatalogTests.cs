@@ -95,8 +95,22 @@ internal static class CharacterCatalogTests
 
         CharacterCatalogSnapshot Build(CancellationToken token = default) => ArchiveCharacterCatalogBuilder.Build(
             fixture.Root, "fixture-generation", inventory, entry => bytes[entry.EntryId], token);
+        for (var i = 0; i < 80; i++)
+        {
+            Add($"character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_{i:0000}.pac", [1]);
+            Add($"character/model/1_pc/2_phw/armor/cd_phw_00_ub_{i:0000}.pac", [1]);
+        }
+        Add("character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac", [1]);
+        Add("character/model/1_pc/2_phw/nude/cd_phw_00_fuzz_00_0001_damian.pac", [1]);
+        Xml("character/modelproperty/1_pc/2_phw/nude/cd_phw_00_nude_00_0001_damian.pac_xml", "<Mesh _subMeshName=\"cd_phw_nude\"/><Mesh _subMeshName=\"cd_phw_head\"/>");
         var snapshot = Build();
         var catalogue = new ArchiveCharacterCatalog(snapshot);
+        var hairHeads = catalogue.Search(new("fixture", Tab: "all", SelectionPurpose: "hair_head", PageStart: 72));
+        Check(hairHeads.TotalMatches == 80 && hairHeads.Rows.Count == 8 && hairHeads.Rows.All(row => row.Role == "head" && row.BodyFamily == "2_phw"),
+            "hair reference filtering did not precede pagination");
+        var hairBodies = catalogue.Search(new("fixture", Tab: "all", SelectionPurpose: "hair_body"));
+        Check(hairBodies.TotalMatches == 1 && hairBodies.Rows.Single().Path.EndsWith("cd_phw_00_nude_00_0001_damian.pac"),
+            "body reference selector admitted armor, fuzz or another skeleton family");
         var hero = catalogue.Search(new("fixture", Query: "البطل", View: "appearances", Tab: "all"));
         Check(hero.Rows.Count == 2 && hero.Rows.All(row => row.Label == "Test Hero"), "validated multilingual character name join failed");
         var details = catalogue.GetRequired(hero.Rows.Single(row => row.Role == "body").Key);

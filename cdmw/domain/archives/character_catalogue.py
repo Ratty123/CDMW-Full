@@ -57,6 +57,7 @@ class CharacterCatalogSearchRequest:
     related_key: str | None = None
     page_start: int = 0
     page_size: int = 72
+    selection_purpose: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

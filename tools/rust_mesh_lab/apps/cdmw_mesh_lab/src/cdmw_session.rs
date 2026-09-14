@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
 use cdmw_formats::{MeshDocument, MeshFormat, MeshLod, SourceRange, Submesh};
-use cdmw_mesh::{Provenance, WorkingMesh};
 use cdmw_mesh::hair::HairState;
+use cdmw_mesh::{Provenance, WorkingMesh};
 use cdmw_texture::{DdsMetadata, TextureRole, inspect_dds};
 use crossbeam_channel::{Receiver, Sender, TryRecvError, bounded};
 use serde::{Deserialize, Serialize, de::IgnoredAny};
@@ -780,7 +780,7 @@ impl CdmwBridge {
                 "host_topology_v1",
                 "host_layers_v1",
                 "host_morph_refit_v1",
-                "hair_authoring_v1",
+                "hair_authoring_v2",
                 "control_contract_v2"
             ]
         }))?;
@@ -816,39 +816,172 @@ impl CdmwBridge {
         Ok(request_id)
     }
 
-    pub fn submit_hair_transaction(&mut self, document: &MeshDocument, hair: &HairState,
-                                   label: &str) -> Result<u64, SessionError> {
-        hair.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
-        let lod = document.lods.get(self.source_lod_index)
+    pub fn submit_hair_transaction(
+        &mut self,
+        document: &MeshDocument,
+        hair: &HairState,
+        label: &str,
+    ) -> Result<u64, SessionError> {
+        hair.validate()
+            .map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+        let lod = document
+            .lods
+            .get(self.source_lod_index)
             .ok_or_else(|| SessionError::InvalidPayload("missing hair LOD".into()))?;
-        let candidate = Candidate { schema: CANDIDATE_SCHEMA, session_id: self.manifest.session_id.clone(),
-            hair: Some(hair.clone()), selection: CandidateSelection::default(),
-            submeshes: lod.submeshes.iter().map(|part| CandidateSubmesh {
-                positions: part.positions.clone(), normals: part.normals.clone(),
-                uvs: part.uvs.clone(), indices: part.indices.clone(),
-            }).collect() };
+        let candidate = Candidate {
+            schema: CANDIDATE_SCHEMA,
+            session_id: self.manifest.session_id.clone(),
+            hair_update: None,
+            hair: Some(hair.clone()),
+            selection: CandidateSelection::default(),
+            submeshes: lod
+                .submeshes
+                .iter()
+                .map(|part| CandidateSubmesh {
+                    positions: part.positions.clone(),
+                    normals: part.normals.clone(),
+                    uvs: part.uvs.clone(),
+                    indices: part.indices.clone(),
+                    source_vertices: Some(part.source_vertex_indices.clone()),
+                })
+                .collect(),
+        };
         let request_id = self.take_request_id();
-        self.outbound.try_send(Outbound::HairTransaction { request_id, base_revision: self.shadow_revision,
-            label: label.to_owned(), candidate })
+        self.outbound
+            .try_send(Outbound::HairTransaction {
+                request_id,
+                base_revision: self.shadow_revision,
+                label: label.to_owned(),
+                candidate,
+            })
             .map_err(|e| SessionError::Protocol(format!("outbound queue is busy: {e}")))?;
         Ok(request_id)
     }
 
+    pub fn submit_hair_update(
+        &mut self,
+        document: &MeshDocument,
+        hair: &HairState,
+        before: &MeshDocument,
+        before_hair: Option<&HairState>,
+        label: &str,
+    ) -> Result<u64, SessionError> {
+        let lod = document
+            .lods
+            .get(self.source_lod_index)
+            .ok_or_else(|| SessionError::InvalidPayload("missing hair LOD".into()))?;
+        let previous = before
+            .lods
+            .get(self.source_lod_index)
+            .ok_or_else(|| SessionError::InvalidPayload("missing previous hair LOD".into()))?;
+        let mut changed = Vec::new();
+        let mut vertex_updates = Vec::new();
+        for (i, part) in lod.submeshes.iter().enumerate() {
+            let old = previous.submeshes.get(i);
+            if old.is_some_and(|b| {
+                part.positions == b.positions
+                    && part.normals == b.normals
+                    && part.indices == b.indices
+                    && part.uvs == b.uvs
+            }) {
+                continue;
+            }
+            if let Some(old) = old.filter(|b| {
+                part.positions.len() == b.positions.len()
+                    && part.normals.len() == b.normals.len()
+                    && part.indices == b.indices
+                    && part.uvs == b.uvs
+            }) {
+                let vertices: Vec<_> = (0..part.positions.len())
+                    .filter(|v| {
+                        part.positions[*v] != old.positions[*v]
+                            || part.normals[*v] != old.normals[*v]
+                    })
+                    .collect();
+                vertex_updates.push(json!({"part":i,"indices":vertices,
+                    "positions":vertices.iter().map(|v|part.positions[*v]).collect::<Vec<_>>(),
+                    "normals":vertices.iter().map(|v|part.normals[*v]).collect::<Vec<_>>() }));
+            } else {
+                changed.push((i, part));
+            }
+        }
+        let mut reuse = Vec::new();
+        if let Some(old) = before_hair {
+            if old.bindings == hair.bindings {
+                reuse.push("bindings");
+            }
+            if old.locks == hair.locks {
+                reuse.push("locks");
+            }
+            if old.guides == hair.guides {
+                reuse.push("guides");
+            }
+            if old.groups == hair.groups {
+                reuse.push("groups");
+            }
+            if old.vertex_sources == hair.vertex_sources {
+                reuse.push("vertex_sources");
+            }
+            if old.prepared_parts == hair.prepared_parts {
+                reuse.push("prepared_parts");
+            }
+        }
+        let candidate = Candidate {
+            schema: CANDIDATE_SCHEMA,
+            session_id: self.manifest.session_id.clone(),
+            selection: CandidateSelection::default(),
+            hair: Some(hair.clone()),
+            hair_update: Some(
+                json!({"version":2,"reference":hair.scalp.identity,"parts":changed.iter().map(|(i,_)|*i).collect::<Vec<_>>(),"vertex_updates":vertex_updates,"base_hair_revision":before_hair.map(|h|h.revision),"reuse":reuse}),
+            ),
+            submeshes: changed
+                .iter()
+                .map(|(_, p)| CandidateSubmesh {
+                    positions: p.positions.clone(),
+                    normals: p.normals.clone(),
+                    indices: p.indices.clone(),
+                    uvs: p.uvs.clone(),
+                    source_vertices: Some(p.source_vertex_indices.clone()),
+                })
+                .collect(),
+        };
+        let request_id = self.take_request_id();
+        self.outbound
+            .try_send(Outbound::HairTransaction {
+                request_id,
+                base_revision: self.shadow_revision,
+                label: label.into(),
+                candidate,
+            })
+            .map_err(|e| SessionError::Protocol(format!("hair publication queue is full: {e}")))?;
+        Ok(request_id)
+    }
+
     pub fn hair_from_state(&self, state: &Value) -> Result<Option<HairState>, SessionError> {
-        let Some(reference) = state.get("hair").and_then(|h| h.get("file")) else { return Ok(None); };
+        let Some(reference) = state.get("hair").and_then(|h| h.get("file")) else {
+            return Ok(None);
+        };
         let reference: FileReference = serde_json::from_value(reference.clone())?;
-        if reference.data_type != "hair_authoring_json" || reference.byte_length > 64 * 1024 * 1024 {
-            return Err(SessionError::InvalidPayload("invalid hair rest-state reference".into()));
+        if reference.data_type != "hair_authoring_json" || reference.byte_length > 64 * 1024 * 1024
+        {
+            return Err(SessionError::InvalidPayload(
+                "invalid hair rest-state reference".into(),
+            ));
         }
         let data = read_json_reference(&self.root, &reference)?;
         let hair: HairState = serde_json::from_slice(&data)?;
         if hair.version != cdmw_mesh::hair::HAIR_VERSION {
-            return Err(SessionError::InvalidPayload("unsupported hair rest-state version".into()));
+            return Err(SessionError::InvalidPayload(
+                "unsupported hair rest-state version".into(),
+            ));
         }
         if hair.bound_reference == hair.scalp.identity {
-            hair.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+            hair.validate()
+                .map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
         } else {
-            hair.scalp.validate().map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
+            hair.scalp
+                .validate()
+                .map_err(|e| SessionError::InvalidPayload(e.to_string()))?;
         }
         Ok(Some(hair))
     }
@@ -2289,7 +2422,9 @@ fn reject_unexpected_initial_files(
     if let Some(reference) = manifest.state.get("hair").and_then(|h| h.get("file")) {
         let reference: FileReference = serde_json::from_value(reference.clone())?;
         if reference.path != "hair-state.json" || reference.data_type != "hair_authoring_json" {
-            return Err(SessionError::InvalidManifest("invalid initial hair state reference".into()));
+            return Err(SessionError::InvalidManifest(
+                "invalid initial hair state reference".into(),
+            ));
         }
         let _: HairState = serde_json::from_slice(&read_json_reference(root, &reference)?)?;
         allowed.insert(reference.path);
@@ -2584,10 +2719,21 @@ fn spawn_output_writer(
             for outbound in receiver {
                 let result = match outbound {
                     Outbound::Message(value) => write_control_message(&mut writer, &value),
-                    Outbound::HairTransaction { request_id, base_revision, label, candidate } => {
-                        write_candidate(&root, &session_id, process_generation, request_id,
-                                        base_revision, &label, &candidate, &mut writer)
-                    }
+                    Outbound::HairTransaction {
+                        request_id,
+                        base_revision,
+                        label,
+                        candidate,
+                    } => write_candidate(
+                        &root,
+                        &session_id,
+                        process_generation,
+                        request_id,
+                        base_revision,
+                        &label,
+                        &candidate,
+                        &mut writer,
+                    ),
                     Outbound::Transaction {
                         request_id,
                         base_revision,
@@ -2632,6 +2778,8 @@ struct Candidate {
     selection: CandidateSelection,
     #[serde(skip_serializing_if = "Option::is_none")]
     hair: Option<HairState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hair_update: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2640,6 +2788,8 @@ struct CandidateSubmesh {
     normals: Vec<[f32; 3]>,
     uvs: Vec<[f32; 2]>,
     indices: Vec<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_vertices: Option<Vec<i32>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -2663,13 +2813,48 @@ fn write_transaction(
     writer: &mut impl Write,
 ) -> Result<(), SessionError> {
     let candidate = build_candidate(session_id, document, mesh, lod_index)?;
-    write_candidate(root, session_id, process_generation, request_id, base_revision, label, &candidate, writer)
+    write_candidate(
+        root,
+        session_id,
+        process_generation,
+        request_id,
+        base_revision,
+        label,
+        &candidate,
+        writer,
+    )
 }
 
-fn write_candidate(root: &Path, session_id: &str, process_generation: u64,
-                   request_id: u64, base_revision: u64, label: &str,
-                   candidate: &Candidate, writer: &mut impl Write) -> Result<(), SessionError> {
-    let bytes = serde_json::to_vec(&candidate)?;
+fn write_candidate(
+    root: &Path,
+    session_id: &str,
+    process_generation: u64,
+    request_id: u64,
+    base_revision: u64,
+    label: &str,
+    candidate: &Candidate,
+    writer: &mut impl Write,
+) -> Result<(), SessionError> {
+    let bytes = if candidate.hair_update.is_some() {
+        let mut value = serde_json::to_value(candidate)?;
+        if let Some(hair) = value.get_mut("hair").and_then(Value::as_object_mut) {
+            for field in ["scalp", "references", "collisions"] {
+                hair.remove(field);
+            }
+            if let Some(fields) = candidate
+                .hair_update
+                .as_ref()
+                .and_then(|u| u["reuse"].as_array())
+            {
+                for field in fields.iter().filter_map(Value::as_str) {
+                    hair.remove(field);
+                }
+            }
+        }
+        serde_json::to_vec(&value)?
+    } else {
+        serde_json::to_vec(candidate)?
+    };
     if bytes.len() as u64 > MAX_PAYLOAD_BYTES {
         return Err(SessionError::InvalidPayload(
             "candidate exceeds 512 MiB".to_owned(),
@@ -2721,6 +2906,7 @@ fn build_candidate(
         .submeshes
         .iter()
         .map(|submesh| CandidateSubmesh {
+            source_vertices: None,
             positions: submesh.positions.clone(),
             normals: submesh.normals.clone(),
             uvs: submesh.uvs.clone(),
@@ -2753,6 +2939,7 @@ fn build_candidate(
         submeshes,
         selection: candidate_selection(mesh)?,
         hair: None,
+        hair_update: None,
     })
 }
 
@@ -3937,5 +4124,68 @@ mod tests {
             .expect("publish initial state snapshot");
         assert!(bridge.prepare_state_snapshot(state).is_err());
         assert_eq!(bridge.shadow_revision(), 4);
+    }
+    #[test]
+    fn hair_incremental_wire_reuses_references_and_publishes_only_changed_vertices() {
+        let root = tempdir().unwrap();
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "hair-wire", 1, 1);
+        let (tx, rx) = bounded(8);
+        bridge.outbound = tx;
+        let old:HairState=serde_json::from_value(json!({"version":2,"revision":1,"scalp":{"identity":"head","positions":[[0,0,0],[1,0,0],[0,1,0]],"triangles":[[0,1,2]]},
+            "bound_reference":"head","reference_parts":[],"converted":false,"template":{"path":"hair.pac","sha256":"a".repeat(64),"target_stem":"hair-test","character":"Damiane","physics_profile":"Hair"},
+            "groups":[{"id":0,"name":"Hair","part":0,"mode":"generated","width":0.01,"cards_per_guide":1,"uv_rect":[0,0,1,1]}],"guides":[],"bindings":[],"collisions":[]})).unwrap();
+        let mut hair = old.clone();
+        hair.revision += 1;
+        let original = document();
+        let mut edited = original.clone();
+        edited.lods[0].submeshes[0].positions[1][0] += 0.02;
+        edited.lods[0].submeshes[0].normals[1] = [0.0, 1.0, 0.0];
+        bridge
+            .submit_hair_update(&edited, &hair, &original, Some(&old), "Move lock")
+            .unwrap();
+        let Outbound::HairTransaction {
+            request_id,
+            base_revision,
+            label,
+            candidate,
+        } = rx.recv().unwrap()
+        else {
+            panic!("Missing Hair transaction")
+        };
+        let mut output = Vec::new();
+        write_candidate(
+            root.path(),
+            "hair-wire",
+            1,
+            request_id,
+            base_revision,
+            &label,
+            &candidate,
+            &mut output,
+        )
+        .unwrap();
+        let envelope: Value = serde_json::from_slice(&output).unwrap();
+        let wire: Value = serde_json::from_slice(
+            &fs::read(
+                root.path()
+                    .join(envelope["candidate"]["path"].as_str().unwrap()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(wire["hair_update"]["parts"], json!([]));
+        assert_eq!(
+            wire["hair_update"]["vertex_updates"][0]["indices"],
+            json!([1])
+        );
+        assert_eq!(
+            wire["hair_update"]["vertex_updates"][0]["normals"],
+            json!([[0.0, 1.0, 0.0]])
+        );
+        assert_eq!(wire["hair_update"]["base_hair_revision"], 1);
+        assert_eq!(wire["submeshes"], json!([]));
+        assert!(wire["hair"].get("scalp").is_none());
+        assert!(wire["hair"].get("bindings").is_none());
+        assert!(wire["hair"].get("guides").is_none());
     }
 }
