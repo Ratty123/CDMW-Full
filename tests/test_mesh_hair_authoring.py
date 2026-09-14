@@ -98,6 +98,17 @@ def test_state_is_immutable_and_unbound_head_can_be_saved_until_explicit_rebind(
         hair_state_from_payload(value, allow_unbound=False)
 
 
+def test_acknowledgement_revision_does_not_decode_the_hair_document(monkeypatch):
+    from cdmw.domain.mesh import hair
+
+    state = hair_state_from_payload({**payload(), "revision": 37})
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Reading a revision must not decode scalp, guides or bindings")
+    monkeypatch.setattr(hair.json, "loads", forbidden)
+    assert state.revision == 37
+    assert state.revision == 37
+
+
 @pytest.mark.parametrize("mutate", [
     lambda p: p.update(version=True),
     lambda p: p["guides"][0]["points"][0].__setitem__(0, .1),

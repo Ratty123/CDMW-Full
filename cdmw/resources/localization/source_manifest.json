@@ -42211,7 +42211,22 @@
         },
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 46,
+          "line": 40,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/mesh_archive_refit_worker.py",
+          "line": 44,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/mesh_archive_refit_worker.py",
+          "line": 52,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/mesh_archive_refit_worker.py",
+          "line": 60,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -108201,8 +108216,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 187,
-          "sink": "_error"
+          "line": 191,
+          "sink": "_preparation_failed"
         }
       ]
     },

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 from collections.abc import Mapping
@@ -15,6 +15,7 @@ HAIR_MAX_VERTICES = 500_000
 @dataclass(frozen=True, slots=True)
 class HairAuthoringState:
     canonical: bytes
+    _revision: int | None = field(default=None, init=False, repr=False, compare=False)
 
     @property
     def payload(self) -> dict:
@@ -22,7 +23,11 @@ class HairAuthoringState:
 
     @property
     def revision(self) -> int:
-        return self.payload["revision"]
+        if self._revision is None:
+            # Preserve construction from canonical bytes, while normal validated
+            # transactions already know their revision without decoding geometry.
+            object.__setattr__(self, "_revision", self.payload["revision"])
+        return self._revision
 
 
 def hair_state_from_payload(value: object, *, allow_unbound: bool = True) -> HairAuthoringState | None:
@@ -196,4 +201,6 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
         if pair is not None and (not integer(pair, 2**63) or pair == lock["id"] or ids.get(pair, {}).get("mirrored") != lock["id"]):
             raise ValueError("Hair symmetry requires an explicit mutual lock pair.")
     canonical = json.dumps(state, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() if normalized else raw
-    return HairAuthoringState(canonical), state
+    immutable = HairAuthoringState(canonical)
+    object.__setattr__(immutable, "_revision", state["revision"])
+    return immutable, state

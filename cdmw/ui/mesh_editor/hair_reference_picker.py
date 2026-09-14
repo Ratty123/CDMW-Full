@@ -26,6 +26,7 @@ class HairReferencePickerDialog(QDialog):
             raise ValueError("Load the archive catalogue first.")
         self._session_id = session.session_id
         self._closed, self._generation, self._page_start = False, 1, 0
+        self._preparation_generation = 0
         self._requests, self._rows, self._details = {}, {}, {}
         self._styles = tuple(styles)
         self.auto_choose_first = False
@@ -70,10 +71,10 @@ class HairReferencePickerDialog(QDialog):
             settings=owner.archive._current_model_preview_render_settings(), parent=self)
         self._preview.thumbnail_ready.connect(self._thumbnail)
         self._preview.package_ready.connect(self._package)
-        self._preview.failed.connect(lambda _key, message: self.status.setText(message) if not self._closed else None)
+        self._preview.failed.connect(lambda key, message: self.status.setText(message) if not self._closed and key == self._key() else None)
         self._prepare = CharacterPreviewPreparation(self._service, self)
         self._prepare.ready.connect(self._prepared)
-        self._prepare.failed.connect(lambda token, message: self._error(message) if token == self._generation else None)
+        self._prepare.failed.connect(self._preparation_failed)
         self._service.result_ready.connect(self._result)
         self._service.request_failed.connect(self._failed)
         self._service.session_published.connect(self._session_changed)
@@ -95,6 +96,7 @@ class HairReferencePickerDialog(QDialog):
     def _search(self):
         if self._closed: return
         self._generation += 1
+        self._preparation_generation += 1
         for request in self._requests: self._service.cancel(request)
         self._requests.clear(); self._rows.clear(); self._preview.clear_page()
         self._prepare.cancel(); self.grid.clear(); self.choose.setEnabled(False)
@@ -160,6 +162,7 @@ class HairReferencePickerDialog(QDialog):
         return item.data(Qt.UserRole) if item is not None else None
 
     def _select(self, *_):
+        self._preparation_generation += 1
         self._prepare.cancel(); self.choose.setEnabled(False)
         key = self._key()
         if key is None or self._closed: return
@@ -178,13 +181,14 @@ class HairReferencePickerDialog(QDialog):
     def _choose(self):
         detail = self._details.get(self._key())
         if detail is None: return
+        self._preparation_generation += 1
         self.choose.setEnabled(False); self.status.setText("Preparing character materials…")
-        self._prepare.start(detail, self._generation)
+        self._prepare.start(detail, self._preparation_generation)
 
     def _prepared(self, token, inputs):
-        if self._closed or token != self._generation or inputs.detail.row.key != self._key(): return
+        if self._closed or token != self._preparation_generation or inputs.detail.row.key != self._key(): return
         if not inputs.dependencies_complete or len(inputs.detail.models) != 1:
-            self._error("This choice has incomplete or ambiguous dependencies."); return
+            self._preparation_failed(token, "This choice has incomplete or ambiguous dependencies."); return
         entry = inputs.entries_by_id[inputs.detail.models[0].entry_id]
         paths, names = {}, {}
         for item in inputs.entries:
@@ -193,6 +197,12 @@ class HairReferencePickerDialog(QDialog):
         self.selected_entry = entry
         self.selected_dependencies = ArchiveWorkflowDependencyContext(entry, inputs.entries, paths, names, True)
         self.accept()
+
+    def _preparation_failed(self, token, message):
+        if self._closed or token != self._preparation_generation: return
+        detail = self._details.get(self._key())
+        self.choose.setEnabled(detail is not None and len(detail.models) == 1)
+        self._error(message)
 
     def _thumbnail(self, key, result):
         if self._closed or not result.thumbnail_path: return
