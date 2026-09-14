@@ -8,10 +8,11 @@ import sys
 import time
 import ctypes
 from contextlib import contextmanager, nullcontext
+from collections.abc import Mapping
 from ctypes import wintypes
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import Mapping, Sequence
+from typing import Sequence
 from uuid import uuid4
 
 from cdmw.domain.mesh import MeshEditResult
@@ -94,6 +95,7 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             snapshot.archive_refit_context,
             snapshot.replacement_state,
             snapshot.hair_state,
+            snapshot.hair_vertex_deltas,
         )
     )
     if snapshot.native_submesh_snapshot is not None:
@@ -107,37 +109,41 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
 
 
 def _history_value_retained_bytes(value: object, seen: set[int] | None = None) -> int:
-    if value is None:
-        return 0
+    """Count owned Python storage once without recursing per mesh coordinate."""
     if seen is None:
         seen = set()
-    value_id = id(value)
-    if value_id in seen:
-        return 0
-    seen.add(value_id)
-    try:
-        retained = sys.getsizeof(value)
-    except TypeError:
-        retained = 0
-    if isinstance(value, Mapping):
-        return retained + sum(
-            _history_value_retained_bytes(key, seen) + _history_value_retained_bytes(item, seen)
-            for key, item in value.items()
-        )
-    if isinstance(value, range):
-        return retained
-    if isinstance(value, (tuple, list, set, frozenset)):
-        return retained + sum(_history_value_retained_bytes(item, seen) for item in value)
-    raw_attrs = getattr(value, "__dict__", None)
-    if isinstance(raw_attrs, Mapping):
-        retained += _history_value_retained_bytes(raw_attrs, seen)
-    slots = getattr(type(value), "__slots__", ())
-    if isinstance(slots, str):
-        slots = (slots,)
-    for name in slots:
-        if name == "__dict__" or not hasattr(value, name):
+    pending = [value]
+    retained = 0
+    scalar_types = (bool, int, float, str, bytes, complex)
+    while pending:
+        item = pending.pop()
+        if item is None:
             continue
-        retained += _history_value_retained_bytes(getattr(value, name), seen)
+        identity = id(item)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        try:
+            retained += sys.getsizeof(item)
+        except TypeError:
+            pass
+        if type(item) in scalar_types:
+            continue
+        if isinstance(item, (tuple, list, set, frozenset)):
+            pending.extend(item)
+        elif isinstance(item, Mapping):
+            pending.extend(item.keys())
+            pending.extend(item.values())
+        elif not isinstance(item, range):
+            attrs = getattr(item, "__dict__", None)
+            if isinstance(attrs, Mapping):
+                pending.append(attrs)
+            slots = getattr(type(item), "__slots__", ())
+            if isinstance(slots, str):
+                slots = (slots,)
+            for name in slots:
+                if name != "__dict__" and hasattr(item, name):
+                    pending.append(getattr(item, name))
     return retained
 
 

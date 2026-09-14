@@ -23,7 +23,7 @@ RUST_MESH_PROVENANCE_SCHEMA = "cdmw_rust_mesh_editor_build_provenance_v1"
 RUST_MESH_PROVENANCE_FILE = "cdmw_mesh_lab.manifest.json"
 RUST_MESH_CONTROL_CONTRACT_FILE = "cdmw_mesh_lab.control-contract.json"
 RUST_MESH_CONTROL_CONTRACT_SCHEMA = "cdmw_rust_mesh_editor_control_contract_v2"
-RUST_HAIR_AUTHORING_CAPABILITY = "hair_authoring_v1"
+RUST_HAIR_AUTHORING_CAPABILITY = "hair_authoring_v2"
 RUST_MESH_REQUIRED_CAPABILITIES = (
     "embedded_child_window_v1",
     "rust_preview_runtime_v1",

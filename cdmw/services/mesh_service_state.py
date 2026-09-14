@@ -27,6 +27,19 @@ class _MeshVertexPositionDelta:
 
 
 @dataclass(frozen=True, slots=True)
+class _MeshHairVertexDelta:
+    """Hair deformation history retains authored card normals, never smooths seams."""
+
+    submesh_index: int
+    vertex_indices: tuple[int, ...]
+    positions: tuple[tuple[float, float, float], ...]
+    normals: tuple[tuple[float, float, float], ...]
+    tangents: tuple[tuple[float, ...], ...]
+    tangent_signs: tuple[float, ...]
+    tangent_report: object | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class _MeshGeometryLayer:
     layer_id: str
     name: str
@@ -81,6 +94,7 @@ class _MeshHistorySnapshot:
     restore_replacement_state: bool = False
     hair_state: HairAuthoringState | None = None
     restore_hair_state: bool = False
+    hair_vertex_deltas: tuple[_MeshHairVertexDelta, ...] = ()
 
 
 @dataclass(slots=True)

@@ -7,7 +7,11 @@ use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror::Error;
 
-pub const HAIR_VERSION: u32 = 1;
+pub const HAIR_VERSION: u32 = 2;
+#[path = "hair_locks.rs"]
+pub mod locks;
+#[path = "hair_surface.rs"]
+pub mod surface;
 pub const MAX_GUIDES: usize = 4096;
 pub const MAX_POINTS: usize = 64;
 pub const MAX_HAIR_VERTICES: usize = 500_000;
@@ -207,6 +211,8 @@ pub struct VertexBinding {
     pub t: f32,
     /// Offset expressed in the rest segment's stable orthonormal frame.
     pub offset: [f32; 3],
+    #[serde(default)]
+    pub normal: [f32; 3],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -245,6 +251,18 @@ pub struct HairState {
     pub bindings: Vec<VertexBinding>,
     pub collisions: Vec<Capsule>,
     pub converted: bool,
+    #[serde(default)]
+    pub locks: Vec<locks::HairLock>,
+    #[serde(default = "locks::first_id")]
+    pub next_lock_id: u64,
+    #[serde(default = "locks::default_name")]
+    pub style_name: String,
+    #[serde(default)]
+    pub startup_preset: String,
+    #[serde(default)]
+    pub prepared_parts: Vec<u32>,
+    #[serde(default)]
+    pub vertex_sources: std::collections::BTreeMap<u32, Vec<i32>>,
 }
 
 impl HairState {
@@ -333,7 +351,11 @@ impl HairState {
             require(
                 binding.t.is_finite()
                     && (0.0..=1.0).contains(&binding.t)
-                    && binding.offset.iter().all(|v| v.is_finite()),
+                    && binding
+                        .offset
+                        .iter()
+                        .chain(&binding.normal)
+                        .all(|v| v.is_finite()),
                 "invalid vertex binding",
             )?;
             require(
@@ -343,6 +365,7 @@ impl HairState {
                 "binding crosses hair groups",
             )?;
         }
+        locks::validate(self)?;
         require(
             self.collisions.len() <= 64
                 && self.collisions.iter().all(|c| {
@@ -431,7 +454,7 @@ pub fn plant_guide(
     let tie = Vec3::new(
         (min.x + max.x) * 0.5,
         max.y - (max.y - min.y) * 0.35,
-        min.z - length * 0.12,
+        max.z + length * 0.12,
     );
     let mut points: Vec<[f32; 3]> = (0..point_count)
         .map(|i| {
@@ -443,7 +466,7 @@ pub fn plant_guide(
                         + normal * length * 0.18 * (s * std::f32::consts::PI).sin())
                     .to_array()
                 } else {
-                    (tie + Vec3::new(0.0, -length * 0.7, -length * 0.2) * ((t - 0.5) * 2.0))
+                    (tie + Vec3::new(0.0, -length * 0.7, length * 0.2) * ((t - 0.5) * 2.0))
                         .to_array()
                 };
             }
@@ -454,11 +477,16 @@ pub fn plant_guide(
                 Preset::Ponytail => (t * (1.0 - t) * 0.3, t * t * 0.6, t * 0.8),
             };
             let surface_flow = if matches!(preset, Preset::Bob | Preset::Long) {
-                radial * t * 0.6
+                let center = (min + max) * 0.5;
+                let front =
+                    ((center.z - start.z) / (max.z - min.z).max(0.001) * 2.0).clamp(0.0, 1.0);
+                let parted =
+                    Vec3::new(if start.x < center.x { -1.0 } else { 1.0 }, 0.0, 0.15).normalize();
+                radial.lerp(parted, front * 0.85).normalize_or_zero() * t * 0.6
             } else {
                 Vec3::ZERO
             };
-            (start + length * (normal * outward + surface_flow - Vec3::Y * down - Vec3::Z * back))
+            (start + length * (normal * outward + surface_flow - Vec3::Y * down + Vec3::Z * back))
                 .to_array()
         })
         .collect();
@@ -489,7 +517,7 @@ pub fn plant_guide(
     Ok(index)
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Groom {
     Comb,
@@ -508,7 +536,6 @@ pub fn groom(
     direction: [f32; 3],
     symmetry: bool,
 ) -> Result<()> {
-    state.validate()?;
     require(
         !state.converted && strength.is_finite() && (0.0..=1.0).contains(&strength),
         "invalid grooming stroke",
@@ -523,35 +550,44 @@ pub fn groom(
     )?;
     let mut selected = guides.iter().copied().collect::<BTreeSet<_>>();
     if symmetry {
-        for index in guides {
-            let source = &state.guides[*index];
-            let root = Vec3::from(source.points[0]) * Vec3::new(-1.0, 1.0, 1.0);
-            if let Some((i, _)) = state
-                .guides
-                .iter()
-                .enumerate()
-                .filter(|(_, g)| g.group == source.group)
-                .map(|(i, g)| (i, Vec3::from(g.points[0]).distance_squared(root)))
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-            {
-                selected.insert(i);
-            }
-        }
+        locks::extend_mirrored_guides(state, &mut selected);
     }
     let before = state.guides.clone();
-    for index in selected {
+    let primary_left = before[guides[0]].points[0][0] < 0.0;
+    for index in selected.iter().copied() {
+        let paired = state
+            .locks
+            .iter()
+            .any(|l| l.guide == Some(index as u32) && l.mirrored.is_some());
         let guide = &mut state.guides[index];
         let old = &before[index].points;
+        if operation == Groom::Cut {
+            let last = ((old.len() - 1) as f32 * (1.0 - strength * 0.8)).max(1.0);
+            let segment = last.floor() as usize;
+            guide.points.truncate(segment + 1);
+            if last.fract() > 0.001 && segment + 1 < old.len() {
+                guide.points.push(
+                    Vec3::from(old[segment])
+                        .lerp(Vec3::from(old[segment + 1]), last.fract())
+                        .to_array(),
+                );
+            }
+            continue;
+        }
         let root = Vec3::from(old[0]);
         let length: f32 = old
             .windows(2)
             .map(|s| Vec3::from(s[0]).distance(Vec3::from(s[1])))
             .sum();
-        let sign = if symmetry && root.x < 0.0 { -1.0 } else { 1.0 };
+        let sign = if symmetry && paired && (root.x < 0.0) != primary_left {
+            -1.0
+        } else {
+            1.0
+        };
         let delta = Vec3::from(direction) * Vec3::new(sign, 1.0, 1.0);
-        let tip_mean = before
+        let tip_mean = selected
             .iter()
-            .filter(|g| g.group == guide.group)
+            .map(|i| &before[*i])
             .fold((Vec3::ZERO, 0usize), |(sum, n), g| {
                 (sum + Vec3::from(*g.points.last().unwrap()), n + 1)
             });
@@ -565,8 +601,16 @@ pub fn groom(
                     let next = Vec3::from(old[(i + 1).min(old.len() - 1)]);
                     p.lerp((previous + next) * 0.5, strength * 0.6)
                 }
-                Groom::Cut => root + (p - root) * (1.0 - strength * 0.8),
-                Groom::Lengthen => root + (p - root) * (1.0 + strength),
+                Groom::Cut => p,
+                Groom::Lengthen => {
+                    if i + 1 == old.len() {
+                        p + (p - Vec3::from(old[i - 1])).normalize_or_zero()
+                            * Vec3::from(direction).length()
+                            * strength
+                    } else {
+                        p
+                    }
+                }
                 Groom::Curl => {
                     let angle = t * std::f32::consts::TAU * 2.0;
                     p + Vec3::new(angle.sin(), 0.0, angle.cos() - 1.0)
@@ -583,11 +627,8 @@ pub fn groom(
             guide.points[i] = next.to_array();
         }
     }
-    if let Err(error) = state.validate() {
-        state.guides = before;
-        return Err(error);
-    }
-    state.revision += 1;
+    // A stroke is validated/published once on release. Never walk the scalp or
+    // create history entries for individual pointer samples.
     Ok(())
 }
 
@@ -630,6 +671,11 @@ pub fn bind_existing(
         "place and correct the group's root guides before binding",
     )?;
     let mut bindings = Vec::with_capacity(positions.len());
+    let all_frames: Vec<_> = state
+        .guides
+        .iter()
+        .map(|g| locks::frames(&g.points))
+        .collect();
     for (vertex, p) in positions.iter().enumerate() {
         if cancelled.load(Ordering::Relaxed) {
             return Err(HairError::Cancelled);
@@ -643,7 +689,7 @@ pub fn bind_existing(
                 let t = ((p - a).dot(b - a) / a.distance_squared(b).max(1e-12)).clamp(0.0, 1.0);
                 let offset = p - a.lerp(b, t);
                 if offset.length_squared() < best.0 {
-                    let (side, up, tangent) = segment_frame(a, b);
+                    let (side, up, tangent) = all_frames[*guide_index][segment];
                     best = (
                         offset.length_squared(),
                         Some(VertexBinding {
@@ -653,6 +699,7 @@ pub fn bind_existing(
                             segment: segment as u32,
                             t,
                             offset: [offset.dot(side), offset.dot(up), offset.dot(tangent)],
+                            normal: [0.0; 3],
                         }),
                     );
                 }
@@ -689,8 +736,18 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
             state
                 .guides
                 .iter()
-                .filter(|guide| guide.group == g.id)
-                .map(|guide| guide.points.len() * 2 * g.cards_per_guide as usize)
+                .enumerate()
+                .filter(|(_, guide)| guide.group == g.id)
+                .map(|(i, guide)| {
+                    guide.points.len()
+                        * 2
+                        * state
+                            .locks
+                            .iter()
+                            .find(|l| l.guide == Some(i as u32) && l.cards > 0)
+                            .map_or(g.cards_per_guide, |l| l.cards)
+                            as usize
+                })
                 .sum::<usize>()
         })
         .sum();
@@ -718,26 +775,29 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
             .enumerate()
             .filter(|(_, g)| g.group == group.id)
         {
-            for card in 0..group.cards_per_guide {
+            let frames = locks::frames(&guide.points);
+            let lock = state.locks.iter().find(|l| l.guide == Some(gi as u32));
+            let width_scale = lock.map_or(1.0, |l| l.width_scale);
+            let density = lock
+                .filter(|l| l.cards > 0)
+                .map_or(group.cards_per_guide, |l| l.cards);
+            for card in 0..density {
                 if cancelled.load(Ordering::Relaxed) {
                     return Err(HairError::Cancelled);
                 }
                 let first = mesh.positions.len() as u32;
-                let roll = card as f32 * std::f32::consts::PI / group.cards_per_guide as f32;
-                let spread =
-                    ((card as f32 + 0.5) / group.cards_per_guide as f32 - 0.5) * group.width;
+                let roll = card as f32 * std::f32::consts::PI / density as f32;
+                let spread = ((card as f32 + 0.5) / density as f32 - 0.5) * group.width;
                 for (i, point) in guide.points.iter().enumerate() {
                     let segment = i.min(guide.points.len() - 2);
-                    let (side, up, tangent) = segment_frame(
-                        Vec3::from(guide.points[segment]),
-                        Vec3::from(guide.points[segment + 1]),
-                    );
+                    let (side, up, tangent) = frames[segment];
                     let across = side * roll.cos() + up * roll.sin();
                     let normal = across.cross(tangent).normalize();
                     let t = i as f32 / (guide.points.len() - 1) as f32;
                     for edge in [-1.0_f32, 1.0] {
-                        let offset =
-                            across * (edge * group.width * 0.5 * (1.0 - t * 0.94) + spread * t);
+                        let offset = across
+                            * (edge * group.width * width_scale * 0.5 * (1.0 - t * 0.94)
+                                + spread * t);
                         let vertex = mesh.positions.len() as u32;
                         mesh.positions
                             .push((Vec3::from(*point) + offset).to_array());
@@ -757,6 +817,7 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
                             segment: segment as u32,
                             t: if i == segment { 0.0 } else { 1.0 },
                             offset: [offset.dot(side), offset.dot(up), offset.dot(tangent)],
+                            normal: [normal.dot(side), normal.dot(up), normal.dot(tangent)],
                         });
                     }
                     if i > 0 {
@@ -780,6 +841,7 @@ pub fn deform(
     part: u32,
     positions: &mut [[f32; 3]],
 ) -> Result<()> {
+    let frames: Vec<_> = points.iter().map(|g| locks::frames(g)).collect();
     for binding in bindings.iter().filter(|b| b.part == part) {
         let guide = points
             .get(binding.guide as usize)
@@ -789,7 +851,7 @@ pub fn deform(
             .ok_or_else(|| HairError::Invalid("missing simulated segment".into()))?;
         let a = Vec3::from(pair[0]);
         let b = Vec3::from(pair[1]);
-        let (side, up, tangent) = segment_frame(a, b);
+        let (side, up, tangent) = frames[binding.guide as usize][binding.segment as usize];
         let position = positions
             .get_mut(binding.vertex as usize)
             .ok_or_else(|| HairError::Invalid("deformation vertex no longer exists".into()))?;
@@ -834,9 +896,137 @@ pub struct Simulation {
     accumulator: f64,
     pub elapsed: f64,
     pub pivot: Vec3,
+    pub translation: Vec3,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PreviewPose {
+    pub pivot: Vec3,
+    pub body_pivot: Vec3,
+    pub head: Quat,
+    pub body: Quat,
+    pub translation: Vec3,
+}
+impl PreviewPose {
+    pub fn at(pivot: Vec3, height: f32, seconds: f32, test: u32) -> Self {
+        let angle = (seconds * 1.5).sin() * 0.35;
+        let body = if matches!(test, 3 | 4) {
+            Quat::from_rotation_z((seconds * 1.2).sin() * 0.10)
+                * Quat::from_rotation_y((seconds * 0.8).sin() * 0.12)
+        } else {
+            Quat::IDENTITY
+        };
+        let local = match test {
+            1 => Quat::from_rotation_y(angle),
+            2 => Quat::from_rotation_x(angle),
+            3 => Quat::from_rotation_y(angle) * Quat::from_rotation_x((seconds * 1.9).sin() * 0.14),
+            _ => Quat::IDENTITY,
+        };
+        let body_pivot = pivot - Vec3::Y * height;
+        let translation = body_pivot + body * (pivot - body_pivot) - pivot;
+        Self {
+            pivot,
+            body_pivot,
+            head: body * local,
+            body,
+            translation,
+        }
+    }
+    pub fn head_point(self, p: Vec3) -> Vec3 {
+        self.pivot + self.translation + self.head * (p - self.pivot)
+    }
+    pub fn body_point(self, p: Vec3) -> Vec3 {
+        self.body_pivot + self.body * (p - self.body_pivot)
+    }
+}
+
+fn validate_motion(settings: MotionSettings, head_rotation: Quat) -> Result<()> {
+    require(
+        settings
+            .gravity
+            .iter()
+            .chain(settings.wind.iter())
+            .all(|v| v.is_finite())
+            && settings.damping.is_finite()
+            && settings.damping >= 0.0
+            && settings.length_compliance.is_finite()
+            && settings.length_compliance >= 0.0
+            && settings.bend_compliance.is_finite()
+            && settings.bend_compliance >= 0.0
+            && settings.collision_margin.is_finite()
+            && settings.collision_margin >= 0.0
+            && (1..=64).contains(&settings.iterations)
+            && head_rotation.is_finite(),
+        "invalid simulation settings",
+    )?;
+    Ok(())
 }
 
 impl Simulation {
+    /// Restart from edited rest geometry without jumping the preview rig back
+    /// to time zero. Simulation velocities remain transient and start at rest.
+    pub fn at_pose(state: &HairState, elapsed: f64, test: u32, height: f32) -> Result<Self> {
+        require(
+            elapsed.is_finite() && elapsed >= 0.0,
+            "invalid preview time",
+        )?;
+        let mut simulation = Self::new(state)?;
+        let pose = PreviewPose::at(simulation.pivot, height, elapsed as f32, test);
+        simulation.elapsed = elapsed;
+        simulation.translation = pose.translation;
+        for guide in &mut simulation.points {
+            for point in guide {
+                *point = pose.head_point(Vec3::from(*point)).to_array();
+            }
+        }
+        Ok(simulation)
+    }
+    /// Evaluate the procedural rig at solver steps, rather than display frames.
+    /// Equal elapsed time produces equal motion at 30, 60 or 144 Hz presentation.
+    pub fn advance_test(
+        &mut self,
+        seconds: f64,
+        mut settings: MotionSettings,
+        capsules: &[Capsule],
+        test: u32,
+        height: f32,
+    ) -> Result<PreviewPose> {
+        require(seconds.is_finite() && seconds >= 0.0, "invalid frame time")?;
+        require(
+            height.is_finite() && height > 0.0 && test <= 5,
+            "invalid preview movement test",
+        )?;
+        validate_motion(settings, Quat::IDENTITY)?;
+        const STEP: f64 = 1.0 / 120.0;
+        self.accumulator = (self.accumulator + seconds).min(STEP * 8.0);
+        let mut pose = PreviewPose::at(self.pivot, height, self.elapsed as f32, test);
+        let mut colliders = capsules.to_vec();
+        while self.accumulator + 1e-12 >= STEP {
+            pose = PreviewPose::at(self.pivot, height, (self.elapsed + STEP) as f32, test);
+            self.translation = pose.translation;
+            for (target, source) in colliders.iter_mut().zip(capsules) {
+                if !source.follows_head {
+                    target.a = pose.body_point(Vec3::from(source.a)).to_array();
+                    target.b = pose.body_point(Vec3::from(source.b)).to_array();
+                }
+            }
+            if test == 5 {
+                settings.wind = [4.0 + (self.elapsed as f32 * 1.7).sin() * 2.0, 0.0, 0.5];
+            }
+            self.step(STEP as f32, settings, &colliders, pose.head);
+            self.accumulator -= STEP;
+            self.elapsed += STEP;
+        }
+        require(
+            self.points
+                .iter()
+                .flatten()
+                .flatten()
+                .all(|v| v.is_finite()),
+            "hair simulation produced non-finite geometry",
+        )?;
+        Ok(pose)
+    }
     pub fn new(state: &HairState) -> Result<Self> {
         state.validate()?;
         let rest: Vec<_> = state.guides.iter().map(|g| g.points.clone()).collect();
@@ -845,6 +1035,7 @@ impl Simulation {
             |(a, b), p| (a.min(Vec3::from(*p)), b.max(Vec3::from(*p))),
         );
         Ok(Self {
+            translation: Vec3::ZERO,
             velocities: rest.iter().map(|g| vec![Vec3::ZERO; g.len()]).collect(),
             points: rest.clone(),
             rest,
@@ -870,24 +1061,7 @@ impl Simulation {
             frame_seconds.is_finite() && frame_seconds >= 0.0,
             "invalid simulation frame time",
         )?;
-        require(
-            settings
-                .gravity
-                .iter()
-                .chain(settings.wind.iter())
-                .all(|v| v.is_finite())
-                && settings.damping.is_finite()
-                && settings.damping >= 0.0
-                && settings.length_compliance.is_finite()
-                && settings.length_compliance >= 0.0
-                && settings.bend_compliance.is_finite()
-                && settings.bend_compliance >= 0.0
-                && settings.collision_margin.is_finite()
-                && settings.collision_margin >= 0.0
-                && (1..=64).contains(&settings.iterations)
-                && head_rotation.is_finite(),
-            "invalid simulation settings",
-        )?;
+        validate_motion(settings, head_rotation)?;
         const STEP: f64 = 1.0 / 120.0;
         self.accumulator = (self.accumulator + frame_seconds).min(STEP * 8.0);
         while self.accumulator + 1e-12 >= STEP {
@@ -913,7 +1087,8 @@ impl Simulation {
             }
             let mut length_lambda = vec![0.0; points.len() - 1];
             let mut bend_lambda = vec![0.0; points.len().saturating_sub(2)];
-            let root = self.pivot + rotation * (Vec3::from(rest[0]) - self.pivot);
+            let root =
+                self.pivot + self.translation + rotation * (Vec3::from(rest[0]) - self.pivot);
             points[0] = root.to_array();
             for _ in 0..settings.iterations {
                 for i in 0..points.len() - 2 {
@@ -940,7 +1115,8 @@ impl Simulation {
                     let mut world = Vec3::from(*point);
                     for capsule in capsules {
                         let mut p = if capsule.follows_head {
-                            self.pivot + rotation.inverse() * (world - self.pivot)
+                            self.pivot
+                                + rotation.inverse() * (world - self.pivot - self.translation)
                         } else {
                             world
                         };
@@ -954,7 +1130,7 @@ impl Simulation {
                             p = center + offset.try_normalize().unwrap_or(Vec3::X) * radius;
                         }
                         world = if capsule.follows_head {
-                            self.pivot + rotation * (p - self.pivot)
+                            self.pivot + self.translation + rotation * (p - self.pivot)
                         } else {
                             p
                         };
@@ -984,7 +1160,9 @@ impl Simulation {
             guide.points = points
                 .iter()
                 .map(|p| {
-                    (self.pivot + head_rotation.inverse() * (Vec3::from(*p) - self.pivot))
+                    (self.pivot
+                        + head_rotation.inverse()
+                            * (Vec3::from(*p) - self.pivot - self.translation))
                         .to_array()
                 })
                 .collect();
@@ -1024,7 +1202,13 @@ mod tests {
 
     fn state() -> HairState {
         HairState {
-            version: 1,
+            vertex_sources: Default::default(),
+            prepared_parts: vec![],
+            locks: vec![],
+            next_lock_id: 1,
+            style_name: locks::default_name(),
+            startup_preset: "bob".into(),
+            version: HAIR_VERSION,
             revision: 0,
             scalp: Scalp {
                 identity: "head-a".into(),

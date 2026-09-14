@@ -424,8 +424,17 @@ class MeshEditorRustProcessMixin:
             self.standalone_rust_protocol_queue.clear()
             return
         event = self.standalone_rust_protocol_queue.pop(0)
-        preparation_error = ""
-        if event.get("command") == "hair_begin":
+        preparation_error = str(event.get("_hair_preparation_error", ""))
+        if (event.get("command") == "hair_begin"
+                and not dict(event.get("arguments") or {}).get("_hair_context_ready")
+                and not dict(event.get("arguments") or {}).get("change_references")):
+            from cdmw.ui.mesh_editor.hair_flow import begin_hair_context
+            try:
+                begin_hair_context(self, session, event)
+                return
+            except Exception as exc:
+                preparation_error = str(exc) or type(exc).__name__
+        elif event.get("command") == "hair_begin" and dict(event.get("arguments") or {}).get("change_references"):
             from cdmw.ui.mesh_editor.hair_flow import prepare_hair_event
             self._archive_refit_picker_active = True
             try:
@@ -529,6 +538,9 @@ class MeshEditorRustProcessMixin:
             return
         active_event = dict(self.standalone_rust_active_event or {})
         self._send_rust_message(response)
+        hair_status = getattr(self, "hair_entry_status", None)
+        if hair_status is not None and active_event.get("command") == "hair_begin":
+            hair_status.setText("Ready — select visible hair to begin editing.")
         if finish_accepted:
             self.standalone_rust_finish_accepted = True
             self.standalone_rust_ready = False
@@ -558,6 +570,9 @@ class MeshEditorRustProcessMixin:
             return
         request = dict(self.standalone_rust_active_event or {})
         self._send_rust_error_response(request, message, recovery=recovery)
+        hair_status = getattr(self, "hair_entry_status", None)
+        if hair_status is not None and request.get("command") == "hair_begin":
+            hair_status.setText(str(message))
         if self.standalone_rust_closing and str(
             request.get("event", "") or ""
         ).strip().lower() == "finish_request":
@@ -806,6 +821,10 @@ class MeshEditorRustProcessMixin:
         self._stop_rust_editor_process()
 
     def _stop_rust_editor_process(self, *, reason: str = "") -> None:
+        hair_context = getattr(self, "_hair_context_preparation", None)
+        self._hair_entry_generation = getattr(self, "_hair_entry_generation", 0) + 1
+        if hair_context is not None:
+            hair_context.cancel()
         self.standalone_rust_closing = True
         self.standalone_rust_ready = False
         picker = getattr(self, "_archive_refit_picker", None)

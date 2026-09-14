@@ -167,7 +167,7 @@ def test_hair_file_is_stable_for_selection_only_updates(editor):
     assert path.stat().st_mtime_ns == stamp
 
 
-def test_v4_draft_roundtrip_keeps_hair_geometry_and_output(editor, tmp_path):
+def test_v5_draft_roundtrip_keeps_hair_geometry_and_output(editor, tmp_path):
     _, session = editor
     service, sid = session.shadow_service, session.shadow_session_id
     apply_hair_candidate(session, candidate(session, topology=True), "New hairstyle")
@@ -175,7 +175,7 @@ def test_v4_draft_roundtrip_keeps_hair_geometry_and_output(editor, tmp_path):
     project = tmp_path / "draft/project.json"
     current.mesh_layer_project_path = project
     service.retry_mesh_layer_autosave(sid)
-    assert json.loads(project.read_text())["format"] == "mesh_layer_project_v4"
+    assert json.loads(project.read_text())["format"] == "mesh_layer_project_v5"
     mesh = copy.deepcopy(current.base_mesh)
     loaded = load_mesh_layer_project(mesh, project, expected_source_asset_sha256=current.mesh_asset_source_hash)
     assert loaded["hair_state"] == current.hair_state
@@ -358,7 +358,8 @@ def test_finder_stale_hair_preparation_restores_actions(finder):
     assert dialog._hair_handoff is None and dialog._create_hair.isEnabled()
 
 
-def test_existing_hair_preserves_all_eight_influence_record_bytes(editor):
+@pytest.mark.parametrize("operation", ["reshape", "cut", "delete"])
+def test_existing_hair_preserves_all_eight_influence_record_bytes(editor, operation):
     from tests.test_pac_skin_extra_influences import _record
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.services.mesh_replacement_output import prepare_replacement_output
@@ -383,13 +384,31 @@ def test_existing_hair_preserves_all_eight_influence_record_bytes(editor):
         setattr(part,PART_ID_ATTRIBUTE,binding.part_id)
     mesh.submeshes[0].vertices=[(x+.03,y,z) for x,y,z in mesh.submeshes[0].vertices]
     state=payload(hashlib.sha256(source).hexdigest(),mode='existing')
+    sources = list(range(len(mesh.submeshes[0].vertices)))
+    if operation == "cut":
+        from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
+        part = mesh.submeshes[0]
+        sources = list(reversed(part.faces[0]))
+        remap = {old: new for new, old in enumerate(sources)}
+        part.faces = [tuple(remap[i] for i in part.faces[0])]
+        for channel in ("vertices", "normals", "uvs", "bone_indices", "bone_weights", "source_vertex_offsets"):
+            setattr(part, channel, [getattr(part, channel)[i] for i in sources])
+        part.vertex_count, part.face_count = len(sources), 1
+        part.source_vertex_map = sources
+        part.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
+        output = replace(output, parts=tuple(replace(p, import_positions=tuple(part.vertices), import_normals=tuple(part.normals)) if p.target_index == 0 else p for p in output.parts))
+    elif operation == "delete":
+        output = replace(output, parts=tuple(replace(p, included=False) if p.target_index == 0 else p for p in output.parts))
+        sources = [0, 0, 0]
     snapshot=replace(snapshot,mesh=mesh,replacement_state=output,hair_state=hair_state_from_payload(state))
     rebuilt=prepare_replacement_output(snapshot)
     assert rebuilt.data != source
-    for offset in offsets:
-        assert rebuilt.data[offset+12:offset+16] == source[offset+12:offset+16]
-        assert rebuilt.data[offset+20:offset+36] == source[offset+20:offset+36]
-        assert rebuilt.data[offset+39] == source[offset+39]
+    reparsed = parse_mesh(rebuilt.data, MESH)
+    for offset, source_index in zip(reparsed.submeshes[0].source_vertex_offsets, sources, strict=True):
+        old = offsets[source_index]
+        assert rebuilt.data[offset+12:offset+16] == source[old+12:old+16]
+        assert rebuilt.data[offset+20:offset+36] == source[old+20:old+36]
+        assert rebuilt.data[offset+39] == source[old+39]
 
 
 def test_card_uv_defaults_reuse_one_donor_atlas_island():
@@ -397,6 +416,16 @@ def test_card_uv_defaults_reuse_one_donor_atlas_island():
     part=SimpleNamespace(vertices=[[0,0,0]]*6,faces=[(0,1,2),(3,4,5)],
         uvs=[(.1,.2),(.2,.2),(.2,.9),(.6,.1),(.8,.1),(.8,.8)])
     assert template_card_uv_rect(part) == [.1,.2,.2,.9]
+
+
+def test_reference_identity_tracks_appearance_geometry_with_unchanged_source_bytes():
+    from cdmw.services.mesh_rust_hair import _reference_geometry_identity
+    positions = [[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]]
+    faces = [[0, 1, 2]]
+    before = _reference_geometry_identity("same-source", positions, faces, [])
+    assert before == _reference_geometry_identity("same-source", copy.deepcopy(positions), faces, [])
+    positions[1][0] += .03
+    assert before != _reference_geometry_identity("same-source", positions, faces, [])
 
 
 @pytest.mark.parametrize("has_capability", [False, True])
@@ -507,3 +536,133 @@ def test_hair_output_folder_picker_rejects_changed_revision(editor, tmp_path, mo
     finally:
         tab.standalone_controller = None
         _dispose(tab)
+
+
+@pytest.mark.parametrize("bad", [None, "identity", "duplicate", "stale"])
+def test_incremental_hair_update_reuses_immutable_references_and_keeps_history(editor, bad):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    before = service.capture_export_snapshot(sid)
+    value = candidate(authoring)
+    value["hair_update"] = {"version": 2, "reference": value["hair"]["scalp"]["identity"], "parts": [0]}
+    for field in ("scalp", "references", "collisions"):
+        value["hair"].pop(field, None)
+    value["submeshes"] = value["submeshes"][:1]
+    if bad == "identity": value["hair_update"]["reference"] = "different-head"
+    if bad == "duplicate": value["hair_update"]["parts"] = [0, 0]; value["submeshes"] *= 2
+    if bad == "stale": value["hair"]["revision"] = before.hair_state.revision
+    if bad:
+        with pytest.raises(ValueError): apply_hair_candidate(authoring, value, "Move lock")
+        assert service.capture_export_snapshot(sid).hair_state == before.hair_state
+    else:
+        apply_hair_candidate(authoring, value, "Move lock")
+        after = service.capture_export_snapshot(sid)
+        assert after.hair_state.payload["scalp"] == before.hair_state.payload["scalp"]
+        assert after.mesh.submeshes[0].vertices != before.mesh.submeshes[0].vertices
+        service.undo(sid)
+        assert service.capture_export_snapshot(sid).hair_state == before.hair_state
+        service.redo(sid)
+        assert service.capture_export_snapshot(sid).hair_state == after.hair_state
+
+
+@pytest.mark.parametrize("bad", ["", "stale", "overlap", "duplicate_vertex"])
+def test_incremental_hair_vertex_patch_preserves_other_channels_and_reuses_state(editor,bad):
+    _,authoring=editor
+    service,sid=authoring.shadow_service,authoring.shadow_session_id
+    before=service.capture_export_snapshot(sid)
+    value=candidate(authoring)
+    old=before.hair_state.payload
+    reused=["groups","bindings","guides","locks","vertex_sources","prepared_parts"]
+    value["hair"]={**old,"revision":old["revision"]+1}
+    for field in ["scalp","references","collisions",*reused]:value["hair"].pop(field,None)
+    vertex=list(before.mesh.submeshes[0].vertices[1]);vertex[0]+=.012
+    normal=[0., 1., 0.]
+    value["submeshes"]=[]
+    value["hair_update"]={"version":2,"reference":old["scalp"]["identity"],"parts":[],"reuse":reused,"base_hair_revision":old["revision"],
+        "vertex_updates":[{"part":0,"indices":[1],"positions":[vertex],"normals":[normal]}]}
+    if bad=="stale":value["hair_update"]["base_hair_revision"]-=1
+    if bad=="overlap":value["hair"]["bindings"]=old["bindings"]
+    if bad=="duplicate_vertex":
+        row=value["hair_update"]["vertex_updates"][0];row["indices"]=[1,1];row["positions"]*=2;row["normals"]*=2
+    if bad:
+        with pytest.raises(ValueError):apply_hair_candidate(authoring,value,"vertex patch")
+        assert service.capture_export_snapshot(sid).hair_state==before.hair_state
+    else:
+        apply_hair_candidate(authoring,value,"vertex patch")
+        after=service.capture_export_snapshot(sid)
+        assert after.mesh.submeshes[0].vertices[1]==tuple(vertex)
+        assert after.mesh.submeshes[0].vertices[0]==before.mesh.submeshes[0].vertices[0]
+        assert after.mesh.submeshes[0].uvs==before.mesh.submeshes[0].uvs
+        assert after.mesh.submeshes[0].bone_weights==before.mesh.submeshes[0].bone_weights
+        service.undo(sid)
+        restored=service.capture_export_snapshot(sid)
+        assert restored.hair_state==before.hair_state
+        assert restored.mesh.submeshes[0].normals==before.mesh.submeshes[0].normals
+        assert restored.mesh.submeshes[0].vertices==before.mesh.submeshes[0].vertices
+        service.redo(sid)
+        restored=service.capture_export_snapshot(sid)
+        assert restored.hair_state==after.hair_state
+        assert restored.mesh.submeshes[0].normals==after.mesh.submeshes[0].normals
+        assert restored.mesh.submeshes[0].vertices==after.mesh.submeshes[0].vertices
+
+
+@pytest.mark.parametrize("failure", ["", "publish", "memory", "cancel"])
+def test_hair_metadata_transaction_is_atomic_and_does_not_rebuild_scene(editor, monkeypatch, failure):
+    import threading
+    from cdmw.services import mesh_service_hair_transaction as transactions
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    before = live.hair_state
+    original_mesh, revision, undo, redo = live.working_mesh, live.revision, list(live.undo_stack), list(live.redo_stack)
+    old = before.payload
+    reuse = ["groups", "bindings", "guides", "locks", "vertex_sources", "prepared_parts"]
+    value = {"hair": {**old, "revision": old["revision"] + 1, "style_name": "New name"}, "submeshes": [],
+             "hair_update": {"version": 2, "reference": old["scalp"]["identity"], "parts": [],
+                             "reuse": reuse, "base_hair_revision": old["revision"]}}
+    for field in ("scalp", "references", "collisions", *reuse): value["hair"].pop(field, None)
+    def forbidden(*args, **kwargs): raise AssertionError("Small hair edits must not rebuild the entire mesh")
+    monkeypatch.setattr(service, "capture_export_snapshot", forbidden)
+    monkeypatch.setattr(service, "prepare_working_mesh_replacement", forbidden)
+    stop = threading.Event()
+    if failure == "publish":
+        publish = transactions._publish
+        def failed(*args):
+            publish(*args)
+            raise RuntimeError("injected publication failure")
+        monkeypatch.setattr(transactions, "_publish", failed)
+    elif failure == "memory": service.max_history_bytes = 1
+    elif failure == "cancel": stop.set()
+    if failure:
+        with pytest.raises((ValueError, RuntimeError)):
+            apply_hair_candidate(authoring, value, "Name hair", stop)
+        assert live.hair_state is before and live.working_mesh is original_mesh
+        assert live.revision == revision and live.undo_stack == undo and live.redo_stack == redo
+    else:
+        apply_hair_candidate(authoring, value, "Name hair", stop)
+        assert live.hair_state.payload["style_name"] == "New name"
+        assert all(a is b for a,b in zip(live.working_mesh.submeshes, original_mesh.submeshes))
+        service.undo(sid)
+        assert live.hair_state == before
+        service.redo(sid)
+        assert live.hair_state.payload["style_name"] == "New name"
+
+
+def test_incremental_protocol_acknowledges_without_document_and_finish_keeps_the_edit(editor):
+    from cdmw.services.mesh_rust_authoring import _atomic_write_payload, RUST_MESH_CANDIDATE
+    authority, session = editor
+    live = session.shadow_service._session(session.shadow_session_id)
+    old = live.hair_state.payload
+    reuse = ["groups", "bindings", "guides", "locks", "vertex_sources", "prepared_parts"]
+    value = {"schema": RUST_MESH_CANDIDATE, "session_id": session.session_id,
+        "hair": {**old, "revision": old["revision"] + 1, "style_name": "Finished name"}, "submeshes": [],
+        "hair_update": {"version": 2, "reference": old["scalp"]["identity"], "parts": [],
+                        "reuse": reuse, "base_hair_revision": old["revision"]}}
+    for field in ("scalp", "references", "collisions", *reuse): value["hair"].pop(field, None)
+    request = _fixtures._request(session, "transaction_request", 903)
+    request["candidate"] = _atomic_write_payload(session.root, "candidate-903-hair.json", value,
+        data_type="mesh_candidate_json", element_count=0, expected_root_identity=session.root_identity)
+    ack = session.apply_candidate(request)
+    assert ack["hair_ack"] == old["revision"] + 1 and "document" not in ack and "history_cursor" in ack
+    session.finish(_fixtures._request(session, "finish_request", 904))
+    assert authority._session(session.authoritative_session_id).hair_state.payload["style_name"] == "Finished name"

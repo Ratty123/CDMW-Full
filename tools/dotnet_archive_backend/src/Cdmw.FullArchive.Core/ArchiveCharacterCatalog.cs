@@ -32,13 +32,15 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
             throw new ArgumentException("Character catalogue view must be assets, appearances or coverage.");
         if (request.Tab is not ("bodies" or "faces" or "all"))
             throw new ArgumentException("Character catalogue tab must be bodies, faces or all.");
+        if (request.SelectionPurpose is not (null or "" or "hair_head" or "hair_body"))
+            throw new ArgumentException("Unsupported character reference selector.");
         var tokens = Tokens(request.Query);
         HashSet<string>? related = null;
         if (!string.IsNullOrWhiteSpace(request.RelatedKey))
             related = GetRequired(request.RelatedKey).RelatedKeys.ToHashSet(StringComparer.Ordinal);
         var candidates = request.View == "coverage" ? Snapshot.Coverage : Snapshot.Records
             .Where(record => record.Row.View == request.View).Select(static record => record.Row);
-        var matching = candidates.Where(row => InTab(row, request.Tab)
+        var matching = candidates.Where(row => EligibleReference(row, request.SelectionPurpose) && InTab(row, request.Tab)
             && (related is null || related.Contains(row.Key))
             && tokens.All(token => (_search.GetValueOrDefault(row.Key) ?? SearchText(row, [])).Contains(token, StringComparison.Ordinal)))
             .ToArray();
@@ -70,6 +72,21 @@ public sealed class ArchiveCharacterCatalog(CharacterCatalogSnapshot snapshot)
         || tab == "bodies" && row.Role is "body" or "whole_character"
         || tab == "faces" && !row.EmbeddedFace && row.Role is "head" or "facial_detail" or "hair" or "beard";
     private static bool IsHumanoid(CharacterCatalogRow row) => row.SourceGroup is "1_pc" or "3_npc";
+    // Apply eligibility to the resident result set, before facets and pagination.
+    // The asset view is already deduplicated against mounted archive precedence.
+    private static bool EligibleReference(CharacterCatalogRow row, string? purpose)
+    {
+        if (string.IsNullOrEmpty(purpose)) return true;
+        if (row.View != "assets" || row.BodyFamily != "2_phw" || row.ModelCount != 1
+            || row.Resolution is not ("resolved" or "inferred")) return false;
+        var path = row.Path.Replace('\\', '/').ToLowerInvariant();
+        if (!path.StartsWith("character/model/1_pc/2_phw/", StringComparison.Ordinal)
+            || !path.EndsWith(".pac", StringComparison.Ordinal)) return false;
+        return purpose == "hair_head"
+            ? row.Role == "head" && path.Contains("/head/head/", StringComparison.Ordinal)
+            : (row.Role is "body" or "whole_character") && path.Contains("/nude/", StringComparison.Ordinal)
+                && Path.GetFileName(path).StartsWith("cd_phw_00_nude_", StringComparison.Ordinal);
+    }
     private static bool Matches(string value, string? filter) => string.IsNullOrEmpty(filter) || value == filter;
     private static string SearchText(CharacterCatalogRow row, IEnumerable<string> names) =>
         string.Join(' ', new[] { row.Label, row.InternalName, row.Path, row.Role, row.SourceGroup, row.BodyFamily }

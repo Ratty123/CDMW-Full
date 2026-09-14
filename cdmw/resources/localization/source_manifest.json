@@ -3596,7 +3596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 305,
+          "line": 307,
           "sink": "ValueError"
         }
       ]
@@ -3741,7 +3741,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 170,
+          "line": 176,
           "sink": "ValueError"
         }
       ]
@@ -7966,7 +7966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 137,
+          "line": 143,
           "sink": "ValueError"
         }
       ]
@@ -7976,7 +7976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 444,
+          "line": 453,
           "sink": "getOpenFileName"
         }
       ]
@@ -8316,7 +8316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 519,
+          "line": 528,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -9176,12 +9176,12 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 30,
+          "line": 69,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 69,
+          "line": 108,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9296,7 +9296,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 41,
+          "line": 80,
           "sink": "ValueError"
         }
       ]
@@ -9306,7 +9306,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 32,
+          "line": 71,
           "sink": "RuntimeError"
         }
       ]
@@ -13932,6 +13932,16 @@
       ]
     },
     {
+      "key": "Bob",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 20,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Bodies",
       "origins": [
         {
@@ -14073,16 +14083,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 623,
           "sink": "addItem"
-        }
-      ]
-    },
-    {
-      "key": "Body reference selection cancelled; the current mesh is unchanged.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 56,
-          "sink": "ValueError"
         }
       ]
     },
@@ -16361,12 +16361,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 702,
+          "line": 717,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 773,
+          "line": 788,
           "sink": "show_result"
         }
       ]
@@ -17160,6 +17160,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 57,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/replace_from_archive_dialog.py",
           "line": 352,
           "sink": "QPushButton"
@@ -17391,12 +17396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 846,
+          "line": 865,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 863,
+          "line": 882,
           "sink": "_set_rust_status"
         }
       ]
@@ -17406,7 +17411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 517,
+          "line": 526,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -18111,7 +18116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 308,
+          "line": 361,
           "sink": "ValueError"
         }
       ]
@@ -18247,6 +18252,16 @@
       ]
     },
     {
+      "key": "Changing hair part ownership requires complete geometry publication.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 71,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Changing it is the main edit this tool exists for: the item moves there, its angle follows, and you are offered the matching animations.",
       "origins": [
         {
@@ -18336,7 +18351,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 239,
+          "line": 241,
           "sink": "QPushButton"
         }
       ]
@@ -19496,7 +19511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 239,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -19532,16 +19547,6 @@
       ]
     },
     {
-      "key": "Choose Damiane Body for Neck and Shoulder Reference",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 51,
-          "sink": "setWindowTitle"
-        }
-      ]
-    },
-    {
       "key": "Choose Damiane Head Reference",
       "origins": [
         {
@@ -19556,7 +19561,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 189,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -20006,7 +20011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 166,
+          "line": 179,
           "sink": "ValueError"
         }
       ]
@@ -20016,7 +20021,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 102,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -20078,6 +20083,16 @@
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 156,
           "sink": "setInformativeText"
+        }
+      ]
+    },
+    {
+      "key": "Choose a hairstyle to edit",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 56,
+          "sink": "setText"
         }
       ]
     },
@@ -20341,7 +20356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 91,
+          "line": 104,
           "sink": "ValueError"
         }
       ]
@@ -20966,7 +20981,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 162,
+          "line": 175,
           "sink": "ValueError"
         }
       ]
@@ -23537,6 +23552,16 @@
       ]
     },
     {
+      "key": "Conflicting incremental hair geometry updates.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 389,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Conflicts",
       "origins": [
         {
@@ -24702,6 +24727,16 @@
       ]
     },
     {
+      "key": "Correct unresolved hair roots or mark scalp sections as rigid before exporting.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_hair_output.py",
+          "line": 67,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Correction action: {value_0}",
       "origins": [
         {
@@ -25672,6 +25707,16 @@
       ]
     },
     {
+      "key": "Create hairstyle",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 18,
+          "sink": "addMenu"
+        }
+      ]
+    },
+    {
       "key": "Create mod package",
       "origins": [
         {
@@ -26103,6 +26148,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1145,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Cropped",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 20,
+          "sink": "addAction"
         }
       ]
     },
@@ -26782,6 +26837,26 @@
       ]
     },
     {
+      "key": "Cut and deleted existing hair require exact original vertex provenance.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 458,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cut hair changed its original UV layout.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 466,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cutout Coverage",
       "origins": [
         {
@@ -27136,7 +27211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 444,
+          "line": 453,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -27146,7 +27221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 444,
+          "line": 453,
           "sink": "getOpenFileName"
         }
       ]
@@ -27258,6 +27333,26 @@
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 278,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Damiane's character dependencies are incomplete. Refresh the mounted archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_context_preparation.py",
+          "line": 109,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Damiane's mounted appearance does not resolve to one compatible head and base body. Refresh the catalogue after checking the installed character data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_context_preparation.py",
+          "line": 97,
+          "sink": "emit"
         }
       ]
     },
@@ -27918,6 +28013,16 @@
           "path": "cdmw/ui/model_library/controller.py",
           "line": 536,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Deleted hair still has visible lock ownership.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 433,
+          "sink": "ValueError"
         }
       ]
     },
@@ -30476,7 +30581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 238,
+          "line": 261,
           "sink": "ValueError"
         }
       ]
@@ -30946,7 +31051,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9234,
+          "line": 9240,
           "sink": "RuntimeError"
         }
       ]
@@ -31128,6 +31233,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 467,
           "sink": "python-return:_hkx_mod_package_preview_text"
+        }
+      ]
+    },
+    {
+      "key": "Edit hairstyle",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 21,
+          "sink": "addAction"
         }
       ]
     },
@@ -32302,6 +32417,16 @@
       ]
     },
     {
+      "key": "Empty",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 20,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Empty Target",
       "origins": [],
       "manual": true
@@ -33457,6 +33582,26 @@
       ]
     },
     {
+      "key": "Existing hair cuts may only retain original card triangles.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 463,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Existing hair lost its original vertex record provenance.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 205,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Existing metadata",
       "origins": [
         {
@@ -33651,7 +33796,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 326,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -37512,6 +37657,16 @@
       ]
     },
     {
+      "key": "Filter these compatible choices",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 37,
+          "sink": "setPlaceholderText"
+        }
+      ]
+    },
+    {
       "key": "Filter to Family",
       "origins": [
         {
@@ -40541,7 +40696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 149,
+          "line": 155,
           "sink": "ValueError"
         }
       ]
@@ -41758,6 +41913,11 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 93,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 14,
+          "sink": "setText"
         }
       ]
     },
@@ -41776,7 +41936,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 367,
+          "line": 500,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair binding refers to removed geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 74,
           "sink": "ValueError"
         }
       ]
@@ -41786,12 +41956,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 173,
+          "line": 179,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 181,
+          "line": 187,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -41801,7 +41971,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 159,
+          "line": 172,
           "sink": "ValueError"
         }
       ]
@@ -41821,6 +41991,36 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 323,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair edit became stale before publication.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 103,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair edit exceeds the reversible history memory limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 119,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair edit requires a current Rust authoring session.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
           "line": 321,
           "sink": "ValueError"
         }
@@ -41831,7 +42031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 100,
+          "line": 106,
           "sink": "ValueError"
         }
       ]
@@ -41841,7 +42041,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 135,
+          "line": 141,
           "sink": "ValueError"
         }
       ]
@@ -41851,7 +42051,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 102,
+          "line": 108,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair geometry and original vertex provenance were not published together.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 460,
           "sink": "ValueError"
         }
       ]
@@ -41861,7 +42071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 335,
+          "line": 440,
           "sink": "ValueError"
         }
       ]
@@ -41871,7 +42081,42 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 323,
+          "line": 401,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair history no longer matches its geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 39,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair history refers to a missing part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 35,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair lock refers to removed geometry.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 503,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -41881,7 +42126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 141,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -41921,7 +42166,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 160,
+          "line": 166,
           "sink": "ValueError"
         }
       ]
@@ -41931,7 +42176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 264,
+          "line": 270,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -41941,7 +42186,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 240,
+          "line": 246,
           "sink": "ValueError"
         }
       ]
@@ -41951,8 +42196,23 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 66,
+          "line": 72,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Hair reference loading cancelled",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_archive_refit_worker.py",
+          "line": 37,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/mesh_archive_refit_worker.py",
+          "line": 46,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -41961,7 +42221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 74,
+          "line": 80,
           "sink": "ValueError"
         }
       ]
@@ -41971,7 +42231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 129,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -41981,7 +42241,17 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 342,
+          "line": 416,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 447,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_service_hair_transaction.py",
+          "line": 81,
           "sink": "ValueError"
         }
       ]
@@ -41991,7 +42261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 314,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -42001,7 +42271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 306,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -42011,7 +42281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 320,
+          "line": 398,
           "sink": "ValueError"
         }
       ]
@@ -42021,7 +42291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 294,
+          "line": 347,
           "sink": "ValueError"
         }
       ]
@@ -42031,7 +42301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 291,
+          "line": 345,
           "sink": "ValueError"
         }
       ]
@@ -42223,16 +42493,6 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 131,
           "sink": "Section"
-        }
-      ]
-    },
-    {
-      "key": "Head selection cancelled; the current hairstyle is unchanged.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 38,
-          "sink": "ValueError"
         }
       ]
     },
@@ -45432,6 +45692,26 @@
       "manual": true
     },
     {
+      "key": "Incremental hair state has a stale or conflicting base revision.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 340,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Incremental hair update has a stale reference or unsupported version.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 334,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Independent game changes can be preserved in an updated package.",
       "origins": [
         {
@@ -46667,6 +46947,56 @@
       ]
     },
     {
+      "key": "Invalid hair geometry record.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 426,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid incremental hair material part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 386,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid incremental hair part list.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 378,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid incremental hair vertex range.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 395,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid incremental hair vertex updates.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_hair.py",
+          "line": 383,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Invalid legacy source hashes.",
       "origins": [
         {
@@ -46821,7 +47151,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 236,
+          "line": 259,
           "sink": "ValueError"
         }
       ]
@@ -48291,7 +48621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 106,
+          "line": 119,
           "sink": "ValueError"
         }
       ]
@@ -48956,7 +49286,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 349,
+          "line": 351,
           "sink": "ValueError"
         }
       ]
@@ -50217,6 +50547,26 @@
       ]
     },
     {
+      "key": "Load the archive catalogue before opening Hair.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_context_preparation.py",
+          "line": 52,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Load the archive catalogue first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 26,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Load the game archive catalogue before choosing a Refit mesh",
       "origins": [
         {
@@ -50378,6 +50728,16 @@
           "path": "cdmw/services/character_context_service.py",
           "line": 227,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Loading Damiane's hairstyles…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 88,
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -50618,6 +50978,31 @@
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
           "line": 417,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Loading character…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 68,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 103,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Loading compatible choices…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 49,
+          "sink": "QLabel"
         }
       ]
     },
@@ -51198,6 +51583,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 250,
           "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Long",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 20,
+          "sink": "addAction"
         }
       ]
     },
@@ -53691,12 +54086,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 846,
+          "line": 865,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 863,
+          "line": 882,
           "sink": "_set_rust_status"
         }
       ]
@@ -53706,7 +54101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 564,
+          "line": 579,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -54091,7 +54486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 539,
+          "line": 551,
           "sink": "_stop_rust_editor_process"
         },
         {
@@ -54206,7 +54601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 782,
+          "line": 797,
           "sink": "_set_rust_status"
         }
       ]
@@ -54216,7 +54611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 788,
+          "line": 803,
           "sink": "show_error"
         }
       ]
@@ -54226,7 +54621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 767,
+          "line": 782,
           "sink": "_set_rust_status"
         }
       ]
@@ -54236,7 +54631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 547,
+          "line": 559,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -54301,7 +54696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 710,
+          "line": 725,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -54356,17 +54751,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 705,
+          "line": 720,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 717,
+          "line": 732,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 776,
+          "line": 791,
           "sink": "_set_rust_status"
         }
       ]
@@ -54571,7 +54966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 276,
+          "line": 278,
           "sink": "ValueError"
         }
       ]
@@ -54746,7 +55141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 736,
+          "line": 751,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -54786,7 +55181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 568,
+          "line": 583,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -55406,7 +55801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 517,
+          "line": 523,
           "sink": "RuntimeError"
         }
       ]
@@ -55536,22 +55931,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 116,
+          "line": 118,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 138,
+          "line": 140,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 245,
+          "line": 247,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 373,
+          "line": 375,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55636,7 +56031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 293,
+          "line": 295,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55666,7 +56061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 108,
+          "line": 110,
           "sink": "ValueError"
         }
       ]
@@ -55676,7 +56071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 393,
+          "line": 395,
           "sink": "RuntimeError"
         }
       ]
@@ -55686,7 +56081,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 376,
+          "line": 378,
           "sink": "RuntimeError"
         }
       ]
@@ -55696,7 +56091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 389,
+          "line": 391,
           "sink": "RuntimeError"
         }
       ]
@@ -57026,7 +57421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 194,
+          "line": 200,
           "sink": "ValueError"
         }
       ]
@@ -57056,12 +57451,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 77,
+          "line": 83,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 125,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -58631,7 +59026,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8565,
+          "line": 8571,
           "sink": "RuntimeError"
         }
       ]
@@ -58711,7 +59106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8495,
+          "line": 8501,
           "sink": "RuntimeError"
         }
       ]
@@ -58721,7 +59116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8491,
+          "line": 8497,
           "sink": "RuntimeError"
         }
       ]
@@ -58731,7 +59126,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8466,
+          "line": 8472,
           "sink": "RuntimeError"
         }
       ]
@@ -59781,7 +60176,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 124,
+          "line": 126,
           "sink": "RuntimeError"
         }
       ]
@@ -59811,7 +60206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 147,
+          "line": 149,
           "sink": "RuntimeError"
         }
       ]
@@ -59821,7 +60216,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 129,
+          "line": 131,
           "sink": "RuntimeError"
         }
       ]
@@ -59831,7 +60226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 152,
+          "line": 154,
           "sink": "RuntimeError"
         }
       ]
@@ -59841,7 +60236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 160,
+          "line": 162,
           "sink": "RuntimeError"
         }
       ]
@@ -59851,7 +60246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 132,
+          "line": 134,
           "sink": "RuntimeError"
         }
       ]
@@ -59861,7 +60256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 156,
+          "line": 158,
           "sink": "RuntimeError"
         }
       ]
@@ -59871,7 +60266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 175,
+          "line": 177,
           "sink": "RuntimeError"
         }
       ]
@@ -60585,6 +60980,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 54,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/text_search/tab.py",
           "line": 310,
           "sink": "QPushButton"
@@ -61211,7 +61611,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 59,
+          "line": 60,
           "sink": "ValueError"
         }
       ]
@@ -61418,6 +61818,16 @@
           "path": "cdmw/services/archive_mesh_comparison.py",
           "line": 23,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "No compatible matches are available in the mounted character data.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 128,
+          "sink": "setText"
         }
       ]
     },
@@ -64041,7 +64451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 337,
+          "line": 339,
           "sink": "RuntimeError"
         }
       ]
@@ -66317,11 +66727,21 @@
       ]
     },
     {
-      "key": "Open a Damiane hairstyle from the archive before creating hair.",
+      "key": "Open a Damiane hairstyle before changing references.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 23,
+          "line": 161,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Open a Damiane hairstyle before entering Hair.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -70266,7 +70686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 216,
+          "line": 239,
           "sink": "ValueError"
         }
       ]
@@ -70276,7 +70696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 210,
+          "line": 233,
           "sink": "ValueError"
         }
       ]
@@ -70286,7 +70706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 228,
+          "line": 251,
           "sink": "ValueError"
         }
       ]
@@ -73382,6 +73802,16 @@
       ]
     },
     {
+      "key": "Ponytail",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 20,
+          "sink": "addAction"
+        }
+      ]
+    },
+    {
       "key": "Popular",
       "origins": [
         {
@@ -74166,7 +74596,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 43,
+          "line": 82,
           "sink": "ValueError"
         }
       ]
@@ -74727,6 +75157,16 @@
       ]
     },
     {
+      "key": "Preparing character materials…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 181,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Preparing compatible target preview...",
       "origins": [
         {
@@ -74802,6 +75242,16 @@
         {
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 516,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Preparing hair materials…",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 56,
           "sink": "setText"
         }
       ]
@@ -78435,6 +78885,11 @@
           "sink": "QPushButton"
         },
         {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 53,
+          "sink": "QPushButton"
+        },
+        {
           "path": "tools/placement_studio/move_preview.py",
           "line": 60,
           "sink": "addItem"
@@ -80031,7 +80486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 179,
+          "line": 185,
           "sink": "on_log"
         }
       ]
@@ -80548,6 +81003,16 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 203,
           "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Ready — select visible hair to begin editing.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
+          "line": 543,
+          "sink": "setText"
         }
       ]
     },
@@ -81221,7 +81686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 196,
+          "line": 219,
           "sink": "ValueError"
         }
       ]
@@ -81816,7 +82281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 515,
+          "line": 524,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -82373,6 +82838,16 @@
           "path": "cdmw/ui/text_search/controller.py",
           "line": 180,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Reference selection cancelled; the current hairstyle is unchanged.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 170,
+          "sink": "ValueError"
         }
       ]
     },
@@ -84531,7 +85006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 324,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -84591,7 +85066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 329,
+          "line": 331,
           "sink": "ValueError"
         }
       ]
@@ -84881,7 +85356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 193,
+          "line": 216,
           "sink": "ValueError"
         }
       ]
@@ -85121,7 +85596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 230,
+          "line": 253,
           "sink": "ValueError"
         }
       ]
@@ -85161,7 +85636,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 117,
+          "line": 123,
           "sink": "ValueError"
         }
       ]
@@ -85748,16 +86223,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_wiring_part_01.py",
           "line": 278,
           "sink": "question"
-        }
-      ]
-    },
-    {
-      "key": "Reshaping existing hair must preserve its topology and UV layout.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 345,
-          "sink": "ValueError"
         }
       ]
     },
@@ -87041,7 +87506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 317,
+          "line": 371,
           "sink": "ValueError"
         }
       ]
@@ -87241,7 +87706,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 257,
+          "line": 259,
           "sink": "QPushButton"
         }
       ]
@@ -96436,7 +96901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 241,
+          "line": 243,
           "sink": "setToolTip"
         }
       ]
@@ -99976,7 +100441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 258,
+          "line": 260,
           "sink": "QPushButton"
         }
       ]
@@ -99986,7 +100451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 87,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -100051,7 +100516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 287,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -104581,7 +105046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 140,
+          "line": 153,
           "sink": "ValueError"
         }
       ]
@@ -104842,12 +105307,32 @@
       ]
     },
     {
+      "key": "The archive catalogue changed while loading the character. Open Hair again after loading completes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_context_preparation.py",
+          "line": 80,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "The archive catalogue changed while selecting a Refit mesh",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/archive_refit_flow.py",
           "line": 29,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The archive catalogue changed. Open Hair again after loading completes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 217,
+          "sink": "_error"
         }
       ]
     },
@@ -105187,6 +105672,16 @@
       ]
     },
     {
+      "key": "The barber registration exceeds its supported size.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 86,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The body being edited — `1_phm` is the player character.",
       "origins": [
         {
@@ -105421,7 +105916,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 219,
+          "line": 225,
           "sink": "ValueError"
         }
       ]
@@ -105431,7 +105926,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 205,
+          "line": 211,
           "sink": "ValueError"
         }
       ]
@@ -105441,7 +105936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 91,
+          "line": 97,
           "sink": "ValueError"
         }
       ]
@@ -105467,21 +105962,11 @@
       ]
     },
     {
-      "key": "The editor or archive changed during body selection.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 59,
-          "sink": "ValueError"
-        }
-      ]
-    },
-    {
       "key": "The editor or archive changed during reference selection.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 41,
+          "line": 174,
           "sink": "ValueError"
         }
       ]
@@ -105721,7 +106206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 175,
+          "line": 181,
           "sink": "ValueError"
         }
       ]
@@ -105741,7 +106226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 263,
+          "line": 269,
           "sink": "ValueError"
         }
       ]
@@ -105791,7 +106276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 237,
+          "line": 243,
           "sink": "ValueError"
         }
       ]
@@ -105821,7 +106306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 176,
+          "line": 189,
           "sink": "ValueError"
         }
       ]
@@ -106001,7 +106486,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 202,
+          "line": 208,
           "sink": "ValueError"
         }
       ]
@@ -106222,11 +106707,21 @@
       ]
     },
     {
+      "key": "The mounted character is missing its barber registration. Refresh the catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 82,
+          "sink": "failed"
+        }
+      ]
+    },
+    {
       "key": "The mounted donor changed since this hair draft was created.",
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 96,
+          "line": 102,
           "sink": "ValueError"
         }
       ]
@@ -106566,7 +107061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 686,
+          "line": 692,
           "sink": "RuntimeError"
         }
       ]
@@ -106701,7 +107196,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 208,
+          "line": 214,
           "sink": "ValueError"
         }
       ]
@@ -106741,7 +107236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 96,
+          "line": 109,
           "sink": "ValueError"
         }
       ]
@@ -106751,7 +107246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 71,
+          "line": 77,
           "sink": "ValueError"
         }
       ]
@@ -106891,7 +107386,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_archive_refit_worker.py",
-          "line": 46,
+          "line": 85,
           "sink": "ValueError"
         }
       ]
@@ -106901,7 +107396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 210,
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -107316,7 +107811,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 109,
+          "line": 115,
           "sink": "ValueError"
         }
       ]
@@ -107702,6 +108197,16 @@
       ]
     },
     {
+      "key": "This choice has incomplete or ambiguous dependencies.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 187,
+          "sink": "_error"
+        }
+      ]
+    },
+    {
       "key": "This collision row is read-only context.",
       "origins": [
         {
@@ -107746,7 +108251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 106,
+          "line": 112,
           "sink": "ValueError"
         }
       ]
@@ -110412,6 +110917,16 @@
       ]
     },
     {
+      "key": "Unknown Hair reference role",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 21,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unknown Mesh Editor action: {value_0}",
       "origins": [
         {
@@ -110741,7 +111256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 272,
+          "line": 274,
           "sink": "ValueError"
         }
       ]
@@ -110771,7 +111286,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 250,
+          "line": 252,
           "sink": "ValueError"
         }
       ]
@@ -111772,16 +112287,6 @@
       ]
     },
     {
-      "key": "Use Body Reference",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 52,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Use Browse Body... and Browse Armor... to load archive assets. Assign the body as the driver, then select and bind the garments. Reset or Bake before changing the setup. Finish Edit Mesh keeps both body and armor edits; Build Mod rebuilds each asset at its original archive path. Refit changes geometry, not skeletons or animation.",
       "origins": [
         {
@@ -112432,6 +112937,16 @@
       ]
     },
     {
+      "key": "Use selection",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 55,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Use selection, transforms, brushes, topology, cleanup, normals, UVs, layers, and Morph & Refit where enabled. Each disabled control explains its limit.",
       "origins": [
         {
@@ -112951,7 +113466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 513,
+          "line": 522,
           "sink": "python-return:_rust_busy_message"
         }
       ]
@@ -119161,8 +119676,8 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 49,
-          "sink": "ReplaceFromArchivePickerDialog"
+          "line": 168,
+          "sink": "HairReferencePickerDialog"
         }
       ]
     },
@@ -119591,7 +120106,7 @@
       "origins": [
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 263,
+          "line": 265,
           "sink": "emit"
         }
       ]
@@ -119631,7 +120146,7 @@
         },
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 263,
+          "line": 265,
           "sink": "emit"
         }
       ]
@@ -119703,6 +120218,156 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 647,
           "sink": "python-return:_build_environment_sections"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_attachment_iteminfo",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 38,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_attachment_patches",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 20,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_audio",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 70,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_compact_index",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 78,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_filtering",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 79,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_loose_export",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 13,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_mesh_appearance",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 19,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_mesh_export",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 18,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_model_references",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 44,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_model_textures",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 53,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_name_search",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 73,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_relationships",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 62,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.archive_sidecar_cache",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 69,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.prefab_json",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 71,
+          "sink": "_add"
+        }
+      ]
+    },
+    {
+      "key": "cdmw.core.weapon_swap_templates",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_workflow_exports.py",
+          "line": 72,
+          "sink": "_add"
         }
       ]
     },
@@ -120036,7 +120701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 220,
+          "line": 226,
           "sink": "read"
         }
       ]
@@ -122171,7 +122836,7 @@
         },
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 296,
+          "line": 298,
           "sink": "emit"
         }
       ]
@@ -123721,8 +124386,8 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 27,
-          "sink": "ReplaceFromArchivePickerDialog"
+          "line": 54,
+          "sink": "HairReferencePickerDialog"
         }
       ]
     },
@@ -123793,6 +124458,11 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_matching.py",
           "line": 51,
           "sink": "add"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 168,
+          "sink": "HairReferencePickerDialog"
         }
       ]
     },
@@ -124671,7 +125341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 357,
+          "line": 359,
           "sink": "ValueError"
         }
       ]
@@ -124681,7 +125351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 352,
+          "line": 354,
           "sink": "ValueError"
         }
       ]
@@ -124691,7 +125361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 361,
+          "line": 363,
           "sink": "ValueError"
         }
       ]
@@ -126341,7 +127011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 412,
+          "line": 418,
           "sink": "RuntimeError"
         }
       ]
@@ -126501,7 +127171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 308,
+          "line": 314,
           "sink": "RuntimeError"
         }
       ]
@@ -126601,7 +127271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 314,
+          "line": 316,
           "sink": "RuntimeError"
         }
       ]
@@ -126846,12 +127516,12 @@
         },
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 302,
+          "line": 308,
           "sink": "_result"
         },
         {
           "path": "cdmw/services/mesh_service_history.py",
-          "line": 406,
+          "line": 412,
           "sink": "_result"
         },
         {
@@ -131290,6 +131960,11 @@
           "sink": "add"
         },
         {
+          "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
+          "line": 419,
+          "sink": "_add"
+        },
+        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_02.py",
           "line": 131,
           "sink": "add"
@@ -133361,7 +134036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 355,
+          "line": 357,
           "sink": "ValueError"
         }
       ]
@@ -135171,7 +135846,7 @@
         },
         {
           "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 364,
+          "line": 366,
           "sink": "RuntimeError"
         }
       ]
@@ -136358,6 +137033,16 @@
           "path": "tools/placement_studio/clips.py",
           "line": 571,
           "sink": "python-return:summarise"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} compatible choices",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
+          "line": 128,
+          "sink": "setText"
         }
       ]
     },
@@ -138851,7 +139536,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 211,
+          "line": 217,
           "sink": "read"
         }
       ]
@@ -140096,7 +140781,7 @@
         },
         {
           "path": "cdmw/services/mesh_hair_output.py",
-          "line": 214,
+          "line": 220,
           "sink": "read"
         }
       ]

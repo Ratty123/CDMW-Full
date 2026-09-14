@@ -149,7 +149,7 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'preview_protocol = "cdmw_rust_preview_protocol_v1"' in source
     assert 'preview_package = "cdmw_rust_preview_package_v1"' in source
     assert 'preview_backend = "cdmw_rust_preview_0.1"' in source
-    assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v1")' in source
+    assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2")' in source
     assert "The Rust Preview control contract did not report success." in source
     assert "The Rust Preview control contract did not advertise any capabilities." in source
     assert "preview_capabilities = @(" in source
@@ -597,7 +597,7 @@ def test_packaged_startup_result_readback_requires_post_construction(tmp_path: P
             "executable": "cdmw_mesh_lab.exe",
             "control_contract": "cdmw_mesh_lab.control-contract.json",
             "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v1"],
+            "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2"],
             "preview_capabilities": [
                 "resident_preview_package_replace_v2",
                 "static_replacement_mesh_input_v1",

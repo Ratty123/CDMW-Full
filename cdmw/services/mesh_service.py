@@ -2506,6 +2506,18 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
         current_snapshot = _snapshot(session, prefer_native=True)
         if not restore_native_mesh_submesh_snapshot(session.working_mesh, snapshot.native_submesh_snapshot):
             raise RuntimeError("native mesh history snapshot restore failed")
+    elif snapshot.hair_vertex_deltas:
+        from cdmw.services.mesh_service_hair_transaction import restore_hair_vertices
+
+        current_deltas = restore_hair_vertices(session.working_mesh, snapshot.hair_vertex_deltas)
+        current_snapshot = _MeshHistorySnapshot(
+            mesh=None, mode=current_mode, selection=current_selection,
+            edit_operations=current_edit_operations, hair_vertex_deltas=current_deltas,
+            object_transform=current_object_transform,
+        )
+        changed_vertices_by_submesh = {
+            delta.submesh_index: delta.vertex_indices for delta in current_deltas
+        }
     elif snapshot.vertex_position_deltas:
         current_deltas = _restore_vertex_position_deltas(session.working_mesh, snapshot.vertex_position_deltas)
         current_snapshot = _MeshHistorySnapshot(

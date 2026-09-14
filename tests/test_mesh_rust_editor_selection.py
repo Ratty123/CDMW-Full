@@ -109,7 +109,7 @@ def _provenanced_resolution(root: Path, *, payload: bytes = b"rust-helper") -> R
                 "capabilities": [
                     "embedded_child_window_v1",
                     "rust_preview_runtime_v1",
-                    "hair_authoring_v1",
+                    "hair_authoring_v2",
                 ],
                 "preview_capabilities": list(RUST_PREVIEW_REQUIRED_CAPABILITIES),
                 "locked_dependencies": True,

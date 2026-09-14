@@ -132,7 +132,17 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_hair.rs")
 );
-const MAIN_SOURCE: &str = concat!(include_str!("main.rs"), "\n", include_str!("cdmw_hair.rs"));
+const MAIN_SOURCE: &str = concat!(
+    include_str!("main.rs"),
+    "\n",
+    include_str!("cdmw_hair.rs"),
+    "\n",
+    include_str!("cdmw_hair_input.rs"),
+    "\n",
+    include_str!("cdmw_hair_geometry.rs"),
+    "\n",
+    include_str!("cdmw_hair_motion.rs")
+);
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
     "key",
@@ -648,19 +658,19 @@ policy.exact_free_edit|exact_free_edit|executable|session_policy|true|
 
 // Product controls whose UI and dispatcher anchors are both verified directly.
 const PRODUCT_COMPILED_ANCHOR_ROWS: &str = r#"
-hair.create|hair|"Create Hair"|command: "hair_begin"
-hair.edit|hair|"Edit Hair"|command: "hair_begin"
-hair.preset|hair|"Fill upper scalp from preset"|Preparation::Fill
+hair.create|hair|"Create hairstyle"|"hair_begin"
+hair.edit|hair|"Edit hairstyle"|"hair_begin"
+hair.preset|hair|"Apply preset (replace current hair)"|Preparation::Fill
 hair.groom|hair|"Comb"|hair::groom
-hair.bind|hair|"Bind existing group"|hair::bind_existing
-hair.root|hair|"Correct roots"|HairTool::Root
-hair.rebind|hair|"Rebind roots"|Preparation::Rebind
-hair.appearance|hair|"Apply appearance"|HairAction::Settings
+hair.bind|hair|"Prepare existing hair sections"|locks::prepare_existing
+hair.root|hair|"Set root / group selected sections"|HairTool::Root
+hair.rebind|hair|"Rebind to changed head"|Preparation::Rebind
+hair.appearance|hair|"Apply to selected locks"|HairAction::Settings
 hair.texture|hair|"Apply edited DDS…"|"hair_texture"
-hair.motion|hair|"Motion"|sim.advance
+hair.motion|hair|"Motion"|sim.advance_test
 hair.settle|hair|"Use settled shape"|.settled_state
-hair.convert|hair|"Convert to ordinary mesh"|state.converted = true
-hair.registration|hair|"Apply registration name"|HairAction::Registration
+hair.convert|hair|"Convert to ordinary mesh"|HairAction::Convert
+hair.registration|hair|"Apply name"|HairAction::Registration
 tool.rotate|transform|CdmwRailPage::Rotate|ViewportTool::Rotate
 tool.scale|transform|CdmwRailPage::Scale|ViewportTool::Scale
 transform.numeric_rotate|transform|UiAction::RotateStep|UiAction::RotateStep
@@ -704,7 +714,7 @@ rig.transfer_weights|rig_weights|"rig_transfer_weights"|UiAction::CdmwCommand
 topology.loop_cut_parameters|topology|cdmw_loop_cut_count|cdmw_loop_cut_count
 topology.refine_parameters|topology|cdmw_refine_strength|cdmw_refine_strength
 topology.weld_distance|topology|cdmw_weld_distance|cdmw_weld_distance
-output.host_handoff|import_output_export|Button::new("Finish Edit Mesh")|UiAction::FinishCdmw
+output.host_handoff|import_output_export|"Finish Edit Mesh"|UiAction::FinishCdmw
 replacement.import|import_output_export|"replacement_choose"|UiAction::CdmwCommand
 replacement.experimental|import_output_export|"replacement_enable_experimental"|UiAction::CdmwCommand
 replacement.mapping|import_output_export|"replacement_apply"|UiAction::CdmwCommand

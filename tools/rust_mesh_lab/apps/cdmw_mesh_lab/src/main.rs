@@ -2,8 +2,8 @@
 #![recursion_limit = "256"]
 
 mod camera;
-mod cdmw_preview;
 mod cdmw_hair;
+mod cdmw_preview;
 mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
@@ -27,6 +27,7 @@ use anyhow::{Context, Result, bail};
 use camera::{OrbitCamera, StandardView};
 use cdmw_archive::ArchiveCatalog;
 use cdmw_formats::MeshDocument;
+use cdmw_hair::{HairAction, HairEditor};
 use cdmw_interaction::{
     OperatorController, SelectionCommand, SelectionDomain, SelectionOperation, SelectionQuery,
     SelectionQueryStats, SelectionShape, query_selection, selection_after_command,
@@ -47,7 +48,6 @@ use cdmw_session::{
 use cdmw_texture::DdsMetadata;
 use egui::{Color32, RichText, Stroke};
 use glam::{Quat, Vec2, Vec3};
-use cdmw_hair::{HairAction, HairEditor};
 use loader::{LoadEvent, LoadedMaterialFactors, LoadedMesh, LoadedTexture, Loader};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -2347,8 +2347,10 @@ impl LabApplication {
         }
         let hair = bridge.hair_from_state(&initial_state)?;
         application.cdmw_state = initial_state;
-        application.hair.pending_start = application.cdmw_state["hair"]["start_mode"].as_str()
-            .filter(|mode| matches!(*mode, "generated" | "existing")).map(String::from);
+        application.hair.pending_start = application.cdmw_state["hair"]["start_mode"]
+            .as_str()
+            .filter(|mode| matches!(*mode, "generated" | "existing"))
+            .map(String::from);
         application.hydrate_hair(hair);
         application.cdmw_bridge = Some(bridge);
         application.cdmw_texture_resources = cdmw_texture_resources;
@@ -2623,6 +2625,7 @@ impl LabApplication {
 
     fn submit_cdmw_finish(&mut self) {
         if self.cdmw_busy() || self.hair.preparing() {
+            self.hair.pending_finish = self.hair.active();
             self.status =
                 "Finish Edit Mesh is waiting for the current edit or hair generation; wait or cancel generation".to_owned();
             return;
@@ -2740,7 +2743,22 @@ impl LabApplication {
         let origin = pending.origin.clone();
         let feedback = cdmw_result_feedback(&payload);
         let (revision, state, document) = prepared.into_parts();
-        if let Some(state) = state
+        if ok && payload.get("hair_ack").is_some() {
+            if let Err(error) =
+                self.accept_hair_ack(payload["hair_ack"].as_u64().unwrap_or(u64::MAX))
+            {
+                self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
+                return;
+            }
+            for key in [
+                "base_revision",
+                "undo_count",
+                "redo_count",
+                "history_cursor",
+            ] {
+                self.cdmw_state[key] = payload[key].clone();
+            }
+        } else if let Some(state) = state
             && let Err(error) = self.install_validated_cdmw_state(state, document)
         {
             self.handle_cdmw_host_event(HostEvent::Fatal(error.to_string()));
@@ -2848,7 +2866,12 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
-        let hair = self.cdmw_bridge.as_ref().map(|bridge| bridge.hair_from_state(&state)).transpose()?.flatten();
+        let hair = self
+            .cdmw_bridge
+            .as_ref()
+            .map(|bridge| bridge.hair_from_state(&state))
+            .transpose()?
+            .flatten();
         // Replacement targets keep their material slots when imported layouts
         // differ from the archive layout. Reload the explicit immutable binding
         // in that case instead of letting ordinary source-identity remapping
@@ -4469,7 +4492,9 @@ impl LabApplication {
                 }
                 UiAction::Undo => {
                     if self.cdmw_mode() {
-                        self.submit_cdmw_command("undo", json!({}), "Undo");
+                        if !self.defer_hair_history(false) {
+                            self.submit_cdmw_command("undo", json!({}), "Undo");
+                        }
                     } else if let Some(mesh) = &mut self.mesh {
                         match self.history.undo(mesh) {
                             Ok(()) => {
@@ -4483,7 +4508,9 @@ impl LabApplication {
                 }
                 UiAction::Redo => {
                     if self.cdmw_mode() {
-                        self.submit_cdmw_command("redo", json!({}), "Redo");
+                        if !self.defer_hair_history(true) {
+                            self.submit_cdmw_command("redo", json!({}), "Redo");
+                        }
                     } else if let Some(mesh) = &mut self.mesh {
                         match self.history.redo(mesh) {
                             Ok(()) => {
@@ -4968,7 +4995,9 @@ impl LabApplication {
 
     fn choose_cdmw_free_edit(&mut self) {
         if self.cdmw_has_archive_refit() {
-            self.status = "Archive Refit keeps original game files. Open a separate mesh for Free Edit.".to_owned();
+            self.status =
+                "Archive Refit keeps original game files. Open a separate mesh for Free Edit."
+                    .to_owned();
             return;
         }
         if let Some(parent) = self
@@ -5138,11 +5167,12 @@ impl LabApplication {
                 self.raw_pointer_position = Some(next);
                 let mut captured = false;
                 if self.raw_primary_captured {
-                    if self.viewport_tool == ViewportTool::Select
-                        && matches!(
-                            self.selection_tool,
-                            SelectionTool::Lasso | SelectionTool::Brush
-                        )
+                    if self.hair.active()
+                        || self.viewport_tool == ViewportTool::Select
+                            && matches!(
+                                self.selection_tool,
+                                SelectionTool::Lasso | SelectionTool::Brush
+                            )
                     {
                         self.pointer_events.push_primary_path_point(next);
                     } else {
@@ -5210,7 +5240,9 @@ impl LabApplication {
         rectangle: egui::Rect,
         response: &egui::Response,
     ) {
-        if self.handle_hair_input(ui, rectangle) { return; }
+        if self.handle_hair_input(ui, rectangle) {
+            return;
+        }
         if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             self.cancel_active_gesture("Gesture cancelled");
         }
