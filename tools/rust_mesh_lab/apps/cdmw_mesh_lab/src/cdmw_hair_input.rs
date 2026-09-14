@@ -1,8 +1,8 @@
 //! Production pointer dispatch for direct lock editing.
 use super::*;
 
-fn resample_draw_points(points: &[[f32; 3]], count: usize) -> Vec<[f32; 3]> {
-    if points.len() <= count {
+fn resample_draw_points(points: &[[f32; 3]], count: usize, root_span: f32) -> Vec<[f32; 3]> {
+    if points.len() < 2 {
         return points.to_vec();
     }
     let mut lengths = vec![0.0];
@@ -10,10 +10,16 @@ fn resample_draw_points(points: &[[f32; 3]], count: usize) -> Vec<[f32; 3]> {
         lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
     }
     let total = *lengths.last().unwrap();
+    let root_span = root_span.min(total * 0.25);
+    let root_samples = if root_span > 0.0 { 8.min(count / 4) } else { 0 };
     let mut result = vec![points[0]];
     let mut segment = 0;
     for i in 1..count - 1 {
-        let distance = total * i as f32 / (count - 1) as f32;
+        let distance = if i <= root_samples {
+            root_span * i as f32 / root_samples as f32
+        } else {
+            root_span + (total - root_span) * (i - root_samples) as f32 / (count - 1 - root_samples) as f32
+        };
         while segment + 2 < points.len() && lengths[segment + 1] < distance {
             segment += 1;
         }
@@ -22,6 +28,46 @@ fn resample_draw_points(points: &[[f32; 3]], count: usize) -> Vec<[f32; 3]> {
     }
     result.push(*points.last().unwrap());
     result
+}
+
+fn smooth_draw_points(points: &[[f32; 3]], smoothing: f32, width: f32) -> Vec<[f32; 3]> {
+    let mut points = resample_draw_points(points, points.len().clamp(2, 256), 0.0);
+    // Symmetric spatial filtering keeps the tip under the pointer; a temporal
+    // trailing filter would make drawing feel delayed and depend on frame rate.
+    for _ in 0..3 {
+        let before = points.clone();
+        for i in 1..points.len() - 1 {
+            points[i] = Vec3::from(before[i]).lerp(
+                (Vec3::from(before[i - 1]) + Vec3::from(before[i + 1])) * 0.5,
+                smoothing * 0.5).to_array();
+        }
+    }
+    resample_draw_points(&points, hair::MAX_POINTS, width * 2.0)
+}
+
+fn draw_shape_point(shape: DrawShape, start: Vec2, end: Vec2, t: f32, bend: f32) -> Vec2 {
+    let delta = end - start;
+    let across = Vec2::new(-delta.y, delta.x);
+    match shape {
+        DrawShape::Arc => start.lerp(end, t) + across * (2.0 * t * (1.0 - t) * bend),
+        DrawShape::Circle => {
+            let angle = std::f32::consts::TAU * t;
+            (start + end) * 0.5 - delta * (0.5 * angle.cos()) + across * (0.5 * angle.sin())
+        }
+        _ => start.lerp(end, t),
+    }
+}
+
+#[test]
+fn hair_spatial_smoothing_reduces_jitter_without_trailing_the_pointer() {
+    let path: Vec<_> = (0..201).map(|i| [i as f32 * 0.001, 0.2, (i as f32 * 1.3).sin() * 0.001]).collect();
+    let raw = smooth_draw_points(&path, 0.0, 0.012);
+    let smooth = smooth_draw_points(&path, 1.0, 0.012);
+    let jitter = |points: &[[f32; 3]]| points.windows(3)
+        .map(|p| (p[0][2] - 2.0 * p[1][2] + p[2][2]).abs()).sum::<f32>();
+    assert!(jitter(&smooth) < jitter(&raw) * 0.7);
+    assert_eq!(smooth[0], path[0]);
+    assert_eq!(smooth.last(), path.last());
 }
 
 impl LabApplication {
@@ -157,8 +203,15 @@ impl LabApplication {
             self.hair.cut_preview = hit;
         }
         let events: Vec<_> = self.pointer_events.drain().collect();
-        for event in events {
-            self.dispatch_hair_pointer(event, rect, modifiers.ctrl, modifiers.alt, modifiers.shift);
+        for (index, event) in events.iter().enumerate() {
+            let endpoint_tool = self.hair.tool == Some(HairTool::Move)
+                || (self.hair.tool == Some(HairTool::Guide) && self.hair.draw_shape != DrawShape::Freehand);
+            if endpoint_tool && !modifiers.alt && !modifiers.shift
+                && matches!(event, ViewportPointerEvent::PrimaryMoved(_))
+                && matches!(events.get(index + 1), Some(ViewportPointerEvent::PrimaryMoved(_))) {
+                continue;
+            }
+            self.dispatch_hair_pointer(*event, rect, modifiers.ctrl, modifiers.alt, modifiers.shift);
         }
         if ui.rect_contains_pointer(rect) {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -209,6 +262,18 @@ impl LabApplication {
             ViewportPointerEvent::PrimaryPressed(point) if self.hair_input_ready() => {
                 let hit = self.lock_at(point, rect);
                 self.hair.stroke_primary = hit.map(|h| h.0);
+                self.hair.move_anchor = hit.and_then(|(id, segment, t)| {
+                    let state = self.hair.state.as_ref()?;
+                    let gi = state.locks.iter().find(|l| l.id == id)?.guide? as usize;
+                    let points = &state.guides[gi].points;
+                    let mut lengths = vec![0.0];
+                    for pair in points.windows(2) {
+                        lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+                    }
+                    let i = (segment as usize).min(points.len() - 2);
+                    let along = (lengths[i] + (lengths[i + 1] - lengths[i]) * t) / lengths.last().unwrap().max(1e-6);
+                    Some((along, Vec3::from(points[i]).lerp(Vec3::from(points[i + 1]), t)))
+                });
                 self.hair.stroke_distances.clear();
                 self.hair.stroke_start = Some(point);
                 self.hair.last_pointer = Some(point);
@@ -253,11 +318,11 @@ impl LabApplication {
                 if self.hair.tool == Some(HairTool::Erase) {
                     self.hair.selected.clear();
                 }
-                self.hair_stroke_point(rect, point, !ctrl);
+                self.hair_stroke_point(rect, point, !ctrl && self.hair.draw_follow_scalp);
             }
             ViewportPointerEvent::PrimaryMoved(point) => {
                 if self.hair.stroke_start.is_some() {
-                    self.hair_stroke_point(rect, point, !ctrl);
+                    self.hair_stroke_point(rect, point, !ctrl && self.hair.draw_follow_scalp);
                 }
             }
             ViewportPointerEvent::PrimaryReleased(point) => {
@@ -282,7 +347,7 @@ impl LabApplication {
                         );
                     }
                 } else {
-                    self.hair_stroke_point(rect, point, !ctrl);
+                    self.hair_stroke_point(rect, point, !ctrl && self.hair.draw_follow_scalp);
                     if let Some(mut state) = self.hair.stroke.take() {
                         if matches!(self.hair.tool, Some(HairTool::Guide | HairTool::Paint))
                             && self
@@ -447,7 +512,9 @@ impl LabApplication {
                         cards: 0,
                     });
                     self.hair.drawing.push(id);
-                    self.hair.drawing_samples = state.guides[guide as usize].points.clone();
+                    // The tiny seed keeps the in-progress state valid, but is
+                    // replaced by the actual stroke direction on the first move.
+                    self.hair.drawing_samples = vec![position.to_array()];
                     if self.hair.symmetry && position.x.abs() > 0.001 {
                         let attachment = state.scalp.nearest(position * Vec3::new(-1.0, 1.0, 1.0));
                         let mirrored = state.scalp.point(&attachment).map_err(|e| e.to_string())?;
@@ -483,12 +550,10 @@ impl LabApplication {
                         .iter()
                         .find(|l| l.id == self.hair.drawing[0])
                         .unwrap();
-                    let anchor = Vec3::from(
-                        *state.guides[first.guide.unwrap() as usize]
-                            .points
-                            .last()
-                            .unwrap(),
-                    );
+                    let root_position = Vec3::from(state.guides[first.guide.unwrap() as usize].points[0]);
+                    let anchor = if self.hair.draw_shape == DrawShape::Freehand {
+                        Vec3::from(*self.hair.drawing_samples.last().unwrap())
+                    } else { root_position };
                     let (min, max) = hair_bounds(&state);
                     let pivot = self.hair.simulation.as_ref().map_or(
                         Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5),
@@ -527,48 +592,91 @@ impl LabApplication {
                         .width;
                     let clearance = width * 0.55 + self.hair.motion.collision_margin;
                     let tip = if let Some(root) = surface {
-                        let p = state.scalp.point(&root).map_err(|e| e.to_string())?;
-                        scene.scalp_picking.contact(
-                            &state.scalp.positions,
-                            &scene.scalp_indices,
-                            p,
-                            clearance,
-                        )
+                        state.scalp.point(&root).map_err(|e| e.to_string())?
                     } else {
                         free_tip
                     };
-                    let from = Vec3::from(*self.hair.drawing_samples.last().unwrap());
-                    let steps = ((tip.distance(from) / (clearance * 0.5).max(0.002)).ceil()
-                        as usize).clamp(1, 16);
-                    for step in 1..=steps {
-                        let p = scene.scalp_picking.contact_with_reach(
-                            &state.scalp.positions, &scene.scalp_indices,
-                            from.lerp(tip, step as f32 / steps as f32), clearance,
-                            clearance + tip.distance(from),
-                        );
-                        if p.distance(Vec3::from(*self.hair.drawing_samples.last().unwrap())) >= 0.001 {
-                            self.hair.drawing_samples.push(p.to_array());
+                    if self.hair.draw_shape == DrawShape::Freehand {
+                        let from = Vec3::from(*self.hair.drawing_samples.last().unwrap());
+                        let steps = ((tip.distance(from) / (width * 0.15).max(0.0005)).ceil()
+                            as usize).clamp(1, 64);
+                        for step in 1..=steps {
+                            let p = from.lerp(tip, step as f32 / steps as f32);
+                            if p.distance(Vec3::from(*self.hair.drawing_samples.last().unwrap())) >= 0.0001 {
+                                self.hair.drawing_samples.push(p.to_array());
+                            }
+                        }
+                    } else {
+                        let start = self.hair.stroke_start.unwrap();
+                        self.hair.drawing_samples = vec![root_position.to_array()];
+                        for i in 1..hair::MAX_POINTS {
+                            let screen = draw_shape_point(self.hair.draw_shape, start, pointer,
+                                i as f32 / (hair::MAX_POINTS - 1) as f32, self.hair.arc_bend);
+                            let attachment = follow_scalp.then(|| self.camera.screen_ray(screen, rect)
+                                .and_then(|ray| self.pick_hair_scalp(ray.0, ray.1))).flatten();
+                            let point = if let Some(attachment) = attachment {
+                                state.scalp.point(&attachment).map_err(|e| e.to_string())?
+                            } else {
+                                root_position + pose.head.inverse() * self.camera.plane_drag_delta(
+                                    self.camera.forward(), pose.head_point(root_position), start, screen, rect)
+                            };
+                            self.hair.drawing_samples.push(point.to_array());
                         }
                     }
                     // Retain the pointer path separately from the bounded guide.
                     // Repeatedly deleting low-curvature points used to consume
                     // the entire budget at scalp seams and stretch long tails.
                     if self.hair.drawing_samples.len() > 4096 {
-                        self.hair.drawing_samples = resample_draw_points(&self.hair.drawing_samples, 2048);
+                        self.hair.drawing_samples = resample_draw_points(&self.hair.drawing_samples, 2048, 0.0);
                     }
-                    let samples = resample_draw_points(&self.hair.drawing_samples, hair::MAX_POINTS);
+                    let samples = if self.hair.draw_shape == DrawShape::Freehand {
+                        smooth_draw_points(&self.hair.drawing_samples, self.hair.draw_smoothing, width)
+                    } else {
+                        resample_draw_points(&self.hair.drawing_samples, hair::MAX_POINTS, width * 2.0)
+                    };
                     for (i, id) in self.hair.drawing.iter().enumerate() {
                         let lock = state.locks.iter().find(|l| l.id == *id).unwrap();
                         let guide = &mut state.guides[lock.guide.unwrap() as usize];
                         let mirror = if i == 0 { Vec3::ONE } else { Vec3::new(-1.0, 1.0, 1.0) };
                         let mut points = vec![guide.points[0]];
-                        for sample in samples.iter().skip(1) {
-                            let p = scene.scalp_picking.contact_with_reach(
-                                &state.scalp.positions, &scene.scalp_indices,
-                                Vec3::from(*sample) * mirror, clearance, clearance * 2.0,
-                            );
+                        let mut length = 0.0;
+                        for pair in samples.windows(2) {
+                            length += Vec3::from(pair[0]).distance(Vec3::from(pair[1]));
+                            let margin = clearance * hair::root_blend(length, width);
+                            let mut p = Vec3::from(pair[1]) * mirror;
+                            // Preserve the drawn silhouette. Normal-only pushes
+                            // can reverse adjacent samples at brows and seams,
+                            // folding the cards despite a smooth pointer path.
+                            if let Some(ray) = self.camera.project(pose.head_point(p), rect)
+                                .and_then(|p| self.camera.screen_ray(p.screen, rect)) {
+                                let origin = pivot + pose.head.inverse() * (ray.0 - pivot - pose.translation);
+                                let direction = pose.head.inverse() * ray.1;
+                                if let Some(hit) = scene.scalp_picking.hit(&state.scalp.positions, &scene.scalp_indices, origin, direction) {
+                                    // Use view-depth clearance, not division by
+                                    // individual face normals. Near-tangent faces
+                                    // otherwise create large depth spikes.
+                                    let limit = hit.distance - margin;
+                                    let depth = (p - origin).dot(direction).min(limit);
+                                    p = origin + direction * depth;
+                                }
+                            }
                             if p.distance(Vec3::from(*points.last().unwrap())) >= 0.0001 {
                                 points.push(p.to_array());
+                            }
+                        }
+                        // Bridge small depth creases without moving the stroke
+                        // sideways or pulling it into the scalp. Keep the root
+                        // transition and the endpoint under direct user control.
+                        for _ in 0..4 {
+                            let before = points.clone();
+                            for row in 9..points.len().saturating_sub(1) {
+                                let p = Vec3::from(before[row]);
+                                let mean = (Vec3::from(before[row - 1]) + Vec3::from(before[row + 1])) * 0.5;
+                                if let Some(ray) = self.camera.project(pose.head_point(p), rect)
+                                    .and_then(|p| self.camera.screen_ray(p.screen, rect)) {
+                                    let toward = pose.head.inverse() * -ray.1;
+                                    points[row] = (p + toward * (mean - p).dot(toward).max(0.0) * 0.5).to_array();
+                                }
                             }
                         }
                         if points.len() > 2 {
@@ -727,6 +835,47 @@ impl LabApplication {
                 .and_then(|l| l.guide)
             {
                 guides.sort_by_key(|g| if *g == primary as usize { 0 } else { 1 });
+            }
+            if tool == HairTool::Move {
+                let before = self.hair.state.as_ref().ok_or("Loading hair")?;
+                let (along, anchor) = self.hair.move_anchor.ok_or("Click a visible hair lock to select it, then drag.")?;
+                let (min, max) = hair_bounds(before);
+                let pivot = self.hair.simulation.as_ref().map_or(
+                    Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5), |s| s.pivot);
+                let pose = hair::PreviewPose::at(pivot, (max.y - min.y).max(0.01),
+                    self.hair.simulation.as_ref().map_or(0.0, |s| s.elapsed as f32), self.hair.head_test);
+                let delta = pose.head.inverse() * self.camera.plane_drag_delta(self.camera.forward(),
+                    pose.head_point(anchor), self.hair.stroke_start.unwrap(), pointer, rect);
+                let primary_left = before.guides[guides[0]].points[0][0] < 0.0;
+                let mut affected: BTreeSet<_> = guides.iter().copied().collect();
+                if self.hair.symmetry { locks::extend_mirrored_guides(&state, &mut affected); }
+                for gi in affected {
+                    let old = &before.guides[gi];
+                    let mut lengths = vec![0.0];
+                    for pair in old.points.windows(2) {
+                        lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+                    }
+                    let paired = before.locks.iter().any(|l| l.guide == Some(gi as u32) && l.mirrored.is_some());
+                    let mirror = if self.hair.symmetry && paired && (old.points[0][0] < 0.0) != primary_left {
+                        Vec3::new(-1.0, 1.0, 1.0)
+                    } else { Vec3::ONE };
+                    let group = before.groups.iter().find(|g| g.id == old.group).unwrap();
+                    for i in 1..old.points.len() {
+                        let t = lengths[i] / lengths.last().unwrap().max(1e-6);
+                        let root = (t / along.max(0.02)).clamp(0.0, 1.0);
+                        let weight = root * root * (3.0 - 2.0 * root)
+                            * (-2.0 * ((t - along) / self.hair.move_reach).powi(2)).exp();
+                        let mut point = Vec3::from(old.points[i]) + delta * mirror * weight;
+                        if let Some(scene) = &self.hair.scene {
+                            let margin = self.hair.motion.collision_margin * hair::root_blend(lengths[i], group.width);
+                            point = scene.scalp_picking.contact_with_reach(&state.scalp.positions,
+                                &scene.scalp_indices, point, margin, delta.length() + group.width);
+                        }
+                        state.guides[gi].points[i] = point.to_array();
+                    }
+                }
+                self.hair.stroke_changed = state.guides != before.guides;
+                return Ok(());
             }
             let pivot = Vec3::from(state.guides[guides[0]].points[0]);
             let delta = self.hair.rotation.inverse()

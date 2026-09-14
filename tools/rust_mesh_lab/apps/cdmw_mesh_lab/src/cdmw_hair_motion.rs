@@ -80,7 +80,7 @@ impl LabApplication {
             .map_or(0.0, |s| s.elapsed as f32);
         let pose = hair::PreviewPose::at(pivot, height, elapsed, self.hair.head_test);
         let scene = self.hair.scene.as_mut().unwrap();
-        if scene.applied && !self.hair.playing && self.hair.stroke.is_none() {
+        if scene.applied && !self.hair.playing {
             return;
         }
         let snapshot = &mut scene.frame;
@@ -202,20 +202,8 @@ impl LabApplication {
             .as_ref()
             .filter(|_| !self.hair.drawing.is_empty())
         {
-            let mut draw = stroke.clone();
-            draw.locks.retain(|l| self.hair.drawing.contains(&l.id));
-            let old = draw.guides.clone();
-            draw.guides.clear();
-            draw.bindings.clear();
-            for lock in &mut draw.locks {
-                if let Some(index) = lock.guide {
-                    let guide = old[index as usize].clone();
-                    lock.guide = Some(draw.guides.len() as u32);
-                    lock.vertices.clear();
-                    draw.guides.push(guide);
-                }
-            }
-            if let Ok(generated) = hair::generate(&draw, &AtomicBool::new(false)) {
+            if let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
+                &scene.scalp_picking, &scene.scalp_indices, Some(&self.hair.drawing)) {
                 for geometry in generated {
                     let first = snapshot.positions.len() as u32;
                     snapshot.positions.extend(
@@ -240,7 +228,7 @@ impl LabApplication {
                     ));
                     let mut owners = vec![None; geometry.positions.len()];
                     for b in geometry.bindings {
-                        owners[b.vertex as usize] = draw
+                        owners[b.vertex as usize] = stroke
                             .locks
                             .iter()
                             .find(|l| l.guide == Some(b.guide))

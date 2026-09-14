@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Hair Draw offers Freehand, Straight, Arc and Circle strokes, with stroke smoothing, arc bend and adjustable Move reach.
 - Translations can open existing `.paloc` language-mod files without a configured game installation, preserving their translated text and export language slot.
 
 ### Changed
@@ -25,6 +26,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Drawn hair starts with narrow cards following the scalp instead of a straight outward stem. Motion retains the gradual root clearance, and Draw reuses cached scalp data to reduce drag stalls. Move shapes the grabbed area smoothly and consistently across mouse event rates.
 - Untouched in-game hair no longer appears to have broken roots in Hair Tools. Sections without editor guides retain verified original geometry and skinning for export, with preparation needed only for grooming or motion preview; changed unprepared sections remain blocked.
 - Hair Tools uses the head's fitted eye surfaces instead of protruding shader-dependent eyeballs for the clean mannequin.
 - Long Draw strokes keep evenly distributed guide points and consistent texture spacing and taper. Clear Selection, Select All and Invert operate on hair locks, and selection refreshes preserve drawn hair instead of revealing the original hairstyle.

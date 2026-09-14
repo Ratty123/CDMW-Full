@@ -66,15 +66,36 @@ Select, Ctrl-select, marquee and the toolbar's Clear Selection/Select All/Invert
 change only hair-lock selection. Repeated host state notifications preserve the
 acknowledged generated preview instead of exposing retained template geometry.
 Move and Lengthen acquire
-a clicked lock while preserving an existing selected group. Lengthen changes tips
+a clicked lock while preserving an existing selected group. Move follows the grabbed
+position with a smooth, distance-based falloff; **Move reach** controls how much of
+the lock follows. It evaluates the original shape against the complete drag, so
+mouse event frequency does not amplify the edit. Lengthen changes tips
 and fixes roots. Comb, Smooth, Curl and Clump respect brush influence and selection.
-Draw supports consecutive strokes, visible cards during dragging and explicit
-mirror pairs. Each pointer sample projects onto the curved scalp; drawing beyond
-its outline or holding Ctrl extends from the last tip in the camera plane. Sampled
+Draw supports Freehand, Straight, Arc and Circle strokes, visible cards during
+dragging and explicit mirror pairs. Straight and Arc use the dragged endpoints;
+Arc has a signed Bend control. Circle uses the drag as its diameter. Freehand's
+Stroke smoothing filters spatial jitter while preserving the root and current tip,
+without a trailing pointer delay. **Follow scalp** starts enabled for Freehand;
+shape templates start in the view plane. The checkbox and temporary Ctrl override
+control surface following independently of collision, which stays active. With
+surface following enabled, each pointer sample projects onto the curved scalp.
+Freehand continues from its last tip in the camera plane beyond the outline or
+while Ctrl is held. Draw resolves contacts along the view ray to preserve the
+stroke silhouette, with gentle outward smoothing across small depth creases.
+Triangle-normal clearance must not reverse adjacent guide samples. Sampled
 guide segments and generated card width keep contacts active in both modes.
 Long strokes retain their pointer path separately and resample the bounded guide
-by distance, preserving root and tip. Card taper and texture coordinates follow
-physical distance rather than pointer sample count.
+by distance, preserving root and tip. Extra samples near the root let the stroke
+leave the scalp gradually. The initial outward seed is replaced on the first drag.
+Cards start narrow and tangent to the scalp, then broaden and roll into the follower
+bundle with distance; motion blends from the inward root extent to each row's full
+radius so rotating cards remain outside the head without lifting the whole lock by
+its widest section. Card taper and texture coordinates
+follow physical distance rather than pointer sample count. Saved guides retain
+their authored shape; older strokes with a baked-in straight root need redrawing.
+Live Draw reuses the prepared scalp index and generates only the active locks.
+Idle strokes reuse the current frame; endpoint-based tools coalesce queued moves
+within a frame while Freehand retains its path samples.
 Cut removes distal geometry; Erase/Delete remove owned geometry.
 Width and generated follower density affect selected locks. Empty selections,
 rigid sections, unresolved groups and unsupported existing-hair operations report
@@ -185,6 +206,12 @@ The Rust ignored `hair_production_render_and_benchmark` test consumes the probe'
 `CDMW_HAIR_PROBE_OUTPUT`. It records front/side/rear images of every nonempty preset,
 motion contacts and capture timings. These measurements exclude desktop compositor
 presentation. Keep generated assets, captures and packages outside Git.
+
+`hair_draw_shapes_render_and_drag_benchmark` uses the same retained loader input.
+With `CDMW_HAIR_PROBE_CAPTURE_STEPS=1`, it captures each Draw shape before and after
+Move and records CPU dispatcher/preview p50/p95 timings plus cached versus rebuilt
+scalp-index generation timings. These timings exclude GPU upload and desktop
+presentation; use a release test executable for performance evidence.
 
 `hair_production_contact_regression` consumes the renderer probe's `candidate.json`
 through the same environment variables. It samples deformed card vertices during
