@@ -21,6 +21,10 @@ from cdmw.domain.character_context import NativePreviewContextComponent
 from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_rust_contract import RUST_MESH_RENDERER, RUST_PREVIEW_BACKEND, resolve_rust_mesh_editor
 from cdmw.services.mesh_rust_preview_cache import RUST_PREVIEW_CACHE_SCHEMA
+from cdmw.services.mesh_rust_preview_package import rust_preview_package_from_path
+from cdmw.rendering.dotnet_preview_package_cache import (
+    acquire_dotnet_preview_package_cache_lease_for_path, dotnet_preview_package_cache_build_lock,
+)
 
 _CHARACTER_RENDER_SCHEMA = 5
 
@@ -104,14 +108,30 @@ def cached_character_render(cache_root: Path, key: str, *, require_package: bool
         return None
 
 
+def cached_character_package(cache_root: Path, key: str) -> CharacterRenderResult | None:
+    """Reuse complete 3D output even if its later thumbnail capture was interrupted."""
+    path = cache_root / "character_finder" / "thumbnails" / (key + ".package.json")
+    try:
+        if path.stat().st_size > 64 * 1024:
+            return None
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if value["key"] != key:
+            return None
+        package = rust_preview_package_from_path(value["package_path"])
+        return CharacterRenderResult(key, str(package.package_dir), "", value["status"], tuple(value["notes"]), True)
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 class CharacterFinderRenderWorker(QObject):
     package_ready = Signal(int, object)
     completed = Signal(int, object)
     failed = Signal(int, str)
+    cache_missed = Signal(int)
     finished = Signal()
 
     def __init__(self, token: int, inputs: CharacterPreviewInputs, *, cache_root: Path,
-                 fingerprint: str, settings: ModelPreviewRenderSettings) -> None:
+                 fingerprint: str, settings: ModelPreviewRenderSettings, cache_only: bool = False) -> None:
         super().__init__()
         self.token = token
         self.inputs = inputs
@@ -120,6 +140,7 @@ class CharacterFinderRenderWorker(QObject):
         self.settings = replace(settings, use_textures_by_default=True)
         self._stop = threading.Event()
         self._capture_report = {}
+        self._cache_only = cache_only
 
     def stop(self) -> None:
         self._stop.set()
@@ -133,29 +154,25 @@ class CharacterFinderRenderWorker(QObject):
         try:
             self._check()
             key = character_render_key(self.inputs.detail, self.fingerprint, self.settings)
-            cached = cached_character_render(self.cache_root, key)
-            if cached:
-                self._remember_thumbnail(cached)
-                self.package_ready.emit(self.token, cached)
-                self.completed.emit(self.token, cached)
-                return
-            package, status, notes = self._build_package(key)
-            result = CharacterRenderResult(key, str(package.package_dir), "", status, notes)
-            self._check()
-            self.package_ready.emit(self.token, result)
-            image_path = self._capture(package, key)
-            self._check()
-            result = replace(result, thumbnail_path=str(image_path))
-            metadata = image_path.with_suffix(".json")
-            temporary = metadata.with_name(metadata.name + f".{uuid4().hex}.tmp")
-            try:
-                temporary.write_text(json.dumps({**asdict(result), "capture": self._capture_report}, ensure_ascii=False), encoding="utf-8")
+            # Character names can share exact shape/material inputs. Coordinate
+            # their expensive jobs across Finder and startup controllers, while
+            # leaving unrelated render keys free to run in parallel.
+            lock = dotnet_preview_package_cache_build_lock(self.cache_root / "character_finder", key)
+            announced_package = False
+            while not lock.acquire(timeout=0.05):
                 self._check()
-                os.replace(temporary, metadata)
+                if not announced_package:
+                    ready = cached_character_package(self.cache_root, key)
+                    if ready is not None:
+                        # A matching job may still be capturing its image. Its
+                        # completed 3D package is already usable by the selection.
+                        self.package_ready.emit(self.token, ready)
+                        announced_package = True
+            try:
+                self._check()
+                self._render_or_reuse(key)
             finally:
-                temporary.unlink(missing_ok=True)
-            self._remember_thumbnail(result)
-            self.completed.emit(self.token, result)
+                lock.release()
         except RunCancelled:
             pass
         except Exception as error:
@@ -163,6 +180,49 @@ class CharacterFinderRenderWorker(QObject):
                 self.failed.emit(self.token, str(error))
         finally:
             self.finished.emit()
+
+    def _render_or_reuse(self, key):
+        cached = cached_character_render(self.cache_root, key)
+        if cached:
+            self._remember_thumbnail(cached)
+            self.package_ready.emit(self.token, cached)
+            self.completed.emit(self.token, cached)
+            return
+        result = cached_character_package(self.cache_root, key)
+        if result is not None:
+            package = rust_preview_package_from_path(result.package_path)
+        elif self._cache_only:
+            self.cache_missed.emit(self.token)
+            return
+        else:
+            package, status, notes = self._build_package(key)
+            result = CharacterRenderResult(key, str(package.package_dir), "", status, notes)
+            # Publish the finished 3D package separately from the image. A
+            # cancelled/failed capture must not discard expensive model work.
+            self._write_metadata(self.cache_root / "character_finder" / "thumbnails" / (key + ".package.json"), result)
+        lease = acquire_dotnet_preview_package_cache_lease_for_path(package.package_dir)
+        try:
+            self._check()
+            self.package_ready.emit(self.token, result)
+            image_path = self._capture(package, key)
+            self._check()
+            result = replace(result, thumbnail_path=str(image_path))
+            self._write_metadata(image_path.with_suffix(".json"), result)
+            self._remember_thumbnail(result)
+            self.completed.emit(self.token, result)
+        finally:
+            if lease is not None:
+                lease.release()
+
+    def _write_metadata(self, metadata, result):
+        metadata.parent.mkdir(parents=True, exist_ok=True)
+        temporary = metadata.with_name(metadata.name + f".{uuid4().hex}.tmp")
+        try:
+            temporary.write_text(json.dumps({**asdict(result), "capture": self._capture_report}, ensure_ascii=False), encoding="utf-8")
+            self._check()
+            os.replace(temporary, metadata)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def _remember_thumbnail(self, result):
         self._check()
