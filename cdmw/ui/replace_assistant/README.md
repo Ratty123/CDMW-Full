@@ -13,20 +13,29 @@ job only after a successful scan, while Add Files appends. Import cancellation a
 shutdown invalidate queued results before worker teardown. The standalone tab
 retains its existing Add Folder behavior.
 
+Bulk matching has an explicit **Auto-Match originals** source: **Game archives**
+(the default) or **Local DDS folder**. **Choose Folder...** selects a recursive
+local originals root; each Auto-Match retry rescans that folder. Local mode does
+not fall back to archives, and archive mode does not use the local index. Source
+controls stay disabled during work. **Choose Local DDS...** and **Choose Archive
+DDS...** are single-file overrides in the **Selected file** row, alongside
+**Open in Editor**. The queue takes available height; embedded selection details
+stay compact and do not reserve an image-preview area.
+
 Keep core replacement planning and payload logic outside this UI package. Use
 `cdmw/core/replace_assistant.py`, `cdmw/core/replace_assistant_package.py`,
 modding modules, services, or workers for non-presentation behavior as it is
 extracted.
 
 Auto Match rejects a local original when its resolved path is the edited file.
-Unresolved items keep no inferred destination and require Choose Archive
-Original. Package builds preserve the matched package/game path, then route that
+Unresolved items keep no inferred destination and require an explicit original
+DDS. Package builds preserve the matched package/game path, then route that
 same payload through every selected manager profile.
 
 When the standalone archive backend is the displayed backend, Texture Replacer
-keeps its local Original DDS filesystem index but never receives the global
-archive entry list. Auto Match resolves bounded exact-path candidates first and
-then bounded basename candidates through the worker. Choose Archive Original is
+never receives the global archive entry list. In Game archives mode, Auto-Match
+resolves bounded exact-path candidates first and then bounded basename candidates
+through the worker. Choose Archive DDS is
 a paged worker query, and package builds prepare only the matched session/entry
 IDs before handing local prepared files to the existing build worker. Legacy and
 shadow display modes retain the list-backed compatibility path.

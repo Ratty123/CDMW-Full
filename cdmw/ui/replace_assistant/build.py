@@ -126,7 +126,7 @@ class ReplaceAssistantBuildMixin:
             items,
             options,
             archive_entries=archive_entries,
-            original_dds_root=Path(self.get_original_root().strip()).expanduser() if self.get_original_root().strip() else None,
+            original_dds_root=self._current_original_root_path(),
         )
         thread = QThread(self)
         worker.moveToThread(thread)

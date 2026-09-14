@@ -81,12 +81,12 @@ class ReplaceAssistantMatchingTests(unittest.TestCase):
             self.assertIsNone(matched.archive_entry)
             self.assertEqual("", matched.package_root)
             self.assertEqual("", matched.archive_relative_path)
-            self.assertEqual("Choose Archive Original.", matched.match_reason)
+            self.assertEqual("Choose an original DDS.", matched.match_reason)
             self.assertEqual("unresolved", item.status)
             self.assertIsNone(item.matched_original)
             self.assertEqual("", item.detected_package_root)
             self.assertEqual("", item.detected_relative_path)
-            self.assertEqual("Choose Archive Original.", item.status_detail)
+            self.assertEqual("Choose an original DDS.", item.status_detail)
 
     def test_self_rejection_continues_to_distinct_local_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

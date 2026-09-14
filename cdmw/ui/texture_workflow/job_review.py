@@ -133,17 +133,15 @@ class TextureJobReviewMixin:
             if asset is None:
                 continue
             asset.replacement_item = item
-            if item.matched_original is None:
-                continue
             match = item.matched_original
             binding = dataclasses.replace(asset.source_binding,
-                archive_relative_path=match.archive_relative_path,
-                relative_path=str(match.loose_relative_path).replace("\\", "/"),
-                original_dds_path=str(match.original_dds_path) if match.original_dds_path else asset.source_binding.original_dds_path,
-                package_root=match.package_root,
+                archive_relative_path=match.archive_relative_path if match else "",
+                relative_path=str(match.loose_relative_path).replace("\\", "/") if match else "",
+                original_dds_path=str(match.original_dds_path) if match and match.original_dds_path else "",
+                package_root=match.package_root if match else "",
             )
             asset.binding = binding
-            asset.original_entry = match.archive_entry
+            asset.original_entry = match.archive_entry if match else None
             if asset.session is not None:
                 asset.session.document = dataclasses.replace(asset.session.document, source_binding=binding)
                 editor = created_tool_widget(self.editor_container)

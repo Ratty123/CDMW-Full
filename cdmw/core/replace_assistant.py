@@ -357,7 +357,7 @@ def match_replace_assistant_original(
                 match_reason = f"ambiguous basename fallback ({len(basename_matches)} matches)"
                 break
         else:
-            match_reason = "unmatched"
+            match_reason = match_reason or "unmatched"
 
     if archive_entry is not None:
         if archive_index.original_dds_root is not None:
@@ -370,9 +370,9 @@ def match_replace_assistant_original(
         package_root = ""
         archive_relative_path = ""
         match_reason = (
-            f"{match_reason}; Choose Archive Original."
+            f"{match_reason}; Choose an original DDS."
             if match_reason.startswith("ambiguous")
-            else "Choose Archive Original."
+            else "Choose an original DDS."
         )
 
     return MatchedOriginalTexture(

@@ -8,7 +8,7 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, QSettings, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from cdmw.domain.archives.catalogue import (
     ArchiveDurableIdentity,
@@ -200,6 +200,51 @@ def test_legacy_auto_match_keeps_list_backed_compatibility_path(tmp_path: Path) 
         assert tab.items[0].matched_original is not None
         assert tab.items[0].matched_original.archive_entry is archive_entry
         assert tab.items[0].matched_original.archive_entry_id is None
+    finally:
+        tab.request_shutdown()
+
+
+def test_matching_source_switch_uses_only_local_folder_or_archive(tmp_path: Path, monkeypatch) -> None:
+    _app()
+    session = _session(tmp_path)
+    service = _CatalogueService(session)
+    tab = _tab(tmp_path, service)
+    source = tmp_path / "edited" / "coat.dds"
+    source.parent.mkdir()
+    source.write_bytes(b"edited DDS")
+    original = tmp_path / "originals" / "0009" / "character" / "coat.dds"
+    original.parent.mkdir(parents=True)
+    original.write_bytes(b"original DDS")
+    tab.items = [ReplaceAssistantItem(source, "dds")]
+    tab.set_archive_catalogue_session(session)
+    try:
+        _wait_until(lambda: not tab.is_busy())
+        tab.match_source_combo.setCurrentIndex(tab.match_source_combo.findData("local"))
+        monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_k: str(tmp_path / "originals"))
+        monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("expected folder dialog")))
+        tab.originals_folder_button.click()
+        tab.auto_match_all_items(refresh_preview=False)
+        _wait_until(lambda: not tab.is_busy())
+        assert tab.items[0].matched_original.original_dds_path == original
+        assert not service.lookup_requests
+        assert not tab.originals_folder_widget.isHidden()
+
+        # Switching to archives must discard the local index, even for the same filename.
+        tab.match_source_combo.setCurrentIndex(tab.match_source_combo.findData("archive"))
+        assert tab.originals_folder_widget.isHidden()
+        tab.auto_match_all_items(refresh_preview=False)
+        _wait_until(lambda: bool(service.lookup_requests))
+        _wait_until(lambda: tab.match_thread is None)
+        assert tab.items[0].matched_original is None
+        dto = _entry(tmp_path, 77, "character/coat.dds", active=True)
+        request, _generation = service.lookup_requests[-1]
+        assert request.kind is ArchiveLookupKind.EXACT_PATHS
+        service.result_ready.emit("lookup-1", "resolve_entries", ArchiveLookupResult(session.session_id, (), 0, False))
+        request, _generation = service.lookup_requests[-1]
+        assert request.kind is ArchiveLookupKind.BASENAMES
+        service.result_ready.emit("lookup-2", "resolve_entries", ArchiveLookupResult(session.session_id, (dto,), 1, False))
+        assert tab.items[0].matched_original.archive_entry_id == 77
+        assert tab.items[0].matched_original.original_dds_path is None
     finally:
         tab.request_shutdown()
 

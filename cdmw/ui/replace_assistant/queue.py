@@ -96,7 +96,7 @@ class ReplaceAssistantQueueMixin:
             except Exception:
                 self._pending_import_select_path = str(select_path).strip().lower()
         current_original_root = self._current_original_root_path()
-        active_entries = [] if self._catalogue_archive_ready() else (self.archive_entries or self.get_archive_entries())
+        active_entries = self._matching_archive_entries()
         entries_missing_from_index = bool(active_entries) and not self.archive_index.entries_by_relative_path
         root_changed = self.archive_index_original_root != current_original_root
         archive_index: Optional[ReplaceAssistantArchiveIndex]
@@ -517,7 +517,15 @@ class ReplaceAssistantQueueMixin:
         self._apply_editor_export(resolved_output, binding, matched_original)
 
     def auto_match_all_items(self, *, refresh_preview: bool = True) -> None:
-        if self.is_busy() or not self.items:
+        if self.is_busy() or self.external_busy or self._shutting_down or not self.items:
+            return
+        if self._combo_value(self.match_source_combo) == "local":
+            original_root = self._current_original_root_path()
+            if original_root is None or not original_root.is_dir():
+                self.status_label.setText("Choose a folder containing original DDS files before Auto-Match.")
+                return
+        elif not self._archive_original_source_ready():
+            self.status_label.setText("Load the game archives in Archives before Auto-Match.")
             return
         if self.preview_worker is not None:
             self.preview_worker.stop()
@@ -531,11 +539,11 @@ class ReplaceAssistantQueueMixin:
         self.append_log("Auto-matching edited files against archive/original DDS paths...")
         try:
             current_original_root = self._current_original_root_path()
-            use_catalogue = self._catalogue_archive_ready()
-            active_entries = [] if use_catalogue else (self.archive_entries or self.get_archive_entries())
+            active_entries = self._matching_archive_entries()
             root_changed = self.archive_index_original_root != current_original_root
             entries_missing = bool(active_entries) and not self.archive_index.entries_by_relative_path
-            active_index = None if root_changed or entries_missing else self.archive_index
+            # An explicit retry also sees originals added to the same local folder.
+            active_index = None if current_original_root is not None or root_changed or entries_missing else self.archive_index
             worker = ReplaceAssistantAutoMatchWorker(
                 self.items,
                 archive_entries=active_entries,
@@ -595,7 +603,10 @@ class ReplaceAssistantQueueMixin:
             if not (0 <= index < len(self.items)):
                 continue
             item = self.items[index]
-            if self._catalogue_archive_ready():
+            if self._combo_value(self.match_source_combo) == "local":
+                if not self._choose_local_original(item):
+                    break
+            elif self._catalogue_archive_ready():
                 if not self._choose_catalogue_archive_original(item):
                     break
             else:
@@ -670,38 +681,44 @@ class ReplaceAssistantQueueMixin:
             if current_item is not None:
                 combined_warning = self._combined_item_warning(current_item)
                 self.preview_title_label.setText(current_item.source_path.name)
-                self.preview_meta_label.setText("Auto-match complete. Click the item to refresh preview.")
+                if self.workspace is None:
+                    self.preview_meta_label.setText("Auto-match complete. Click the item to refresh preview.")
                 self.preview_warning_label.setVisible(bool(combined_warning))
                 self.preview_warning_label.setText(combined_warning)
-                self._set_preview_details_text(current_item, self.preview_details_edit.toPlainText())
+                self._set_preview_details_text(current_item)
 
     def choose_local_original_for_selected(self) -> None:
         indices = self._selected_item_indices()
         if len(indices) != 1:
             return
-        original_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Choose original DDS",
-            self.get_original_root().strip() or self.base_dir.as_posix(),
-            "DDS files (*.dds);;All files (*.*)",
-        )
-        if not original_path:
-            return
-        try:
-            original_root_text = self.get_original_root().strip()
-            original_root = Path(original_root_text).expanduser() if original_root_text else None
-            match_replace_assistant_item_to_local_original(
-                self.items[indices[0]],
-                Path(original_path),
-                original_dds_root=original_root,
-            )
-        except Exception as exc:
-            QMessageBox.warning(self, APP_TITLE, str(exc))
+        if not self._choose_local_original(self.items[indices[0]]):
             return
         if self.workspace is not None:
             self.workspace.synchronize_replacement_matches(self)
         self._refresh_queue_tree()
         self._handle_selection_changed(self.queue_tree.currentItem(), None)
+
+    def _choose_local_original(self, item: ReplaceAssistantItem) -> bool:
+        original_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose original DDS",
+            self.originals_folder_edit.text().strip() or self.base_dir.as_posix(),
+            "DDS files (*.dds);;All files (*.*)",
+        )
+        if not original_path:
+            return False
+        try:
+            original_root_text = self.originals_folder_edit.text().strip()
+            original_root = Path(original_root_text).expanduser() if original_root_text else None
+            match_replace_assistant_item_to_local_original(
+                item,
+                Path(original_path),
+                original_dds_root=original_root,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, APP_TITLE, str(exc))
+            return False
+        return True
 
     def choose_archive_original_for_selected(self) -> None:
         indices = self._selected_item_indices()

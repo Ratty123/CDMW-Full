@@ -98,6 +98,8 @@ class ReplaceAssistantArchiveCatalogueMixin:
         return self._catalogue_archive_ready() or bool(self.archive_entries or self.get_archive_entries())
 
     def _start_catalogue_auto_match(self, *, refresh_preview: bool) -> bool:
+        if self._combo_value(self.match_source_combo) != "archive":
+            return False
         service = self.archive_catalogue_service
         session = self.archive_catalogue_session
         if service is None or session is None:
@@ -260,7 +262,7 @@ class ReplaceAssistantArchiveCatalogueMixin:
                 else:
                     if candidates or index in self._remote_match_truncated:
                         item.status = "unresolved"
-                        item.status_detail = "ambiguous archive path match; Choose Archive Original."
+                        item.status_detail = "ambiguous archive path match; Choose Archive DDS."
                         item.warning = item.status_detail
                     unresolved.append(index)
             if unresolved:
@@ -282,11 +284,11 @@ class ReplaceAssistantArchiveCatalogueMixin:
                 elif candidates or index in self._remote_match_truncated:
                     count_text = f"{len(candidates)}+" if index in self._remote_match_truncated else str(len(candidates))
                     item.status = "unresolved"
-                    item.status_detail = f"ambiguous archive basename fallback ({count_text} matches); Choose Archive Original."
+                    item.status_detail = f"ambiguous archive basename fallback ({count_text} matches); Choose Archive DDS."
                     item.warning = item.status_detail
                 elif not item.status_detail:
                     item.status = "unresolved"
-                    item.status_detail = "Choose Archive Original."
+                    item.status_detail = "Choose Archive DDS."
         self._remote_match_phase = None
         self._remote_match_current = None
         self._remote_match_pending = []

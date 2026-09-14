@@ -240,6 +240,8 @@ class ReplaceAssistantAutoMatchWorker(QObject):
                     item.warning = matched.match_reason if matched.match_reason.startswith("ambiguous") else ""
                 else:
                     item.matched_original = None
+                    item.detected_package_root = ""
+                    item.detected_relative_path = ""
                     item.status = "unresolved"
                     item.status_detail = matched.match_reason or "unmatched"
                     item.warning = matched.match_reason if matched.match_reason.startswith("ambiguous") else ""
