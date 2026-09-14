@@ -17,10 +17,10 @@ in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handof
 ## Hair creation
 
 Use **Hair Tools** above the viewport. One setup dialog contains Character
-(Kliff, Damiane or Oongka), Create/Edit, and the registered hairstyles with
-thumbnails. Create defaults to Bob and the first verified compatible base;
-Cropped, Long, Ponytail and Empty are also available. The active compatible
-character and hairstyle are preselected. **Start** stays disabled until the
+(Kliff, Damiane or Oongka) and Create/Edit. **Create starts with an empty scalp**;
+the first verified compatible base supplies skinning and materials only. Create
+does not load a thumbnail gallery. Edit shows registered hairstyles with
+thumbnails and preselects the active compatible hairstyle. **Start** stays disabled until the
 catalogue and donor checks are ready. Browsing choices does not replace the scene.
 Finder Create/Edit Hair uses this same dialog.
 
@@ -28,8 +28,10 @@ Mounted appearance and customization documents supply the head, facial details,
 scalp, neck and shoulders. Authored head scales use the head joint as their pivot;
 the common character scale cancels in the donor's authoring coordinates. Oongka
 uses his `5_pom` references even though his registered hair belongs to `1_phm`.
-Eyes, brows and teeth follow the head as fitting references; hair roots and motion
-contacts use the head/scalp surface without these interior facial components.
+The clean, untextured mannequin keeps the face and eyes, excluding transparent
+eye covers, lashes and brows. Reference loading parses fitting geometry and
+authored transforms directly, without opening editable sessions or decoding DDS.
+Eyes follow the head but remain outside the scalp planting and collision surface.
 Compatible single-mesh `_player.pac` registrations at LOD0 are supported. Entries
 with multiple PAC references, additional LODs, unsupported layouts or incomplete
 dependencies explain their restriction before Start. Ordinary hair PACs retain
@@ -42,8 +44,10 @@ generated hairstyle can change presets as one undoable edit without reopening it
 archive target. Repeated Create requests use the same route.
 
 Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
-drag empty space for a marquee. **Draw** starts on the scalp and displays cards
-while dragging. **Erase** and Delete remove the selected geometry; **Cut** removes
+drag empty space for a marquee. **Draw** starts on the scalp, follows its curved
+surface and displays cards while dragging. Drag outside its outline to extend
+away, or hold **Ctrl** for free drawing; scalp contacts remain active. Card width
+is included in contact checks. **Erase** and Delete remove the selected geometry; **Cut** removes
 the pointed distal section. **Lengthen** acquires a clicked lock like Move,
 respects an existing selection and extends tips without moving roots. Empty,
 rigid and unresolved selections explain what is required.
@@ -72,13 +76,18 @@ Cancelled reference loads release their unpublished assets.
 
 **Play** becomes available when roots, geometry ownership and required textures
 are ready. **Head and shoulders** is the default test; Turn, Nod, Body sway and
-Wind are also available. The Rust XPBD solver drives the rendered cards and uses
+Wind are also available. Existing sections spanning too far from their guide
+cannot simulate safely: assign roots to smaller selections, or mark scalp sections
+rigid. Static editing remains available. The Rust XPBD solver drives the rendered cards and uses
 matching reference/root/collision transforms. Cached scalp-surface contacts check
 guide segments and card width while retaining neck and shoulder collision shapes.
+A rest-shape force preserves the groom while allowing softer tip movement; adjust
+**Shape softness** to change it. This is an editor preview, not a simulation of
+the donor's in-game rig or physics. Optional procedural fills remain in the editor.
 A stroke pauses playback and resumes
 from the edited rest shape at the current pose. Reset is deterministic. Simulation
 frames never modify drafts, output or history. **Use settled shape** explicitly
-accepts the neutral-coordinate result as one undoable edit.
+accepts the neutral-coordinate result as one undoable edit after motion has played.
 
 **Open in Texture Editor** and **Apply edited DDS** retain the template's verified
 material slots, dimensions, compression and mip counts. Missing required DDS files

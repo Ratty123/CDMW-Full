@@ -205,11 +205,11 @@ impl LabApplication {
                 if self.hair.tool == Some(HairTool::Erase) {
                     self.hair.selected.clear();
                 }
-                self.hair_stroke_point(rect, point);
+                self.hair_stroke_point(rect, point, !ctrl);
             }
             ViewportPointerEvent::PrimaryMoved(point) => {
                 if self.hair.stroke_start.is_some() {
-                    self.hair_stroke_point(rect, point);
+                    self.hair_stroke_point(rect, point, !ctrl);
                 }
             }
             ViewportPointerEvent::PrimaryReleased(point) => {
@@ -234,7 +234,7 @@ impl LabApplication {
                         );
                     }
                 } else {
-                    self.hair_stroke_point(rect, point);
+                    self.hair_stroke_point(rect, point, !ctrl);
                     if let Some(mut state) = self.hair.stroke.take() {
                         if matches!(self.hair.tool, Some(HairTool::Guide | HairTool::Paint))
                             && self
@@ -316,7 +316,7 @@ impl LabApplication {
         self.hair.selected.extend(selected);
     }
 
-    fn hair_stroke_point(&mut self, rect: egui::Rect, pointer: Vec2) {
+    fn hair_stroke_point(&mut self, rect: egui::Rect, pointer: Vec2, follow_scalp: bool) {
         let Some(mut state) = self.hair.stroke.take() else {
             return;
         };
@@ -354,7 +354,21 @@ impl LabApplication {
                         return Ok(());
                     };
                     let position = state.scalp.point(&root).map_err(|e| e.to_string())?;
-                    let normal = state.scalp.normal(&root).normalize_or_zero();
+                    let normal = self
+                        .hair
+                        .scene
+                        .as_ref()
+                        .and_then(|scene| {
+                            scene.scalp_picking.nearest(
+                                &state.scalp.positions,
+                                &scene.scalp_indices,
+                                position,
+                            )
+                        })
+                        .map_or_else(
+                            || state.scalp.normal(&root).normalize_or_zero(),
+                            |(_, normal)| normal,
+                        );
                     let group = self.hair.group;
                     let part = state
                         .groups
@@ -414,32 +428,118 @@ impl LabApplication {
                     }
                     self.hair.selected = self.hair.drawing.iter().map(|id| *id as usize).collect();
                 } else if distance >= 0.5 {
-                    let root = self.hair.last_plant.unwrap();
-                    let start = self.hair.stroke_start.unwrap();
+                    let scene = self.hair.scene.as_ref().ok_or("The scalp is not ready")?;
+                    let first = state
+                        .locks
+                        .iter()
+                        .find(|l| l.id == self.hair.drawing[0])
+                        .unwrap();
+                    let anchor = Vec3::from(
+                        *state.guides[first.guide.unwrap() as usize]
+                            .points
+                            .last()
+                            .unwrap(),
+                    );
+                    let (min, max) = hair_bounds(&state);
+                    let pivot = self.hair.simulation.as_ref().map_or(
+                        Vec3::new((min.x + max.x) * 0.5, min.y, (min.z + max.z) * 0.5),
+                        |s| s.pivot,
+                    );
+                    let pose = hair::PreviewPose::at(
+                        pivot,
+                        (max.y - min.y).max(0.01),
+                        self.hair
+                            .simulation
+                            .as_ref()
+                            .map_or(0.0, |s| s.elapsed as f32),
+                        self.hair.head_test,
+                    );
                     let delta = self.camera.plane_drag_delta(
                         self.camera.forward(),
-                        root,
-                        start,
+                        pose.head_point(anchor),
+                        previous,
                         pointer,
                         rect,
                     );
+                    let free_tip = anchor + pose.head.inverse() * delta;
+                    let surface = if follow_scalp {
+                        self.camera
+                            .screen_ray(pointer, rect)
+                            .and_then(|ray| self.pick_hair_scalp(ray.0, ray.1))
+                    } else {
+                        None
+                    };
+                    let width = state
+                        .groups
+                        .iter()
+                        .find(|g| g.id == self.hair.group)
+                        .unwrap()
+                        .width;
+                    let clearance = width * 0.55 + self.hair.motion.collision_margin;
+                    let tip = if let Some(root) = surface {
+                        let p = state.scalp.point(&root).map_err(|e| e.to_string())?;
+                        scene.scalp_picking.contact(
+                            &state.scalp.positions,
+                            &scene.scalp_indices,
+                            p,
+                            clearance,
+                        )
+                    } else {
+                        free_tip
+                    };
                     for (i, id) in self.hair.drawing.iter().enumerate() {
                         let lock = state.locks.iter().find(|l| l.id == *id).unwrap();
                         let guide = &mut state.guides[lock.guide.unwrap() as usize];
-                        let tip = Vec3::from(guide.points[0])
-                            + delta
-                                * if i == 0 {
-                                    Vec3::ONE
-                                } else {
-                                    Vec3::new(-1.0, 1.0, 1.0)
-                                };
+                        let tip = tip
+                            * if i == 0 {
+                                Vec3::ONE
+                            } else {
+                                Vec3::new(-1.0, 1.0, 1.0)
+                            };
                         if tip.distance(Vec3::from(guide.points[0])) > 0.002 {
-                            if guide.points.len() == 2 && !self.hair.stroke_changed {
-                                guide.points[1] = tip.to_array();
-                            } else if guide.points.len() < hair::MAX_POINTS
-                                && tip.distance(Vec3::from(*guide.points.last().unwrap())) > 0.001
-                            {
-                                guide.points.push(tip.to_array());
+                            let from = Vec3::from(*guide.points.last().unwrap());
+                            let steps = ((tip.distance(from) / (clearance * 0.5).max(0.002)).ceil()
+                                as usize)
+                                .clamp(1, 16);
+                            for step in 1..=steps {
+                                let p = from.lerp(tip, step as f32 / steps as f32);
+                                let p = scene.scalp_picking.contact_with_reach(
+                                    &state.scalp.positions,
+                                    &scene.scalp_indices,
+                                    p,
+                                    clearance,
+                                    clearance + tip.distance(from),
+                                );
+                                if p.distance(Vec3::from(*guide.points.last().unwrap())) < 0.001 {
+                                    continue;
+                                }
+                                if guide.points.len() == hair::MAX_POINTS {
+                                    // Keep extending a long stroke by removing its least
+                                    // significant interior sample; the root and tip stay exact.
+                                    let index = guide
+                                        .points
+                                        .windows(3)
+                                        .enumerate()
+                                        .min_by(|(_, a), (_, b)| {
+                                            let error = |w: &[[f32; 3]]| {
+                                                let a = Vec3::from(w[0]);
+                                                let b = Vec3::from(w[1]);
+                                                let d = Vec3::from(w[2]) - a;
+                                                b.distance_squared(
+                                                    a + d
+                                                        * ((b - a).dot(d)
+                                                            / d.length_squared().max(1e-12))
+                                                        .clamp(0.0, 1.0),
+                                                )
+                                            };
+                                            error(a).total_cmp(&error(b))
+                                        })
+                                        .unwrap()
+                                        .0
+                                        + 1;
+                                    guide.points.remove(index);
+                                }
+                                guide.points.push(p.to_array());
                             }
                             self.hair.stroke_changed = true;
                         }

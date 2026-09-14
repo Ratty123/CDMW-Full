@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import math
+import struct
 from collections.abc import Mapping
 
 HAIR_STATE_VERSION = 2
@@ -142,7 +143,14 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
             attached = [sum(positions[face[j]][axis] * bary[j] for j in range(3)) for axis in range(3)]
             if math.dist(points[0], attached) > 1e-4:
                 raise ValueError("Hair root moved off its scalp attachment.")
-        if any(math.dist(a, b) <= 1e-7 for a, b in zip(points, points[1:])):
+        # Full Rust documents use the shortest decimal that recovers each f32;
+        # incremental updates can contain its exact expanded value. Measure in
+        # renderer coordinates so a valid short cut survives either encoding.
+        try:
+            render_points = [struct.unpack("<3f", struct.pack("<3f", *point)) for point in points]
+        except (OverflowError, struct.error) as error:
+            raise ValueError("Invalid guide or scalp attachment.") from error
+        if any(math.dist(a, b) <= 1e-7 for a, b in zip(render_points, render_points[1:])):
             raise ValueError("Hair guide has a zero-length segment.")
     seen = set()
     for binding in bindings:

@@ -6,17 +6,21 @@ interaction and in-game acceptance are separate from source and offscreen proof.
 
 ## Setup and supported sources
 
-Hair Tools and Finder Create/Edit Hair open the same Character, Action and Preset
-choices. Bob and the first verified compatible registered hairstyle are the Create
-defaults. Cropped, Long, Ponytail and Empty are also available. Edit uses registered
-thumbnails. Start is disabled until the catalogue and donor checks finish.
+Hair Tools and Finder Create/Edit Hair open the same Character and Action choices.
+Create opens an empty scalp; a sequential compatibility check finds the first
+usable registered skin/material base without preparing thumbnails. Optional
+procedural fills remain in the editor. Edit uses registered thumbnails. Start is
+disabled until the catalogue and donor checks finish.
 
 The character's mounted appearance and customization documents own fitting roles,
 scales and registration. Oongka uses `5_pom` head/body references and `1_phm` hair;
 a shared hair prefix cannot identify the character. HeadScale is applied around
 the authored head joint, including its weighted body descendants. CharacterScale
 is the shared parent transform and cancels in donor authoring coordinates. Facial
-details use the same head transform. The resulting scalp and neck/shoulder
+details use the same head transform. The clean fitting mannequin keeps eyes but
+omits material-dependent covers, lashes, brows and hidden mouth detail. Face and
+body crown/back geometry are partitioned to avoid an overlapping face shell.
+The resulting scalp and neck/shoulder
 references stay outside output geometry.
 
 The mounted catalogue audited on this date contains:
@@ -39,7 +43,10 @@ until a complete isolated replacement is ready. Failures clear progress and allo
 Retry. Different targets, characters and edit modes use the existing unsaved-work
 confirmation. A preset change on the active generated target publishes one undoable
 edit without reopening the archive. Reference geometry uses the existing bounded
-cache (four entries, 128 MiB); identity includes source generation, authored
+cache (four entries, 128 MiB); geometry-only reference loads avoid full editable
+sessions, roundtrip validation and material/DDS preparation. A conservative
+per-vertex budget avoids recursively visiting every scalar for cache sizing.
+Identity includes source generation, authored
 descriptors and transformed geometry. Alternative reference pickers apply role and
 character eligibility before pagination.
 
@@ -54,7 +61,10 @@ Select, Ctrl-select and marquee change only selection. Move and Lengthen acquire
 a clicked lock while preserving an existing selected group. Lengthen changes tips
 and fixes roots. Comb, Smooth, Curl and Clump respect brush influence and selection.
 Draw supports consecutive strokes, visible cards during dragging and explicit
-mirror pairs. Cut removes distal geometry; Erase/Delete remove owned geometry.
+mirror pairs. Each pointer sample projects onto the curved scalp; drawing beyond
+its outline or holding Ctrl extends from the last tip in the camera plane. Sampled
+guide segments and generated card width keep contacts active in both modes.
+Cut removes distal geometry; Erase/Delete remove owned geometry.
 Width and generated follower density affect selected locks. Empty selections,
 rigid sections, unresolved groups and unsupported existing-hair operations report
 requirements rather than silently succeeding. Draw and follower generation require
@@ -72,13 +82,22 @@ use the existing validated weight transfer. The 40-byte layout guard stays enabl
 The XPBD preview keeps roots, scalp and reference transforms aligned. Cached scalp
 surface contacts check guide segments and card width; neck and shoulder collision
 shapes remain active. Card rows are resolved after their neighbouring segments,
-and consistent component winding preserves concave ear contacts. Eyes, brows and
-teeth share one `head:` reference identity and follow the head rigidly; they are
+and consistent component winding preserves concave ear contacts. A head-relative
+rest-shape force prevents whole guides from rotating down under gravity; tip
+retention decreases with Shape softness. The visible notice explains that editor
+motion does not simulate the donor's in-game rig or physics. Eyes
+share one `head:` reference identity and follow the head rigidly; they are
 excluded from scalp planting and contacts. This uses the existing reference fields
 and leaves the document version unchanged. Every movement
-preset is checked separately. Play/Pause/Reset
+preset is checked separately. Existing bindings with radial offsets greater than
+15% of the scalp's largest extent cannot play or settle: their broad root groups
+distort under guide rotation. The UI requests smaller root selections or rigid
+scalp sections; this does not block static editing or export. Play/Pause/Reset
 are transient, Reset is deterministic, and editing during playback resumes from
-the edited rest shape. Use settled shape creates one undoable rest-shape edit.
+the edited rest shape. Use settled shape requires a valid, played simulation and
+creates one undoable rest-shape edit.
+The host measures short guide segments at renderer float32 precision so full and
+incremental JSON encodings agree, including conversion after cutting and erasing.
 Simulation frames never enter drafts or output. Hair-to-hair collision and new
 game physics rigs remain outside this workflow.
 
@@ -135,6 +154,8 @@ loader. `--live-renderer` points to the compiled Rust test executable and runs t
 production pointer/host matrix; `--capture-steps` also records textured per-tool
 DX12 captures from the real material loader. `--resume-draft` checks reopening,
 saving again and export. `--skip-package` limits an already covered output run.
+Set `CDMW_HAIR_PROBE_EMPTY_START=1` for the focused empty-scalp sequence: two
+Draw strokes, selection, Lengthen, Undo/Redo, draft reopening and package export.
 Every successful installed-data probe verifies unchanged archive fingerprints.
 
 The Rust ignored `hair_production_render_and_benchmark` test consumes the probe's
