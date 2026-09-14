@@ -2734,16 +2734,8 @@ impl LabApplication {
             .map(|row| row["id"].clone())
             .collect();
         ui.add_enabled_ui(!busy, |ui| {
-            let can_try = replacement["can_try_experimental"].as_bool().unwrap_or(false);
-            if can_try || replacement["experimental"].as_bool().unwrap_or(false) {
+            if replacement["experimental"].as_bool().unwrap_or(false) {
                 ui.small("Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.");
-                if can_try && comparison == "edit" && ui.button("Try Experimental Replacement").clicked() {
-                    actions.push(UiAction::CdmwCommand {
-                        command: "replacement_enable_experimental",
-                        arguments: json!({"acknowledged": true}),
-                        label: "Enable experimental replacement",
-                    });
-                }
             }
             ui.horizontal_wrapped(|ui| {
                 ui.add_enabled_ui(available && comparison == "edit", |ui| {

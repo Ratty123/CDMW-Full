@@ -429,7 +429,7 @@ class AboutDocumentationEnglishMixin:
                 <h4>Replacement imports</h4>
                 <p>Use Import Replacement... for an entire archive mesh or selected parts. Map every imported part, then choose original materials or imported materials and textures.</p>
                 <p>Imports keep their decoded size and position. Fit to Original is optional; Reset Placement restores the import. Mod controls output inclusion; viewport hiding stays independent.</p>
-                <p>Neutral-appearance meshes offer Try Experimental Replacement to enable imports and Mod inclusion. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.</p>
+                <p>Neutral-appearance meshes show an Experimental warning; imports and Mod inclusion are available without an extra enable button. Positioning, scale or animation may be wrong in game. Imports keep their placement; export reverses the neutral display transform using transferred skin weights. Invalid geometry and missing dependencies still block output.</p>
                 <p>Output Preview shows the prepared result. Finish, validate, then Build Mod to include required companion files. Replacement drafts preserve geometry, inclusion, materials and placement.</p>
                 <p>Replacement supports one eligible PAC, PAM or PAMLOD at a time. Clear active Morph &amp; Refit bindings first; unsupported layouts or missing dependencies block Apply.</p>
                 <h4>Rig &amp; Weights</h4>

@@ -6950,7 +6950,6 @@ class RustMeshAuthoringSession:
     max_state_document_bytes: int = 0
     pending_replacement: object | None = None
     replacement_comparison: str = "edit"
-    experimental_replacement_enabled: bool = False
     closed: bool = False
     _cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
     _lifecycle_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
