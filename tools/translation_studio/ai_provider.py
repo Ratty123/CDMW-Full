@@ -17,8 +17,8 @@ Three request shapes cover the field, and everything else is a base URL:
 **Keys are not stored in the clear.** Windows will encrypt a blob against the logged-in
 account for free through DPAPI, so the file in the workspace is useless to another
 account and to anyone who copies it off the machine. Where DPAPI is unavailable the key
-is written plainly and `is_encrypted` says so, because silently pretending otherwise
-would be worse than the warning.
+is kept only in memory for the current session, and the dialog explains that it could
+not be saved.
 
 There is deliberately no OAuth here. A ChatGPT or Claude subscription login is not an API
 credential -- neither provider issues API keys through a public OAuth flow -- so the only
@@ -252,6 +252,9 @@ def config_path() -> Path:
     return work_root() / "ai_provider.json"
 
 
+_SESSION_CONFIG: Optional[tuple[str, dict, ProviderConfig]] = None
+
+
 def load_config() -> ProviderConfig:
     try:
         payload = json.loads(config_path().read_text(encoding="utf-8"))
@@ -259,6 +262,10 @@ def load_config() -> ProviderConfig:
         return ProviderConfig()
     if not isinstance(payload, dict):
         return ProviderConfig()
+    if _SESSION_CONFIG is not None:
+        path, saved_payload, config = _SESSION_CONFIG
+        if path == str(config_path().resolve()) and payload == saved_payload:
+            return replace(config)
     blank = ProviderConfig()
 
     def _int(name: str, fallback: int, low: int, high: int) -> int:
@@ -293,6 +300,7 @@ def save_config(config: ProviderConfig) -> ProviderConfig:
     price of not leaving a credential readable on disk.
     """
 
+    global _SESSION_CONFIG
     stored_key, encrypted = protect_secret(config.api_key)
     if not encrypted:
         stored_key = ""
@@ -316,7 +324,9 @@ def save_config(config: ProviderConfig) -> ProviderConfig:
         os.chmod(target, 0o600)
     except OSError:
         pass
-    return replace(config, key_is_encrypted=encrypted)
+    saved = replace(config, key_is_encrypted=encrypted)
+    _SESSION_CONFIG = (str(target.resolve()), payload, saved) if not encrypted else None
+    return saved
 
 
 __all__ = [

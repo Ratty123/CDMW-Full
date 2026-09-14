@@ -34,6 +34,7 @@ sweep behind it is seconds long the first time on a given install (see
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Mapping, Optional
 
@@ -118,7 +119,7 @@ def _translation_thread_retainer() -> _TranslationThreadRetainer:
     return _THREAD_RETAINER
 
 
-def _run_detached(thread: QThread, worker: QObject, *, on_done) -> None:
+def _run_detached(thread: QThread, worker: QObject, *, on_done, done_signal=None) -> None:
     owner_thread = thread.thread()
 
     def return_worker_to_owner_thread(*_args: object) -> None:
@@ -129,8 +130,9 @@ def _run_detached(thread: QThread, worker: QObject, *, on_done) -> None:
 
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
-    worker.done.connect(on_done)
-    worker.done.connect(return_worker_to_owner_thread, Qt.ConnectionType.DirectConnection)
+    done = done_signal if done_signal is not None else worker.done
+    done.connect(on_done, Qt.ConnectionType.QueuedConnection)
+    done.connect(return_worker_to_owner_thread, Qt.ConnectionType.DirectConnection)
     _translation_thread_retainer().watch(thread, worker)
     thread.start(QThread.Priority.LowPriority)
 
@@ -227,6 +229,26 @@ class _LoadWorker(QObject):
         self.done.emit(catalogue, "")
 
 
+class _ExportWorker(QObject):
+    done = Signal(object, str)
+
+    def __init__(self, catalogue, out_root, name, author):
+        super().__init__()
+        self.catalogue = replace(catalogue, edits=dict(catalogue.edits))
+        self.out_root, self.name, self.author = out_root, name, author
+
+    def run(self):
+        try:
+            results = export_packages(
+                self.catalogue, out_root=self.out_root, name=self.name, author=self.author,
+                is_cancelled=QThread.currentThread().isInterruptionRequested,
+            )
+        except Exception as error:
+            self.done.emit(None, str(error))
+        else:
+            self.done.emit(results, "")
+
+
 class TranslationStudioTab(QWidget):
     """Search, retranslate and export the game's string tables."""
 
@@ -243,6 +265,8 @@ class TranslationStudioTab(QWidget):
         self._worker: Optional[_LoadWorker] = None
         self._language_thread: Optional[QThread] = None
         self._language_worker: Optional[_LanguageWorker] = None
+        self._export_thread: Optional[QThread] = None
+        self._export_worker: Optional[_ExportWorker] = None
         self._settings = settings
         self._window = window
         self._shutdown_requested = False
@@ -253,6 +277,9 @@ class TranslationStudioTab(QWidget):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(250)
         self._refresh_timer.timeout.connect(self._populate_languages)
+        self._edit_refresh_timer = QTimer(self)
+        self._edit_refresh_timer.setSingleShot(True)
+        self._edit_refresh_timer.timeout.connect(self._refresh_view)
         self._build_ui()
         edit = self._archive_root_edit()
         if edit is not None:
@@ -323,7 +350,7 @@ class TranslationStudioTab(QWidget):
         outer.addLayout(search)
 
         self.model = TranslationTableModel()
-        self.model.dataChanged.connect(self._refresh_pending)
+        self.model.dataChanged.connect(self._on_table_changed)
         self.table = QTableView()
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -518,7 +545,7 @@ class TranslationStudioTab(QWidget):
         self.reference_box.addItems(list(languages))
         if "eng" in languages:
             self.language_box.setCurrentIndex(languages.index("eng"))
-        self.load_button.setEnabled(self._thread is None)
+        self._update_load_controls()
         self.archive_label.setText(f"{len(languages)} languages available in: {self._game_root()}")
 
     def _confirm_replace(self) -> bool:
@@ -546,12 +573,20 @@ class TranslationStudioTab(QWidget):
             if language:
                 file_game_path = candidate
         if not language:
-            language, accepted = QInputDialog.getText(
-                self, "Language slot", "Game language code to replace (for example eng or rus):",
-                text=self.language_box.currentText() or "eng",
+            target, accepted = QInputDialog.getText(
+                self, "Game table path", "Path inside the game archives, or a language code for a legacy table:",
+                text=f"{PALOC_DIR}/{self.language_box.currentText() or 'eng'}/{Path(path).name.lower()}",
             )
             if not accepted:
                 return
+            target = target.strip().replace("\\", "/").lower()
+            if "/" in target:
+                if not target.startswith(PALOC_DIR + "/") or ".." in target.split("/") or not language_of(target):
+                    self.status_label.setText("Invalid table path. Choose a .paloc path under gamedata/stringtable/binary__.")
+                    return
+                language, file_game_path = language_of(target), target
+            else:
+                language = target
         language = language.strip().lower()
         if not re.fullmatch(r"[a-z]{3}(?:-[a-z]{2})?", language):
             self.status_label.setText("Invalid game language code. Use a code such as eng, rus, or zho-cn.")
@@ -597,6 +632,13 @@ class TranslationStudioTab(QWidget):
             return
         language = catalogue.language
         self._catalogue = catalogue
+        self.search_box.blockSignals(True)
+        self.search_box.clear()
+        self.search_box.blockSignals(False)
+        self.edited_only.blockSignals(True)
+        self.edited_only.setChecked(False)
+        self.edited_only.blockSignals(False)
+        self.export_note.clear()
         self.model.set_catalogue(catalogue)
 
         self.category_box.blockSignals(True)
@@ -625,7 +667,7 @@ class TranslationStudioTab(QWidget):
         self._update_load_controls()
 
     def _update_load_controls(self) -> None:
-        busy = self._thread is not None
+        busy = self._thread is not None or self._export_thread is not None
         self.open_file_button.setEnabled(not busy)
         self.load_button.setEnabled(not busy and bool(self.language_box.count()))
         self.table.setEnabled(not busy)
@@ -649,6 +691,10 @@ class TranslationStudioTab(QWidget):
                 self.progress_bar.setVisible(False)
                 self.status_label.setText("Game path changed. Load a language from the updated list.")
             self._update_load_controls()
+        if thread is self._export_thread:
+            self._export_thread = None
+            self._export_worker = None
+            self._update_load_controls()
 
     def iter_shutdown_workers(self) -> tuple[tuple[str, QThread, QObject], ...]:
         workers: list[tuple[str, QThread, QObject]] = []
@@ -656,6 +702,12 @@ class TranslationStudioTab(QWidget):
             workers.append(("language listing", self._language_thread, self._language_worker))
         if self._thread is not None and self._worker is not None:
             workers.append(("language load", self._thread, self._worker))
+        if self._export_thread is not None and self._export_worker is not None:
+            workers.append(("translation export", self._export_thread, self._export_worker))
+        for dialog in self.findChildren(QWidget):
+            iterator = getattr(dialog, "iter_shutdown_workers", None)
+            if callable(iterator):
+                workers.extend(iterator())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
@@ -663,7 +715,12 @@ class TranslationStudioTab(QWidget):
             return
         self._shutdown_requested = True
         self._refresh_timer.stop()
-        for thread in (self._language_thread, self._thread):
+        self._edit_refresh_timer.stop()
+        for dialog in self.findChildren(QWidget):
+            request = getattr(dialog, "request_shutdown", None)
+            if callable(request):
+                request()
+        for thread in (self._language_thread, self._thread, self._export_thread):
             if thread is not None:
                 try:
                     thread.requestInterruption()
@@ -680,8 +737,9 @@ class TranslationStudioTab(QWidget):
     # ---------------------------------------------------------------- filtering
 
     def _refresh_view(self) -> None:
+        self._edit_refresh_timer.stop()
         catalogue = self._catalogue
-        if catalogue is None:
+        if catalogue is None or self._shutdown_requested:
             return
         category = self.category_box.currentData()
         hits = catalogue.find(
@@ -700,8 +758,15 @@ class TranslationStudioTab(QWidget):
 
     def _on_selection(self, *_args) -> None:
         self.revert_button.setEnabled(
-            self._thread is None and bool(self.table.selectionModel().selectedRows())
+            self._thread is None and self._export_thread is None
+            and bool(self.table.selectionModel().selectedRows())
         )
+
+    def _on_table_changed(self, *_args) -> None:
+        self._refresh_pending()
+        if self.edited_only.isChecked() or self.search_box.text().strip():
+            # Let the delegate finish committing its edit before resetting the view.
+            self._edit_refresh_timer.start(0)
 
     # ------------------------------------------------------------------- edits
 
@@ -719,33 +784,23 @@ class TranslationStudioTab(QWidget):
         if self._catalogue is None:
             return
         self._catalogue.reset()
-        self.model.refresh()
-        self._refresh_pending()
+        self._refresh_view()
 
     # ---------------------------------------------------------------------- AI
 
-    def _lines_for(self, indexes) -> list:
+    def _lines_for(self, indexes):
         """Entry indexes as the lines a model gets, with their group as context.
 
         The group label is worth the two extra words: "Item name" and "Quest dialogue"
         are translated differently, and the model cannot tell them apart from the text.
         """
 
-        from .ai_translate import Line
+        from .ai_translate import CatalogueLines
 
         catalogue = self._catalogue
         if catalogue is None:
             return []
-        categories = catalogue.categories()
-        out = []
-        for index in indexes:
-            row = catalogue.row(index)
-            if not row.text.strip():
-                continue  # an empty line has nothing to translate
-            out.append(
-                Line(index=index, text=row.text, context=str(categories.get(row.category, "")))
-            )
-        return out
+        return CatalogueLines(catalogue, indexes)
 
     def ai_scopes(self) -> list:
         """The choices the translate dialog offers, largest last and never preselected."""
@@ -766,7 +821,7 @@ class TranslationStudioTab(QWidget):
 
         category = self.category_box.currentData()
         needle = self.search_box.text()
-        if needle.strip() or category is not None:
+        if needle.strip() or category is not None or self.edited_only.isChecked():
             matching = catalogue.find(needle, category=category,
                                       edited_only=self.edited_only.isChecked())
             if len(matching) > len(shown):
@@ -830,7 +885,7 @@ class TranslationStudioTab(QWidget):
         self.pending_label.setText(
             f"{catalogue.edit_count} line(s) changed: " + "; ".join(lines) + more
         )
-        self.export_button.setEnabled(self._thread is None)
+        self.export_button.setEnabled(self._thread is None and self._export_thread is None)
 
     # ------------------------------------------------------------------ export
 
@@ -853,6 +908,26 @@ class TranslationStudioTab(QWidget):
         return f"Wrote {len(results)} package(s) to {out_root}"
 
     def _on_export_clicked(self) -> None:
+        if self._thread is not None or self._export_thread is not None or self._shutdown_requested:
+            return
+        if self._catalogue is None or not self._catalogue.edit_count:
+            return
         out_root = QFileDialog.getExistingDirectory(self, "Where should the packages go?")
         if out_root:
-            self.export_note.setText(self.export_mod(out_root))
+            self._export_thread = QThread()
+            self._export_worker = _ExportWorker(
+                self._catalogue, Path(out_root), self.mod_name.text().strip() or "Translation tweak",
+                self.mod_author.text().strip(),
+            )
+            self._export_thread.finished.connect(self._on_worker_thread_finished, Qt.ConnectionType.QueuedConnection)
+            self.export_note.setText("Building mod packages...")
+            self._update_load_controls()
+            _run_detached(self._export_thread, self._export_worker, on_done=self._on_exported)
+
+    def _on_exported(self, results, error):
+        if self._shutdown_requested or self.sender() is not self._export_worker:
+            return
+        self.export_note.setText(
+            f"Export failed: {error}" if error else
+            f"Wrote {len(results)} package(s) to {self._export_worker.out_root}"
+        )

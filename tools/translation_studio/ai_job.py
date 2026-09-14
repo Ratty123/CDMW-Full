@@ -21,6 +21,7 @@ a network or a key.
 from __future__ import annotations
 
 import json
+import math
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
@@ -63,6 +64,12 @@ def http_transport(request: HttpRequest, timeout: float) -> Tuple[int, bytes]:
             body = error.read()
         except Exception:  # noqa: BLE001
             body = b""
+        try:
+            delay = float(error.headers.get("Retry-After", "0"))
+        except (TypeError, ValueError, AttributeError):
+            delay = 0.0
+        if error.code in _RETRYABLE_STATUS and math.isfinite(delay) and delay > 0:
+            raise ProviderError(describe_error(error.code, body), retryable=True, retry_after=delay) from error
         return int(error.code), body
     except URLError as error:
         raise ProviderError(f"could not reach the provider: {error.reason}", retryable=True) from error
@@ -81,7 +88,8 @@ def _retry_after(body: bytes, default: float) -> float:
     if isinstance(payload, dict):
         for key in ("retry_after", "retryAfter"):
             try:
-                return float(payload[key])
+                delay = float(payload[key])
+                return delay if math.isfinite(delay) and delay > 0 else default
             except (KeyError, TypeError, ValueError):
                 continue
     return default
@@ -116,7 +124,7 @@ def _sleep(seconds: float, should_stop: Callable[[], bool]) -> None:
     while time.monotonic() < deadline:
         if should_stop():
             return
-        time.sleep(min(0.25, deadline - time.monotonic()))
+        time.sleep(max(0.0, min(0.25, deadline - time.monotonic())))
 
 
 def send_with_retry(

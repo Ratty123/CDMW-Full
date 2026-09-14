@@ -23,6 +23,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Edit Translations now follows the game's mounted archive order, recovers malformed language caches, refreshes filters after edits and resets, and preserves the chosen game path for loose translation files. Exports run in the background and replace complete packages together, without stale reverted tables or partially overwritten output after a failure.
+- Translation AI dialogs close safely during requests and reject late results. Session-only keys remain usable, invalid replies and damaged markup are rejected, provider token limits are applied, and rate-limit retries respect the server's delay.
+
 - Translations automatically detects the current game's per-language `.paloc` tables, loads named-key dialogue files correctly, and exports edits to each table's original archive path. Old empty language caches refresh automatically.
 
 - Translations now uses the configured game folder on any drive and refreshes its language list when that path changes. Obsolete scans are cancelled, failed file loads preserve current edits, and manual text edits immediately enable mod export.
