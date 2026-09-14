@@ -129,7 +129,7 @@ pub(super) struct HairEditor {
     pub show_guides: bool,
     pub show_collisions: bool,
     last_pointer: Option<Vec2>,
-    last_plant: Option<Vec3>,
+    drawing_samples: Vec<[f32; 3]>,
     pub feedback: String,
     draw_revision: u64,
     scene: Option<HairScene>,
@@ -187,7 +187,7 @@ impl Default for HairEditor {
             show_guides: false,
             show_collisions: false,
             last_pointer: None,
-            last_plant: None,
+            drawing_samples: vec![],
             feedback: String::new(),
             draw_revision: 0,
             scene: None,
@@ -275,7 +275,10 @@ impl LabApplication {
             }
         }
         let changed = self.hair.state.as_ref() != state.as_ref();
-        if !changed && self.hair.preview.is_none() {
+        if !changed {
+            // Selection/material notifications can repeat the acknowledged hair
+            // state without a new mesh document. Keep its generated geometry;
+            // the generic document can still contain the original PAC donor.
             return;
         }
         let first = self.hair.state.is_none();
@@ -911,7 +914,8 @@ impl LabApplication {
         if !available && self.hair.state.is_none() {
             return;
         }
-        ui.heading("Hair");
+        ui.heading("Hair Tools (Experimental)");
+        ui.label("Not tested in game. Hairstyles may not work correctly.");
         if self.hair.state.is_none() {
             ui.label("Use Hair Tools above the editor to choose a character and create or edit a hairstyle.");
             return;

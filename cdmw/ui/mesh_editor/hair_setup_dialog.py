@@ -22,9 +22,12 @@ class HairSetupDialog(QDialog):
         self.prepared_result = None
         import threading
         self._stop = threading.Event()
-        self.setWindowTitle("Hair Tools")
+        self.setWindowTitle("Hair Tools (Experimental)")
         self.resize(1060, 800)
         layout = QVBoxLayout(self)
+        notice = QLabel("Not tested in game. Hairstyles may not work correctly.")
+        notice.setWordWrap(True)
+        layout.addWidget(notice)
         form = QFormLayout()
         self.character = QComboBox()
         self.character.addItem("Choose a character", None)
@@ -136,7 +139,7 @@ class HairSetupDialog(QDialog):
                 self.status.setText("Checking character compatibility for an empty hairstyle…")
             else:
                 self.waiting_start.hide()
-                self.layout().insertWidget(2, picker, 1)
+                self.layout().insertWidget(self.layout().indexOf(self.status) + 1, picker, 1)
                 picker.show()
                 self.status.setText("Choose an existing hairstyle to load and edit.")
         def failed(message):

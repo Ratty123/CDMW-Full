@@ -266,9 +266,17 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
     reference = _head_component_scale(_scaled_reference(incoming, appearance, 1.0), head_scale,
         args.get("_archive_skeleton"), appearance, incoming.original_data)
     positions, triangles = [], []
+    detail_positions, detail_triangles = [], []
     for part in reference.submeshes:
-        if any(word in (part.name + " " + part.material).casefold()
-               for word in ("eyecover", "eye_cover", "eyelash", "eyebrow")):
+        name = (part.name + " " + part.material).casefold()
+        if any(word in name for word in ("eyecover", "eye_cover")):
+            # These fitted caps follow the eyelid opening. The game's separate
+            # eyeballs contain raised iris/lens geometry for its eye shaders.
+            first = len(detail_positions)
+            detail_positions.extend([list(p) for p in part.vertices])
+            detail_triangles.extend([[first + i for i in face] for face in part.faces])
+            continue
+        if any(word in name for word in ("eyelash", "eyebrow")):
             continue
         first = len(positions)
         positions.extend([list(p) for p in part.vertices])
@@ -341,9 +349,10 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         half = min((body_max - body_min) * .4, (bounds_max[0] - bounds_min[0]) * 1.3)
         collisions.append(dict(a=[center[0] - half, shoulder_y, center[2]], b=[center[0] + half, shoulder_y, center[2]],
                                radius=max(height * .20, .001), follows_head=False))
-    detail_positions, detail_triangles = [], []
     detail_sources = hashlib.sha256()
-    for detail in args.get("_prepared_head_details", ()):
+    if detail_triangles:
+        detail_sources.update(incoming.original_data)
+    for detail in (() if detail_triangles else args.get("_prepared_head_details", ())):
         source = detail["_archive_snapshot"]
         appearance = detail["_archive_neutral_appearance"]
         mesh = _head_component_scale(_scaled_reference(source, appearance, 1.0), detail["_scale"],

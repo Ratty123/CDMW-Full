@@ -17,8 +17,10 @@ scales and registration. Oongka uses `5_pom` head/body references and `1_phm` ha
 a shared hair prefix cannot identify the character. HeadScale is applied around
 the authored head joint, including its weighted body descendants. CharacterScale
 is the shared parent transform and cancels in donor authoring coordinates. Facial
-details use the same head transform. The clean fitting mannequin keeps eyes but
-omits material-dependent covers, lashes, brows and hidden mouth detail. Face and
+details use the same head transform. The clean fitting mannequin uses the head's
+fitted eye-cover surfaces as smooth eyes, omitting the separate shader-dependent
+iris/lens geometry, lashes, brows and hidden mouth detail. Heads without fitted
+eye covers retain their separate eye reference. Face and
 body crown/back geometry are partitioned to avoid an overlapping face shell.
 The resulting scalp and neck/shoulder
 references stay outside output geometry.
@@ -52,18 +54,27 @@ character eligibility before pagination.
 
 ## Grooming, skinning and motion
 
+Hair Tools is labelled Experimental at entry, setup and in the editor. Its visible
+notice states that hairstyles have not been tested in game and may not work correctly.
+
 Rust owns guide/card generation, pointer dispatch, visible buffers and simulation.
 Qt owns setup and lifecycle. Python owns archive/material loading, host validation,
 atomic history, drafts and temporary packages. Actual loader-resolved DDS, tint,
 alpha and sidedness are retained; neutral shaded fitting geometry is separate.
 
-Select, Ctrl-select and marquee change only selection. Move and Lengthen acquire
+Select, Ctrl-select, marquee and the toolbar's Clear Selection/Select All/Invert
+change only hair-lock selection. Repeated host state notifications preserve the
+acknowledged generated preview instead of exposing retained template geometry.
+Move and Lengthen acquire
 a clicked lock while preserving an existing selected group. Lengthen changes tips
 and fixes roots. Comb, Smooth, Curl and Clump respect brush influence and selection.
 Draw supports consecutive strokes, visible cards during dragging and explicit
 mirror pairs. Each pointer sample projects onto the curved scalp; drawing beyond
 its outline or holding Ctrl extends from the last tip in the camera plane. Sampled
 guide segments and generated card width keep contacts active in both modes.
+Long strokes retain their pointer path separately and resample the bounded guide
+by distance, preserving root and tip. Card taper and texture coordinates follow
+physical distance rather than pointer sample count.
 Cut removes distal geometry; Erase/Delete remove owned geometry.
 Width and generated follower density affect selected locks. Empty selections,
 rigid sections, unresolved groups and unsupported existing-hair operations report

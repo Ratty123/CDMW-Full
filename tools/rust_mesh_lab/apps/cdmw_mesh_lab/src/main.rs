@@ -4270,6 +4270,9 @@ impl LabApplication {
                     "Wait for the current CDMW shadow transaction before another edit".to_owned();
                 continue;
             }
+            if self.handle_hair_selection_action(&action) {
+                continue;
+            }
             match action {
                 UiAction::OpenArchive => self.choose_archive(),
                 UiAction::OpenMesh => self.choose_mesh(),

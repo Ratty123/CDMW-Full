@@ -10,7 +10,7 @@ def build_hair_entry_bar(tab):
     bar = QFrame(tab)
     layout = QHBoxLayout(bar)
     layout.setContentsMargins(8, 6, 8, 6)
-    button = QPushButton("Hair Tools", bar)
+    button = QPushButton("Hair Tools (Experimental)", bar)
     button.setObjectName("MeshEditorHairMenu")
     button.setMinimumSize(132, 34)
     font = button.font()

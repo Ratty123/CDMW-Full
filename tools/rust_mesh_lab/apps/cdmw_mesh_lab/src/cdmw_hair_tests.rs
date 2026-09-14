@@ -868,6 +868,64 @@ fn ready_hair_app() -> (LabApplication, egui::Rect) {
     (app, rect)
 }
 
+#[test]
+fn hair_toolbar_selection_and_unchanged_host_state_preserve_generated_geometry() {
+    for existing in [false, true] {
+        let (mut app, _) = ready_hair_app();
+        if existing {
+            app.hair.state.as_mut().unwrap().groups[0].mode = GroupMode::Existing;
+        }
+        let before = app.hair.state.clone();
+        let authored = app.document.clone().unwrap();
+        app.hair.preview = Some(authored.clone());
+        // The generic document is the retained template until a full host mesh
+        // update arrives. Selection-only notifications do not carry that mesh.
+        app.document = Some(fixture().1);
+        let generation = app.hair.generation;
+        app.handle_actions(vec![UiAction::SelectAllVertices]);
+        assert_eq!(app.hair.selected.len(), before.as_ref().unwrap().locks.len());
+        app.handle_actions(vec![UiAction::InvertSelection(SelectionDomain::Vertex)]);
+        assert!(app.hair.selected.is_empty());
+        app.handle_actions(vec![UiAction::SelectAllFaces, UiAction::ClearSelection]);
+        assert!(app.hair.selected.is_empty());
+        app.hydrate_hair(before.clone());
+        assert_eq!(app.hair.state, before);
+        assert_eq!(app.hair.preview, Some(authored));
+        assert_eq!(app.hair.generation, generation);
+        assert!(!app.hair.preparing() && !app.cdmw_busy());
+    }
+}
+
+#[test]
+fn hair_long_draw_keeps_tip_at_pointer_and_balanced_segments() {
+    let (mut app, rect) = ready_hair_app();
+    app.run_hair_action(HairAction::Empty);
+    await_hair(&mut app);
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+    app.hair.tool = Some(HairTool::Guide);
+    let start = app.camera.project(Vec3::new(-0.1, 0.2, 0.0), rect).unwrap().screen;
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+    let mut tip = start;
+    for i in 1..=480 {
+        tip = start + Vec2::new(i as f32 * 2.0, (i as f32 * 0.01).sin() * 50.0);
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(tip), rect, false, false, false);
+    }
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(tip), rect, false, false, false);
+    await_hair(&mut app);
+    let state = app.hair.state.as_ref().unwrap();
+    let guide = &state.guides[0];
+    assert_eq!(guide.points.len(), hair::MAX_POINTS);
+    assert!(Vec3::from(guide.points[0]).distance(state.scalp.point(&guide.root).unwrap()) < 1e-6);
+    let projected_tip = app.camera.project(Vec3::from(*guide.points.last().unwrap()), rect).unwrap().screen;
+    assert!(projected_tip.distance(tip) < 2.0, "tip drifted from pointer: {projected_tip:?} / {tip:?}");
+    let lengths: Vec<_> = guide.points.windows(2).map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).collect();
+    let mean = lengths.iter().sum::<f32>() / lengths.len() as f32;
+    assert!(lengths.iter().all(|length| *length < mean * 3.0));
+    assert_eq!(state.locks.len(), 1);
+}
+
 fn visible_lock(app: &LabApplication, rect: egui::Rect) -> (Vec2, u64) {
     let scene = app.hair.scene.as_ref().unwrap();
     for face in scene.frame.indices.chunks_exact(3).step_by(17) {
@@ -1023,10 +1081,11 @@ fn hair_production_workflow_matrix() {
     let state: HairState = serde_json::from_value(input["hair"].clone()).unwrap();
     let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
     let empty_start = std::env::var_os("CDMW_HAIR_PROBE_EMPTY_START").is_some();
+    let long_draw = std::env::var_os("CDMW_HAIR_PROBE_LONG_DRAW").is_some();
     assert!(!empty_start || generated);
     let mut app = LabApplication::new(None, None);
-    app.document = Some(serde_json::from_value(input["document"].clone()).unwrap());
     app.cdmw_state = input["host"].clone();
+    app.install_cdmw_document(serde_json::from_value(input["document"].clone()).unwrap()).unwrap();
     let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0));
     app.viewport_rect = Some(rect);
     app.hydrate_hair(Some(state));
@@ -1082,7 +1141,11 @@ fn hair_production_workflow_matrix() {
         }
         for stroke in 0..2 {
             app.camera
-                .set_standard_view(crate::camera::StandardView::Top);
+                .set_standard_view(if long_draw {
+                    crate::camera::StandardView::Front
+                } else {
+                    crate::camera::StandardView::Top
+                });
             let scalp = &app.hair.state.as_ref().unwrap().scalp;
             app.camera
                 .frame_positions_in_viewport(scalp.positions.iter().copied().map(Vec3::from), rect);
@@ -1102,12 +1165,23 @@ fn hair_production_workflow_matrix() {
             app.hair.tool = Some(HairTool::Guide);
             app.hair.symmetry = stroke == 1;
             let count = app.hair.state.as_ref().unwrap().locks.len();
-            for event in [
-                ViewportPointerEvent::PrimaryPressed(point),
-                ViewportPointerEvent::PrimaryMoved(point + Vec2::new(25.0, 40.0)),
-                ViewportPointerEvent::PrimaryReleased(point + Vec2::new(25.0, 40.0)),
-            ] {
+            let point = point + if long_draw { Vec2::new(60.0, 65.0) } else { Vec2::ZERO };
+            let steps = if long_draw { 240 } else { 1 };
+            let path: Vec<_> = (1..=steps).map(|i| {
+                let t = i as f32 / steps as f32;
+                point + if long_draw {
+                    Vec2::new(90.0 * (t * 4.0).sin(), 600.0 * t)
+                } else { Vec2::new(25.0, 40.0) }
+            }).collect();
+            for (step, event) in std::iter::once(ViewportPointerEvent::PrimaryPressed(point))
+                .chain(path.iter().copied().map(ViewportPointerEvent::PrimaryMoved))
+                .chain(std::iter::once(ViewportPointerEvent::PrimaryReleased(*path.last().unwrap())))
+                .enumerate() {
                 app.dispatch_hair_pointer(event, rect, false, false, false);
+                if long_draw && step > 0 && step <= steps && step % 80 == 0 {
+                    app.render_hair();
+                    capture_hair_workflow_step(&app, &input, &mailbox, &format!("stroke-{}-{step}", stroke + 1));
+                }
             }
             await_hair_host(&mut app);
             assert!(
@@ -1117,6 +1191,30 @@ fn hair_production_workflow_matrix() {
             );
             capture_hair_workflow_step(&app, &input, &mailbox, &format!("draw-{}", stroke + 1));
             results.push(json!({"tool":format!("Draw {}",stroke+1),"symmetry":stroke==1,"geometry_changed":true,"acknowledged":true}));
+            if long_draw {
+                std::fs::write(mailbox.join(format!("long-draw-{}.json", stroke + 1)),
+                    serde_json::to_vec(&app.hair.state).unwrap()).unwrap();
+                let hair = app.hair.state.clone();
+                let frame = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+                app.handle_actions(vec![UiAction::ClearSelection]);
+                await_hair_host(&mut app);
+                capture_hair_workflow_step(&app, &input, &mailbox, &format!("clear-{}", stroke + 1));
+                assert!(app.hair.selected.is_empty(), "Clear Selection did not clear hair locks");
+                assert_eq!(app.hair.state, hair);
+                assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, frame);
+                // Also exercise a generic host notification without a changed
+                // hair document, which previously discarded the generated view.
+                app.submit_cdmw_command("select", json!({"selection": {}, "operation": "replace"}), "Selection refresh");
+                await_hair_host(&mut app);
+                assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, frame);
+                for guide in &app.hair.state.as_ref().unwrap().guides {
+                    let lengths: Vec<_> = guide.points.windows(2)
+                        .map(|p| Vec3::from(p[0]).distance(Vec3::from(p[1]))).collect();
+                    let mean = lengths.iter().sum::<f32>() / lengths.len() as f32;
+                    assert!(lengths.iter().all(|length| *length < mean * 3.0), "long stroke collapsed into an oversized segment");
+                }
+                results.push(json!({"tool":"Clear Selection and host refresh","selection_only":true,"geometry_unchanged":true,"pointer_samples":steps}));
+            }
         }
     } else {
         let unresolved = app
@@ -1685,6 +1783,11 @@ fn hair_draw_is_visible_during_stroke_and_symmetry_cut_erase_remove_geometry() {
     await_hair(&mut app);
     app.hair.tool = Some(HairTool::Guide);
     app.hair.symmetry = true;
+    // This fixture is a horizontal plane; frame its surface directly instead
+    // of inheriting a nearly edge-on view of the preceding generated preset.
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
     let point = app
         .camera
         .project(Vec3::new(0.08, 0.2, 0.0), rect)

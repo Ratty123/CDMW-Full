@@ -780,6 +780,11 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
             .filter(|(_, g)| g.group == group.id)
         {
             let frames = locks::frames(&guide.points);
+            let mut lengths = vec![0.0];
+            for pair in guide.points.windows(2) {
+                lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+            }
+            let length = *lengths.last().unwrap();
             let lock = state.locks.iter().find(|l| l.guide == Some(gi as u32));
             let width_scale = lock.map_or(1.0, |l| l.width_scale);
             let density = lock
@@ -797,7 +802,7 @@ pub fn generate(state: &HairState, cancelled: &AtomicBool) -> Result<Vec<HairGeo
                     let (side, up, tangent) = frames[segment];
                     let across = side * roll.cos() + up * roll.sin();
                     let normal = across.cross(tangent).normalize();
-                    let t = i as f32 / (guide.points.len() - 1) as f32;
+                    let t = lengths[i] / length;
                     for edge in [-1.0_f32, 1.0] {
                         let offset = across
                             * (edge * group.width * width_scale * 0.5 * (1.0 - t * 0.94)
@@ -1422,6 +1427,21 @@ mod tests {
             Err(HairError::Cancelled)
         ));
     }
+    #[test]
+    fn hair_card_taper_and_texture_follow_distance_not_sample_count() {
+        let mut s = planted();
+        let root = s.scalp.point(&s.guides[0].root).unwrap();
+        let distances = [0.0, 0.01, 0.1, 1.0];
+        s.guides[0].points = distances.map(|d| (root + Vec3::Y * d).to_array()).to_vec();
+        s.groups[0].cards_per_guide = 1;
+        let mesh = generate(&s, &AtomicBool::new(false)).unwrap().remove(0);
+        for (i, distance) in distances.iter().enumerate() {
+            assert!((mesh.uvs[i * 2][1] - distance).abs() < 1e-5);
+            let width = Vec3::from(mesh.positions[i * 2]).distance(Vec3::from(mesh.positions[i * 2 + 1]));
+            assert!((width - s.groups[0].width * (1.0 - distance * 0.94)).abs() < 1e-5);
+        }
+    }
+
     #[test]
     fn hair_existing_binding_roundtrips_and_requires_explicit_group() {
         let mut s = planted();
