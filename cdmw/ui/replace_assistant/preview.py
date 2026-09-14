@@ -13,7 +13,9 @@ class ReplaceAssistantPreviewMixin:
     def _schedule_preview(self, item: ReplaceAssistantItem) -> None:
         if self.workspace is not None:
             self.preview_title_label.setText(item.source_path.name)
-            self.preview_warning_label.setText(self._combined_item_warning(item))
+            warning = self._combined_item_warning(item)
+            self.preview_warning_label.setText(warning)
+            self.preview_warning_label.setVisible(bool(warning))
             self._set_preview_details_text(item)
             self.workspace.select_replacement_asset(item.source_path)
             return

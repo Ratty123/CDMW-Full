@@ -12,9 +12,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from PySide6.QtCore import Qt, QThread, QTimer
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from cdmw.models import MatchedOriginalTexture
+from cdmw.models import ArchiveEntry, MatchedOriginalTexture
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.main_window import MainWindow
 from cdmw.ui.shell.app_context import AppContext
@@ -33,6 +34,11 @@ def wait_for(predicate, timeout=10):
 @pytest.fixture
 def workspace(tmp_path, monkeypatch, request):
     app = QApplication.instance() or QApplication([])
+    # The Windows offscreen plugin needs fonts registered explicitly for real text metrics.
+    if os.name == "nt":
+        for font_file in ("segoeui.ttf", "segoeuib.ttf"):
+            assert QFontDatabase.addApplicationFont(str(Path(os.environ["WINDIR"]) / "Fonts" / font_file)) >= 0
+        app.setFont(QFont("Segoe UI", 10))
     settings = create_settings(settings_file_path=tmp_path / "textures.cfg")
     settings.setValue("ui/active_tool_key", "archive_browser")
     settings.setValue("ui/textures_mode", "replace")
@@ -83,6 +89,15 @@ def load_folder(matcher, folder, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_k: str(folder))
     matcher.add_folder_button.click()
     wait_for(lambda: matcher.import_thread is None)
+
+
+def choose_originals_folder(matcher, folder, monkeypatch):
+    matcher.match_source_combo.setCurrentIndex(matcher.match_source_combo.findData("local"))
+    with monkeypatch.context() as scoped:
+        scoped.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_k: str(folder))
+        scoped.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_k: pytest.fail("bulk originals must use a folder picker"))
+        matcher.originals_folder_button.click()
+    assert matcher.originals_folder_edit.text() == str(folder)
 
 
 def write_source(path, content=b"external DDS payload"):
@@ -194,6 +209,8 @@ def test_empty_failed_and_cancelled_scans_preserve_batch_and_reject_late_results
         matcher._add_sources([empty], replace_queue=True, folder=empty)
         wait_for(lambda: entered.is_set() and len(ticks) >= 3)
         assert textures.job.busy and matcher.cancel_import_button.isEnabled()
+        assert not matcher.match_source_combo.isEnabled()
+        assert not matcher.originals_folder_button.isEnabled()
         if close_during_import:
             started = time.monotonic()
             matcher.request_shutdown()
@@ -243,6 +260,130 @@ def test_build_uses_latest_raw_sources_and_excludes_unchecked_unmatched_files(wo
     assert created_tool_widget(window.texture_editor_tab) is None
 
 
+def test_local_originals_folder_can_be_cancelled_changed_and_rescanned(workspace, tmp_path, monkeypatch):
+    _window, textures, matcher = workspace
+    edited = tmp_path / "edited"
+    write_source(edited / "coat.dds")
+    write_source(edited / "boots.dds")
+    originals = tmp_path / "originals"
+    write_source(originals / "0009" / "character" / "coat.dds")
+    load_folder(matcher, edited, monkeypatch)
+    choose_originals_folder(matcher, originals, monkeypatch)
+    with monkeypatch.context() as scoped:
+        scoped.setattr(QFileDialog, "getExistingDirectory", lambda *_a, **_k: "")
+        matcher.originals_folder_button.click()
+    assert matcher.originals_folder_edit.text() == str(originals)
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    assert sum(item.status == "matched" for item in matcher.items) == 1
+    # A retry must rescan even when the selected root itself has not changed.
+    write_source(originals / "0009" / "character" / "boots.dds")
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    assert all(item.status == "matched" for item in matcher.items)
+    alternate = tmp_path / "alternate"
+    write_source(alternate / "0010" / "character" / "boots.dds")
+    choose_originals_folder(matcher, alternate, monkeypatch)
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    assert sum(item.status == "matched" for item in matcher.items) == 1
+    matched = next(item for item in matcher.items if item.status == "matched")
+    assert matched.matched_original.package_root == "0010"
+    assert not textures.job.sessions
+
+
+def test_archives_loaded_after_import_enable_matching_and_local_mode_excludes_them(workspace, tmp_path, monkeypatch):
+    _window, textures, matcher = workspace
+    edited = tmp_path / "edited"
+    write_source(edited / "coat.dds")
+    load_folder(matcher, edited, monkeypatch)
+    assert not matcher.auto_match_button.isEnabled()
+    assert "Load the game archives" in matcher.archive_source_hint.text()
+    assert "Run Auto-Match" in matcher.status_label.text()
+    entry = ArchiveEntry("character/coat.dds", tmp_path / "0009" / "0.pamt", tmp_path / "0009" / "0.paz",
+                         offset=0, comp_size=10, orig_size=10, flags=0, paz_index=0)
+    matcher.set_archive_entries([entry])
+    assert matcher.auto_match_button.isEnabled()
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    assert matcher.items[0].matched_original.archive_entry is entry
+    empty_originals = tmp_path / "empty-originals"
+    empty_originals.mkdir()
+    choose_originals_folder(matcher, empty_originals, monkeypatch)
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    assert matcher.items[0].matched_original is None
+    assert matcher.items[0].status == "unresolved"
+    assert matcher.items[0].detected_package_root == ""
+    assert matcher.items[0].detected_relative_path == ""
+    asset = textures.job.assets[textures.replacement_item_key(matcher.items[0])]
+    assert asset.original_entry is None
+    assert asset.source_binding.archive_relative_path == ""
+    assert asset.source_binding.package_root == ""
+    assert asset.source_binding.original_dds_path == ""
+
+
+@pytest.mark.parametrize("cancel_choice", [False, True])
+def test_ambiguous_local_match_chooses_one_local_dds(workspace, tmp_path, monkeypatch, cancel_choice):
+    _window, _textures, matcher = workspace
+    edited = tmp_path / "edited"
+    write_source(edited / "coat.dds")
+    originals = tmp_path / "originals"
+    first = write_source(originals / "0009" / "a" / "coat.dds")
+    write_source(originals / "0010" / "b" / "coat.dds")
+    load_folder(matcher, edited, monkeypatch)
+    choose_originals_folder(matcher, originals, monkeypatch)
+    monkeypatch.setattr(QMessageBox, "exec", lambda _self: 0)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda box: next(button for button in box.buttons() if button.text() == "Choose Now"))
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_a, **_k: ("" if cancel_choice else str(first), "DDS files (*.dds)"))
+    monkeypatch.setattr(matcher, "_pick_archive_original", lambda *_a: pytest.fail("local ambiguity must not open an archive picker"))
+    matcher.auto_match_button.click()
+    wait_for(lambda: not matcher.is_busy())
+    if cancel_choice:
+        assert matcher.items[0].matched_original is None
+        assert matcher.items[0].status == "unresolved"
+    else:
+        assert matcher.items[0].matched_original.original_dds_path == first
+        assert matcher.items[0].status == "matched"
+
+
+@pytest.mark.parametrize("window_size", [(1280, 900), (1920, 1080)])
+def test_replace_layout_gives_queue_the_height_and_keeps_actions_visible(workspace, tmp_path, monkeypatch, window_size):
+    from PySide6.QtCore import QPoint
+    window, textures, matcher = workspace
+    width, height = window_size
+    window.showNormal()
+    window.setMinimumSize(width, height)
+    window.resize(width, height)
+    folder = tmp_path / "edited"
+    for index in range(100):
+        write_source(folder / f"coat_{index}.dds")
+    load_folder(matcher, folder, monkeypatch)
+    QApplication.processEvents()
+    matcher.apply_responsive_splitter_sizes()
+    QApplication.processEvents()
+    assert textures.texture_pages.currentWidget() is window.replace_assistant_tab
+    assert matcher.preview_panel.height() < 180
+    assert matcher.queue_tree.height() > matcher.queue_panel.height() * .65
+    assert matcher.preview_meta_label.isHidden()
+    for mode in ("archive", "local"):
+        matcher.match_source_combo.setCurrentIndex(matcher.match_source_combo.findData(mode))
+        QApplication.processEvents()
+        buttons = [matcher.add_files_button, matcher.add_folder_button, matcher.reload_folder_button,
+                   matcher.auto_match_button, matcher.choose_local_original_button, matcher.choose_archive_original_button]
+        if mode == "local":
+            buttons.append(matcher.originals_folder_button)
+        for button in buttons:
+            assert button.isVisible()
+            position = button.mapTo(window, QPoint(0, 0))
+            assert position.x() >= 0 and position.y() >= 0
+            assert position.x() + button.width() <= window.width()
+            assert position.y() + button.height() <= window.height()
+    matcher.clear_all_button.click()
+    assert matcher.preview_panel.isHidden()
+    assert not matcher.preview_details_edit.toPlainText()
+
+
 def test_auto_match_runs_on_file_only_batch_without_editor(workspace, tmp_path, monkeypatch):
     window, textures, matcher = workspace
     folder = tmp_path / "edited"
@@ -250,7 +391,7 @@ def test_auto_match_runs_on_file_only_batch_without_editor(workspace, tmp_path, 
     write_source(folder / "unmatched.dds")
     originals = tmp_path / "originals"
     write_source(originals / "0000" / "character" / "coat.dds")
-    monkeypatch.setattr(matcher, "get_original_root", lambda: str(originals))
+    choose_originals_folder(matcher, originals, monkeypatch)
     load_folder(matcher, folder, monkeypatch)
     callback_threads = []
     complete = matcher._handle_auto_match_complete
@@ -368,7 +509,7 @@ def test_real_native_folder_match_package_and_external_rebuild(workspace, tmp_pa
     Image.new("RGBA", (8, 8), (20, 190, 40, 255)).save(seed)
     assert encode_dds_with_directxtex(seed, folder / "boots.dds", dds_format=formats["boots"])
     Image.new("RGBA", (8, 8), (170, 100, 20, 255)).save(folder / "hat.png")
-    monkeypatch.setattr(matcher, "get_original_root", lambda: str(originals))
+    choose_originals_folder(matcher, originals, monkeypatch)
     matcher.package_output_root_edit.setText(str(tmp_path / "packages"))
     matcher.package_title_edit.setText("Folder regression")
     matcher.overwrite_package_checkbox.setChecked(True)
@@ -462,7 +603,7 @@ def test_500_file_import_match_and_bulk_remove_keep_editor_unloaded(workspace, t
     for index in range(500):
         write_source(folder / f"texture_{index:04}.dds", payload)
         write_source(originals / "0009" / "character" / f"texture_{index:04}.dds", payload)
-    monkeypatch.setattr(matcher, "get_original_root", lambda: str(originals))
+    choose_originals_folder(matcher, originals, monkeypatch)
     ticks = [time.monotonic()]
     timer = QTimer()
     timer.setInterval(5)

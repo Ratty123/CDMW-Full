@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QSpinBox,
     QStackedWidget,
@@ -258,21 +259,43 @@ class ReplaceAssistantTab(
         self.cancel_import_button = QPushButton("Cancel Import")
         self.auto_match_button = QPushButton("Auto-Match")
         self.open_in_editor_button = QPushButton("Open")
-        self.choose_local_original_button = QPushButton("Local")
-        self.choose_archive_original_button = QPushButton("Original")
+        self.choose_local_original_button = QPushButton("Choose Local DDS...")
+        self.choose_local_original_button.setToolTip("Choose one original DDS file for the selected replacement.")
+        self.choose_archive_original_button = QPushButton("Choose Archive DDS...")
+        self.choose_archive_original_button.setToolTip("Choose one archive original for the selected replacement.")
         self.remove_selected_button = QPushButton("Remove Selected")
         self.clear_all_button = QPushButton("Clear All")
         button_row.addWidget(self.add_files_button)
         button_row.addWidget(self.add_folder_button)
         button_row.addWidget(self.reload_folder_button)
-        button_row.addWidget(self.auto_match_button)
-        button_row.addWidget(self.open_in_editor_button)
-        button_row.addWidget(self.choose_local_original_button)
-        button_row.addWidget(self.choose_archive_original_button)
         button_row.addWidget(self.remove_selected_button)
         button_row.addWidget(self.clear_all_button)
         button_row.addWidget(self.cancel_import_button)
         root_layout.addLayout(button_row)
+
+        match_row = QHBoxLayout()
+        match_row.addWidget(QLabel("Auto-Match originals:"))
+        self.match_source_combo = QComboBox()
+        self.match_source_combo.addItem("Game archives", "archive")
+        self.match_source_combo.addItem("Local DDS folder", "local")
+        match_row.addWidget(self.match_source_combo)
+        self.originals_folder_edit = QLineEdit(self.get_original_root().strip())
+        self.originals_folder_edit.setReadOnly(True)
+        self.originals_folder_edit.setPlaceholderText("Choose a folder containing original DDS files")
+        self.originals_folder_button = QPushButton("Choose Folder...")
+        self.originals_folder_button.setToolTip("Search this folder and its subfolders for original DDS files.")
+        self.originals_folder_widget = QWidget()
+        originals_row = QHBoxLayout(self.originals_folder_widget)
+        originals_row.setContentsMargins(0, 0, 0, 0)
+        originals_row.addWidget(self.originals_folder_edit, stretch=1)
+        originals_row.addWidget(self.originals_folder_button)
+        match_row.addWidget(self.originals_folder_widget, stretch=1)
+        self.archive_source_hint = QLabel("Uses the DDS entries loaded in Archives.")
+        self.archive_source_hint.setObjectName("HintLabel")
+        self.archive_source_hint.setWordWrap(True)
+        match_row.addWidget(self.archive_source_hint, stretch=1)
+        match_row.addWidget(self.auto_match_button)
+        root_layout.addLayout(match_row)
         root_layout.addWidget(self.summary_label)
         if self.workspace is not None:
             self.add_folder_button.setText("Open Folder")
@@ -335,7 +358,13 @@ class ReplaceAssistantTab(
         self.queue_stack.addWidget(self.queue_empty_state)
         self.queue_stack.addWidget(self.queue_tree)
         queue_group_layout.addWidget(self.queue_stack, stretch=1)
-        queue_layout.addWidget(queue_group)
+        queue_layout.addWidget(queue_group, stretch=1)
+        selected_row = WrappingLayout()
+        selected_row.addWidget(QLabel("Selected file:"))
+        selected_row.addWidget(self.open_in_editor_button)
+        selected_row.addWidget(self.choose_local_original_button)
+        selected_row.addWidget(self.choose_archive_original_button)
+        queue_layout.addLayout(selected_row)
         self.main_splitter.addWidget(self.queue_panel)
 
         self._build_review_preview(queue_layout)
@@ -617,7 +646,7 @@ class ReplaceAssistantTab(
             self.queue_panel.setMaximumWidth(16777215)
             self.settings_panel.setMaximumWidth(16777215)
             self.main_splitter.setStretchFactor(0, 1)
-            self.main_splitter.setStretchFactor(1, 1)
+            self.main_splitter.setStretchFactor(1, 0)
             self.main_splitter.setSizes([550, 450])
 
         self.add_files_button.clicked.connect(self.import_files)
@@ -625,6 +654,9 @@ class ReplaceAssistantTab(
         self.reload_folder_button.clicked.connect(self.reload_import_folder)
         self.cancel_import_button.clicked.connect(self.cancel_source_import)
         self.auto_match_button.clicked.connect(self.auto_match_all_items)
+        self.match_source_combo.currentIndexChanged.connect(self._matching_source_changed)
+        self.originals_folder_button.clicked.connect(self.choose_originals_folder)
+        self.originals_folder_edit.textChanged.connect(self._matching_source_changed)
         self.open_in_editor_button.clicked.connect(self.open_current_item_in_texture_editor)
         self.choose_local_original_button.clicked.connect(self.choose_local_original_for_selected)
         self.choose_archive_original_button.clicked.connect(self.choose_archive_original_for_selected)
@@ -752,11 +784,16 @@ class ReplaceAssistantTab(
         else:
             # Matching details belong to review; the job owns the image canvas.
             self.preview_panel = QWidget()
+            self.preview_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
             details_layout = QVBoxLayout(self.preview_panel)
+            details_layout.setContentsMargins(0, 0, 0, 0)
+            details_layout.setSpacing(4)
             self.preview_title_label = QLabel("Select a replacement match")
             self.preview_meta_label = QLabel()
+            self.preview_meta_label.hide()
             self.preview_warning_label = QLabel()
             self.preview_warning_label.setWordWrap(True)
+            self.preview_warning_label.hide()
             self.preview_details_edit = QPlainTextEdit()
             self.preview_details_edit.setReadOnly(True)
             self.preview_details_edit.setMaximumHeight(100)
@@ -767,8 +804,11 @@ class ReplaceAssistantTab(
     def _apply_responsive_splitter_defaults(self) -> None:
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
-        settings_min, _settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
+        settings_min, settings_pref, settings_max = responsive_sidebar_bounds(self, role="wide")
         total_width = max(1, self.width() - 32)
+        if self.workspace is not None:
+            self.main_splitter.setSizes([max(queue_min, total_width - settings_pref), settings_pref])
+            return
         self.main_splitter.setSizes(
             build_bounded_splitter_sizes(
                 total_width,
@@ -780,7 +820,7 @@ class ReplaceAssistantTab(
 
     def set_splitter_sizes(self, sizes: Sequence[int], *, total_width: Optional[int] = None) -> None:
         if self.workspace is not None:
-            self.main_splitter.setSizes([550, 450])
+            self._apply_responsive_splitter_defaults()
             return
         if not sizes:
             return
@@ -802,7 +842,7 @@ class ReplaceAssistantTab(
 
     def apply_responsive_splitter_sizes(self, total_width: Optional[int] = None) -> None:
         if self.workspace is not None:
-            self.main_splitter.setSizes([550, 450])
+            self._apply_responsive_splitter_defaults()
             return
         queue_min, _queue_pref, queue_max = responsive_sidebar_bounds(self, role="normal")
         preview_min, _preview_pref, _preview_max = responsive_sidebar_bounds(self, role="wide")
@@ -864,19 +904,37 @@ class ReplaceAssistantTab(
                 return
 
     def _current_original_root_path(self) -> Optional[Path]:
-        original_root_text = self.get_original_root().strip()
+        if self._combo_value(self.match_source_combo) != "local":
+            return None
+        original_root_text = self.originals_folder_edit.text().strip()
         return Path(original_root_text).expanduser() if original_root_text else None
+
+    def _matching_archive_entries(self) -> Sequence[ArchiveEntry]:
+        if self._combo_value(self.match_source_combo) != "archive" or self._catalogue_archive_ready():
+            return ()
+        return self.archive_entries or self.get_archive_entries()
+
+    def _matching_source_changed(self) -> None:
+        self.archive_index = build_replace_assistant_archive_index([])
+        self.archive_index_original_root = None
+        self._update_controls()
+
+    def choose_originals_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose a folder of original DDS files",
+            self.originals_folder_edit.text().strip() or self.base_dir.as_posix(),
+        )
+        if folder:
+            self.originals_folder_edit.setText(folder)
 
     def _ensure_archive_index_current(self) -> ReplaceAssistantArchiveIndex:
         current_original_root = self._current_original_root_path()
-        active_entries = [] if self._catalogue_archive_ready() else (self.archive_entries or list(self.get_archive_entries()))
-        self.archive_entries = list(active_entries)
+        active_entries = self._matching_archive_entries()
         entries_missing_from_index = bool(active_entries) and not self.archive_index.entries_by_relative_path
         root_changed = self.archive_index_original_root != current_original_root
         if entries_missing_from_index or root_changed:
-            self.archive_entries = list(active_entries)
             self.archive_index = build_replace_assistant_archive_index(
-                self.archive_entries,
+                active_entries,
                 original_dds_root=current_original_root,
             )
             self.archive_index_original_root = current_original_root
@@ -891,6 +949,7 @@ class ReplaceAssistantTab(
         self.archive_index = build_replace_assistant_archive_index([])
         self.archive_index_original_root = None
         self._update_summary()
+        self._update_controls()
 
     def set_external_busy(self, busy: bool) -> None:
         self.external_busy = busy

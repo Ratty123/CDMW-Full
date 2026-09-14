@@ -65,8 +65,10 @@ class ReplaceAssistantControlMixin:
         )
         if unresolved:
             self.status_label.setText(f"{unresolved:,} item(s) still need an original DDS.")
-        elif total:
+        elif total and matched == total:
             self.status_label.setText("All imported files are matched.")
+        elif total:
+            self.status_label.setText("Run Auto-Match to find the original DDS files.")
         else:
             self.status_label.setText("Ready.")
 
@@ -129,10 +131,20 @@ class ReplaceAssistantControlMixin:
         self.reload_folder_button.setEnabled(not busy and self.last_import_folder is not None)
         self.cancel_import_button.setEnabled(self._active_import_request is not None)
         self.queue_tree.setEnabled(not busy)
-        self.auto_match_button.setEnabled(not busy and has_items)
+        local_originals = self._combo_value(self.match_source_combo) == "local"
+        archive_ready = self._archive_original_source_ready()
+        source_ready = bool(self.originals_folder_edit.text().strip()) if local_originals else archive_ready
+        self.auto_match_button.setEnabled(not busy and has_items and source_ready)
+        self.match_source_combo.setEnabled(not busy)
+        self.originals_folder_widget.setVisible(local_originals)
+        self.originals_folder_button.setEnabled(not busy)
+        self.archive_source_hint.setVisible(not local_originals)
+        self.archive_source_hint.setText(
+            "Uses the DDS entries loaded in Archives." if archive_ready else "Load the game archives in Archives first."
+        )
         self.choose_local_original_button.setEnabled(not busy and selected_count == 1)
         self.choose_archive_original_button.setEnabled(
-            not busy and selected_count == 1 and self._archive_original_source_ready()
+            not busy and selected_count == 1 and archive_ready
         )
         self.remove_selected_button.setEnabled(not busy and selected_count > 0)
         self.clear_all_button.setEnabled(not busy and has_items)
@@ -176,6 +188,12 @@ class ReplaceAssistantControlMixin:
         self.retry_smaller_tile_checkbox.setEnabled(not busy and show_ncnn)
         if hasattr(self, "queue_stack"):
             self.queue_stack.setCurrentWidget(self.queue_tree if has_items or busy else self.queue_empty_state)
+        if self.workspace is not None:
+            self.preview_panel.setVisible(has_items)
+            if not has_items:
+                self.preview_title_label.setText("Select a replacement match")
+                self.preview_details_edit.clear()
+                self.preview_warning_label.hide()
 
     def append_log(self, message: str) -> None:
         self.log_view.appendPlainText(message)

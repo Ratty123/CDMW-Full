@@ -23,6 +23,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Textures > Replace now gives the queue the available height, keeps selected-file details compact, and separates bulk Auto-Match sources from single-file overrides. Choose Game archives or a whole Local DDS folder; matching a local folder again discovers newly added originals.
 - Texture replacement builds now update the current-file progress label on the GUI thread, avoiding unsafe widget updates during bulk packaging.
 - Hair reference choices can be retried after preparation fails, and late results or errors from earlier choices no longer replace the current selection. Cancelled reference preparation releases temporary assets promptly; edit acknowledgements avoid decoding the full hair document just to read its revision.
 - Hair now opens Damiane with matching character references, compatible thumbnail choices and a focused workspace. Visible locks support direct dragging, drawing, shaping, cutting and deletion with immediate feedback, explicit preparation for ambiguous existing sections, and head/shoulder motion. Version 5 drafts preserve locks and geometry; incremental acknowledgements retain the view, and PAC cuts/deletions preserve original skinning records. Desktop performance and in-game acceptance remain pending.

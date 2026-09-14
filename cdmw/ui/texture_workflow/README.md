@@ -31,6 +31,12 @@ before closing existing editor documents, never deletes sources or built package
 and does not load each intervening document. **Open in Editor** deliberately opens
 one asset; returning to Replace preserves its edits, history, and matched original.
 Auto-Match remains explicit, and unresolved originals must be chosen before building.
+Choose **Game archives** or **Local DDS folder** beside **Auto-Match originals**.
+**Choose Folder...** selects a whole local originals folder, including subfolders;
+Auto-Match retries see newly added originals. The **Selected file** row's
+**Choose Local DDS...** and **Choose Archive DDS...** assign one original to one
+replacement. Replace has its own import, matching, and build controls; Edit's
+Add Textures, Add Mod, and Review & Export actions are hidden in this mode.
 File-only builds read the current source files through the existing package builder;
 DDS encoding policy is unchanged. Edited sessions export their current flattened image.
 
