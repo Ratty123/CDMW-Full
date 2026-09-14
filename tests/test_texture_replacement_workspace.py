@@ -157,7 +157,8 @@ def test_reload_replaces_batch_and_bulk_removal_uses_rows_not_export_checks(work
     assert created_tool_widget(window.texture_editor_tab) is None
 
 
-def test_empty_failed_and_cancelled_scans_preserve_batch_and_reject_late_results(workspace, tmp_path, monkeypatch):
+@pytest.mark.parametrize("close_during_import", [False, True])
+def test_empty_failed_and_cancelled_scans_preserve_batch_and_reject_late_results(workspace, tmp_path, monkeypatch, close_during_import):
     _window, textures, matcher = workspace
     folder = tmp_path / "original"
     write_source(folder / "keep.dds")
@@ -193,7 +194,12 @@ def test_empty_failed_and_cancelled_scans_preserve_batch_and_reject_late_results
         matcher._add_sources([empty], replace_queue=True, folder=empty)
         wait_for(lambda: entered.is_set() and len(ticks) >= 3)
         assert textures.job.busy and matcher.cancel_import_button.isEnabled()
-        matcher.cancel_import_button.click()
+        if close_during_import:
+            started = time.monotonic()
+            matcher.request_shutdown()
+            assert time.monotonic() - started < .5
+        else:
+            matcher.cancel_import_button.click()
         # Simulate a success already queued before cancellation was requested.
         matcher.import_worker.completed.emit({"items": build_items([folder], perform_matching=False)})
         QApplication.processEvents()
@@ -203,8 +209,9 @@ def test_empty_failed_and_cancelled_scans_preserve_batch_and_reject_late_results
         timer.stop()
         wait_for(lambda: matcher.import_thread is None)
     assert not textures.job.busy
-    matcher.clear_all_button.click()
-    assert not textures.job.assets
+    if not close_during_import:
+        matcher.clear_all_button.click()
+        assert not textures.job.assets
 
 
 def test_build_uses_latest_raw_sources_and_excludes_unchecked_unmatched_files(workspace, tmp_path, monkeypatch):
@@ -331,3 +338,213 @@ def test_import_cancellation_reaches_traversal_and_item_construction(tmp_path, m
             stop.set()
     with pytest.raises(RunCancelled):
         core.build_replace_assistant_items([folder], perform_matching=False, stop_event=stop, on_progress=progress)
+
+
+def test_real_native_folder_match_package_and_external_rebuild(workspace, tmp_path, monkeypatch):
+    """Exercise the reported flat-folder workflow through the real build worker."""
+    import hashlib
+    import zipfile
+    from PIL import Image
+    from cdmw.core.texture_native import (
+        decode_dds_preview_with_directxtex, encode_dds_with_directxtex,
+        find_directxtex_texture_binary,
+    )
+    from cdmw.core.texture_pipeline.inspection import parse_dds
+
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("This integration check requires the existing DirectXTex texture helper.")
+    window, textures, matcher = workspace
+    folder = tmp_path / "external-edits"
+    folder.mkdir()
+    originals = tmp_path / "originals"
+    formats = {"coat": "BC7_UNORM", "boots": "BC3_UNORM", "hat": "BC1_UNORM", "belt": "BC3_UNORM"}
+    seed = tmp_path / "seed.png"
+    Image.new("RGBA", (8, 8), (70, 70, 70, 255)).save(seed)
+    for name, dds_format in formats.items():
+        target = originals / "0009" / "character" / "textures" / f"{name}.dds"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        assert encode_dds_with_directxtex(seed, target, dds_format=dds_format)
+    Image.new("RGBA", (8, 8), (210, 25, 20, 255)).save(folder / "coat.png")
+    Image.new("RGBA", (8, 8), (20, 190, 40, 255)).save(seed)
+    assert encode_dds_with_directxtex(seed, folder / "boots.dds", dds_format=formats["boots"])
+    Image.new("RGBA", (8, 8), (170, 100, 20, 255)).save(folder / "hat.png")
+    monkeypatch.setattr(matcher, "get_original_root", lambda: str(originals))
+    matcher.package_output_root_edit.setText(str(tmp_path / "packages"))
+    matcher.package_title_edit.setText("Folder regression")
+    matcher.overwrite_package_checkbox.setChecked(True)
+    matcher.package_zip_checkbox.setChecked(True)
+    matcher._set_combo_by_value(matcher.build_mode_combo, "rebuild_only")
+    for profile, checkbox in matcher.package_profile_checkboxes.items():
+        checkbox.setChecked(profile in {"dmm", "jmm"})
+    reviews = []
+    monkeypatch.setattr(matcher, "_open_review_dialog", lambda items: reviews.append(tuple(items)))
+    wrong_threads = []
+    set_status = matcher.status_label.setText
+    def record_status(text):
+        if QThread.currentThread() != QApplication.instance().thread():
+            wrong_threads.append(text)
+        else:
+            set_status(text)
+    monkeypatch.setattr(matcher.status_label, "setText", record_status)
+    def fingerprints(root):
+        return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in root.rglob("*") if p.is_file()}
+    original_hashes = fingerprints(originals)
+    def match_and_build(expected_names, red_coat):
+        source_hashes = fingerprints(folder)
+        matcher.auto_match_button.click()
+        wait_for(lambda: matcher.match_thread is None and not matcher._catalogue_request_busy())
+        assert all(item.status == "matched" for item in matcher.items)
+        assert {item.matched_original.archive_relative_path for item in matcher.items} == {
+            f"character/textures/{name}.dds" for name in expected_names
+        }
+        matcher.build_package_button.click()
+        wait_for(lambda: matcher.build_thread is None and not textures.job.busy, timeout=45)
+        QApplication.processEvents()
+        assert matcher.last_built_output_root is not None, matcher.log_view.toPlainText()
+        assert len(reviews) > 0
+        assert set(p.stem for p in matcher.last_built_output_root.rglob("*.dds")) == expected_names
+        for output in (tmp_path / "packages").rglob("*.dds"):
+            info = parse_dds(output)
+            assert (info.width, info.height, info.dds_format) == (8, 8, formats[output.stem])
+            # Keep verification images distinct across builds, as production preview caches do.
+            preview = tmp_path / "decoded" / str(len(reviews)) / output.parent.parent.parent.name / f"{output.stem}.png"
+            preview.parent.mkdir(parents=True, exist_ok=True)
+            assert decode_dds_preview_with_directxtex(output, preview, max_dimension=8)
+            with Image.open(preview) as image:
+                pixel = image.convert("RGB").getpixel((0, 0))
+                if output.stem == "coat":
+                    assert pixel[0 if red_coat else 2] > 170 and pixel[2 if red_coat else 0] < 60, pixel
+                elif output.stem == "boots":
+                    assert pixel[1 if red_coat else 2] > 150 and pixel[0] < 60, pixel
+        archives = list((tmp_path / "packages").glob("*.zip"))
+        assert len(archives) == 2
+        for path in archives:
+            with zipfile.ZipFile(path) as archive:
+                names = [name for name in archive.namelist() if name.endswith(".dds")]
+                assert {Path(name).stem for name in names} == expected_names
+                assert all(archive.read(name).startswith(b"DDS ") for name in names)
+        assert fingerprints(folder) == source_hashes
+        assert fingerprints(originals) == original_hashes
+        assert created_tool_widget(window.texture_editor_tab) is None
+        assert not textures.job.sessions
+    with patch("cdmw.services.texture_editor_service.TextureEditorService.create_document_from_source",
+               side_effect=AssertionError("bulk replacement must not create editor documents")):
+        load_folder(matcher, folder, monkeypatch)
+        match_and_build({"coat", "boots", "hat"}, red_coat=True)
+        Image.new("RGBA", (8, 8), (20, 25, 210, 255)).save(folder / "coat.png")
+        Image.new("RGBA", (8, 8), (20, 35, 195, 255)).save(seed)
+        assert encode_dds_with_directxtex(seed, folder / "boots.dds", dds_format=formats["boots"])
+        (folder / "hat.png").unlink()
+        Image.new("RGBA", (8, 8), (100, 80, 40, 255)).save(folder / "belt.png")
+        matcher.reload_folder_button.click()
+        wait_for(lambda: matcher.import_thread is None)
+        match_and_build({"coat", "boots", "belt"}, red_coat=False)
+        previous_packages = fingerprints(tmp_path / "packages")
+        (folder / "boots.dds").write_bytes(b"damaged external DDS")
+        matcher.build_package_button.click()
+        wait_for(lambda: matcher.build_thread is None and not textures.job.busy, timeout=45)
+        assert "not written" in matcher.status_label.text()
+        assert fingerprints(tmp_path / "packages") == previous_packages
+        assert fingerprints(originals) == original_hashes
+        assert created_tool_widget(window.texture_editor_tab) is None
+    assert len(reviews) == 2
+    assert not wrong_threads, f"Build updated status widgets outside the GUI thread: {wrong_threads}"
+
+
+def test_500_file_import_match_and_bulk_remove_keep_editor_unloaded(workspace, tmp_path, monkeypatch):
+    from PIL import Image
+    window, textures, matcher = workspace
+    seed = tmp_path / "seed.dds"
+    Image.new("RGBA", (4, 4), (100, 90, 80, 255)).save(seed)
+    payload = seed.read_bytes()
+    folder, originals = tmp_path / "flat", tmp_path / "originals"
+    for index in range(500):
+        write_source(folder / f"texture_{index:04}.dds", payload)
+        write_source(originals / "0009" / "character" / f"texture_{index:04}.dds", payload)
+    monkeypatch.setattr(matcher, "get_original_root", lambda: str(originals))
+    ticks = [time.monotonic()]
+    timer = QTimer()
+    timer.setInterval(5)
+    timer.timeout.connect(lambda: ticks.append(time.monotonic()))
+    timer.start()
+    try:
+        with patch("cdmw.services.texture_editor_service.TextureEditorService.create_document_from_source",
+                   side_effect=AssertionError("bulk queues must not open editor documents")):
+            load_folder(matcher, folder, monkeypatch)
+            imported_at = time.monotonic()
+            assert len(ticks) > 1
+            before_match = len(ticks)
+            matcher.auto_match_button.click()
+            wait_for(lambda: matcher.match_thread is None and not matcher._catalogue_request_busy())
+            matched_at = time.monotonic()
+            assert len(ticks) > before_match
+            assert len(matcher.items) == len(textures.job.assets) == 500
+            assert all(item.status == "matched" for item in matcher.items)
+            matcher.queue_tree.selectAll()
+            matcher.remove_selected_button.click()
+            assert not matcher.items and not textures.job.assets
+            assert not textures.job.sessions and created_tool_widget(window.texture_editor_tab) is None
+    finally:
+        timer.stop()
+    print(f"500 files: import={imported_at - ticks[0]:.3f}s, match={matched_at - imported_at:.3f}s, "
+          f"largest observed GUI heartbeat gap={max(b - a for a, b in zip(ticks, ticks[1:])):.3f}s")
+
+
+def test_shared_build_preserves_remote_identity_and_ignores_unchecked_stale_original(workspace, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from PIL import Image
+    from cdmw.core.texture_native import encode_dds_with_directxtex, find_directxtex_texture_binary
+    from cdmw.domain.archives.catalogue import ArchiveDurableIdentity, ArchiveEntryRef, ArchiveSessionHandle
+    from cdmw.domain.archives.catalogue_operations import PrepareEntryResult
+
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("This integration check requires the existing DirectXTex texture helper.")
+    window, textures, matcher = workspace
+    folder = tmp_path / "flat"
+    folder.mkdir()
+    for name in ("selected", "unchecked"):
+        Image.new("RGBA", (8, 8), (50, 100, 150, 255)).save(folder / f"{name}.png")
+    original = tmp_path / "prepared-original.dds"
+    assert encode_dds_with_directxtex(folder / "selected.png", original, dds_format="BC3_UNORM")
+    load_folder(matcher, folder, monkeypatch)
+    requests = []
+    def prepare_entry(request, **_kwargs):
+        requests.append(request)
+        return "owned-prepare"
+    monkeypatch.setattr(matcher, "archive_catalogue_service",
+                        SimpleNamespace(prepare_entry=prepare_entry, cancel=lambda _request: True))
+    session = ArchiveSessionHandle("owned-session", str(tmp_path), "current-fingerprint", 2, 1, False)
+    matcher.set_archive_catalogue_session(session)
+    for index, item in enumerate(matcher.items, start=23):
+        selected = item.source_path.stem == "selected"
+        item.matched_original = MatchedOriginalTexture(
+            package_root="0009", archive_relative_path=f"character/{item.source_path.stem}.dds",
+            loose_relative_path=Path(f"0009/character/{item.source_path.stem}.dds"),
+            archive_session_id=session.session_id, archive_entry_id=index,
+            archive_fingerprint=session.fingerprint if selected else "stale-fingerprint",
+        )
+        item.status = "matched"
+    selected = next(item for item in matcher.items if item.source_path.stem == "selected")
+    selected_key = textures.replacement_item_key(selected)
+    selected_id = selected.matched_original.archive_entry_id
+    textures.synchronize_replacement_matches(matcher)
+    textures.job.set_selected([selected_key])
+    matcher.package_output_root_edit.setText(str(tmp_path / "package"))
+    matcher.package_title_edit.setText("Remote selection")
+    matcher._set_combo_by_value(matcher.build_mode_combo, "rebuild_only")
+    monkeypatch.setattr(matcher, "_open_review_dialog", lambda _items: None)
+    matcher.build_package_button.click()
+    assert [request.entry_id for request in requests] == [selected_id]
+    assert requests[0].session_id == session.session_id
+    assert textures.job.busy
+    identity = ArchiveDurableIdentity("character/selected.dds", str(tmp_path / "0009/0.pamt"), 0, 0)
+    matcher._handle_catalogue_result("owned-prepare", "prepare_entry", PrepareEntryResult(
+        ArchiveEntryRef(session.session_id, selected_id, identity, identity.normalized_path),
+        str(original), original.stat().st_size, "owned-fixture", "Raw",
+    ))
+    wait_for(lambda: matcher.build_thread is None and not textures.job.busy, timeout=45)
+    assert matcher.last_built_output_root is not None, matcher.log_view.toPlainText()
+    assert {path.stem for path in (tmp_path / "package").rglob("*.dds")} == {"selected"}
+    assert textures.job.assets[selected_key].replacement_item.matched_original.archive_entry_id == selected_id
+    assert created_tool_widget(window.texture_editor_tab) is None

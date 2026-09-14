@@ -31,5 +31,8 @@ a paged worker query, and package builds prepare only the matched session/entry
 IDs before handing local prepared files to the existing build worker. Legacy and
 shadow display modes retain the list-backed compatibility path.
 
-Related tests: supporting feature tab and replacement workflow tests
-under `tests/`.
+`tests/test_texture_replacement_workspace.py` exercises the shared caller,
+500-file import/matching/removal, cancellation and shutdown, and native DDS
+package/rebuild output with owned fixtures. Native cases use the existing
+DirectXTex helper and skip explicitly when it is unavailable. Build progress is
+delivered through a queued slot on the tab's GUI thread.
