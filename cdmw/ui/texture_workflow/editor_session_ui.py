@@ -148,6 +148,30 @@ class TextureEditorSessionUiMixin:
         self._load_session_index(close_state.next_index)
         self.document_tab_bar.setVisible(not self.workspace_embedded)
 
+    def _close_document_tabs(self, indices) -> None:
+        """Close a batch with one final document load, preserving the shared list."""
+        indices = set(indices).intersection(range(len(self._sessions)))
+        if not indices:
+            return
+        self._store_active_session()
+        active = self._sessions[self._active_session_index] if self._active_session_index >= 0 else None
+        survivors = [session for index, session in enumerate(self._sessions) if index not in indices]
+        self.document_tab_bar.blockSignals(True)
+        try:
+            for index in sorted(indices, reverse=True):
+                self.document_tab_bar.removeTab(index)
+            self._sessions[:] = survivors
+        finally:
+            self.document_tab_bar.blockSignals(False)
+        next_index = next((index for index, session in enumerate(survivors) if session is active),
+                          min(self._active_session_index, len(survivors) - 1))
+        self.workspace = dataclasses.replace(
+            self.workspace, open_document_ids=texture_editor_open_document_ids(self._sessions),
+            active_document_id="",
+        )
+        self._load_session_index(next_index)
+        self.document_tab_bar.setVisible(bool(survivors) and not self.workspace_embedded)
+
     def _build_binding_for_source(
         self,
         source_path: Path,

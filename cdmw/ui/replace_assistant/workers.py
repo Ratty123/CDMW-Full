@@ -145,8 +145,8 @@ class ReplaceAssistantImportWorker(QObject):
         archive_index: Optional[ReplaceAssistantArchiveIndex],
     ) -> None:
         super().__init__()
-        self.paths = list(paths)
-        self.archive_entries = archive_entries
+        self.paths = tuple(paths)
+        self.archive_entries = tuple(archive_entries)
         self.original_dds_root = original_dds_root
         self.archive_index = archive_index
         self.stop_event = threading.Event()
@@ -164,6 +164,7 @@ class ReplaceAssistantImportWorker(QObject):
                 on_stage=self.stage_message.emit,
                 on_progress=self.progress.emit,
                 perform_matching=False,
+                stop_event=self.stop_event,
             )
             if not self.stop_event.is_set():
                 self.completed.emit(

@@ -344,6 +344,8 @@ class ReplaceAssistantArchiveCatalogueMixin:
             return False
         entry_indices: dict[int, list[int]] = {}
         for index, item in enumerate(self.items):
+            if self.workspace is not None and self.workspace.replacement_item_key(item) not in self.workspace.job.selected:
+                continue
             matched = item.matched_original
             if matched is None or matched.archive_entry_id is None or matched.original_dds_path is not None:
                 continue

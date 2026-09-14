@@ -131,9 +131,9 @@ class AboutDocumentationEnglishMixin:
             {
                 "id": "workflow_overview",
                 "title": 'Textures',
-                "summary": 'One asset list and canvas for Edit, Recolor, Upscale, and Review & Export.',
+                "summary": 'One texture job for Edit, Replace, Recolor, Upscale, and Review & Export.',
                 "keywords": "texture workflow batch dds png rebuild compare start scan preview policy run summary",
-                "html": '<p><b>Textures</b> keeps the same documents, layers, history, selection, and original DDS bindings across three modes.</p><ul><li><b>Edit</b>: add images or open an existing project, then use the layered editor.</li><li><b>Recolor</b>: add a mod folder or ZIP, select texture or supported material-color targets, and review a template.</li><li><b>Upscale</b>: scan the configured Original DDS root or use current assets, configure output paths, profiles, rules, and a backend, then preview the policy.</li><li><b>Review &amp; Export</b>: choose edited-image export, replacement matching, recolor packages, or upscale output. Ambiguous originals require an explicit match.</li></ul><p>Batch jobs stage their outputs and publish them only after success. Cancellation or failure keeps previous output. Source mods and game archives are not modified by these export routes.</p>',
+                "html": '<p><b>Textures</b> keeps the same documents, layers, history, selection, and original DDS bindings across Edit, Replace, Recolor, and Upscale.</p><ul><li><b>Edit</b>: add images or open an existing project, then use the layered editor.</li><li><b>Replace</b>: open a folder of externally edited PNG/DDS files, auto-match originals, and build a mod. Reload Folder refreshes the batch; Remove Selected and Clear All manage it without editing every file.</li><li><b>Recolor</b>: add a mod folder or ZIP, select texture or supported material-color targets, and review a template.</li><li><b>Upscale</b>: scan the configured Original DDS root or use current assets, configure output paths, profiles, rules, and a backend, then preview the policy.</li><li><b>Review &amp; Export</b>: choose edited-image export, replacement matching, recolor packages, or upscale output. Ambiguous originals require an explicit match.</li></ul><p>Batch jobs stage their outputs and publish them only after success. Cancellation or failure keeps previous output. Source mods and game archives are not modified by these export routes.</p>',
             },
             {
                 "id": "workflow_profiles",
@@ -323,7 +323,7 @@ class AboutDocumentationEnglishMixin:
                 "title": 'Review & Export',
                 "summary": 'Review targets and export the shared texture job.',
                 "keywords": "compare review side by side sync pan preview size mip details open in texture editor",
-                "html": '<p><b>Review &amp; Export</b> uses the selected assets and current document state.</p><ul><li><b>Edited texture</b>: export DDS or PNG, or save the layered project.</li><li><b>Replacement matches</b>: review the exact original DDS and target path before building a package. Choose ambiguous matches explicitly.</li><li><b>Recolor package</b>: choose a manager profile and output location for the current recolor template.</li><li><b>Upscale package</b>: review batch progress and output settings.</li></ul><p>The shared canvas provides original and split views. Export results remain available when switching modes; failed or cancelled batch jobs keep earlier usable output.</p>',
+                "html": '<p><b>Review &amp; Export</b> uses the selected assets and current document state.</p><ul><li><b>Edited texture</b>: export DDS or PNG, or save the layered project.</li><li><b>Replacement matches</b>: opens the Replace tab for folder import, original matching, and package building. Choose ambiguous matches explicitly.</li><li><b>Recolor package</b>: choose a manager profile and output location for the current recolor template.</li><li><b>Upscale package</b>: review batch progress and output settings.</li></ul><p>The shared canvas provides original and split views. Export results remain available when switching modes; failed or cancelled batch jobs keep earlier usable output.</p>',
             },
         ]
 
@@ -475,10 +475,10 @@ class AboutDocumentationEnglishMixin:
             },
             {
                 "id": "replace_assistant",
-                "title": 'Textures: Replacement matches',
-                "summary": 'Match the shared job to original DDS sources before package export.',
+                "title": 'Textures: Replace',
+                "summary": 'Load loose texture folders, match originals, and build replacement packages.',
                 "keywords": "replace assistant replace edited png dds original match mod ready loose export package",
-                "html": '<p>Open <b>Textures &gt; Review &amp; Export &gt; Replacement matches</b>. The review uses current edits from the shared job.</p><p>Match each asset to an original DDS file or exact archive entry. Review the game-relative target, dimensions, format, and package profile, then build a loose replacement package. An ambiguous match never silently chooses the first candidate.</p>',
+                "html": '<p>Open <b>Textures &gt; Replace</b>. <b>Open Folder</b> replaces the shared texture job with PNG/DDS files from a folder and its subfolders. <b>Reload Folder</b> reads that folder again after external edits; <b>Add Files</b> appends files. Cancelled, failed, or empty folder loads keep the current batch.</p><p>Select rows for <b>Remove Selected</b>, or use <b>Clear All</b>. Checkboxes control export inclusion. Closing existing editor documents asks once; source files and earlier packages remain intact.</p><p>Use <b>Auto-Match</b>, resolve missing or ambiguous originals, choose a package profile, then build a loose replacement package. Imported files do not open in the editor. <b>Open in Editor</b> opens one texture deliberately, and its current edits remain available for packaging.</p>',
             },
             {
                 "id": "texture_recolor",

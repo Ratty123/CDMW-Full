@@ -25,7 +25,8 @@ class TextureWorkflowEditorHandoffMixin:
         self.set_texture_mode("upscale")
 
     def _handle_texture_editor_send_to_replace_assistant(self, png_path_text: str, binding: object) -> None:
-        self.open_texture_sources([Path(png_path_text)], binding=binding)
+        self._synchronize_texture_job()
+        self.job.add_source(Path(png_path_text), binding)
         self.show_texture_review(operation="replacement")
 
     def _handle_texture_editor_send_to_texture_workflow(self, png_path_text: str, binding: object) -> None:

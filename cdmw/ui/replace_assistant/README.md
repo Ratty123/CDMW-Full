@@ -5,6 +5,14 @@ settings, and worker handoff for replacement package building.
 
 The internal package name remains `replace_assistant` for compatibility.
 
+In the unified Textures workspace this is the **Replace** page. File-only imports
+use the import worker without creating editor sessions. The shared texture job
+owns source identity, inclusion, and document removal; queue rows retain stable
+asset keys across edited-image preparation. Open Folder/Reload Folder replace the
+job only after a successful scan, while Add Files appends. Import cancellation and
+shutdown invalidate queued results before worker teardown. The standalone tab
+retains its existing Add Folder behavior.
+
 Keep core replacement planning and payload logic outside this UI package. Use
 `cdmw/core/replace_assistant.py`, `cdmw/core/replace_assistant_package.py`,
 modding modules, services, or workers for non-presentation behavior as it is

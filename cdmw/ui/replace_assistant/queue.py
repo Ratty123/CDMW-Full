@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from enum import IntEnum
 from pathlib import Path, PurePosixPath
 from typing import List, Optional, Sequence
 
@@ -30,6 +31,14 @@ from cdmw.services.replace_assistant_service import (
 )
 from cdmw.models import MatchedOriginalTexture, ReplaceAssistantItem, TextureEditorSourceBinding
 from cdmw.ui.replace_assistant.workers import ReplaceAssistantAutoMatchWorker, ReplaceAssistantImportWorker
+from cdmw.ui.texture_workflow.job import _source_key
+
+
+class QueueWorkerEvent(IntEnum):
+    STAGE = 0
+    PROGRESS = 1
+    COMPLETE = 2
+    ERROR = 3
 
 
 class ReplaceAssistantQueueMixin:
@@ -48,14 +57,38 @@ class ReplaceAssistantQueueMixin:
         folder = QFileDialog.getExistingDirectory(self, "Import a folder of edited textures", self.base_dir.as_posix())
         if not folder:
             return
-        self._add_sources([folder])
+        self._add_sources([folder], replace_queue=self.workspace is not None, folder=Path(folder))
+
+    def reload_import_folder(self) -> None:
+        if self.last_import_folder is not None:
+            self._add_sources([self.last_import_folder], replace_queue=True, folder=self.last_import_folder)
+
+    def cancel_source_import(self) -> None:
+        self._active_import_request = None
+        if self.import_worker is not None:
+            self.import_worker.stop()
+        self.status_label.setText("Texture import cancelled. The previous batch is unchanged.")
+        self._update_controls()
 
     def import_external_sources(self, paths: Sequence[str | Path], *, select_path: Optional[str | Path] = None) -> None:
         self._add_sources(paths, select_path=select_path)
 
-    def _add_sources(self, paths: Sequence[str | Path], *, select_path: Optional[str | Path] = None) -> None:
-        if self.is_busy():
+    def _add_sources(self, paths: Sequence[str | Path], *, select_path: Optional[str | Path] = None,
+                     replace_queue: bool = False, folder: Optional[Path] = None) -> None:
+        if self.is_busy() or self.external_busy or self._shutting_down:
             return
+        if self.workspace is not None:
+            if not self.workspace.can_change_texture_sources():
+                return
+            self.workspace._synchronize_texture_job()
+            if replace_queue and not self.workspace.confirm_texture_asset_removal(tuple(self.workspace.job.assets)):
+                return
+        self._import_request_serial += 1
+        request = self._import_request_serial
+        self._active_import_request = request
+        self._import_applied = False
+        self._pending_import_replace = replace_queue
+        self._pending_import_folder = folder
         self._pending_import_select_path = ""
         if select_path is not None:
             try:
@@ -86,18 +119,30 @@ class ReplaceAssistantQueueMixin:
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.stage_message.connect(self._handle_import_stage)
-        worker.progress.connect(self._handle_import_progress)
-        worker.completed.connect(self._handle_import_complete)
-        worker.error.connect(self._handle_import_error)
+        worker.stage_message.connect(lambda message: self._import_event_on_ui.emit(request, QueueWorkerEvent.STAGE, message))
+        worker.progress.connect(lambda current, total, detail: self._import_event_on_ui.emit(request, QueueWorkerEvent.PROGRESS, (current, total, detail)))
+        worker.completed.connect(lambda payload: self._import_event_on_ui.emit(request, QueueWorkerEvent.COMPLETE, payload))
+        worker.error.connect(lambda message: self._import_event_on_ui.emit(request, QueueWorkerEvent.ERROR, message))
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
         thread.finished.connect(self._cleanup_import_refs)
         self.import_worker = worker
         self.import_thread = thread
+        if self.workspace is not None:
+            self.workspace.set_texture_job_busy(True)
         self._update_controls()
         thread.start()
+
+    def _handle_queue_worker_event(self, event: int, payload: object) -> None:
+        if event == QueueWorkerEvent.PROGRESS:
+            self._handle_import_progress(*payload)
+        elif event == QueueWorkerEvent.STAGE:
+            self._handle_import_stage(payload)
+        elif event == QueueWorkerEvent.COMPLETE:
+            self._handle_import_complete(payload)
+        elif event == QueueWorkerEvent.ERROR:
+            self._handle_import_error(payload)
 
     def _handle_import_stage(self, message: str) -> None:
         self.status_label.setText(message)
@@ -117,6 +162,7 @@ class ReplaceAssistantQueueMixin:
     def _handle_import_complete(self, payload: object) -> None:
         if not isinstance(payload, dict):
             return
+        self._active_import_request = None
         new_items = payload.get("items", [])
         archive_index = payload.get("archive_index")
         original_dds_root = payload.get("original_dds_root")
@@ -129,6 +175,16 @@ class ReplaceAssistantQueueMixin:
             self.progress_bar.setFormat("Ready")
             self.status_label.setText("No importable PNG or DDS files were found.")
             self.append_log("No importable PNG or DDS files were found.")
+            return
+        if self.workspace is not None:
+            self.workspace.accept_replacement_import(self, new_items, replace_job=self._pending_import_replace)
+            self._import_applied = True
+            if self._pending_import_folder is not None:
+                self.last_import_folder = self._pending_import_folder
+            self.progress_bar.setRange(0, 1)
+            self.progress_bar.setValue(1)
+            self.progress_bar.setFormat("Ready")
+            self.status_label.setText("Textures imported. Use Auto-Match to find their originals.")
             return
         existing_paths = {item.source_path.resolve().as_posix().lower() for item in self.items}
         added_count = 0
@@ -176,6 +232,12 @@ class ReplaceAssistantQueueMixin:
     def _cleanup_import_refs(self) -> None:
         self.import_thread = None
         self.import_worker = None
+        self._active_import_request = None
+        if self.workspace is not None:
+            self.workspace.set_texture_job_busy(False)
+            if self._import_applied and not self._shutting_down:
+                self.workspace.prepare_replacement_review()
+        self._import_applied = False
         self._update_controls()
 
     def _cleanup_match_refs(self) -> None:
@@ -196,17 +258,14 @@ class ReplaceAssistantQueueMixin:
 
     def _refresh_queue_tree(self) -> None:
         current_item = self.queue_tree.currentItem()
-        current_path = ""
-        if current_item is not None:
-            raw = current_item.data(0, Qt.UserRole)
-            if isinstance(raw, int) and 0 <= raw < len(self.items):
-                current_path = self.items[raw].source_path.expanduser().resolve().as_posix().lower()
+        current_path = current_item.data(0, Qt.UserRole + 1) if current_item is not None else ""
+        if self.workspace is not None:
+            current_path = self.workspace.job.active_asset_key or current_path
         selected_paths = {
-            item.source_path.expanduser().resolve().as_posix().lower()
-            for item in self._selected_items()
+            row.data(0, Qt.UserRole + 1) for row in self.queue_tree.selectedItems()
         }
         resolved_item_paths = [
-            item.source_path.expanduser().resolve().as_posix().lower()
+            self.workspace.replacement_item_key(item) if self.workspace is not None else _source_key(item.source_path)
             for item in self.items
         ]
         self.queue_tree.blockSignals(True)
@@ -231,6 +290,10 @@ class ReplaceAssistantQueueMixin:
                 ]
             )
             row.setData(0, Qt.UserRole, index)
+            row.setData(0, Qt.UserRole + 1, resolved_item_paths[index])
+            if self.workspace is not None:
+                included = self.workspace.replacement_item_key(item) in self.workspace.job.selected
+                row.setCheckState(0, Qt.Checked if included else Qt.Unchecked)
             row.setToolTip(0, str(item.source_path))
             row.setToolTip(1, original_text or "Unmatched")
             row.setToolTip(4, item.warning or item.status_detail or item.status)
@@ -248,6 +311,13 @@ class ReplaceAssistantQueueMixin:
             self.queue_tree.setCurrentItem(self.queue_tree.topLevelItem(0))
         self._update_summary()
         self._update_controls()
+
+    def _handle_queue_inclusion_changed(self, row, column) -> None:
+        if self.workspace is None or column != 0:
+            return
+        index = row.data(0, Qt.UserRole)
+        if isinstance(index, int) and 0 <= index < len(self.items):
+            self.workspace.set_replacement_item_included(self.items[index], row.checkState(0) == Qt.Checked)
 
     def _refresh_queue_tree_rows_only(self) -> None:
         row_count = self.queue_tree.topLevelItemCount()
@@ -366,6 +436,9 @@ class ReplaceAssistantQueueMixin:
         if item is None:
             self.status_label.setText("Select one imported file first.")
             return
+        if self.workspace is not None:
+            self.workspace.open_replacement_item(item)
+            return
         self.open_in_texture_editor_requested.emit(str(item.source_path), self._build_texture_editor_binding(item))
 
     def _apply_editor_export(
@@ -472,12 +545,11 @@ class ReplaceAssistantQueueMixin:
             thread = QThread(self)
             worker.moveToThread(thread)
             thread.started.connect(worker.run)
-            worker.stage_message.connect(self._handle_import_stage)
-            worker.progress.connect(self._handle_import_progress)
-            worker.completed.connect(
-                lambda payload, refresh=refresh_preview: self._handle_auto_match_complete(payload, refresh)
-            )
-            worker.error.connect(self._handle_import_error)
+            self._auto_match_refresh_preview = refresh_preview
+            worker.stage_message.connect(lambda message: self._match_event_on_ui.emit(QueueWorkerEvent.STAGE, message))
+            worker.progress.connect(lambda current, total, detail: self._match_event_on_ui.emit(QueueWorkerEvent.PROGRESS, (current, total, detail)))
+            worker.completed.connect(lambda payload: self._match_event_on_ui.emit(QueueWorkerEvent.COMPLETE, payload))
+            worker.error.connect(lambda message: self._match_event_on_ui.emit(QueueWorkerEvent.ERROR, message))
             worker.finished.connect(thread.quit)
             worker.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
@@ -650,6 +722,11 @@ class ReplaceAssistantQueueMixin:
         self._handle_selection_changed(self.queue_tree.currentItem(), None)
 
     def remove_selected_items(self) -> None:
+        if self.workspace is not None:
+            if not self.is_busy():
+                self.workspace.remove_texture_assets([self.workspace.replacement_item_key(item)
+                                                      for item in self._selected_items()])
+            return
         indices = sorted(set(self._selected_item_indices()), reverse=True)
         if not indices:
             return
@@ -659,6 +736,10 @@ class ReplaceAssistantQueueMixin:
         self.append_log(f"Removed {len(indices):,} item(s) from Texture Replacer.")
 
     def clear_all_items(self) -> None:
+        if self.workspace is not None:
+            if not self.is_busy():
+                self.workspace.remove_texture_assets(tuple(self.workspace.job.assets))
+            return
         if not self.items:
             return
         self.items.clear()

@@ -167,7 +167,7 @@ class AboutControllerMixin:
         <a href="topic:mesh_editor">Mesh Editor</a>,
         <a href="topic:placement_studio">Placement &amp; Animations</a>,
         <a href="topic:texture_editor">Textures: Edit</a>,
-        <a href="topic:replace_assistant">Textures: Replacement matches</a>,
+        <a href="topic:replace_assistant">Textures: Replace</a>,
         <a href="topic:texture_recolor">Textures: Recolor</a>,
         <a href="topic:mod_package_retrofit">Retrofit/Repackage</a>,
         <a href="topic:format_explorer">Format Explorer</a>,

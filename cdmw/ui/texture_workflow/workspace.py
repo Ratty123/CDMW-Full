@@ -24,9 +24,11 @@ from cdmw.ui.texture_workflow.job import TextureJob
 from cdmw.ui.texture_workflow.workspace_ui import TextureJobUiMixin
 from cdmw.ui.texture_workflow.job_operations import TextureJobOperationsMixin
 from cdmw.ui.texture_workflow.job_review import TextureJobReviewMixin
+from cdmw.ui.texture_workflow.replacement_sources import TextureReplacementSourcesMixin
 
 
 class TexturesWorkspace(
+    TextureReplacementSourcesMixin,
     TextureJobReviewMixin,
     TextureJobOperationsMixin,
     TextureJobUiMixin,

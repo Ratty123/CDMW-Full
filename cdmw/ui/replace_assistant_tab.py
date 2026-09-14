@@ -5,7 +5,7 @@ from html import escape
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, List, Optional, Sequence
 
-from PySide6.QtCore import QSettings, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -90,6 +90,7 @@ from cdmw.models import (
     TextureEditorSourceBinding,
 )
 from cdmw.services.workspace_layout import workspace_paths
+from cdmw.ui.wrapping_layout import WrappingLayout
 from cdmw.ui.widgets import (
     EmptyStatePanel,
     FlatSectionPanel,
@@ -106,7 +107,7 @@ from cdmw.ui.replace_assistant.review_dialog import ReplaceAssistantReviewDialog
 from cdmw.ui.replace_assistant.build import ReplaceAssistantBuildMixin
 from cdmw.ui.replace_assistant.controls import ReplaceAssistantControlMixin
 from cdmw.ui.replace_assistant.preview import ReplaceAssistantPreviewMixin
-from cdmw.ui.replace_assistant.queue import ReplaceAssistantQueueMixin
+from cdmw.ui.replace_assistant.queue import QueueWorkerEvent, ReplaceAssistantQueueMixin
 from cdmw.ui.replace_assistant.remote_catalogue import ReplaceAssistantArchiveCatalogueMixin
 from cdmw.ui.replace_assistant.settings import ReplaceAssistantSettingsMixin
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
@@ -158,6 +159,21 @@ class ReplaceAssistantTab(
 ):
     status_message_requested = Signal(str, bool)
     open_in_texture_editor_requested = Signal(str, object)
+    _import_event_on_ui = Signal(int, int, object)
+    _match_event_on_ui = Signal(int, object)
+
+    @Slot(int, int, object)
+    def _dispatch_import_event(self, request: int, event: int, payload: object) -> None:
+        if request == self._active_import_request and not self._shutting_down:
+            self._handle_queue_worker_event(event, payload)
+
+    @Slot(int, object)
+    def _dispatch_match_event(self, event: int, payload: object) -> None:
+        if not self._shutting_down:
+            if event == QueueWorkerEvent.COMPLETE:
+                self._handle_auto_match_complete(payload, self._auto_match_refresh_preview)
+            else:
+                self._handle_queue_worker_event(event, payload)
 
     def __init__(
         self,
@@ -172,6 +188,8 @@ class ReplaceAssistantTab(
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
+        self._import_event_on_ui.connect(self._dispatch_import_event, Qt.QueuedConnection)
+        self._match_event_on_ui.connect(self._dispatch_match_event, Qt.QueuedConnection)
         self.workspace = workspace
         self.settings = settings
         self.base_dir = base_dir
@@ -197,6 +215,13 @@ class ReplaceAssistantTab(
         self.pending_preview_item: Optional[ReplaceAssistantItem] = None
         self.preview_refresh_suspended = False
         self._pending_import_select_path: str = ""
+        self._import_request_serial = 0
+        self._active_import_request = None
+        self._import_applied = False
+        self._pending_import_replace = False
+        self._pending_import_folder = None
+        self.last_import_folder = None
+        self._shutting_down = False
         self.import_thread: Optional[QThread] = None
         self.import_worker: Optional[ReplaceAssistantImportWorker] = None
         self.match_thread: Optional[QThread] = None
@@ -220,10 +245,12 @@ class ReplaceAssistantTab(
         self.summary_label.setWordWrap(True)
         self.summary_label.setObjectName("HintLabel")
 
-        button_row = QHBoxLayout()
+        button_row = WrappingLayout()
         button_row.setSpacing(8)
         self.add_files_button = QPushButton("Add Files")
         self.add_folder_button = QPushButton("Add Folder")
+        self.reload_folder_button = QPushButton("Reload Folder")
+        self.cancel_import_button = QPushButton("Cancel Import")
         self.auto_match_button = QPushButton("Auto-Match")
         self.open_in_editor_button = QPushButton("Open")
         self.choose_local_original_button = QPushButton("Local")
@@ -232,18 +259,22 @@ class ReplaceAssistantTab(
         self.clear_all_button = QPushButton("Clear All")
         button_row.addWidget(self.add_files_button)
         button_row.addWidget(self.add_folder_button)
+        button_row.addWidget(self.reload_folder_button)
         button_row.addWidget(self.auto_match_button)
         button_row.addWidget(self.open_in_editor_button)
         button_row.addWidget(self.choose_local_original_button)
         button_row.addWidget(self.choose_archive_original_button)
         button_row.addWidget(self.remove_selected_button)
         button_row.addWidget(self.clear_all_button)
-        button_row.addStretch(1)
+        button_row.addWidget(self.cancel_import_button)
         root_layout.addLayout(button_row)
         root_layout.addWidget(self.summary_label)
         if self.workspace is not None:
-            for button in (self.add_files_button, self.add_folder_button, self.remove_selected_button, self.clear_all_button):
-                button.hide()
+            self.add_folder_button.setText("Open Folder")
+            self.add_folder_button.setToolTip("Replace this texture job with PNG and DDS files from a folder.")
+            self.open_in_editor_button.setText("Open in Editor")
+        else:
+            self.reload_folder_button.hide()
 
         self.main_splitter = QSplitter(Qt.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
@@ -586,6 +617,8 @@ class ReplaceAssistantTab(
 
         self.add_files_button.clicked.connect(self.import_files)
         self.add_folder_button.clicked.connect(self.import_folder)
+        self.reload_folder_button.clicked.connect(self.reload_import_folder)
+        self.cancel_import_button.clicked.connect(self.cancel_source_import)
         self.auto_match_button.clicked.connect(self.auto_match_all_items)
         self.open_in_editor_button.clicked.connect(self.open_current_item_in_texture_editor)
         self.choose_local_original_button.clicked.connect(self.choose_local_original_for_selected)
@@ -598,6 +631,7 @@ class ReplaceAssistantTab(
         self.mirror_workflow_button.clicked.connect(self.mirror_texture_workflow_settings)
         self.queue_tree.currentItemChanged.connect(self._handle_selection_changed)
         self.queue_tree.itemSelectionChanged.connect(self._update_controls)
+        self.queue_tree.itemChanged.connect(self._handle_queue_inclusion_changed)
         if self.workspace is None:
             self.preview_zoom_out_button.clicked.connect(lambda: self._adjust_preview_zoom(-1))
         if self.workspace is None:
@@ -876,6 +910,10 @@ class ReplaceAssistantTab(
         )
 
     def request_shutdown(self) -> None:
+        self._shutting_down = True
+        self._active_import_request = None
+        if self.workspace is not None:
+            self.workspace.job.cancel("replacement_review")
         if self.review_dialog is not None:
             self.review_dialog.close()
             self.review_dialog = None
