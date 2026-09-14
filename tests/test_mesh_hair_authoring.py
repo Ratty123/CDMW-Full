@@ -725,7 +725,8 @@ def test_mounted_head_scale_uses_head_joint_and_preserves_neck(scale, monkeypatc
     assert part.vertices[2] == (0., 1.5 + .5 * scale, 0.)
 
 
-def test_facial_details_are_head_references_not_hair_planting_surfaces(editor):
+@pytest.mark.parametrize("fitted_caps", [False, True])
+def test_facial_details_are_head_references_not_hair_planting_surfaces(editor, fitted_caps):
     from cdmw.services.mesh_rust_hair import prepare_hair_setup
     _, authoring = editor
     service, sid = authoring.shadow_service, authoring.shadow_session_id
@@ -733,6 +734,14 @@ def test_facial_details_are_head_references_not_hair_planting_surfaces(editor):
     detail = copy.deepcopy(head)
     for part in detail.submeshes:
         part.vertices = [(p[0] + 2., p[1], p[2]) for p in part.vertices]
+    scalp_positions = [list(p) for part in head.submeshes for p in part.vertices]
+    if fitted_caps:
+        cap = copy.deepcopy(head.submeshes[0])
+        cap.name = "CD_PHW_00_Head_00_0111_Eyecover"
+        cap.vertices = [(p[0] - 2., p[1], p[2]) for p in cap.vertices]
+        head.submeshes.append(cap)
+    expected = ([list(p) for p in cap.vertices] if fitted_caps
+                else [list(p) for part in detail.submeshes for p in part.vertices])
     source_data = service._session(sid).original_data
     args = dict(character="Damiane", _archive_snapshot=SimpleNamespace(mesh=head, original_data=source_data),
                 _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
@@ -740,10 +749,11 @@ def test_facial_details_are_head_references_not_hair_planting_surfaces(editor):
     for _ in range(2):
         prepare_hair_setup(service, sid, args, None)
         state = service._session(sid).hair_state.payload
-        assert state["scalp"]["positions"] == [list(p) for part in head.submeshes for p in part.vertices]
+        assert state["scalp"]["positions"] == scalp_positions
         assert len(state["references"]) == 1
         assert state["references"][0]["identity"].startswith("head:")
-        assert state["references"][0]["positions"] == [list(p) for part in detail.submeshes for p in part.vertices]
+        assert state["references"][0]["positions"] == expected
+    assert [list(p) for part in head.submeshes[:len(head.submeshes) - int(fitted_caps)] for p in part.vertices] == scalp_positions
 
 
 @pytest.mark.parametrize("failure", ["", "publish", "memory", "cancel"])

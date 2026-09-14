@@ -351,8 +351,15 @@ impl LabApplication {
         {
             actions.push(select_all);
         }
+        let has_selection = if self.hair.active()
+            && self.cdmw_state["replacement"]["comparison"].as_str().is_none_or(|v| v == "edit")
+        {
+            !self.hair.selected.is_empty()
+        } else {
+            selected.total() > 0
+        };
         if ui
-            .add_enabled(!busy && selected.total() > 0, Button::new("Invert"))
+            .add_enabled(!busy && has_selection, Button::new("Invert"))
             .on_disabled_hover_text(if busy {
                 "Wait for the current shadow operation"
             } else {

@@ -17,13 +17,16 @@ The format is intentionally simple:
 
 ### Changed
 
+- Hair Tools is labelled Experimental, with a visible notice that hairstyles have not been tested in game and may not work correctly.
 - Mesh Editor keeps the Experimental warning for neutral-appearance replacement and enables eligible import and Mod controls immediately, without an extra confirmation button.
 - Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka. Create starts on an empty scalp; Edit loads the chosen existing hairstyle. Compatible bases, cancellable preparation and retry preserve the current scene until its replacement is ready.
-- Hair uses a clean fitting mannequin without opaque eye covers, lashes or brows. Create skips hairstyle thumbnails, and reference loading skips editable sessions and DDS preparation.
+- Hair uses a clean fitting mannequin with smooth fitted eyes and without opaque lashes or brows. Create skips hairstyle thumbnails, and reference loading skips editable sessions and DDS preparation.
 - Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.
 
 ### Fixed
 
+- Hair Tools uses the head's fitted eye surfaces instead of protruding shader-dependent eyeballs for the clean mannequin.
+- Long Draw strokes keep evenly distributed guide points and consistent texture spacing and taper. Clear Selection, Select All and Invert operate on hair locks, and selection refreshes preserve drawn hair instead of revealing the original hairstyle.
 - Edit Translations now follows the game's mounted archive order, recovers malformed language caches, refreshes filters after edits and resets, and preserves the chosen game path for loose translation files. Exports run in the background and replace complete packages together, without stale reverted tables or partially overwritten output after a failure.
 - Translation AI dialogs close safely during requests and reject late results. Session-only keys remain usable, invalid replies and damaged markup are rejected, provider token limits are applied, and rate-limit retries respect the server's delay.
 

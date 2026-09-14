@@ -1,7 +1,55 @@
 //! Production pointer dispatch for direct lock editing.
 use super::*;
 
+fn resample_draw_points(points: &[[f32; 3]], count: usize) -> Vec<[f32; 3]> {
+    if points.len() <= count {
+        return points.to_vec();
+    }
+    let mut lengths = vec![0.0];
+    for pair in points.windows(2) {
+        lengths.push(lengths.last().unwrap() + Vec3::from(pair[0]).distance(Vec3::from(pair[1])));
+    }
+    let total = *lengths.last().unwrap();
+    let mut result = vec![points[0]];
+    let mut segment = 0;
+    for i in 1..count - 1 {
+        let distance = total * i as f32 / (count - 1) as f32;
+        while segment + 2 < points.len() && lengths[segment + 1] < distance {
+            segment += 1;
+        }
+        let t = (distance - lengths[segment]) / (lengths[segment + 1] - lengths[segment]).max(1e-12);
+        result.push(Vec3::from(points[segment]).lerp(Vec3::from(points[segment + 1]), t).to_array());
+    }
+    result.push(*points.last().unwrap());
+    result
+}
+
 impl LabApplication {
+    pub(crate) fn handle_hair_selection_action(&mut self, action: &UiAction) -> bool {
+        if !self.hair.active()
+            || self.cdmw_state["replacement"]["comparison"]
+                .as_str()
+                .is_some_and(|v| v != "edit")
+            || !matches!(action, UiAction::ClearSelection | UiAction::SelectAllVertices
+                | UiAction::SelectAllEdges | UiAction::SelectAllFaces | UiAction::InvertSelection(_))
+        {
+            return false;
+        }
+        let visible = self.cdmw_visible_submeshes();
+        let locks = self.hair.state.as_ref().unwrap().locks.iter()
+            .filter(|l| !l.vertices.is_empty() && visible.as_ref().is_none_or(|v| v.contains(&l.part)))
+            .map(|l| l.id as usize);
+        self.hair.selected = match action {
+            UiAction::ClearSelection => HashSet::new(),
+            UiAction::InvertSelection(_) => locks.filter(|id| !self.hair.selected.contains(id)).collect(),
+            _ => locks.collect(),
+        };
+        // Hair selection is local lock state. A mesh selection refresh would
+        // replace the authored preview with the host's retained donor document.
+        self.egui_context.request_repaint();
+        true
+    }
+
     pub(super) fn lock_at(&self, point: Vec2, rect: egui::Rect) -> Option<(u64, u32, f32)> {
         let scene = self.hair.scene.as_ref()?;
         let (origin, direction, _) = self.camera.screen_ray(point, rect)?;
@@ -201,7 +249,7 @@ impl LabApplication {
                 self.hair.restart_after_stroke = self.hair.playing;
                 self.hair.playing = false;
                 self.hair.stroke = self.hair.state.clone();
-                self.hair.last_plant = None;
+                self.hair.drawing_samples.clear();
                 if self.hair.tool == Some(HairTool::Erase) {
                     self.hair.selected.clear();
                 }
@@ -266,6 +314,7 @@ impl LabApplication {
                 self.hair.stroke_start = None;
                 self.hair.last_pointer = None;
                 self.hair.drawing.clear();
+                self.hair.drawing_samples.clear();
                 // Keep the edited rest pose visible while its worker publishes.
                 // Resume at the same procedural pose after preparation completes.
                 self.hair.playing = self.hair.restart_after_stroke && self.hair.job.is_none();
@@ -398,7 +447,7 @@ impl LabApplication {
                         cards: 0,
                     });
                     self.hair.drawing.push(id);
-                    self.hair.last_plant = Some(position);
+                    self.hair.drawing_samples = state.guides[guide as usize].points.clone();
                     if self.hair.symmetry && position.x.abs() > 0.001 {
                         let attachment = state.scalp.nearest(position * Vec3::new(-1.0, 1.0, 1.0));
                         let mirrored = state.scalp.point(&attachment).map_err(|e| e.to_string())?;
@@ -457,7 +506,8 @@ impl LabApplication {
                     let delta = self.camera.plane_drag_delta(
                         self.camera.forward(),
                         pose.head_point(anchor),
-                        previous,
+                        self.camera.project(pose.head_point(anchor), rect)
+                            .map_or(previous, |p| p.screen),
                         pointer,
                         rect,
                     );
@@ -487,61 +537,43 @@ impl LabApplication {
                     } else {
                         free_tip
                     };
+                    let from = Vec3::from(*self.hair.drawing_samples.last().unwrap());
+                    let steps = ((tip.distance(from) / (clearance * 0.5).max(0.002)).ceil()
+                        as usize).clamp(1, 16);
+                    for step in 1..=steps {
+                        let p = scene.scalp_picking.contact_with_reach(
+                            &state.scalp.positions, &scene.scalp_indices,
+                            from.lerp(tip, step as f32 / steps as f32), clearance,
+                            clearance + tip.distance(from),
+                        );
+                        if p.distance(Vec3::from(*self.hair.drawing_samples.last().unwrap())) >= 0.001 {
+                            self.hair.drawing_samples.push(p.to_array());
+                        }
+                    }
+                    // Retain the pointer path separately from the bounded guide.
+                    // Repeatedly deleting low-curvature points used to consume
+                    // the entire budget at scalp seams and stretch long tails.
+                    if self.hair.drawing_samples.len() > 4096 {
+                        self.hair.drawing_samples = resample_draw_points(&self.hair.drawing_samples, 2048);
+                    }
+                    let samples = resample_draw_points(&self.hair.drawing_samples, hair::MAX_POINTS);
                     for (i, id) in self.hair.drawing.iter().enumerate() {
                         let lock = state.locks.iter().find(|l| l.id == *id).unwrap();
                         let guide = &mut state.guides[lock.guide.unwrap() as usize];
-                        let tip = tip
-                            * if i == 0 {
-                                Vec3::ONE
-                            } else {
-                                Vec3::new(-1.0, 1.0, 1.0)
-                            };
-                        if tip.distance(Vec3::from(guide.points[0])) > 0.002 {
-                            let from = Vec3::from(*guide.points.last().unwrap());
-                            let steps = ((tip.distance(from) / (clearance * 0.5).max(0.002)).ceil()
-                                as usize)
-                                .clamp(1, 16);
-                            for step in 1..=steps {
-                                let p = from.lerp(tip, step as f32 / steps as f32);
-                                let p = scene.scalp_picking.contact_with_reach(
-                                    &state.scalp.positions,
-                                    &scene.scalp_indices,
-                                    p,
-                                    clearance,
-                                    clearance + tip.distance(from),
-                                );
-                                if p.distance(Vec3::from(*guide.points.last().unwrap())) < 0.001 {
-                                    continue;
-                                }
-                                if guide.points.len() == hair::MAX_POINTS {
-                                    // Keep extending a long stroke by removing its least
-                                    // significant interior sample; the root and tip stay exact.
-                                    let index = guide
-                                        .points
-                                        .windows(3)
-                                        .enumerate()
-                                        .min_by(|(_, a), (_, b)| {
-                                            let error = |w: &[[f32; 3]]| {
-                                                let a = Vec3::from(w[0]);
-                                                let b = Vec3::from(w[1]);
-                                                let d = Vec3::from(w[2]) - a;
-                                                b.distance_squared(
-                                                    a + d
-                                                        * ((b - a).dot(d)
-                                                            / d.length_squared().max(1e-12))
-                                                        .clamp(0.0, 1.0),
-                                                )
-                                            };
-                                            error(a).total_cmp(&error(b))
-                                        })
-                                        .unwrap()
-                                        .0
-                                        + 1;
-                                    guide.points.remove(index);
-                                }
-                                guide.points.push(p.to_array());
+                        let mirror = if i == 0 { Vec3::ONE } else { Vec3::new(-1.0, 1.0, 1.0) };
+                        let mut points = vec![guide.points[0]];
+                        for sample in samples.iter().skip(1) {
+                            let p = scene.scalp_picking.contact_with_reach(
+                                &state.scalp.positions, &scene.scalp_indices,
+                                Vec3::from(*sample) * mirror, clearance, clearance * 2.0,
+                            );
+                            if p.distance(Vec3::from(*points.last().unwrap())) >= 0.0001 {
+                                points.push(p.to_array());
                             }
-                            self.hair.stroke_changed = true;
+                        }
+                        if points.len() > 2 {
+                            self.hair.stroke_changed |= guide.points != points;
+                            guide.points = points;
                         }
                     }
                 }

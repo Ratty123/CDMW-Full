@@ -115,7 +115,7 @@ def test_hair_button_opens_single_setup(owner, monkeypatch):
     bar = hair_flow.build_hair_entry_bar(owner)
     from PySide6.QtWidgets import QPushButton
     button = bar.findChild(QPushButton, "MeshEditorHairMenu")
-    assert button.text() == "Hair Tools" and button.menu() is None
+    assert button.text() == "Hair Tools (Experimental)" and button.menu() is None
     button.click()
     assert calls == [(owner,)]
 
@@ -129,6 +129,10 @@ def test_single_setup_requires_character_and_catalogue_and_rejects_stale_choices
     owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
     hair_flow.build_hair_entry_bar(owner)
     dialog = setup.HairSetupDialog(owner)
+    from PySide6.QtWidgets import QLabel
+    assert dialog.windowTitle() == "Hair Tools (Experimental)"
+    assert any(label.text() == "Not tested in game. Hairstyles may not work correctly."
+               and not label.isHidden() for label in dialog.findChildren(QLabel))
     assert dialog.character.currentData() is None
     assert dialog.preset.currentData() == "empty" and dialog.preset.isHidden()
     assert not dialog.waiting_start.isEnabled()
