@@ -79,8 +79,19 @@ Cut removes distal geometry; Erase/Delete remove owned geometry.
 Width and generated follower density affect selected locks. Empty selections,
 rigid sections, unresolved groups and unsupported existing-hair operations report
 requirements rather than silently succeeding. Draw and follower generation require
-generated hair. Ambiguous existing sections require explicit root/group assignment
-or a rigid classification before Play/export.
+generated hair. Ambiguous existing sections are described as original sections
+without grooming guides, without warning colours or automatic highlighting.
+Their preparation controls are collapsed until needed. Root/group assignment or
+a rigid classification is required for motion preview; shaping an unprepared
+section explains how to assign its guide.
+
+Export does not require editor guides for unchanged existing geometry. Missing
+bindings are accepted only when the immutable PAC donor proves the retained
+vertices, normals, UVs, skin records and triangle lineage, using stable part
+identity and the draft's authoring coordinate transform. This also permits
+untouched sections alongside groomed sections and retained triangles after cuts.
+Changed unprepared sections remain blocked. Generated geometry still requires
+guide coverage; draft versions and the original skin-weight layout stay unchanged.
 
 Each completed action uses the ordered publication queue and receives the normal
 host acknowledgement. Incremental edits retain unchanged channels and references;

@@ -1639,6 +1639,80 @@ fn hair_production_motion_deforms_hair_not_only_reference_and_reset_is_neutral()
 }
 
 #[test]
+fn hair_original_sections_are_preserved_without_missing_root_warnings() {
+    let (mut state, mut document) = fixture();
+    state.groups[0].mode = GroupMode::Existing;
+    for point in &mut document.lods[0].submeshes[0].positions {
+        point[1] -= 0.15;
+    }
+    let prepared = prepare(
+        state,
+        document.clone(),
+        "Prepare existing hair".into(),
+        Preparation::Analyze,
+        &AtomicBool::new(false),
+    ).unwrap();
+    assert_eq!(prepared.document, document, "preparation must not reshape stock hair");
+    assert!(prepared.state.guides.is_empty());
+    assert_eq!(prepared.state.locks.len(), 1);
+    assert_eq!(prepared.state.locks[0].kind, LockKind::Unresolved);
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(document.clone());
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(prepared.state));
+    app.hair.pending_preset = false;
+    app.hair.show_reference = false;
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 1500.0));
+    app.viewport_rect = Some(rect);
+    app.camera.set_standard_view(crate::camera::StandardView::Front);
+    app.camera.frame_positions_in_viewport(document.lods[0].submeshes[0].positions.iter().copied().map(Vec3::from), rect);
+    app.render_hair();
+    let original = app.hair.scene.as_ref().unwrap().frame.positions.clone();
+    let reason = app.hair_motion_reason().unwrap_err();
+    assert!(reason.contains("Motion preview needs grooming guides"));
+    assert!(reason.contains("original hair can still be exported"));
+    app.hair.playing = true;
+    app.render_hair();
+    assert!(!app.hair.playing);
+    assert_eq!(app.hair.scene.as_ref().unwrap().frame.positions, original);
+
+    let ctx = egui::Context::default();
+    let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+        app.draw_hair_controls(ui, &mut vec![]);
+    });
+    output.textures_delta.clear();
+    let labels: Vec<_> = output.shapes.iter().filter_map(|shape| match &shape.shape {
+        egui::Shape::Text(text) => Some(text.galley.job.text.as_str()),
+        _ => None,
+    }).collect();
+    assert!(labels.iter().any(|text| text.contains("1 original sections have no grooming guides")));
+    assert!(labels.iter().any(|text| text.contains("Unchanged sections can be exported")));
+    assert!(!labels.iter().any(|text| text.contains("need a root or rigid attachment")));
+    assert!(!labels.iter().any(|text| text.contains("Mark selected scalp sections as rigid")), "preparation is collapsed initially");
+    for selected in [false, true] {
+        if selected {
+            app.hair.selected.insert(1);
+        }
+        let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+            app.paint_hair_guides(ui, rect);
+        });
+        output.textures_delta.clear();
+        let dots = output.shapes.iter().filter(|shape| matches!(&shape.shape, egui::Shape::Circle(_))).count();
+        assert_eq!(dots > 0, selected, "unprepared sections only highlight on selection/hover");
+    }
+    app.hair.tool = Some(HairTool::Lengthen);
+    let point = app.camera.project(Vec3::from(document.lods[0].submeshes[0].positions[0])
+        + Vec3::new(0.004, 0.004, 0.0), rect).unwrap().screen;
+    for event in [ViewportPointerEvent::PrimaryPressed(point), ViewportPointerEvent::PrimaryMoved(point + Vec2::new(10.0, 0.0)),
+                  ViewportPointerEvent::PrimaryReleased(point + Vec2::new(10.0, 0.0))] {
+        app.dispatch_hair_pointer(event, rect, false, false, false);
+    }
+    assert!(app.hair.feedback.contains("no grooming guide"), "{}", app.hair.feedback);
+    assert!(!app.hair.preparing());
+    assert_eq!(app.document.as_ref().unwrap(), &document);
+}
+
+#[test]
 fn hair_existing_motion_rejects_wide_bindings_and_allows_rigid_correction() {
     let (mut app, _) = ready_hair_app();
     let state = app.hair.state.as_mut().unwrap();

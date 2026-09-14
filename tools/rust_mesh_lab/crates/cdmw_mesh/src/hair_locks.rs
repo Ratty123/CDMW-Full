@@ -249,8 +249,16 @@ pub fn remove_guides(state: &mut HairState, removed: &BTreeSet<usize>) {
 pub fn readiness(state: &HairState, parts: &[(u32, usize)]) -> Result<()> {
     state.validate()?;
     require(
+        !state.locks.iter().any(|l| l.kind == LockKind::Unresolved),
+        "Motion preview needs grooming guides or rigid attachments for every section. Unchanged original hair can still be exported.",
+    )?;
+    require(
         !state.guides.is_empty(),
-        "Draw a lock or apply a preset before playing motion",
+        if state.groups.iter().any(|g| g.mode == GroupMode::Existing) {
+            "Prepare existing hair sections to preview motion. Unchanged original hair can still be exported."
+        } else {
+            "Draw a lock or apply a preset before playing motion"
+        },
     )?;
     require(
         !state.bindings.is_empty(),
@@ -259,10 +267,6 @@ pub fn readiness(state: &HairState, parts: &[(u32, usize)]) -> Result<()> {
     require(
         !state.locks.is_empty(),
         "Prepare this older hair draft to enable lock editing and motion",
-    )?;
-    require(
-        !state.locks.iter().any(|l| l.kind == LockKind::Unresolved),
-        "Select highlighted unresolved hair and correct its root, or mark a scalp section as rigid",
     )?;
     let bound: BTreeSet<_> = state.bindings.iter().map(|b| (b.part, b.vertex)).collect();
     let rigid: BTreeSet<_> = state

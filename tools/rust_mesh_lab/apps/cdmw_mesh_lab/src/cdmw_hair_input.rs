@@ -710,9 +710,13 @@ impl LabApplication {
                 .collect();
             if guides.is_empty() {
                 if hit.is_some() {
-                    self.hair.feedback =
-                        "This is a rigid or unresolved section. Correct its root to groom it."
-                            .into();
+                    self.hair.feedback = if state.locks.iter().any(|lock| {
+                        ids.contains(&lock.id) && lock.kind == LockKind::Unresolved
+                    }) {
+                        "This original section has no grooming guide. Use Set root / group selected sections to groom it."
+                    } else {
+                        "This section is rigid. Set a grooming root to reshape it."
+                    }.into();
                 }
                 return Ok(());
             }
@@ -811,13 +815,10 @@ impl LabApplication {
             for lock in &state.locks {
                 let selected = self.hair.selected.contains(&(lock.id as usize));
                 let hovered = self.hair.hover == Some(lock.id);
-                let unresolved = lock.kind == LockKind::Unresolved;
-                if !selected && !hovered && !unresolved {
+                if !selected && !hovered {
                     continue;
                 }
-                let color = if unresolved {
-                    Color32::from_rgb(240, 165, 60)
-                } else if hovered {
+                let color = if hovered {
                     Color32::from_rgb(100, 220, 255)
                 } else {
                     Color32::from_rgb(70, 170, 245)
