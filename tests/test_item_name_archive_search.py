@@ -35,6 +35,7 @@ from cdmw.core.item_index import (
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.core.table_catalog import summarize_table_evidence
 from cdmw.models import ArchiveEntry
+from cdmw.core.paloc_format import LocalizationEntry, encode_paloc
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -149,12 +150,10 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             (b"123456", "Vow of the Dead King".encode("utf-8")),
             (b"123457", "Todtenkonigs Schwur".encode("utf-8")),
         )
-        data = bytearray()
-        for loc_id, text in payload:
-            data.extend(len(loc_id).to_bytes(4, "little"))
-            data.extend(loc_id)
-            data.extend(len(text).to_bytes(4, "little"))
-            data.extend(text)
+        data = encode_paloc(tuple(
+            LocalizationEntry(category=1, key=loc_id.decode("utf-8"), text=text.decode("utf-8"))
+            for loc_id, text in payload
+        ))
 
         entry = _encrypted_entry("gamedata/stringtable/binary__/localizationstring_eng.paloc")
         encrypted = crypt_chacha20_filename(bytes(data), entry.basename)
@@ -163,6 +162,22 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
 
         self.assertEqual(decrypted, bytes(data))
         self.assertEqual(note, "ChaCha20")
+
+    def test_split_paloc_accepts_named_keys_single_rows_and_empty_tables(self) -> None:
+        entry = _encrypted_entry("gamedata/stringtable/binary__/eng/aidialog.paloc")
+        for rows in ((), (LocalizationEntry(category=1, key="aidialog_greeting", text="Hello"),)):
+            with self.subTest(rows=len(rows)):
+                data = encode_paloc(rows)
+                encrypted = crypt_chacha20_filename(data, entry.basename)
+                self.assertEqual(try_decrypt_archive_entry_data(entry, encrypted), (data, "ChaCha20"))
+
+    def test_paloc_decryption_rejects_a_malformed_record_count(self) -> None:
+        entry = _encrypted_entry("gamedata/stringtable/binary__/eng/aidialog.paloc")
+        data = encode_paloc((LocalizationEntry(category=1, key="named_key", text="Text"),))
+        malformed = data[:-4] + struct.pack("<I", 2)
+        encrypted = crypt_chacha20_filename(malformed, entry.basename)
+        with self.assertRaisesRegex(ValueError, "decryption validation failed"):
+            try_decrypt_archive_entry_data(entry, encrypted)
 
     def test_archive_filter_matches_item_display_name_alias(self) -> None:
         entries = [

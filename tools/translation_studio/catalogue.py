@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.paloc_format import (
     LocalizationEntry,
@@ -65,11 +65,13 @@ class TranslationCatalogue:
 
     language: str
     table: LocalizationTable
-    original: bytes
+    original: bytes | Mapping[str, bytes]
     #: entry index -> replacement text. Small: a pass touches a handful of 187,521.
     edits: dict = field(default_factory=dict)
     reference_language: str = ""
     reference: Mapping[str, str] = field(default_factory=dict)
+    source_ranges: Mapping[str, Tuple[int, int]] = field(default_factory=dict)
+    row_references: Mapping[int, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ reading
 
@@ -91,7 +93,7 @@ class TranslationCatalogue:
             category=entry.category,
             key=entry.key,
             text=self.text_at(index),
-            reference=self.reference.get(entry.key, ""),
+            reference=self.row_references.get(index, self.reference.get(entry.key, "")),
             edited=index in self.edits,
         )
 
@@ -186,6 +188,13 @@ class TranslationCatalogue:
 
         if not self.edits:
             return {}
+        if self.source_ranges:
+            entries = self.apply().entries
+            return {
+                path: encode_paloc(LocalizationTable(entries=entries[start:end]))
+                for path, (start, end) in self.source_ranges.items()
+                if any(start <= index < end for index in self.edits)
+            }
         return {game_path_for(self.language): encode_paloc(self.apply())}
 
     def describe_changes(self, limit: int = 6) -> Tuple[str, ...]:
@@ -199,7 +208,21 @@ class TranslationCatalogue:
 # --------------------------------------------------------------------- loading
 
 
-def load_catalogue(data: bytes, language: str) -> TranslationCatalogue:
+def load_catalogue(data: bytes | Mapping[str, bytes], language: str) -> TranslationCatalogue:
+    if isinstance(data, Mapping):
+        entries = []
+        ranges = {}
+        for path, payload in sorted(data.items()):
+            if language_of(path) != language or ".." in path.replace("\\", "/").split("/"):
+                raise PalocFormatError(f"Language table path does not match {language}: {path}")
+            table = parse_paloc(payload, name=path)
+            start = len(entries)
+            entries.extend(table.entries)
+            ranges[path] = (start, len(entries))
+        return TranslationCatalogue(
+            language=language, table=LocalizationTable(entries=tuple(entries)),
+            original=dict(data), source_ranges=ranges,
+        )
     return TranslationCatalogue(
         language=language,
         table=parse_paloc(data, name=game_path_for(language)),
@@ -208,7 +231,7 @@ def load_catalogue(data: bytes, language: str) -> TranslationCatalogue:
 
 
 def attach_reference(
-    catalogue: TranslationCatalogue, data: bytes, language: str
+    catalogue: TranslationCatalogue, data: bytes | Mapping[str, bytes], language: str
 ) -> TranslationCatalogue:
     """Show another language beside the working one.
 
@@ -216,7 +239,27 @@ def attach_reference(
     the key-to-text mapping is kept, not a second editable table.
     """
 
+    if isinstance(data, Mapping):
+        def section(path: str) -> str:
+            name = path.rsplit("/", 1)[-1]
+            return "" if name.startswith(PALOC_PREFIX) else name
+
+        reference = {
+            (section(path), entry.key): entry.text
+            for path, payload in data.items()
+            for entry in parse_paloc(payload, name=path).entries
+        }
+        ranges = catalogue.source_ranges or {game_path_for(catalogue.language): (0, len(catalogue))}
+        catalogue.row_references = {
+            index: reference.get((section(path), catalogue.table.entries[index].key), "")
+            for path, (start, end) in ranges.items()
+            for index in range(start, end)
+        }
+        catalogue.reference = {}
+        catalogue.reference_language = language
+        return catalogue
     table = parse_paloc(data, name=game_path_for(language))
+    catalogue.row_references = {}
     catalogue.reference_language = language
     catalogue.reference = {entry.key: entry.text for entry in table.entries}
     return catalogue
@@ -243,12 +286,7 @@ def available_languages(
 
 
 def read_language(language: str, game_root: Optional[Path] = None) -> bytes:
-    """Pull one language table out of the archives.
-
-    Goes straight to the package the index says holds it -- one table with a single entry
-    in it -- and only falls back to sweeping all 33 when that package no longer has it,
-    which is what a patch or a mod would look like.
-    """
+    """Compatibility reader for legacy single-file languages; current callers use read_language_tables."""
 
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.core.archive_format import parse_archive_pamt
@@ -273,6 +311,37 @@ def read_language(language: str, game_root: Optional[Path] = None) -> bytes:
             data, _decompressed, _note = read_archive_entry_data(entry)
             return data
     raise PalocFormatError(f"{wanted} is not in the archives")
+
+
+def read_language_tables(
+    language: str, game_root: Optional[Path] = None, *,
+    is_cancelled: Optional[Callable[[], bool]] = None,
+) -> Mapping[str, bytes]:
+    """Read every table of one language while retaining its exact export path."""
+
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_format import parse_archive_pamt
+
+    root = game_root if game_root is not None else default_game_root()
+    sources = language_index(root).tables_for(language)
+    if not sources:
+        raise PalocFormatError(f"{language} is not in the archives")
+    files = {}
+    for source in dict.fromkeys(sources.values()):
+        if is_cancelled is not None and is_cancelled():
+            raise InterruptedError
+        entries = parse_archive_pamt(source)
+        for entry in entries:
+            path = entry.path.replace("\\", "/").strip("/").lower()
+            if sources.get(path) != source:
+                continue
+            if is_cancelled is not None and is_cancelled():
+                raise InterruptedError
+            files[path] = read_archive_entry_data(entry)[0]
+    if files.keys() != sources.keys():
+        missing = sorted(sources.keys() - files.keys())
+        raise PalocFormatError(f"Language tables changed during loading: {', '.join(missing)}")
+    return files
 
 
 def export_packages(
@@ -322,4 +391,5 @@ __all__ = [
     "language_of",
     "load_catalogue",
     "read_language",
+    "read_language_tables",
 ]

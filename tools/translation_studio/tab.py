@@ -66,9 +66,10 @@ from .catalogue import (
     export_packages,
     language_of,
     load_catalogue,
-    read_language,
+    read_language_tables,
 )
 from .table_model import TEXT, TranslationTableModel
+from .language_index import PALOC_DIR
 
 _NONE = "(none)"
 #: Cap the rows a search returns. Nobody reads 90,000 hits, and building that view
@@ -185,13 +186,14 @@ class _LoadWorker(QObject):
 
     def __init__(
         self, language: str, reference: str, game_root: Optional[str] = None,
-        *, file_path: str = "",
+        *, file_path: str = "", file_game_path: str = "",
     ) -> None:
         super().__init__()
         self._language = language
         self._reference = reference
         self._game_root = game_root
         self.file_path = file_path
+        self.file_game_path = file_game_path
 
     def run(self) -> None:
         thread = QThread.currentThread()
@@ -200,7 +202,11 @@ class _LoadWorker(QObject):
             return
         root = Path(self._game_root) if self._game_root else None
         try:
-            data = Path(self.file_path).read_bytes() if self.file_path else read_language(self._language, root)
+            data = Path(self.file_path).read_bytes() if self.file_path else read_language_tables(
+                self._language, root, is_cancelled=thread.isInterruptionRequested,
+            )
+            if self.file_path and self.file_game_path:
+                data = {self.file_game_path: data}
             if thread.isInterruptionRequested():
                 self.done.emit(None, "")
                 return
@@ -209,7 +215,12 @@ class _LoadWorker(QObject):
                 self.done.emit(None, "")
                 return
             if self._reference:
-                attach_reference(catalogue, read_language(self._reference, root), self._reference)
+                attach_reference(catalogue, read_language_tables(
+                    self._reference, root, is_cancelled=thread.isInterruptionRequested,
+                ), self._reference)
+        except InterruptedError:
+            self.done.emit(None, "")
+            return
         except Exception as error:  # noqa: BLE001 - report, never take the window down
             self.done.emit(None, str(error))
             return
@@ -528,6 +539,12 @@ class TranslationStudioTab(QWidget):
         if not path:
             return
         language = language_of(Path(path).name.lower())
+        file_game_path = ""
+        if not language:
+            candidate = f"{PALOC_DIR}/{Path(path).parent.name.lower()}/{Path(path).name.lower()}"
+            language = language_of(candidate)
+            if language:
+                file_game_path = candidate
         if not language:
             language, accepted = QInputDialog.getText(
                 self, "Language slot", "Game language code to replace (for example eng or rus):",
@@ -540,7 +557,7 @@ class TranslationStudioTab(QWidget):
             self.status_label.setText("Invalid game language code. Use a code such as eng, rus, or zho-cn.")
             return
         if self._confirm_replace():
-            self._start_load(_LoadWorker(language, "", file_path=path))
+            self._start_load(_LoadWorker(language, "", file_path=path, file_game_path=file_game_path))
 
     def _on_load(self) -> None:
         if self._shutdown_requested or self._thread is not None:

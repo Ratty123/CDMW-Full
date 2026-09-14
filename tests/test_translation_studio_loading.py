@@ -121,13 +121,13 @@ def test_archive_load_uses_the_same_root_and_rejects_results_after_path_changes(
     started, release = threading.Event(), threading.Event()
     reads = []
 
-    def read(language, root):
+    def read(language, root, **kwargs):
         reads.append((language, str(root)))
         started.set()
         release.wait(3)
         return ENGLISH
 
-    monkeypatch.setattr(module, "read_language", read)
+    monkeypatch.setattr(module, "read_language_tables", read)
     tab.load_button.click()
     until(started.is_set)
     try:
@@ -150,7 +150,7 @@ def test_open_paloc_is_background_and_preserves_mod_text_source_and_export_slot(
     source = tmp_path / "localizationstring_eng.paloc"
     source.write_bytes(payload)
     monkeypatch.setattr(module.QFileDialog, "getOpenFileName", lambda *args: (str(source), ""))
-    monkeypatch.setattr(module, "read_language", lambda *args: pytest.fail("Loose files must not read game archives"))
+    monkeypatch.setattr(module, "read_language_tables", lambda *args, **kwargs: pytest.fail("Loose files must not read game archives"))
     main_thread = threading.get_ident()
     parsing_threads = []
     original_load = module.load_catalogue
@@ -242,3 +242,42 @@ def test_renamed_file_asks_for_slot_and_close_rejects_pending_result(panel, monk
     until(lambda: not tab.iter_shutdown_workers())
     assert loaded == ["rus"]
     assert tab._catalogue is None
+
+
+@pytest.mark.real_game
+def test_installed_game_populates_and_loads_split_tables_through_the_panel(panel):
+    from tools.placement_studio import corpus
+
+    tab, edit, _settings = panel
+    root = corpus.game_root()
+    if not root.is_dir():
+        pytest.skip("needs the installed game")
+    edit.setText(str(root))
+    until(lambda: tab.language_box.count() > 0 and not tab.iter_shutdown_workers())
+    count = tab.language_box.count()
+    tab.language_box.setCurrentText("eng")
+    tab.reference_box.setCurrentText("kor")
+    tab.load_button.click()
+    until(lambda: not tab.iter_shutdown_workers())
+    assert tab._catalogue is not None, tab.status_label.text()
+    assert tab._catalogue.language == "eng"
+    assert tab._catalogue.reference_language == "kor"
+    assert len(tab._catalogue) > 100_000
+    assert len(tab._catalogue.source_ranges) > 1
+    assert any(tab._catalogue.row_references.values())
+    print(f"Installed-game panel: {count} languages, {len(tab._catalogue)} English rows, "
+          f"{len(tab._catalogue.source_ranges)} source tables, Korean reference loaded.")
+
+
+def test_opening_an_extracted_split_table_preserves_its_language_and_filename(panel, monkeypatch, tmp_path):
+    tab, _edit, _settings = panel
+    source = tmp_path / "kor" / "aidialog.paloc"
+    source.parent.mkdir()
+    source.write_bytes(KOREAN)
+    monkeypatch.setattr(module.QFileDialog, "getOpenFileName", lambda *args: (str(source), ""))
+    monkeypatch.setattr(module.QInputDialog, "getText", lambda *args, **kwargs: pytest.fail("The language folder identifies the slot"))
+    tab.open_file_button.click()
+    until(lambda: tab._catalogue is not None and not tab.iter_shutdown_workers())
+    assert tab._catalogue.language == "kor"
+    assert tab.model.setData(tab.model.index(0, 2), "A correction", Qt.EditRole)
+    assert list(tab.mod_files()) == ["gamedata/stringtable/binary__/kor/aidialog.paloc"]
