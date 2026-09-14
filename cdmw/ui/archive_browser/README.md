@@ -105,8 +105,8 @@ chooses active paths; complete CharacterInfo
 table pairs and verified CharacterAppearanceIndexInfo full-path hashes supply
 names. Missing XML attribute separators are repaired only in memory and reported.
 
-After the archive view is ready, two background jobs preload the first saved
-Finder page and the first page of the other tab (up to 144 results).
+After the archive view is ready, two background jobs preload up to three pages
+per tab (432 results), alternating Bodies and Faces with both landing pages first.
 The catalogue results and rendered thumbnails are reused when the finder opens.
 Opening the finder pauses queued startup work while already assigned previews
 finish and remain reusable. Closing it resumes the remaining queue.
@@ -120,24 +120,29 @@ priority; selecting a card already being prepared reuses that job and can displa
 its ready 3D package while thumbnail capture finishes. Other slots continue the page. Scrolling
 reprioritizes waiting cards without restarting current page jobs. Thumbnail
 captures render at 256px; the interactive preview keeps its full geometry and textures.
-Once the current page finishes, one background job prepares the next page.
-Selecting a card takes priority over that work. **Next** reuses prepared cards or
-promotes the pending page request, and the four most recent result pages are
-retained for navigation. Background results do not change the current grid or
-interactive preview; changing filters cancels obsolete work.
+Catalogue lookahead starts as soon as a page appears and fetches up to four more
+pages, with one catalogue request outstanding at a time. Once the on-screen cards
+finish, up to two render jobs share the available slots with the rest of the
+current page. When that page is complete, up to four jobs prepare future cards,
+depending on the available lanes. Selection and newly visible cards take priority.
+**Next** reuses prepared cards or promotes the pending page request; useful future
+requests survive page changes, while obsolete cache scans are cancelled. The eight
+most recent result pages are retained for navigation. Background results do not
+change the current grid or interactive preview; changing filters cancels obsolete work.
 Head pages use up to eight jobs (half the logical processors); other component
 pages use at most four. Small systems use two jobs. Previously generated page
 thumbnails appear as each is found in a fingerprint- and settings-scoped index, without
 repeating character detail requests or geometry preparation. Uncached cards start
 preparing as soon as their own cache check finishes, while later records are still
 being read. This applies to both the current page and the next-page preload.
-Up to 288 thumbnail records and icons (four pages) stay in memory for revisits.
+Up to 576 thumbnail records and icons (eight pages) stay in memory for revisits.
 Shared image paths reuse one icon, and returning to cached cards skips their
 row/render JSON reads. Image existence is checked in the background; removed
 images return to the normal cache lookup and regeneration path. The remembered
 records are scoped to the archive session, and a rescan clears the dialog caches.
-Saved images remain
-usable after their larger 3D packages leave the bounded cache; selecting one can
+Finder package builds use the existing 2 GiB disk-cache policy, trimming toward
+1.5 GiB, to retain more prepared models across page changes. Saved images remain
+usable after their larger 3D packages leave that bounded cache; selecting one can
 rebuild its interactive package. Catalogue caches
 use archive generation, mount signature and format version; thumbnails also use
 appearance context, renderer/package schema, settings and camera preset. Refresh
@@ -147,7 +152,7 @@ Completed 3D packages are saved before thumbnail capture, so an interrupted imag
 does not require preparing the model again. Matching shape/material requests
 share one build and capture across startup and open Finder jobs; a waiting
 selection receives the ready 3D package while that capture is still running.
-Packages stay pinned during capture. Up to 144 recent full catalogue details are
+Packages stay pinned during capture. Up to 576 recent full catalogue details are
 retained per controller and reused for card selection and page revisits, with
 archive-session checks preventing reuse after a rescan.
 Each native job keeps its temporary DDS files under its own staging directory,

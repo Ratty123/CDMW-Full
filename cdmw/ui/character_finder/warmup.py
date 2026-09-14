@@ -1,4 +1,4 @@
-"""Preload the two Finder landing pages through the existing preview pipeline."""
+"""Preload three pages per Finder tab through the existing preview pipeline."""
 
 from collections import deque
 from dataclasses import replace
@@ -159,7 +159,13 @@ class CharacterFinderWarmupController(QObject):
         if isinstance(result, BuildCharacterCatalogResult):
             self._summary = result
         elif isinstance(result, CharacterCatalogSearchResult) and self._pages:
-            self._searches[self._pages[0]] = result
+            request = self._pages[0]
+            self._searches[request] = result
+            next_start = request.page_start + 72
+            if next_start < min(result.total_matches, 3 * 72):
+                # Alternate tabs, keeping both landing pages ahead of their
+                # following pages while warming enough for early navigation.
+                self._pages.append(replace(request, page_start=next_start))
         else:
             self._pages.clear()
         self._schedule()

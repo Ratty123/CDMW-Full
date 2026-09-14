@@ -327,9 +327,11 @@ class CharacterFinderRenderWorker(QObject):
                 self._check()
                 if not attempt.succeeded:
                     raise RuntimeError(attempt.fallback_reason or "The geometry preview could not be prepared.")
-            maximum, target = dotnet_preview_package_cache_budget("balanced")
+            # Multi-page lookahead needs room to retain the models it prepares.
+            # Reuse the existing 2 GiB policy rather than the 512 MiB default.
+            maximum, target = dotnet_preview_package_cache_budget("aggressive")
             package = build_or_lookup_rust_preview_package(attempt.package_path, cache_root=self.cache_root,
-                archive_identity=key, cache_mode="balanced", max_bytes=maximum, target_bytes=target,
+                archive_identity=key, cache_mode="aggressive", max_bytes=maximum, target_bytes=target,
                 cancelled=self._stop.is_set,
                 metadata={"entry_path": source.path, "character_catalogue_key": detail.row.key})
         return package, status, tuple(notes)

@@ -10,7 +10,10 @@ import threading
 from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
 
 from cdmw.domain.archives.character_catalogue import CharacterCatalogDetailRequest, CharacterCatalogDetailResult
-from cdmw.domain.character_finder import CharacterPreviewInputs, CharacterRenderResult, character_preview_detail
+from cdmw.domain.character_finder import (
+    CHARACTER_FINDER_CACHED_PAGES, CHARACTER_FINDER_LOOKAHEAD_PAGES,
+    CharacterPreviewInputs, CharacterRenderResult, character_preview_detail,
+)
 from cdmw.ui.character_finder.preview_preparation import CharacterPreviewPreparation
 from cdmw.workers.character_finder_workers import (
     CharacterFinderRenderWorker, character_render_key, cached_character_render,
@@ -326,6 +329,7 @@ class CharacterFinderPreviewController(QObject):
     def __init__(self, service, *, fingerprint, cache_root, settings, parent=None, max_lanes=None):
         super().__init__(parent)
         self._rows = {}
+        self._priority_keys = set()
         self._prefetch_rows = {}
         self._prefetch_cache_page = None
         self._scheduling_paused = False
@@ -391,7 +395,7 @@ class CharacterFinderPreviewController(QObject):
         identity = (detail.session_id, detail.row.key)
         self._details[identity] = detail
         self._details.move_to_end(identity)
-        while len(self._details) > 144:
+        while len(self._details) > 72 * CHARACTER_FINDER_CACHED_PAGES:
             self._details.popitem(last=False)
 
     def _remember_thumbnail(self, key, result):
@@ -399,12 +403,13 @@ class CharacterFinderPreviewController(QObject):
             identity = (self._session_id, key)
             self._thumbnails[identity] = result
             self._thumbnails.move_to_end(identity)
-            while len(self._thumbnails) > 288:
+            while len(self._thumbnails) > 72 * CHARACTER_FINDER_CACHED_PAGES:
                 self._thumbnails.popitem(last=False)
 
     def clear_page(self):
         self._schedule_timer.stop()
         self._rows.clear()
+        self._priority_keys.clear()
         self._prefetch_rows.clear()
         self._prefetch_cache_page = None
         self._assigned.clear()
@@ -433,7 +438,8 @@ class CharacterFinderPreviewController(QObject):
         self._session_id, self._generation = detail.session_id, generation
         selected_lane = next((lane for lane, key in self._assigned.items()
             if key == detail.row.key and lane._active_key == key
-            and lane._session_id == detail.session_id), self._lanes[0])
+            and lane._session_id == detail.session_id),
+            next((lane for lane in self._lanes if not lane.busy and lane not in self._assigned), self._lanes[0]))
         for lane in self._lanes:
             if lane is selected_lane:
                 continue
@@ -447,14 +453,29 @@ class CharacterFinderPreviewController(QObject):
         selected_lane.select(detail, generation)
         self._schedule_timer.start(0)
 
-    def visible(self, rows, *, session_id, generation):
+    def visible(self, rows, *, session_id, generation, priority_keys=None):
         # The caller orders on-screen cards first, followed by the remainder of
         # its bounded page. Scrolling reprioritizes queued work without restarting
         # jobs that still belong to this page.
-        self._rows = {row.key: row for row in rows if row.model_count and row.resolution != "ambiguous"}
+        rows = {row.key: row for row in rows if row.model_count and row.resolution != "ambiguous"}
+        page_changed = (set(rows) != set(self._rows)
+            or (session_id, generation) != (self._session_id, self._generation))
+        if page_changed:
+            # A new page must not wait for a disk scan of a previous page or
+            # distant lookahead. Keep render jobs that belong to its rows.
+            self._cache_page = self._prefetch_cache_page = None
+            self._cache_pending.clear()
+            self._cache_token += 1
+            if self._cache_worker is not None:
+                self._cache_worker.stop()
+            if self._selected_key not in rows:
+                self._selected_key = ""
+        self._rows = rows
+        self._priority_keys = set(rows) if priority_keys is None else set(priority_keys).intersection(rows)
         self._session_id, self._generation = session_id, generation
         for lane, key in tuple(self._assigned.items()):
-            if key not in self._rows and key not in self._prefetch_rows and key != self._selected_key:
+            if key not in self._rows and key != self._selected_key and (
+                    key not in self._prefetch_rows or not self._done.issuperset(self._priority_keys)):
                 self._assigned.pop(lane, None)
                 lane.clear_page()
         self._schedule_timer.start(0)
@@ -462,8 +483,11 @@ class CharacterFinderPreviewController(QObject):
     def prefetch(self, rows, *, session_id, generation):
         if self._closed or (session_id, generation) != (self._session_id, self._generation):
             return
-        self._prefetch_rows = {row.key: row for row in tuple(rows)[:72]
+        rows = {row.key: row for row in tuple(rows)[:72 * CHARACTER_FINDER_LOOKAHEAD_PAGES]
             if row.model_count and row.resolution != "ambiguous" and row.key not in self._rows}
+        if rows == self._prefetch_rows:
+            return
+        self._prefetch_rows = rows
         self._prefetch_cache_page = None
         for lane, key in tuple(self._assigned.items()):
             if key not in self._rows and key not in self._prefetch_rows and key != self._selected_key:
@@ -535,7 +559,25 @@ class CharacterFinderPreviewController(QObject):
             return
         active = set(self._assigned.values())
         limit = len(self._lanes) if self._rows and all(row.role == "head" for row in self._rows.values()) else min(4, len(self._lanes))
-        for lane in self._lanes[:limit]:
+        page = (self._session_id, self._generation, frozenset(self._prefetch_rows))
+        if self._prefetch_rows and self._prefetch_cache_page != page and self._cache_thread is None:
+            self._start_page_cache(prefetch=True)
+        future = [key for key in self._prefetch_rows
+            if key not in self._done and key not in active and key not in self._cache_pending]
+        future_active = sum(key in self._prefetch_rows for key in active)
+        ready = self._done.issuperset(self._priority_keys) and self._selected_key not in active
+        future_limit = 0
+        if ready and (future or future_active):
+            future_limit = (min(4, max(1, len(self._lanes) - 1)) if self._done.issuperset(self._rows)
+                else min(2, max(1, limit // 2)))
+        foreground_active = len(active) - future_active
+        foreground_limit = max(0, limit - future_limit)
+        # Once the on-screen cards are ready, share idle lanes between the rest
+        # of this page and lookahead. Long off-screen jobs cannot reserve every
+        # future slot; selection and newly visible cards still take priority.
+        for lane in self._lanes:
+            if foreground_active >= foreground_limit:
+                break
             if lane.busy or lane in self._assigned:
                 continue
             key = next((key for key in self._rows
@@ -544,23 +586,16 @@ class CharacterFinderPreviewController(QObject):
                 continue
             self._assigned[lane] = key
             active.add(key)
+            foreground_active += 1
             lane.visible([self._rows[key]], session_id=self._session_id, generation=self._generation)
-        if not self._done.issuperset(self._rows) or self._selected_key in active or not self._prefetch_rows:
-            return
-        page = (self._session_id, self._generation, frozenset(self._prefetch_rows))
-        if self._prefetch_cache_page != page:
-            if self._cache_thread is None:
-                self._start_page_cache(prefetch=True)
-            return
-        # A single spare lane prepares the next page only after displayed cards
-        # finish. The first lane remains available for a new selection.
-        lane = self._lanes[min(1, len(self._lanes) - 1)]
-        if lane.busy or lane in self._assigned:
-            return
-        key = next((key for key in self._prefetch_rows
-            if key not in self._done and key not in active and key not in self._cache_pending), "")
-        if key:
+        for lane in (*self._lanes[1:], self._lanes[0]):
+            if future_active >= future_limit or foreground_active + future_active >= max(limit, future_limit) or not future:
+                break
+            if lane.busy or lane in self._assigned:
+                continue
+            key = future.pop(0)
             self._assigned[lane] = key
+            future_active += 1
             lane.visible([self._prefetch_rows[key]], session_id=self._session_id, generation=self._generation)
 
     def _package_ready(self, key, result):

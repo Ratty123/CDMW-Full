@@ -114,6 +114,25 @@ def test_startup_preloads_both_pages_after_paint_and_caches_catalogue(warmup):
     assert len(service.calls) == 3 and not owner._pages
 
 
+def test_startup_preloads_three_pages_per_tab_with_both_landing_pages_first(warmup):
+    owner, archive, session = warmup
+    owner.start(session, ui_generation=4)
+    owner._timer.stop()
+    owner._continue()
+    publish(owner, archive, BuildCharacterCatalogResult("session-a", True, 720, 720, 1440, 1440, 0, 0, ()))
+    expected = [(tab, start) for start in (0, 72, 144) for tab in ("bodies", "faces")]
+    for index, (tab, start) in enumerate(expected):
+        request = archive.archive_catalogue_service.calls[-1][1]
+        assert (request.tab, request.page_start) == (tab, start)
+        publish(owner, archive, CharacterCatalogSearchResult("session-a", 720, start, 72,
+            (row(index),), (), ()))
+        assert len(owner._preview.pages) == index + 1
+        owner._preview.page_complete = True
+        owner._continue()
+    assert not owner._pages and len(owner._searches) == 6
+    assert len(archive.archive_catalogue_service.calls) == 7
+
+
 def test_refresh_and_shutdown_retain_active_threads_and_reject_old_results(warmup):
     owner, archive, session = warmup
     _, page = build_first_page(owner, archive, session)
