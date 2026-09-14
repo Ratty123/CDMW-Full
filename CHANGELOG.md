@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Translations can open existing `.paloc` language-mod files without a configured game installation, preserving their translated text and export language slot.
+
 ### Changed
 
 - Mesh Editor's prominent **Hair Tools** button opens one Create/Edit setup dialog for Kliff, Damiane and Oongka. Create starts on an empty scalp; Edit loads the chosen existing hairstyle. Compatible bases, cancellable preparation and retry preserve the current scene until its replacement is ready.
@@ -18,6 +22,8 @@ The format is intentionally simple:
 - Body & Face Finder skips unused content-analysis reports when preparing preview files. Cards show queued clocks, animated loading indicators and the current preparation stage; page totals distinguish ready, loading, queued and unavailable thumbnails. The interactive preview keeps its loading indicator until the model is displayed.
 
 ### Fixed
+
+- Translations now uses the configured game folder on any drive and refreshes its language list when that path changes. Obsolete scans are cancelled, failed file loads preserve current edits, and manual text edits immediately enable mod export.
 
 - Draw follows the curved scalp and accounts for follower-card width. Drawing beyond the scalp outline or holding Ctrl lets the stroke lift away while contacts remain active. Motion retains the authored groom with adjustable Shape softness and explains its limits as an editor preview.
 - Existing hair with overly broad root groups now explains why motion is unavailable instead of displaying severely distorted cards. Smaller root selections or rigid scalp sections resolve the limitation; Use settled shape requires a valid preview that has played.

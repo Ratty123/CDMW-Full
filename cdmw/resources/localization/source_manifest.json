@@ -1361,7 +1361,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 427,
+          "line": 506,
           "sink": "addItem"
         }
       ]
@@ -3826,7 +3826,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 316,
+          "line": 351,
           "sink": "QPushButton"
         }
       ]
@@ -6356,7 +6356,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 468,
+          "line": 587,
           "sink": "addItem"
         }
       ]
@@ -12276,7 +12276,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 341,
+          "line": 376,
           "sink": "addRow"
         }
       ]
@@ -15246,7 +15246,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 344,
+          "line": 379,
           "sink": "QPushButton"
         }
       ]
@@ -18146,7 +18146,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 490,
+          "line": 492,
           "sink": "ValueError"
         }
       ]
@@ -19336,7 +19336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 258,
+          "line": 261,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -19601,7 +19601,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 370,
+          "line": 372,
           "sink": "ValueError"
         }
       ]
@@ -20376,7 +20376,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 317,
+          "line": 352,
           "sink": "setToolTip"
         }
       ]
@@ -21191,7 +21191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 291,
+          "line": 292,
           "sink": "ValueError"
         }
       ]
@@ -23776,7 +23776,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 518,
+          "line": 520,
           "sink": "ValueError"
         }
       ]
@@ -25316,7 +25316,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 417,
+          "line": 497,
           "sink": "setText"
         }
       ]
@@ -27061,7 +27061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 587,
+          "line": 589,
           "sink": "ValueError"
         }
       ]
@@ -27071,7 +27071,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 595,
+          "line": 597,
           "sink": "ValueError"
         }
       ]
@@ -28221,7 +28221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 562,
+          "line": 564,
           "sink": "ValueError"
         }
       ]
@@ -30006,7 +30006,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 321,
+          "line": 356,
           "sink": "QLabel"
         }
       ]
@@ -31846,7 +31846,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 272,
+          "line": 306,
           "sink": "QCheckBox"
         }
       ]
@@ -33786,7 +33786,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 592,
+          "line": 594,
           "sink": "ValueError"
         }
       ]
@@ -35156,7 +35156,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 332,
+          "line": 367,
           "sink": "QGroupBox"
         }
       ]
@@ -35216,7 +35216,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 690,
+          "line": 835,
           "sink": "python-return:export_mod"
         }
       ]
@@ -38286,7 +38286,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 259,
+          "line": 293,
           "sink": "QLabel"
         }
       ]
@@ -40452,6 +40452,26 @@
       ]
     },
     {
+      "key": "Game archives: not configured",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 433,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Game archives: {value_0}",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 433,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Game baseline:",
       "origins": [
         {
@@ -40492,12 +40512,32 @@
       ]
     },
     {
+      "key": "Game language code to replace (for example eng or rus):",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 532,
+          "sink": "getText"
+        }
+      ]
+    },
+    {
       "key": "Game overlay",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
           "line": 187,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Game path changed. Load a language from the updated list.",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 633,
+          "sink": "setText"
         }
       ]
     },
@@ -41446,7 +41486,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 266,
+          "line": 300,
           "sink": "QLabel"
         },
         {
@@ -42181,7 +42221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 630,
+          "line": 632,
           "sink": "ValueError"
         }
       ]
@@ -42266,7 +42306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 450,
+          "line": 452,
           "sink": "ValueError"
         }
       ]
@@ -42306,7 +42346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 589,
+          "line": 591,
           "sink": "ValueError"
         }
       ]
@@ -42316,7 +42356,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 569,
+          "line": 571,
           "sink": "ValueError"
         }
       ]
@@ -42326,7 +42366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 530,
+          "line": 532,
           "sink": "ValueError"
         }
       ]
@@ -42356,7 +42396,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 633,
+          "line": 635,
           "sink": "ValueError"
         },
         {
@@ -42441,7 +42481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 427,
+          "line": 429,
           "sink": "ValueError"
         }
       ]
@@ -42451,7 +42491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 432,
+          "line": 434,
           "sink": "ValueError"
         }
       ]
@@ -42541,7 +42581,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 409,
+          "line": 411,
           "sink": "raise_if_cancelled"
         },
         {
@@ -42581,12 +42621,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 545,
+          "line": 547,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 576,
+          "line": 578,
           "sink": "ValueError"
         },
         {
@@ -42601,7 +42641,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 497,
+          "line": 499,
           "sink": "ValueError"
         }
       ]
@@ -42611,7 +42651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 488,
+          "line": 490,
           "sink": "ValueError"
         }
       ]
@@ -42621,7 +42661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 527,
+          "line": 529,
           "sink": "ValueError"
         }
       ]
@@ -42631,7 +42671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 476,
+          "line": 478,
           "sink": "ValueError"
         }
       ]
@@ -42641,7 +42681,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 474,
+          "line": 476,
           "sink": "ValueError"
         }
       ]
@@ -46036,7 +46076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 469,
+          "line": 471,
           "sink": "ValueError"
         }
       ]
@@ -46046,7 +46086,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 463,
+          "line": 465,
           "sink": "ValueError"
         }
       ]
@@ -47287,11 +47327,21 @@
       ]
     },
     {
+      "key": "Invalid game language code. Use a code such as eng, rus, or zho-cn.",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 540,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Invalid hair geometry record.",
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 555,
+          "line": 557,
           "sink": "ValueError"
         }
       ]
@@ -47301,7 +47351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 515,
+          "line": 517,
           "sink": "ValueError"
         }
       ]
@@ -47311,7 +47361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 507,
+          "line": 509,
           "sink": "ValueError"
         }
       ]
@@ -47321,7 +47371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 524,
+          "line": 526,
           "sink": "ValueError"
         }
       ]
@@ -47331,7 +47381,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 512,
+          "line": 514,
           "sink": "ValueError"
         }
       ]
@@ -49296,7 +49346,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 237,
+          "line": 271,
           "sink": "QLabel"
         }
       ]
@@ -49458,6 +49508,36 @@
           "path": "cdmw/services/localization_file_service.py",
           "line": 66,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Language slot",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 532,
+          "sink": "getText"
+        }
+      ]
+    },
+    {
+      "key": "Language tables",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 525,
+          "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Language tables (*.paloc)",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 525,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -50531,7 +50611,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 245,
+          "line": 279,
           "sink": "QPushButton"
         }
       ]
@@ -50786,7 +50866,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 460,
+          "line": 579,
           "sink": "setText"
         }
       ]
@@ -51007,6 +51087,16 @@
       ]
     },
     {
+      "key": "Loaded as: {value_0}",
+      "origins": [
+        {
+          "path": "tools/translation_studio/table_model.py",
+          "line": 101,
+          "sink": "python-return:data"
+        }
+      ]
+    },
+    {
       "key": "Loaded model lacks this target: this row maps to {value_0}, but the loaded 3D preview does not contain that target. Current preview targets include: {value_1}{value_2}. It may be a different related model or a recovered-only HKX target.",
       "origins": [
         {
@@ -51187,6 +51277,16 @@
       ]
     },
     {
+      "key": "Loading another table will discard your current edits. Continue?",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 516,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Loading appearance and model catalogue pages...",
       "origins": [
         {
@@ -51203,10 +51303,15 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 227,
           "sink": "_begin_pending"
-        },
+        }
+      ]
+    },
+    {
+      "key": "Loading archive catalogue: {value_0}",
+      "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 389,
+          "line": 457,
           "sink": "setText"
         }
       ]
@@ -58046,7 +58151,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 339,
+          "line": 374,
           "sink": "addRow"
         }
       ]
@@ -62096,12 +62201,12 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 334,
+          "line": 369,
           "sink": "QLabel"
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 663,
+          "line": 808,
           "sink": "setText"
         }
       ]
@@ -64587,11 +64692,11 @@
       ]
     },
     {
-      "key": "No string tables found in the archives. Check the game path under Settings -> Archive Locations.",
+      "key": "No string tables found in: {value_0}",
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 421,
+          "line": 503,
           "sink": "setText"
         }
       ]
@@ -65681,7 +65786,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 681,
+          "line": 826,
           "sink": "python-return:export_mod"
         }
       ]
@@ -65736,7 +65841,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 649,
+          "line": 794,
           "sink": "setText"
         }
       ]
@@ -66582,6 +66687,16 @@
       ]
     },
     {
+      "key": "Open .paloc...",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 259,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Open 3D preview settings supported by the Preview renderer, including lighting, support maps, depth, shine, and resolution.",
       "origins": [
         {
@@ -67423,6 +67538,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 331,
           "sink": "python-return:_build_archive_mesh_sections"
+        }
+      ]
+    },
+    {
+      "key": "Open language table",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 525,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -68303,6 +68428,16 @@
           "path": "cdmw/ui/texture_workflow/editor_source_binding.py",
           "line": 140,
           "sink": "python-return:texture_editor_open_source_task_label"
+        }
+      ]
+    },
+    {
+      "key": "Opening {value_0}...",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 557,
+          "sink": "setText"
         }
       ]
     },
@@ -72961,7 +73096,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 253,
+          "line": 287,
           "sink": "QLabel"
         }
       ]
@@ -80047,16 +80182,6 @@
       ]
     },
     {
-      "key": "Put the selected line back to what the game ships.",
-      "origins": [
-        {
-          "path": "tools/translation_studio/tab.py",
-          "line": 301,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Put this one row back, keeping your other changes.",
       "origins": [
         {
@@ -81171,7 +81296,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 443,
+          "line": 557,
           "sink": "setText"
         }
       ]
@@ -83547,6 +83672,11 @@
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 410,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 265,
           "sink": "QPushButton"
         }
       ]
@@ -86521,7 +86651,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 305,
+          "line": 340,
           "sink": "QPushButton"
         }
       ]
@@ -87966,7 +88096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 500,
+          "line": 502,
           "sink": "ValueError"
         }
       ]
@@ -88037,6 +88167,16 @@
         {
           "path": "cdmw/ui/character_context_panel.py",
           "line": 122,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Restore the selected line from the loaded table.",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 336,
           "sink": "setToolTip"
         }
       ]
@@ -88636,7 +88776,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 300,
+          "line": 335,
           "sink": "QPushButton"
         }
       ]
@@ -95901,7 +96041,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 310,
+          "line": 345,
           "sink": "setToolTip"
         }
       ]
@@ -96148,6 +96288,16 @@
           "path": "cdmw/ui/shell/startup_controller.py",
           "line": 883,
           "sink": "setInformativeText"
+        }
+      ]
+    },
+    {
+      "key": "Set the game path in Settings -> Archive Locations, or open a .paloc file.",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 455,
+          "sink": "setText"
         }
       ]
     },
@@ -96687,16 +96837,6 @@
       ]
     },
     {
-      "key": "Ships as: {value_0}",
-      "origins": [
-        {
-          "path": "tools/translation_studio/table_model.py",
-          "line": 101,
-          "sink": "python-return:data"
-        }
-      ]
-    },
-    {
       "key": "Shop",
       "origins": [
         {
@@ -97131,7 +97271,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 241,
+          "line": 275,
           "sink": "QLabel"
         }
       ]
@@ -101061,7 +101201,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 457,
+          "line": 459,
           "sink": "ValueError"
         }
       ]
@@ -104251,7 +104391,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 261,
+          "line": 295,
           "sink": "setPlaceholderText"
         }
       ]
@@ -105901,7 +106041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 338,
+          "line": 341,
           "sink": "_error"
         }
       ]
@@ -106866,7 +107006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 251,
+          "line": 254,
           "sink": "ValueError"
         }
       ]
@@ -106896,7 +107036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_hair.py",
-          "line": 278,
+          "line": 279,
           "sink": "ValueError"
         }
       ]
@@ -107816,7 +107956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 254,
+          "line": 257,
           "sink": "ValueError"
         }
       ]
@@ -108836,7 +108976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 298,
+          "line": 301,
           "sink": "_preparation_failed"
         }
       ]
@@ -108971,7 +109111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 248,
+          "line": 251,
           "sink": "ValueError"
         }
       ]
@@ -110371,7 +110511,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 309,
+          "line": 344,
           "sink": "QPushButton"
         }
       ]
@@ -111843,6 +111983,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 752,
           "sink": "CollapsibleSection"
+        }
+      ]
+    },
+    {
+      "key": "Unsaved changes",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 516,
+          "sink": "question"
         }
       ]
     },
@@ -116806,7 +116956,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 694,
+          "line": 839,
           "sink": "getExistingDirectory"
         }
       ]
@@ -118511,7 +118661,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 691,
+          "line": 836,
           "sink": "python-return:export_mod"
         }
       ]
@@ -123368,6 +123518,16 @@
           "path": "cdmw/ui/new_item/effect_placement_guided.py",
           "line": 275,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "eng",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 532,
+          "sink": "getText"
         }
       ]
     },
@@ -136906,7 +137066,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 470,
+          "line": 589,
           "sink": "addItem"
         }
       ]
@@ -138652,11 +138812,11 @@
       ]
     },
     {
-      "key": "{value_0} languages available.",
+      "key": "{value_0} languages available in: {value_1}",
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 432,
+          "line": 511,
           "sink": "setText"
         }
       ]
@@ -138666,7 +138826,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 668,
+          "line": 813,
           "sink": "setText"
         }
       ]
@@ -138676,7 +138836,17 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 535,
+          "line": 678,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} lines in {value_1} from {value_2}",
+      "origins": [
+        {
+          "path": "tools/translation_studio/tab.py",
+          "line": 606,
           "sink": "setText"
         }
       ]
@@ -138686,7 +138856,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 485,
+          "line": 604,
           "sink": "setText"
         }
       ]
@@ -140181,7 +140351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
-          "line": 273,
+          "line": 276,
           "sink": "setText"
         }
       ]
