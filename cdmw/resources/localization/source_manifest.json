@@ -25852,6 +25852,16 @@
       ]
     },
     {
+      "key": "Create or edit Damiane hairstyles",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 19,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Create ready mod package after rebuild",
       "origins": [
         {
@@ -42043,11 +42053,6 @@
           "path": "cdmw/ui/character_context_panel.py",
           "line": 93,
           "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 14,
-          "sink": "setText"
         }
       ]
     },
@@ -42058,6 +42063,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 622,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Hair Tools",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/hair_flow.py",
+          "line": 13,
+          "sink": "QPushButton"
         }
       ]
     },

@@ -165,8 +165,12 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
         data = _build_replacement_pamlod(prepared, snapshot.original_data, state, original)
     else:
         preserved = ()
+        original_parts = False
         if original.format.lower() == "pac":
             from cdmw.modding.mesh_pac_builder import _pac_submesh_channels_unchanged
+            original_parts = all(_pac_submesh_channels_unchanged(
+                original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]])
+                for part in state.parts)
             preserved = tuple(part.target_index for part in state.parts if part.included and
                 _pac_submesh_channels_unchanged(original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
         hair = getattr(snapshot, "hair_state", None)
@@ -177,21 +181,26 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     and before.uvs == after.uvs and before.bone_indices == after.bone_indices
                     and before.bone_weights == after.bone_weights
                     for before, after in zip(original.submeshes, snapshot.mesh.submeshes, strict=True)))
-        if preserve_hair_records:
+        if original_parts and all(part.included for part in state.parts):
+            # Mod inclusion does not author geometry or skin weights. Restoring
+            # all original parts must retain every record, including eight lanes.
+            data = snapshot.original_data
+        elif preserve_hair_records:
             # Existing PAC hair can use eight encoded influences. Geometry-only
             # grooming must retain those exact records, not pass them through the
             # six-lane new-topology weight writer.
             from cdmw.modding.mesh_pac_builder import build_pac
             data = build_pac(snapshot.mesh, snapshot.original_data)
-        elif (original.format.lower() == "pac" and hair is not None
-                and all(group["mode"] == "existing" for group in hair.payload["groups"])):
+        elif (original_parts or (original.format.lower() == "pac" and hair is not None
+                and all(group["mode"] == "existing" for group in hair.payload["groups"]))):
             from cdmw.modding.mesh_pac_builder import _build_pac_full_rebuild
             from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
             from cdmw.modding.static_mesh_runtime_builder import _build_removed_runtime_placeholder_submesh
-            prepared = copy.deepcopy(snapshot.mesh)
+            prepared = copy.deepcopy(original if original_parts else snapshot.mesh)
             for binding in state.parts:
                 index = binding.target_index
-                part = prepared.submeshes[indices[binding.part_id]]
+                output_index = index if original_parts else indices[binding.part_id]
+                part = prepared.submeshes[output_index]
                 if not binding.included:
                     placeholder = _build_removed_runtime_placeholder_submesh(original.submeshes[index])
                     # Retain the established hidden-section package contract,
@@ -200,7 +209,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     placeholder.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
                     placeholder.bone_indices = [original.submeshes[index].bone_indices[0]] * len(placeholder.vertices) if original.submeshes[index].bone_indices else []
                     placeholder.bone_weights = [original.submeshes[index].bone_weights[0]] * len(placeholder.vertices) if original.submeshes[index].bone_weights else []
-                    prepared.submeshes[indices[binding.part_id]] = placeholder
+                    prepared.submeshes[output_index] = placeholder
                 elif len(part.source_vertex_map) != len(part.vertices):
                     raise ValueError("Existing hair lost its original vertex record provenance.")
             data = _build_pac_full_rebuild(original, prepared, snapshot.original_data,

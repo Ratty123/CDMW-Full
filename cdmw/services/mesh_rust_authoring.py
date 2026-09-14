@@ -3446,6 +3446,24 @@ def _material_input_is_renderer_role_eligible(
         for character in str(getattr(value, "parameter_name", "") or "").casefold()
         if character.isalnum()
     )
+    if (
+        role == "base_color"
+        and parameter_name == "basecolortexture"
+        and authority == "authoritative"
+        and disposition == "promoted"
+        and source_kind == "crimson_hair_base"
+        and not layer_role
+        and not layer_channel
+    ):
+        # Native Preview Core already selected this exact sidecar Hair base
+        # for the draw batch. Its source wrapper can differ from the editable
+        # part's index, especially when that batch has other material owners.
+        # Keep the selected DDS (and its alpha) without relaxing owner checks
+        # for guesses, unpromoted layers or any other texture role.
+        input_path = _material_input_dds_path(value)
+        return input_path is not None and input_path == _first_resolved_dds_path(
+            source, ("preview_texture_dds_path", "preview_texture_path")
+        )
     if role == "flow":
         # Hair Flow is a renderer input, despite the registry correctly
         # classifying it as layer-local control data.  Publish only the exact
