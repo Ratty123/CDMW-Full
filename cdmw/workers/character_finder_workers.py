@@ -146,6 +146,7 @@ class CharacterFinderRenderWorker(QObject):
     completed = Signal(int, object)
     failed = Signal(int, str)
     cache_missed = Signal(int)
+    progress = Signal(int, str, int, int)
     finished = Signal()
 
     def __init__(self, token: int, inputs: CharacterPreviewInputs, *, cache_root: Path,
@@ -177,8 +178,12 @@ class CharacterFinderRenderWorker(QObject):
             # leaving unrelated render keys free to run in parallel.
             lock = dotnet_preview_package_cache_build_lock(self.cache_root / "character_finder", key)
             announced_package = False
+            announced_wait = False
             while not lock.acquire(timeout=0.05):
                 self._check()
+                if not announced_wait:
+                    self.progress.emit(self.token, "waiting_shared", 0, 0)
+                    announced_wait = True
                 if not announced_package:
                     ready = cached_character_package(self.cache_root, key)
                     if ready is not None:
@@ -200,6 +205,7 @@ class CharacterFinderRenderWorker(QObject):
             self.finished.emit()
 
     def _render_or_reuse(self, key):
+        self.progress.emit(self.token, "checking_cache", 0, 0)
         cached = cached_character_render(self.cache_root, key)
         if cached:
             self._remember_thumbnail(cached)
@@ -223,6 +229,7 @@ class CharacterFinderRenderWorker(QObject):
         try:
             self._check()
             self.package_ready.emit(self.token, result)
+            self.progress.emit(self.token, "rendering_thumbnail", 0, 0)
             image_path = self._capture(package, key)
             self._check()
             result = replace(result, thumbnail_path=str(image_path))
@@ -249,6 +256,7 @@ class CharacterFinderRenderWorker(QObject):
                                      self.inputs.detail.row.key, result)
 
     def _build_package(self, key: str):
+        self.progress.emit(self.token, "preparing_geometry", 0, 0)
         if not self.inputs.dependencies_complete:
             raise ValueError("Character preview dependencies are incomplete. Inspect the selected model's files and resolution evidence.")
         from cdmw.core.archive import build_archive_entry_path_index, build_archive_entry_basename_index, read_archive_entry_data
@@ -333,6 +341,7 @@ class CharacterFinderRenderWorker(QObject):
         stage_root = self.cache_root / "character_finder" / "staging"
         stage_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="native-", dir=stage_root) as stage_text:
+            self.progress.emit(self.token, "preparing_textures", 0, 0)
             attempt = run(self.settings, Path(stage_text) / "textured")
             self._check()
             if not attempt.succeeded:
@@ -342,6 +351,7 @@ class CharacterFinderRenderWorker(QObject):
             if missing:
                 notes = (*notes, missing)
                 status = "textures_unavailable"
+                self.progress.emit(self.token, "preparing_geometry", 0, 0)
                 attempt = run(replace(self.settings, use_textures_by_default=False), Path(stage_text) / "geometry")
                 self._check()
                 if not attempt.succeeded:
@@ -349,6 +359,7 @@ class CharacterFinderRenderWorker(QObject):
             # Multi-page lookahead needs room to retain the models it prepares.
             # Reuse the existing 2 GiB policy rather than the 512 MiB default.
             maximum, target = dotnet_preview_package_cache_budget("aggressive")
+            self.progress.emit(self.token, "saving_preview", 0, 0)
             package = build_or_lookup_rust_preview_package(attempt.package_path, cache_root=self.cache_root,
                 archive_identity=key, cache_mode="aggressive", max_bytes=maximum, target_bytes=target,
                 cancelled=self._stop.is_set,

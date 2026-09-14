@@ -23,6 +23,7 @@ from cdmw.workers.character_finder_workers import (
 
 class _CacheLookup(QObject):
     completed = Signal(int, object)
+    failed = Signal(int, str)
     finished = Signal()
 
     def __init__(self, token, root, key, row_root, row_key):
@@ -42,6 +43,8 @@ class _CacheLookup(QObject):
             if result is not None:
                 remember_character_thumbnail(self.row_root, self.row_key, result)
             self.completed.emit(self.token, result)
+        except Exception as error:
+            self.failed.emit(self.token, str(error))
         finally:
             self.finished.emit()
 
@@ -82,6 +85,7 @@ class _CharacterPreviewLane(QObject):
     package_ready = Signal(str, object)
     thumbnail_ready = Signal(str, object)
     failed = Signal(str, str)
+    progress = Signal(str, str, int, int)
     idle = Signal()
 
     def __init__(self, service, *, fingerprint: str, cache_root: Path, settings, parent=None):
@@ -94,6 +98,7 @@ class _CharacterPreviewLane(QObject):
         self._preparation = CharacterPreviewPreparation(service, self)
         self._preparation.ready.connect(self._prepared)
         self._preparation.failed.connect(self._preparation_failed)
+        self._preparation.progress.connect(self._report_progress)
         service.result_ready.connect(self._detail_ready)
         service.request_failed.connect(self._detail_failed)
         service.request_cancelled.connect(self._detail_cancelled)
@@ -109,6 +114,7 @@ class _CharacterPreviewLane(QObject):
         self._active_key = ""
         self._active_detail = None
         self._active_package = None
+        self._activity = ("queued", 0, 0)
         self._thread = None
         self._worker = None
         self._next = None
@@ -139,6 +145,7 @@ class _CharacterPreviewLane(QObject):
             self._selected_pending = False
             if self._active_package is not None:
                 self.package_ready.emit(detail.row.key, self._active_package)
+            self.progress.emit(self._active_key, *self._activity)
             return
         self._selected_pending = True
         self._generation = generation
@@ -161,6 +168,7 @@ class _CharacterPreviewLane(QObject):
         self._active_key = ""
         self._active_detail = None
         self._active_package = None
+        self._activity = ("queued", 0, 0)
         self._preparation.cancel()
         request, self._request = self._request, None
         if request:
@@ -198,6 +206,7 @@ class _CharacterPreviewLane(QObject):
             self._check_cache(detail)
         else:
             try:
+                self._report_progress(self._token, "reading_details")
                 self._request = self._service.get_character_catalog_detail(
                     CharacterCatalogDetailRequest(self._session_id, key), ui_generation=self._token)
             except Exception as error:
@@ -224,9 +233,11 @@ class _CharacterPreviewLane(QObject):
     def _check_cache(self, detail):
         detail = character_preview_detail(detail)
         self._active_detail = detail
+        self._report_progress(self._token, "checking_cache")
         worker = _CacheLookup(self._token, self._cache_root, character_render_key(detail, self._fingerprint, self._settings),
             character_row_cache_root(self._cache_root, self._fingerprint, self._settings), detail.row.key)
         worker.completed.connect(self._cache_ready)
+        worker.failed.connect(self._preparation_failed)
         self._start_thread(worker)
 
     def _cache_ready(self, token, result):
@@ -284,6 +295,7 @@ class _CharacterPreviewLane(QObject):
         worker.package_ready.connect(self._deliver_package)
         worker.completed.connect(self._render_ready)
         worker.failed.connect(self._preparation_failed)
+        worker.progress.connect(self._report_progress)
         if cache_only:
             worker.cache_missed.connect(self._cache_missed)
         self._start_thread(worker)
@@ -318,6 +330,12 @@ class _CharacterPreviewLane(QObject):
         if token == self._token and not self._closed:
             self._fail(message)
 
+    @Slot(int, str, int, int)
+    def _report_progress(self, token, stage, completed=0, total=0):
+        if not self._closed and token == self._token and self._active_key:
+            self._activity = (stage, completed, total)
+            self.progress.emit(self._active_key, stage, completed, total)
+
     def _fail(self, message):
         transient = any(marker in str(message).casefold() for marker in (
             "access to the path", "being used by another process", "[winerror 5]", "[winerror 32]"))
@@ -325,6 +343,7 @@ class _CharacterPreviewLane(QObject):
             # Keep the assignment and retry its cache after the failed worker has
             # retired. Other lanes keep loading; page changes cancel this timer.
             self._retry_count += 1
+            self._report_progress(self._token, "retrying")
             if self._thread is not None:
                 self._next = "retry"
             else:
@@ -347,6 +366,7 @@ class CharacterFinderPreviewController(QObject):
     package_ready = Signal(str, object)
     thumbnail_ready = Signal(str, object)
     failed = Signal(str, str)
+    progress = Signal(str, str, int, int)
     idle = Signal()
 
     def __init__(self, service, *, fingerprint, cache_root, settings, parent=None, max_lanes=None):
@@ -386,6 +406,7 @@ class CharacterFinderPreviewController(QObject):
             lane.package_ready.connect(self._package_ready)
             lane.thumbnail_ready.connect(self._thumbnail_ready)
             lane.failed.connect(self._failed)
+            lane.progress.connect(self._lane_progress)
             lane.idle.connect(self._lane_idle)
 
     @property
@@ -471,6 +492,9 @@ class CharacterFinderPreviewController(QObject):
             if self._assigned.get(lane) not in self._rows:
                 self._assigned.pop(lane, None)
                 lane.clear_page()
+        previous_key = self._assigned.get(selected_lane)
+        if previous_key in self._rows and previous_key != detail.row.key:
+            self.progress.emit(previous_key, "queued", 0, 0)
         self._assigned[selected_lane] = detail.row.key
         selected_lane._visible.clear()
         selected_lane.select(detail, generation)
@@ -497,6 +521,8 @@ class CharacterFinderPreviewController(QObject):
         self._priority_keys = set(rows) if priority_keys is None else set(priority_keys).intersection(rows)
         self._session_id, self._generation = session_id, generation
         for lane, key in tuple(self._assigned.items()):
+            if key in rows and lane._active_key == key:
+                self.progress.emit(key, *lane._activity)
             if key not in self._rows and key != self._selected_key and (
                     key not in self._prefetch_rows or not self._done.issuperset(self._priority_keys)):
                 self._assigned.pop(lane, None)
@@ -624,6 +650,10 @@ class CharacterFinderPreviewController(QObject):
     def _package_ready(self, key, result):
         if not self._closed and key == self._selected_key:
             self.package_ready.emit(key, result)
+
+    def _lane_progress(self, key, stage, completed, total):
+        if not self._closed and self._assigned.get(self.sender()) == key:
+            self.progress.emit(key, stage, completed, total)
 
     def _thumbnail_ready(self, key, result):
         self._assigned.pop(self.sender(), None)

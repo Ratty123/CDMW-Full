@@ -57,6 +57,9 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Humanoids ({value_0})", "Head ({value_0})",
         "Unresolved model", "Ambiguous", "Embedded face",
         "The previous preview is still shown.",
+        "Queued", "Reading model details…", "Checking preview cache…", "Finding model files…",
+        "Preparing model files…", "Waiting for a matching preview…", "Preparing model geometry…",
+        "Preparing model textures…", "Saving preview…", "Rendering thumbnail…", "Retrying preview…",
         # Preview Core selects recovery guidance by the native filesystem error.
         "A required file is missing. Refresh the archive catalogue and select the model again.",
         "Access was denied. Check permissions for the workspace and source files.",

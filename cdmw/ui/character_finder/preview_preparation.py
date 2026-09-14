@@ -14,17 +14,22 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDe
 class CharacterPreviewPreparation(QObject):
     ready = Signal(int, object)
     failed = Signal(int, str)
+    progress = Signal(int, str, int, int)
 
     def __init__(self, service: object, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._service = service
-        self._provider = ArchiveRemotePreviewDependencyProvider(service, self)
+        # Finder renders prepared bytes directly; Archive Browser's detailed
+        # text/structure analysis adds another PAC decode that Finder never uses.
+        self._provider = ArchiveRemotePreviewDependencyProvider(service, self, include_content_analysis=False)
         self._provider.ready.connect(self._model_ready)
         self._provider.failed.connect(self._failed)
+        self._provider.progress.connect(self._model_progress)
         service.result_ready.connect(self._result)
         service.batch_ready.connect(self._batch)
         service.request_failed.connect(self._request_failed)
         service.request_cancelled.connect(self._request_cancelled)
+        service.progress.connect(self._progress)
         self._request = None
         self._detail = None
         self._token = 0
@@ -76,6 +81,7 @@ class CharacterPreviewPreparation(QObject):
         try:
             self._request = self._service.resolve_entries(ArchiveLookupRequest(detail.session_id,
                 ArchiveLookupKind.ENTRY_IDS, entry_ids=extra, limit=len(extra)), ui_generation=self._token)
+            self.progress.emit(self._token, "finding_files", 0, len(extra))
         except Exception as error:
             self._failed(self._token, str(error))
 
@@ -117,6 +123,7 @@ class CharacterPreviewPreparation(QObject):
             try:
                 self._request = self._service.prepare_entries(PrepareEntriesRequest(detail.session_id,
                     tuple(e.entry_id for e in self._extra_dtos)), ui_generation=self._token)
+                self.progress.emit(self._token, "preparing_files", 0, len(self._extra_dtos))
             except Exception as error:
                 self._failed(self._token, str(error))
         elif isinstance(result, PrepareEntriesResult):
@@ -147,6 +154,15 @@ class CharacterPreviewPreparation(QObject):
     def _request_failed(self, request: str, error: object) -> None:
         if request == self._request:
             self._failed(self._token, str(getattr(error, "message", error)))
+
+    def _model_progress(self, token: int, stage: str, completed: int, total: int) -> None:
+        if self._detail is not None and token == self._token:
+            self.progress.emit(token, stage, completed, total)
+
+    def _progress(self, request: str, update: object) -> None:
+        if self._detail is not None and request == self._request:
+            stage = "preparing_files" if self._extra_dtos else "finding_files"
+            self.progress.emit(self._token, stage, update.completed, update.total)
 
     def _request_cancelled(self, request: str) -> None:
         if request == self._request:

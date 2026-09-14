@@ -50,6 +50,7 @@ class Preview(QObject):
     package_ready = Signal(str, object)
     thumbnail_ready = Signal(str, object)
     failed = Signal(str, str)
+    progress = Signal(str, str, int, int)
     idle = Signal()
     busy = False
     page_complete = False
@@ -172,6 +173,74 @@ def test_failed_cards_show_the_error_state_and_successful_retry_restores_the_cap
     QImage(4, 4, QImage.Format.Format_RGB32).save(str(image))
     dialog._preview.thumbnail_ready.emit("asset:1", CharacterRenderResult("ready", "package", str(image), "base_appearance", ()))
     assert "Preview unavailable" not in dialog._items["asset:1"].text()
+
+
+def test_loading_stages_counts_animation_and_host_completion_are_independent(finder, tmp_path):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1), row(2)])
+    assert "2 queued" in dialog._loading_summary.text()
+    assert "Queued" in dialog._items["asset:1"].text()
+    assert not dialog._preview_busy.isHidden()
+    service.result_ready.emit(dialog._requests["detail"], "detail", detail(row(1)))
+    assert dialog._preview_status.text() == "Preparing preview…"
+
+    dialog._preview.progress.emit("asset:1", "preparing_files", 3, 8)
+    dialog._preview.progress.emit("asset:2", "rendering_thumbnail", 0, 0)
+    assert "Preparing model files… · 3/8" in dialog._items["asset:1"].text()
+    assert "3/8" in dialog._preview_status.text()
+    assert "2 loading" in dialog._loading_summary.text()
+    assert dialog._loading_timer.isActive()
+    # Exercise the real delegate through an offscreen widget render.
+    assert not dialog._grid.grab().isNull()
+
+    preview = CharacterRenderResult("render", "package", "", "base_appearance", ())
+    dialog._preview.package_ready.emit("asset:1", preview)
+    dialog._preview.progress.emit("asset:1", "rendering_thumbnail", 0, 0)
+    assert dialog._preview_status.text() == "Opening interactive preview…"
+    assert not dialog._preview_busy.isHidden()
+    dialog._host.package_applied.emit(preview.package_path, 4)
+    assert dialog._preview_busy.isHidden()
+    assert dialog._preview_status.text() == "Base appearance"
+    assert dialog._loading_timer.isActive()  # Thumbnail capture still runs.
+
+    image = tmp_path / "thumb.png"
+    from PySide6.QtGui import QPixmap
+    pixels = QPixmap(8, 8)
+    pixels.fill()
+    assert pixels.save(str(image))
+    dialog._preview.thumbnail_ready.emit("asset:1", replace(preview, thumbnail_path=str(image)))
+    dialog._preview.failed.emit("asset:2", "fixture failure")
+    assert dialog._page_progress.value() == 2
+    assert "1/2 ready" in dialog._loading_summary.text() and "1 unavailable" in dialog._loading_summary.text()
+    assert not dialog._loading_timer.isActive()
+    dialog._preview.progress.emit("asset:2", "retrying", 0, 0)
+    assert "Retrying preview…" in dialog._items["asset:2"].text()
+    assert "0 unavailable" in dialog._loading_summary.text() and dialog._loading_timer.isActive()
+    dialog._preview.thumbnail_ready.emit("asset:2", replace(preview, thumbnail_path=str(image)))
+    assert "2/2 ready" in dialog._loading_summary.text()
+    assert "fixture failure" not in dialog._items["asset:2"].toolTip()
+    assert not dialog._loading_timer.isActive()
+    dialog._host.package_failed.emit(preview.package_path, 4, "fixture host failure")
+    assert "2/2 ready" in dialog._loading_summary.text()  # Existing images remain usable.
+
+
+def test_obsolete_loading_events_cannot_restart_indicators_after_search_or_close(finder):
+    dialog, service, _ = finder
+    publish_rows(dialog, service, [row(1)])
+    dialog._preview.progress.emit("asset:1", "finding_files", 0, 0)
+    dialog._search_edit.setText("another body")
+    dialog._preview.progress.emit("asset:1", "preparing_files", 2, 4)
+    assert dialog._loading_summary.text() == ""
+    assert dialog._preview_busy.isHidden() and not dialog._loading_timer.isActive()
+    dialog._search()
+    publish_rows(dialog, service, [row(2)])
+    before = dialog._loading_summary.text()
+    dialog._preview.progress.emit("asset:1", "rendering_thumbnail", 0, 0)
+    assert dialog._loading_summary.text() == before
+    dialog._preview.progress.emit("asset:2", "preparing_geometry", 0, 0)
+    dialog.close()
+    dialog._preview.progress.emit("asset:2", "saving_preview", 0, 0)
+    assert not dialog._loading_timer.isActive() and dialog._preview_busy.isHidden()
 
 
 def test_next_page_request_starts_immediately_and_is_promoted_without_requery(finder):
@@ -529,7 +598,7 @@ def test_finder_cards_and_filters_translate_without_changing_ids(finder, tmp_pat
     dialog, service, _ = finder
     localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="fr")
     localizer.register_root(dialog)
-    publish_rows(dialog, service, [row(1, role="facial_detail", preview_status="unresolved_model")])
+    publish_rows(dialog, service, [row(1, role="facial_detail", preview_status="unresolved_model", model_count=0), row(2)])
     localizer.apply_registered_roots()
     assert dialog._grid.item(0).data(feature.Qt.ItemDataRole.UserRole) == "asset:1"
     assert "Détail du visage" in dialog._grid.item(0).text()
@@ -537,9 +606,14 @@ def test_finder_cards_and_filters_translate_without_changing_ids(finder, tmp_pat
     assert dialog._filters["source_group"].currentData() == "humanoid"
     assert "Humanoïdes" in dialog._filters["source_group"].currentText()
     assert dialog._view.currentData() == "assets"
-    dialog._thumbnail_ready("asset:1", CharacterRenderResult("cache", "package", "thumbnail.png", "textures_unavailable", ()))
+    assert "En attente" in dialog._items["asset:2"].text()
+    dialog._preview.progress.emit("asset:2", "preparing_files", 1, 3)
     localizer.apply_registered_roots()
-    assert "Textures indisponibles" in dialog._grid.item(0).text()
+    assert "Préparation des fichiers du modèle…" in dialog._items["asset:2"].text()
+    assert "1/3" in dialog._items["asset:2"].text()
+    dialog._thumbnail_ready("asset:2", CharacterRenderResult("cache", "package", "thumbnail.png", "textures_unavailable", ()))
+    localizer.apply_registered_roots()
+    assert "Textures indisponibles" in dialog._items["asset:2"].text()
     localizer.load_language("en")
     localizer.apply_registered_roots()
     localizer.shutdown()

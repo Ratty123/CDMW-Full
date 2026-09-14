@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from cdmw.domain.archives.catalogue import ArchiveLookupResult
+from cdmw.domain.archives.catalogue import ArchiveAssociationResult, ArchiveLookupResult
 from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult
 from cdmw.domain.archives.character_catalogue import CharacterCatalogFile, CharacterCatalogComponent
 from cdmw.domain.character_finder import CharacterRenderResult, character_preview_detail, character_underwear_submesh_indices
@@ -45,6 +45,7 @@ class Service(_CatalogueService):
 class Preparation(QObject):
     ready = Signal(int, object)
     failed = Signal(int, str)
+    progress = Signal(int, str, int, int)
 
     def __init__(self, service, parent):
         super().__init__(parent)
@@ -89,6 +90,7 @@ def test_parallel_page_continues_without_scroll_and_preserves_selection_priority
         package_ready = Signal(int, object)
         completed = Signal(int, object)
         failed = Signal(int, str)
+        progress = Signal(int, str, int, int)
         finished = Signal()
         def __init__(self, token, selected, **kw):
             super().__init__()
@@ -155,6 +157,7 @@ def page_scheduler(monkeypatch, tmp_path, request):
         package_ready = Signal(int, object)
         completed = Signal(int, object)
         failed = Signal(int, str)
+        progress = Signal(int, str, int, int)
         finished = Signal()
         def __init__(self, token, selected, **kwargs):
             super().__init__()
@@ -282,6 +285,7 @@ def test_render_failure_waits_for_thread_retirement_before_retrying(controller, 
         package_ready = Signal(int, object)
         completed = Signal(int, object)
         failed = Signal(int, str)
+        progress = Signal(int, str, int, int)
         finished = Signal()
         def __init__(self, token, inputs, **kwargs):
             super().__init__()
@@ -547,6 +551,7 @@ def test_selecting_a_running_card_reuses_its_package_without_restarting(monkeypa
         package_ready = Signal(int, object)
         completed = Signal(int, object)
         failed = Signal(int, str)
+        progress = Signal(int, str, int, int)
         finished = Signal()
         def __init__(self, token, selected, **kwargs):
             super().__init__()
@@ -800,12 +805,15 @@ def test_cached_page_loads_without_catalogue_details_and_invalidates_stale_links
 def test_selected_job_cancels_old_thread_and_rejects_its_late_result(controller, monkeypatch):
     owner, service = controller
     jobs, delivered = [], []
+    progress = []
+    owner.progress.connect(lambda *event: progress.append(event))
     monkeypatch.setattr(module, "cached_character_render", lambda *_: None)
 
     class Worker(QObject):
         package_ready = Signal(int, object)
         completed = Signal(int, object)
         failed = Signal(int, str)
+        progress = Signal(int, str, int, int)
         finished = Signal()
 
         def __init__(self, token, selected, **kw):
@@ -829,8 +837,14 @@ def test_selected_job_cancels_old_thread_and_rejects_its_late_result(controller,
     owner.visible([row(3)], session_id="session-a", generation=1)
     owner.select(detail(row(1)), 1)
     wait_for(lambda: len(jobs) == 1)
+    jobs[0].progress.emit(jobs[0].token, "preparing_textures", 0, 0)
+    wait_for(lambda: progress[-1][1] == "preparing_textures")
     owner.select(detail(row(2)), 2)
     assert jobs[0].stopped.is_set()
+    before = tuple(progress)
+    jobs[0].progress.emit(jobs[0].token, "rendering_thumbnail", 0, 0)
+    _APP.processEvents()
+    assert tuple(progress) == before
     QTest.qWait(25)
     assert len(jobs) == 1  # Replacement waits for actual teardown, not just stop().
     jobs[0].release.set()
@@ -868,6 +882,83 @@ def test_warm_thumbnail_and_preview_reuse_without_preparation(controller, tmp_pa
     assert key != character_render_key(replace(selected, context_key="other appearance"), "fp", owner._settings)
     (package / "manifest.json").unlink()
     assert cached_character_render(tmp_path, key) is None
+
+
+def test_finder_prepares_all_dependencies_without_unused_content_analysis_and_reports_live_progress():
+    service = Service()
+    preparation = CharacterPreviewPreparation(service)
+    model, texture = _dto(1, "character/head.pac"), _dto(2, "texture/head.dds")
+    selected = replace(detail(row(1)), models=(model,))
+    progress, results = [], []
+    preparation.progress.connect(lambda *event: progress.append(event))
+    preparation.ready.connect(lambda _token, value: results.append(value))
+    preparation.start(selected, 7)
+    assert progress[-1] == (7, "finding_files", 0, 0)
+    service.result_ready.emit("association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 1, (texture,), 1, False))
+    request = service.requests[-1][0]
+    assert request.entry_ids == (1, 2) and request.content_analysis_entry_id is None
+    assert progress[-1] == (7, "preparing_files", 0, 2)
+    service.progress.emit("prepare-2", SimpleNamespace(completed=1, total=2))
+    assert progress[-1] == (7, "preparing_files", 1, 2)
+    service.result_ready.emit("prepare-2", "prepare_entry",
+        PrepareEntriesResult("session-a", (_prepared(model), _prepared(texture)), 2, 2, 80))
+    assert len(results) == 1 and results[0].dependencies_complete
+    assert {entry.path for entry in results[0].entries} == {model.path, texture.path}
+    assert all(entry.prepared_path for entry in results[0].entries)
+    count = len(progress)
+    service.progress.emit("prepare-2", SimpleNamespace(completed=2, total=2))
+    assert len(progress) == count
+
+
+def test_external_dependency_cancellation_releases_lane_and_ignores_late_progress(tmp_path):
+    global _APP
+    _APP = QApplication.instance() or QApplication([])
+    service = Service()
+    owner = module._CharacterPreviewLane(service, fingerprint="fp", cache_root=tmp_path,
+        settings=ModelPreviewRenderSettings())
+    first = replace(detail(row(1)), models=(_dto(1, "character/body.pac"),))
+    second = replace(detail(row(2)), models=(_dto(2, "character/next.pac"),))
+    owner._details.update({("session-a", first.row.key): first, ("session-a", second.row.key): second})
+    failures, progress = [], []
+    owner.failed.connect(lambda key, _message: failures.append(key))
+    owner.progress.connect(lambda *event: progress.append(event))
+    try:
+        owner.visible([first.row, second.row], session_id="session-a", generation=4)
+        wait_for(lambda: owner._preparation._provider.pending_ui_request_id is not None)
+        request = owner._preparation._provider._pending.request_id
+        service.request_cancelled.emit(request)
+        wait_for(lambda: owner._active_key == second.row.key and owner._preparation._provider.pending_ui_request_id is not None)
+        assert failures == [first.row.key]
+        count = len(progress)
+        service.progress.emit(request, SimpleNamespace(completed=8, total=9))
+        assert len(progress) == count
+        owner.shutdown()  # Owner-initiated cancellation remains silent.
+        assert failures == [first.row.key]
+    finally:
+        owner.shutdown()
+        wait_for(lambda: not owner.busy)
+        owner.deleteLater()
+        _APP.processEvents()
+
+
+def test_unexpected_cache_read_failure_cannot_strand_the_remaining_cards(controller, monkeypatch):
+    owner, _service = controller
+    selected = [detail(row(1)), detail(row(2))]
+    for value in selected:
+        owner._details[(value.session_id, value.row.key)] = value
+    bad_key = character_render_key(selected[0], "fp", owner._settings)
+    def cached(_root, key):
+        if key == bad_key:
+            raise RuntimeError("fixture cache reader failed")
+        return CharacterRenderResult(key, "package", "thumbnail", "base_appearance", ())
+    monkeypatch.setattr(module, "cached_character_render", cached)
+    failures, delivered = [], []
+    owner.failed.connect(lambda key, _message: failures.append(key))
+    owner.thumbnail_ready.connect(lambda key, _result: delivered.append(key))
+    owner.visible([value.row for value in selected], session_id="session-a", generation=1)
+    wait_for(lambda: bool(delivered) and not owner.busy)
+    assert failures == ["asset:1"] and delivered == ["asset:2"]
 
 
 def test_extra_context_lookup_cannot_publish_missing_entries_as_complete():
@@ -1064,8 +1155,11 @@ def test_interrupted_thumbnail_retains_ready_3d_package_and_retries_only_capture
         cache_root=tmp_path, fingerprint="fp", settings=settings, cache_only=True)
     second._build_package = lambda *_: pytest.fail("A ready 3D package was rebuilt")
     second._capture = lambda _package, _key: _capture_fixture(tmp_path, _key)
+    stages = []
+    second.progress.connect(lambda _token, stage, _completed, _total: stages.append(stage))
     second.completed.connect(lambda _token, result: delivered.append(result))
     second.run()
+    assert stages == ["checking_cache", "rendering_thumbnail"]
     assert len(builds) == 1 and len(delivered) == 1 and delivered[0].cache_hit
     assert cached_character_render(tmp_path, key) is not None
     assert not list(tmp_path.rglob("*.tmp"))

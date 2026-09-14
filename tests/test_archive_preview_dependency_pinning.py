@@ -27,7 +27,7 @@ def _app() -> QApplication:
 
 
 class _Service:
-    """The provider only connects to these four signals in __init__."""
+    """Signals consumed by the dependency provider."""
 
     class _Sig:
         def connect(self, _slot) -> None:
@@ -37,6 +37,7 @@ class _Service:
     result_ready = _Sig()
     request_failed = _Sig()
     request_cancelled = _Sig()
+    progress = _Sig()
 
 
 def _entry(path: str, offset: int) -> ArchiveEntry:
