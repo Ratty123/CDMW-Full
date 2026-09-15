@@ -44,7 +44,7 @@ def model_source_cleanup_task(source: object) -> Task:
 
 
 def list_archive_entries(
-    package_root: Path, log: LogSink, stop_event: threading.Event, *, preview_warmup=None,
+    package_root: Path, log: LogSink, stop_event: threading.Event, *, preview_warmup=None, progress=None,
 ) -> tuple[ArchiveEntry, ...]:
     """Every entry of every package table under `package_root`, read directly.
 
@@ -64,6 +64,8 @@ def list_archive_entries(
     entries: list[ArchiveEntry] = []
     for index, pamt in enumerate(tables, start=1):
         raise_if_cancelled(stop_event, "New item snapshot cancelled.")
+        if progress:
+            progress(index - 1, len(tables), f"Reading archive indexes: {pamt.parent.name}/{pamt.name}")
         try:
             batch = parse_archive_pamt(pamt)
             entries.extend(batch)
@@ -73,6 +75,8 @@ def list_archive_entries(
             raise ValueError(f"Cannot read archive index {pamt}; New Item needs a complete source catalogue: {error}") from error
         if index % 8 == 0 or index == len(tables):
             log(f"Listed {index}/{len(tables)} package tables, {len(entries):,} entries so far...")
+    if progress:
+        progress(len(tables), len(tables), "Archive indexes loaded.")
     return tuple(entries)
 
 

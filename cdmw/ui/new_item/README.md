@@ -454,6 +454,11 @@ installed CDMW overlays with the current game. The same action is available besi
 **Read the archives** before the item catalogue loads. Disable an exported mod in its mod
 manager before comparing it. Installed CDMW overlays are excluded from the current
 game baseline and reviewed together using their recorded installation history.
+Comparison resolves each archive table's location once for the whole lookup.
+The progress bar shows measured percentages and completed/total work for the
+current stage, including archive indexes, file lookup, overlay history and file
+comparison. It restarts for each stage; these counts are not a time estimate.
+Stages without a known work total show their activity without a percentage.
 The review shows the original and current game builds, compared files, missing
 originals, changed dependencies and merge conflicts. Supported independent table
 changes can be carried forward; conflicting records, reused IDs and overlapping

@@ -41,7 +41,7 @@ def test_close_cancels_without_waiting_and_drops_late_results(app, tmp_path, mon
     from cdmw.domain.cancellation import raise_if_cancelled
     started, cancelled = threading.Event(), threading.Event()
     def factory(*args, **kwargs):
-        def task(log, stop):
+        def task(log, progress, stop):
             started.set()
             stop.wait(3)
             if stop.is_set():
@@ -69,16 +69,58 @@ def test_close_cancels_without_waiting_and_drops_late_results(app, tmp_path, mon
 def test_selection_change_rejects_pending_comparison(app, tmp_path):
     controller = NewItemStudioController(synchronous=True)
     pending = []
-    controller._run = lambda lane, task, done, failed: pending.append(done) or True
+    controller._run = lambda lane, task, done, failed, **kwargs: pending.append(done) or True
     dialog = ModUpdateDialog(controller, tmp_path / "game")
     try:
         dialog.folder.setText(str(tmp_path / "first"))
         dialog.scan_button.click()
+        controller.operation_progress.emit("mod_update", 1, 4, "Reading overlay history: first")
+        assert dialog.progress.value() == 1 and "25%" in dialog.progress.text()
         dialog.folder.setText(str(tmp_path / "second"))
+        changed_status = dialog.status.text()
+        controller.operation_progress.emit("mod_update", 3, 4, "Stale progress")
+        assert dialog.status.text() == changed_status
         pending[0](SimpleNamespace(can_update=True))
         assert dialog._plan is None and not dialog.export_button.isEnabled()
     finally:
         dialog.reject()
+        controller.deleteLater()
+
+
+def test_progress_reaches_dialog_on_gui_thread_and_ignores_other_operations(app, tmp_path, monkeypatch):
+    from PySide6.QtCore import QThread
+    from cdmw.ui.new_item import mod_update_dialog
+    from cdmw.domain.cancellation import raise_if_cancelled
+    release = threading.Event()
+
+    def factory(*args, **kwargs):
+        def task(log, progress, stop):
+            progress(1, 4, "Reading overlay history: second")
+            release.wait(3)
+            raise_if_cancelled(stop)
+            raise ValueError("fixture completed")
+        return task
+
+    monkeypatch.setattr(mod_update_dialog, "mod_update_scan_task", factory)
+    controller = NewItemStudioController()
+    dialog = ModUpdateDialog(controller, tmp_path / "game", installed=True)
+    threads = []
+    dialog.progress.valueChanged.connect(lambda _value: threads.append(QThread.currentThread()))
+    try:
+        dialog.scan_button.click()
+        drain(app, lambda: dialog.progress.value() == 1)
+        assert dialog.progress.maximum() == 4 and "25%" in dialog.progress.text()
+        assert dialog.progress.isTextVisible()
+        assert dialog.status.text() == "Reading overlay history: second"
+        assert threads and all(thread == app.thread() for thread in threads)
+        controller.operation_progress.emit("model_import", 9, 10, "Other operation")
+        assert dialog.progress.value() == 1
+        controller.operation_progress.emit("mod_update", 0, 0, "Verifying compared data")
+        assert dialog.progress.maximum() == 0 and dialog.progress.text() == ""
+    finally:
+        dialog.reject()
+        release.set()
+        drain(app, lambda: not controller.busy)
         controller.deleteLater()
 
 

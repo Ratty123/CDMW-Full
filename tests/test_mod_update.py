@@ -1,6 +1,7 @@
 """Game updates preserve new game rows, original packages, and unknown history."""
 from dataclasses import replace
 import json
+from pathlib import Path
 import threading
 
 import pytest
@@ -126,27 +127,35 @@ def test_tampered_baseline_is_rejected(tmp_path):
         read_compatibility(tmp_path)
 
 
-def test_installed_overlays_record_build_and_export_comparison_without_mutation(tmp_path):
+@pytest.mark.parametrize("overlay_count", (1, 4))
+def test_installed_overlays_record_build_and_export_comparison_without_mutation(tmp_path, overlay_count):
     from cdmw.services.archive_overlay_manager import list_installed_overlays
-    from cdmw.services.mod_update_service import prepare_installed_overlay_update
+    from cdmw.workers.mod_update_workers import mod_update_scan_task
     from tests.test_archive_overlay_manager import Backups, snapshot_of
-    from cdmw.core.archive_format import discover_pamt_files
 
     service, snapshot, entries = setup_game(tmp_path)
     root = tmp_path / "game"
     (root / "meta/0.paver").write_text("2.00.00")
-    snapshot = snapshot_of(root)
-    plan = service.plan(replace(spec("Installed"), recipes=()), snapshot)
-    service.install_overlay(plan, mutation_service=Backups(tmp_path), confirmed=True, game_running=lambda: False)
+    for index in range(overlay_count):
+        snapshot = snapshot_of(root)
+        plan = service.plan(replace(spec(f"Installed{index}"), recipes=()), snapshot)
+        service.install_overlay(plan, mutation_service=Backups(tmp_path), confirmed=True, game_running=lambda: False)
     installed = list_installed_overlays(root)
+    assert len(installed) == overlay_count
     assert installed[0].game_build == "2.00.00"
     assert installed[0].compatibility_status == "same"
     (root / "meta/0.paver").write_text("2.00.01")
     assert list_installed_overlays(root)[0].compatibility_status == "changed"
-    entries = tuple(entry for pamt in discover_pamt_files(root) for entry in parse_archive_pamt(pamt))
     before = fingerprint(root)
-    checked = prepare_installed_overlay_update(root, entries=entries)
+    progress = []
+    checked = mod_update_scan_task("", root, installed=True)(
+        lambda _message: None, lambda *args: progress.append(args), threading.Event())
     assert checked.can_update, checked.conflicts
+    for prefix in ("Reading overlay history:", "Combining overlay changes:"):
+        assert [(current, total) for current, total, detail in progress if detail.startswith(prefix)] == [
+            (index, overlay_count) for index in range(overlay_count)]
+    for detail in ("Overlay history loaded.", "Overlay changes combined."):
+        assert (overlay_count, overlay_count, detail) in progress
     result = export_updated_mod(checked, tmp_path / "updated-overlays")
     assert payloads(result.package_root)
     assert fingerprint(root) == before
@@ -264,3 +273,63 @@ def test_overlay_history_change_during_load_is_rejected(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_overlay_manager, "_load_index", change_after_read)
     with pytest.raises(ValueError, match="Source changed while reading"):
         prepare_installed_overlay_update(root, entries=entries)
+
+
+def test_comparison_resolves_shared_tables_once_and_preserves_archive_order(tmp_path, monkeypatch):
+    from cdmw.services.mod_update_service import _reader_context
+    _service, _snapshot, entries = setup_game(tmp_path)
+    root = (tmp_path / "game").resolve()
+    original = entries[0]
+    first_table = original.pamt_path.with_name("1.pamt")
+    first_table.write_bytes(b"first index")
+    first = replace(original, pamt_path=first_table)
+    catalogue = [first, *([original] * 8192)]
+    resolved = []
+    resolve = Path.resolve
+
+    def count_resolve(path, *args, **kwargs):
+        if path.suffix == ".pamt":
+            resolved.append(path)
+        return resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", count_resolve)
+    progress = []
+    tracker, _hashes, _loose, current = _reader_context(root, catalogue,
+        lambda entry: entry.pamt_path.name.encode(), None, lambda *args: progress.append(args))
+    assert resolved == [first_table, original.pamt_path]
+    assert current(original.path.lower()) == b"1.pamt"
+    assert [update[0] for update in progress] == [0, 4096, 8192, len(catalogue)]
+    assert all(update[1] == len(catalogue) for update in progress)
+    # A cached table decision still pins every table, including a lower-priority one.
+    original.pamt_path.write_bytes(b"changed index")
+    with pytest.raises(ValueError, match="Source changed"):
+        tracker.capture().validate()
+
+
+def test_comparison_can_cancel_while_preparing_large_lookup(tmp_path):
+    from cdmw.services.mod_update_service import _reader_context
+    _service, _snapshot, entries = setup_game(tmp_path)
+    stop = threading.Event()
+    progress = []
+
+    def cancel(current, total, detail):
+        progress.append(current)
+        stop.set()
+
+    with pytest.raises(RunCancelled):
+        _reader_context((tmp_path / "game").resolve(), [entries[0]] * 10000, None, stop, cancel)
+    assert progress == [0]
+
+
+def test_comparison_task_reports_measured_stages(tmp_path):
+    from cdmw.workers.mod_update_workers import mod_update_scan_task
+    _plan, _snapshot, _entries, folder = exported(tmp_path)
+    progress = []
+    checked = mod_update_scan_task(folder, tmp_path / "game")(
+        lambda _message: None, lambda *args: progress.append(args), threading.Event())
+    assert checked.can_update, checked.conflicts
+    for prefix in ("Reading archive indexes:", "Preparing the game file lookup", "Comparing files:"):
+        measured = [(current, total) for current, total, detail in progress if detail.startswith(prefix)]
+        assert measured and all(0 <= current <= total and total > 0 for current, total in measured)
+    assert any(current == total > 0 and detail == "File comparison complete." for current, total, detail in progress)
+    assert progress[-1] == (0, 0, "Verifying the game build and compared data...")

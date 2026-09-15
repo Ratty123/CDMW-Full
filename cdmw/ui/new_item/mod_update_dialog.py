@@ -15,6 +15,7 @@ class ModUpdateDialog(QDialog):
         self.controller, self._plan = controller, None
         self._working = self._closed = False
         self._generation = 0
+        self._running_generation = None
         self.setWindowTitle("Check mods for game updates")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.resize(790, 570)
@@ -48,8 +49,9 @@ class ModUpdateDialog(QDialog):
         layout.addWidget(self.status)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
-        self.progress.setTextVisible(False)
-        self.progress.setMaximumHeight(6)
+        self.progress.setTextVisible(True)
+        self.progress.setFormat("%p% (%v / %m)")
+        self.progress.setToolTip("Progress is measured for the current stage. Stages can take different amounts of time.")
         layout.addWidget(self.progress)
         self.review = QPlainTextEdit()
         self.review.setReadOnly(True)
@@ -73,6 +75,7 @@ class ModUpdateDialog(QDialog):
         self.destination.textChanged.connect(self._buttons)
         self.finished.connect(self._finished)
         controller.busy_changed.connect(self._buttons)
+        controller.operation_progress.connect(self._operation_progress)
         self._buttons()
 
     def _folder_row(self, form, label, edit, title):
@@ -112,11 +115,22 @@ class ModUpdateDialog(QDialog):
         self.status.setText("Selection changed. Check compatibility before exporting.")
         self._buttons()
 
-    def _run(self, task, completed, message):
+    def _operation_progress(self, lane, current, total, detail):
+        if (lane != "mod_update" or self._closed or not self._working or
+                self._running_generation != self._generation):
+            return
+        self.status.setText(detail)
+        self.progress.setRange(0, max(0, total))
+        if total > 0:
+            self.progress.setValue(max(0, min(current, total)))
+
+    def _run(self, task, completed, message, *, task_accepts_progress=False):
         if self._closed:
             return
         generation = self._generation
+        self._running_generation = generation
         self._working = True
+        self.progress.setRange(0, 0)
         self.status.setText(message)
         self._buttons()
         def done(value):
@@ -132,13 +146,14 @@ class ModUpdateDialog(QDialog):
                 self.status.setText(str(error))
             if not self._closed:
                 self._buttons()
-        if not self.controller._run("mod_update", task, done, failed):
+        if not self.controller._run("mod_update", task, done, failed, task_accepts_progress=task_accepts_progress):
             failed("Wait for the current operation to finish, then try again.")
 
     def _scan(self):
         self._plan = None
         self._run(mod_update_scan_task(self.folder.text(), self.game_root.text(),
-            installed=bool(self.source_kind.currentData())), self._scanned, "Comparing the mod with current game data...")
+            installed=bool(self.source_kind.currentData())), self._scanned, "Comparing the mod with current game data...",
+            task_accepts_progress=True)
 
     def _scanned(self, plan):
         self._plan = plan

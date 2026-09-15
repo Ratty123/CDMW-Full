@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Checking mods for game updates avoids repeating archive-directory checks for every game file and shows measured progress percentages for each comparison stage.
 - New Item Model & Placement avoids an unintended 180-degree camera roll when opening a flat view along Y, keeping the grid and Y gizmo from appearing upside down after orbiting. Model fitting and output placement are unchanged.
 - Hardened New Item's Effects preview startup against a native Qt thread-construction crash.
 

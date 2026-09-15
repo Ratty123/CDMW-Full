@@ -52,21 +52,36 @@ class ModUpdatePlan:
             raise ValueError("The game build changed. Check compatibility again.")
 
 
-def _reader_context(game_root, entries, read_entry, stop_event):
+def _reader_context(game_root, entries, read_entry, stop_event, progress=None):
     from cdmw.core.archive_extraction import read_archive_entry_data
     from cdmw.services.archive_overlay_install import is_cdmw_overlay_directory
 
     tracker = SourceTracker(read_entry or (lambda entry: read_archive_entry_data(entry)[0]))
-    candidates, owned, hashes = {}, {}, []
-    for entry in entries:
-        directory = Path(entry.pamt_path).resolve().parent
-        if not directory.is_relative_to(game_root):
-            raise ValueError("An archive entry is outside the selected game folder.")
-        if directory not in owned:
-            owned[directory] = is_cdmw_overlay_directory(directory)
-            tracker.pin_file(Path(entry.pamt_path))
-        if not owned[directory]:
+    candidates, owned, tables, hashes = {}, {}, {}, []
+    total = len(entries) if hasattr(entries, "__len__") else 0
+    count = 0
+    for count, entry in enumerate(entries, start=1):
+        if (count - 1) % 4096 == 0:
+            raise_if_cancelled(stop_event, "Mod comparison cancelled.")
+            if progress:
+                progress(count - 1, total, "Preparing the game file lookup...")
+        # Millions of entries share a few dozen tables. Resolve and inspect each
+        # physical table once, while retaining archive order and source checks.
+        key = entry.pamt_path
+        if key not in tables:
+            pamt = Path(key)
+            directory = pamt.resolve().parent
+            if not directory.is_relative_to(game_root):
+                raise ValueError("An archive entry is outside the selected game folder.")
+            if directory not in owned:
+                owned[directory] = is_cdmw_overlay_directory(directory)
+            tracker.pin_file(pamt)
+            tables[key] = owned[directory]
+        if not tables[key]:
             candidates.setdefault(payload_path(entry.path), entry)
+    raise_if_cancelled(stop_event, "Mod comparison cancelled.")
+    if progress:
+        progress(count, total, "Preparing the game file lookup...")
     for relative in ("meta/0.papgt", "meta/0.paver", "meta/0.pathc"):
         tracker.pin_file(game_root / relative)
 
@@ -92,7 +107,7 @@ def _reader_context(game_root, entries, read_entry, stop_event):
     return tracker, hashes, loose, current
 
 
-def _compare(after, flags, evidence, current, stop_event):
+def _compare(after, flags, evidence, current, stop_event, progress=None):
     before = dict(evidence.originals) if evidence else {}
     conflicts, comparisons, output, new_baseline = [], [], {}, {}
     recorded = {row["path"]: row for row in evidence.files} if evidence else {}
@@ -101,8 +116,13 @@ def _compare(after, flags, evidence, current, stop_event):
             conflicts.append(f"{path}: the mod payload changed since its baseline was recorded. Re-export it with CDMW.")
     if set(recorded) - set(after):
         conflicts.append("Recorded files are missing from the mod. Restore or re-export the complete package.")
-    for paths in sorted({_group(path) for path in after}):
+    groups = sorted({_group(path) for path in after})
+    references = [record for record in evidence.dependencies if payload_path(record["path"]) not in after] if evidence else []
+    total = len(groups) + len(references)
+    for index, paths in enumerate(groups):
         raise_if_cancelled(stop_event, "Mod comparison cancelled.")
+        if progress:
+            progress(index, total, f"Comparing files: {paths[0]}")
         if any(path not in before for path in paths):
             comparisons.extend((path, "unknown") for path in paths)
             conflicts.append(f"{paths[0]}: original data is unavailable. Re-export using the original game build before updating.")
@@ -122,16 +142,19 @@ def _compare(after, flags, evidence, current, stop_event):
             comparisons.extend((path, "conflict") for path in paths)
             conflicts.append(f"{paths[0]}: {exc}")
     dependencies = []
-    for record in evidence.dependencies if evidence else ():
+    for index, record in enumerate(references, start=len(groups)):
+        raise_if_cancelled(stop_event, "Mod comparison cancelled.")
         path = payload_path(record["path"])
-        if path in after:
-            continue
+        if progress:
+            progress(index, total, f"Comparing files: {path}")
         live = current(path)
         if live is None or digest(live) != record["sha256"]:
             comparisons.append((path, "dependency_changed"))
             conflicts.append(f"{path}: a referenced source changed. Review the mod's references before rebuilding.")
         else:
             dependencies.append({"path": path, "sha256": digest(live)})
+    if progress:
+        progress(total, total, "File comparison complete.")
     if not after:
         conflicts.append("No supported mod payloads were found.")
     status = "unknown" if any(path not in before for path in after) or not after else (
@@ -139,12 +162,14 @@ def _compare(after, flags, evidence, current, stop_event):
     return output, new_baseline, tuple(comparisons), tuple(conflicts), tuple(dependencies), status
 
 
-def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_event=None, on_log=None):
+def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_event=None, on_log=None, progress=None):
     source, game_root = Path(folder).expanduser().resolve(), Path(game_root).expanduser().resolve()
     if source.is_relative_to(game_root) or game_root.is_relative_to(source):
         raise ValueError("Choose a mod folder separate from the game installation.")
     inventory = _inventory(source, stop_event)
-    tracker, hashes, loose, current = _reader_context(game_root, entries, read_entry, stop_event)
+    tracker, hashes, loose, current = _reader_context(game_root, entries, read_entry, stop_event, progress)
+    if progress:
+        progress(0, 0, "Reading the mod's recorded original data...")
     if on_log:
         on_log(f"Comparing {source.name} with the current game data...")
     evidence = read_compatibility(source, stop_event=stop_event)
@@ -205,7 +230,9 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
         if not isinstance(target, dict):
             target = {"game": "Crimson Desert", "build": str(package_info.get("game_build", "") or "")}
         evidence = compatibility_from_payloads(after, before, target_game=target)
-    output, baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, current, stop_event)
+    output, baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, current, stop_event, progress)
+    if progress:
+        progress(0, 0, "Verifying the game build and compared data...")
     identity = game_identity(game_root, stop_event)
     updated = compatibility_from_payloads(output, baseline, target_game=identity, dependencies=dependencies)
     label = str(package_info.get("title") or package_info.get("name") or source.name)
@@ -216,13 +243,15 @@ def prepare_mod_update(folder, game_root, *, entries, read_entry=None, stop_even
     return plan
 
 
-def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, stop_event=None, on_log=None):
+def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, stop_event=None, on_log=None, progress=None):
     """Review the installed set together so dependent layers stay together."""
     from cdmw.services.archive_overlay_manager import _load_index, _unpack_changes
     from cdmw.domain.archives.overlay_merge import legacy_texture_baseline
 
     root = Path(game_root).expanduser().resolve()
-    tracker, hashes, loose, current = _reader_context(root, entries, read_entry, stop_event)
+    tracker, hashes, loose, current = _reader_context(root, entries, read_entry, stop_event, progress)
+    if progress:
+        progress(0, 0, "Reading installed overlay history...")
     tracker.pin_file(root / ".cdmw/overlays.json")
     state = _load_index(root)
     if state is None or not any(layer["active"] for layer in state["layers"]):
@@ -230,8 +259,10 @@ def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, sto
     inventory = _inventory(root / ".cdmw", stop_event)
     loose(root / ".cdmw/overlays.json")
     baseline, after, flags, layers, identities, items = {}, {}, {}, [], [], []
-    for layer in state["layers"]:
+    for index, layer in enumerate(state["layers"]):
         raise_if_cancelled(stop_event, "Overlay comparison cancelled.")
+        if progress:
+            progress(index, len(state["layers"]), f"Reading overlay history: {layer['label']}")
         journal = root / ".cdmw/overlays" / (layer["id"] + ".zip")
         tracker.pin_file(journal)
         hashes.append((journal, hash_file(journal, stop_event)))
@@ -240,13 +271,20 @@ def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, sto
         for path, change in changes.items():
             baseline.setdefault(path, change["before"])
             flags[path] = change["flags"]
+    if progress:
+        progress(len(layers), len(layers), "Overlay history loaded.")
     after = dict(baseline)
-    for layer, changes in layers:
+    for index, (layer, changes) in enumerate(layers):
+        raise_if_cancelled(stop_event, "Overlay comparison cancelled.")
+        if progress:
+            progress(index, len(layers), f"Combining overlay changes: {layer['label']}")
         if layer["active"]:
             after = merge_overlay_files({p: value["before"] for p, value in changes.items()},
                                         {p: value["after"] for p, value in changes.items()}, after)
             identities.append(layer.get("target_game", {}))
             items.extend({"item_key": key} for key in layer["item_keys"])
+    if progress:
+        progress(len(layers), len(layers), "Overlay changes combined.")
     after = {path: data for path, data in after.items() if data is not None and data != baseline.get(path)}
     # If one table half is byte-identical, it is still required for comparison.
     for path in tuple(after):
@@ -261,7 +299,9 @@ def prepare_installed_overlay_update(game_root, *, entries, read_entry=None, sto
             textures = {name: data for name, data in after.items() if name.endswith(".dds") and baseline.get(name) is None}
             value = legacy_texture_baseline(baseline[path], value, textures)
         return value
-    output, new_baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, underlay, stop_event)
+    output, new_baseline, comparisons, conflicts, dependencies, status = _compare(after, flags, evidence, underlay, stop_event, progress)
+    if progress:
+        progress(0, 0, "Verifying the game build and compared data...")
     identity = game_identity(root, stop_event)
     compatibility = compatibility_from_payloads(output, new_baseline, target_game=identity, dependencies=dependencies)
     info = {"previous_items": items, "texture_registry": [path for path in after if path.endswith(".dds") and baseline.get(path) is None]}
