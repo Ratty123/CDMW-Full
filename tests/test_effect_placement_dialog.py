@@ -206,6 +206,36 @@ from tests.effect_placement_dialog_presentation_tests import _DialogPresentation
 
 
 class DialogTests(_DialogPresentationMixin, _DialogTestCase):
+    def test_package_thread_is_initialized_before_child_observers_can_see_it(self) -> None:
+        from PySide6.QtCore import QEvent
+
+        workspace = self._dialog().workspace
+        observed_types = []
+
+        class ChildObserver(QObject):
+            def eventFilter(self, watched, event):  # noqa: N802 - Qt override
+                if watched is workspace and event.type() == QEvent.Type.ChildAdded:
+                    # Resolving a child during QThread(parent) exposes a provisional
+                    # QObject wrapper before the thread's native metadata is ready.
+                    observed_types.append(type(event.child()))
+                return False
+
+        observer = ChildObserver(workspace)
+        workspace.installEventFilter(observer)
+        with patch("cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package", return_value=None):
+            try:
+                workspace._start_package()
+                thread = workspace._thread
+                self.assertIsNotNone(thread)
+                self.assertIs(thread.parent(), workspace)
+                self._settle(lambda: workspace._thread is None)
+                self.assertIsNone(workspace._thread, "the worker must finish and release its thread")
+                self.assertEqual(observed_types, [QThread])
+            finally:
+                workspace.removeEventFilter(observer)
+                workspace.request_shutdown()
+                self._settle(lambda: workspace._thread is None)
+
     def test_guided_toolbar_pending_resize_is_cancelled_when_panel_is_deleted(self) -> None:
         from unittest.mock import patch
         from PySide6.QtCore import QCoreApplication, QEvent, QSize
