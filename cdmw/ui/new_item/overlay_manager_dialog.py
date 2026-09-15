@@ -7,7 +7,10 @@ from PySide6.QtWidgets import (
     QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QHBoxLayout,
 )
 
-from cdmw.services.archive_overlay_manager import list_installed_overlays, prepare_overlay_removal, apply_overlay_change
+from cdmw.services.archive_overlay_manager import (
+    list_installed_overlays, prepare_overlay_removal, apply_overlay_change,
+    prepare_overlay_retirement, apply_overlay_retirement,
+)
 
 
 class OverlayManagerDialog(QDialog):
@@ -51,6 +54,9 @@ class OverlayManagerDialog(QDialog):
         self.update_button = QPushButton('Check game updates...')
         self.update_button.clicked.connect(self._check_updates)
         row.addWidget(self.update_button)
+        self.start_fresh_button = QPushButton('Start fresh...')
+        self.start_fresh_button.clicked.connect(self._start_fresh)
+        row.addWidget(self.start_fresh_button)
         row.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
@@ -66,14 +72,20 @@ class OverlayManagerDialog(QDialog):
         self.table.setEnabled(available)
         self.refresh_button.setEnabled(available)
         self.update_button.setEnabled(available and bool(self._entries))
-        self.remove_button.setEnabled(available and 0 <= self.table.currentRow() < len(self._entries))
+        selected = self._entries[self.table.currentRow()] if 0 <= self.table.currentRow() < len(self._entries) else None
+        self.remove_button.setEnabled(available and selected is not None and selected.compatibility_status != 'unmounted')
+        self.start_fresh_button.setEnabled(available and bool(self._entries)
+                                          and all(entry.compatibility_status == 'unmounted' for entry in self._entries))
 
     def _selection_changed(self):
         index = self.table.currentRow()
         entry = self._entries[index] if 0 <= index < len(self._entries) else None
         self.details.setText('This earlier install has no separate ownership history. Its contents are managed as one bundle.'
                              if entry and entry.legacy else 'Removing one overlay preserves the shared tables and files used by the remaining overlays.')
-        if entry and entry.compatibility_status != 'same':
+        if entry and entry.compatibility_status == 'unmounted':
+            self.details.setText('The overlay is recorded in CDMW history, but its folder is not mounted by the game. '
+                                 'Check game updates to review recovery, or choose Start fresh to retire the old set and install new items.')
+        elif entry and entry.compatibility_status != 'same':
             self.details.setText(self.details.text() + ' Check game updates before changing this installed set.')
         self._buttons()
 
@@ -111,14 +123,19 @@ class OverlayManagerDialog(QDialog):
         self._entries = tuple(entries)
         self.table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
-            check = {'changed': self.tr('Needs comparison'), 'same': self.tr('Same build'), 'unknown': self.tr('Unknown')}[entry.compatibility_status]
+            check = {'changed': self.tr('Needs comparison'), 'same': self.tr('Same build'),
+                     'unknown': self.tr('Unknown'), 'unmounted': self.tr('Not mounted')}[entry.compatibility_status]
             values = (entry.label, ', '.join(map(str, entry.item_keys)) or '—', entry.directory,
                       str(entry.file_count), datetime.fromtimestamp(entry.created_at).strftime('%Y-%m-%d %H:%M'), entry.game_build, check)
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         if entries:
             self.table.selectRow(0)
-        self.status.setText(f'{len(entries)} installed overlay(s).' if entries else 'No CDMW overlays are installed.')
+        unmounted = sum(entry.compatibility_status == 'unmounted' for entry in entries)
+        if unmounted:
+            self.status.setText(f'{len(entries)} recorded overlay(s); {unmounted} not mounted by the game.')
+        else:
+            self.status.setText(f'{len(entries)} installed overlay(s).' if entries else 'No CDMW overlays are installed.')
         self._selection_changed()
 
     def _check_updates(self):
@@ -134,6 +151,36 @@ class OverlayManagerDialog(QDialog):
         identity = self._entries[index].id
         self._run(lambda log, stop: prepare_overlay_removal(self.package_root, identity, on_log=log, stop_event=stop),
                   self._review_removal, 'Preparing removal and checking the remaining overlays…')
+
+    def _start_fresh(self):
+        self._run(lambda _log, stop: prepare_overlay_retirement(self.package_root, stop_event=stop),
+                  self._review_retirement, 'Checking the saved overlay set before starting fresh...')
+
+    def _review_retirement(self, preparation):
+        labels = '\n'.join('- ' + label for label in preparation.labels)
+        if QMessageBox.question(self, 'Start fresh with overlays',
+            f'Retire these saved overlays?\n\n{labels}\n\nGame folder: {preparation.package_root}\n\n'
+            f'CDMW will back up and archive .cdmw/overlays.json. Folder {preparation.directory_name} and the old '
+            'overlay journals stay on disk for recovery. The current mount list, texture registry and game archives stay unchanged.\n\n'
+            'New installs will use a fresh inventory and an unused folder. Close Crimson Desert before continuing.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            self.status.setText('Starting fresh cancelled. The saved overlay set is unchanged.')
+            return
+        self._queued = ('retire', preparation)
+
+    def _apply_retirement(self, preparation):
+        mutations = self.mutations
+        def task(log, stop):
+            return apply_overlay_retirement(preparation, confirmed=True,
+                backup=lambda paths, label: mutations.backup_files(paths, description=label, on_log=log),
+                restore_backup=lambda path: mutations.restore_backup(path, confirmed=True, on_log=log),
+                on_log=log, stop_event=stop)
+        self._run(task, self._retired, 'Backing up and retiring the unmounted overlay set...', applying=True)
+
+    def _retired(self, result):
+        self.status.setText(f'Retired {len(result.labels)} overlay(s). Ready for a fresh set. Backup: {result.backup_dir}')
+        self._queued = ('refresh', None)
 
     def _review_removal(self, preparation):
         remaining = '\n'.join('- ' + label for label in preparation.remaining_labels) or 'None'
@@ -169,6 +216,8 @@ class OverlayManagerDialog(QDialog):
         self._queued = None
         if action == 'apply':
             self._apply(preparation)
+        elif action == 'retire':
+            self._apply_retirement(preparation)
         else:
             self.refresh()
 

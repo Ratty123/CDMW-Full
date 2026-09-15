@@ -261,7 +261,12 @@ class NewItemTaskControllerMixin:
             self.status_message.emit("Build the plan first.", True)
             return False
         task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True, directory_name=directory_name)
-        return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+
+        def failed(message: str) -> None:
+            self.status_message.emit(message, True)
+            self.install_failed.emit(message)
+
+        return self._run("install", task, self.install_finished.emit, failed)
 
     def start_overlay_migration(self, mutation_service, package_root) -> bool:
         """Move what the shipped archives already carry into the overlay, off the UI thread."""

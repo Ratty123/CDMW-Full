@@ -56,6 +56,13 @@ def install_result_report(result: object) -> tuple:
     backup = getattr(result, "backup_dir", "") or ""
     directory = getattr(result, "directory", None)
     name = getattr(directory, "name", "") if directory is not None else ""
+    if hasattr(result, "retired_inventory"):
+        return (
+            "Start fresh with overlays",
+            f"Retired {len(result.labels)} saved overlay(s). The old files remain in folder {name} for recovery."
+            f"\n\nHistory: {result.retired_inventory}\n\nBackup: {backup}"
+            "\n\nRebuild the item plan, then install it with Overlay folder set to Auto.",
+        )
     if hasattr(result, 'removed_overlay_id'):
         return ('Installed overlays', f'Removed {result.label}. {result.remaining} overlay(s) remain.\n\nBackup: {backup}')
 
@@ -149,6 +156,7 @@ class OutputPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
         self._controller = controller
+        self._install_error = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
@@ -311,6 +319,7 @@ class OutputPanel(QGroupBox):
         controller.plan_invalidated.connect(self._show_plan)
         controller.export_finished.connect(self._export_finished)
         controller.install_finished.connect(self._install_finished)
+        controller.install_failed.connect(self._install_failed)
         controller.busy_changed.connect(self._busy_changed)
         controller.status_message.connect(self._operation_message)
         controller.template_changed.connect(lambda _key: self._show_plan(None))
@@ -414,6 +423,9 @@ class OutputPanel(QGroupBox):
             self.log_toggle.setChecked(True)
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
+        self._install_error = ""
+        if not self._controller.busy:
+            self.busy_state.set_note("", None)
         enabled = plan is not None
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
@@ -477,17 +489,26 @@ class OutputPanel(QGroupBox):
         QMessageBox.information(self, "Write loose mod", f"Written to {root}\n\n{count} file(s), {new} of them new.")
 
     def _install_finished(self, result: object) -> None:
+        self._install_error = ""
+        self.busy_state.set_note("", None)
         title, message = install_result_report(result)
         self.append_log(message.replace("\n\n", " "))
         if not hasattr(result, 'removed_overlay_id'):
             QMessageBox.information(self, title, message)
 
+    def _install_failed(self, message: str) -> None:
+        self._install_error = f"Overlay installation failed: {message}"
+        self.busy_state.set_note(self._install_error, BLOCK)
+        QMessageBox.warning(self, "Overlay installation failed", message)
+
     def _busy_changed(self, busy: bool) -> None:
         lane = str(getattr(self._controller, "_lane", "") or "")
+        if busy and lane == "install":
+            self._install_error = ""
         working = bool(busy) and lane in {"plan", "export", "install", "snapshot"}
         self.busy_bar.setVisible(working)
         if not working:
-            self.busy_state.set_note("", None)
+            self.busy_state.set_note(self._install_error, BLOCK if self._install_error else None)
         elif lane == "plan":
             self.busy_state.set_note("Building the plan; the window stays usable while it runs.", EDIT)
         elif lane == "export":
