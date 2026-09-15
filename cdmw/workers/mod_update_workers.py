@@ -9,11 +9,12 @@ from cdmw.workers.new_item_workers import list_archive_entries
 
 def mod_update_scan_task(folder, game_root, *, installed=False):
     folder, game_root, installed = Path(folder), Path(game_root), bool(installed)
-    def run(log, stop):
-        entries = list_archive_entries(game_root, log, stop)
+    def run(log, progress, stop):
+        progress(0, 0, "Finding the game archives...")
+        entries = list_archive_entries(game_root, log, stop, progress=progress)
         if installed:
-            return prepare_installed_overlay_update(game_root, entries=entries, on_log=log, stop_event=stop)
-        return prepare_mod_update(folder, game_root, entries=entries, on_log=log, stop_event=stop)
+            return prepare_installed_overlay_update(game_root, entries=entries, on_log=log, stop_event=stop, progress=progress)
+        return prepare_mod_update(folder, game_root, entries=entries, on_log=log, stop_event=stop, progress=progress)
     return run
 
 

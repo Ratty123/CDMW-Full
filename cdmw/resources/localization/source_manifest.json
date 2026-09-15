@@ -111,7 +111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 170,
+          "line": 185,
           "sink": "appendPlainText"
         }
       ]
@@ -1267,6 +1267,16 @@
         {
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 484,
+          "sink": "setFormat"
+        }
+      ]
+    },
+    {
+      "key": "%p% (%v / %m)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 53,
           "sink": "setFormat"
         }
       ]
@@ -3351,7 +3361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 166,
+          "line": 191,
           "sink": "ValueError"
         }
       ]
@@ -6871,7 +6881,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 64,
+          "line": 75,
           "sink": "ValueError"
         }
       ]
@@ -10133,6 +10143,16 @@
           "path": "cdmw/ui/archive_browser/filter_workers.py",
           "line": 322,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Archive indexes loaded.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 79,
+          "sink": "progress"
         }
       ]
     },
@@ -16041,7 +16061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -17566,7 +17586,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 73,
+          "line": 75,
           "sink": "ValueError"
         }
       ]
@@ -19116,7 +19136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 18,
+          "line": 19,
           "sink": "setWindowTitle"
         }
       ]
@@ -20311,7 +20331,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 145,
+          "line": 168,
           "sink": "ValueError"
         }
       ]
@@ -20326,7 +20346,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 42,
+          "line": 43,
           "sink": "setPlaceholderText"
         }
       ]
@@ -20346,7 +20366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 288,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -20736,7 +20756,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 286,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -22877,6 +22897,16 @@
       ]
     },
     {
+      "key": "Combining overlay changes: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 280,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Comfortable",
       "origins": [
         {
@@ -23201,7 +23231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 24,
+          "line": 25,
           "sink": "QLabel"
         }
       ]
@@ -23211,7 +23241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 59,
+          "line": 61,
           "sink": "QPushButton"
         }
       ]
@@ -23221,7 +23251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -23233,6 +23263,21 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 576,
           "sink": "_add_titled_help_header"
+        }
+      ]
+    },
+    {
+      "key": "Comparing files: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 125,
+          "sink": "progress"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 149,
+          "sink": "progress"
         }
       ]
     },
@@ -23251,7 +23296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 140,
+          "line": 154,
           "sink": "_run"
         }
       ]
@@ -23261,7 +23306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 149,
+          "line": 174,
           "sink": "on_log"
         }
       ]
@@ -23761,7 +23806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 156,
+          "line": 171,
           "sink": "tr"
         },
         {
@@ -23816,7 +23861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 149,
+          "line": 164,
           "sink": "setText"
         }
       ]
@@ -26626,7 +26671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 37,
+          "line": 38,
           "sink": "_folder_row"
         }
       ]
@@ -26636,7 +26681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -29416,7 +29461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 45,
+          "line": 46,
           "sink": "QLabel"
         }
       ]
@@ -37312,6 +37357,16 @@
       ]
     },
     {
+      "key": "File comparison complete.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 157,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "File set",
       "origins": [],
       "manual": true
@@ -38532,6 +38587,16 @@
       ]
     },
     {
+      "key": "Finding the game archives...",
+      "origins": [
+        {
+          "path": "cdmw/workers/mod_update_workers.py",
+          "line": 13,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Finding things quickly:",
       "origins": [
         {
@@ -39331,7 +39396,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 79,
+          "line": 82,
           "sink": "QPushButton"
         },
         {
@@ -40516,7 +40581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -46151,7 +46216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 149,
+          "line": 164,
           "sink": "setText"
         }
       ]
@@ -47091,7 +47156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 31,
+          "line": 32,
           "sink": "addItem"
         }
       ]
@@ -47296,7 +47361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 188,
+          "line": 213,
           "sink": "ValueError"
         }
       ]
@@ -47446,7 +47511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 195,
+          "line": 220,
           "sink": "ValueError"
         }
       ]
@@ -47456,7 +47521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 198,
+          "line": 223,
           "sink": "ValueError"
         }
       ]
@@ -47476,7 +47541,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 180,
+          "line": 205,
           "sink": "ValueError"
         }
       ]
@@ -50521,7 +50586,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 75,
+          "line": 77,
           "sink": "log"
         }
       ]
@@ -51756,7 +51821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 247,
+          "line": 250,
           "sink": "setText"
         },
         {
@@ -58096,17 +58161,32 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 74,
+          "line": 65,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 84,
+          "line": 82,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 105,
+          "line": 89,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 99,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 123,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 146,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -58116,7 +58196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 30,
+          "line": 31,
           "sink": "addItem"
         },
         {
@@ -58161,7 +58241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 35,
+          "line": 36,
           "sink": "_folder_row"
         }
       ]
@@ -62996,7 +63076,7 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 217,
+          "line": 221,
           "sink": "ValueError"
         }
       ]
@@ -63146,7 +63226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 229,
+          "line": 258,
           "sink": "ValueError"
         }
       ]
@@ -69181,7 +69261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 56,
+          "line": 58,
           "sink": "setPlaceholderText"
         }
       ]
@@ -69301,7 +69381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 39,
+          "line": 40,
           "sink": "setPlaceholderText"
         }
       ]
@@ -69506,7 +69586,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 43,
+          "line": 44,
           "sink": "_folder_row"
         }
       ]
@@ -69732,6 +69812,16 @@
       ]
     },
     {
+      "key": "Overlay changes combined.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 287,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Overlay changes require a prepared change.",
       "origins": [
         {
@@ -69756,7 +69846,12 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 234,
+          "line": 263,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 278,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -69818,6 +69913,16 @@
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 65,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Overlay history loaded.",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 275,
+          "sink": "progress"
         }
       ]
     },
@@ -70981,7 +71086,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 40,
+          "line": 41,
           "sink": "addRow"
         }
       ]
@@ -76272,6 +76377,21 @@
       ]
     },
     {
+      "key": "Preparing the game file lookup...",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 67,
+          "sink": "progress"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 84,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Preparing the new editor scene. Your current scene remains open…",
       "origins": [
         {
@@ -76286,7 +76406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 178,
+          "line": 181,
           "sink": "setText"
         }
       ]
@@ -80082,6 +80202,16 @@
       ]
     },
     {
+      "key": "Progress is measured for the current stage. Stages can take different amounts of time.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/mod_update_dialog.py",
+          "line": 54,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Project {value_0} is already open.",
       "origins": [
         {
@@ -81042,6 +81172,16 @@
       ]
     },
     {
+      "key": "Reading archive indexes: {value_0}/{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 68,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Reading compare socket XML: {value_0}...",
       "origins": [
         {
@@ -81073,6 +81213,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_setup_state.py",
           "line": 89,
           "sink": "python-return:in_game_mesh_swap_progress_text"
+        }
+      ]
+    },
+    {
+      "key": "Reading installed overlay history...",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 254,
+          "sink": "progress"
         }
       ]
     },
@@ -81153,6 +81303,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
           "line": 266,
           "sink": "report"
+        }
+      ]
+    },
+    {
+      "key": "Reading overlay history: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 265,
+          "sink": "progress"
         }
       ]
     },
@@ -81321,8 +81481,18 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 174,
+          "line": 178,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Reading the mod's recorded original data...",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 172,
+          "sink": "progress"
         }
       ]
     },
@@ -83521,7 +83691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 157,
+          "line": 172,
           "sink": "tr"
         }
       ]
@@ -86281,7 +86451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -87601,7 +87771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 281,
+          "line": 321,
           "sink": "ValueError"
         }
       ]
@@ -95836,7 +96006,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 112,
+          "line": 115,
           "sink": "setText"
         }
       ]
@@ -100366,7 +100536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 155,
+          "line": 170,
           "sink": "tr"
         }
       ]
@@ -100696,7 +100866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 33,
+          "line": 34,
           "sink": "addRow"
         }
       ]
@@ -105946,7 +106116,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 185,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -106151,7 +106321,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 113,
+          "line": 117,
           "sink": "ValueError"
         }
       ]
@@ -106191,12 +106361,12 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 284,
+          "line": 288,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 314,
+          "line": 318,
           "sink": "RuntimeError"
         }
       ]
@@ -106576,7 +106746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 149,
+          "line": 164,
           "sink": "setText"
         }
       ]
@@ -106916,7 +107086,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 161,
+          "line": 165,
           "sink": "log"
         }
       ]
@@ -107136,7 +107306,7 @@
         },
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 204,
+          "line": 208,
           "sink": "ValueError"
         }
       ]
@@ -107411,7 +107581,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 177,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -107641,7 +107811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 149,
+          "line": 164,
           "sink": "setText"
         }
       ]
@@ -107831,7 +108001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 293,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -108121,7 +108291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 255,
+          "line": 258,
           "sink": "setText"
         }
       ]
@@ -109031,7 +109201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 160,
+          "line": 175,
           "sink": "setPlainText"
         }
       ]
@@ -109791,7 +109961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 352,
+          "line": 355,
           "sink": "setText"
         }
       ]
@@ -111851,7 +112021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 155,
+          "line": 170,
           "sink": "tr"
         }
       ]
@@ -112276,7 +112446,7 @@
       "origins": [
         {
           "path": "cdmw/services/mod_update_service.py",
-          "line": 162,
+          "line": 187,
           "sink": "ValueError"
         }
       ]
@@ -112671,7 +112841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 156,
+          "line": 171,
           "sink": "tr"
         }
       ]
@@ -112691,7 +112861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 169,
+          "line": 184,
           "sink": "setText"
         }
       ]
@@ -114887,6 +115057,21 @@
       ]
     },
     {
+      "key": "Verifying the game build and compared data...",
+      "origins": [
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 235,
+          "sink": "progress"
+        },
+        {
+          "path": "cdmw/services/mod_update_service.py",
+          "line": 304,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
       "key": "Version",
       "origins": [
         {
@@ -115686,7 +115871,7 @@
         },
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 136,
+          "line": 150,
           "sink": "failed"
         }
       ]
@@ -118121,7 +118306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 61,
+          "line": 63,
           "sink": "QPushButton"
         }
       ]
@@ -118306,7 +118491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/mod_update_dialog.py",
-          "line": 164,
+          "line": 179,
           "sink": "_run"
         }
       ]
@@ -118316,7 +118501,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 231,
+          "line": 235,
           "sink": "log"
         }
       ]
@@ -118711,7 +118896,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 235,
+          "line": 239,
           "sink": "log"
         }
       ]
@@ -137861,7 +138046,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 279,
+          "line": 283,
           "sink": "log"
         }
       ]
@@ -139581,7 +139766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_package.py",
-          "line": 352,
+          "line": 355,
           "sink": "setText"
         }
       ]
