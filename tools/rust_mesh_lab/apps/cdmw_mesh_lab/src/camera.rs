@@ -282,9 +282,17 @@ impl OrbitCamera {
             return false;
         }
         let eye_direction = -forward;
-        self.yaw = eye_direction
+        // At either Y pole, signed zero X/Z coordinates cannot define yaw.
+        // Use the requested upright direction so orbiting away from the flat
+        // view does not retain an arbitrary 180-degree camera roll.
+        let yaw_direction = if eye_direction.x == 0.0 && eye_direction.z == 0.0 {
+            desired_up * -eye_direction.y
+        } else {
+            eye_direction
+        };
+        self.yaw = yaw_direction
             .x
-            .atan2(eye_direction.z)
+            .atan2(yaw_direction.z)
             .rem_euclid(std::f32::consts::TAU);
         self.pitch = (-eye_direction.y.asin()).clamp(
             -std::f32::consts::FRAC_PI_2 + 0.01,
@@ -720,6 +728,41 @@ mod tests {
                         .project(Vec3::new(x, y, z), viewport)
                         .unwrap_or_else(|| panic!("semantic-view corner did not project"));
                     assert!(projected.inside_view);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn vertical_semantic_views_keep_positive_y_up_when_orbiting() {
+        let viewport = rectangle(900.0, 600.0);
+        for direction in [1.0, -1.0] {
+            for zero_x in [0.0, -0.0] {
+                for zero_z in [0.0, -0.0] {
+                    let forward = Vec3::new(zero_x, direction, zero_z);
+                    for screen_up in [Vec3::Z, -Vec3::Z, Vec3::X, -Vec3::X] {
+                        let mut camera = OrbitCamera::default();
+                        assert!(camera.set_semantic_view(forward, screen_up));
+                        assert!(camera.forward().dot(forward) > 0.999);
+                        assert!(camera.up().dot(screen_up) > 0.999);
+
+                        for delta in [
+                            Vec2::new(45.0, direction * 80.0),
+                            Vec2::new(-90.0, direction * 240.0),
+                        ] {
+                            camera.orbit(delta);
+                            let pivot = camera.project(camera.target(), viewport).unwrap().screen;
+                            let positive_y = camera
+                                .project(camera.target() + Vec3::Y * 0.2, viewport)
+                                .unwrap()
+                                .screen;
+                            assert!(
+                                positive_y.y < pivot.y,
+                                "positive Y points down after orbit: forward={forward:?}, screen_up={screen_up:?}, roll={}",
+                                camera.roll(),
+                            );
+                        }
+                    }
                 }
             }
         }
