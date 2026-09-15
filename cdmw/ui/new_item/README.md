@@ -240,7 +240,9 @@ while another step is open. `effect_item_source.py` captures the selected import
 placement, glow, snapshot and template key without decoding them. Item parsing and
 baking then run in the existing placement package worker alongside effect preparation;
 cancelled requests cannot publish their item mesh, and source leases last through
-worker teardown. A single inspector has **Placement**, **Look**, **Layers**, **Emitters**
+worker teardown. The preview thread is fully constructed before it is attached to the
+resident widget, so child observers cannot resolve an incomplete Qt thread wrapper.
+A single inspector has **Placement**, **Look**, **Layers**, **Emitters**
 and **Saved** tabs, with Apply and Discard pinned below their local scroll areas.
 Preview options fold inside Placement. Layers add up to 16 effects with independent placement,
 visibility and appearance. Selecting another layer does not itself create a draft edit.
@@ -382,7 +384,8 @@ the game's template fixed as a wire guide while the imported, textured model is 
 role. Side by side and Template only expose the full reference presentation, and changing among
 the four view modes immediately frames the roles that are now visible. The grid stays anchored to
 the scene frame and faces the template's broad plane; the opening camera looks straight at that
-plane, so the template reads flat without changing any model coordinates. Move, Rotate and Scale
+plane, so the template reads flat without changing any model coordinates. Views looking straight
+along Y keep positive Y pointing up when orbiting away from that flat view. Move, Rotate and Scale
 change only the imported model around its fitted source origin, so the template remains the in-game
 placement authority. A glow
 ticked on the step lights its parts in that

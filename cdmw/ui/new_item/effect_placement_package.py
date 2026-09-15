@@ -167,7 +167,10 @@ class EffectPlacementPackageMixin:
             return generation, preview, effect_sockets, reset_view, resolved_effect_preview, resolved_mesh, item_label
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
-        thread = QThread(self)
+        # QThread(parent) emits ChildAdded before PySide finishes its wrapper.
+        # Attach only after construction so observers see valid native metadata.
+        thread = QThread()
+        thread.setParent(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
         worker.completed.connect(self._package_ready)

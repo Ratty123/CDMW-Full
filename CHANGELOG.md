@@ -11,6 +11,11 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+
+- New Item Model & Placement avoids an unintended 180-degree camera roll when opening a flat view along Y, keeping the grid and Y gizmo from appearing upside down after orbiting. Model fitting and output placement are unchanged.
+- Hardened New Item's Effects preview startup against a native Qt thread-construction crash.
+
 ## [0.11.0-alpha.17] - 2026-09-14
 
 Pre-release. Hair Tools is experimental: hairstyles and motion have not been tested in game and may not work correctly. The reporter has confirmed that the bulk replacement workflow introduced in alpha.16 resolves [issue #22](https://github.com/Ratty123/CDMW-Full/issues/22).
