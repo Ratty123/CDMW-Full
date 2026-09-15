@@ -451,9 +451,12 @@ class NewItemService:
         directory beside them, `meta/0.papgt` naming it first, and the texture registry.
         The backup covers changed metadata, ownership history, and the existing
         CDMW overlay. Each install can be removed separately through its journal.
+        An unmounted stale set is archived automatically as part of the same
+        transaction. Its payloads stay on disk; other conflicts still refuse.
         """
 
-        from cdmw.services.archive_overlay_manager import prepare_item_overlay, apply_overlay_change
+        from cdmw.services.archive_overlay_manager import prepare_item_overlay, apply_overlay_change, prepare_overlay_retirement
+        from cdmw.domain.archives.overlay_merge import OverlayConflict
 
         if not confirmed:
             raise NewItemInstallRefused("Installing a new item into the game archives requires explicit confirmation.")
@@ -475,8 +478,22 @@ class NewItemService:
         def restore(path):
             return mutation_service.restore_backup(path, confirmed=True, on_log=on_log)
 
-        preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name, on_log=on_log, stop_event=stop_event)
-        return apply_overlay_change(
+        retirement = None
+        try:
+            preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name, on_log=on_log, stop_event=stop_event)
+        except OverlayConflict as original_error:
+            # Only an unmounted old set can be retired. Mounted/foreign conflicts
+            # retain their original refusal; there is no general force-install retry.
+            try:
+                retirement = prepare_overlay_retirement(package_root, stop_event=stop_event)
+            except ValueError:
+                raise original_error from None
+            if on_log:
+                on_log(f"Preparing automatic recovery for {len(retirement.labels)} unmounted overlay(s). "
+                       "Their files will be kept and their history backed up with the new install.")
+            preparation = prepare_item_overlay(plan, package_root, directory_name=directory_name,
+                on_log=on_log, stop_event=stop_event, retirement=retirement)
+        result = apply_overlay_change(
             preparation,
             backup=backup,
             restore_backup=restore,
@@ -485,6 +502,10 @@ class NewItemService:
             on_log=on_log,
             stop_event=stop_event,
         )
+        if retirement is not None:
+            result = replace(result, recovered_overlays=retirement.labels,
+                recovery_inventory=package_root / '.cdmw/retired-overlays' / (retirement.retirement_id + '.json'))
+        return result
 
 
 def _publish_package_atomically(

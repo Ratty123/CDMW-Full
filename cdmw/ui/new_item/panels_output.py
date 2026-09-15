@@ -102,6 +102,12 @@ def install_result_report(result: object) -> tuple:
         count = int(getattr(result, "file_count", 0) or 0)
         carried = int(getattr(result, "carried_forward", 0) or 0)
         size = int(getattr(result, "payload_bytes", 0) or 0)
+        recovery = ""
+        if getattr(result, "recovery_inventory", None) is not None:
+            recovery = (
+                f"\n\nAutomatically retired {len(result.recovered_overlays)} unmounted old overlay(s) and installed a fresh set. "
+                f"The old files remain on disk. Saved history: {result.recovery_inventory}"
+            )
         # the two are whole sentences rather than one with a clause slotted into it: a
         # fragment interpolated into a message is a fragment the translator never sees
         if carried:
@@ -109,13 +115,13 @@ def install_result_report(result: object) -> tuple:
                 "Install as an overlay",
                 f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
                 f"archives, {carried} of them carried forward from what the overlay already held.\n\nThe archives the game "
-                f"shipped were not written to.\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+                f"shipped were not written to.\n\nBackup: {backup}\n\nStart the game and go through the checklist." + recovery,
             )
         return (
             "Install as an overlay",
             f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
             f"archives.\n\nThe archives the game shipped were not written to."
-            f"\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+            f"\n\nBackup: {backup}\n\nStart the game and go through the checklist." + recovery,
         )
     return (
         "Install as an overlay",
