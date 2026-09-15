@@ -120,7 +120,12 @@ def _validate_published(root, state, stop_event=None):
         path = _target(root, relative)
         changed = path.exists() if expected is None else not path.is_file() or _digest(path.read_bytes()) != expected
         if changed:
-            raise OverlayConflict(f'{relative} changed outside the overlay manager. Restore or refresh the install before changing overlays.')
+            raise OverlayConflict(
+                f'{relative} changed outside the overlay manager. '
+                'Open Installed overlays > Check game updates... to compare the saved overlays with the current game before recovery. '
+                'Use Start fresh... if the old set is unmounted and you want to retire it. '
+                'Refreshing the archive list or rebuilding the item plan does not repair the installed overlays.'
+            )
     for relative, expected in state.get('sources', {}).items():
         path = _target(root, relative)
         if not path.is_file() or _stamp(path) != expected:
@@ -170,9 +175,12 @@ def list_installed_overlays(package_root, *, stop_event=None):
         current_game = game_identity(root, stop_event)
         sources_changed = any(not _target(root, relative).is_file() or _stamp(_target(root, relative)) != stamp
                               for relative, stamp in state.get('sources', {}).items())
+        records = parse_papgt(_target(root, 'meta/0.papgt').read_bytes())
+        mounted = any(record.name == state['directory'] for record in records)
         return tuple(InstalledOverlay(layer['id'], layer['label'], tuple(layer['item_keys']), state['directory'],
             int(layer['file_count']), float(layer['created_at']), bool(layer.get('legacy')),
-            build_label(layer.get('target_game')), 'changed' if sources_changed else build_status(layer.get('target_game'), current_game))
+            build_label(layer.get('target_game')),
+            'unmounted' if not mounted else 'changed' if sources_changed else build_status(layer.get('target_game'), current_game))
             for layer in state['layers'] if layer['active'])
     _records, owned = _mounted_owned(root)
     result = []
@@ -405,6 +413,103 @@ class OverlayRemovalResult:
     remaining: int
     backup_dir: Path
     removed_overlay_id: str
+
+
+@dataclass(frozen=True)
+class OverlayRetirementPreparation:
+    package_root: Path
+    directory_name: str
+    labels: tuple[str, ...]
+    inventory_data: bytes
+    mount_data: bytes
+    retirement_id: str
+
+
+@dataclass(frozen=True)
+class OverlayRetirementResult:
+    directory: Path
+    labels: tuple[str, ...]
+    backup_dir: Path
+    retired_inventory: Path
+
+
+def _retirement_state(root):
+    state = _load_index(root)
+    if state is None or not any(layer['active'] for layer in state['layers']):
+        raise ValueError('No saved overlay set is available to retire. Refresh the list.')
+    inventory = _target(root, INDEX_PATH).read_bytes()
+    if json.loads(inventory) != state:
+        raise OverlayConflict('The overlay inventory changed. Refresh and prepare again.')
+    mount = _target(root, 'meta/0.papgt').read_bytes()
+    records = parse_papgt(mount)
+    if any(record.name == state['directory'] for record in records):
+        raise OverlayConflict('Start fresh is only available when the saved overlay folder is not mounted. Use normal removal for mounted overlays.')
+    if any(is_cdmw_overlay_directory(_target(root, str(record.name))) for record in records):
+        raise OverlayConflict('Another CDMW overlay folder is mounted. Review it before starting a fresh set.')
+    return state, inventory, mount
+
+
+def prepare_overlay_retirement(package_root, *, stop_event=None):
+    """Retire only an unmounted inventory, preserving current game data and old payloads."""
+    raise_if_cancelled(stop_event)
+    root = Path(package_root).resolve()
+    state, inventory, mount = _retirement_state(root)
+    return OverlayRetirementPreparation(root, state['directory'],
+        tuple(layer['label'] for layer in state['layers'] if layer['active']),
+        inventory, mount, uuid.uuid4().hex)
+
+
+def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
+                             game_running=None, stop_event=None, on_log=None):
+    if not confirmed:
+        raise PermissionError('Starting a fresh overlay set requires explicit confirmation.')
+    if not callable(backup) or not callable(restore_backup):
+        raise ValueError('Starting a fresh overlay set needs backup and restore services.')
+    if game_running is None:
+        from cdmw.services.new_item_service import game_is_running
+        game_running = game_is_running
+    root = preparation.package_root.resolve()
+    identity = preparation.retirement_id
+    if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
+        raise ValueError('Invalid retired overlay history identity.')
+    inventory = _target(root, INDEX_PATH)
+    retired = _target(root, '.cdmw/retired-overlays/' + identity + '.json')
+
+    def verify_current():
+        raise_if_cancelled(stop_event, 'Starting a fresh overlay set cancelled.')
+        if game_running():
+            raise RuntimeError('Close Crimson Desert before changing overlays.')
+        state, current, mount = _retirement_state(root)
+        labels = tuple(layer['label'] for layer in state['layers'] if layer['active'])
+        if (current != preparation.inventory_data or mount != preparation.mount_data
+                or state['directory'] != preparation.directory_name or labels != preparation.labels):
+            raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
+        if retired.exists():
+            raise OverlayConflict('The retired overlay history already exists. Refresh and prepare again.')
+
+    verify_current()
+    backup_dir = Path(backup((inventory,), 'Retire unmounted overlays: ' + ', '.join(preparation.labels)))
+    _verify_backup(backup_dir, {inventory: preparation.inventory_data})
+    # Cancellation and external changes after backup must leave the live inventory intact.
+    verify_current()
+    try:
+        retired.parent.mkdir(parents=True, exist_ok=True)
+        inventory.rename(retired)
+        if inventory.exists() or retired.read_bytes() != preparation.inventory_data:
+            raise RuntimeError('Retired overlay history did not match the reviewed inventory.')
+    except BaseException as error:
+        try:
+            restore_backup(backup_dir)
+            if inventory.read_bytes() != preparation.inventory_data:
+                raise RuntimeError('The overlay inventory was not restored.')
+            if retired.is_file() and retired.read_bytes() == preparation.inventory_data:
+                retired.unlink()
+        except Exception as rollback_error:
+            raise RuntimeError(f'Overlay retirement failed; recovery requires backup {backup_dir}: {rollback_error}') from error
+        raise
+    if on_log:
+        on_log(f'Retired {len(preparation.labels)} unmounted overlay(s). History: {retired}. Backup: {backup_dir}')
+    return OverlayRetirementResult(_target(root, preparation.directory_name), preparation.labels, backup_dir, retired)
 
 
 def _compose(root, state, pending, label, removed_id, stop_event, on_log):

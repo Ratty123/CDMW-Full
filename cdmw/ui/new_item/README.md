@@ -194,6 +194,22 @@ changes and full details. Destination, manager, overlay number and base changes 
 the plan, including an in-flight result. **Draft tools** contains Merge mods,
 Installed overlays and the Archive recovery fold; opening the menu or recovery fold
 never performs a write. The activity log starts folded and opens for failures.
+An overlay installation failure also opens a warning and keeps the reason visible
+on Output after the worker stops; the plan remains available for review or retry.
+If the saved texture registry or overlay files changed, **Installed overlays >
+Check game updates...** compares the recorded set with the current game before
+recovery. Refreshing the archive list or rebuilding a plan does not repair that
+state. Saved overlays whose folder is absent from the game's mount list show
+**Not mounted**, even though their files and installation dates remain in history.
+For an unmounted set you no longer want to use, **Start fresh...** reviews all its
+labels and the exact game folder, then requires confirmation. It verifies a backup
+of `.cdmw/overlays.json` and archives that inventory under `.cdmw/retired-overlays/`.
+The old overlay folder and journals remain on disk; current game archives, the
+mount list and the texture registry are unchanged. Rebuild the item plan and use
+**Auto** to install into a fresh inventory and an unused folder. Mounted overlays
+still use normal removal. Starting fresh refuses changed inputs, a running game,
+missing recovery data, or another mounted CDMW group. A failed retirement restores
+its inventory backup; comparison and preparing the confirmation are read-only.
 Shared section cards and accent primary buttons keep
 Continue, Build plan and Apply placement visually distinct, with palette-based
 hover, pressed, focus and disabled states. Step 5 is a

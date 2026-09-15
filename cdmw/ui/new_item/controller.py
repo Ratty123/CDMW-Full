@@ -76,6 +76,7 @@ class NewItemStudioController(
     plan_invalidated = Signal()
     export_finished = Signal(object)
     install_finished = Signal(object)
+    install_failed = Signal(str)
     model_changed = Signal(object)
     #: a model file was read for the studio (a ModelImportSource), or discarded (None)
     model_import_changed = Signal(object)
