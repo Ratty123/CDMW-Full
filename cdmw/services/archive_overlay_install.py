@@ -68,6 +68,8 @@ class OverlayInstallResult:
     backup_dir: Optional[Path]
     paths: Tuple[str, ...]
     receipt_path: Optional[Path] = None
+    recovered_overlays: Tuple[str, ...] = ()
+    recovery_inventory: Optional[Path] = None
 
 
 @dataclass(frozen=True, slots=True)

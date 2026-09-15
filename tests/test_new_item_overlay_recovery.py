@@ -61,12 +61,13 @@ def drain(app, controller):
 
 
 @pytest.mark.parametrize("synchronous", [True, False])
-def test_changed_registry_reports_install_failure_without_writes(old_set, monkeypatch, synchronous):
+def test_mounted_registry_conflict_reports_install_failure_without_writes(old_set, monkeypatch, synchronous):
     app = QApplication.instance() or QApplication([])
-    service, root, backups, _ = old_set
+    service, root, backups, mounted = old_set
     inventory = list_installed_overlays(root)
     assert len(inventory) == 1
     assert inventory[0].compatibility_status == "unmounted"
+    (root / "meta/0.papgt").write_bytes(mounted)
     plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
     controller = NewItemStudioController(service=service, synchronous=synchronous)
     panel = OutputPanel(controller)
@@ -106,6 +107,118 @@ def test_changed_registry_reports_install_failure_without_writes(old_set, monkey
         panel.deleteLater()
         controller.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.mark.parametrize("synchronous", [True, False])
+def test_install_automatically_recovers_an_unmounted_set(old_set, monkeypatch, synchronous):
+    app = QApplication.instance() or QApplication([])
+    service, root, backups, _ = old_set
+    inventory = (root / INDEX_PATH).read_bytes()
+    before = fingerprints(root)
+    plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
+    controller = NewItemStudioController(service=service, synchronous=synchronous)
+    panel = OutputPanel(controller)
+    controller.plan = plan
+    controller._plan_revision = controller._draft_revision
+    controller.plan_ready.emit(plan)
+    completed, messages = [], []
+    controller.install_finished.connect(completed.append)
+    monkeypatch.setattr("cdmw.services.new_item_service.game_is_running", lambda: False)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *_args: pytest.fail("Recovery should finish without an error popup."))
+    monkeypatch.setattr(QMessageBox, "information", lambda _parent, title, message:
+                        messages.append((title, message, QThread.currentThread())))
+    try:
+        assert controller.start_install_overlay(backups)
+        drain(app, controller)
+        assert len(completed) == 1 and len(messages) == 1
+        result = completed[0]
+        assert result.recovered_overlays == ("Previous",)
+        assert result.recovery_inventory.read_bytes() == inventory
+        assert "Automatically retired" in messages[0][1]
+        assert str(result.recovery_inventory) in messages[0][1]
+        assert messages[0][2] is app.thread()
+        assert "Preparing automatic recovery" in panel.log.toPlainText()
+        assert "Automatically retired" in panel.log.toPlainText()
+        assert backups.count == 2, "Recovery and install share one verified backup."
+        current = list_installed_overlays(root)
+        assert len(current) == 1 and current[0].label == "NewAxe"
+        assert current[0].compatibility_status != "unmounted"
+        assert not panel.busy_state.text()
+        for path, digest in before.items():
+            if path not in {Path(INDEX_PATH), Path('meta/0.papgt')}:
+                assert hashlib.sha256((root / path).read_bytes()).hexdigest() == digest
+    finally:
+        controller.request_shutdown()
+        drain(app, controller)
+        panel.deleteLater()
+        controller.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.mark.parametrize("failure", ["preparation", "write", "cancel"])
+def test_automatic_recovery_retries_once_and_rolls_back_with_install(old_set, monkeypatch, failure):
+    from unittest.mock import Mock
+    import cdmw.services.archive_overlay_manager as manager
+    service, root, backups, _ = old_set
+    plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
+    before = fingerprints(root)
+    prepare = Mock(wraps=manager.prepare_item_overlay)
+    monkeypatch.setattr(manager, "prepare_item_overlay", prepare)
+    stop = threading.Event()
+    if failure == "preparation":
+        def fail_build(*_args, **_kwargs):
+            raise OSError("injected retry preparation failure")
+        monkeypatch.setattr(manager, "build_overlay_archive", fail_build)
+    else:
+        write = manager.atomic_write_bytes
+        def fail_write(path, data):
+            write(path, data)
+            if path.name == "0.paz":
+                if failure == "cancel":
+                    stop.set()
+                else:
+                    raise OSError("injected retry write failure")
+        monkeypatch.setattr(manager, "atomic_write_bytes", fail_write)
+    with pytest.raises((OSError, RuntimeError)):
+        service.install_overlay(plan, mutation_service=backups, confirmed=True,
+                                game_running=lambda: False, stop_event=stop)
+    assert prepare.call_count == 2
+    assert backups.count == (1 if failure == "preparation" else 2)
+    assert fingerprints(root) == before
+
+
+def test_automatic_recovery_preserves_an_explicit_old_folder(old_set):
+    service, root, backups, _ = old_set
+    old_folder = list_installed_overlays(root)[0].directory
+    plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
+    before = fingerprints(root)
+    with pytest.raises(ValueError, match="Choose Auto or an unused folder"):
+        service.install_overlay(plan, mutation_service=backups, confirmed=True,
+                                directory_name=old_folder, game_running=lambda: False)
+    assert fingerprints(root) == before and backups.count == 1
+
+
+@pytest.mark.parametrize("changed", ["inventory", "mount"])
+def test_automatic_recovery_pins_the_history_during_preparation(old_set, monkeypatch, changed):
+    import cdmw.services.archive_overlay_manager as manager
+    from cdmw.core.papgt_format import papgt_with_directory
+    service, root, backups, _ = old_set
+    plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
+    compose = manager._compose
+    def change_before_capture(*args):
+        if changed == "inventory":
+            index = root / INDEX_PATH
+            index.write_bytes(index.read_bytes() + b"\n")
+        else:
+            mount = root / "meta/0.papgt"
+            mount.write_bytes(papgt_with_directory(mount.read_bytes(), "0099", 0))
+        return compose(*args)
+    monkeypatch.setattr(manager, "_compose", change_before_capture)
+    with pytest.raises(ValueError, match="overlay state changed after preparation"):
+        service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)
+    assert backups.count == 1
+    assert not (root / '.cdmw/retired-overlays').exists()
+    assert (root / INDEX_PATH).is_file()
 
 
 def retire(prepared, backups, **kwargs):

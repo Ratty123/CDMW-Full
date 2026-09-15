@@ -932,7 +932,9 @@ class NewItemStudioTab(QWidget):
                 f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) as an archive directory of its own?\n\n"
                 f"{len(plan.patches) + len(plan.additions)} file(s) go into the new directory:\n{touched}{more}\n\n"
                 "The archives the game shipped are not written to. The mount list and the texture registry are backed "
-                "up first, and the game must not be running."
+                "up first, and the game must not be running.\n\n"
+                "If a previous CDMW overlay set is no longer mounted, installation automatically archives its history "
+                "and starts a fresh set. The old overlay files stay on disk for recovery."
             ),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,

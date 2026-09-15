@@ -327,8 +327,22 @@ def _uses_owned_assets(plan, changes, owned_changes):
     return False
 
 
-def _state_for_edit(root, directory_name, stop_event):
+def _state_for_edit(root, directory_name, stop_event, *, retirement=None):
     state = _load_index(root)
+    pending = {}
+    if retirement is not None:
+        _old_state, inventory, mount = _retirement_state(root)
+        if (inventory != retirement.inventory_data or mount != retirement.mount_data
+                or root != retirement.package_root):
+            raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
+        identity = retirement.retirement_id
+        if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
+            raise ValueError('Invalid retired overlay history identity.')
+        relative = '.cdmw/retired-overlays/' + identity + '.json'
+        if _target(root, relative).exists():
+            raise OverlayConflict('The retired overlay history already exists. Refresh and prepare again.')
+        pending[relative] = inventory
+        state = None
     if state is not None and any(layer['active'] for layer in state['layers']):
         _validate_published(root, state, stop_event)
         if directory_name is not None and _directory(directory_name) != state['directory']:
@@ -347,12 +361,13 @@ def _state_for_edit(root, directory_name, stop_event):
     if existing and name != existing:
         raise ValueError(f'Choose Auto or {existing} to retain and manage the existing overlay.')
     directory = _target(root, name)
+    if retirement is not None and directory.exists():
+        raise OverlayConflict('Automatic recovery keeps the old overlay folders. Choose Auto or an unused folder for the new install.')
     if directory.exists() and not is_cdmw_overlay_directory(directory):
         raise ValueError(f'Archive {name} is not owned by CDMW.')
     if any(r.name == name for r in records) and not existing:
         raise ValueError(f'Archive {name} is reserved by the mount list.')
     state = {'format': _FORMAT, 'directory': name, 'layers': [], 'sources': {}, 'published': {}}
-    pending = {}
     if existing:
         if owned[0].flags != PAPGT_DEFAULT_FLAGS or int.from_bytes((directory / '0.pamt').read_bytes()[:4], 'little') != owned[0].pamt_checksum:
             raise OverlayConflict('The existing overlay differs from its mount-list checksum. Restore its backup before changing it.')
@@ -575,11 +590,11 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log):
         checksum, payload_bytes, sum(layer['file_count'] for layer in active[:-1]) if removed_id is None else len(paths))
 
 
-def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None):
+def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
     root = Path(package_root).resolve()
     if plan.source_revision is not None:
         plan.source_revision.validate(stop_event)
-    state, pending = _state_for_edit(root, directory_name, stop_event)
+    state, pending = _state_for_edit(root, directory_name, stop_event, retirement=retirement)
     mounted_path = _target(root, state['directory'] + '/0.pamt')
     mounted_entries = {str(entry.path).lower(): entry for entry in parse_archive_pamt(mounted_path)} if mounted_path.is_file() else {}
     changes = {}
@@ -621,7 +636,14 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
     from cdmw.core.mod_compatibility import game_identity
     _add_layer(state, pending, plan.spec.display_names.get('eng') or plan.spec.internal_name, changes,
         item_keys=tuple(sorted(known_items)), dependencies=dependencies, target_game=game_identity(root, stop_event))
-    return _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log)
+    prepared = _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log)
+    if retirement is not None:
+        before = dict(prepared.before)
+        archived = '.cdmw/retired-overlays/' + retirement.retirement_id + '.json'
+        if (before[INDEX_PATH] != retirement.inventory_data or before['meta/0.papgt'] != retirement.mount_data
+                or before[archived] is not None):
+            raise OverlayConflict('The overlay state changed after preparation. Refresh and prepare again.')
+    return prepared
 
 
 def prepare_overlay_removal(package_root, overlay_id, *, stop_event=None, on_log=None):
@@ -668,7 +690,8 @@ def apply_overlay_change(preparation, *, confirmed, backup, restore_backup, game
     allowed = {INDEX_PATH, 'meta/0.papgt', 'meta/0.pathc', name + '/0.pamt', name + '/0.paz', name + '/' + OVERLAY_OWNER_MARKER}
     import re
     for relative in (*dict(preparation.writes), *preparation.deletes):
-        if relative not in allowed and not re.fullmatch(r'\.cdmw/overlays/[0-9a-f]{32}\.zip', relative):
+        if relative not in allowed and not re.fullmatch(
+                r'\.cdmw/(?:overlays/[0-9a-f]{32}\.zip|retired-overlays/[0-9a-f]{32}\.json)', relative):
             raise ValueError('A prepared overlay change targets a file outside its ownership.')
     if set(dict(preparation.before)) != set(dict(preparation.writes)) | set(preparation.deletes):
         raise ValueError('Prepared overlay targets do not match their original files.')

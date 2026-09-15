@@ -196,6 +196,14 @@ Installed overlays and the Archive recovery fold; opening the menu or recovery f
 never performs a write. The activity log starts folded and opens for failures.
 An overlay installation failure also opens a warning and keeps the reason visible
 on Output after the worker stops; the plan remains available for review or retry.
+The confirmed install automatically handles a stale previous set whose folder is
+no longer mounted: it prepares one retry using a fresh inventory and an unused
+folder, preserving the old overlay files and journals. The archived inventory and
+new install share one verified backup and rollback; a failed retry restores the
+previous inventory and metadata. The install confirmation explains this recovery,
+and the success report names the archived history. Mounted overlays, another
+mounted CDMW group, an explicitly chosen occupied folder, and unrelated failures
+remain blocked. The installer does not loop retries or overwrite the old folder.
 If the saved texture registry or overlay files changed, **Installed overlays >
 Check game updates...** compares the recorded set with the current game before
 recovery. Refreshing the archive list or rebuilding a plan does not repair that
