@@ -341,7 +341,8 @@ def test_multipart_remapping_merging_and_part_count_changes_restore_exact_histor
         assert checked_output(service, sid, original.original_data).data == expected_output
 
 
-@pytest.mark.parametrize("invalid", ["empty", "invalid-face", "nonfinite", "invalid-skin"])
+@pytest.mark.parametrize("invalid", ["empty", "invalid-face", "nonfinite", "invalid-skin",
+                                    "vertex-index", "negative-index", "uv-index", "normal-index"])
 def test_invalid_geometry_then_valid_retry_preserves_current_replacement(editor, tmp_path, invalid):
     service, sid = editor
     original = service.capture_export_snapshot(sid)
@@ -360,6 +361,10 @@ def test_invalid_geometry_then_valid_retry_preserves_current_replacement(editor,
     else:
         text = path.read_text()
         text = {"empty": "# no geometry\n", "invalid-face": text.replace("f -3/1/1 -2/2/1 -1/3/1", "f 0 1 2"),
+                "vertex-index": text.replace("f -3/1/1", "f 4/1/1"),
+                "negative-index": text.replace("f -3/1/1", "f -4/1/1"),
+                "uv-index": text.replace("f -3/1/1", "f -3/4/1"),
+                "normal-index": text.replace("f -3/1/1", "f -3/1/2"),
                 "nonfinite": text.replace("v 2 3 4", "v nan 3 4")}[invalid]
         bad_path.write_text(text)
     with pytest.raises(ValueError):
@@ -424,3 +429,144 @@ def test_same_texture_path_and_timestamp_reimports_use_current_pixels(editor, tm
         outputs.append(textures[0])
     assert len({file.data for file in outputs}) == 3
     assert outputs[0] == outputs[-1]
+
+
+def test_offline_material_draft_reloads_preserve_edits_and_partial_restores(editor, tmp_path):
+    from types import SimpleNamespace
+    from PIL import Image
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from tests.test_mesh_editor_replacement_materials import material_fixture
+    from tests.test_mesh_rust_authoring_exact_output import _candidate_reference, _request
+    from tests.test_mesh_rust_replacement import command
+
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    sources = tmp_path / "imported sources"
+    sources.mkdir()
+    target, context, model = material_fixture(sources, original)
+    keys = [part.part_id for part in initial_replacement_state(original).parts]
+    draft = tmp_path / "draft" / "mesh_layers.json"
+    replacement_paths = source_variants(tmp_path / "other models")
+    previous = None
+    previous_state = None
+    previous_material_key = None
+    imported_files = {}
+    with ExitStack() as stack:
+        for generation in range(4):
+            if generation:
+                service, sid = open_editor(stack, original.original_data, original.mesh.path, draft)
+                loaded = service.capture_export_snapshot(sid)
+                assert loaded.replacement_state == previous_state
+                current = checked_output(service, sid, original.original_data)
+                assert (current.data, current.companion_files) == (previous.data, previous.companion_files)
+            host = RustMeshAuthoringSession.create(
+                SimpleNamespace(mesh_service=service, active_session_id=sid),
+                tmp_path / f"host-{generation}", process_generation=generation + 1,
+            )
+            stack.callback(lambda host=host: host.cancel() if not host.closed else None)
+            if generation:
+                assert host.state_payload()["archive_refit_materials"]["key"] == previous_material_key
+            if generation == 0:
+                for index, color in enumerate(((210, 30, 60, 255), (20, 50, 210, 255))):
+                    Image.new("RGBA", (4, 4), color).save(sources / "color.dds")
+                    if index:
+                        model.write_text(model.read_text().replace("v 12 3 7", "v 10 3 7"))
+                    command(host, "replacement_choose", {"scope": "selected", "part_ids": [keys[index]],
+                        "source_path": str(model), "_archive_entry": target, "_archive_dependencies": context})
+                    command(host, "replacement_apply", {"targets": [keys[index]], "materials": "imported"})
+                current = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                imported_files = {file.path: file.data for file in current.companion_files if file.path.endswith(".dds")}
+                assert len(imported_files) == 2 and len(set(imported_files.values())) == 2
+                for path in (model, model.with_suffix(".mtl"), sources / "color.dds"):
+                    path.unlink()
+            elif generation in (1, 2):
+                # Continue editing the frozen import after its OBJ, MTL and DDS disappeared.
+                before = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                reference = _candidate_reference(host, request_id=31, first_x=8 + generation)
+                host.apply_candidate({**_request(host, "transaction_request", 31), "candidate": reference})
+                edited = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                assert edited.data != before.data and edited.companion_files == before.companion_files
+                command(host, "undo")
+                assert checked_output(host.shadow_service, host.shadow_session_id, original.original_data).data == before.data
+                command(host, "redo")
+                assert checked_output(host.shadow_service, host.shadow_session_id, original.original_data).data == edited.data
+                # Restore target 1 first, then target 0, using different geometry formats.
+                index = 2 - generation
+                command(host, "replacement_choose", {"scope": "selected", "part_ids": [keys[index]],
+                    "source_path": str(replacement_paths[0 if generation == 1 else 3])})
+                command(host, "replacement_apply", {"targets": [keys[index]], "materials": "original"})
+                restored = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                retained = {file.path: file.data for file in restored.companion_files if file.path.endswith(".dds")}
+                assert len(retained) == 2 - generation
+                assert all(imported_files[path] == data for path, data in retained.items())
+                command(host, "replacement_include", {"part_ids": keys, "included": False})
+                checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                command(host, "replacement_include", {"part_ids": keys, "included": True})
+                assert checked_output(host.shadow_service, host.shadow_session_id, original.original_data).data == restored.data
+            else:
+                assert not previous.companion_files
+                before = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+                command(host, "replacement_fit")
+                command(host, "replacement_reset")
+                assert checked_output(host.shadow_service, host.shadow_session_id, original.original_data).data == before.data
+            current = checked_output(host.shadow_service, host.shadow_session_id, original.original_data)
+            material_key = host.state_payload()["archive_refit_materials"]["key"]
+            assert (material_key == "base") == (generation >= 2)
+            if generation < 2:
+                textures = host.archive_refit_material_cache[material_key]["textures"]
+                assert {index for row in textures for index in row["material_indices_by_lod"][0]} == ({0, 1} if generation == 0 else {0})
+            assert command(host, "replacement_compare", {"mode": "original"})["state"]["archive_refit_materials"]["key"] == "base"
+            assert command(host, "replacement_compare", {"mode": "output"})["state"]["archive_refit_materials"]["key"] == material_key
+            command(host, "replacement_compare", {"mode": "edit"})
+            host.finish(_request(host, "finish_request", 99))
+            exported = checked_output(service, sid, original.original_data)
+            assert (exported.data, exported.companion_files) == (current.data, current.companion_files)
+            previous = exported
+            previous_state = service.capture_export_snapshot(sid).replacement_state
+            previous_material_key = material_key
+            service._session(sid).mesh_layer_project_path = draft
+            service.retry_mesh_layer_autosave(sid)
+            service.close_edit_session(sid)
+
+
+@pytest.mark.parametrize("material_choice", ["original", "imported"])
+def test_obj_material_regions_within_one_object_keep_separate_target_bindings(editor, tmp_path, material_choice):
+    from io import BytesIO
+    from PIL import Image
+    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
+    from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies, prepare_imported_materials
+    from tests.test_mesh_editor_replacement_materials import material_fixture
+
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    target, context, model = material_fixture(tmp_path, original)
+    colors = ((210, 30, 60, 255), (20, 50, 210, 255))
+    Image.new("RGBA", (4, 4), colors[1]).save(tmp_path / "blue.dds")
+    model.with_suffix(".mtl").write_text("newmtl red\nKd 1 1 1\nmap_Kd color.dds\nnewmtl blue\nKd 1 1 1\nmap_Kd blue.dds\n")
+    model.write_text("mtllib import.mtl\no Combined dress edit\n"
+        "v 12 3 7\nv 16 3 7\nv 12 5 7\nv -4 1 2\nv -2 1 2\nv -4 3 2\n"
+        "vt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\n"
+        "usemtl red\nf 1/1/1 2/2/1 3/3/1\nusemtl blue\nf 4/1/1 5/2/1 6/3/1\n")
+    keys = tuple(part.part_id for part in initial_replacement_state(original).parts)
+    dependencies = capture_replacement_dependencies(target, context)
+    pending = prepare_import(original, model, entry=target, dependencies=dependencies)
+    assert [part.material for part in pending.source.mesh.submeshes] == ["red", "blue"]
+    files = prepare_imported_materials(pending, keys, tmp_path) if material_choice == "imported" else None
+    candidate, state = compose_import(pending, keys, material_choice=material_choice, companion_files=files)
+    commit_replacement(service, original, candidate, state, label="Replace separate material regions")
+    output = checked_output(service, sid, original.original_data)
+    parsed = parse_mesh(output.data, original.mesh.path)
+    assert [len(part.vertices) for part in parsed.submeshes] == [3, 3]
+    assert all(part.included for part in state.parts)
+    assert parsed.submeshes[0].vertices[0] == pytest.approx((12, 3, 7), abs=.001)
+    assert parsed.submeshes[1].vertices[0] == pytest.approx((-4, 1, 2), abs=.001)
+    if material_choice == "imported":
+        files = {file.path: file.data for file in output.companion_files}
+        sidecar = next(file for file in output.companion_files if file.path.endswith(".pac_xml"))
+        bindings = _parse_archive_model_sidecar_texture_bindings(sidecar.data.decode(), sidecar_path=sidecar.path)
+        for index, color in enumerate(colors):
+            binding = next(row for row in bindings if row.submesh_name == f"target{index}")
+            with Image.open(BytesIO(files[binding.texture_path])) as decoded:
+                assert decoded.convert("RGBA").getpixel((0, 0)) == pytest.approx(color, abs=4)
+    else:
+        assert not output.companion_files

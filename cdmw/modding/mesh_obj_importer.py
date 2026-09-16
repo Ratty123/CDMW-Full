@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 import hashlib
 from pathlib import Path
@@ -28,6 +29,8 @@ def _resolve_obj_index(raw_index: str, item_count: int) -> int:
     if value > 0:
         return value - 1
     if value < 0:
+        if item_count + value < 0:
+            raise ValueError(f"OBJ relative index {value} is outside the {item_count} values defined before this face.")
         return item_count + value
     raise ValueError("OBJ indices are 1-based and cannot be zero")
 
@@ -788,7 +791,8 @@ def import_obj(
     submesh_list: list[dict] = []
     current_faces_global: list[tuple] = []
     current_material = ""
-    saw_object_markers = False
+    object_ranges = []
+    object_index = -1
 
     with open(obj_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -821,19 +825,34 @@ def import_obj(
 
             elif parts[0] in {"o", "g"}:
                 # New object/submesh — save previous
-                saw_object_markers = True
                 if current_name and current_faces_global:
                     submesh_list.append({
                         "name": current_name,
                         "material": current_material,
                         "faces_global": current_faces_global,
+                        "object_index": object_index,
                     })
+                offsets = (len(all_verts), len(all_uvs), len(all_normals))
+                if object_index >= 0:
+                    object_ranges[object_index].append(offsets)
+                object_index += 1
+                object_ranges.append([offsets])
                 current_name = line.split(maxsplit=1)[1] if len(parts) > 1 else f"submesh_{len(submesh_list)}"
                 current_faces_global = []
-                current_material = ""
 
             elif parts[0] == "usemtl":
-                current_material = line.split(maxsplit=1)[1] if len(parts) > 1 else ""
+                material = line.split(maxsplit=1)[1] if len(parts) > 1 else ""
+                if material != current_material and current_faces_global:
+                    # OBJ assigns materials to subsequent faces, including within
+                    # one object. Keep earlier faces bound to their own material.
+                    submesh_list.append({
+                        "name": current_name,
+                        "material": current_material,
+                        "faces_global": current_faces_global,
+                        "object_index": object_index,
+                    })
+                    current_faces_global = []
+                current_material = material
 
             elif parts[0] == "f" and len(parts) >= 4:
                 if not current_name:
@@ -860,10 +879,23 @@ def import_obj(
             "name": current_name,
             "material": current_material,
             "faces_global": current_faces_global,
+            "object_index": object_index,
         })
+    if object_index >= 0:
+        object_ranges[object_index].append((len(all_verts), len(all_uvs), len(all_normals)))
 
     if not submesh_list:
         raise ValueError("OBJ import did not contain any face/object data.")
+
+    # Positive OBJ indices can refer forward; validate them after the entire
+    # file is decoded. Missing UV/normal fields use -1 and remain supported.
+    channels = (("vertex", len(all_verts)), ("UV", len(all_uvs)), ("normal", len(all_normals)))
+    for submesh in submesh_list:
+        for face in submesh["faces_global"]:
+            for corner in face:
+                for index, (channel, count) in zip(corner, channels):
+                    if index >= count:
+                        raise ValueError(f"OBJ {channel} index {index + 1} exceeds the {count} defined values.")
 
     matched_sidecar_entries = _match_obj_roundtrip_sidecar_submeshes(
         sidecar_payload,
@@ -938,55 +970,24 @@ def import_obj(
         _attach_obj_sidecar_unknown_fields(submesh, sidecar_entry)
         return submesh
 
-    # Build vertex ranges from the OBJ structure:
-    # Vertices between successive 'o' markers belong to that submesh
-    # Re-parse to find vertex counts per submesh
-    sm_vert_counts = []
-    sm_uv_counts = []
-    sm_normal_counts = []
-    current_v = current_vt = current_vn = 0
-
-    if saw_object_markers:
-        with open(obj_path, "r", encoding="utf-8") as f:
-            in_submesh = False
-            for line in f:
-                line = line.strip()
-                if line.startswith("o ") or line.startswith("g "):
-                    if in_submesh:
-                        sm_vert_counts.append(current_v)
-                        sm_uv_counts.append(current_vt)
-                        sm_normal_counts.append(current_vn)
-                    current_v = current_vt = current_vn = 0
-                    in_submesh = True
-                elif line.startswith("v ") and not line.startswith("vt") and not line.startswith("vn"):
-                    current_v += 1
-                elif line.startswith("vt "):
-                    current_vt += 1
-                elif line.startswith("vn "):
-                    current_vn += 1
-            if in_submesh:
-                sm_vert_counts.append(current_v)
-                sm_uv_counts.append(current_vt)
-                sm_normal_counts.append(current_vn)
-
     # Now build each submesh using the FULL vertex range (not just face-referenced).
     # Blender may remap/deduplicate vt/vn indices independently from position indices,
     # so we must honor the face-level vi/ti/ni tuples instead of assuming vi==ti==ni.
-    v_offset = 0
-    vt_offset = 0
-    vn_offset = 0
-
+    parts_per_object = Counter(part["object_index"] for part in submesh_list)
     for si, sm_data in enumerate(submesh_list):
         matched_sidecar_entry = matched_sidecar_entries[si] if si < len(matched_sidecar_entries) else None
-        if not saw_object_markers or si >= len(sm_vert_counts):
+        object_index = sm_data["object_index"]
+        if object_index < 0 or parts_per_object[object_index] > 1:
+            # A material region owns its referenced corners, not every vertex in
+            # the containing object. Unsplit objects retain unused round-trip slots.
             submeshes.append(_build_generic_submesh(sm_data, sidecar_entry=matched_sidecar_entry))
             continue
 
-        nv = sm_vert_counts[si] if si < len(sm_vert_counts) else 0
-        nvt = sm_uv_counts[si] if si < len(sm_uv_counts) else 0
-        nvn = sm_normal_counts[si] if si < len(sm_normal_counts) else 0
+        (v_offset, vt_offset, vn_offset), end = object_ranges[object_index]
+        nv, nvt, nvn = (limit - start for start, limit in zip((v_offset, vt_offset, vn_offset), end))
 
-        if nv <= 0:
+        if nv <= 0 or any(not v_offset <= vi < v_offset + nv
+                          for face in sm_data["faces_global"] for vi, _ti, _ni in face):
             submeshes.append(_build_generic_submesh(sm_data, sidecar_entry=matched_sidecar_entry))
             continue
 
@@ -1093,10 +1094,6 @@ def import_obj(
         )
         _attach_obj_sidecar_unknown_fields(sm, matched_sidecar_entry)
         submeshes.append(sm)
-
-        v_offset += nv
-        vt_offset += nvt
-        vn_offset += nvn
 
     for sm_data, submesh in zip(submesh_list, submeshes, strict=True):
         corners = [corner for face in sm_data["faces_global"] for corner in face]
