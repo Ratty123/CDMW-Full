@@ -59,6 +59,14 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
 
 
 def load_replacement_state(payload, project_root):
+    """Decode persisted input with one recoverable validation error boundary."""
+    try:
+        return _load_replacement_state(payload, project_root)
+    except (KeyError, TypeError, OverflowError) as exc:
+        raise ValueError("Malformed replacement draft state.") from exc
+
+
+def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
     if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4}
@@ -119,6 +127,10 @@ def load_replacement_state(payload, project_root):
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
             value["material_choice"], str(value["source_label"]), positions, normals, cloth))
+    if any(not part.part_id for part in parts) or len({part.part_id for part in parts}) != len(parts):
+        raise ValueError("Replacement draft part identities are missing or duplicated.")
+    if {part.target_index for part in parts} != set(range(len(parts))):
+        raise ValueError("Replacement draft target mappings are invalid or incomplete.")
     appearance, neutral = None, False
     if payload["version"] == 3 or (payload["version"] == 4 and "neutral_appearance" in payload):
         from cdmw.modding.mesh_importer import _load_obj_neutral_appearance

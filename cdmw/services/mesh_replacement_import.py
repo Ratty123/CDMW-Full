@@ -208,6 +208,14 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         [index for index, target in enumerate(targets) if target == key], indices[key],
     ) for key in pending.target_part_ids]
     preview = build_static_replacement_preview_mesh(candidate, pending.source.mesh, manual_replacement_options(mappings))
+    skin_reference = None
+    if pending.state.neutral_appearance is not None:
+        # Every import uses the retained PAC donor. A previous replacement has
+        # authored weights but no original vertex-record layout, and using its
+        # surface would also make later transfers depend on import order.
+        skin_reference = parse_mesh(pending.snapshot.original_data, pending.state.target_path)
+        if pending.state.neutral_coordinates:
+            skin_reference = pending.state.neutral_appearance.to_neutral(skin_reference)
     parts = []
     for binding in pending.state.parts:
         if binding.part_id not in pending.target_part_ids:
@@ -226,12 +234,13 @@ def compose_import(pending, source_targets, *, material_choice="original", compa
         # presentation comes from the prepared sidecar/DDS bundle, not source paths.
         imported.name, imported.material, imported.texture = donor.name, donor.material, donor.texture
         copy_extra_submesh_attrs(donor, imported)
-        if pending.state.neutral_appearance is not None:
+        if skin_reference is not None:
             # Transfer on the displayed target surface before any inverse
             # transform. Never let the writer guess weights in source space.
             from cdmw.modding.mesh_skinning import ensure_final_target_skin_weights, SOURCE_VERTEX_MAP_TOPOLOGY
             imported.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
-            ensure_final_target_skin_weights(imported, donor, target_index=index, summary=None)
+            ensure_final_target_skin_weights(imported, skin_reference.submeshes[binding.target_index],
+                                             target_index=binding.target_index, summary=None)
         setattr(imported, PART_ID_ATTRIBUTE, binding.part_id)
         candidate.submeshes[index] = imported
         parts.append(replace(binding, included=True, material_choice=material_choice,
