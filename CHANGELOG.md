@@ -17,6 +17,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Cloth and Mod output retain prior skin-weight edits, including after part reordering, replacement and draft recovery, while preserving untouched lower LOD weights.
+- Skin-weight edits reject a fifth skeletal bone on cloth vertices or removal of a vertex's last bone before changing the mesh or Undo/Redo history.
 - Preview bounds retained composed-texture memory, pauses failed GPU startup until Retry, and preserves material edits made while hidden. Shutdown waits for every helper before removing shared runtime output, and failed fast-preview handoffs release unclaimed temporary packages.
 - Preview releases temporary reference inputs after conversion and removes incomplete packages when caching is disabled. GPU recovery preserves live material adjustments and keeps Retry available when another model is selected. Effect texture aliases share memory instead of allocating duplicate payloads.
 - Repeated neutral-appearance mesh replacements keep using the original skin-weight donor, avoiding unsupported-layout errors on the second import and results that depend on earlier imports.

@@ -263,6 +263,12 @@ workflows are rejected before committing output.
 Incomplete or undecoded lower LODs disable cloth controls without blocking an
 otherwise readable mesh from opening. Replacements reject non-finite or
 out-of-range retained cloth-guide indices before committing the imported mesh.
+Skin-weight edits made before applying cloth settings remain in PAC output,
+including after inclusion changes, replacement of other parts and draft recovery.
+Parts whose geometry is unchanged keep their original lower LOD weights;
+authored LOD0 weights are patched at their final output offsets. Weight commands
+reject a fifth skeletal influence on cloth vertices and removal of a vertex's
+last bone before changing the mesh or Undo/Redo history.
 
 These controls edit render-vertex cloth influence, not simulation anchors,
 collision shapes or the shared physics profile. The existing cloth simulation

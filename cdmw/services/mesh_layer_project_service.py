@@ -15,6 +15,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.modding.mesh_native_core import (
     _mesh_snapshot_metadata,
     _native_submesh_snapshot_item,
+    _submesh_snapshot_metadata,
     export_native_mesh_editor_session_snapshot,
     restore_native_mesh_submesh_snapshot,
 )
@@ -150,6 +151,10 @@ def save_mesh_layer_project(
     if not isinstance(raw_items, list) or len(raw_items) != len(summary_by_index):
         raise RuntimeError("Native Mesh Editor returned an incomplete snapshot generation")
 
+    replacement_indices = {}
+    if replacement_state is not None:
+        from cdmw.domain.mesh.replacement import PART_ID_ATTRIBUTE, bound_part_indices
+        replacement_indices = bound_part_indices(mesh, replacement_state)
     snapshot_items: list[dict[str, object]] = []
     for raw_item in raw_items:
         if not isinstance(raw_item, Mapping):
@@ -162,11 +167,20 @@ def save_mesh_layer_project(
         face_count = _non_negative_int(summary_item.get("face_count"))
         if vertex_count is None or face_count is None:
             raise RuntimeError("Native Mesh Editor snapshot counts were missing")
-        metadata: dict[str, object] = {
+        metadata: dict[str, object] = {}
+        if replacement_state is not None:
+            # Native summaries carry live geometry/material identity, but omit
+            # the immutable PAC record layout. Match that metadata by part ID,
+            # since native and Python part orders need not agree.
+            identity = dict(summary_item.get("extra_attrs") or {}).get(PART_ID_ATTRIBUTE)
+            if identity not in replacement_indices:
+                raise RuntimeError("Replacement draft snapshot lost its part identity")
+            metadata = _submesh_snapshot_metadata(mesh.submeshes[replacement_indices[identity]])
+        metadata.update({
             "name": str(summary_item.get("name") or ""),
             "material": str(summary_item.get("material") or ""),
             "texture": str(summary_item.get("texture") or ""),
-        }
+        })
         if isinstance(summary_item.get("extra_attrs"), Mapping):
             metadata["extra_attrs"] = dict(summary_item["extra_attrs"])
         snapshot_item = _native_submesh_snapshot_item(
