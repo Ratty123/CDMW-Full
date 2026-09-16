@@ -10,6 +10,7 @@ import struct
 
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementFile, ReplacementPart
+from cdmw.domain.mesh.cloth import PacClothRule
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -39,7 +40,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     return {
-        "version": 3 if state.neutral_appearance is not None else 2,
+        "version": 4 if any(part.cloth is not None for part in state.parts) else (3 if state.neutral_appearance is not None else 2),
         **({"neutral_appearance": {"version": 1, **asdict(state.neutral_appearance)},
             "neutral_coordinates": state.neutral_coordinates} if state.neutral_appearance is not None else {}),
         "target_path": state.target_path, "target_sha256": state.target_sha256,
@@ -49,7 +50,8 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    "material_choice": part.material_choice, "source_label": part.source_label,
                    "import_positions": blob(b"".join(struct.pack("<3d", *point) for point in part.import_positions)),
                    "import_normals": (blob(b"".join(struct.pack("<3d", *normal) for normal in part.import_normals))
-                                      if part.import_normals is not None else None)}
+                                      if part.import_normals is not None else None),
+                   **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
         "companion_files": [file_payload(file) for file in state.companion_files],
@@ -59,7 +61,7 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
 def load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -93,6 +95,9 @@ def load_replacement_state(payload, project_root):
     if not isinstance(payload.get("parts"), list) or not 1 <= len(payload["parts"]) <= 4096:
         raise ValueError("Invalid replacement draft parts.")
     for value in payload["parts"]:
+        if payload["version"] < 4 and "cloth" in value:
+            raise ValueError("Cloth influence settings require replacement draft version 4.")
+        cloth = PacClothRule.from_dict(value["cloth"]) if "cloth" in value else None
         data = blob(value["import_positions"])
         if len(data) % 24:
             raise ValueError("Invalid replacement import placement data.")
@@ -113,14 +118,16 @@ def load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth))
     appearance, neutral = None, False
-    if payload["version"] == 3:
+    if payload["version"] == 3 or (payload["version"] == 4 and "neutral_appearance" in payload):
         from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
         appearance = _load_obj_neutral_appearance(payload.get("neutral_appearance"))
         neutral = payload.get("neutral_coordinates")
         if type(neutral) is not bool:
             raise ValueError("Invalid experimental replacement coordinate frame.")
+    elif "neutral_coordinates" in payload:
+        raise ValueError("Replacement coordinates require a saved appearance transform.")
     return MeshReplacementState(str(payload["target_path"]), str(payload["target_sha256"]),
         tuple(parts), int(payload["revision"]), location(payload.get("target_location")),
         tuple(file(v) for v in payload.get("dependencies", [])),

@@ -237,6 +237,38 @@ revision checks and import tokens prevent stale candidates from taking over.
 Synthetic verification covers format round-trips and the packaged editor. It
 does not establish real-game rendering or animation compatibility.
 
+## Cloth influence
+
+For an original PAC at LOD0, open **Mesh Data > Cloth**. Choose all included
+cloth parts or **Selected parts only**. **Cloth amount** scales their existing
+influence; **Disable cloth** makes them follow skeletal animation. Enable
+**Fix vertices above height** to set where movement begins, with an optional
+fade below that height. Height uses displayed model Y, including the neutral
+appearance transform when present, and is evaluated separately at every stored
+LOD. Previously rigid vertices remain rigid.
+
+**Apply cloth settings**, **Restore cloth**, Undo/Redo, Finish/cancel and drafts
+use the existing replacement output transaction. PAC output retains the source
+bindings and reapplies the rule on every rebuild, including after replacement.
+Restore removes the rule and recovers those retained bindings. An exported PAC
+whose bindings have been disabled cannot recover them without its source/draft.
+Unproven or shared vertex layouts, missing bindings and active hair/refit
+workflows are rejected before committing output.
+
+These controls edit render-vertex cloth influence, not simulation anchors,
+collision shapes or the shared physics profile. The existing cloth simulation
+preview remains approximate and does not visualize these saved influence edits.
+Cloth drafts use project/generation v6 and replacement payload v4 so older apps
+reject them before attempting recovery that could lose the settings. Drafts
+without cloth settings retain their existing formats.
+
+`mesh_rust_cloth.py` owns the command/state handoff, `domain/mesh/cloth.py` the
+height rule, and `modding/pac_cloth.py` the validated byte patch. In cloth mode,
+only four packed slots are skeletal; the other four influences address cloth
+guides. Disabling cloth clears the guide fields that the ordinary six-bone
+shader branch would otherwise reinterpret. Original skeletal weights, mesh
+geometry, materials, physics sections and companion files are preserved.
+
 ## Existing editing controls
 
 Rust's **Visible** selection compares projected depth with a floating-point

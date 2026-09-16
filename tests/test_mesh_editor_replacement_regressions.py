@@ -34,8 +34,8 @@ def _import(service, sid, path):
     return service.capture_export_snapshot(sid)
 
 
-@pytest.mark.parametrize("influence_count", [7, 8])
-def test_mod_toggle_preserves_original_extra_skin_influences(tmp_path, influence_count):
+@pytest.mark.parametrize("guide_count", [3, 4])
+def test_mod_toggle_preserves_original_cloth_guide_bindings(tmp_path, guide_count):
     from tests.test_pac_skin_extra_influences import _record
 
     data, _ = _minimal_two_part_pac_original()
@@ -45,7 +45,7 @@ def test_mod_toggle_preserves_original_extra_skin_influences(tmp_path, influence
         for offset in part.source_vertex_offsets:
             source[offset + 28] = 255
     skin = _record(palette=(1, 2, 3, 4, 5, 6),
-                   weights=(60, 50, 40, 30, 20, 10, 25, 20 if influence_count == 8 else 0),
+                   weights=(60, 50, 40, 30, 20, 10, 25, 20 if guide_count == 4 else 0),
                    extra=(0., 7.), gate=0)
     for offset in original.submeshes[1].source_vertex_offsets:
         source[offset + 12:offset + 16] = skin[12:16]
@@ -53,7 +53,7 @@ def test_mod_toggle_preserves_original_extra_skin_influences(tmp_path, influence
         source[offset + 39] = skin[39]
     source = bytes(source)
     original = parse_mesh(source, original.path)
-    assert len(original.submeshes[1].bone_indices[0]) == influence_count
+    assert len(original.submeshes[1].bone_indices[0]) == 4
     original._cdmw_original_data = source
     service = MeshService()
     sid = service.open_edit_session(original).session_id

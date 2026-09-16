@@ -183,12 +183,11 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     for before, after in zip(original.submeshes, snapshot.mesh.submeshes, strict=True)))
         if original_parts and all(part.included for part in state.parts):
             # Mod inclusion does not author geometry or skin weights. Restoring
-            # all original parts must retain every record, including eight lanes.
+            # all original parts must retain skeletal and cloth guide lanes.
             data = snapshot.original_data
         elif preserve_hair_records:
-            # Existing PAC hair can use eight encoded influences. Geometry-only
-            # grooming must retain those exact records, not pass them through the
-            # six-lane new-topology weight writer.
+            # Geometry-only grooming retains the exact skeletal and guide
+            # records rather than passing them through a weight writer.
             from cdmw.modding.mesh_pac_builder import build_pac
             data = build_pac(snapshot.mesh, snapshot.original_data)
         elif (original_parts or (original.format.lower() == "pac" and hair is not None
@@ -204,7 +203,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                 if not binding.included:
                     placeholder = _build_removed_runtime_placeholder_submesh(original.submeshes[index])
                     # Retain the established hidden-section package contract,
-                    # including the donor's complete eight-influence records.
+                    # including the donor's skeletal and cloth guide records.
                     placeholder.source_vertex_map = [0] * len(placeholder.vertices)
                     placeholder.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
                     placeholder.bone_indices = [original.submeshes[index].bone_indices[0]] * len(placeholder.vertices) if original.submeshes[index].bone_indices else []
@@ -220,6 +219,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                                                   preserve_original_pac_submesh_indices=preserved)
         if original.format.lower() == "pam":
             data = _preserve_pam_index_convention(data, snapshot.original_data)
+    cloth_rules = {part.target_index: part.cloth for part in state.parts
+                   if part.included and part.cloth is not None}
+    if cloth_rules:
+        if original.format.lower() != "pac":
+            raise ValueError("Cloth influence editing is supported only for PAC meshes.")
+        from cdmw.modding.pac_cloth import apply_pac_cloth_rules
+        data = apply_pac_cloth_rules(data, cloth_rules, appearance=state.neutral_appearance)
     parsed = parse_mesh(data, state.target_path)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")

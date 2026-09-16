@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from .cloth import PacClothRule
 
 if TYPE_CHECKING:
     from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
@@ -32,6 +33,7 @@ class ReplacementPart:
     import_positions: tuple[tuple[float, float, float], ...] = ()
     # None identifies older drafts that did not retain the imported normal frame.
     import_normals: tuple[tuple[float, float, float], ...] | None = None
+    cloth: PacClothRule | None = None
 
 
 @dataclass(frozen=True, slots=True)

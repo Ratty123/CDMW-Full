@@ -2370,6 +2370,69 @@ fn integrated_refit_fit_to_body_dispatches_without_body_sliders_or_part_selectio
 }
 
 #[test]
+fn integrated_cloth_controls_apply_boundary_disable_and_restore() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 1100.0),
+    );
+    ui.application.cdmw_state["cloth"] = json!({
+        "available": true, "reason": "", "lod_count": 4,
+        "parts": [{"index": 0, "id": "cloth:0", "included": true,
+            "min_y": 0.0, "max_y": 2.0, "rule": null}]
+    });
+    ui.click_tool_button("Cloth")?;
+    ui.settle_layout();
+    ui.application.cdmw_cloth.amount_percent = 75.0;
+    ui.application.cdmw_cloth.use_height = true;
+    ui.application.cdmw_cloth.height = 1.25;
+    ui.application.cdmw_cloth.fade = 0.2;
+    let actions = ui.actions_from_click("Apply cloth settings")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_cloth", arguments, .. }
+        if arguments == &json!({"part_ids": ["cloth:0"], "rule": {"amount": 0.75, "fixed_above": 1.25, "fade": 0.2}})
+    )));
+    let actions = ui.actions_from_click("Disable cloth")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_cloth", arguments, .. }
+        if arguments["rule"] == json!({"amount": 0.0, "fixed_above": null, "fade": 0.0})
+    )));
+    ui.application.cdmw_state["cloth"]["parts"][0]["rule"] =
+        json!({"amount": 0.0, "fixed_above": null, "fade": 0.0});
+    let actions = ui.actions_from_click("Restore cloth")?;
+    assert_eq!(ui.application.cdmw_cloth.amount_percent, 0.0);
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_cloth", arguments, .. }
+        if arguments == &json!({"part_ids": ["cloth:0"], "reset": true})
+    )));
+    ui.click("Selected parts only")?;
+    ui.settle_layout();
+    assert!(
+        ui.label_rect("Select an included part with cloth bindings.")
+            .is_some()
+    );
+    assert!(ui.label_rect("Apply cloth settings").is_none());
+    Ok(())
+}
+
+#[test]
+fn integrated_cloth_unavailable_shows_reason_and_no_mutation_buttons() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["cloth"] = json!({"available": false,
+        "reason": "This PAC has no existing cloth bindings.", "parts": []});
+    ui.click_tool_button("Cloth")?;
+    ui.settle_layout();
+    assert!(
+        ui.label_rect("This PAC has no existing cloth bindings.")
+            .is_some()
+    );
+    assert!(ui.label_rect("Apply cloth settings").is_none());
+    Ok(())
+}
+
+#[test]
 fn integrated_replacement_experimental_notice_keeps_import_and_inclusion_available() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

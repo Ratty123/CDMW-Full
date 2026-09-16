@@ -11,8 +11,13 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's Cloth controls can reduce or disable existing cloth influence, fix vertices above a chosen height, and fade movement below it across every stored LOD. Settings support Undo/Redo, Restore, drafts and PAC output.
+
 ### Fixed
 
+- PAC decoding separates cloth guide bindings from skeletal weights. Replacement and weight edits preserve valid cloth bindings instead of treating them as extra bones.
 - Cancelled Preview Core jobs clean up their temporary folders after the helper stops. Ownership locks protect active jobs, and abandoned marked folders are recovered on later preview preparation.
 - Hidden previews release GPU resources, and scene replacement reuses unchanged textures. Rendering checks Windows' GPU memory budget and attempts one device recovery before pausing for Retry, preserving the current scene and editing state.
 - Mesh Editor's Keep Original Materials imports accept OBJ files with missing material libraries or stale texture references. Imported Materials & Textures still checks every required material dependency before applying.

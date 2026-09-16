@@ -41,6 +41,7 @@ def _skinned_pac() -> tuple[bytes, ParsedMesh]:
     parsed = parse_pac(raw, "target.pac")
     patched = bytearray(raw)
     for bone, offset in enumerate(parsed.submeshes[0].source_vertex_offsets):
+        patched[offset + 39] = 63  # Ordinary six-bone shader branch.
         struct.pack_into("<I", patched, offset + PAC_SKIN_SLOT_GROUPS[0], bone)
         struct.pack_into("<I", patched, offset + PAC_SKIN_SLOT_GROUPS[1], 0)
         patched[offset + PAC_SKIN_WEIGHT_OFFSET:offset + PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
@@ -112,7 +113,7 @@ def test_pac_skin_weights_encode_and_reparse_with_exact_unorm_sum() -> None:
 
 
 @pytest.mark.parametrize("extra_weights", [(40, 60), (0, 0)])
-def test_full_replacement_does_not_add_donor_extra_influences_to_authored_skin(extra_weights) -> None:
+def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_weights) -> None:
     from tests.test_pac_skin_extra_influences import _record
 
     raw, original = _skinned_pac()
@@ -138,12 +139,15 @@ def test_full_replacement_does_not_add_donor_extra_influences_to_authored_skin(e
     reparsed = parse_pac(output, "target.pac")
     for vertex in range(3):
         assert _weight_map(reparsed.submeshes[0], vertex) == pytest.approx({1: 64 / 255, 2: 191 / 255})
-    # The shader gates the two matrix fetches independently of their weights.
-    # Zero weights alone leave the old accessory-bone fetches enabled.
     for offset in reparsed.submeshes[0].source_vertex_offsets:
-        assert output[offset + 39] == 0xFF
-        assert output[offset + 12:offset + 16] == b"\x00\x00\x00\x3c"
-        assert output[offset + 34:offset + 36] == b"\x00\x00"
+        if any(extra_weights):
+            assert output[offset + 39] == 0xC0
+            assert output[offset + 12:offset + 16] == record[12:16]
+            assert output[offset + 32:offset + 36] == record[32:36]
+        else:
+            assert output[offset + 39] == 0xFF
+            assert output[offset + 12:offset + 16] == b"\x00\x00\x00\x3c"
+            assert output[offset + 34:offset + 36] == b"\x00\x00"
 
 
 def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
@@ -162,9 +166,8 @@ def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
 def test_pac_skin_weight_export_writes_six_influences() -> None:
     """All six palette lanes encode and decode; the fifth and sixth are not dropped.
 
-    Six, not eight: the writer authors the palette slots only. The record's two
-    further influences live in lanes the exact serializer protects, so nothing
-    here writes them.
+    An ordinary record uses all six slots. Cloth records instead use four bone
+    slots and four guide indices, tested separately.
     """
 
     raw, original = _skinned_pac()

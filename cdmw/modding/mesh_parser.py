@@ -90,7 +90,8 @@ PAMLOD_BBOX_MIN = 0x10
 PAMLOD_BBOX_MAX = 0x1C
 PAMLOD_ENTRY_TABLE = 0x50
 
-# PAC skin influences inside the 40-byte vertex record: SIX influences, not four.
+# PAC skeletal influences inside the 40-byte record: six in ordinary mode,
+# four in cloth-guide mode (byte 39's low six bits below 63).
 #
 #   bytes 20-23  u32 little-endian, three 10-bit palette slots (influences 0,1,2)
 #   bytes 24-27  u32 little-endian, three 10-bit palette slots (influences 3,4,5)
@@ -149,22 +150,19 @@ PAC_SKIN_SLOTS_PER_GROUP = 3
 PAC_SKIN_SLOT_MASK = (1 << PAC_SKIN_SLOT_BITS) - 1
 #: Palette slots carried as 10-bit fields in the two u32 groups at bytes 20-27.
 PAC_SKIN_PALETTE_SLOTS = 6
-#: A vertex may carry two influences beyond the palette slots. Their bone indices
-#: live at bytes 12-15 as two halves holding integers, their weights at bytes
-#: 34-35, and the pair is live only when the gate below is open. The game's own
-#: vertex shaders index the same bone matrix buffer with all eight and divide the
-#: accumulated transform by the accumulated weight, so the stored weights matter
-#: only up to scale.
+#: Eight encoded weights: either six skeletal weights, or four skeletal and
+#: four cloth-guide weights. Keep these raw-layout constants for record writers;
+#: they are not a count of skeletal influences returned by the decoder.
 PAC_SKIN_EXTRA_INFLUENCES = 2
 PAC_SKIN_EXTRA_INDEX_OFFSET = 12
 PAC_SKIN_INFLUENCES = PAC_SKIN_PALETTE_SLOTS + PAC_SKIN_EXTRA_INFLUENCES
 PAC_SKIN_WEIGHT_OFFSET = 28
 PAC_SKIN_RECORD_END = PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES
-#: Low six bits of byte 39. The extra pair is live unless this reads 63.
+#: Low six bits of byte 39: skeletal/guide blend; 63 disables the guide branch.
 PAC_SKIN_GATE_OFFSET = 39
 PAC_SKIN_GATE_MASK = 0x3F
 PAC_SKIN_GATE_DISABLED = 63
-#: What a record with no extra influences holds at bytes 12-15: the halves
+#: What an ordinary record holds at bytes 12-15: the halves
 #: ``(0.0, 1.0)``.
 PAC_SKIN_EXTRA_INDEX_SENTINEL = b"\x00\x00\x00\x3c"
 PAC_SKIN_MAX_BONE_INDEX = PAC_SKIN_SLOT_MASK
@@ -1738,7 +1736,7 @@ def _decode_pac_normal(data: bytes, rec_off: int) -> tuple[float, float, float]:
 
 
 def _decode_pac_skin_influences(data: bytes, rec_off: int) -> tuple[tuple[int, ...], tuple[float, ...]]:
-    """Decode one PAC vertex's six packed skin influences.
+    """Decode skeletal influences, excluding the separate cloth-guide binding.
 
     Returns only the live ones. A zero weight is what marks an influence unused,
     not the slot value: slot 0 is a real palette entry, and a rigidly bound prop
@@ -1748,7 +1746,7 @@ def _decode_pac_skin_influences(data: bytes, rec_off: int) -> tuple[tuple[int, .
     :func:`resolve_pac_bone_palette`.
     """
 
-    if rec_off < 0 or rec_off + PAC_SKIN_RECORD_END > len(data):
+    if rec_off < 0 or rec_off + PAC_SKIN_GATE_OFFSET >= len(data):
         return (), ()
 
     slots: list[int] = []
@@ -1758,23 +1756,26 @@ def _decode_pac_skin_influences(data: bytes, rec_off: int) -> tuple[tuple[int, .
             (group >> (PAC_SKIN_SLOT_BITS * position)) & PAC_SKIN_SLOT_MASK
             for position in range(PAC_SKIN_SLOTS_PER_GROUP)
         )
-    slots.extend(_decode_pac_extra_skin_slots(data, rec_off))
-    weights = struct.unpack_from(f"<{PAC_SKIN_INFLUENCES}B", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
+    # The guide branch uses four skeletal slots plus four guide-mesh indices.
+    # The ordinary branch uses up to six skeletal slots. The two half-float
+    # indices at 12:16 are guide indices, never additional skeleton bones.
+    cloth = (data[rec_off + PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK) != PAC_SKIN_GATE_DISABLED
+    count = 4 if cloth else PAC_SKIN_PALETTE_SLOTS
+    slots = slots[:count]
+    weights = struct.unpack_from(f"<{count}B", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
 
     live = [(slot, weight) for slot, weight in zip(slots, weights) if weight > 0 and slot >= 0]
     total = float(sum(weight for _slot, weight in live))
     if total <= 0.0:
         return (), ()
-    # The stored bytes are not normalized across all eight: a six-influence row
-    # sums to 255, an eight-influence one to about 500. The shader divides by the
-    # accumulated total, so proportion is the only thing the file promises.
+    # Skeletal and guide weights have independent totals in the game shader.
     return tuple(slot for slot, _ in live), tuple(weight / total for _, weight in live)
 
 
 def _decode_pac_extra_skin_slots(data: bytes, rec_off: int) -> tuple[int, ...]:
-    """The two influences beyond the palette, or a dead pair when gated off.
+    """Read the two half-float guide indices (retained internal helper name).
 
-    Bytes 12-15 hold their bone indices as halves carrying whole numbers, which
+    Bytes 12-15 hold guide indices as halves carrying whole numbers, which
     the shader rounds with ``fptoui(h + 0.5)``. ``-1`` marks a position that
     carries no influence, so a caller can zip it against the weight bytes without
     the positions shifting.
@@ -1887,39 +1888,18 @@ def _decode_pac_vertex_records_bulk(
     if include_skin:
         group0 = u32[:, 5]
         group1 = u32[:, 6]
-        # Six palette slots, then the two extra influences at bytes 12-15. The
-        # scalar path in _decode_pac_skin_influences is the reference; the two
-        # are held together by tests/test_pac_vectorized_decode_equivalence.py.
-        extra_halves = np.ascontiguousarray(
-            records[:, PAC_SKIN_EXTRA_INDEX_OFFSET : PAC_SKIN_EXTRA_INDEX_OFFSET + 4]
-        ).view("<f2").astype(np.float64)
-        gate_open = (records[:, PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK) != PAC_SKIN_GATE_DISABLED
-        usable = (
-            np.isfinite(extra_halves)
-            & (extra_halves >= 0.0)
-            & (extra_halves <= PAC_SKIN_MAX_BONE_INDEX)
-            & gate_open[:, None]
-        )
-        extra_slots = np.where(usable, np.floor(extra_halves + 0.5), -1.0).astype(np.int64)
-        slots = np.concatenate(
-            (
-                np.stack(
-                    (
-                        group0 & PAC_SKIN_SLOT_MASK,
-                        (group0 >> PAC_SKIN_SLOT_BITS) & PAC_SKIN_SLOT_MASK,
-                        (group0 >> (2 * PAC_SKIN_SLOT_BITS)) & PAC_SKIN_SLOT_MASK,
-                        group1 & PAC_SKIN_SLOT_MASK,
-                        (group1 >> PAC_SKIN_SLOT_BITS) & PAC_SKIN_SLOT_MASK,
-                        (group1 >> (2 * PAC_SKIN_SLOT_BITS)) & PAC_SKIN_SLOT_MASK,
-                    ),
-                    axis=1,
-                ).astype(np.int64),
-                extra_slots,
-            ),
-            axis=1,
-        )
-        raw_weights = records[:, PAC_SKIN_WEIGHT_OFFSET : PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES]
-        live_mask = (raw_weights > 0) & (slots >= 0)
+        slots = np.stack(
+            (group0 & PAC_SKIN_SLOT_MASK,
+             (group0 >> 10) & PAC_SKIN_SLOT_MASK,
+             (group0 >> 20) & PAC_SKIN_SLOT_MASK,
+             group1 & PAC_SKIN_SLOT_MASK,
+             (group1 >> 10) & PAC_SKIN_SLOT_MASK,
+             (group1 >> 20) & PAC_SKIN_SLOT_MASK), axis=1,
+        ).astype(np.int64)
+        raw_weights = records[:, PAC_SKIN_WEIGHT_OFFSET : PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS]
+        cloth = (records[:, PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK) != PAC_SKIN_GATE_DISABLED
+        live_mask = raw_weights > 0
+        live_mask[:, 4:] &= ~cloth[:, None]
         if not live_mask.any():
             empty = ()
             bone_indices = [empty] * n
@@ -1933,12 +1913,12 @@ def _decode_pac_vertex_records_bulk(
             # Group vertices by which weights are live; each group slices its
             # live columns in one vectorized pass instead of filtering per
             # vertex.
-            codes = live_mask @ (1 << np.arange(PAC_SKIN_INFLUENCES, dtype=np.int64))
+            codes = live_mask @ (1 << np.arange(PAC_SKIN_PALETTE_SLOTS, dtype=np.int64))
             for code in np.unique(codes):
                 if code == 0:
                     continue
                 rows = np.nonzero(codes == code)[0]
-                live_positions = [position for position in range(PAC_SKIN_INFLUENCES) if (int(code) >> position) & 1]
+                live_positions = [position for position in range(PAC_SKIN_PALETTE_SLOTS) if (int(code) >> position) & 1]
                 slot_tuples = list(map(tuple, slots[rows][:, live_positions].tolist()))
                 weight_tuples = list(map(tuple, scaled[rows][:, live_positions].tolist()))
                 for row, slot_tuple, weight_tuple in zip(rows.tolist(), slot_tuples, weight_tuples):

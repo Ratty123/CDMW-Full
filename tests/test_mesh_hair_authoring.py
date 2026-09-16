@@ -450,7 +450,7 @@ def test_finder_stale_hair_preparation_restores_actions(finder):
 
 
 @pytest.mark.parametrize("operation", ["reshape", "cut", "delete"])
-def test_existing_hair_preserves_all_eight_influence_record_bytes(editor, operation):
+def test_existing_hair_preserves_skeletal_and_cloth_record_bytes(editor, operation):
     from tests.test_pac_skin_extra_influences import _record
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.services.mesh_replacement_output import prepare_replacement_output
@@ -467,7 +467,7 @@ def test_existing_hair_preserves_all_eight_influence_record_bytes(editor, operat
         data[offset+39]=skin[39]
     source=bytes(data)
     original=parse_mesh(source,MESH)
-    assert len(original.submeshes[0].bone_weights[0]) == 8
+    assert len(original.submeshes[0].bone_weights[0]) == 4
     snapshot=replace(snapshot,original_data=source,mesh=original,replacement_state=None)
     output=initial_replacement_state(snapshot)
     mesh=copy.deepcopy(original)

@@ -473,7 +473,7 @@ class MeshEditorRustProcessMixin:
                 QTimer.singleShot(0, self._start_next_rust_protocol_worker)
                 return
             event = {**event, "arguments": {**dict(event.get("arguments") or {}), "_dds_path": path}}
-        if event.get("command") in {"replacement_choose", "replacement_include"}:
+        if event.get("command") in {"replacement_choose", "replacement_include", "replacement_cloth"}:
             from cdmw.ui.mesh_editor.replacement_flow import prepare_replacement_event
             self._archive_refit_picker_active = True
             try:

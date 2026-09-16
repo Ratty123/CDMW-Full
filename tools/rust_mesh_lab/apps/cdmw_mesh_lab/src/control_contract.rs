@@ -130,6 +130,8 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_rig.rs"),
     "\n",
+    include_str!("cdmw_cloth.rs"),
+    "\n",
     include_str!("cdmw_hair.rs")
 );
 const MAIN_SOURCE: &str = concat!(
@@ -694,6 +696,10 @@ normals.soften|normals|"soften_normals"|UiAction::CdmwMeshAction
 normals.weighted|normals|"weighted_normals"|UiAction::CdmwMeshAction
 normals.copy_source|normals|"copy_normals"|UiAction::CdmwMeshAction
 page.uv|uv|CdmwRailPage::Uv|Uv,
+page.cloth|cloth|CdmwRailPage::Cloth|Cloth,
+cloth.apply|cloth|"Apply cloth settings"|UiAction::CdmwCommand
+cloth.disable|cloth|"Disable cloth"|UiAction::CdmwCommand
+cloth.restore|cloth|"Restore cloth"|UiAction::CdmwCommand
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
