@@ -142,7 +142,7 @@ def test_original_hair_uses_retained_neutral_coordinates_and_reopens_without_gui
     assert prepare_replacement_output(reopened).data == snapshot.original_data
 
 
-def test_unprepared_retained_triangles_keep_eight_influence_skin_records(editor):
+def test_unprepared_retained_triangles_keep_skeletal_and_cloth_records(editor):
     from tests.test_pac_skin_extra_influences import _record
     from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
     snapshot = original_snapshot(editor[1])

@@ -20857,6 +20857,16 @@
       ]
     },
     {
+      "key": "Choose at least one cloth part.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 70,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose at least one replacement source first.",
       "origins": [
         {
@@ -20950,6 +20960,16 @@
       "key": "Choose how to import this mesh file.",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Choose included parts with existing cloth bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 75,
+          "sink": "ValueError"
+        }
+      ]
     },
     {
       "key": "Choose isolated renderer host without --cli or --gui.",
@@ -22513,6 +22533,71 @@
           "path": "cdmw/ui/shell/close_controller.py",
           "line": 398,
           "sink": "set_status_message"
+        }
+      ]
+    },
+    {
+      "key": "Cloth draft omitted its influence settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 335,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth influence editing is supported only for PAC meshes.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 226,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth influence requires an original PAC mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 23,
+          "sink": "python-return:cloth_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 57,
+          "sink": "python-return:cloth_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Cloth influence settings require replacement draft version 4.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth parts must be unique.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 72,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Cloth settings require a cloth-capable draft format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 337,
+          "sink": "ValueError"
         }
       ]
     },
@@ -38737,6 +38822,21 @@
       ]
     },
     {
+      "key": "Finish the hair workflow before editing cloth influence.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 23,
+          "sink": "python-return:cloth_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 57,
+          "sink": "python-return:cloth_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Finished DDS -> PNG. Converted/planned={value_0}, skipped={value_1}, failed={value_2}.",
       "origins": [
         {
@@ -47438,6 +47538,16 @@
           "path": "cdmw/ui/localization_catalogs_v2.py",
           "line": 62,
           "sink": "RuntimeError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid cloth reset request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 67,
+          "sink": "ValueError"
         }
       ]
     },
@@ -85907,6 +86017,16 @@
       ]
     },
     {
+      "key": "Replacement coordinates require a saved appearance transform.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 130,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Replacement dependencies exceed the 512 MiB snapshot limit.",
       "origins": [
         {
@@ -109428,6 +109548,21 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
           "line": 265,
           "sink": "_set_dotnet_status"
+        }
+      ]
+    },
+    {
+      "key": "This PAC has no existing cloth bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 23,
+          "sink": "python-return:cloth_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_cloth.py",
+          "line": 57,
+          "sink": "python-return:cloth_ui_state"
         }
       ]
     },

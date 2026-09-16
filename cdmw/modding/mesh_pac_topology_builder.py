@@ -91,7 +91,13 @@ def protected_byte_mask(*, skinned: bool, stride: int = PROVEN_PAC_STRIDE) -> by
 
 
 def _masked(record: bytes, mask: bytes) -> bytes:
-    return bytes(value & mask_value for value, mask_value in zip(record, mask))
+    result = bytearray(value & mask_value for value, mask_value in zip(record, mask))
+    if len(record) == PROVEN_PAC_STRIDE and record[39] & 63 != 63:
+        # Cloth guide bindings are inherited, never interpolated as bone slots.
+        struct.pack_into("<I", result, 24, struct.unpack_from("<I", result, 24)[0]
+                         | (struct.unpack_from("<I", record, 24)[0] & 0xFFFFFC00))
+        result[32:36] = record[32:36]
+    return bytes(result)
 
 
 def _decoded_live_slots(record: bytes) -> tuple[tuple[int, ...], tuple[int, ...]]:
@@ -102,13 +108,8 @@ def _decoded_live_slots(record: bytes) -> tuple[tuple[int, ...], tuple[int, ...]
             (group >> (PAC_SKIN_SLOT_BITS * position)) & PAC_SKIN_SLOT_MASK
             for position in range(PAC_SKIN_SLOTS_PER_GROUP)
         )
-    # Palette lanes only, deliberately. A record can carry two further
-    # influences at bytes 12-15 with weights at bytes 34-35, but all of those
-    # bytes are protected by this writer's ownership mask, so every parent of a
-    # derived vertex already holds identical values there and the template
-    # carries them across untouched. Merging them here would mean authoring
-    # protected bytes, which this serializer does not do.
-    weights = struct.unpack_from(f"<{PAC_SKIN_PALETTE_SLOTS}B", record, PAC_SKIN_WEIGHT_OFFSET)
+    capacity = 4 if record[39] & 63 != 63 else PAC_SKIN_PALETTE_SLOTS
+    weights = struct.unpack_from(f"<{capacity}B", record, PAC_SKIN_WEIGHT_OFFSET)
     live = [(slot, weight) for slot, weight in zip(slots, weights) if weight > 0]
     return tuple(slot for slot, _ in live), tuple(weight for _, weight in live)
 
@@ -145,12 +146,12 @@ def derived_skin_row(
         )
     totals = {slot: math.fsum(values) for slot, values in merged.items()}
     live = {slot: value for slot, value in totals.items() if value > 0.0}
-    if len(live) > TOPOLOGY_MAX_SKIN_INFLUENCES:
+    capacity = 4 if any(record[39] & 63 != 63 for record in parent_records) else TOPOLOGY_MAX_SKIN_INFLUENCES
+    if len(live) > capacity:
         raise PacTopologyRebuildBlocked(
             (TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,),
             f"Derived vertex needs {len(live)} palette slots; this writer authors "
-            f"{TOPOLOGY_MAX_SKIN_INFLUENCES}. The record can carry two more influences, "
-            "but their lanes are protected here and are inherited from the parents unchanged.",
+            f"{capacity} for these records. Cloth guide lanes are inherited unchanged.",
         )
     total = math.fsum(live.values())
     if total <= 0.0 or not math.isfinite(total):

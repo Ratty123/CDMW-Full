@@ -2,6 +2,7 @@
 #![recursion_limit = "256"]
 
 mod camera;
+mod cdmw_cloth;
 mod cdmw_hair;
 mod cdmw_preview;
 mod cdmw_rig;
@@ -1531,6 +1532,7 @@ enum CdmwRailPage {
     Cleanup,
     Normals,
     Uv,
+    Cloth,
     #[allow(dead_code)] // Retained while its product entry point is hidden.
     RigWeights,
     MorphRefit,
@@ -2006,6 +2008,7 @@ struct LabApplication {
     skeleton_overlay_lines: Vec<[f32; 3]>,
     cdmw_skeleton_overlay_reason: String,
     cdmw_rig: cdmw_rig::RigView,
+    cdmw_cloth: cdmw_cloth::ClothView,
     source_label: String,
     status: String,
     history: History,
@@ -2165,6 +2168,7 @@ impl LabApplication {
             skeleton_overlay_lines: Vec::new(),
             cdmw_skeleton_overlay_reason: "No complete skeleton hierarchy is available".to_owned(),
             cdmw_rig: cdmw_rig::RigView::default(),
+            cdmw_cloth: cdmw_cloth::ClothView::default(),
             source_label: "No asset loaded".to_owned(),
             status,
             history: History::new(HISTORY_BUDGET_BYTES),

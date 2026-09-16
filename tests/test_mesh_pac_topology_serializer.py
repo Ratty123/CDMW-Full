@@ -52,7 +52,7 @@ def _vertex_record(x: int, y: int, z: int, *, tail: int = 0) -> bytearray:
     struct.pack_into("<e", record, 10, 0.75)
     struct.pack_into("<I", record, 12, 0xA5A5A5A5)
     struct.pack_into("<I", record, 16, 0x40000000)
-    record[34:40] = bytes((0x11, 0x22, 0x33, 0x44, 0x55, tail & 0xFF))
+    record[34:40] = bytes((0x11, 0x22, 0x33, 0x44, 0x55, ((tail & 3) << 6) | 63))
     return record
 
 

@@ -614,6 +614,7 @@ impl LabApplication {
                                 (CdmwRailPage::Cleanup, "Cleanup", None),
                                 (CdmwRailPage::Normals, "Normals & Tangents", None),
                                 (CdmwRailPage::Uv, "UV", None),
+                                (CdmwRailPage::Cloth, "Cloth", None),
                             ],
                             2,
                             busy,
@@ -777,6 +778,9 @@ impl LabApplication {
                                                 self.draw_cdmw_normals_page(ui, actions)
                                             }
                                             CdmwRailPage::Uv => self.draw_cdmw_uv_page(ui, actions),
+                                            CdmwRailPage::Cloth => {
+                                                self.draw_cdmw_cloth_page(ui, actions)
+                                            }
                                             CdmwRailPage::RigWeights => {
                                                 self.draw_cdmw_rig_weights_page(ui, actions)
                                             }

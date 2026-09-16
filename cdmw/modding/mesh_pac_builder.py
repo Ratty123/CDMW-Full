@@ -676,7 +676,8 @@ def _build_pac_in_place(
             if clean_shading_records:
                 if len(rec) >= 8:
                     struct.pack_into("<H", rec, 6, 0)
-                if len(rec) >= 28:
+                if len(rec) >= 28 and (len(rec) <= PAC_SKIN_GATE_OFFSET
+                        or rec[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK == PAC_SKIN_GATE_DISABLED):
                     # Bytes 20-27 are the six packed skin slots, not shading state -- see
                     # PAC_SKIN_SLOT_GROUPS. Zeroing them leaves the weight bytes alone, so the
                     # record reads back as rigidly bound to palette slot 0. That is deliberate
@@ -1209,10 +1210,14 @@ def _build_pac_full_rebuild(
                 skin_vi = int(base_vi)
                 base_vi = max(0, min(base_vi, len(donor_indices) - 1))
                 donor_rec = bytearray(donor_records[donor_indices[base_vi]])
+                retain_cloth = (len(donor_rec) > PAC_SKIN_GATE_OFFSET
+                                and donor_rec[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK != PAC_SKIN_GATE_DISABLED
+                                and any(donor_rec[32:36])
+                                and (not prepared["skin_export"] or len(prepared["submesh"].bone_indices[skin_vi]) <= 4))
                 if clean_shading_records:
                     if len(donor_rec) >= 8:
                         struct.pack_into("<H", donor_rec, 6, 0)
-                    if len(donor_rec) >= 28:
+                    if len(donor_rec) >= 28 and not retain_cloth:
                         # The six packed skin slots, not shading state; see the note on the
                         # same lanes in _build_pac_in_place. When skin_export is on below,
                         # patch_pac_vertex_skin rewrites them from the authored rows.
@@ -1248,10 +1253,9 @@ def _build_pac_full_rebuild(
                     )
 
                 if prepared["skin_export"]:
-                    if preserve_runtime_abi and len(prepared["submesh"].bone_indices[skin_vi]) <= PAC_SKIN_PALETTE_SLOTS:
-                        # A complete import owns six influences. Disable the extra
-                        # matrix fetches as well as their weights: an open gate can
-                        # still read a discarded accessory rig at zero weight.
+                    if preserve_runtime_abi and not retain_cloth:
+                        # A six-bone import requires the ordinary shader branch.
+                        # Four-bone rows retain their existing guide binding.
                         donor_rec[PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS:
                                   PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
                             PAC_SKIN_INFLUENCES - PAC_SKIN_PALETTE_SLOTS

@@ -14,6 +14,9 @@ from .mesh_parser import (
     PAC_SKIN_SLOTS_PER_GROUP,
     PAC_SKIN_WEIGHT_LAYOUT,
     PAC_SKIN_WEIGHT_OFFSET,
+    PAC_SKIN_GATE_OFFSET,
+    PAC_SKIN_GATE_MASK,
+    PAC_SKIN_GATE_DISABLED,
     ParsedMesh,
     SubMesh,
     _decode_pac_skin_influences,
@@ -89,11 +92,8 @@ def has_valid_target_skin_weights(submesh: SubMesh) -> bool:
             values = tuple(float(value) for value in tuple(weights or ()))
         except (TypeError, ValueError, OverflowError):
             return False
-        # Bounded by what this writer can author, which is the six palette
-        # lanes, not by what a record can carry. A row using the record's two
-        # further influences is refused here so the donor's skin bytes survive
-        # intact, rather than being rewritten from its six strongest and
-        # silently losing the other two.
+        # Ordinary PAC rows have at most six skeletal influences. Cloth rows
+        # have four; their per-record capacity is enforced while packing.
         if not 1 <= len(bones) == len(values) <= PAC_SKIN_PALETTE_SLOTS:
             return False
         if any(bone < 0 or bone > PAC_SKIN_MAX_BONE_INDEX for bone in bones):
@@ -196,22 +196,10 @@ def pack_pac_skin_weights(
     *,
     context: str,
 ) -> None:
-    """Encode a skin row into a PAC vertex record's palette lanes, in place.
+    """Encode skeletal weights without touching an existing cloth binding.
 
-    Writes two u32 of three 10-bit palette slots each, then six u8 weights in
-    descending order summing to 255. An unused influence is a zero weight, not a
-    reserved slot value, because slot 0 is a real palette entry.
-
-    A record can carry two influences beyond the palette, indexed at bytes 12-15
-    with weights at bytes 34-35. This function does not author them: those lanes
-    are protected by the exact topology serializer's ownership mask, and writing
-    them would break its contract. A row with more than six influences is
-    therefore reduced to its six strongest here, which is lossy and deliberate.
-    Callers that must not lose an influence check the width before calling.
-
-    Slot values are written verbatim. They are per-mesh palette tokens, not
-    skeleton bone indices, so writing back what the reader decoded round-trips
-    correctly; remapping them would require the unsolved palette mapping.
+    Ordinary rows use six packed slots. Cloth rows use four; the remaining
+    packed slots and four weight bytes belong to the simulation guides.
     """
 
     if len(record) != 40:
@@ -224,7 +212,10 @@ def pack_pac_skin_weights(
             continue
         if bone >= 0 and math.isfinite(weight) and weight > 0.0:
             merged[bone] = merged.get(bone, 0.0) + weight
-    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:PAC_SKIN_PALETTE_SLOTS]
+    capacity = 4 if record[PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK != PAC_SKIN_GATE_DISABLED else PAC_SKIN_PALETTE_SLOTS
+    if capacity == 4 and len(merged) > capacity:
+        raise ValueError(f"Cannot encode {context}: cloth vertices support only four skeletal influences.")
+    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:capacity]
     if not strongest:
         raise ValueError(f"Cannot encode {context}: skin-weight row is empty or invalid.")
     out_of_range = [bone for bone, _weight in strongest if bone > PAC_SKIN_MAX_BONE_INDEX]
@@ -242,18 +233,22 @@ def pack_pac_skin_weights(
     for index in order[:remainder]:
         packed_weights[index] += 1
     slots = [bone for bone, _weight in strongest]
-    slots.extend([0] * (PAC_SKIN_PALETTE_SLOTS - len(slots)))
-    packed_weights.extend([0] * (PAC_SKIN_PALETTE_SLOTS - len(packed_weights)))
+    slots.extend([0] * (capacity - len(slots)))
+    packed_weights.extend([0] * (capacity - len(packed_weights)))
 
     for group, group_offset in enumerate(PAC_SKIN_SLOT_GROUPS):
         # The top two bits of each group carry no meaning we have proven, so a patch
         # leaves whatever the donor record held rather than clearing it.
-        packed_group = struct.unpack_from("<I", record, group_offset)[0] & ~0x3FFFFFFF
+        packed_group = struct.unpack_from("<I", record, group_offset)[0]
         for position in range(PAC_SKIN_SLOTS_PER_GROUP):
-            slot = slots[group * PAC_SKIN_SLOTS_PER_GROUP + position]
+            index = group * PAC_SKIN_SLOTS_PER_GROUP + position
+            if index >= capacity:
+                continue
+            slot = slots[index]
+            packed_group &= ~(0x3FF << (PAC_SKIN_SLOT_BITS * position))
             packed_group |= slot << (PAC_SKIN_SLOT_BITS * position)
         struct.pack_into("<I", record, group_offset, packed_group)
-    record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS] = bytes(packed_weights)
+    record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + capacity] = bytes(packed_weights)
 
 
 def pac_skin_weights_changed(original: SubMesh, updated: SubMesh) -> bool:
