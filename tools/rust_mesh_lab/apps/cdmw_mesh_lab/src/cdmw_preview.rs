@@ -381,6 +381,7 @@ pub struct PreviewApplication {
     capture_in_flight: bool,
     next_frame: Option<Instant>,
     render_failures: u32,
+    gpu_recovery: cdmw_render_wgpu::GpuRecovery,
     capture_tx: Sender<CaptureResult>,
     capture_rx: Receiver<CaptureResult>,
     newest_package_generation: u64,
@@ -456,6 +457,7 @@ impl PreviewApplication {
             wake_proxy: proxy,
             next_frame: None,
             render_failures: 0,
+            gpu_recovery: cdmw_render_wgpu::GpuRecovery::default(),
             capture_tx,
             capture_rx,
             newest_package_generation: 0,
@@ -510,6 +512,49 @@ impl PreviewApplication {
         }
         if emit {
             self.emit_view_state("fit");
+        }
+    }
+
+    fn restore_renderer(&mut self) -> Result<(), String> {
+        self.gpu_recovery.cancel_pending();
+        let window = self.window.clone().ok_or("Preview window is unavailable")?;
+        self.renderer = Some(
+            pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?,
+        );
+        if let Err(error) = self.configure_renderer().and_then(|()| {
+            self.renderer
+                .as_ref()
+                .expect("renderer was created")
+                .check_health()
+                .map_err(|error| error.to_string())
+        }) {
+            self.renderer = None;
+            return Err(error);
+        }
+        self.render_failures = 0;
+        // Orbit/pan gestures update the live camera, independently of the
+        // last host presentation message. Rebuilding GPU state must keep it.
+        self.apply_presentation(false);
+        Ok(())
+    }
+
+    fn renderer_failed(&mut self, reason: String) {
+        self.gpu_recovery.cancel_pending();
+        self.renderer = None;
+        self.next_frame = None;
+        self.render_failures = 6;
+        self.bridge
+            .send(json!({"event":"renderer_failed","error":reason}));
+    }
+
+    fn recover_gpu(&mut self, reason: String) {
+        // CPU geometry, materials, camera and placement remain authoritative.
+        // Drop the failed device before attempting any new GPU allocation.
+        self.renderer = None;
+        self.next_frame = None;
+        self.render_failures = 6;
+        if !self.gpu_recovery.schedule(Instant::now()) {
+            self.renderer_failed(reason);
         }
     }
 
@@ -956,6 +1001,12 @@ impl PreviewApplication {
                 return true;
             }
             "activate_request" => {
+                if self.renderer.is_none()
+                    && let Err(error) = self.restore_renderer()
+                {
+                    self.renderer_failed(error);
+                    return false;
+                }
                 self.visible = true;
                 if let Some(window) = &self.window {
                     window.set_visible(true);
@@ -970,6 +1021,8 @@ impl PreviewApplication {
             "deactivate_request" => {
                 self.cancel_gesture();
                 self.visible = false;
+                self.next_frame = None;
+                self.renderer = None;
                 if let Some(window) = &self.window {
                     window.set_visible(false);
                 }
@@ -2716,6 +2769,9 @@ impl ApplicationHandler for PreviewApplication {
                 window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
+                if !self.visible {
+                    return;
+                }
                 if let Some(pending) = self.pending_gizmo_update.take() {
                     self.emit_gizmo("update", &pending.tool, &pending.handle, &pending.placement);
                 }
@@ -2745,6 +2801,9 @@ impl ApplicationHandler for PreviewApplication {
                                 self.bridge.send(json!({"event":"error","error":format!("Preview surface failed: {reason}")}));
                             }
                         }
+                        Err(error @ cdmw_render_wgpu::RenderError::GpuFault(_)) => {
+                            self.recover_gpu(error.to_string());
+                        }
                         Err(error) => {
                             self.render_failures = 6;
                             self.bridge
@@ -2767,6 +2826,16 @@ impl ApplicationHandler for PreviewApplication {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let changed = self.poll_bridge() | self.poll_package_loads();
         self.poll_captures();
+        if self.gpu_recovery.take_due(Instant::now()) && self.visible {
+            match self.restore_renderer() {
+                Ok(()) => {
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                }
+                Err(error) => self.renderer_failed(error),
+            }
+        }
         if changed && let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -2782,6 +2851,9 @@ impl ApplicationHandler for PreviewApplication {
         }
         event_loop.set_control_flow(
             self.next_frame
+                .into_iter()
+                .chain(self.gpu_recovery.deadline())
+                .min()
                 .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
         );
         if self.exit_requested {

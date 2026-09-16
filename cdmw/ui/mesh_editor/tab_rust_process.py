@@ -138,6 +138,7 @@ class MeshEditorRustProcessMixin:
             )
         )
         self.standalone_rust_process = process
+        self.standalone_rust_gpu_failed = False
         register_owned_qprocess_for_exit(process)
         self._set_rust_status("Launching the embedded Mesh Editor...")
         process.start()
@@ -299,6 +300,18 @@ class MeshEditorRustProcessMixin:
             self._handle_rust_ready(payload)
             return
         if event == "state_snapshot":
+            return
+        if event in {"renderer_failed", "renderer_recovered"}:
+            self.standalone_rust_gpu_failed = event == "renderer_failed"
+            self.standalone_rust_ready_timer.stop()
+            host = getattr(self, "standalone_native_host_frame", None)
+            message = str(payload.get("message", "") or "")
+            if self.standalone_rust_gpu_failed:
+                if host is not None:
+                    host.show_error(message)
+            elif host is not None:
+                host.show_editor()
+            self._set_rust_status(message, error=self.standalone_rust_gpu_failed)
             return
         if event == "error":
             message = str(payload.get("message", "") or "Rust renderer reported an error")

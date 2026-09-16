@@ -1,5 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod gpu_lifecycle;
+use gpu_lifecycle::GpuFaults;
+pub use gpu_lifecycle::GpuRecovery;
+
 mod effect_depth;
 mod effect_particle_proof;
 mod effect_particle_shader;
@@ -13,7 +17,7 @@ use glam::{Mat4, Quat, Vec2, Vec3};
 use std::collections::{BTreeMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use thiserror::Error;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
@@ -1667,6 +1671,8 @@ pub enum RenderError {
     NoAdapter,
     #[error("wgpu device request failed: {0}")]
     Device(String),
+    #[error("GPU rendering stopped: {0}")]
+    GpuFault(String),
     #[error("window surface creation failed: {0}")]
     Surface(String),
     #[error("window surface has no supported format")]
@@ -1850,7 +1856,6 @@ struct GpuMaterialRange {
 struct GpuMaterialTexture {
     texture: Arc<wgpu::Texture>,
     view_format: wgpu::TextureFormat,
-    source_sha256: String,
     role: TextureRole,
     single_channel: bool,
     material_indices_by_lod: Vec<Vec<u32>>,
@@ -2454,6 +2459,9 @@ impl PendingFrameCapture {
 }
 
 pub struct WindowRenderer {
+    gpu_faults: GpuFaults,
+    texture_cache: BTreeMap<String, Weak<wgpu::Texture>>,
+    texture_uploads: u64,
     _instance: wgpu::Instance,
     surface: wgpu::Surface<'static>,
     adapter: wgpu::Adapter,
@@ -2512,6 +2520,54 @@ pub struct WindowRenderer {
 }
 
 impl WindowRenderer {
+    pub fn texture_upload_count(&self) -> u64 {
+        self.texture_uploads
+    }
+
+    pub fn restore_egui_font_atlas(&mut self, image: egui::ColorImage) {
+        self.egui_renderer.update_texture(
+            &self.device,
+            &self.queue,
+            egui::TextureId::default(),
+            &egui::epaint::ImageDelta::full(image, egui::TextureOptions::LINEAR),
+        );
+    }
+
+    pub fn check_health(&self) -> Result<(), RenderError> {
+        self.gpu_faults.check()
+    }
+
+    fn cached_dds_texture(
+        &mut self,
+        bytes: &[u8],
+        role: TextureRole,
+    ) -> Result<UploadedDdsTexture, RenderError> {
+        self.check_health()?;
+        self.texture_cache
+            .retain(|_, texture| texture.strong_count() > 0);
+        let identity = dds_texture_identity(bytes, role)?;
+        if let Some(texture) = self
+            .texture_cache
+            .get(&identity.source_sha256)
+            .and_then(Weak::upgrade)
+        {
+            return Ok(UploadedDdsTexture {
+                texture,
+                view_format: identity.view_format,
+                source_sha256: identity.source_sha256,
+                single_channel: identity.single_channel,
+            });
+        }
+        let uploaded = upload_dds_texture(&self.device, &self.queue, bytes, role)?;
+        self.check_health()?;
+        self.texture_uploads += 1;
+        self.texture_cache.insert(
+            uploaded.source_sha256.clone(),
+            Arc::downgrade(&uploaded.texture),
+        );
+        Ok(uploaded)
+    }
+
     /// Replace resources as one transaction. A failed upload must leave the
     /// resident scene usable, including its bindings and live transform.
     pub fn replace_preview_scene<T>(
@@ -2527,7 +2583,10 @@ impl WindowRenderer {
         let instance_buffer = self.effect_instance_buffer.take();
         let camera = self.camera_uniform;
         let stats = self.upload_stats;
-        let result = apply(self);
+        let result = self
+            .check_health()
+            .and_then(|()| apply(self))
+            .and_then(|value| self.check_health().map(|()| value));
         if result.is_err() {
             self.mesh = mesh;
             self.material_textures = textures;
@@ -2572,9 +2631,7 @@ impl WindowRenderer {
     }
 
     pub async fn new(window: Arc<Window>) -> Result<Self, RenderError> {
-        let mut instance_descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
-        instance_descriptor.backends = wgpu::Backends::DX12;
-        let instance = wgpu::Instance::new(instance_descriptor);
+        let instance = wgpu::Instance::new(gpu_lifecycle::interactive_instance_descriptor());
         let surface = instance
             .create_surface(window.clone())
             .map_err(|error| RenderError::Surface(error.to_string()))?;
@@ -2594,11 +2651,24 @@ impl WindowRenderer {
                 required_features,
                 required_limits: wgpu::Limits::default(),
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                memory_hints: wgpu::MemoryHints::Performance,
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
                 trace: wgpu::Trace::Off,
             })
             .await
             .map_err(|error| RenderError::Device(error.to_string()))?;
+        let gpu_faults = GpuFaults::default();
+        let faults = gpu_faults.clone();
+        let wake = window.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            faults.record(format!("device lost ({reason:?}): {message}"));
+            wake.request_redraw();
+        });
+        let faults = gpu_faults.clone();
+        let wake = window.clone();
+        device.on_uncaptured_error(Arc::new(move |error: wgpu::Error| {
+            faults.record(error.to_string());
+            wake.request_redraw();
+        }));
         let size = window.inner_size();
         let capabilities = surface.get_capabilities(&adapter);
         let format =
@@ -2755,7 +2825,11 @@ impl WindowRenderer {
             &camera_bind_group_layout,
             sample_count,
         );
+        gpu_faults.check()?;
         Ok(Self {
+            gpu_faults,
+            texture_cache: BTreeMap::new(),
+            texture_uploads: 0,
             _instance: instance,
             surface,
             adapter,
@@ -3147,8 +3221,7 @@ impl WindowRenderer {
         {
             return Ok(index);
         }
-        let uploaded =
-            upload_dds_texture(&self.device, &self.queue, bytes, TextureRole::BaseColor)?;
+        let uploaded = self.cached_dds_texture(bytes, TextureRole::BaseColor)?;
         let texture = effect_texture_binding(
             &self.device,
             &self.effect_texture_bind_group_layout,
@@ -3292,26 +3365,10 @@ impl WindowRenderer {
         material_indices_by_lod: &[Vec<u32>],
     ) -> Result<(), RenderError> {
         validate_material_texture_ownership(role, material_indices_by_lod)?;
-        let identity = dds_texture_identity(bytes, role)?;
-        let shared_texture = self
-            .material_textures
-            .iter()
-            .find(|texture| texture.source_sha256 == identity.source_sha256)
-            .map(|texture| Arc::clone(&texture.texture));
-        let uploaded = if let Some(texture) = shared_texture {
-            UploadedDdsTexture {
-                texture,
-                view_format: identity.view_format,
-                source_sha256: identity.source_sha256,
-                single_channel: identity.single_channel,
-            }
-        } else {
-            upload_dds_texture(&self.device, &self.queue, bytes, role)?
-        };
+        let uploaded = self.cached_dds_texture(bytes, role)?;
         self.material_textures.push(GpuMaterialTexture {
             texture: uploaded.texture,
             view_format: uploaded.view_format,
-            source_sha256: uploaded.source_sha256,
             role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: material_indices_by_lod.to_vec(),
@@ -3588,6 +3645,7 @@ impl WindowRenderer {
         height: u32,
         material: Option<u32>,
     ) -> Result<PendingFrameCapture, RenderError> {
+        self.check_health()?;
         if width == 0 || height == 0 || width > 2048 || height > 2048 {
             return Err(RenderError::ResourceLimit);
         }
@@ -3666,6 +3724,7 @@ impl WindowRenderer {
             },
         );
         self.queue.submit([encoder.finish()]);
+        self.check_health()?;
         Ok(PendingFrameCapture {
             device: self.device.clone(),
             readback,
@@ -3680,6 +3739,7 @@ impl WindowRenderer {
         paint_jobs: &[egui::ClippedPrimitive],
         egui_frame: Option<(&egui::TexturesDelta, f32)>,
     ) -> Result<(), RenderError> {
+        self.check_health()?;
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => frame,
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
@@ -3697,6 +3757,7 @@ impl WindowRenderer {
                 return Err(RenderError::SurfaceFrame("outdated".to_owned()));
             }
             wgpu::CurrentSurfaceTexture::Lost => {
+                self.check_health()?;
                 self.surface.configure(&self.device, &self.config);
                 return Err(RenderError::SurfaceFrame("lost".to_owned()));
             }
@@ -4049,7 +4110,6 @@ async fn material_capture_batch(
         material_textures.push(GpuMaterialTexture {
             texture: uploaded.texture,
             view_format: uploaded.view_format,
-            source_sha256: uploaded.source_sha256,
             role: texture.role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: texture.material_indices_by_lod.to_vec(),
@@ -4504,7 +4564,6 @@ async fn run_headless_render_smoke_internal(
         material_textures.push(GpuMaterialTexture {
             texture: uploaded.texture,
             view_format: uploaded.view_format,
-            source_sha256: uploaded.source_sha256,
             role,
             single_channel: uploaded.single_channel,
             material_indices_by_lod: vec![vec![material]],

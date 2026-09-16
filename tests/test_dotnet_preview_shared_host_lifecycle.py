@@ -16,6 +16,33 @@ from tests.test_dotnet_preview_shared_host import (
     _start_controller,
 )
 
+
+def test_renderer_failure_stops_automatic_retries_and_retains_package(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    controller._handle_protocol_event(
+        {"event": "renderer_failed", "error": "device removed"}, controller.process_generation,
+    )
+    assert controller._gpu_failed
+    assert not controller._retry_timer.isActive()
+    assert not controller._activation_timer.isActive()
+    assert not controller._package_timer.isActive()
+    assert not controller._ready_timer.isActive()
+    assert controller.desired_package_path == str(package.package_dir)
+    controller._schedule_retry("device still unavailable", static_failure=False)
+    assert not controller._retry_timer.isActive()
+    controller.set_visible(False)
+    controller.set_visible(True)
+    assert controller._gpu_failed
+    assert not controller._retry_timer.isActive()
+    assert not controller._request_activation(package)
+    assert not controller._request_resident_package_load()
+    with patch.object(controller, "_fail_current_process") as restart:
+        controller.retry_now()
+        restart.assert_called_once_with("Restarting GPU rendering.", static_failure=False)
+    assert not controller._gpu_failed
+    controller.shutdown()
+
 def test_static_provenance_failure_never_constructs_process(tmp_path: Path) -> None:
     executable = tmp_path / "unverified.exe"
     executable.write_bytes(b"bad")

@@ -9,6 +9,8 @@ mod cdmw_session;
 mod cdmw_ui;
 mod control_contract;
 #[cfg(test)]
+mod gpu_recovery_tests;
+#[cfg(test)]
 mod headless_stress_tests;
 #[cfg(test)]
 mod headless_tests;
@@ -1975,6 +1977,7 @@ struct LabApplication {
     window: Option<Arc<Window>>,
     embedded_parent_hwnd: Option<u64>,
     renderer: Option<WindowRenderer>,
+    gpu_recovery: cdmw_render_wgpu::GpuRecovery,
     egui_context: egui::Context,
     egui_state: Option<egui_winit::State>,
     loader: Loader,
@@ -2131,6 +2134,7 @@ impl LabApplication {
             window: None,
             embedded_parent_hwnd: None,
             renderer: None,
+            gpu_recovery: cdmw_render_wgpu::GpuRecovery::default(),
             egui_context: egui::Context::default(),
             egui_state: None,
             loader,
@@ -2678,6 +2682,11 @@ impl LabApplication {
             }
             HostEvent::Theme(theme) => {
                 self.apply_cdmw_theme_payload(&theme);
+            }
+            HostEvent::RendererRetry => {
+                if self.renderer.is_none() {
+                    self.gpu_recovery.retry(Instant::now());
+                }
             }
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
@@ -6154,6 +6163,107 @@ impl LabApplication {
             .map(|(axis, _)| axis)
     }
 
+    fn create_renderer(&mut self, window: Arc<Window>) -> Result<WindowRenderer, String> {
+        let renderer =
+            pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?;
+        let adapter = renderer.adapter_report();
+        let quality = renderer.quality_report();
+        self.status = format!(
+            "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering",
+            adapter.name, adapter.driver_info, quality.sample_count, quality.anisotropy_clamp,
+        );
+        let mut renderer = renderer;
+        let mut texture_upload_count = 0_usize;
+        let mut bound_material_count = 0_usize;
+        let mut texture_warning = None;
+        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() {
+            renderer.reset_texture();
+            for texture in &self.cdmw_texture_resources {
+                match renderer.add_dds_texture(
+                    &texture.bytes,
+                    texture.role,
+                    &texture.material_indices_by_lod,
+                ) {
+                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
+                    Err(error) => {
+                        texture_warning.get_or_insert_with(|| error.to_string());
+                    }
+                }
+            }
+            if let Err(error) = add_cdmw_material_presentations(
+                &mut renderer,
+                &self.cdmw_material_presentations,
+                self.document
+                    .as_ref()
+                    .map_or(0, |document| document.lods.len()),
+            ) {
+                texture_warning.get_or_insert_with(|| error.to_string());
+            }
+            match renderer.set_material_lod(self.active_lod_index) {
+                Ok(count) => bound_material_count = count,
+                Err(error) => {
+                    texture_warning.get_or_insert_with(|| error.to_string());
+                }
+            }
+        }
+        if self.cdmw_mode() {
+            self.record_cdmw_texture_uploads(
+                self.cdmw_texture_resources.len(),
+                texture_upload_count,
+                bound_material_count,
+                texture_warning.as_deref(),
+            );
+        }
+        if let Some(mesh) = &self.mesh {
+            let visible_submeshes = self.cdmw_visible_submeshes();
+            let snapshot = visible_submeshes.as_ref().map_or_else(
+                || mesh.draw_snapshot(),
+                |visible| mesh.draw_snapshot_for_submeshes(visible),
+            );
+            let deformation_reference = deformation_reference_for_snapshot(
+                self.deformation_heatmap_enabled,
+                self.deformation_reference.as_mut(),
+                visible_submeshes.as_ref(),
+                &snapshot,
+            );
+            if let Err(error) =
+                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            {
+                self.status = format!("CDMW mesh upload failed: {error}");
+            }
+        }
+        if let Err(error) = renderer.set_skeleton_lines(&self.skeleton_overlay_lines) {
+            self.show_bones = false;
+            self.status = format!("Skeleton overlay upload failed: {error}");
+        }
+        self.status = format!(
+            "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering · {texture_upload_count} texture(s) ready{}",
+            adapter.name,
+            adapter.driver_info,
+            quality.sample_count,
+            quality.anisotropy_clamp,
+            texture_warning
+                .as_ref()
+                .map_or_else(String::new, |warning| format!(
+                    " · texture warning: {warning}"
+                ))
+        );
+        renderer.check_health().map_err(|error| error.to_string())?;
+        Ok(renderer)
+    }
+
+    fn renderer_failed(&mut self, reason: String) {
+        self.gpu_recovery.cancel_pending();
+        self.renderer = None;
+        self.status = format!(
+            "GPU rendering paused: {reason}. Retry from the host to resume; editing state was retained."
+        );
+        error!("{}", self.status);
+        if let Some(bridge) = &self.cdmw_bridge {
+            let _ = bridge.report_renderer_state(false, &self.status);
+        }
+    }
+
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.poll_hair();
         let Some(window) = self.window.clone() else {
@@ -6226,6 +6336,12 @@ impl LabApplication {
         full_output.textures_delta.clear();
         if let Some(error) = render_error {
             error!("frame failed: {error}");
+            if matches!(error, cdmw_render_wgpu::RenderError::GpuFault(_)) {
+                self.renderer = None;
+                if !self.gpu_recovery.schedule(Instant::now()) {
+                    self.renderer_failed(error.to_string());
+                }
+            }
         }
         if full_output
             .viewport_output
@@ -6592,84 +6708,14 @@ impl ApplicationHandler for LabApplication {
                 return;
             }
         };
-        let renderer = match pollster::block_on(WindowRenderer::new(window.clone())) {
+        let renderer = match self.create_renderer(window.clone()) {
             Ok(renderer) => renderer,
             Err(error) => {
-                error!("renderer creation failed: {error}");
+                self.renderer_failed(error);
                 event_loop.exit();
                 return;
             }
         };
-        let adapter = renderer.adapter_report();
-        let quality = renderer.quality_report();
-        self.status = format!(
-            "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering",
-            adapter.name, adapter.driver_info, quality.sample_count, quality.anisotropy_clamp,
-        );
-        let mut renderer = renderer;
-        let mut texture_upload_count = 0_usize;
-        let mut bound_material_count = 0_usize;
-        let mut texture_warning = None;
-        if !self.cdmw_texture_resources.is_empty() || !self.cdmw_material_presentations.is_empty() {
-            renderer.reset_texture();
-            for texture in &self.cdmw_texture_resources {
-                match renderer.add_dds_texture(
-                    &texture.bytes,
-                    texture.role,
-                    &texture.material_indices_by_lod,
-                ) {
-                    Ok(()) => texture_upload_count = texture_upload_count.saturating_add(1),
-                    Err(error) => {
-                        texture_warning.get_or_insert_with(|| error.to_string());
-                    }
-                }
-            }
-            if let Err(error) = add_cdmw_material_presentations(
-                &mut renderer,
-                &self.cdmw_material_presentations,
-                self.document
-                    .as_ref()
-                    .map_or(0, |document| document.lods.len()),
-            ) {
-                texture_warning.get_or_insert_with(|| error.to_string());
-            }
-            match renderer.set_material_lod(self.active_lod_index) {
-                Ok(count) => bound_material_count = count,
-                Err(error) => {
-                    texture_warning.get_or_insert_with(|| error.to_string());
-                }
-            }
-        }
-        if self.cdmw_mode() {
-            self.record_cdmw_texture_uploads(
-                self.cdmw_texture_resources.len(),
-                texture_upload_count,
-                bound_material_count,
-                texture_warning.as_deref(),
-            );
-        }
-        if let Some(mesh) = &self.mesh {
-            let visible_submeshes = self.cdmw_visible_submeshes();
-            let snapshot = visible_submeshes.as_ref().map_or_else(
-                || mesh.draw_snapshot(),
-                |visible| mesh.draw_snapshot_for_submeshes(visible),
-            );
-            let deformation_reference = deformation_reference_for_snapshot(
-                self.deformation_heatmap_enabled,
-                self.deformation_reference.as_mut(),
-                visible_submeshes.as_ref(),
-                &snapshot,
-            );
-            if let Err(error) =
-                renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
-            {
-                self.status = format!("CDMW mesh upload failed: {error}");
-            }
-        }
-        if let Err(error) = renderer.set_skeleton_lines(&self.skeleton_overlay_lines) {
-            self.show_bones = false;
-            self.status = format!("Skeleton overlay upload failed: {error}");
-        }
         let egui_state = egui_winit::State::new(
             self.egui_context.clone(),
             egui::ViewportId::ROOT,
@@ -6690,18 +6736,7 @@ impl ApplicationHandler for LabApplication {
                 self.status = format!("CDMW handshake failed: {error}");
                 self.cdmw_exit_requested = true;
             } else {
-                self.status = format!(
-                    "D3D12 adapter: {} ({}) · {}x AA · {}x texture filtering · waiting for CDMW · {texture_upload_count} texture(s) ready{}",
-                    adapter.name,
-                    adapter.driver_info,
-                    quality.sample_count,
-                    quality.anisotropy_clamp,
-                    texture_warning
-                        .as_ref()
-                        .map_or_else(String::new, |warning| format!(
-                            " · texture warning: {warning}"
-                        ))
-                );
+                self.status.push_str(" · waiting for CDMW");
             }
         }
     }
@@ -6766,6 +6801,35 @@ impl ApplicationHandler for LabApplication {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let changed = self.poll_loader() | self.poll_cdmw();
+        if self.gpu_recovery.take_due(Instant::now())
+            && let Some(window) = self.window.clone()
+        {
+            let restored = self
+                .create_renderer(window.clone())
+                .and_then(|mut renderer| {
+                    renderer
+                        .restore_egui_font_atlas(self.egui_context.fonts(|fonts| fonts.image()));
+                    renderer.check_health().map_err(|error| error.to_string())?;
+                    Ok(renderer)
+                });
+            match restored {
+                Ok(renderer) => {
+                    self.renderer = Some(renderer);
+                    self.hair.invalidate_scene();
+                    self.cdmw_rig.overlay_key = None;
+                    if let Some(bridge) = &self.cdmw_bridge {
+                        let _ = bridge.report_renderer_state(true, &self.status);
+                    }
+                    window.request_redraw();
+                }
+                Err(error) => self.renderer_failed(error),
+            }
+        }
+        event_loop.set_control_flow(
+            self.gpu_recovery
+                .deadline()
+                .map_or(ControlFlow::Wait, ControlFlow::WaitUntil),
+        );
         if changed && let Some(window) = &self.window {
             window.request_redraw();
         }
