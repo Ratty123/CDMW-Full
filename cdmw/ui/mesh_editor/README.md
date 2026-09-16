@@ -156,11 +156,19 @@ restore the imported normal orientation and invalidate outdated tangents, and
 both are undoable.
 New Item fitting defaults are unchanged.
 
-**Keep Original Materials** is the default. **Imported Materials & Textures**
+**Keep Original Materials** is the default. Missing or stale imported MTL and
+texture references do not block this geometry-only mode. Source geometry and
+external geometry buffers must still exist and remain unchanged while reviewing
+the mapping. **Imported Materials & Textures**
 prepares the required DDS and material sidecars before publishing the import.
 Missing textures, ambiguous material wrappers, shared selected/untouched material
 ownership, unsupported skinning, or invalid coordinate/layout conversion block
-Apply with a specific reason. This mode never silently uses original materials.
+Apply with a specific reason. This mode also rejects material dependencies that
+changed after import preparation and never silently uses original materials.
+
+Hover over the bottom status message to read the full text, or choose **Details**
+for a scrollable, selectable view. **Copy** copies the complete message, including
+any part that does not fit in the status bar.
 
 The **Mod** checkbox means **Include in mod** and is independent of viewport
 visibility. Excluding a part retains all its editable geometry; re-enabling is

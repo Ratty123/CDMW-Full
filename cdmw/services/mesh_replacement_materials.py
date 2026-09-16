@@ -120,9 +120,10 @@ def prepare_imported_materials(pending, targets, resource_root, stop_event=None)
     from cdmw.core.archive_mesh_import_preview import parsed_mesh_to_preview_model
     from cdmw.modding.mesh_parser import parse_mesh
     from cdmw.modding.static_mesh_replacer import StaticSubmeshMapping
-    from cdmw.services.mesh_replacement_import import compose_import
+    from cdmw.services.mesh_replacement_import import compose_import, verify_import_sources
     from cdmw.services.mesh_replacement_output import manual_replacement_options, prepare_replacement_output
 
+    verify_import_sources(pending, include_materials=True)
     if len(targets) != len(pending.source.mesh.submeshes) or len(set(targets)) != len(targets):
         raise ValueError("Imported materials require one source material part per target part.")
     if not pending.state.dependencies:

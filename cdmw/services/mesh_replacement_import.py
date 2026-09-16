@@ -73,17 +73,19 @@ class PendingMeshReplacement:
     suggested_targets: tuple[str, ...]
     token: str
     source_files: tuple[tuple[str, str], ...] = ()
+    material_source_files: tuple[tuple[str, str], ...] = ()
+    material_error: str = ""
 
 
-def _import_source_files(path):
-    """Check explicit references before permissive scene discovery drops them."""
+def _import_source_files(path, *, include_materials=True):
+    """Keep required geometry separate from optional imported materials."""
     from urllib.parse import unquote
     from cdmw.modding.scene_texture_discovery import (
         _obj_material_texture_references, _obj_material_library_paths,
         _resolve_local_texture_reference,
     )
     files, references = [path], []
-    if path.suffix.lower() == ".obj":
+    if include_materials and path.suffix.lower() == ".obj":
         libraries = _obj_material_library_paths(path)
         explicit = {str((path.parent / value).resolve()) for line in path.read_text(encoding="utf-8-sig").splitlines()
                     if line.lstrip().lower().startswith("mtllib ") for value in line.strip()[7:].split()}
@@ -93,7 +95,7 @@ def _import_source_files(path):
             elif str(library) in explicit:
                 raise ValueError(f"Missing imported material library: {library}")
         references = list(_obj_material_texture_references(path))
-    elif path.suffix.lower() == ".dae":
+    elif include_materials and path.suffix.lower() == ".dae":
         from xml.etree import ElementTree
         root = ElementTree.parse(path).getroot()
         references = [node.text.strip() for image in root.iter() if image.tag.rsplit("}", 1)[-1] == "image"
@@ -101,7 +103,10 @@ def _import_source_files(path):
     elif path.suffix.lower() == ".gltf":
         import json
         document = json.loads(path.read_text(encoding="utf-8-sig"))
-        for item in [*document.get("buffers", ()), *document.get("images", ())]:
+        resources = list(document.get("buffers", ()))
+        if include_materials:
+            resources.extend(document.get("images", ()))
+        for item in resources:
             uri = str(item.get("uri", ""))
             if uri and not uri.startswith("data:"):
                 local = path.parent / unquote(uri)
@@ -116,8 +121,11 @@ def _import_source_files(path):
     return tuple(dict.fromkeys(file.resolve() for file in files))
 
 
-def verify_import_sources(pending):
-    for path, digest in pending.source_files:
+def verify_import_sources(pending, *, include_materials=False):
+    if include_materials and pending.material_error:
+        raise ValueError(pending.material_error)
+    files = pending.source_files + (pending.material_source_files if include_materials else ())
+    for path, digest in files:
         try:
             unchanged = hashlib.sha256(Path(path).read_bytes()).hexdigest() == digest
         except OSError:
@@ -137,17 +145,32 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
     chosen = tuple(target_part_ids) or tuple(part.part_id for part in state.parts)
     if len(set(chosen)) != len(chosen) or not set(chosen).issubset({part.part_id for part in state.parts}):
         raise ValueError("The selected replacement parts are no longer available.")
-    captured = {str(file): hashlib.sha256(file.read_bytes()).hexdigest() for file in _import_source_files(source_path)}
+    captured = {str(file): hashlib.sha256(file.read_bytes()).hexdigest()
+                for file in _import_source_files(source_path, include_materials=False)}
     digest = captured[str(source_path)]
-    source = import_scene_mesh_with_report(source_path, stop_event=stop_event)
+    material_files, material_error = {}, ""
+    try:
+        material_files = {str(file): hashlib.sha256(file.read_bytes()).hexdigest()
+                          for file in _import_source_files(source_path) if str(file) not in captured}
+    except (OSError, ValueError) as exc:
+        # The material choice follows geometry preparation. Retain its failure
+        # for imported-material mode without blocking Keep Original Materials.
+        material_error = str(exc)
+    source = import_scene_mesh_with_report(source_path, tolerate_missing_texture_files=True, stop_event=stop_event)
     if not source.mesh.submeshes or not source.mesh.total_faces:
         raise ValueError("The imported model has no editable triangle geometry.")
     if source.mesh.has_bones or any(part.bone_weights for part in source.mesh.submeshes):
         raise ValueError("Imported skinning is not supported by this replacement workflow. Import an unskinned model.")
-    for binding in source.material_bindings:
-        for role, texture_path in binding.texture_slots:
-            if not Path(texture_path).is_file():
-                raise ValueError(f"Missing imported {role} texture: {texture_path}")
+    if not material_error:
+        try:
+            for binding in source.material_bindings:
+                for role, texture_path in binding.texture_slots:
+                    if not Path(texture_path).is_file():
+                        raise ValueError(f"Missing imported {role} texture: {texture_path}")
+            for file in source.discovered_texture_files:
+                material_files.setdefault(str(file), hashlib.sha256(Path(file).read_bytes()).hexdigest())
+        except (OSError, ValueError) as exc:
+            material_error = str(exc)
     mesh = mesh_with_part_ids(snapshot, state)
     indices = bound_part_indices(mesh, state)
     target = _clone_parsed_mesh_fast(mesh)
@@ -159,18 +182,17 @@ def prepare_import(snapshot, path, *, target_part_ids=(), entry=None, dependenci
             if 0 <= index < len(suggested) and 0 <= mapping.target_submesh_index < len(chosen):
                 suggested[index] = chosen[mapping.target_submesh_index]
     raise_if_cancelled(stop_event, "Replacement import cancelled.")
-    for file in source.discovered_texture_files:
-        captured.setdefault(str(file), hashlib.sha256(Path(file).read_bytes()).hexdigest())
-    pending = PendingMeshReplacement(snapshot, state, source, str(source_path), digest, chosen, tuple(suggested), uuid4().hex, tuple(captured.items()))
+    pending = PendingMeshReplacement(snapshot, state, source, str(source_path), digest, chosen, tuple(suggested), uuid4().hex,
+                                    tuple(captured.items()), tuple(material_files.items()), material_error)
     verify_import_sources(pending)
     return pending
 
 
 def compose_import(pending, source_targets, *, material_choice="original", companion_files=None):
     """Compose a full editable candidate without collapsing any excluded part."""
-    verify_import_sources(pending)
     if material_choice not in {"original", "imported"}:
         raise ValueError("Choose original or imported materials.")
+    verify_import_sources(pending, include_materials=material_choice == "imported")
     if material_choice == "imported" and companion_files is None:
         raise ValueError("Imported materials require a complete prepared material and texture bundle.")
     targets = tuple(str(value) for value in source_targets)

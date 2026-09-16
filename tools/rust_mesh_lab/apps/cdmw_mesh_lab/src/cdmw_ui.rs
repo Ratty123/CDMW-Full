@@ -452,14 +452,28 @@ impl LabApplication {
             selected.vertices, selected.edges, selected.faces
         ));
         ui.separator();
-        if self.status.to_ascii_lowercase().contains("failed")
+        let failed = self.status.to_ascii_lowercase().contains("failed")
             || self.status.to_ascii_lowercase().contains("rejected")
-            || self.status.to_ascii_lowercase().contains("error")
-        {
-            ui.colored_label(Color32::from_rgb(245, 105, 105), &self.status);
+            || self.status.to_ascii_lowercase().contains("error");
+        let text = if failed {
+            RichText::new(&self.status).color(Color32::from_rgb(245, 105, 105))
         } else {
-            ui.label(&self.status);
-        }
+            RichText::new(&self.status)
+        };
+        let details = ui.small_button("Details");
+        egui::Popup::from_toggle_button_response(&details)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                ui.set_max_width(560.0);
+                ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
+                    ui.add(egui::Label::new(&self.status).wrap().selectable(true));
+                });
+                if ui.button("Copy").clicked() {
+                    ui.ctx().copy_text(self.status.clone());
+                }
+            });
+        ui.add(egui::Label::new(text).truncate())
+            .on_hover_text(&self.status);
     }
 
     fn draw_cdmw_bottom_bar(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {

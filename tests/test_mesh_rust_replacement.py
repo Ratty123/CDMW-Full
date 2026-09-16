@@ -15,19 +15,20 @@ def command(session, name, arguments=None):
     return session.run_command({**_request(session, "command_request", 1), "command": name, "arguments": arguments or {}})
 
 
-def prepare_source(session, tmp_path):
+def prepare_source(session, tmp_path, *, material_header=""):
     path = tmp_path / "replacement.obj"
-    path.write_text("o replacement\nv 12 3 7\nv 16 3 7\nv 12 5 8\nf 1 2 3\n")
+    path.write_text(material_header + "o replacement\nv 12 3 7\nv 16 3 7\nv 12 5 8\nf 1 2 3\n")
     entry = ArchiveEntry("owned-rust-exact.pac", tmp_path / "0009/0.pamt", tmp_path / "0009/0.paz", 0, 0, 0, 0, 0)
     context = SimpleNamespace(entries_by_basename={}, entries_by_normalized_path={})
     return command(session, "replacement_choose", {"scope": "entire", "source_path": str(path),
         "_archive_entry": entry, "_archive_dependencies": context})
 
 
-def test_rust_replacement_preview_edit_and_finish(tmp_path):
+@pytest.mark.parametrize("material_header", ["", "mtllib legacy_missing.mtl\nusemtl old_assignment\n"])
+def test_rust_replacement_preview_edit_and_finish(tmp_path, material_header):
     source, service, session = _open_exact_session(tmp_path / "session")
     try:
-        result = prepare_source(session, tmp_path)
+        result = prepare_source(session, tmp_path, material_header=material_header)
         pending = result["state"]["replacement"]["pending"]
         key = pending["targets"][0]["id"]
         before = service.capture_export_snapshot(session.authoritative_session_id)

@@ -56,14 +56,72 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     assert state.parts[0].material_choice == "imported"
 
 
-def test_missing_imported_texture_leaves_editor_unchanged(editor, tmp_path):
+@pytest.mark.parametrize("missing", ["library", "texture"])
+def test_missing_material_dependencies_only_block_imported_materials(editor, tmp_path, missing):
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
     target, context, model = material_fixture(tmp_path, snapshot)
-    (tmp_path / "color.dds").unlink()
-    with pytest.raises(ValueError, match="[Mm]issing|texture"):
-        prepare_import(snapshot, model, entry=target)
+    dependencies = capture_replacement_dependencies(target, context)
+    (model.with_suffix(".mtl") if missing == "library" else tmp_path / "color.dds").unlink()
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    with pytest.raises(ValueError, match=f"Missing imported {'material library' if missing == 'library' else 'texture'}"):
+        prepare_imported_materials(pending, (key,), tmp_path)
     assert service.session_view(session_id).revision == snapshot.mesh_revision
+    mesh, state = compose_import(pending, (key,), material_choice="original")
+    assert [part.material for part in mesh.submeshes] == [part.material for part in snapshot.mesh.submeshes]
+    assert list(mesh.submeshes[0].vertices) == [(12, 3, 7), (16, 3, 7), (12, 5, 8)]
+    assert list(mesh.submeshes[1].vertices) == list(snapshot.mesh.submeshes[1].vertices)
+    assert not state.companion_files
+    commit_replacement(service, snapshot, mesh, state, label="Keep original materials")
+    rebuilt, report = service.rebuild_result_from_snapshot(service.capture_export_snapshot(session_id))
+    from cdmw.modding.mesh_parser import parse_mesh
+    assert report.validation_status == "passed"
+    assert len(parse_mesh(rebuilt.data, state.target_path).submeshes) == 2
+
+
+@pytest.mark.parametrize("changed", ["library", "texture", "geometry"])
+def test_dependency_fingerprints_follow_material_choice(editor, tmp_path, changed):
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    path = {"library": model.with_suffix(".mtl"), "texture": tmp_path / "color.dds", "geometry": model}[changed]
+    path.write_bytes(path.read_bytes() + b"\nchanged")
+    with pytest.raises(ValueError, match="dependency changed"):
+        prepare_imported_materials(pending, (key,), tmp_path)
+    if changed == "geometry":
+        with pytest.raises(ValueError, match="dependency changed"):
+            compose_import(pending, (key,))
+    else:
+        mesh, state = compose_import(pending, (key,))
+        assert mesh.submeshes[0].material == snapshot.mesh.submeshes[0].material
+        assert not state.companion_files
+    assert service.session_view(session_id).revision == snapshot.mesh_revision
+
+
+def test_missing_gltf_texture_is_optional_but_geometry_buffer_is_required(editor, tmp_path):
+    from tests.test_scene_import_normalization import _write_gltf
+
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    model = _write_gltf(tmp_path, positions=[(12, 3, 7), (16, 3, 7), (12, 5, 8)], indices=[0, 1, 2],
+                        uvs=[(0, 0), (1, 0), (0, 1)],
+                        material={"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}})
+    (tmp_path / "texture.png").unlink()
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,))
+    mesh, _ = compose_import(pending, (key,))
+    assert mesh.submeshes[0].material == snapshot.mesh.submeshes[0].material
+    with pytest.raises(ValueError, match="Missing imported dependency: texture.png"):
+        prepare_imported_materials(pending, (key,), tmp_path)
+    (tmp_path / "mesh.bin").unlink()
+    with pytest.raises(ValueError, match="dependency changed"):
+        compose_import(pending, (key,))
+    with pytest.raises(ValueError, match="Missing imported dependency: mesh.bin"):
+        prepare_import(snapshot, model, target_part_ids=(key,))
 
 
 def test_repeated_imports_keep_other_materials_and_restore_original(editor, tmp_path):
