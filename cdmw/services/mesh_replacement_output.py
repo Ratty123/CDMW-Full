@@ -168,25 +168,31 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
         original_parts = False
         skin_reference = original
         edited_skin_targets = set()
+        edited_shading_targets = set()
         if original.format.lower() == "pac":
             from cdmw.modding.mesh_pac_builder import (
-                _pac_submesh_channels_unchanged, _patch_exact_pac_skin_weights,
+                _build_pac_in_place, _pac_submesh_channels_unchanged, _patch_exact_pac_skin_weights,
                 _require_exact_pac_skin_target,
             )
             from cdmw.modding.mesh_skinning import (
                 pac_skin_weights_changed, source_vertex_map_is_target_donor_lineage,
             )
             # The static import builder takes weights from exact donor rows.
-            # Retained editor parts can have authored those rows already; use
-            # their validated weights without replacing immutable source bytes
-            # or discarding the donor map used for cloth-guide records.
+            # Retained parts can have authored weights, UVs or normals. Keep
+            # their validated channels in the comparison reference, preserve
+            # the original LOD records, and patch authored LOD0 lanes below.
             skin_reference = copy.copy(original)
             skin_reference.submeshes = list(original.submeshes)
             for part in state.parts:
                 source = original.submeshes[part.target_index]
                 edited = snapshot.mesh.submeshes[indices[part.part_id]]
-                if (part.included and source_vertex_map_is_target_donor_lineage(source, edited)
-                        and pac_skin_weights_changed(source, edited)):
+                shading_changed = (not part.import_positions
+                    and list(edited.vertices) == list(source.vertices)
+                    and list(edited.faces) == list(source.faces)
+                    and (list(edited.uvs) != list(source.uvs) or list(edited.normals) != list(source.normals)))
+                skin_changed = pac_skin_weights_changed(source, edited)
+                if (part.included and (shading_changed or
+                        (source_vertex_map_is_target_donor_lineage(source, edited) and skin_changed))):
                     checked = edited
                     if edited.source_vertex_stride == 0:
                         # Older drafts omitted stride metadata. The exact patch
@@ -199,8 +205,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     target = copy.copy(source)
                     target.bone_indices = edited.bone_indices
                     target.bone_weights = edited.bone_weights
+                    if shading_changed:
+                        target.uvs = edited.uvs
+                        target.normals = edited.normals
+                        edited_shading_targets.add(part.target_index)
                     skin_reference.submeshes[part.target_index] = target
-                    edited_skin_targets.add(part.target_index)
+                    if skin_changed:
+                        edited_skin_targets.add(part.target_index)
             original_parts = all(_pac_submesh_channels_unchanged(
                 skin_reference.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]])
                 for part in state.parts)
@@ -252,23 +263,30 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                                                   preserve_original_pac_submesh_indices=preserved)
         if original.format.lower() == "pam":
             data = _preserve_pam_index_convention(data, snapshot.original_data)
-        if edited_skin_targets:
+        if edited_skin_targets or edited_shading_targets:
             # Preserved sections retain every original LOD record. Patch only
-            # the authored LOD0 weights at their final offsets, even if another
+            # the authored LOD0 channels at their final offsets, even if another
             # part's replacement or exclusion moved those records in the file.
             written = parse_mesh(data, state.target_path)
             weighted = copy.copy(written)
             weighted.submeshes = list(written.submeshes)
-            for index in edited_skin_targets:
+            for index in edited_skin_targets | edited_shading_targets:
                 source = skin_reference.submeshes[index]
                 target = copy.copy(written.submeshes[index])
                 if len(target.vertices) != len(source.vertices) or target.faces != source.faces:
-                    raise ValueError("Replacement changed an authored skin-weight part's vertex mapping.")
-                target.bone_indices = source.bone_indices
-                target.bone_weights = source.bone_weights
+                    raise ValueError("Replacement changed an authored vertex-channel part's mapping.")
+                if index in edited_skin_targets:
+                    target.bone_indices = source.bone_indices
+                    target.bone_weights = source.bone_weights
+                if index in edited_shading_targets:
+                    target.uvs = source.uvs
+                    target.normals = source.normals
                 weighted.submeshes[index] = target
-            data = _patch_exact_pac_skin_weights(written, weighted, data, data,
-                                                frozenset(edited_skin_targets))
+            if edited_shading_targets:
+                data = _build_pac_in_place(written, weighted, data)
+            if edited_skin_targets:
+                data = _patch_exact_pac_skin_weights(written, weighted, data, data,
+                                                    frozenset(edited_skin_targets))
     cloth_rules = {part.target_index: part.cloth for part in state.parts
                    if part.included and part.cloth is not None}
     if cloth_rules:
