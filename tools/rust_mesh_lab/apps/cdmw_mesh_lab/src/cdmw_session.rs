@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use std::thread;
 use thiserror::Error;
 
@@ -61,7 +62,7 @@ pub enum SessionError {
     Json(#[from] serde_json::Error),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct FileReference {
     pub path: String,
     pub data_type: String,
@@ -114,7 +115,7 @@ pub struct EffectTextureReference {
 pub struct CdmwEffectTextureResource {
     pub archive_path: String,
     pub _metadata: DdsMetadata,
-    pub bytes: Vec<u8>,
+    pub bytes: Arc<[u8]>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -2413,7 +2414,7 @@ fn read_effect_texture_resources(
     }
     let mut aggregate = 0_u64;
     let mut archive_paths = BTreeSet::new();
-    let mut resource_hashes = BTreeSet::new();
+    let mut content_by_hash: BTreeMap<String, (FileReference, Arc<[u8]>)> = BTreeMap::new();
     let mut resources = Vec::with_capacity(manifest.effect_textures.len());
     for texture in &manifest.effect_textures {
         let archive_path = texture.archive_path.trim().replace('\\', "/");
@@ -2429,15 +2430,24 @@ fn read_effect_texture_resources(
                 "effect sprite archive identity is invalid or duplicated".to_owned(),
             ));
         }
-        if resource_hashes.insert(texture.file.sha256.trim().to_ascii_uppercase()) {
+        let hash = texture.file.sha256.trim().to_ascii_uppercase();
+        let bytes = if let Some((validated_reference, bytes)) = content_by_hash.get(&hash) {
+            if &texture.file != validated_reference {
+                // A matching hash must not bypass an alias's path/size/type checks.
+                read_effect_texture_reference(root, &texture.file)?;
+            }
+            Arc::clone(bytes)
+        } else {
             aggregate = aggregate.saturating_add(texture.file.byte_length);
-        }
-        if aggregate > MAX_EFFECT_TEXTURE_TOTAL_BYTES {
-            return Err(SessionError::InvalidManifest(
-                "effect sprite textures exceed the aggregate limit".to_owned(),
-            ));
-        }
-        let bytes = read_effect_texture_reference(root, &texture.file)?;
+            if aggregate > MAX_EFFECT_TEXTURE_TOTAL_BYTES {
+                return Err(SessionError::InvalidManifest(
+                    "effect sprite textures exceed the aggregate limit".to_owned(),
+                ));
+            }
+            let bytes: Arc<[u8]> = read_effect_texture_reference(root, &texture.file)?.into();
+            content_by_hash.insert(hash, (texture.file.clone(), Arc::clone(&bytes)));
+            bytes
+        };
         let metadata = inspect_dds(&bytes, TextureRole::BaseColor)
             .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
         resources.push(CdmwEffectTextureResource {
@@ -3901,8 +3911,12 @@ mod tests {
             LoadedCdmwSessionPackage::load(&manifest_path).expect("valid effect texture package");
         let resources = package.take_effect_textures();
         assert_eq!(resources.len(), 2);
-        assert_eq!(resources[0].bytes, bytes);
-        assert_eq!(resources[1].bytes, bytes);
+        assert_eq!(resources[0].bytes.as_ref(), bytes.as_slice());
+        assert_eq!(resources[1].bytes.as_ref(), bytes.as_slice());
+        assert!(
+            Arc::ptr_eq(&resources[0].bytes, &resources[1].bytes),
+            "aliases share one resident allocation as well as one package file"
+        );
         assert_eq!(
             fs::read_dir(root.path().join("effect_textures"))
                 .expect("effect directory")
@@ -3910,6 +3924,34 @@ mod tests {
             1,
             "aliases share one immutable package resource"
         );
+
+        for (field, invalid) in [
+            ("path", json!("../escape.dds")),
+            ("byte_length", json!(bytes.len() + 1)),
+            ("count", json!(2)),
+            ("content_type", json!("application/octet-stream")),
+        ] {
+            let mut invalid_alias = manifest.clone();
+            invalid_alias["effect_textures"][1]["file"][field] = invalid;
+            fs::write(&manifest_path, serde_json::to_vec(&invalid_alias).unwrap()).unwrap();
+            assert!(
+                LoadedCdmwSessionPackage::load(&manifest_path).is_err(),
+                "a reused hash must still validate alias field {field}"
+            );
+        }
+
+        let mut normalized_alias = manifest.clone();
+        normalized_alias["effect_textures"][1]["file"]["sha256"] =
+            json!(sha256.to_ascii_lowercase());
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec(&normalized_alias).unwrap(),
+        )
+        .unwrap();
+        let resources = LoadedCdmwSessionPackage::load(&manifest_path)
+            .expect("case-normalized hash alias")
+            .take_effect_textures();
+        assert!(Arc::ptr_eq(&resources[0].bytes, &resources[1].bytes));
 
         manifest["effect_textures"][0]["archive_path"] = json!("../escape.dds");
         fs::write(

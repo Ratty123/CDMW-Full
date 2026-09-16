@@ -521,13 +521,17 @@ impl PreviewApplication {
         self.renderer = Some(
             pollster::block_on(WindowRenderer::new(window)).map_err(|error| error.to_string())?,
         );
-        if let Err(error) = self.configure_renderer().and_then(|()| {
-            self.renderer
-                .as_ref()
-                .expect("renderer was created")
-                .check_health()
-                .map_err(|error| error.to_string())
-        }) {
+        if let Err(error) = self
+            .configure_renderer()
+            .and_then(|()| self.apply_material_parameters())
+            .and_then(|()| {
+                self.renderer
+                    .as_ref()
+                    .expect("renderer was created")
+                    .check_health()
+                    .map_err(|error| error.to_string())
+            })
+        {
             self.renderer = None;
             return Err(error);
         }

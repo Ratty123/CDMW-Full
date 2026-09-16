@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess
@@ -42,6 +43,34 @@ def test_renderer_failure_stops_automatic_retries_and_retains_package(tmp_path: 
         restart.assert_called_once_with("Restarting GPU rendering.", static_failure=False)
     assert not controller._gpu_failed
     controller.shutdown()
+
+def test_selecting_package_after_gpu_failure_keeps_retry_available(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, process, _package_a = _start_controller(tmp_path)
+    try:
+        _make_ready(controller)
+        controller._handle_protocol_event(
+            {"event": "renderer_failed", "error": "device removed"}, controller.process_generation,
+        )
+        states = []
+        controller.state_changed.connect(lambda state, message: states.append((state, message)))
+        process.writes.clear()
+        package_b = _package(tmp_path, "after-gpu-failure")
+        assert controller.load_package(package_b)
+        assert controller.desired_package_path == str(package_b.package_dir)
+        assert states == [("package_error", "device removed")]
+        assert not controller._package_timer.isActive()
+        assert not controller._retry_timer.isActive()
+        assert not any(row["event"] == "package_load_request" for row in process.writes)
+        with patch.object(controller, "_fail_current_process") as restart:
+            controller.retry_now()
+            restart.assert_called_once_with("Restarting GPU rendering.", static_failure=False)
+        assert not controller._gpu_failed
+        assert controller.desired_package_path == str(package_b.package_dir)
+    finally:
+        controller.shutdown()
+        process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+
 
 def test_static_provenance_failure_never_constructs_process(tmp_path: Path) -> None:
     executable = tmp_path / "unverified.exe"

@@ -614,19 +614,22 @@ class ArchiveReferencePreviewMixin:
                     )
                 native_line = native_attempt.diagnostic_line()
                 if native_attempt.succeeded:
-                    dotnet_package = build_or_lookup_dotnet_preview_package(
-                        native_attempt.package_path,
-                        cache_root=model_preview_cache_root,
-                        archive_identity=preview_archive_identity,
-                        sidecar_generation=preview_sidecar_generation,
-                        cache_mode=preview_cache_mode,
-                        max_bytes=preview_cache_max_bytes,
-                        target_bytes=preview_cache_target_bytes,
-                        metadata={
-                            "entry_path": resolved_entry.path,
-                            "surface": "reference_preview",
-                        },
-                    )
+                    try:
+                        dotnet_package = build_or_lookup_dotnet_preview_package(
+                            native_attempt.package_path,
+                            cache_root=model_preview_cache_root,
+                            archive_identity=preview_archive_identity,
+                            sidecar_generation=preview_sidecar_generation,
+                            cache_mode=preview_cache_mode,
+                            max_bytes=preview_cache_max_bytes,
+                            target_bytes=preview_cache_target_bytes,
+                            metadata={
+                                "entry_path": resolved_entry.path,
+                                "surface": "reference_preview",
+                            },
+                        )
+                    finally:
+                        native_attempt.release_temporary_files()
                     diagnostics = dict(native_attempt.diagnostics)
                     diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
                     notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
@@ -649,6 +652,7 @@ class ArchiveReferencePreviewMixin:
                         native_preview_diagnostics=diagnostics,
                         preferred_view="model",
                     )
+                native_attempt.release_temporary_files()
                 return ArchivePreviewResult(
                     status="error",
                     title=resolved_entry.basename,

@@ -896,6 +896,13 @@ def test_python_model_preview_uses_the_same_direct_then_full_cache_contract(
     assert direct_packages[0].package_dir != full.package_dir
 
 
+def test_renderer_reconstruction_reapplies_live_materials_before_health_check() -> None:
+    source = (ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs").read_text(encoding="utf-8")
+    restore = source.split("fn restore_renderer(", 1)[1].split("fn renderer_failed(", 1)[0]
+    assert restore.index(".configure_renderer()") < restore.index("self.apply_material_parameters()")
+    assert restore.index("self.apply_material_parameters()") < restore.index(".check_health()")
+
+
 def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> None:
     source = (
         ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs"

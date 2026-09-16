@@ -29,6 +29,14 @@ Preview Core removes cancelled protocol job folders after confirming that the
 helper stopped. Each new `cdmw_preview_core_*` folder has an ownership marker
 and a process-held file lock. Preview preparation sweeps abandoned marked
 folders older than thirty minutes. Active jobs, unknown legacy folders, and
-jobs with unconfirmed helper termination are preserved. Successful temporary
-reference packages remain available for their owning process; exit cleanup
-and the next preparation pass reclaim them.
+jobs with unconfirmed helper termination are preserved. Reference previews release
+completed native job folders and their ownership handles as soon as conversion
+to an independent Rust package finishes or fails. Other consumers retain their
+temporary native inputs until they explicitly release the completed attempt or
+exit. Cache-disabled Rust builds remove partial output on errors and cancellation;
+successful output remains owned by the receiving caller.
+
+GPU recovery and hidden-preview reactivation restore live material parameters
+along with the scene. If recovery fails, selecting another package keeps it queued
+and leaves Retry available. Effect-texture aliases share immutable resident bytes
+by content hash, so the texture byte budget accounts for their retained data.
