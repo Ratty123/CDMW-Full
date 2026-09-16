@@ -18,6 +18,7 @@ The format is intentionally simple:
 ### Fixed
 
 - PAC imports and rebuilds reject UV coordinates that cannot fit the stored format instead of silently replacing them with zero. Rejected replacements preserve the current mesh and Undo/Redo history.
+- Normal and UV edits on original PAC parts retain their geometry and lower LOD records when used with Cloth or Mod output, including alongside replacement of other parts and after draft recovery.
 - Cloth and Mod output retain prior skin-weight edits, including after part reordering, replacement and draft recovery, while preserving untouched lower LOD weights.
 - Skin-weight edits reject a fifth skeletal bone on cloth vertices or removal of a vertex's last bone before changing the mesh or Undo/Redo history.
 - Preview bounds retained composed-texture memory, pauses failed GPU startup until Retry, and preserves material edits made while hidden. Shutdown waits for every helper before removing shared runtime output, and failed fast-preview handoffs release unclaimed temporary packages.
