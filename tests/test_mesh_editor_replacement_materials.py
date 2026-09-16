@@ -102,14 +102,21 @@ def test_dependency_fingerprints_follow_material_choice(editor, tmp_path, change
     assert service.session_view(session_id).revision == snapshot.mesh_revision
 
 
-def test_missing_gltf_texture_is_optional_but_geometry_buffer_is_required(editor, tmp_path):
+@pytest.mark.parametrize("extension", ["gltf", "glb"])
+def test_missing_gltf_texture_is_optional_but_geometry_buffer_is_required(editor, tmp_path, extension):
     from tests.test_scene_import_normalization import _write_gltf
+    from tests.test_scene_importer_gltf import _write_glb
+    import json
 
     service, session_id = editor
     snapshot = service.capture_export_snapshot(session_id)
     model = _write_gltf(tmp_path, positions=[(12, 3, 7), (16, 3, 7), (12, 5, 8)], indices=[0, 1, 2],
                         uvs=[(0, 0), (1, 0), (0, 1)],
                         material={"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}})
+    if extension == "glb":
+        document = json.loads(model.read_text())
+        model = tmp_path / "external.glb"
+        _write_glb(model, document, b"")
     (tmp_path / "texture.png").unlink()
     key = initial_replacement_state(snapshot).parts[0].part_id
     pending = prepare_import(snapshot, model, target_part_ids=(key,))
@@ -122,6 +129,34 @@ def test_missing_gltf_texture_is_optional_but_geometry_buffer_is_required(editor
         compose_import(pending, (key,))
     with pytest.raises(ValueError, match="Missing imported dependency: mesh.bin"):
         prepare_import(snapshot, model, target_part_ids=(key,))
+
+
+@pytest.mark.parametrize("extension", ["gltf", "glb"])
+@pytest.mark.parametrize("change", ["modify", "delete"])
+def test_external_geometry_buffer_changes_reject_pending_replacement(editor, tmp_path, extension, change):
+    from tests.test_scene_import_normalization import _write_gltf
+    from tests.test_scene_importer_gltf import _write_glb
+    import json
+
+    service, session_id = editor
+    snapshot = service.capture_export_snapshot(session_id)
+    model = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+                        uvs=[(0, 0), (1, 0), (0, 1)])
+    if extension == "glb":
+        document = json.loads(model.read_text())
+        model = tmp_path / "external.glb"
+        _write_glb(model, document, b"")
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    pending = prepare_import(snapshot, model, target_part_ids=(key,))
+    buffer = tmp_path / "mesh.bin"
+    if change == "modify":
+        buffer.write_bytes(buffer.read_bytes() + b"changed")
+    else:
+        buffer.unlink()
+    with pytest.raises(ValueError, match="dependency changed"):
+        compose_import(pending, (key,))
+    assert service.session_view(session_id).revision == snapshot.mesh_revision
+    assert service.session_view(session_id).undo_count == 0
 
 
 def test_repeated_imports_keep_other_materials_and_restore_original(editor, tmp_path):

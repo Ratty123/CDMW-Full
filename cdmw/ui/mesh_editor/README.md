@@ -158,8 +158,8 @@ New Item fitting defaults are unchanged.
 
 **Keep Original Materials** is the default. Missing or stale imported MTL and
 texture references do not block this geometry-only mode. Source geometry and
-external geometry buffers must still exist and remain unchanged while reviewing
-the mapping. **Imported Materials & Textures**
+external geometry buffers in both glTF and GLB must still exist and remain
+unchanged while reviewing the mapping. **Imported Materials & Textures**
 prepares the required DDS and material sidecars before publishing the import.
 Missing textures, ambiguous material wrappers, shared selected/untouched material
 ownership, unsupported skinning, or invalid coordinate/layout conversion block
