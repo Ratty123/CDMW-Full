@@ -311,7 +311,9 @@ def load_mesh_layer_project(
             if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")
             snapshot = payload.get("snapshot")
-            restore_target = copy.deepcopy(mesh) if descriptor.get("format") in {MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT} else mesh
+            # Snapshot decoding and output-state validation can both fail after
+            # changing geometry. Publish only a fully accepted generation.
+            restore_target = copy.deepcopy(mesh)
             if not isinstance(snapshot, Mapping) or not restore_native_mesh_submesh_snapshot(
                 restore_target,
                 snapshot,
@@ -339,8 +341,7 @@ def load_mesh_layer_project(
                 if replacement.target_sha256 != stored_hash or refit_context is not None:
                     raise ValueError("Replacement draft target or workflow does not match.")
                 bound_part_indices(restore_target, replacement)
-            if restore_target is not mesh:
-                mesh.__dict__.update(restore_target.__dict__)
+            mesh.__dict__.update(restore_target.__dict__)
             return {**dict(payload), "loaded_generation": generation_name, "archive_refit_context": refit_context,
                     "replacement_state": replacement, "hair_state": hair}
         except (OSError, RuntimeError, ValueError) as exc:

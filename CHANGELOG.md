@@ -17,6 +17,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor opens recoverable PAC meshes when a lower LOD cannot support cloth editing, rejects invalid retained cloth-guide indices during replacement, and leaves loaded geometry untouched when a draft fails validation.
 - PAC decoding separates cloth guide bindings from skeletal weights. Replacement and weight edits preserve valid cloth bindings instead of treating them as extra bones.
 - Cancelled Preview Core jobs clean up their temporary folders after the helper stops. Ownership locks protect active jobs, and abandoned marked folders are recovered on later preview preparation.
 - Hidden previews release GPU resources, and scene replacement reuses unchanged textures. Rendering checks Windows' GPU memory budget and attempts one device recovery before pausing for Retry, preserving the current scene and editing state.

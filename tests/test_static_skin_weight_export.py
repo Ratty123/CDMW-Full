@@ -150,6 +150,25 @@ def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_w
             assert output[offset + 34:offset + 36] == b"\x00\x00"
 
 
+@pytest.mark.parametrize("guide", [float("nan"), float("inf"), -1., 2048.])
+def test_full_replacement_rejects_invalid_retained_cloth_guides(guide) -> None:
+    raw, original = _skinned_pac()
+    donor = bytearray(raw)
+    for offset in original.submeshes[0].source_vertex_offsets:
+        struct.pack_into("<2e", donor, offset + 12, guide, 0.)
+        donor[offset + 32] = 255
+        donor[offset + 39] = 0
+    raw = bytes(donor)
+    original = parse_pac(raw, "target.pac")
+    replacement = _replacement(list(original.submeshes[0].vertices))
+    replacement.submeshes[0].bone_indices = [(0,)] * 3
+    replacement.submeshes[0].bone_weights = [(1.,)] * 3
+    options = _static_options()
+    options.complete_external_swap = True
+    with pytest.raises(ValueError, match="cloth-guide index"):
+        build_static_mesh_replacement(raw, original, replacement, options)
+
+
 def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
     # Slots are per-mesh palette tokens in a 10-bit field, so they reach 1023 --
     # well past anything the old u8 lane could hold. They must survive verbatim.

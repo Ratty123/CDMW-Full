@@ -1,6 +1,7 @@
 """Cloth edits own only proven render bindings, at every stored PAC LOD."""
 
 from contextlib import ExitStack
+import copy
 from dataclasses import replace
 import struct
 import json
@@ -101,6 +102,57 @@ def test_unsafe_bindings_and_missing_lods_fail_before_output():
         apply_pac_cloth_rules(_pac_fixture(skinned=True), {0: PacClothRule(0)})
     with pytest.raises((ValueError, struct.error)):
         apply_pac_cloth_rules(source[:200], {0: PacClothRule(0)})
+
+
+@pytest.mark.parametrize("size_excess", [8, 1000])
+def test_unreadable_lower_lod_disables_cloth_without_breaking_editor(tmp_path, monkeypatch, size_excess):
+    source = bytearray(cloth_fixture())
+    stored_size = struct.unpack_from("<I", source, 0x1c)[0]
+    # LOD0 remains readable, but a lower LOD advertises undecoded data extending
+    # into its neighbour or beyond the file. Inspection can still recover LOD0.
+    struct.pack_into("<II", source, 0x18, stored_size, stored_size + size_excess)
+    source = bytes(source)
+    assert parse_pac(source, "damaged-lod.pac").total_faces == 2
+    monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
+    _, service, session = _open_exact_session(tmp_path / "damaged-lod")
+    try:
+        state = session.state_payload()
+        assert not state["cloth"]["available"]
+        assert "PAC sections" in state["cloth"]["reason"]
+        assert state["replacement"]["available"]
+        with pytest.raises(ValueError, match="PAC sections"):
+            apply_pac_cloth_rules(source, {0: PacClothRule(0)})
+    finally:
+        if not session.closed:
+            session.cancel()
+        service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
+
+
+def test_rejected_import_with_invalid_guides_keeps_session_unchanged(tmp_path, monkeypatch):
+    source = bytearray(cloth_fixture())
+    for mesh in pac_cloth_lods(source):
+        for offset in mesh.submeshes[0].source_vertex_offsets[1:]:
+            struct.pack_into("<e", source, offset + 12, float("nan"))
+    source = bytes(source)
+    monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
+    _, service, session = _open_exact_session(tmp_path / "invalid-guides")
+    try:
+        assert not session.state_payload()["cloth"]["available"]
+        result = prepare_source(session, tmp_path)
+        key = result["state"]["replacement"]["pending"]["targets"][0]["id"]
+        before = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
+        with pytest.raises(ValueError, match="cloth-guide index"):
+            command(session, "replacement_apply", {"targets": [key], "materials": "original"})
+        after = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
+        assert after.mesh == before.mesh
+        assert after.mesh_revision == before.mesh_revision
+        assert after.replacement_state is None
+        assert session.shadow_service.session_view(session.shadow_session_id).undo_count == 0
+        assert shadow_output(session) == source
+    finally:
+        if not session.closed:
+            session.cancel()
+        service.close_edit_session(session.authoritative_session_id, force_without_saving=True)
 
 
 @pytest.fixture
@@ -296,6 +348,12 @@ def test_cloth_draft_cannot_silently_lose_rules_or_downgrade(cloth_session, tmp_
     path.write_text(json.dumps(generation))
     descriptor["current_generation_manifest_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     draft.write_text(json.dumps(descriptor))
+    mesh = parse_pac(source, "cloth.pac")
+    # A rejected generation must not overwrite geometry already loaded by the
+    # caller, even when its descriptor disguises it as an older draft format.
+    mesh.submeshes[0].vertices[0] = (17., 18., 19.)
+    before = copy.deepcopy(mesh)
     with pytest.raises((ValueError, RuntimeError), match="Cloth"):
-        load_mesh_layer_project(parse_pac(source, "cloth.pac"), draft,
+        load_mesh_layer_project(mesh, draft,
             expected_source_asset_sha256=hashlib.sha256(source).hexdigest())
+    assert mesh == before

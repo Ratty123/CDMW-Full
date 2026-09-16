@@ -37,6 +37,7 @@ from .mesh_skinning import (
     patch_pac_vertex_skin,
     source_vertex_map_is_target_donor_lineage,
 )
+from .pac_cloth import pac_cloth_binding
 
 logger = get_logger("core.mesh_importer")
 
@@ -1267,6 +1268,9 @@ def _build_pac_full_rebuild(
                             ) | PAC_SKIN_GATE_DISABLED
                     patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, sm_idx)
 
+                if retain_cloth:
+                    # Preserving a donor must not publish invalid guide fetches.
+                    pac_cloth_binding(donor_rec, 0)
                 verts_buf.extend(donor_rec)
 
             for face in sm.faces:
