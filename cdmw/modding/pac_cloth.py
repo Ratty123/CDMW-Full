@@ -43,6 +43,13 @@ def pac_cloth_lods(data: bytes):
         raise ValueError("Cloth editing requires an original PAC mesh.")
     sections = _parse_par_sections(data)
     by_index = {row["index"]: row for row in sections}
+    for section in sections:
+        if section["index"] > 4:
+            continue
+        stored_size = struct.unpack_from("<I", data, 0x10 + section["index"] * 8)[0]
+        if (stored_size not in (0, section["size"])
+                or section["offset"] + section["size"] > len(data)):
+            raise ValueError("Cloth editing requires complete, decoded PAC sections at every LOD.")
     metadata = by_index.get(0)
     if metadata is None or metadata["size"] < 5:
         raise ValueError("Cloth editing requires readable PAC descriptors.")

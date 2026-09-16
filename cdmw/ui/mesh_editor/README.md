@@ -227,6 +227,8 @@ performed.
 Experimental replacement drafts use project and payload version 3, retaining
 the exact neutral transform and coordinate frame. Older apps reject this format
 before attempting generation recovery. Ordinary replacement drafts remain v2.
+Draft restoration is staged for every format; a rejected generation leaves the
+loaded geometry unchanged before recovery tries a previous generation.
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.
@@ -254,6 +256,9 @@ Restore removes the rule and recovers those retained bindings. An exported PAC
 whose bindings have been disabled cannot recover them without its source/draft.
 Unproven or shared vertex layouts, missing bindings and active hair/refit
 workflows are rejected before committing output.
+Incomplete or undecoded lower LODs disable cloth controls without blocking an
+otherwise readable mesh from opening. Replacements reject non-finite or
+out-of-range retained cloth-guide indices before committing the imported mesh.
 
 These controls edit render-vertex cloth influence, not simulation anchors,
 collision shapes or the shared physics profile. The existing cloth simulation
