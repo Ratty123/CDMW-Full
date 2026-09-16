@@ -156,6 +156,10 @@ restore the imported normal orientation and invalidate outdated tangents, and
 both are undoable.
 New Item fitting defaults are unchanged.
 
+Source positions, UVs, normals and tangents must contain finite values within
+the supported float range. Invalid values stop import before automatic UV
+generation or preview conversion, preserving the current edit for a valid retry.
+
 **Keep Original Materials** is the default. Missing or stale imported MTL and
 texture references do not block this geometry-only mode. Source geometry and
 external geometry buffers in both glTF and GLB must still exist and remain

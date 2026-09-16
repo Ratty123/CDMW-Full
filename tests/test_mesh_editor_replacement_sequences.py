@@ -280,3 +280,147 @@ def test_dense_import_limit_failure_and_retry_preserve_last_build(editor, tmp_pa
         report = json.loads(Path(f"{output_path}.export.json").read_text())
         assert report["export_snapshot"]["output_reparse"]["status"] == "passed"
         previous = current
+
+
+def multipart_source(root, extension, count):
+    root.mkdir()
+    translations = [(2, 3, 4), (-7, 5, 1), (4, -6, -2)][:count]
+    expected = [tuple((offset[0] + x, offset[1] + y, offset[2]) for x, y in ((0, 0), (1, 0), (0, 1)))
+                for offset in translations]
+    if extension == "obj":
+        path = root / "duplicate names.obj"
+        lines = ["mtllib missing.mtl", "vt 0 0", "vt 1 0", "vt 0 1", "vn 0 0 1"]
+        for positions in expected:
+            lines.extend(("o repeated_name", "usemtl stale_material"))
+            lines.extend(f"v {x} {y} {z}" for x, y, z in positions)
+            lines.append("f -3/1/1 -2/2/1 -1/3/1")
+        path.write_text("\n".join(lines) + "\n")
+    else:
+        path = _write_gltf(root, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+                           normals=[(0, 0, 1)] * 3, uvs=[(0, 0), (1, 0), (0, 1)])
+        document = json.loads(path.read_text())
+        document["nodes"] = [{"mesh": 0, "name": "repeated_name", "translation": offset} for offset in translations]
+        document["scenes"][0]["nodes"] = list(range(count))
+        path.write_text(json.dumps(document))
+    return path, expected
+
+
+@pytest.mark.parametrize("extension", ["obj", "gltf"])
+def test_multipart_remapping_merging_and_part_count_changes_restore_exact_history(editor, tmp_path, extension):
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    keys = [part.part_id for part in initial_replacement_state(original).parts]
+    outputs = []
+    for step, mapping in enumerate(((0, 1), (1, 0, 1), (1, 0), (0, 0, 0), (1,), (0, 1))):
+        path, expected = multipart_source(tmp_path / f"source-{step}", extension, len(mapping))
+        before = service.capture_export_snapshot(sid)
+        pending = prepare_import(before, path)
+        assert len(pending.source.mesh.submeshes) == len(mapping)
+        with pytest.raises(ValueError, match="Choose a target part"):
+            compose_import(pending, ["unavailable-part"] * len(mapping))
+        assert service.session_view(sid).revision == before.mesh_revision
+        candidate, state = compose_import(pending, [keys[index] for index in mapping])
+        for target_index in range(2):
+            wanted = [point for source_index, target in enumerate(mapping) if target == target_index for point in expected[source_index]]
+            assert state.parts[target_index].included == bool(wanted)
+            if wanted:
+                assert list(candidate.submeshes[target_index].vertices) == wanted
+                assert candidate.submeshes[target_index].material == original.mesh.submeshes[target_index].material
+        commit_replacement(service, before, candidate, state, label=f"Multi-part import {step}")
+        outputs.append(checked_output(service, sid, original.original_data).data)
+    for index in range(len(outputs) - 2, -2, -1):
+        service.undo(sid)
+        if index >= 0:
+            assert checked_output(service, sid, original.original_data).data == outputs[index]
+        else:
+            restored = service.capture_export_snapshot(sid)
+            assert restored.replacement_state is None
+            assert [list(part.vertices) for part in restored.mesh.submeshes] == [list(part.vertices) for part in original.mesh.submeshes]
+    for expected_output in outputs:
+        service.redo(sid)
+        assert checked_output(service, sid, original.original_data).data == expected_output
+
+
+@pytest.mark.parametrize("invalid", ["empty", "invalid-face", "nonfinite", "invalid-skin"])
+def test_invalid_geometry_then_valid_retry_preserves_current_replacement(editor, tmp_path, invalid):
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    key = initial_replacement_state(original).parts[0].part_id
+    path, _ = multipart_source(tmp_path / "good", "obj", 1)
+    pending = prepare_import(original, path, target_part_ids=(key,))
+    candidate, state = compose_import(pending, (key,))
+    commit_replacement(service, original, candidate, state, label="Initial valid import")
+    previous = checked_output(service, sid, original.original_data)
+    before = service.capture_export_snapshot(sid)
+    undo_count = service.session_view(sid).undo_count
+    bad_path = tmp_path / "bad.obj"
+    if invalid == "invalid-skin":
+        bad_path = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+                               uvs=[(0, 0), (1, 0), (0, 1)], weights=[(0, 0, 0, 0)] * 3)
+    else:
+        text = path.read_text()
+        text = {"empty": "# no geometry\n", "invalid-face": text.replace("f -3/1/1 -2/2/1 -1/3/1", "f 0 1 2"),
+                "nonfinite": text.replace("v 2 3 4", "v nan 3 4")}[invalid]
+        bad_path.write_text(text)
+    with pytest.raises(ValueError):
+        pending = prepare_import(before, bad_path, target_part_ids=(key,))
+        candidate, state = compose_import(pending, (key,))
+        commit_replacement(service, before, candidate, state, label="Invalid import")
+    after = service.session_view(sid)
+    assert (after.revision, after.undo_count) == (before.mesh_revision, undo_count)
+    assert checked_output(service, sid, original.original_data).data == previous.data
+    path.write_text(path.read_text().replace("v 2 3 4", "v 1 3 4"))
+    pending = prepare_import(service.capture_export_snapshot(sid), path, target_part_ids=(key,))
+    candidate, state = compose_import(pending, (key,))
+    commit_replacement(service, before, candidate, state, label="Valid retry")
+    assert checked_output(service, sid, original.original_data).data != previous.data
+
+
+def test_gltf_skin_baking_preserves_static_positions_in_replacement(editor, tmp_path):
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    key = initial_replacement_state(original).parts[0].part_id
+    path = _write_gltf(tmp_path, positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2],
+                       normals=[(0, 0, 1)] * 3, uvs=[(0, 0), (1, 0), (0, 1)], weights=[(1, 0, 0, 0)] * 3)
+    pending = prepare_import(original, path, target_part_ids=(key,))
+    assert not pending.source.mesh.has_bones
+    assert not pending.source.mesh.submeshes[0].bone_weights
+    expected = [(0, 1, 0), (1, 1, 0), (0, 2, 0)]
+    assert list(pending.source.mesh.submeshes[0].vertices) == expected
+    candidate, state = compose_import(pending, (key,))
+    assert list(candidate.submeshes[0].vertices) == expected
+    commit_replacement(service, original, candidate, state, label="Baked static glTF import")
+    checked_output(service, sid, original.original_data)
+
+
+def test_same_texture_path_and_timestamp_reimports_use_current_pixels(editor, tmp_path):
+    from io import BytesIO
+    import os
+    from PIL import Image
+    from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies, prepare_imported_materials
+    from tests.test_mesh_editor_replacement_materials import material_fixture
+
+    service, sid = editor
+    original = service.capture_export_snapshot(sid)
+    target, context, model = material_fixture(tmp_path, original)
+    dependencies = capture_replacement_dependencies(target, context)
+    key = initial_replacement_state(original).parts[0].part_id
+    texture = tmp_path / "color.dds"
+    metadata = texture.stat()
+    outputs = []
+    for color in ((210, 30, 60, 255), (20, 50, 210, 255), (20, 190, 90, 255), (210, 30, 60, 255)):
+        Image.new("RGBA", (4, 4), color).save(texture)
+        os.utime(texture, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+        snapshot = service.capture_export_snapshot(sid)
+        pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+        files = prepare_imported_materials(pending, (key,), tmp_path)
+        candidate, state = compose_import(pending, (key,), material_choice="imported", companion_files=files)
+        commit_replacement(service, snapshot, candidate, state, label="Updated source texture")
+        output = checked_output(service, sid, original.original_data)
+        textures = [file for file in output.companion_files if file.path.endswith(".dds")]
+        assert len(textures) == 1
+        with Image.open(BytesIO(textures[0].data)) as decoded:
+            assert decoded.convert("RGBA").getpixel((0, 0)) == pytest.approx(color, abs=4)
+        outputs.append(textures[0])
+    assert len({file.data for file in outputs}) == 3
+    assert outputs[0] == outputs[-1]

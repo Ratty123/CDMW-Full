@@ -192,3 +192,27 @@ def test_external_uv_generation_blocks_lost_vertex_channel(tmp_path: Path) -> No
         pytest.raises(ValueError, match="could not preserve vertex-aligned channels"),
     ):
         import_scene_mesh_with_report(source, include_external_audit=False)
+
+
+@pytest.mark.parametrize("has_uvs", [False, True])
+@pytest.mark.parametrize("invalid", ["nan", "inf", "-inf", "1e39"])
+def test_external_import_rejects_invalid_positions_before_native_conversion(tmp_path, has_uvs, invalid):
+    source = tmp_path / "invalid.obj"
+    face = "f 1/1/1 2/2/1 3/3/1" if has_uvs else "f 1//1 2//1 3//1"
+    source.write_text(
+        f"o source\nv {invalid} 0 0\nv 1 0 0\nv 0 1 0\n"
+        f"vt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\n{face}\n"
+    )
+    with patch("cdmw.modding.scene_import_uv.apply_native_mesh_auto_uv") as unwrap:
+        with pytest.raises(ValueError, match="non-finite or out-of-range vertices"):
+            import_scene_mesh_with_report(source, include_external_audit=False)
+        unwrap.assert_not_called()
+
+
+@pytest.mark.parametrize("channel, changed", [("uvs", "vt nan 0"), ("normals", "vn nan 0 1")])
+def test_external_import_rejects_nonfinite_authored_channels(tmp_path, channel, changed):
+    source = tmp_path / "invalid.obj"
+    text = "o source\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n"
+    source.write_text(text.replace("vt 0 0" if channel == "uvs" else "vn 0 0 1", changed))
+    with pytest.raises(ValueError, match=f"non-finite or out-of-range {channel}"):
+        import_scene_mesh_with_report(source, include_external_audit=False)

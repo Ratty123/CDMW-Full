@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from pathlib import Path
 
@@ -33,6 +34,16 @@ def ensure_external_scene_uvs(
 ) -> SceneImportResult:
     """Generate missing external UV channels or fail before geometry is exposed."""
     mesh = result.mesh
+    # Native unwrap/preview buffers store float32 values and can sanitize bad
+    # inputs to zero. Check the decoded source before either conversion occurs.
+    for submesh in mesh.submeshes:
+        for channel in ("vertices", "uvs", "normals", "tangents"):
+            if any(not math.isfinite(value) or abs(value) > 3.4028234663852886e38
+                   for row in getattr(submesh, channel, ()) for value in row):
+                raise ValueError(
+                    f"{source_path.suffix.upper().lstrip('.')} source has non-finite or out-of-range "
+                    f"{channel} in part {submesh.name}. Fix the source model and import again."
+                )
     target_indices = {
         index
         for index, submesh in enumerate(mesh.submeshes)
