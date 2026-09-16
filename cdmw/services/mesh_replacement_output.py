@@ -166,13 +166,46 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     else:
         preserved = ()
         original_parts = False
+        skin_reference = original
+        edited_skin_targets = set()
         if original.format.lower() == "pac":
-            from cdmw.modding.mesh_pac_builder import _pac_submesh_channels_unchanged
+            from cdmw.modding.mesh_pac_builder import (
+                _pac_submesh_channels_unchanged, _patch_exact_pac_skin_weights,
+                _require_exact_pac_skin_target,
+            )
+            from cdmw.modding.mesh_skinning import (
+                pac_skin_weights_changed, source_vertex_map_is_target_donor_lineage,
+            )
+            # The static import builder takes weights from exact donor rows.
+            # Retained editor parts can have authored those rows already; use
+            # their validated weights without replacing immutable source bytes
+            # or discarding the donor map used for cloth-guide records.
+            skin_reference = copy.copy(original)
+            skin_reference.submeshes = list(original.submeshes)
+            for part in state.parts:
+                source = original.submeshes[part.target_index]
+                edited = snapshot.mesh.submeshes[indices[part.part_id]]
+                if (part.included and source_vertex_map_is_target_donor_lineage(source, edited)
+                        and pac_skin_weights_changed(source, edited)):
+                    checked = edited
+                    if edited.source_vertex_stride == 0:
+                        # Older drafts omitted stride metadata. The exact patch
+                        # still requires every original offset, identity map,
+                        # face and palette before accepting this source layout.
+                        checked = copy.copy(edited)
+                        checked.source_vertex_stride = source.source_vertex_stride
+                    _require_exact_pac_skin_target(source, checked, snapshot.original_data,
+                                                  submesh_index=part.target_index)
+                    target = copy.copy(source)
+                    target.bone_indices = edited.bone_indices
+                    target.bone_weights = edited.bone_weights
+                    skin_reference.submeshes[part.target_index] = target
+                    edited_skin_targets.add(part.target_index)
             original_parts = all(_pac_submesh_channels_unchanged(
-                original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]])
+                skin_reference.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]])
                 for part in state.parts)
             preserved = tuple(part.target_index for part in state.parts if part.included and
-                _pac_submesh_channels_unchanged(original.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
+                _pac_submesh_channels_unchanged(skin_reference.submeshes[part.target_index], snapshot.mesh.submeshes[indices[part.part_id]]))
         hair = getattr(snapshot, "hair_state", None)
         preserve_hair_records = (original.format.lower() == "pac" and hair is not None
             and all(group["mode"] == "existing" for group in hair.payload["groups"])
@@ -195,7 +228,7 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             from cdmw.modding.mesh_pac_builder import _build_pac_full_rebuild
             from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
             from cdmw.modding.static_mesh_runtime_builder import _build_removed_runtime_placeholder_submesh
-            prepared = copy.deepcopy(original if original_parts else snapshot.mesh)
+            prepared = copy.deepcopy(skin_reference if original_parts else snapshot.mesh)
             for binding in state.parts:
                 index = binding.target_index
                 output_index = index if original_parts else indices[binding.part_id]
@@ -211,14 +244,31 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     prepared.submeshes[output_index] = placeholder
                 elif len(part.source_vertex_map) != len(part.vertices):
                     raise ValueError("Existing hair lost its original vertex record provenance.")
-            data = _build_pac_full_rebuild(original, prepared, snapshot.original_data,
+            data = _build_pac_full_rebuild(skin_reference, prepared, snapshot.original_data,
                 preserve_original_submesh_indices=preserved,
                 preserve_source_skin_record_indices=tuple(range(len(prepared.submeshes))))
         else:
-            data, _ = build_static_mesh_replacement(snapshot.original_data, original, snapshot.mesh, options,
+            data, _ = build_static_mesh_replacement(snapshot.original_data, skin_reference, snapshot.mesh, options,
                                                   preserve_original_pac_submesh_indices=preserved)
         if original.format.lower() == "pam":
             data = _preserve_pam_index_convention(data, snapshot.original_data)
+        if edited_skin_targets:
+            # Preserved sections retain every original LOD record. Patch only
+            # the authored LOD0 weights at their final offsets, even if another
+            # part's replacement or exclusion moved those records in the file.
+            written = parse_mesh(data, state.target_path)
+            weighted = copy.copy(written)
+            weighted.submeshes = list(written.submeshes)
+            for index in edited_skin_targets:
+                source = skin_reference.submeshes[index]
+                target = copy.copy(written.submeshes[index])
+                if len(target.vertices) != len(source.vertices) or target.faces != source.faces:
+                    raise ValueError("Replacement changed an authored skin-weight part's vertex mapping.")
+                target.bone_indices = source.bone_indices
+                target.bone_weights = source.bone_weights
+                weighted.submeshes[index] = target
+            data = _patch_exact_pac_skin_weights(written, weighted, data, data,
+                                                frozenset(edited_skin_targets))
     cloth_rules = {part.target_index: part.cloth for part in state.parts
                    if part.included and part.cloth is not None}
     if cloth_rules:

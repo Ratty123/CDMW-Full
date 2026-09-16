@@ -45,6 +45,10 @@ from cdmw.domain.mesh.authoring_capability import (
 from cdmw.modding.mesh_glb_interchange import import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_parser import (
+    PAC_SKIN_GATE_DISABLED,
+    PAC_SKIN_GATE_MASK,
+    PAC_SKIN_GATE_OFFSET,
+    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_WEIGHT_LAYOUT,
     ParsedMesh,
     resolve_pac_bone_palette,
@@ -6138,25 +6142,37 @@ def _safe_pac_skin_weight_submesh(
             return False
     except (TypeError, ValueError, OverflowError):
         return False
-    return _safe_pac_skin_rows(original, len(vertices), palette_size) and _safe_pac_skin_rows(
+    return _safe_pac_skin_rows(original, len(vertices), palette_size, original_data) and _safe_pac_skin_rows(
         current,
         len(vertices),
         palette_size,
+        original_data,
     )
 
 
-def _safe_pac_skin_rows(submesh: object, vertex_count: int, palette_size: int) -> bool:
+def _pac_skin_row_capacity(original_data: bytes, offset: int) -> int:
+    gate = original_data[offset + PAC_SKIN_GATE_OFFSET] & PAC_SKIN_GATE_MASK
+    return PAC_SKIN_PALETTE_SLOTS if gate == PAC_SKIN_GATE_DISABLED else 4
+
+
+def _safe_pac_skin_rows(
+    submesh: object, vertex_count: int, palette_size: int, original_data: bytes,
+) -> bool:
     index_rows = tuple(getattr(submesh, "bone_indices", ()) or ())
     weight_rows = tuple(getattr(submesh, "bone_weights", ()) or ())
-    if len(index_rows) != vertex_count or len(weight_rows) != vertex_count:
+    offsets = tuple(getattr(submesh, "source_vertex_offsets", ()) or ())
+    if not len(index_rows) == len(weight_rows) == len(offsets) == vertex_count:
         return False
-    for raw_indices, raw_weights in zip(index_rows, weight_rows):
+    for raw_indices, raw_weights, raw_offset in zip(index_rows, weight_rows, offsets):
         try:
             indices = tuple(int(value) for value in tuple(raw_indices or ()))
             weights = tuple(float(value) for value in tuple(raw_weights or ()))
+            offset = int(raw_offset)
         except (TypeError, ValueError, OverflowError):
             return False
-        if not 1 <= len(indices) == len(weights) <= 6:
+        if offset < 0 or offset + 40 > len(original_data):
+            return False
+        if not 1 <= len(indices) == len(weights) <= _pac_skin_row_capacity(original_data, offset):
             return False
         if len(set(indices)) != len(indices):
             return False
@@ -7478,6 +7494,37 @@ class RustMeshAuthoringSession:
                 raise RustMeshValidationError(
                     "The selected skeleton bone is not present in the PAC bone palette."
                 )
+            if command == "rig_adjust_weight":
+                # Reject unrepresentable rows before the live service changes
+                # either weights or history (including an existing Redo branch).
+                for submesh_index, vertex_indices in selection.vertex_map().items():
+                    submesh = session.working_mesh.submeshes[submesh_index]
+                    for vertex_index in vertex_indices:
+                        positive = {
+                            bone: weight
+                            for bone, weight in zip(
+                                submesh.bone_indices[vertex_index],
+                                submesh.bone_weights[vertex_index],
+                            )
+                            if weight > 0.0
+                        }
+                        if (len(positive) == 1 and palette_slot in positive
+                                and positive[palette_slot] + delta <= 0.0):
+                            raise RustMeshValidationError(
+                                "Skin-weight edit would leave a vertex without any bones, "
+                                "outside the exact PAC contract. Keep at least one influence."
+                            )
+                        capacity = _pac_skin_row_capacity(
+                            session.original_data,
+                            submesh.source_vertex_offsets[vertex_index],
+                        )
+                        if (capacity == 4 and len(positive) == capacity
+                                and palette_slot not in positive and 0.0 < delta < 1.0):
+                            raise RustMeshValidationError(
+                                "Skin-weight edit would exceed the exact PAC contract: "
+                                "cloth vertices support only four skeletal influences. "
+                                "Remove an existing influence before adding another."
+                            )
             before_rows = {
                 submesh_index: (
                     tuple(
@@ -7546,6 +7593,7 @@ class RustMeshAuthoringSession:
                             ].vertices
                         ),
                         len(capability.palette),
+                        session.original_data,
                     )
                 )
                 if invalid:
