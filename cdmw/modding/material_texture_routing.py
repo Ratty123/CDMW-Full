@@ -383,7 +383,15 @@ def _attach_source_texture_reference_base_slots(
         if not reference_text:
             return
         matched_path: Optional[Path] = None
-        for key in _texture_reference_keys(reference_text):
+        # Match full paths before filename aliases. The alias set is unordered,
+        # and different materials can legitimately use same-named texture files.
+        keys = [reference_text.replace("\\", "/").lower()]
+        try:
+            keys.append(str(Path(reference_text).expanduser().resolve()).replace("\\", "/").lower())
+        except Exception:
+            pass
+        keys.extend(sorted(_texture_reference_keys(reference_text) - set(keys)))
+        for key in keys:
             matched_path = texture_files_by_key.get(key)
             if matched_path is not None:
                 break
@@ -448,13 +456,6 @@ def _attach_source_texture_reference_base_slots(
         material_name = str(getattr(source_submesh, "material", "") or getattr(source_submesh, "name", "") or "").strip()
         if not material_name:
             continue
-        attach_slot(
-            material_name,
-            "base",
-            getattr(source_submesh, "texture", ""),
-            visible_base_guard=True,
-            source_authority="metadata",
-        )
         for slot_kind, slot_path in tuple(getattr(source_submesh, "texture_slots", ()) or ()):
             raw_slot_kind = str(slot_kind or "")
             normalized_raw_slot = _sanitize_texture_component(raw_slot_kind)
@@ -505,6 +506,13 @@ def _attach_source_texture_reference_base_slots(
                 packed_channels=tuple(getattr(texture_input, "packed_channels", ()) or ()),
                 source_authority=authority,
             )
+        texture_set = grouped.get(material_name.lower())
+        base = texture_set.slots.get("base") if texture_set is not None else None
+        if base is None or _source_authority_priority(base.source_authority) < _source_authority_priority("metadata"):
+            # The legacy texture field often contains only a basename. Use it
+            # when richer material metadata did not establish the base binding.
+            attach_slot(material_name, "base", getattr(source_submesh, "texture", ""),
+                        visible_base_guard=True, source_authority="metadata")
 
 
 def _attach_source_material_factor_slots(

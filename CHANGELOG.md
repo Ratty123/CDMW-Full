@@ -18,6 +18,8 @@ The format is intentionally simple:
 - External mesh imports reject non-finite or overflowing vertex data before auto-UV and preview conversion, preventing malformed source values from silently becoming zero and changing the replacement geometry.
 - OBJ imports preserve separate material regions within one object and retain material assignments across object/group boundaries, instead of assigning earlier faces to the last material.
 - OBJ imports reject invalid vertex, UV and normal indices before replacement. Valid vertex references across object boundaries retain their geometry instead of collapsing onto another vertex.
+- OBJ material imports accept spaced or quoted MTL filenames and resolve texture paths relative to their material library, avoiding false missing-library errors and wrong texture choices from nearby folders.
+- Mesh material conversion keeps same-named textures in different folders distinct. Explicit source paths take priority over filename matches, preserving each material's colors and maps.
 - Mesh Editor status messages show their full text on hover and in a scrollable, selectable Details view with a Copy button.
 - Archive Browser resolves PAC material and texture references for Asset Family and export even with Load textures off. Partial cached previews no longer require opening Mesh Editor before the remaining assets become available.
 - New Item automatically recovers a stale, unmounted overlay set during installation, preserving its old files and archiving its history with the new install's verified backup. Recovery retries once and rolls back with the install on failure; mounted or conflicting overlays still stop with a clear error.
