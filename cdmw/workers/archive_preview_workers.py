@@ -287,24 +287,36 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 self.completed.emit(self.request_id, result)
 
     def _with_archive_relationships(self, result: ArchivePreviewResult) -> ArchivePreviewResult:
-        # Relationship visibility does not depend on the renderer or file type.
-        # Preserve canonical material evidence when the preview already has it.
-        if self.entry is None or result.model_texture_references or (
-            result.asset_family_graph is not None and result.asset_family_graph.relations
-        ):
+        if self.entry is None:
             return result
         raise_if_cancelled(self.stop_event)
-        references = build_archive_relationship_references(
+        discovered = build_archive_relationship_references(
             self.entry,
             archive_entries_by_normalized_path=self.texture_entries_by_normalized_path,
             archive_entries_by_basename=self.texture_entries_by_basename,
         )
         raise_if_cancelled(self.stop_event)
-        if not references:
+
+        def reference_key(reference: ArchiveModelTextureReference) -> object:
+            if isinstance(reference.resolved_entry, ArchiveEntry):
+                return reference.resolved_entry.identity
+            return (reference.resolved_archive_path or reference.reference_name).replace("\\", "/").strip().casefold()
+
+        # Geometry-only native packages can already have HKX/skeleton rows.
+        # Fill in their missing relationships without collapsing authored
+        # per-material references or mutating objects held by the preview cache.
+        references = list(result.model_texture_references)
+        known = {reference_key(reference) for reference in references}
+        for reference in discovered:
+            key = reference_key(reference)
+            if key not in known:
+                references.append(reference)
+                known.add(key)
+        if len(references) == len(result.model_texture_references):
             return result
         return dataclasses.replace(
             result,
-            model_texture_references=references,
+            model_texture_references=tuple(references),
             asset_family_graph=build_archive_asset_family_graph(self.entry, references),
         )
 

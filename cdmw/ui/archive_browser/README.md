@@ -211,7 +211,11 @@ Textures that require layer composition retain level-zero pixels and receive a
 complete mip chain for stable filtering and lower rendering cost when zoomed out.
 Archive Browser defaults to geometry-only. Its **Load textures** checkbox saves
 the existing `archive/model_use_textures` preference and keeps that choice across
-model selections and application restarts. The checkbox represents user intent
+model selections and application restarts. Asset Family and referenced-file export
+choices are resolved independently of that checkbox. Partial preview results,
+including cached results with only skeleton or physics companions, are enriched
+from the archive relationship lookup without opening Mesh Editor or loading textures.
+The checkbox represents user intent
 while the status row reports preparation and visibility; geometry, direct and
 full packages preserve textured display intent without momentarily hiding the
 resident textures. A late texture result respects the current saved choice.
