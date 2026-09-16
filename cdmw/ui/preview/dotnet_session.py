@@ -157,6 +157,7 @@ class RustPreviewSessionController(
         self._activation_retry_count = 0
         self._retry_attempt = 0
         self._retry_reason = ""
+        self._gpu_failed = False
         self._executable = Path()
         self._stdout_buffer = b""
         self._stdout_tail = ""
@@ -773,6 +774,9 @@ class RustPreviewSessionController(
             self._active = False
             self._set_state("inactive", "Preview paused while hidden.")
             return
+        if self._gpu_failed:
+            self._set_state("package_error", self._retry_reason)
+            return
         if (
             self._launch_is_prewarm
             and self._session_established
@@ -834,6 +838,10 @@ class RustPreviewSessionController(
 
     def retry_now(self) -> None:
         if self._closed or not self._visible:
+            return
+        if self._gpu_failed:
+            self._gpu_failed = False
+            self._fail_current_process("Restarting GPU rendering.", static_failure=False)
             return
         if self._invalid_retry_package_path:
             self.load_package(
@@ -1020,6 +1028,8 @@ class RustPreviewSessionController(
         self._set_state("closed", "Preview closed.")
 
     def _launch_if_needed(self) -> None:
+        if self._gpu_failed:
+            return
         package = self._desired_package or self._prewarm_package
         prewarm_launch = self._desired_package is None and self._prewarm_package is not None
         if self._closed or package is None or (not self._visible and not prewarm_launch):
@@ -1300,6 +1310,18 @@ class RustPreviewSessionController(
             self._active = False
             if self._visible and self._applied_package_path:
                 self._request_activation(self._applied_package)
+        elif event == "renderer_failed":
+            self._gpu_failed = True
+            self._active = False
+            self._renderer_ready = False
+            self._ready_timer.stop()
+            self._package_timer.stop()
+            self._activation_timer.stop()
+            self._retry_timer.stop()
+            self._pending_activation = None
+            detail = str(payload.get("error") or "GPU rendering is unavailable.")
+            self._retry_reason = detail
+            self._set_state("package_error", detail)
         elif event == "error":
             # Helper-level request errors (invalid tool state, stale sessions,
             # malformed commands, and similar protocol rejections) do not
@@ -1419,7 +1441,7 @@ class RustPreviewSessionController(
 
     def _request_resident_package_load(self) -> bool:
         package = self._desired_package
-        if package is None or not self._can_send_protocol():
+        if self._gpu_failed or package is None or not self._can_send_protocol():
             return False
         if not (
             self._protocol_ready
@@ -1541,7 +1563,7 @@ class RustPreviewSessionController(
         # Activating reveals whatever the helper currently holds. If that is
         # still the procedural warm-up triangle, revealing it shows the reader a
         # model nobody asked for in place of the one they opened.
-        if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
+        if self._gpu_failed or not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
             return False
         return self._request_activation(self._applied_package)
 
@@ -1551,7 +1573,7 @@ class RustPreviewSessionController(
         *,
         material_signature: str | None = None,
     ) -> bool:
-        if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
+        if self._gpu_failed or not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
             return False
         if self._pending_activation is None:
             self._activation_retry_count = 0
@@ -1860,6 +1882,10 @@ class RustPreviewSessionController(
 
     def _schedule_retry(self, reason: str, *, static_failure: bool) -> None:
         self._retry_reason = str(reason or "Preview is unavailable.")
+        if self._gpu_failed:
+            self._retry_timer.stop()
+            self._set_state("package_error", self._retry_reason)
+            return
         if self._desired_package is None and self._prewarm_package is not None:
             prewarm_path = str(self._prewarm_package.package_dir)
             self._prewarm_package = None

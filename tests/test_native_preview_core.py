@@ -299,7 +299,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
             with (
                 patch.object(native_preview_core, "find_native_preview_core_binary", return_value=fake_binary),
-                patch.object(native_preview_core.tempfile, "mkdtemp", return_value=str(job_root)),
+                patch.object(tempfile, "mkdtemp", return_value=str(job_root)),
                 patch.object(native_preview_core, "_get_native_preview_core_service", return_value=service),
                 self.assertRaises(RunCancelled),
             ):
@@ -312,6 +312,7 @@ class NativePreviewCoreTests(unittest.TestCase):
 
             self.assertTrue((job_root / "job.json").is_file())
             self.assertIn("native_preview_core_cancel_after_dispatch", diagnostic_log.read_text(encoding="utf-8"))
+            native_preview_core.remove_preview_job_root(job_root)
 
     def test_service_stdout_wait_kills_native_process_on_cancel(self) -> None:
         class _BlockingStdout:
@@ -849,7 +850,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("max_bytes=dds_cache_max_bytes", source)
         self.assertIn("native_preview_package_live_paths_guard", source)
         self.assertIn("protected_paths=protected_dds_paths", source)
-        self.assertIn("shutil.rmtree(job_root, ignore_errors=True)", source)
+        self.assertIn("remove_preview_job_root(job_root)", source)
 
     def test_static_native_material_index_prefers_exact_sidecars(self) -> None:
         source = preview_core_source()

@@ -30,8 +30,8 @@ impl ApplicationHandler for CaptureProbe {
                     )
                     .map_err(|e| e.to_string())?,
             );
-            let mut renderer =
-                pollster::block_on(WindowRenderer::new(window)).map_err(|e| e.to_string())?;
+            let mut renderer = pollster::block_on(WindowRenderer::new(window.clone()))
+                .map_err(|e| e.to_string())?;
             let document = decode_mesh(
                 &cdmw_formats::synthetic::triangle_pam("synthetic.dds"),
                 MeshFormat::Pam,
@@ -52,6 +52,11 @@ impl ApplicationHandler for CaptureProbe {
                 camera.up(),
             );
             renderer.set_clear_colour([0.02, 0.02, 0.02, 1.]);
+            let dds = cdmw_texture::synthetic::rgba8_checker_dds();
+            renderer
+                .add_dds_texture(&dds, TextureRole::BaseColor, &[vec![0]])
+                .map_err(|e| e.to_string())?;
+            renderer.set_material_lod(0).map_err(|e| e.to_string())?;
             let directory = tempfile::tempdir().map_err(|e| e.to_string())?;
             let capture = |renderer: &mut WindowRenderer, name: &str| -> Result<Vec<u8>, String> {
                 let path = directory.path().join(name);
@@ -65,6 +70,46 @@ impl ApplicationHandler for CaptureProbe {
             let baseline = capture(&mut renderer, "baseline.png")?;
             if !baseline.starts_with(b"\x89PNG") || baseline.len() < 512 {
                 return Err("Baseline capture is not a rendered PNG".into());
+            }
+            renderer
+                .replace_preview_scene(|candidate| {
+                    candidate.add_dds_texture(&dds, TextureRole::BaseColor, &[vec![0]])?;
+                    candidate.set_material_lod(0)?;
+                    candidate.set_snapshot_with_scene_roles(
+                        &snapshot,
+                        &vec![1; snapshot.positions.len()],
+                    )?;
+                    Ok(())
+                })
+                .map_err(|e| e.to_string())?;
+            if renderer.texture_upload_count() != 1
+                || capture(&mut renderer, "reused.png")? != baseline
+            {
+                return Err(
+                    "Scene replacement duplicated its texture or changed its pixels".into(),
+                );
+            }
+            // The same release/recreate operation used for hidden previews and
+            // device recovery must restore the CPU-owned scene exactly.
+            drop(renderer);
+            renderer =
+                pollster::block_on(WindowRenderer::new(window)).map_err(|e| e.to_string())?;
+            renderer
+                .set_snapshot_with_scene_roles(&snapshot, &vec![1; snapshot.positions.len()])
+                .map_err(|e| e.to_string())?;
+            renderer
+                .add_dds_texture(&dds, TextureRole::BaseColor, &[vec![0]])
+                .map_err(|e| e.to_string())?;
+            renderer.set_material_lod(0).map_err(|e| e.to_string())?;
+            renderer.set_view_mode(ViewMode::TexturedSolid);
+            renderer.set_camera_with_basis(
+                camera.view_projection(viewport),
+                camera.right(),
+                camera.up(),
+            );
+            renderer.set_clear_colour([0.02, 0.02, 0.02, 1.]);
+            if capture(&mut renderer, "restored.png")? != baseline {
+                return Err("Restoring a released renderer changed the scene".into());
             }
             renderer
                 .set_scene_transform(Mat4::from_translation(Vec3::X * 0.6))

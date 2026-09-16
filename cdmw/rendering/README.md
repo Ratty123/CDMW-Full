@@ -24,3 +24,11 @@ inputs. This lets concurrent thumbnail jobs trim the shared cache without
 deadlocking each other or blocking cancellation.
 
 Related tests: native preview, model preview, and static replacement entries under `tests/`.
+
+Preview Core removes cancelled protocol job folders after confirming that the
+helper stopped. Each new `cdmw_preview_core_*` folder has an ownership marker
+and a process-held file lock. Preview preparation sweeps abandoned marked
+folders older than thirty minutes. Active jobs, unknown legacy folders, and
+jobs with unconfirmed helper termination are preserved. Successful temporary
+reference packages remain available for their owning process; exit cleanup
+and the next preparation pass reclaim them.

@@ -382,6 +382,7 @@ pub enum HostEvent {
     Hello,
     Ready,
     Theme(Value),
+    RendererRetry,
     HairPreset(String),
     Result {
         event: String,
@@ -1118,6 +1119,22 @@ impl CdmwBridge {
         self.next_request_id
     }
 
+    pub fn report_renderer_state(
+        &self,
+        recovered: bool,
+        message: &str,
+    ) -> Result<(), SessionError> {
+        self.send_message(json!({
+            "event": if recovered { "renderer_recovered" } else { "renderer_failed" },
+            "protocol": PROTOCOL,
+            "session_id": self.manifest.session_id,
+            "request_id": 0,
+            "base_revision": self.shadow_revision,
+            "process_generation": self.manifest.process_generation,
+            "message": message,
+        }))
+    }
+
     fn send_message(&self, value: Value) -> Result<(), SessionError> {
         self.outbound
             .try_send(Outbound::Message(value))
@@ -1294,6 +1311,7 @@ impl CdmwBridge {
             match event {
                 "hello" => Ok(HostEvent::Hello),
                 "ready" => Ok(HostEvent::Ready),
+                "renderer_retry" => Ok(HostEvent::RendererRetry),
                 "hair_preset" => {
                     let preset = value.get("preset").and_then(Value::as_str).unwrap_or("");
                     if !matches!(preset, "cropped" | "bob" | "long" | "ponytail" | "empty") {
@@ -4129,6 +4147,44 @@ mod tests {
             HostEvent::Fatal(_)
         ));
         value["preset"] = json!("bob");
+        value["process_generation"] = json!(2);
+        assert!(matches!(
+            bridge.decode_host_event(value),
+            HostEvent::Fatal(_)
+        ));
+    }
+
+    #[test]
+    fn renderer_recovery_messages_keep_identity_and_shadow_revision() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        let (sender, receiver) = bounded(4);
+        bridge.outbound = sender;
+        for recovered in [false, true] {
+            bridge
+                .report_renderer_state(recovered, "GPU status")
+                .unwrap();
+            let Outbound::Message(value) = receiver.recv().unwrap() else {
+                panic!("missing renderer state");
+            };
+            validate_identity(&value, bridge.manifest()).unwrap();
+            assert_eq!(value["base_revision"], 4);
+            assert_eq!(
+                value["event"],
+                if recovered {
+                    "renderer_recovered"
+                } else {
+                    "renderer_failed"
+                }
+            );
+        }
+        let mut value = json!({"event":"renderer_retry", "protocol":PROTOCOL, "session_id":"session",
+            "request_id":0, "base_revision":4, "process_generation":3});
+        assert!(matches!(
+            bridge.decode_host_event(value.clone()),
+            HostEvent::RendererRetry
+        ));
+        assert_eq!(bridge.shadow_revision(), 4);
         value["process_generation"] = json!(2);
         assert!(matches!(
             bridge.decode_host_event(value),

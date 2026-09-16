@@ -13,6 +13,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Cancelled Preview Core jobs clean up their temporary folders after the helper stops. Ownership locks protect active jobs, and abandoned marked folders are recovered on later preview preparation.
+- Hidden previews release GPU resources, and scene replacement reuses unchanged textures. Rendering checks Windows' GPU memory budget and attempts one device recovery before pausing for Retry, preserving the current scene and editing state.
 - Mesh Editor's Keep Original Materials imports accept OBJ files with missing material libraries or stale texture references. Imported Materials & Textures still checks every required material dependency before applying.
 - Mesh replacement tracks external geometry buffers in GLB files as well as glTF, rejecting changed or deleted buffers before Apply and checking external textures when imported materials are selected.
 - External mesh imports reject non-finite or overflowing vertex data before auto-UV and preview conversion, preventing malformed source values from silently becoming zero and changing the replacement geometry.

@@ -114,6 +114,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_host_request_id = 0
         self.standalone_rust_hello_received = False
         self.standalone_rust_ready = False
+        self.standalone_rust_gpu_failed = False
         self.standalone_rust_closing = False
         self.standalone_rust_finish_accepted = False
         self.standalone_rust_failure_reported = False
@@ -336,6 +337,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self._start_rust_editor_requested(controller)
 
     def _retry_rust_editor_requested(self) -> None:
+        if self.standalone_rust_gpu_failed and qprocess_is_running(self.standalone_rust_process):
+            # The helper still owns unsaved local edits. Recreate only its GPU
+            # device; rebuilding a shadow session here would discard them.
+            self._send_rust_message(self._rust_host_message("renderer_retry", request_id=0))
+            return
         controller = getattr(self, "standalone_controller", None)
         if controller is None or not str(getattr(controller, "active_session_id", "") or ""):
             self._set_rust_status("Mesh Editor cannot retry because the mesh session is closed.", error=True)

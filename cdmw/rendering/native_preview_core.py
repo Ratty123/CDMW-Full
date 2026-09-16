@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import atexit
@@ -27,6 +25,11 @@ from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 from cdmw.rendering.native_preview_package_cache import (
     mark_native_preview_package_path_recent,
     native_preview_package_live_paths_guard,
+)
+from cdmw.rendering.native_preview_temp import (
+    create_preview_job_root,
+    remove_preview_job_root,
+    retain_preview_job_for_helper,
 )
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
@@ -469,6 +472,8 @@ class NativePreviewCoreServiceClient:
         stop_event: Any = None,
         on_dispatched: Optional[Callable[[], None]] = None,
     ) -> None:
+        process = None
+        dispatched = False
         while not self._lock.acquire(timeout=0.05):
             raise_if_cancelled(stop_event, "Native preview-core job cancelled before dispatch.")
         try:
@@ -484,6 +489,7 @@ class NativePreviewCoreServiceClient:
             try:
                 process.stdin.write(command + "\n")
                 process.stdin.flush()
+                dispatched = True
             except OSError as exc:
                 self._kill_locked()
                 raise RuntimeError(f"native preview-core service write failed: {exc}") from exc
@@ -511,6 +517,12 @@ class NativePreviewCoreServiceClient:
             if recycle_reason:
                 self._mark_report_recycle_reason(report_path, report, recycle_reason)
                 self.shutdown()
+        except RunCancelled:
+            # The stdout waiter stops the exact process that was reading this
+            # job. Never remove its inputs while it could still be using them.
+            if dispatched and process is not None and process.poll() is not None:
+                remove_preview_job_root(job_path.parent)
+            raise
         finally:
             self._lock.release()
 
@@ -1024,39 +1036,43 @@ def run_native_preview_core_preview_job(
             status="missing",
             fallback_reason="cdmw-preview-core binary was not found",
         )
-    job_root = Path(tempfile.mkdtemp(prefix="cdmw_preview_core_"))
+    job_root = create_preview_job_root()
     output_root = Path(output_root) if (external_output_root := output_root is not None) else job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
-    presentation_geometry_path = job_root / "presentation_geometry.bin" if presentation_geometry_payload else None
-    if presentation_geometry_path is not None:
-        presentation_geometry_path.write_bytes(presentation_geometry_payload)
-    context_presentation_paths: list[Optional[Path]] = []
-    for index, component in enumerate(preview_context_components):
-        payload = bytes(component.presentation_geometry_payload or b"")
-        if not payload:
-            context_presentation_paths.append(None)
-            continue
-        context_path = job_root / f"context_presentation_{index:02d}.bin"
-        context_path.write_bytes(payload)
-        context_presentation_paths.append(context_path)
-    job = build_native_preview_core_job(
-        entry,
-        cache_root=cache_root,
-        output_root=output_root,
-        render_settings=render_settings,
-        companion_entry=companion_entry,
-        dependency_entries=dependency_entries,
-        dependency_entries_complete=dependency_entries_complete,
-        enabled_prefab_component_paths=enabled_prefab_component_paths,
-        model_property_indices=model_property_indices,
-        preview_context_components=preview_context_components,
-        preview_context_presentation_paths=context_presentation_paths,
-        package_root=package_root,
-        presentation_geometry_path=presentation_geometry_path,
-        presentation_geometry_source=presentation_geometry_source,
-    )
-    job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
+    try:
+        presentation_geometry_path = job_root / "presentation_geometry.bin" if presentation_geometry_payload else None
+        if presentation_geometry_path is not None:
+            presentation_geometry_path.write_bytes(presentation_geometry_payload)
+        context_presentation_paths: list[Optional[Path]] = []
+        for index, component in enumerate(preview_context_components):
+            payload = bytes(component.presentation_geometry_payload or b"")
+            if not payload:
+                context_presentation_paths.append(None)
+                continue
+            context_path = job_root / f"context_presentation_{index:02d}.bin"
+            context_path.write_bytes(payload)
+            context_presentation_paths.append(context_path)
+        job = build_native_preview_core_job(
+            entry,
+            cache_root=cache_root,
+            output_root=output_root,
+            render_settings=render_settings,
+            companion_entry=companion_entry,
+            dependency_entries=dependency_entries,
+            dependency_entries_complete=dependency_entries_complete,
+            enabled_prefab_component_paths=enabled_prefab_component_paths,
+            model_property_indices=model_property_indices,
+            preview_context_components=preview_context_components,
+            preview_context_presentation_paths=context_presentation_paths,
+            package_root=package_root,
+            presentation_geometry_path=presentation_geometry_path,
+            presentation_geometry_source=presentation_geometry_source,
+        )
+        job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
+    except BaseException:
+        remove_preview_job_root(job_root)
+        raise
     started = time.perf_counter()
     job_dispatched_to_service = False
     def mark_job_dispatched() -> None:
@@ -1085,6 +1101,7 @@ def run_native_preview_core_preview_job(
             )
     except RunCancelled:
         if job_dispatched_to_service:
+            retain_preview_job_for_helper(job_root)
             _record_native_preview_core_python_event(
                 "native_preview_core_cancel_after_dispatch",
                 diagnostic_log=diagnostic_log,
@@ -1093,10 +1110,10 @@ def run_native_preview_core_preview_job(
                 report_path=str(report_path),
             )
         else:
-            shutil.rmtree(job_root, ignore_errors=True)
+            remove_preview_job_root(job_root)
         raise
     except Exception as exc:
-        shutil.rmtree(job_root, ignore_errors=True)
+        remove_preview_job_root(job_root)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core launch failed: {exc}",
@@ -1107,7 +1124,7 @@ def run_native_preview_core_preview_job(
     elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
     if returncode != 0 and not report_path.is_file():
         detail = (stderr_text or stdout_text or "").strip()
-        shutil.rmtree(job_root, ignore_errors=True)
+        remove_preview_job_root(job_root)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core exited with code {returncode}: {detail[:500]}",
@@ -1118,7 +1135,7 @@ def run_native_preview_core_preview_job(
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        shutil.rmtree(job_root, ignore_errors=True)
+        remove_preview_job_root(job_root)
         return NativePreviewCoreAttempt(
             status="error",
             fallback_reason=f"native preview-core report unavailable: {exc}",
@@ -1175,7 +1192,7 @@ def run_native_preview_core_preview_job(
         report.update(_repair_native_preview_core_manifest(package_path, render_settings))
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()
     if external_output_root:  # The caller owns output_root; only this transient protocol root is disposable.
-        shutil.rmtree(job_root, ignore_errors=True)
+        remove_preview_job_root(job_root)
     return NativePreviewCoreAttempt(
         status=status,
         package_path=package_path,

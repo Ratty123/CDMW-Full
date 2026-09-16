@@ -16,6 +16,21 @@ Python. Preview exposes viewport controls; authoring exposes the full editor.
 
 The current readiness state is **PARTIALLY READY**. The lab builds and launches, opens PA archive roots read-only, browses a virtualized result list, reads archive entries lazily, reconstructs bounded supported 2D Partial DDS entries from sibling `meta/0.pathc` metadata and Sparse DDS entries by validated zero padding, loads supported PAC/PAM/PAMLOD layouts, resolves same-stem material sidecars and authoritative per-submesh DDS relationships for base color, normal, packed material, separate roughness/metalness/occlusion, emissive, independent RGB Specular and red-channel Glossiness/Smoothness, explicit-cutout opacity, explicit global height, hair Flow, and layer-mask diagnostic preview roles, preserves typed and unknown material parameters, applies uniquely owned explicit roughness/metalness/specular/height-scale factors to their material ranges, emissive color/intensity with or without an emissive texture, explicit alpha-test enable state as an approximate cutout policy, hair anisotropy only when both Flow and a proven hair/fur shader family own the range, and production-backed R/B channel selection for color-blending/detail masks, renders geometry through Direct3D 12, provides a navigable aspect-correct viewport with fifteen geometry/material preview modes including Game Outdoor lighting and texture-independent Part ID ownership colors, routes X-Ray and depth-aware Visible selection plus interactive editing through an in-memory generational mesh, and exports the edited copy as a validated neutral OBJ/MTL directory. Its app flow, archive reconstruction boundary, relationship failures, material-parameter Inspector, multi-role DDS upload, and offscreen D3D12 renderer can also be exercised without creating a window. Partial PAR, DDS arrays/cubes and fallback transcoding, actual layered/dye and blended-alpha material composition, non-global displacement/layer semantics, remaining scalar/vector sampling, PAC skin/appearance parity, versioned lab projects, representative performance evidence, and private real-game parity remain incomplete. See [READINESS.md](READINESS.md).
 
+## GPU resource lifecycle
+
+Inactive read-only previews release their renderer and retain the CPU scene
+and camera for activation. Scene replacement reuses unchanged DDS allocations.
+Interactive D3D12 allocation uses wgpu's native Windows budget check at 85% of
+the current process budget and its memory-saving allocation policy.
+
+Device loss or an allocation failure stops use of that renderer. Preview and
+Mesh Editor attempt one delayed device recreation. A repeated failure pauses
+rendering until Retry. Mesh Editor's `renderer_failed`/`renderer_recovered`
+events and the host's `renderer_retry` request retain the process, shadow
+revision, local edits and camera. Read-only Preview can restart its helper and
+replay the retained package and presentation state. These safeguards do not
+establish the cause of an external driver reset.
+
 ## Imported materials
 
 Imported glTF metallic-roughness materials use their authored PBR values,
