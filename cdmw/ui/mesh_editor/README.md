@@ -233,6 +233,9 @@ Draft restoration is staged for every format; a rejected generation leaves the
 loaded geometry unchanged before recovery tries a previous generation.
 Malformed replacement fields, duplicate part identities and invalid target
 mappings reject the generation and allow recovery of the previous valid save.
+PAC replacement also rejects non-finite UVs or values that overflow its half-float
+storage before committing the import. Python rebuilds and native rebuild handoffs
+use the same check; valid negative and tiled UV coordinates remain supported.
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.
@@ -283,6 +286,21 @@ only four packed slots are skeletal; the other four influences address cloth
 guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
+
+## Vertex data beyond cloth
+
+| Channel | Current support and remaining boundary |
+| --- | --- |
+| Position | Existing selection, transform and sculpt tools. PAC output quantizes positions within the part bounds. |
+| UV0 | Existing UV tools and imported UVs reach PAC output. UVs are two half-floats; values outside 0 to 1 are valid when representable. |
+| Normals | Existing normal tools and imported normals reach the packed normal channel. Flip also reverses affected face winding. |
+| Skin weights | The retained Rig & Weights implementation edits skeletal influences, but its product controls are currently hidden. Cloth vertices have four skeletal slots; ordinary supported vertices have six. |
+| Tangent frame | Generate Tangents computes editing data. The current PAC writer retains or clears donor tangent bits; it does not encode an arbitrary authored tangent frame. More writeback validation is needed before promising saved tangent edits. |
+| Packed colour fields | Original record bytes are retained through replacement donors. There is no editable per-vertex colour channel in the current mesh model. Shader-specific interpretation and a complete preview/save path are needed before adding painting controls. |
+
+Viewport selection, weight and deformation colours are overlays, not saved vertex
+colour data. Unidentified tail bits remain source-owned; they should not be shown
+as named editable parameters until their consumers are proven.
 
 ## Existing editing controls
 

@@ -49,6 +49,18 @@ def _quantize_pac_u16(value: float, bbox_min: float, bbox_extent: float) -> int:
     t = max(0.0, min(1.0, t))
     return min(32767, max(0, round(t * 32767.0)))
 
+
+def _pack_pac_uv(uv, submesh_index: int, vertex_index: int) -> bytes:
+    try:
+        if len(uv) != 2 or not all(math.isfinite(value) for value in uv):
+            raise ValueError("Non-finite or incomplete UV.")
+        return struct.pack("<2e", *uv)
+    except (TypeError, ValueError, OverflowError, struct.error) as exc:
+        raise ValueError(
+            f"PAC UV for submesh {submesh_index} vertex {vertex_index} must fit finite half-float coordinates."
+        ) from exc
+
+
 def _patch_pac_descriptor_bounds(
     data: bytearray,
     descriptor_offset: int,
@@ -696,12 +708,7 @@ def _build_pac_in_place(
                 )
 
             if new_uvs:
-                try:
-                    struct.pack_into("<e", rec, 8, new_uvs[vi][0])
-                    struct.pack_into("<e", rec, 10, new_uvs[vi][1])
-                except (OverflowError, ValueError):
-                    struct.pack_into("<e", rec, 8, 0.0)
-                    struct.pack_into("<e", rec, 10, 0.0)
+                rec[8:12] = _pack_pac_uv(new_uvs[vi], sm_idx, vi)
 
             if len(rec) >= 20:
                 existing_normal = struct.unpack_from("<I", rec, 16)[0]
@@ -1234,12 +1241,7 @@ def _build_pac_full_rebuild(
 
                 if len(donor_rec) >= 12:
                     if new_uvs:
-                        try:
-                            struct.pack_into("<e", donor_rec, 8, new_uvs[vi][0])
-                            struct.pack_into("<e", donor_rec, 10, new_uvs[vi][1])
-                        except (OverflowError, ValueError):
-                            struct.pack_into("<e", donor_rec, 8, 0.0)
-                            struct.pack_into("<e", donor_rec, 10, 0.0)
+                        donor_rec[8:12] = _pack_pac_uv(new_uvs[vi], sm_idx, vi)
 
                 if len(donor_rec) >= 20:
                     existing_normal = struct.unpack_from("<I", donor_rec, 16)[0]

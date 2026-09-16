@@ -351,6 +351,8 @@ def _native_full_pamlod_rebuild_safe(mesh: ParsedMesh, original_data: bytes, lay
 
 
 def _write_pac_patch_tables(mesh: ParsedMesh, temp_path: Path) -> dict[str, str]:
+    from cdmw.modding.mesh_pac_builder import _pack_pac_uv
+
     submeshes_path = temp_path / "pac_submeshes.tsv"
     vertices_path = temp_path / "pac_vertices.tsv"
     faces_path = temp_path / "pac_faces.tsv"
@@ -383,6 +385,7 @@ def _write_pac_patch_tables(mesh: ParsedMesh, temp_path: Path) -> dict[str, str]
             )
             for vertex_index, vertex in enumerate(vertices):
                 uv = uvs[vertex_index] if vertex_index < len(uvs) else (0.0, 0.0)
+                _pack_pac_uv(uv, submesh_index, vertex_index)
                 normal = normals[vertex_index] if vertex_index < len(normals) else (0.0, 1.0, 0.0)
                 source_offset = offsets[vertex_index] if vertex_index < len(offsets) else -1
                 vertex_file.write(
@@ -425,6 +428,7 @@ def _write_pac_patch_tables(mesh: ParsedMesh, temp_path: Path) -> dict[str, str]
 
 def _write_pac_full_rebuild_tables(mesh: ParsedMesh, original_data: bytes, temp_path: Path) -> dict[str, str]:
     from cdmw.modding.mesh_importer import _choose_pac_donor_indices
+    from cdmw.modding.mesh_pac_builder import _pack_pac_uv
     from cdmw.modding.mesh_parser import parse_pac
 
     original_mesh = parse_pac(original_data, str(getattr(mesh, "path", "") or ""))
@@ -470,6 +474,7 @@ def _write_pac_full_rebuild_tables(mesh: ParsedMesh, original_data: bytes, temp_
                 donor_index = max(0, min(int(donor_index), len(source_offsets) - 1))
                 source_offset = source_offsets[donor_index]
                 uv = uvs[vertex_index] if vertex_index < len(uvs) else (0.0, 0.0)
+                _pack_pac_uv(uv, submesh_index, vertex_index)
                 normal = normals[vertex_index] if vertex_index < len(normals) else (0.0, 1.0, 0.0)
                 vertex_file.write(
                     "\t".join(
