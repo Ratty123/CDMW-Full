@@ -5201,9 +5201,17 @@ impl LabApplication {
                 let Some(point) = self.raw_pointer_position else {
                     return false;
                 };
+                let screen_point = egui::pos2(point.x, point.y);
+                // Raw window events arrive before egui dispatch. A popup over
+                // the viewport owns its clicks, including status Details/Copy.
+                let over_popup = self
+                    .egui_context
+                    .layer_id_at(screen_point)
+                    .is_some_and(|layer| layer.order >= egui::Order::Foreground);
                 let inside = self
                     .viewport_rect
-                    .is_some_and(|rectangle| rectangle.contains(egui::pos2(point.x, point.y)));
+                    .is_some_and(|rectangle| rectangle.contains(screen_point))
+                    && !over_popup;
                 match (state, button) {
                     (ElementState::Pressed, MouseButton::Left) if inside => {
                         self.raw_primary_captured = true;

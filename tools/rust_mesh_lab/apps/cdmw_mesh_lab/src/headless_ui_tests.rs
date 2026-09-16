@@ -909,6 +909,68 @@ fn integrated_parts_visibility_follows_surviving_parts_and_respects_layers() -> 
 }
 
 #[test]
+fn integrated_cdmw_status_details_show_and_copy_complete_error() -> TestResult {
+    let message = format!(
+        "Import rejected: Missing imported material library: C:\\{}legacy_material.mtl",
+        "a-long-folder-name\\".repeat(80)
+    );
+    for size in [egui::vec2(1440.0, 900.0), egui::vec2(1000.0, 650.0)] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application.egui_context.style_mut_of(
+            ui.application.egui_context.theme(),
+            |style| style.interaction.tooltip_delay = 0.0,
+        );
+        ui.application.status.clone_from(&message);
+        ui.frame(Vec::new());
+        ui.frame(Vec::new());
+        let summary = ui.label_rect(&message).ok_or("status summary is clipped")?;
+        assert!(ui.output.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.job.text == message && text.galley.elided)
+        }));
+        ui.frame(vec![Event::PointerMoved(summary.center())]);
+        ui.frame(Vec::new());
+        ui.frame(Vec::new());
+        assert!(ui.output.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.job.text == message && !text.galley.elided)
+        }), "hover must show the complete message");
+        ui.click("Details")?;
+        assert!(ui.output.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.job.text == message && !text.galley.elided
+                    && text.galley.rows.len() > 1
+                    && text.visual_bounding_rect().height() > clipped.clip_rect.height())
+        }), "the complete message must wrap inside a bounded scroll area");
+        let (scroll_rect, text_top) = ui.output.shapes.iter().find_map(|clipped| {
+            let egui::Shape::Text(text) = &clipped.shape else { return None };
+            (text.galley.job.text == message && !text.galley.elided)
+                .then_some((clipped.clip_rect, text.visual_bounding_rect().top()))
+        }).ok_or("scrollable details text")?;
+        let camera_revision = ui.application.camera.revision();
+        ui.frame(vec![Event::PointerMoved(scroll_rect.center()), wheel_event(-240.0)]);
+        ui.settle_layout();
+        assert!(ui.output.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Text(text)
+                if text.galley.job.text == message && !text.galley.elided
+                    && text.visual_bounding_rect().top() < text_top)
+        }), "Details must remain open and scroll to hidden text");
+        assert_eq!(ui.application.camera.revision(), camera_revision);
+        let copy = ui.label_rect("Copy").ok_or("details copy button")?.center();
+        ui.frame(vec![Event::PointerMoved(copy)]);
+        assert!(ui.label_rect("Copy").is_some(), "Copy disappeared on move at {size:?}");
+        ui.frame(vec![pointer_button(copy, PointerButton::Primary, true)]);
+        assert!(ui.label_rect("Copy").is_some(), "Copy disappeared on press at {size:?}");
+        ui.frame(vec![pointer_button(copy, PointerButton::Primary, false)]);
+        assert_eq!(ui.application.status, message, "details changed the status");
+        assert!(ui.output.platform_output.commands.iter().any(|command| {
+            matches!(command, egui::OutputCommand::CopyText(text) if text == &message)
+        }), "Copy must retain the entire message, including its hidden tail");
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_cdmw_layout_keeps_product_surfaces_reachable_across_sizes() -> TestResult {
     for size in [
         egui::vec2(1_440.0, 900.0),
