@@ -17,6 +17,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Preview bounds retained composed-texture memory, pauses failed GPU startup until Retry, and preserves material edits made while hidden. Shutdown waits for every helper before removing shared runtime output, and failed fast-preview handoffs release unclaimed temporary packages.
 - Preview releases temporary reference inputs after conversion and removes incomplete packages when caching is disabled. GPU recovery preserves live material adjustments and keeps Retry available when another model is selected. Effect texture aliases share memory instead of allocating duplicate payloads.
 - Repeated neutral-appearance mesh replacements keep using the original skin-weight donor, avoiding unsupported-layout errors on the second import and results that depend on earlier imports.
 - Malformed replacement and cloth drafts recover the previous valid generation; duplicate part identities and invalid target mappings are rejected before accepting the saved state.

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.rendering import native_preview_temp
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.services import mesh_rust_preview_cache as cache
@@ -59,6 +60,72 @@ def test_transient_build_owns_failure_cleanup(tmp_path, monkeypatch, route, mode
         with pytest.raises(ValueError if outcome == "error" else RunCancelled):
             invoke()
         assert not list(cache_root.glob("cdmw_rust_preview_*"))
+    assert unrelated.read_bytes() == b"other cache data"
+
+
+@pytest.mark.parametrize("route", ["native", "model"])
+@pytest.mark.parametrize("durable", [False, True])
+@pytest.mark.parametrize("outcome", ["success", "error", "callback_cancel", "before_delivery_cancel", "after_delivery_cancel"])
+def test_fast_package_handoff_releases_only_unaccepted_transients(tmp_path, monkeypatch, route, durable, outcome):
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    unrelated = cache_root / "keep.txt"
+    unrelated.write_bytes(b"other cache data")
+    cancelled = False
+    direct_packages = []
+    received = []
+    request_type = cache._PreviewCorePackageRequest if route == "native" else cache._ModelPreviewPackageRequest
+    original_build = request_type.build_or_lookup_quality
+
+    def build(self, quality, *args):
+        nonlocal cancelled
+        package = original_build(self, quality, *args)
+        if quality == "direct":
+            direct_packages.append(package)
+            cancelled = outcome == "before_delivery_cancel"
+        return package
+
+    monkeypatch.setattr(request_type, "build_or_lookup_quality", build)
+
+    def receive(package):
+        nonlocal cancelled
+        received.append(package)
+        assert not validate_rust_preview_package(package.package_dir)
+        if outcome == "error":
+            raise ValueError("receiver failed before accepting the package")
+        if outcome == "callback_cancel":
+            raise RunCancelled("receiver cancelled before accepting the package")
+        cancelled = outcome == "after_delivery_cancel"
+
+    kwargs = dict(
+        cache_root=cache_root, archive_identity="handoff-fixture",
+        cache_mode="balanced" if durable else "off",
+        max_bytes=64 * 1024 * 1024, target_bytes=48 * 1024 * 1024,
+        cancelled=lambda: cancelled, fast_package_ready=receive,
+    )
+    if route == "native":
+        source, *_ = _write_schema8_preview_core_fixture(tmp_path)
+        invoke = lambda: cache.build_or_lookup_rust_preview_package(source, **kwargs)
+    else:
+        model = ModelPreviewData(path="fixture.obj", format="obj", meshes=[ModelPreviewMesh(
+            material_name="fixture", positions=[(0., 0., 0.), (1., 0., 0.), (0., 1., 0.)],
+            normals=[(0., 0., 1.)] * 3, texture_coordinates=[(0., 0.), (1., 0.), (0., 1.)],
+            indices=[0, 1, 2],
+        )])
+        invoke = lambda: cache.build_or_lookup_rust_preview_package_from_model(model, **kwargs)
+    if outcome.endswith("cancel"):
+        with pytest.raises(RunCancelled):
+            invoke()
+    else:
+        full = invoke()
+        assert not validate_rust_preview_package(full.package_dir)
+    assert len(direct_packages) == 1
+    direct = direct_packages[0].package_dir
+    accepted = outcome in {"success", "after_delivery_cancel"}
+    assert direct.exists() is (durable or accepted)
+    assert len(received) == (0 if outcome == "before_delivery_cancel" else 1)
+    if not durable and not accepted:
+        assert not direct.parent.exists()
     assert unrelated.read_bytes() == b"other cache data"
 
 

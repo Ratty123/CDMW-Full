@@ -4,18 +4,119 @@ from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
+import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess
 
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 from tests.test_dotnet_preview_shared_host import (
     _FakeProcess,
+    _destroy_unparented_controllers,  # noqa: F401 - use the owning module's Qt teardown fixture
     _make_ready,
     _own,
     _package,
     _resolution,
     _start_controller,
 )
+
+
+def test_gpu_startup_failure_before_handshake_waits_for_explicit_retry(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, process, package = _start_controller(tmp_path)
+    assert not controller._protocol_ready
+    process.stdout = b'{"event":"renderer_failed","error":"adapter initialization failed"}\n'
+    process.readyReadStandardOutput.emit()
+    assert controller._gpu_failed
+    assert not controller._ready_timer.isActive()
+    # Even an unexpected exit after the failure must not enter the retry loop.
+    process.kill()
+    process.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    controller.set_visible(False)
+    controller.set_visible(True)
+    controller._launch_if_needed()
+    assert controller.process is None
+    assert not controller._retry_timer.isActive()
+    assert controller.desired_package_path == str(package.package_dir)
+    controller.retry_now()
+    assert not controller._gpu_failed
+    assert controller._retry_timer.isActive()
+    controller.shutdown()
+    assert not controller._runtime_output_dir
+
+
+@pytest.mark.parametrize("first_exit", ["retired", "replacement"])
+def test_runtime_output_waits_for_every_helper_to_finish(tmp_path, monkeypatch, first_exit):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, retired, _ = _start_controller(tmp_path)
+    _make_ready(controller)
+    retired.terminate = lambda: None  # Cooperative shutdown has not completed.
+    controller._fail_current_process("retry", static_failure=False)
+    with (
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(tmp_path / "helper.exe")),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""),
+    ):
+        controller.retry_now()
+    replacement = controller.process
+    assert replacement is not None and replacement is not retired
+    replacement.terminate = lambda: None
+    output = controller._runtime_output_dir
+    marker = output / "pending-capture.bin"
+    marker.write_bytes(b"in progress")
+    try:
+        controller.shutdown()
+        first, last = (retired, replacement) if first_exit == "retired" else (replacement, retired)
+        first.kill()
+        first.finished.emit(0, QProcess.ExitStatus.NormalExit)
+        assert last.state() == QProcess.ProcessState.Running
+        assert marker.read_bytes() == b"in progress"
+        assert controller._runtime_output_dir == output
+        last.kill()
+        last.finished.emit(0, QProcess.ExitStatus.NormalExit)
+        assert not output.exists()
+        assert controller._runtime_output_dir is None
+        assert not controller._pending_process_exits
+    finally:
+        for process in (retired, replacement):
+            if process.state() != QProcess.ProcessState.NotRunning:
+                process.kill()
+                process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+
+
+@pytest.mark.parametrize("failure", ["error_signal", "exception"])
+def test_launch_failure_does_not_keep_runtime_output_owned(tmp_path, monkeypatch, failure):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    def failed_start(process):
+        if failure == "exception":
+            raise RuntimeError("start failed before creating a child")
+        process.errorOccurred.emit(QProcess.ProcessError.FailedToStart)
+
+    monkeypatch.setattr(_FakeProcess, "start", failed_start)
+    controller, _, _ = _start_controller(tmp_path)
+    output = controller._runtime_output_dir
+    assert controller.process is None
+    assert not controller._pending_process_exits
+    assert output.exists()
+    controller.shutdown()
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("outcome", ["finished", "failed_to_start"])
+def test_shutdown_without_current_process_keeps_retiring_output(tmp_path, monkeypatch, outcome):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, process, _ = _start_controller(tmp_path)
+    process.terminate = lambda: None
+    output = controller._runtime_output_dir
+    controller._fail_current_process("retry", static_failure=False)
+    controller.shutdown()
+    assert output.exists()
+    process.kill()
+    if outcome == "finished":
+        process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+    else:
+        process.errorOccurred.emit(QProcess.ProcessError.FailedToStart)
+    assert not output.exists()
+    assert not controller._pending_process_exits
 
 
 def test_renderer_failure_stops_automatic_retries_and_retains_package(tmp_path: Path) -> None:
@@ -43,6 +144,7 @@ def test_renderer_failure_stops_automatic_retries_and_retains_package(tmp_path: 
         restart.assert_called_once_with("Restarting GPU rendering.", static_failure=False)
     assert not controller._gpu_failed
     controller.shutdown()
+    process.finished.emit(0, QProcess.ExitStatus.NormalExit)
 
 def test_selecting_package_after_gpu_failure_keeps_retry_available(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))

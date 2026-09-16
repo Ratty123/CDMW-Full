@@ -129,6 +129,8 @@ class RustPreviewSessionController(
         self._launch_package_path = ""
         self._launch_output_dir = ""
         self._runtime_output_dir: Path | None = None
+        # Retired helpers can outlive the replacement while shutting down.
+        self._pending_process_exits: set[int] = set()
         self._launch_is_prewarm = False
         self._prewarm_package: RustPreviewPackage | None = None
         self._desired_package: RustPreviewPackage | None = None
@@ -678,7 +680,7 @@ class RustPreviewSessionController(
         )
 
     def _cleanup_preview_runtime_outputs(self) -> None:
-        if self._process is not None:
+        if self._process is not None or self._pending_process_exits:
             return
         output_dir = self._runtime_output_dir
         self._runtime_output_dir = None
@@ -1109,10 +1111,13 @@ class RustPreviewSessionController(
             process.errorOccurred.connect(
                 lambda error, target=process, token=generation: self._process_error(target, token, error)
             )
+            self._pending_process_exits.add(generation)
             process.start()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             if self._process is process:
                 self._process = None
+            if not qprocess_is_running(process):
+                self._pending_process_exits.discard(generation)
             stop_qprocess_async(process)
             self._schedule_retry(f"Preview launch failed: {exc}", static_failure=False)
             return
@@ -1125,6 +1130,7 @@ class RustPreviewSessionController(
         self._set_state("connecting", "Preview is connecting…")
 
     def _process_finished(self, process: object, generation: int, exit_code: int, exit_status: object) -> None:
+        self._pending_process_exits.discard(generation)
         if not self._is_current_process(process, generation):
             if self._closed and self._process is None:
                 self._cleanup_preview_runtime_outputs()
@@ -1163,6 +1169,11 @@ class RustPreviewSessionController(
             )
 
     def _process_error(self, process: object, generation: int, error: object) -> None:
+        if error == QProcess.ProcessError.FailedToStart:
+            # Qt does not emit finished when no child process was started.
+            self._pending_process_exits.discard(generation)
+            if self._closed:
+                self._cleanup_preview_runtime_outputs()
         if not self._is_current_process(process, generation):
             return
         try:

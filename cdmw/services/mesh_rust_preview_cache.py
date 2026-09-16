@@ -481,6 +481,19 @@ def _build_transient_package(
         raise
 
 
+def _discard_undelivered_transient(package: RustPreviewPackage, cache_root: Path) -> None:
+    """Release this request's private output if its consumer did not accept it."""
+
+    package_dir = package.package_dir.resolve()
+    transient = package_dir.parent
+    if (
+        package_dir.name == "package"
+        and transient.name.startswith("cdmw_rust_preview_")
+        and transient.parent == cache_root.resolve()
+    ):
+        shutil.rmtree(transient, ignore_errors=True)
+
+
 def build_or_lookup_rust_preview_package_with_builder(
     *,
     cache_root: Path,
@@ -690,12 +703,15 @@ class _PreviewCorePackageRequest:
         retain_lease: bool,
     ) -> tuple[RustPreviewPackage | None, object | None]:
         lease = None
+        package = None
+        delivered = False
         try:
             package = self.build_or_lookup_quality("direct")
             if retain_lease:
                 lease = acquire_dotnet_preview_package_cache_lease_for_path(package.package_dir)
             _check_cancelled(self.cancelled)
             callback(package)
+            delivered = True  # A normal callback return transfers ownership.
             _check_cancelled(self.cancelled)
             return package, lease
         except RunCancelled:
@@ -711,6 +727,9 @@ class _PreviewCorePackageRequest:
                 exc_info=True,
             )
             return None, None
+        finally:
+            if package is not None and not delivered and not self.durable:
+                _discard_undelivered_transient(package, self.cache_root)
 
     def _progressive_durable(
         self,
@@ -917,12 +936,15 @@ class _ModelPreviewPackageRequest:
         retain_lease: bool,
     ) -> object | None:
         lease = None
+        package = None
+        delivered = False
         try:
             package = self.build_or_lookup_quality("direct")
             if retain_lease:
                 lease = acquire_dotnet_preview_package_cache_lease_for_path(package.package_dir)
             _check_cancelled(self.cancelled)
             callback(package)
+            delivered = True  # Later cancellation must preserve the receiver's files.
             _check_cancelled(self.cancelled)
             return lease
         except RunCancelled:
@@ -938,6 +960,9 @@ class _ModelPreviewPackageRequest:
                 exc_info=True,
             )
             return None
+        finally:
+            if package is not None and not delivered and not self.durable:
+                _discard_undelivered_transient(package, self.cache_root)
 
     def _progressive_durable(
         self,

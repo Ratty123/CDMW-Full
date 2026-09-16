@@ -1739,57 +1739,13 @@ impl PreviewApplication {
     }
 
     fn apply_material_parameters(&mut self) -> Result<(), String> {
-        let Some(renderer) = &mut self.renderer else {
-            return Err("Preview renderer is unavailable".into());
-        };
-        let mut authored = Vec::new();
-        let mut overrides = Vec::new();
-        let lod_count = self.package.document().lods.len();
-        for presentation in &self.presentations {
-            let ownership = presentation_ownership(presentation, lod_count);
-            authored.push((cdmw_material_preview_factors(presentation), ownership));
-        }
-        let groups = self
-            .state
-            .material_parameters
-            .get("groups")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        for group in &groups {
-            let indices = group
-                .get("source_submesh_indices")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_u64)
-                .filter_map(|value| u32::try_from(value).ok())
-                .collect::<Vec<_>>();
-            if indices.is_empty() {
-                continue;
-            }
-            let ownership = vec![indices; lod_count];
-            let factors = MaterialPreviewFactors {
-                roughness: optional_f32(group, "roughness"),
-                metalness: optional_f32(group, "metalness"),
-                specular: optional_f32(group, "specular"),
-                height_scale: optional_f32(group, "height_scale"),
-                base_tint_strength: optional_f32(group, "base_tint_strength"),
-                texture_tint: color3(group.get("texture_tint")),
-                emissive_color: color3(group.get("emissive_color")),
-                emissive_intensity: optional_f32(group, "emissive_intensity"),
-                ..MaterialPreviewFactors::default()
-            };
-            if factors != MaterialPreviewFactors::default() {
-                overrides.push((factors, ownership));
-            }
-        }
-        let lod = self.package.source_lod_index();
-        let factors = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, lod)
-            .map_err(|e| e.to_string())?;
-        renderer
-            .replace_material_factors(&factors, lod)
-            .map_err(|e| e.to_string())
+        apply_preview_material_parameters(
+            self.renderer.as_mut(),
+            &self.presentations,
+            &self.state.material_parameters,
+            self.package.document().lods.len(),
+            self.package.source_lod_index(),
+        )
     }
 
     fn rebuild_working_mesh(&mut self) -> std::result::Result<(), String> {
@@ -2557,21 +2513,20 @@ impl ApplicationHandler for PreviewApplication {
                 return;
             }
         };
+        // Retain the hidden window on GPU failure. The paused helper can deliver
+        // renderer_failed and wait for Close/Retry without another resumed init.
+        self.window = Some(window.clone());
         let renderer = match pollster::block_on(WindowRenderer::new(window.clone())) {
             Ok(renderer) => renderer,
             Err(error) => {
-                self.bridge
-                    .send(json!({"event": "error", "error": error.to_string()}));
-                self.exit_requested = true;
+                self.renderer_failed(error.to_string());
                 return;
             }
         };
         let adapter = renderer.adapter_report().name;
         self.renderer = Some(renderer);
-        self.window = Some(window.clone());
         if let Err(error) = self.configure_renderer() {
-            self.bridge.send(json!({"event": "error", "error": error}));
-            self.exit_requested = true;
+            self.renderer_failed(error);
             return;
         }
         let has_explicit_camera = self.state.presentation.get("camera").is_some();
@@ -2867,6 +2822,64 @@ impl ApplicationHandler for PreviewApplication {
             event_loop.exit();
         }
     }
+}
+
+fn apply_preview_material_parameters(
+    renderer: Option<&mut WindowRenderer>,
+    presentations: &[SessionMaterialPresentation],
+    parameters: &Value,
+    lod_count: usize,
+    lod: usize,
+) -> Result<(), String> {
+    let mut authored = Vec::new();
+    let mut overrides = Vec::new();
+    for presentation in presentations {
+        let ownership = presentation_ownership(presentation, lod_count);
+        authored.push((cdmw_material_preview_factors(presentation), ownership));
+    }
+    for group in parameters
+        .get("groups")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let indices = group
+            .get("source_submesh_indices")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .filter_map(|value| u32::try_from(value).ok())
+            .collect::<Vec<_>>();
+        if indices.is_empty() {
+            continue;
+        }
+        let ownership = vec![indices; lod_count];
+        let factors = MaterialPreviewFactors {
+            roughness: optional_f32(group, "roughness"),
+            metalness: optional_f32(group, "metalness"),
+            specular: optional_f32(group, "specular"),
+            height_scale: optional_f32(group, "height_scale"),
+            base_tint_strength: optional_f32(group, "base_tint_strength"),
+            texture_tint: color3(group.get("texture_tint")),
+            emissive_color: color3(group.get("emissive_color")),
+            emissive_intensity: optional_f32(group, "emissive_intensity"),
+            ..MaterialPreviewFactors::default()
+        };
+        if factors != MaterialPreviewFactors::default() {
+            overrides.push((factors, ownership));
+        }
+    }
+    // Validate CPU state even while hidden or recovering. Accepted parameters
+    // stay authoritative and are replayed when the renderer is restored.
+    let factors = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, lod)
+        .map_err(|e| e.to_string())?;
+    if let Some(renderer) = renderer {
+        renderer
+            .replace_material_factors(&factors, lod)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 fn quality_number(quality: &Value, key: &str, default: f32, min: f32, max: f32) -> f32 {
@@ -3622,6 +3635,22 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn hidden_material_updates_are_validated_without_a_renderer() {
+        let parameters = json!({"groups": [{
+            "source_submesh_indices": [0], "roughness": 0.25,
+            "texture_tint": [0.8, 0.4, 0.2], "emissive_intensity": 2.0
+        }]});
+        assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok());
+        let conflicting = json!({"groups": [
+            {"source_submesh_indices": [0], "roughness": 0.25},
+            {"source_submesh_indices": [0], "roughness": 0.75}
+        ]});
+        assert!(apply_preview_material_parameters(None, &[], &conflicting, 1, 0).is_err());
+        let invalid = json!({"groups": [{"source_submesh_indices": [0], "roughness": -1.0}]});
+        assert!(apply_preview_material_parameters(None, &[], &invalid, 1, 0).is_err());
+    }
 
     #[test]
     fn read_only_capabilities_cover_the_resident_archive_contract() {

@@ -903,6 +903,16 @@ def test_renderer_reconstruction_reapplies_live_materials_before_health_check() 
     assert restore.index("self.apply_material_parameters()") < restore.index(".check_health()")
 
 
+def test_gpu_startup_errors_use_the_paused_renderer_failure_protocol() -> None:
+    source = (ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs").read_text(encoding="utf-8")
+    resumed = source.split("fn resumed(", 1)[1].split("fn window_event(", 1)[0]
+    gpu_startup = resumed.split("let renderer = match", 1)[1].split("let has_explicit_camera", 1)[0]
+    assert "self.renderer_failed(error.to_string())" in gpu_startup
+    assert "self.renderer_failed(error)" in gpu_startup
+    assert "self.exit_requested = true" not in gpu_startup
+    assert resumed.index("self.window = Some(window.clone())") < resumed.index("WindowRenderer::new")
+
+
 def test_compiled_preview_contract_declares_the_complete_runtime_surface() -> None:
     source = (
         ROOT / "tools/rust_mesh_lab/apps/cdmw_mesh_lab/src/cdmw_preview.rs"
