@@ -194,6 +194,14 @@ class NativePreviewCoreAttempt:
     def succeeded(self) -> bool:
         return self.status == "ok" and bool(self.package_path)
 
+    def release_temporary_files(self) -> None:
+        """Release a completed job after its package has been consumed/copied.
+
+        Caller-owned output and paths without a live ownership record are untouched.
+        """
+        if self.job_root_path:
+            remove_preview_job_root(Path(self.job_root_path))
+
     def diagnostic_line(self) -> str:
         if self.status == "missing":
             return "Native Preview Core: unavailable; Rust Preview package preparation is disabled for this entry."

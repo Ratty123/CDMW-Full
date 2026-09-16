@@ -638,6 +638,11 @@ class RustPreviewSessionController(
             and self._package_key(previous_desired) != self._package_key(self._applied_package_path)
         ):
             self._release_package_lease(previous_desired)
+        if self._gpu_failed:
+            # Keep the selected package queued and Retry available until the
+            # user explicitly restarts the failed GPU process.
+            self._set_state("package_error", self._retry_reason)
+            return True
         self._set_state("preparing", "Preview is preparing the selected model…")
         if self._visible:
             if (

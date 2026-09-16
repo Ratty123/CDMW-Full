@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import struct
 import tempfile
 import time
@@ -463,6 +464,23 @@ def rust_preview_package_cache_root(cache_root: Path | str) -> Path:
     return Path(cache_root) / "rust_wgpu_v1"
 
 
+def _build_transient_package(
+    cache_root: Path,
+    builder: Callable[[Path], RustPreviewPackage],
+    cancelled: Callable[[], bool] | None,
+) -> RustPreviewPackage:
+    _check_cancelled(cancelled)
+    cache_root.mkdir(parents=True, exist_ok=True)
+    transient = Path(tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(cache_root)))
+    try:
+        package = builder(transient / "package")
+        _check_cancelled(cancelled)
+        return package  # Successful output is transferred to the caller.
+    except BaseException:
+        shutil.rmtree(transient, ignore_errors=True)
+        raise
+
+
 def build_or_lookup_rust_preview_package_with_builder(
     *,
     cache_root: Path,
@@ -477,10 +495,7 @@ def build_or_lookup_rust_preview_package_with_builder(
     """Atomically cache a caller-composed immutable Rust preview package."""
 
     if str(cache_mode or "off").strip().lower() not in {"balanced", "aggressive"} or max_bytes <= 0:
-        root = Path(cache_root)
-        root.mkdir(parents=True, exist_ok=True)
-        transient = Path(tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(root)))
-        return builder(transient / "package")
+        return _build_transient_package(Path(cache_root), builder, cancelled)
     cache_key = rust_preview_package_cache_key(
         f"composed:{archive_identity}",
         source_manifest=_PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST,
@@ -658,11 +673,11 @@ class _PreviewCorePackageRequest:
         self, quality: str, direct_package: RustPreviewPackage | None = None,
     ) -> RustPreviewPackage:
         if not self.durable:
-            self.cache_root.mkdir(parents=True, exist_ok=True)
-            transient_root = Path(
-                tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(self.cache_root))
+            return _build_transient_package(
+                self.cache_root,
+                lambda output: self.build(output, quality, direct_package),
+                self.cancelled,
             )
-            return self.build(transient_root / "package", quality, direct_package)
         cache_key = self.cache_key(quality)
         with dotnet_preview_package_cache_build_lock(self.derived_cache_root, cache_key):
             _check_cancelled(self.cancelled)
@@ -887,11 +902,9 @@ class _ModelPreviewPackageRequest:
 
     def build_or_lookup_quality(self, quality: str) -> RustPreviewPackage:
         if not self.durable:
-            self.cache_root.mkdir(parents=True, exist_ok=True)
-            transient_root = Path(
-                tempfile.mkdtemp(prefix="cdmw_rust_preview_", dir=str(self.cache_root))
+            return _build_transient_package(
+                self.cache_root, lambda output: self.build(output, quality), self.cancelled,
             )
-            return self.build(transient_root / "package", quality)
         cache_key = self.cache_key(quality)
         with dotnet_preview_package_cache_build_lock(self.derived_cache_root, cache_key):
             _check_cancelled(self.cancelled)

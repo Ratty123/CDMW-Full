@@ -17,6 +17,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Preview releases temporary reference inputs after conversion and removes incomplete packages when caching is disabled. GPU recovery preserves live material adjustments and keeps Retry available when another model is selected. Effect texture aliases share memory instead of allocating duplicate payloads.
 - Mesh Editor opens recoverable PAC meshes when a lower LOD cannot support cloth editing, rejects invalid retained cloth-guide indices during replacement, and leaves loaded geometry untouched when a draft fails validation.
 - PAC decoding separates cloth guide bindings from skeletal weights. Replacement and weight edits preserve valid cloth bindings instead of treating them as extra bones.
 - Cancelled Preview Core jobs clean up their temporary folders after the helper stops. Ownership locks protect active jobs, and abandoned marked folders are recovered on later preview preparation.
