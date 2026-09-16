@@ -272,11 +272,13 @@ Parts whose geometry is unchanged keep their original lower LOD weights;
 authored LOD0 weights are patched at their final output offsets. Weight commands
 reject a fifth skeletal influence on cloth vertices and removal of a vertex's
 last bone before changing the mesh or Undo/Redo history.
-UV and normal edits on original parts whose positions and faces remain unchanged
-also patch only their LOD0 channels. They preserve the original bounds, lower
-LOD records and packed tangent fields, including when another part is replaced,
-parts are reordered or Mod inclusion changes. Draft recovery uses the same exact
-record-map checks before accepting these edits.
+Position, UV and normal edits on original parts with unchanged vertex counts
+and faces patch their LOD0 channels while retaining lower LOD topology and
+packed fields, including when another part is replaced, parts are reordered or
+Mod inclusion changes. Moves within the original bounds preserve lower LOD
+records exactly. Moves outside those bounds expand them and re-encode lower LOD
+positions within the new quantization precision. Draft recovery uses the same
+exact record-map checks before accepting these edits.
 
 These controls edit render-vertex cloth influence, not simulation anchors,
 collision shapes or the shared physics profile. The existing cloth simulation
