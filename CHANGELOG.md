@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive Browser resolves PAC material and texture references for Asset Family and export even with Load textures off. Partial cached previews no longer require opening Mesh Editor before the remaining assets become available.
 - New Item automatically recovers a stale, unmounted overlay set during installation, preserving its old files and archiving its history with the new install's verified backup. Recovery retries once and rolls back with the install on failure; mounted or conflicting overlays still stop with a clear error.
 - New Item shows overlay installation failures in a warning and keeps the reason visible on Output. Installed overlays identifies saved sets the game no longer mounts and offers a reviewed, backed-up Start fresh action that preserves old files and current game data. Recovery messages follow the selected interface language.
 - Checking mods for game updates avoids repeating archive-directory checks for every game file and shows measured progress percentages for each comparison stage.
