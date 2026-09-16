@@ -227,8 +227,12 @@ performed.
 Experimental replacement drafts use project and payload version 3, retaining
 the exact neutral transform and coordinate frame. Older apps reject this format
 before attempting generation recovery. Ordinary replacement drafts remain v2.
+Repeated imports transfer skin weights from the retained original target in
+the active coordinate frame, so earlier imports do not become skin donors.
 Draft restoration is staged for every format; a rejected generation leaves the
 loaded geometry unchanged before recovery tries a previous generation.
+Malformed replacement fields, duplicate part identities and invalid target
+mappings reject the generation and allow recovery of the previous valid save.
 
 `mesh_replacement_import.py`, `mesh_replacement_materials.py`, and
 `mesh_replacement_output.py` own detached preparation and complete output.
