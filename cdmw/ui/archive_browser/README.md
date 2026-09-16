@@ -201,6 +201,11 @@ Native texture ownership is computed once per package. The full material pass
 reuses verified geometry, direct textures and presentation settings from the
 initial package, adds every authored layer, and publishes a separate package
 atomically. A cancelled or failed promotion preserves the initial package.
+Transient Rust packages are tracked from worker delivery, including stale results
+and memory-cache entries. Retirement waits for cache/current/texture ownership,
+preview workers, and renderer leases, then removes the owned wrapper directory
+on a tracked cleanup worker. Shutdown waits for retiring helpers before cleanup;
+durable cache packages and paths outside the preview output root are preserved.
 The renderer resolves shader response rules once per layer and reuses bilinear
 interpolation coordinates across texture rows. Composition retains the same
 texture dimensions, channels, float blending and final pixels.

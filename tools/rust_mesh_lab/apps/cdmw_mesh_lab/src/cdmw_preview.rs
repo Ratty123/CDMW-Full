@@ -343,6 +343,39 @@ impl EffectClock {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum PreviewRenderFailure {
+    WaitForRedraw,
+    RetrySurface,
+    RecoverGpu,
+    Failed,
+}
+
+fn preview_render_failure(
+    error: &cdmw_render_wgpu::RenderError,
+    failures: &mut u32,
+) -> PreviewRenderFailure {
+    use cdmw_render_wgpu::RenderError;
+    match error {
+        RenderError::SurfaceFrame(reason) if reason == "occluded" => {
+            *failures = 0;
+            PreviewRenderFailure::WaitForRedraw
+        }
+        RenderError::SurfaceFrame(reason)
+            if matches!(reason.as_str(), "timeout" | "outdated" | "lost") =>
+        {
+            *failures = failures.saturating_add(1);
+            if *failures <= 5 {
+                PreviewRenderFailure::RetrySurface
+            } else {
+                PreviewRenderFailure::Failed
+            }
+        }
+        RenderError::GpuFault(_) => PreviewRenderFailure::RecoverGpu,
+        _ => PreviewRenderFailure::Failed,
+    }
+}
+
 pub struct PreviewApplication {
     window: Option<Arc<Window>>,
     parent_hwnd: u64,
@@ -2746,28 +2779,25 @@ impl ApplicationHandler for PreviewApplication {
                             self.render_failures = 0;
                             self.next_frame = None;
                         }
-                        Err(cdmw_render_wgpu::RenderError::SurfaceFrame(reason))
-                            if matches!(
-                                reason.as_str(),
-                                "timeout" | "outdated" | "lost" | "occluded"
-                            ) =>
-                        {
-                            self.render_failures = self.render_failures.saturating_add(1);
-                            if self.visible && self.render_failures <= 5 {
-                                self.next_frame = Some(Instant::now() + Duration::from_millis(50));
-                            } else if self.render_failures == 6 {
-                                self.next_frame = None;
-                                self.bridge.send(json!({"event":"error","error":format!("Preview surface failed: {reason}")}));
-                            }
-                        }
-                        Err(error @ cdmw_render_wgpu::RenderError::GpuFault(_)) => {
-                            self.recover_gpu(error.to_string());
-                        }
                         Err(error) => {
-                            self.render_failures = 6;
-                            self.bridge
-                                .send(json!({"event":"error","error":error.to_string()}));
-                            self.next_frame = None;
+                            match preview_render_failure(&error, &mut self.render_failures) {
+                                PreviewRenderFailure::WaitForRedraw => {
+                                    // A covered/minimized surface is healthy. Wait for
+                                    // an external redraw instead of animating behind it.
+                                    self.next_frame = None;
+                                    return;
+                                }
+                                PreviewRenderFailure::RetrySurface => {
+                                    self.next_frame =
+                                        Some(Instant::now() + Duration::from_millis(50));
+                                }
+                                PreviewRenderFailure::RecoverGpu => {
+                                    self.recover_gpu(error.to_string())
+                                }
+                                PreviewRenderFailure::Failed => {
+                                    self.renderer_failed(error.to_string())
+                                }
+                            }
                         }
                     }
                 }
@@ -3635,6 +3665,43 @@ fn grid_plane_axes(grid: &Value) -> (Vec3, Vec3) {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn preview_render_failure_policy_bounds_surface_retries_and_preserves_occlusion() {
+        use cdmw_render_wgpu::RenderError;
+        let mut failures = 0;
+        for reason in ["timeout", "outdated", "lost", "timeout", "lost"] {
+            assert_eq!(
+                preview_render_failure(&RenderError::SurfaceFrame(reason.into()), &mut failures),
+                PreviewRenderFailure::RetrySurface
+            );
+        }
+        assert_eq!(
+            preview_render_failure(&RenderError::SurfaceFrame("timeout".into()), &mut failures),
+            PreviewRenderFailure::Failed
+        );
+        for _ in 0..10 {
+            assert_eq!(
+                preview_render_failure(
+                    &RenderError::SurfaceFrame("occluded".into()),
+                    &mut failures
+                ),
+                PreviewRenderFailure::WaitForRedraw
+            );
+            assert_eq!(failures, 0);
+        }
+        assert_eq!(
+            preview_render_failure(
+                &RenderError::SurfaceFrame("out of memory".into()),
+                &mut failures
+            ),
+            PreviewRenderFailure::Failed
+        );
+        assert_eq!(
+            preview_render_failure(&RenderError::GpuFault("device lost".into()), &mut failures),
+            PreviewRenderFailure::RecoverGpu
+        );
+    }
 
     #[test]
     fn hidden_material_updates_are_validated_without_a_renderer() {

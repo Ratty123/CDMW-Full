@@ -512,6 +512,30 @@ class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
             prune_native_preview_package_cache(cache_root, max_bytes=1, target_bytes=0)
             self.assertFalse(active_entry.exists())
 
+    def test_all_tier_maintenance_reaches_rust_and_preserves_its_live_package(self) -> None:
+        from cdmw.services.mesh_rust_preview_cache import rust_preview_package_cache_root
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "cache"
+            rust_root = rust_preview_package_cache_root(root)
+            active = _raw_cache_entry(rust_root, "active")
+            lease = acquire_native_preview_package_cache_lease_for_path(active / "package")
+            self.assertIsNotNone(lease)
+            try:
+                for operation in ("prune", "clear"):
+                    with self.subTest(operation=operation):
+                        expired = _raw_cache_entry(rust_root, "expired")
+                        if operation == "prune":
+                            prune_native_preview_package_cache_tiers(root, max_bytes=1, target_bytes=0)
+                        else:
+                            clear_native_preview_package_cache_tiers(root)
+                        self.assertFalse(expired.exists())
+                        self.assertTrue(active.exists())
+            finally:
+                lease.release()
+            clear_native_preview_package_cache_tiers(root)
+            self.assertFalse(active.exists())
+
     def test_transient_path_lease_is_visible_to_live_paths_guard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             package_dir = Path(temp_dir) / "transient-package"

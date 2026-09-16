@@ -788,6 +788,8 @@ class ArchivePreviewWorkerMixin:
         thread.start()
 
     def _handle_archive_preview_ready(self, request_id: int, payload: object) -> None:
+        from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
+
         full_cache_key = self.archive_preview_cache_keys.get(request_id, "")
         payload_cache_key = ""
         payload_cacheable = True
@@ -798,6 +800,7 @@ class ArchivePreviewWorkerMixin:
             payload = payload.result
         else:
             source = self.archive_preview_request_sources.get(request_id, "worker")
+        track_archive_preview_package(self, payload)
         quality_tier = (
             str(getattr(payload, "quality_tier", "") or "").strip().lower()
             if isinstance(payload, ArchivePreviewResult)

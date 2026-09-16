@@ -38,6 +38,7 @@ from cdmw.services.mesh_rust_preview_cache import (
 )
 from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
+from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
 
 
 def _archive_preview_dependency_digest(entries: Sequence[ArchiveEntry]) -> str:
@@ -595,6 +596,7 @@ class ArchivePreviewCacheMixin:
         return self._attach_archive_preview_result_images(cached)
 
     def _store_cached_archive_preview_result(self, cache_key: str, result: ArchivePreviewResult) -> None:
+        track_archive_preview_package(self, result)
         if not cache_key:
             return
         if not self._archive_preview_result_cacheable(result):

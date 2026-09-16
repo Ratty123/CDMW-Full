@@ -519,8 +519,11 @@ their import is replaced, discarded, fails, or the studio closes. Model, Effects
 Mesh Editor-accept workers lease the source while they read it; recursive removal runs
 on a tracked cleanup worker only after those usages finish, so Discard cancels first and
 never waits on filesystem cleanup in the UI thread.
-Retired transient preview packages use the same tracked cleanup lane. Cleanup is
-serialized, remains visible to the shutdown coordinator until drained, and cannot
+Retired transient preview packages use the same tracked cleanup lane. Parallel
+geometry/material preparation also owns its cleanup: cancellation joins the
+material thread and removes completed packages that never reached the UI.
+Successfully delivered stages and durable cache entries keep their ownership.
+Cleanup is serialized, remains visible to the shutdown coordinator until drained, and cannot
 remove the preview output root or paths outside it. Durable preview caches are retained.
 Entry points: the tool tab
 `new_item_studio` and the Item Finder's `Clone as new item...`; a ready Builder

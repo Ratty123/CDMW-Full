@@ -162,6 +162,8 @@ class _PreviewPackageTask:
     def _build_progressive(self, progress, stop_event: threading.Event) -> _PreviewBuildProduct:
         candidate = self.candidate
         materials = _ProgressiveMaterialBuild(self, stop_event)
+        geometry_package = None
+        delivered: set[Path] = set()
         material_thread = threading.Thread(
             target=materials.run,
             name="cdmw-new-item-preview-materials",
@@ -189,6 +191,7 @@ class _PreviewPackageTask:
                     3 if self.supports_fast_material_package else 2,
                     str(geometry_package),
                 )
+                delivered.add(Path(geometry_package))
             if self.supports_fast_material_package:
                 while not (
                     materials.fast_ready.is_set()
@@ -198,12 +201,27 @@ class _PreviewPackageTask:
                     materials.fast_ready.wait(0.01)
                 if materials.fast_packages and not stop_event.is_set():
                     progress(2, 3, str(materials.fast_packages[-1]))
+                    delivered.add(materials.fast_packages[-1])
+            material_thread.join()
+            if stop_event.is_set():
+                raise RunCancelled("Operation cancelled.")
+            product = materials.product(candidate)
+            delivered.add(Path(product.package_dir))
+            return product
         except BaseException:
             stop_event.set()
             raise
         finally:
             material_thread.join()
-        return materials.product(candidate)
+            # Joining transfers all completed output to this owner. A failed
+            # geometry branch must still retire undelivered material packages.
+            produced = set(materials.fast_packages + materials.packages)
+            if geometry_package is not None:
+                produced.add(Path(geometry_package))
+            for package in produced - delivered:
+                cleanup = preview_package_cleanup(package, self.output_root)
+                if cleanup is not None:
+                    cleanup.cleanup()
 
     def _build_single_stage(self, stop_event: threading.Event) -> _PreviewBuildProduct:
         candidate = self.candidate
@@ -250,7 +268,9 @@ class _ProgressiveMaterialBuild:
 
     def handle_fast_package(self, package: object) -> None:
         package_path = getattr(package, "package_dir", package)
-        if self.stop_event.is_set() or not package_path:
+        if self.stop_event.is_set():
+            raise RunCancelled("Operation cancelled.")
+        if not package_path:
             return
         self.fast_packages.append(Path(package_path))
         self.fast_ready.set()
@@ -536,6 +556,21 @@ def package_cleanup_root(package_dir: Path, output_root: Path) -> Path:
     if parent != output_root and parent.parent == output_root and parent.name.startswith("cdmw_rust_preview_"):
         return parent
     return package_dir
+
+
+def preview_package_cleanup(package_dir: Path, output_root: Path) -> PreviewPackageCleanup | None:
+    from cdmw.rendering.native_preview_package_cache import (
+        is_durable_native_preview_package_path,
+        native_preview_package_cache_tiers,
+    )
+
+    package_dir, output_root = Path(package_dir).resolve(), Path(output_root).resolve()
+    if package_dir == output_root or not package_dir.is_relative_to(output_root):
+        return None
+    if any(is_durable_native_preview_package_path(tier, package_dir)
+           for tier in native_preview_package_cache_tiers(output_root)):
+        return None
+    return PreviewPackageCleanup(package_cleanup_root(package_dir, output_root), output_root)
 
 
 def default_host_factory(parent: QWidget):
@@ -1270,22 +1305,9 @@ class ItemPreviewFrame(QWidget):
 
     def _remove_package(self, package_dir: Path) -> None:
         """Remove one transient package; durable cache entries outlive this frame."""
-
-        from cdmw.services.mesh_rust_preview_cache import rust_preview_package_cache_root
-        from cdmw.services.preview_rendering_service import (
-            dotnet_preview_package_derived_cache_root,
-            is_durable_dotnet_preview_package_path,
-        )
-
-        for cache_root in (
-            rust_preview_package_cache_root(self._output_root),
-            dotnet_preview_package_derived_cache_root(self._output_root),
-        ):
-            if is_durable_dotnet_preview_package_path(cache_root, package_dir):
-                return
-        self._cleanup_lane.retire(PreviewPackageCleanup(
-            self._package_cleanup_root(package_dir), self._output_root,
-        ))
+        cleanup = preview_package_cleanup(package_dir, self._output_root)
+        if cleanup is not None:
+            self._cleanup_lane.retire(cleanup)
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:
         return package_cleanup_root(package_dir, self._output_root)
