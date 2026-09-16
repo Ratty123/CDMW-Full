@@ -148,6 +148,10 @@ the original PAC vertex and index records at every LOD. Multiple
 source parts can map to a target with original materials; imported-material mode
 requires one source material part per target.
 
+OBJ face regions with different materials appear as separate source parts even
+when they belong to the same object. Material assignments continue across OBJ
+object/group boundaries until the file specifies another material.
+
 New imports preserve decoded coordinates: no automatic scaling, alignment or
 centering. Scale starts at 1, rotation and translation at 0. Use the existing
 transform tools for placement. **Fit to Original** explicitly fits the imported
@@ -159,6 +163,8 @@ New Item fitting defaults are unchanged.
 Source positions, UVs, normals and tangents must contain finite values within
 the supported float range. Invalid values stop import before automatic UV
 generation or preview conversion, preserving the current edit for a valid retry.
+OBJ faces must also reference existing vertices, UVs and normals. Invalid indices
+stop import instead of substituting geometry or regenerating authored channels.
 
 **Keep Original Materials** is the default. Missing or stale imported MTL and
 texture references do not block this geometry-only mode. Source geometry and

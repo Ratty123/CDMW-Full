@@ -30,6 +30,66 @@ from cdmw.modding.mesh_parser import (
 
 
 class MeshImportRegressionTests(unittest.TestCase):
+    def test_obj_material_directives_apply_to_subsequent_faces_across_objects(self) -> None:
+        cases = (
+            ("", "usemtl red\nf 1/1/1 2/2/1 3/3/1\nusemtl blue\nf -3/1/1 -2/2/1 -1/3/1", ["red", "blue"], [1, 1]),
+            ("o Dress\n", "usemtl red\nf 1/1/1 2/2/1 3/3/1\nusemtl blue\nf 1/1/1 2/2/1 3/3/1", ["red", "blue"], [1, 1]),
+            ("o Dress\n", "usemtl red\nf 1/1/1 2/2/1 3/3/1\nusemtl red\nf 1/1/1 2/2/1 3/3/1\nusemtl blue", ["red"], [2]),
+            ("o Dress\n", "f 1/1/1 2/2/1 3/3/1\nusemtl red\nf 1/1/1 2/2/1 3/3/1", ["", "red"], [1, 1]),
+            ("usemtl red\no Dress\n", "f 1/1/1 2/2/1 3/3/1\no Trim\nf 1/1/1 2/2/1 3/3/1", ["red", "red"], [1, 1]),
+            ("usemtl red\ng Dress\n", "f 1/1/1 2/2/1 3/3/1\ng Trim\nf 1/1/1 2/2/1 3/3/1", ["red", "red"], [1, 1]),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "materials.obj"
+            for header, faces, materials, counts in cases:
+                with self.subTest(header=header, faces=faces):
+                    path.write_text(header + "v 0 0 0\nv 1 0 0\nv 0 1 0\n"
+                        "vt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\n" + faces, encoding="utf-8")
+                    mesh = import_obj(str(path))
+                    self.assertEqual([part.material for part in mesh.submeshes], materials)
+                    self.assertEqual([len(part.faces) for part in mesh.submeshes], counts)
+                    for part in mesh.submeshes:
+                        self.assertEqual(part.vertices, [(0, 0, 0), (1, 0, 0), (0, 1, 0)])
+                        self.assertEqual(part.uvs, [(0, 1), (1, 1), (0, 0)])
+                        self.assertEqual(part.normals, [(0, 0, 1)] * 3)
+
+    def test_obj_material_split_preserves_unsplit_objects_and_unused_roundtrip_vertices(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "split.obj"
+            path.write_text(
+                "o First\nusemtl first\nv 0 0 0\nv 1 0 0\nv 0 1 0\nv 9 9 9\nf 1 2 3\n"
+                "o Split\nv 2 0 0\nv 3 0 0\nv 2 1 0\nv 2 2 0\n"
+                "usemtl red\nf 5 6 7\nusemtl blue\nf 6 8 7\n"
+                "o Last\nusemtl last\nv 4 0 0\nv 5 0 0\nv 4 1 0\nv 8 8 8\nf 9 10 11\nusemtl unused\n",
+                encoding="utf-8",
+            )
+            mesh = import_obj(str(path))
+            self.assertEqual([part.material for part in mesh.submeshes], ["first", "red", "blue", "last"])
+            self.assertEqual([len(part.vertices) for part in mesh.submeshes], [4, 3, 3, 4])
+            self.assertEqual(mesh.submeshes[0].vertices[-1], (9, 9, 9))
+            self.assertEqual(mesh.submeshes[1].vertices, [(2, 0, 0), (3, 0, 0), (2, 1, 0)])
+            self.assertEqual(mesh.submeshes[2].vertices, [(3, 0, 0), (2, 2, 0), (2, 1, 0)])
+            self.assertEqual(mesh.submeshes[3].vertices, [(4, 0, 0), (5, 0, 0), (4, 1, 0), (8, 8, 8)])
+            self.assertTrue(all(part.faces == [(0, 1, 2)] for part in mesh.submeshes))
+
+    def test_obj_positive_indices_can_still_refer_forward(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "forward.obj"
+            path.write_text("o Triangle\nf 1/1/1 2/2/1 3/3/1\n"
+                "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\n", encoding="utf-8")
+            mesh = import_obj(str(path))
+            self.assertEqual(mesh.submeshes[0].vertices, [(0, 0, 0), (1, 0, 0), (0, 1, 0)])
+            self.assertEqual(mesh.submeshes[0].uvs, [(0, 1), (1, 1), (0, 0)])
+            self.assertEqual(mesh.submeshes[0].normals, [(0, 0, 1)] * 3)
+
+    def test_obj_faces_can_reference_vertices_outside_their_object_declaration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "global.obj"
+            path.write_text("v 9 0 0\no Triangle\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
+            mesh = import_obj(str(path))
+            self.assertEqual(mesh.submeshes[0].vertices, [(9, 0, 0), (1, 0, 0), (0, 1, 0)])
+            self.assertEqual(mesh.submeshes[0].faces, [(0, 1, 2)])
+
     def test_pac_descriptor_names_support_both_real_record_layouts(self) -> None:
         shared_name = b"CD_PHM_02_Sword_Blade_0033"
         shared_prefix = bytes([len(shared_name)]) + shared_name + b"\x00"
