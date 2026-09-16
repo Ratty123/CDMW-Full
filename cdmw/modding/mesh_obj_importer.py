@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 import json
 import hashlib
+import shlex
 from pathlib import Path
 from typing import Optional
 
@@ -251,29 +252,40 @@ def _attach_obj_sidecar_lod_identity(mesh: ParsedMesh, sidecar_payload: dict[str
         setattr(mesh, "_cdmw_mesh_asset_lods", tuple(dict(lod) for lod in raw_lods if isinstance(lod, dict)))
 
 
-def _resolve_obj_material_library_paths(obj_path: Path) -> tuple[Path, ...]:
+def _resolve_obj_material_library_paths(obj_path: Path, *, include_fallback: bool = True) -> tuple[Path, ...]:
     candidates: list[Path] = []
     seen: set[str] = set()
     try:
-        with obj_path.open("r", encoding="utf-8") as handle:
+        with obj_path.open("r", encoding="utf-8-sig") as handle:
             for raw_line in handle:
-                line = raw_line.strip()
-                if not line.lower().startswith("mtllib "):
+                parts = raw_line.strip().split(maxsplit=1)
+                if len(parts) != 2 or parts[0].lower() != "mtllib":
                     continue
-                raw_value = line[7:].strip()
-                if not raw_value:
-                    continue
-                candidate = (obj_path.parent / raw_value).expanduser().resolve()
-                lowered = str(candidate).lower()
-                if lowered in seen:
-                    continue
-                seen.add(lowered)
-                candidates.append(candidate)
+                value = parts[1].strip()
+                # Blender can write an unquoted filename containing spaces.
+                # Prefer an existing complete path, otherwise parse a library list.
+                complete = (obj_path.parent / value.strip('"\'')).expanduser()
+                if complete.is_file():
+                    values = [value.strip('"\'')]
+                else:
+                    lexer = shlex.shlex(value, posix=False)
+                    lexer.whitespace_split = True
+                    lexer.commenters = "#"
+                    try:
+                        values = list(lexer)
+                    except ValueError:
+                        values = [value]
+                for raw_value in values:
+                    candidate = (obj_path.parent / raw_value.strip('"\'')).expanduser().resolve()
+                    lowered = str(candidate).lower()
+                    if lowered not in seen:
+                        seen.add(lowered)
+                        candidates.append(candidate)
     except OSError:
         return ()
     fallback_candidate = obj_path.with_suffix(".mtl").expanduser().resolve()
     fallback_key = str(fallback_candidate).lower()
-    if fallback_key not in seen:
+    if include_fallback and fallback_key not in seen:
         candidates.append(fallback_candidate)
     return tuple(candidates)
 

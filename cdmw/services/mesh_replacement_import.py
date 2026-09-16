@@ -87,12 +87,11 @@ def _import_source_files(path, *, include_materials=True):
     files, references = [path], []
     if include_materials and path.suffix.lower() == ".obj":
         libraries = _obj_material_library_paths(path)
-        explicit = {str((path.parent / value).resolve()) for line in path.read_text(encoding="utf-8-sig").splitlines()
-                    if line.lstrip().lower().startswith("mtllib ") for value in line.strip()[7:].split()}
+        explicit = set(_obj_material_library_paths(path, include_fallback=False))
         for library in libraries:
             if library.is_file():
                 files.append(library)
-            elif str(library) in explicit:
+            elif library in explicit:
                 raise ValueError(f"Missing imported material library: {library}")
         references = list(_obj_material_texture_references(path))
     elif include_materials and path.suffix.lower() == ".dae":

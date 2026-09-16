@@ -56,6 +56,123 @@ def test_imported_materials_use_retained_converter_and_preserve_unselected_bindi
     assert state.parts[0].material_choice == "imported"
 
 
+@pytest.mark.parametrize("layout", ["space-name", "quoted-name", "nested", "nested-parent-reference",
+                                   "multiple-libraries", "tabs-and-comment", "unicode-name", "quoted-hash-name"])
+def test_obj_material_paths_resolve_declared_files_and_keep_their_pixels(editor, tmp_path, layout):
+    from io import BytesIO
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+
+    service, sid = editor
+    snapshot = service.capture_export_snapshot(sid)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    nested = layout.startswith("nested")
+    filename = {"unicode-name": "衣装素材.mtl", "quoted-hash-name": "#dress edit.mtl"}.get(layout, "dress edit.mtl")
+    material = tmp_path / ("materials/dress.mtl" if nested else filename)
+    material.parent.mkdir(exist_ok=True)
+    model.with_suffix(".mtl").rename(material)
+    declaration = material.relative_to(tmp_path).as_posix()
+    if layout in {"quoted-name", "multiple-libraries", "tabs-and-comment", "quoted-hash-name"}:
+        declaration = f'"{declaration}"'
+    if layout == "multiple-libraries":
+        (tmp_path / "unused.mtl").write_text("newmtl unused\nKd 1 1 1\n")
+        declaration = f"unused.mtl {declaration}"
+    directive = f"mtllib\t{declaration}\t# exported material" if layout == "tabs-and-comment" else f"mtllib {declaration}"
+    model.write_text(model.read_text().replace("mtllib import.mtl", directive), encoding="utf-8")
+    expected_color = (20, 50, 210, 255) if nested else (210, 30, 60, 255)
+    if nested:
+        # A different texture with the same filename beside the OBJ must not win.
+        texture = tmp_path / ("images/color.dds" if layout == "nested-parent-reference" else "materials/color.dds")
+        texture.parent.mkdir(exist_ok=True)
+        Image.new("RGBA", (4, 4), expected_color).save(texture)
+        if layout == "nested-parent-reference":
+            material.write_text(material.read_text().replace("color.dds", "../images/color.dds"))
+    else:
+        texture = tmp_path / "color.dds"
+    key = initial_replacement_state(snapshot).parts[0].part_id
+    dependencies = capture_replacement_dependencies(target, context)
+    pending = prepare_import(snapshot, model, target_part_ids=(key,), entry=target, dependencies=dependencies)
+    assert not pending.material_error
+    slots = [Path(slot.source_texture_path) for part in pending.source.mesh.submeshes
+             for slot in part.preview_material_texture_inputs if slot.slot_kind == "base"]
+    assert slots == [texture.resolve()]
+    captured = {Path(path) for path, digest in pending.material_source_files}
+    assert {material.resolve(), texture.resolve()}.issubset(captured)
+    files = prepare_imported_materials(pending, (key,), tmp_path)
+    candidate, state = compose_import(pending, (key,), material_choice="imported", companion_files=files)
+    commit_replacement(service, snapshot, candidate, state, label="Import material paths")
+    output = prepare_replacement_output(service.capture_export_snapshot(sid))
+    textures = [file for file in output.companion_files if file.path.endswith(".dds")]
+    assert len(textures) == 1
+    with Image.open(BytesIO(textures[0].data)) as decoded:
+        assert decoded.convert("RGBA").getpixel((0, 0)) == pytest.approx(expected_color, abs=4)
+    before = service.session_view(sid)
+    Image.new("RGBA", (4, 4), (10, 200, 40, 255)).save(texture)
+    with pytest.raises(ValueError, match="dependency changed"):
+        prepare_imported_materials(pending, (key,), tmp_path)
+    after = service.session_view(sid)
+    assert (after.revision, after.undo_count) == (before.revision, before.undo_count)
+    after_output = prepare_replacement_output(service.capture_export_snapshot(sid))
+    assert (after_output.data, after_output.companion_files) == (output.data, output.companion_files)
+
+
+def test_nested_material_libraries_keep_same_named_textures_distinct_through_finish(editor, tmp_path):
+    from io import BytesIO
+    from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
+    from cdmw.services.mesh_replacement_output import prepare_replacement_output
+    from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+    from tests.test_mesh_rust_authoring_exact_output import _request
+    from tests.test_mesh_rust_replacement import command
+
+    service, sid = editor
+    snapshot = service.capture_export_snapshot(sid)
+    target, context, model = material_fixture(tmp_path, snapshot)
+    model.with_suffix(".mtl").unlink()
+    source_files = [model]
+    colors = ((210, 30, 60, 255), (20, 50, 210, 255))
+    for name, color in zip(("red", "blue"), colors, strict=True):
+        folder = tmp_path / name
+        folder.mkdir()
+        material, texture = folder / "shared.mtl", folder / "shared.dds"
+        material.write_text(f"newmtl {name}\nKd 1 1 1\nmap_Kd shared.dds\n")
+        Image.new("RGBA", (4, 4), color).save(texture)
+        source_files.extend((material, texture))
+    model.write_text("mtllib red/shared.mtl blue/shared.mtl\n"
+        "v 12 3 7\nv 16 3 7\nv 12 5 7\nv -4 1 2\nv -2 1 2\nv -4 3 2\n"
+        "vt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\n"
+        "o red\nusemtl red\nf 1/1/1 2/2/1 3/3/1\no blue\nusemtl blue\nf 4/1/1 5/2/1 6/3/1\n")
+    keys = [part.part_id for part in initial_replacement_state(snapshot).parts]
+    host = RustMeshAuthoringSession.create(SimpleNamespace(mesh_service=service, active_session_id=sid),
+                                           tmp_path / "host", process_generation=1)
+    try:
+        command(host, "replacement_choose", {"source_path": str(model), "_archive_entry": target, "_archive_dependencies": context})
+        result = command(host, "replacement_apply", {"targets": keys, "materials": "imported"})
+        material_key = result["state"]["archive_refit_materials"]["key"]
+        staged = host.archive_refit_material_cache[material_key]["textures"]
+        assert {index for row in staged for index in row["material_indices_by_lod"][0]} == {0, 1}
+        output = prepare_replacement_output(host.shadow_service.capture_export_snapshot(host.shadow_session_id))
+        files = {file.path: file.data for file in output.companion_files}
+        assert len([path for path in files if path.endswith(".dds")]) == 2
+        sidecar = next(file for file in output.companion_files if file.path.endswith(".pac_xml"))
+        bindings = _parse_archive_model_sidecar_texture_bindings(sidecar.data.decode(), sidecar_path=sidecar.path)
+        for index, color in enumerate(colors):
+            binding = next(row for row in bindings if row.submesh_name == f"target{index}")
+            with Image.open(BytesIO(files[binding.texture_path])) as decoded:
+                assert decoded.convert("RGBA").getpixel((0, 0)) == pytest.approx(color, abs=4)
+        for path in source_files:
+            path.unlink()
+        command(host, "undo")
+        assert host.shadow_service.capture_export_snapshot(host.shadow_session_id).replacement_state is None
+        assert command(host, "redo")["state"]["archive_refit_materials"]["key"] == material_key
+        restored = prepare_replacement_output(host.shadow_service.capture_export_snapshot(host.shadow_session_id))
+        assert (restored.data, restored.companion_files) == (output.data, output.companion_files)
+        host.finish(_request(host, "finish_request", 99))
+        finished = prepare_replacement_output(service.capture_export_snapshot(sid))
+        assert (finished.data, finished.companion_files) == (output.data, output.companion_files)
+    finally:
+        if not host.closed:
+            host.cancel()
+
+
 @pytest.mark.parametrize("missing", ["library", "texture"])
 def test_missing_material_dependencies_only_block_imported_materials(editor, tmp_path, missing):
     service, session_id = editor

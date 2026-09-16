@@ -14,6 +14,16 @@ the remaining slots, with the current UV transforms and per-draw vertex limit ap
 during allocation. The output section plan owns both mesh and texture routing;
 unsupported capacity still blocks output without changing the PAC descriptor layout.
 
+## OBJ material dependencies
+
+OBJ geometry import, texture discovery and replacement dependency checks use the
+same material-library parser. It supports quoted paths, existing unquoted paths
+with spaces, multiple libraries, and tab-separated declarations. Texture paths
+first resolve beside their MTL file; the established OBJ/package lookup remains
+available for relocated exports. Full texture paths take priority over filename
+aliases, so same-named images in different directories keep their own bindings.
+Structured material slots take priority over the legacy texture-name field.
+
 ## Body region decomposition
 
 `mesh_region_decompose.py` splits the difference between two same-topology

@@ -311,27 +311,18 @@ def _attach_sibling_material_texture_slots(mesh: ParsedMesh, texture_files: Sequ
         attached += max(0, after_count - before_count)
     return attached
 
-def _obj_material_library_paths(obj_path: Path) -> tuple[Path, ...]:
-    candidates: list[Path] = []
-    seen: set[str] = set()
-    try:
-        with obj_path.open("r", encoding="utf-8", errors="ignore") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or not line.lower().startswith("mtllib "):
-                    continue
-                for raw_value in line[7:].split():
-                    candidate = (obj_path.parent / raw_value).expanduser().resolve()
-                    key = str(candidate).lower()
-                    if key not in seen:
-                        seen.add(key)
-                        candidates.append(candidate)
-    except OSError:
-        pass
-    fallback = obj_path.with_suffix(".mtl").expanduser().resolve()
-    if str(fallback).lower() not in seen:
-        candidates.append(fallback)
-    return tuple(candidates)
+def _obj_material_library_paths(obj_path: Path, *, include_fallback: bool = True) -> tuple[Path, ...]:
+    from .mesh_obj_importer import _resolve_obj_material_library_paths
+    return _resolve_obj_material_library_paths(obj_path, include_fallback=include_fallback)
+
+
+def _resolve_obj_texture_reference(obj_path: Path, material_path: Path, reference: str) -> Optional[Path]:
+    # An MTL-relative file owns its binding even when an OBJ sibling has the same
+    # basename. Retain established OBJ/package lookup for relocated older exports.
+    local = material_path.parent / unquote(reference.replace("\\", "/"))
+    if local.suffix.lower() in SCENE_TEXTURE_SOURCE_EXTENSIONS and local.is_file():
+        return local.resolve()
+    return _resolve_local_texture_reference(obj_path, reference)
 
 
 def _obj_material_texture_references(obj_path: Path) -> tuple[str, ...]:
@@ -371,6 +362,9 @@ def _obj_material_texture_references(obj_path: Path) -> tuple[str, ...]:
                     reference = _obj_map_reference_from_parts(parts[1:])
                     if not reference:
                         continue
+                    resolved = _resolve_obj_texture_reference(obj_path, material_path, reference)
+                    if resolved is not None:
+                        reference = resolved.as_posix()
                     key = reference.replace("\\", "/").lower()
                     if reference and key not in seen:
                         seen.add(key)
@@ -453,7 +447,7 @@ def _obj_material_texture_slots(obj_path: Path) -> dict[str, tuple[SceneMaterial
                     reference = _obj_map_reference_from_parts(parts[1:])
                     if not reference:
                         continue
-                    resolved = _resolve_local_texture_reference(obj_path, reference)
+                    resolved = _resolve_obj_texture_reference(obj_path, material_path, reference)
                     if resolved is None:
                         continue
                     slot_kind = texture_kind_by_key[key]
