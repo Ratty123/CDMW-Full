@@ -100,9 +100,13 @@ def _import_source_files(path, *, include_materials=True):
         root = ElementTree.parse(path).getroot()
         references = [node.text.strip() for image in root.iter() if image.tag.rsplit("}", 1)[-1] == "image"
                       for node in image.iter() if node.tag.rsplit("}", 1)[-1] in {"init_from", "ref"} and node.text and node.text.strip()]
-    elif path.suffix.lower() == ".gltf":
-        import json
-        document = json.loads(path.read_text(encoding="utf-8-sig"))
+    elif path.suffix.lower() in {".gltf", ".glb"}:
+        if path.suffix.lower() == ".glb":
+            from cdmw.modding.scene_gltf_import import _read_glb
+            document, _ = _read_glb(path)
+        else:
+            import json
+            document = json.loads(path.read_text(encoding="utf-8-sig"))
         resources = list(document.get("buffers", ()))
         if include_materials:
             resources.extend(document.get("images", ()))

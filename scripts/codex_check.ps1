@@ -149,6 +149,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_replacement_materials.py",
         "tests/test_mesh_editor_replacement_formats.py",
         "tests/test_mesh_editor_replacement_regressions.py",
+        "tests/test_mesh_editor_replacement_sequences.py",
         "tests/test_mesh_replacement_neutral.py",
         "tests/test_mesh_rust_replacement.py",
         "tests/test_mesh_builder_runtime_wiring.py",
