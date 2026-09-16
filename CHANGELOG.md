@@ -17,6 +17,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Preview cleanup removes stale or evicted Archive Browser packages and undelivered New Item material packages. Clear and prune include the current Rust cache while preserving live packages.
+- Terminal preview surface errors pause with Retry available, and interrupted captures report failure instead of leaving capture controls waiting. Covered previews pause redraws without being treated as GPU failures.
 - PAC imports and rebuilds reject UV coordinates that cannot fit the stored format instead of silently replacing them with zero. Rejected replacements preserve the current mesh and Undo/Redo history.
 - Normal and UV edits on original PAC parts retain their geometry and lower LOD records when used with Cloth or Mod output, including alongside replacement of other parts and after draft recovery.
 - Cloth and Mod output retain prior skin-weight edits, including after part reordering, replacement and draft recovery, while preserving untouched lower LOD weights.

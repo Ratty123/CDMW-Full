@@ -22,6 +22,8 @@ reads atomically published metadata, defers busy access timestamps, and skips
 busy entries during eviction. Live/recent package leases still protect renderer
 inputs. This lets concurrent thumbnail jobs trim the shared cache without
 deadlocking each other or blocking cancellation.
+Clear and prune cover the source, legacy derived, and current Rust cache tiers;
+live packages remain protected in each tier.
 
 Related tests: native preview, model preview, and static replacement entries under `tests/`.
 
@@ -40,12 +42,18 @@ are also removed. A completed handoff preserves its files on later cancellation,
 and durable cache entries retain their normal cache ownership. Session runtime
 output is removed only after every helper using it has stopped, including a
 retired helper still shutting down after its replacement starts.
+Pending captures report one failure when their renderer fails, their session
+restarts, or their helper exits or closes. Late replies cannot publish a failed
+capture over its requested output, and internal files remain owned until the
+writer has finished.
 
 GPU recovery and hidden-preview reactivation restore live material parameters
 along with the scene. Material updates received while hidden are validated and
 retained for reactivation. GPU initialization failures report the same paused
 renderer state as failed recovery, without automatically relaunching the helper.
 Selecting another package keeps it queued and leaves Retry available.
+Exhausted surface retries and other terminal render errors use that same paused
+state. Occluded surfaces wait for a redraw without entering GPU failure recovery.
 Effect-texture aliases share immutable resident bytes by content hash, so the
 texture byte budget accounts for their retained data.
 

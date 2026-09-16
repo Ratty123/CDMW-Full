@@ -170,6 +170,7 @@ class RustPreviewSessionController(
         self._authoring_scene_modes: dict[str, str] = {}
         self._package_leases: dict[str, object] = {}
         self._pending_captures: dict[int, tuple[Path, Path]] = {}
+        self._retired_captures: dict[int, tuple[int, Path]] = {}
         self._prewarm_capture_request_id = 0
         self._prewarm_capture_path: Path | None = None
         self._last_event: dict[str, object] = {}
@@ -411,6 +412,7 @@ class RustPreviewSessionController(
 
         process = self._process
         self._process = None
+        self._fail_pending_captures("Preview session restarted before capture completed.")
         self._ready_timer.stop()
         self._package_timer.stop()
         self._activation_timer.stop()
@@ -743,7 +745,10 @@ class RustPreviewSessionController(
         self._activation_material_sync_generation = 0
         self._pending_package_generation = 0
         self._deactivate_for_replacement()
-        self._release_package_leases()
+        # A deactivation is asynchronous and can leave a package loader reading.
+        # Keep its files pinned until a replacement is acknowledged or it exits.
+        if not self._pending_process_exits:
+            self._release_package_leases()
         self._set_state("empty", "Select a model to open Preview.")
         return True
 
@@ -930,7 +935,7 @@ class RustPreviewSessionController(
 
     def request_capture(self, output_path: Path | str, *, width: int = 512, height: int = 512) -> bool:
         package = self._desired_package
-        if package is None or not self._session_established:
+        if self._closed or self._gpu_failed or package is None or not self._session_established:
             return False
         # The helper only writes captures under the session output directory it was
         # launched with. The file is moved to `output_path` after the helper finishes.
@@ -1026,7 +1031,7 @@ class RustPreviewSessionController(
         self._ui_localizer = None
         self._reset_localization_handshake()
         self._release_package_leases()
-        self._pending_captures.clear()
+        self._fail_pending_captures("Preview closed before capture completed.")
         self._clear_prewarm_capture()
         self._prewarm_package = None
         self._launch_is_prewarm = False
@@ -1131,6 +1136,7 @@ class RustPreviewSessionController(
 
     def _process_finished(self, process: object, generation: int, exit_code: int, exit_status: object) -> None:
         self._pending_process_exits.discard(generation)
+        self._cleanup_retired_captures(generation)
         if not self._is_current_process(process, generation):
             if self._closed and self._process is None:
                 self._cleanup_preview_runtime_outputs()
@@ -1139,6 +1145,7 @@ class RustPreviewSessionController(
         self._read_stdout(process, generation)
         self._read_stderr(process, generation)
         self._process = None
+        self._fail_pending_captures(f"Preview exited with code {exit_code} before capture completed.")
         if self._closed:
             self._cleanup_preview_runtime_outputs()
         self._ready_timer.stop()
@@ -1336,6 +1343,7 @@ class RustPreviewSessionController(
             self._retry_timer.stop()
             self._pending_activation = None
             detail = str(payload.get("error") or "GPU rendering is unavailable.")
+            self._fail_pending_captures(detail)
             self._retry_reason = detail
             self._set_state("package_error", detail)
         elif event == "error":
@@ -1711,34 +1719,62 @@ class RustPreviewSessionController(
             self._send_json({"event": "deactivate_request"})
         self._active = False
 
+    def _fail_pending_captures(self, message: str) -> None:
+        pending, self._pending_captures = self._pending_captures, {}
+        generation = self._process_generation
+        for request_id, (internal_path, target_path) in pending.items():
+            # The child may still be writing. Keep its internal output until
+            # that capture replies or its own process generation exits.
+            self._retired_captures[request_id] = (generation, internal_path)
+            self.capture_completed.emit({
+                "event": "capture_result", "request_id": request_id,
+                "status": "error", "message": message,
+                "requested_output_path": str(target_path),
+            })
+        if generation not in self._pending_process_exits:
+            self._cleanup_retired_captures(generation)
+
+    @staticmethod
+    def _remove_capture_output(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _cleanup_retired_captures(self, generation: int) -> None:
+        for request_id, (owner_generation, path) in tuple(self._retired_captures.items()):
+            if owner_generation == generation:
+                self._retired_captures.pop(request_id)
+                self._remove_capture_output(path)
+
     def _handle_capture_result(self, payload: Mapping[str, object]) -> None:
         try:
             request_id = int(payload.get("request_id", 0) or 0)
         except (TypeError, ValueError, OverflowError):
             request_id = 0
-        if request_id == self._prewarm_capture_request_id:
+        if request_id > 0 and request_id == self._prewarm_capture_request_id:
             self._clear_prewarm_capture()
             if str(payload.get("status", "") or "").strip().lower() == "captured":
                 self._set_state("prewarmed", "Preview is GPU-warmed and ready for a model.")
             self.capture_completed.emit(dict(payload))
             return
         paths = self._pending_captures.pop(request_id, None)
+        if paths is None:
+            retired = self._retired_captures.pop(request_id, None)
+            if retired is not None:
+                self._remove_capture_output(retired[1])
+            return
         result = dict(payload)
-        if paths is not None:
-            internal_path, target_path = paths
-            ok = str(payload.get("status", "") or "").lower() == "captured" and internal_path.is_file()
-            if ok:
-                try:
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
-                    atomic_copy_file(internal_path, target_path)
-                    result["requested_output_path"] = str(target_path)
-                except OSError as exc:
-                    result["status"] = "error"
-                    result["message"] = f"Could not publish capture: {exc}"
+        internal_path, target_path = paths
+        result["requested_output_path"] = str(target_path)
+        if str(payload.get("status", "") or "").lower() == "captured":
             try:
-                internal_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                atomic_copy_file(internal_path, target_path)
+            except OSError as exc:
+                result["status"] = "error"
+                result["message"] = f"Could not publish capture: {exc}"
+        self._remove_capture_output(internal_path)
         self.capture_completed.emit(result)
 
     def _request_prewarm_capture(self) -> bool:
@@ -1873,6 +1909,7 @@ class RustPreviewSessionController(
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
         process = self._process
         self._process = None
+        self._fail_pending_captures(reason)
         self._ready_timer.stop()
         self._package_timer.stop()
         self._activation_timer.stop()

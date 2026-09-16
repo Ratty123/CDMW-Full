@@ -20,6 +20,117 @@ from tests.test_dotnet_preview_shared_host import (
 )
 
 
+@pytest.mark.parametrize("failure", ["exit", "process_error", "session_restart", "renderer_failed", "shutdown"])
+def test_capture_failure_completes_once_and_preserves_requested_file(tmp_path, monkeypatch, failure):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, process, _ = _start_controller(tmp_path)
+    _make_ready(controller)
+    completed = []
+    controller.capture_completed.connect(completed.append)
+    target = tmp_path / "capture.png"
+    target.write_bytes(b"previous capture")
+    assert controller.request_capture(target)
+    request_id, (internal, _) = next(iter(controller._pending_captures.items()))
+    internal.write_bytes(b"partial capture")
+    # A rejected command is not a renderer failure and must not abort captures.
+    controller._handle_protocol_event({"event": "error", "error": "invalid command"}, controller.process_generation)
+    assert not completed and not controller._gpu_failed
+    if failure == "exit":
+        process.kill()
+        process.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    elif failure == "process_error":
+        controller._fail_current_process("protocol stopped", static_failure=False)
+    elif failure == "session_restart":
+        controller._discard_warm_process()
+    elif failure == "renderer_failed":
+        controller._handle_protocol_event({"event": "renderer_failed", "error": "surface frame failed: lost"}, controller.process_generation)
+        assert controller._gpu_failed
+        assert not controller._retry_timer.isActive()
+        assert not controller.request_capture(tmp_path / "unserviceable.png")
+    else:
+        controller.shutdown()
+    assert len(completed) == 1
+    assert completed[0]["status"] == "error"
+    assert completed[0]["requested_output_path"] == str(target)
+    assert not controller._pending_captures
+    if failure != "exit":
+        assert internal.exists(), "the retiring helper may still be writing"
+        # Even a late successful reply must neither complete again nor publish.
+        controller._handle_capture_result({"event": "capture_result", "request_id": request_id, "status": "captured"})
+    controller._handle_capture_result({"request_id": request_id, "status": "captured"})
+    assert len(completed) == 1
+    assert target.read_bytes() == b"previous capture"
+    assert not internal.exists()
+    process.kill()
+    process.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    controller.shutdown()
+
+
+def test_retired_helper_exit_does_not_fail_replacement_capture(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    controller, retired, _ = _start_controller(tmp_path)
+    _make_ready(controller)
+    completed = []
+    controller.capture_completed.connect(completed.append)
+    assert controller.request_capture(tmp_path / "old.png")
+    old_id, (old_internal, _) = next(iter(controller._pending_captures.items()))
+    old_internal.write_bytes(b"old partial")
+    controller._fail_current_process("restart", static_failure=False)
+    with (
+        patch("cdmw.ui.preview.dotnet_session.resolve_rust_mesh_editor", return_value=_resolution(tmp_path / "helper.exe")),
+        patch("cdmw.ui.preview.dotnet_session.validate_rust_mesh_editor_package", return_value=""),
+    ):
+        controller.retry_now()
+    replacement = controller.process
+    assert replacement is not None and replacement is not retired
+    _make_ready(controller)
+    assert controller.request_capture(tmp_path / "new.png")
+    new_id, (new_internal, _) = next(iter(controller._pending_captures.items()))
+    new_internal.write_bytes(b"new image")
+    retired.kill()
+    retired.finished.emit(1, QProcess.ExitStatus.NormalExit)
+    assert not old_internal.exists()
+    assert new_internal.exists() and new_id in controller._pending_captures
+    assert [item["request_id"] for item in completed] == [old_id]
+    controller._handle_capture_result({"request_id": new_id, "status": "captured"})
+    assert (tmp_path / "new.png").read_bytes() == b"new image"
+    assert completed[-1]["status"] == "captured"
+    assert len(completed) == 2
+    controller.shutdown()
+    replacement.kill()
+    replacement.finished.emit(0, QProcess.ExitStatus.NormalExit)
+
+
+def test_capture_missing_output_reports_error(tmp_path):
+    controller, process, _ = _start_controller(tmp_path)
+    _make_ready(controller)
+    completed = []
+    controller.capture_completed.connect(completed.append)
+    assert controller.request_capture(tmp_path / "missing.png")
+    request_id = next(iter(controller._pending_captures))
+    controller._handle_capture_result({"request_id": request_id, "status": "captured"})
+    assert completed[0]["status"] == "error"
+    assert "Could not publish capture" in completed[0]["message"]
+    controller.shutdown()
+    process.kill()
+    process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+
+
+def test_clear_preview_pins_package_until_helper_exit(tmp_path):
+    from cdmw.rendering.native_preview_package_cache import native_preview_package_live_paths_guard
+
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    assert controller.clear_preview()
+    with native_preview_package_live_paths_guard() as live:
+        assert package.package_dir.resolve() in live
+    process.kill()
+    process.finished.emit(0, QProcess.ExitStatus.NormalExit)
+    with native_preview_package_live_paths_guard() as live:
+        assert package.package_dir.resolve() not in live
+    controller.shutdown()
+
+
 def test_gpu_startup_failure_before_handshake_waits_for_explicit_retry(tmp_path, monkeypatch):
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     controller, process, package = _start_controller(tmp_path)

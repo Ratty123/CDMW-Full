@@ -149,17 +149,19 @@ def native_preview_package_derived_cache_root(cache_root: Path) -> Path:
     return Path(cache_root) / NATIVE_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME
 
 
-def native_preview_package_cache_tiers(cache_root: Path) -> Tuple[Path, Path]:
-    """Both durable tiers under one preview cache root.
+def native_preview_package_cache_tiers(cache_root: Path) -> Tuple[Path, ...]:
+    """All durable tiers under one preview cache root.
 
     Each tier is an independent cache with its own ``packages`` directory and is
     bounded separately at store time.  Maintenance that walks only the source
     tier leaves behind the derived packages the resident renderer actually
-    loads, so prune and clear have to cover both.
+    loads, so prune and clear have to cover the current Rust and legacy tiers.
     """
 
+    from cdmw.services.mesh_rust_preview_cache import rust_preview_package_cache_root
+
     root = Path(cache_root)
-    return root, native_preview_package_derived_cache_root(root)
+    return root, native_preview_package_derived_cache_root(root), rust_preview_package_cache_root(root)
 
 
 def native_preview_package_cache_entry_dir(cache_root: Path, cache_key: str) -> Path:
