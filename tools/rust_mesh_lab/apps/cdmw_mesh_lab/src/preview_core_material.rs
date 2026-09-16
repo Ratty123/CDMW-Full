@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
 use crate::cdmw_session::{
-    CdmwTextureResource, FileReference, PreviewCoreMaterial, PreviewCoreMaterialGraph,
-    PreviewCoreMaterialLayer, SessionError, SessionMaterialPresentation,
+    CdmwTextureResource, FileReference, MAX_TEXTURE_TOTAL_BYTES, PreviewCoreMaterial,
+    PreviewCoreMaterialGraph, PreviewCoreMaterialLayer, SessionError, SessionMaterialPresentation,
 };
 use cdmw_formats::MeshDocument;
 use cdmw_texture::{
@@ -269,6 +269,7 @@ where
                 material,
                 TextureRole::BaseColor,
                 pixels,
+                MAX_TEXTURE_TOTAL_BYTES,
             )?;
         }
         if let Some(pixels) = compose_material_response(material, presentations, &mut cache)? {
@@ -278,13 +279,28 @@ where
                 material,
                 TextureRole::Material,
                 pixels,
+                MAX_TEXTURE_TOTAL_BYTES,
             )?;
         }
         if let Some(pixels) = compose_normal(material, resources, &mut cache)? {
-            publish_composed_resource(resources, document, material, TextureRole::Normal, pixels)?;
+            publish_composed_resource(
+                resources,
+                document,
+                material,
+                TextureRole::Normal,
+                pixels,
+                MAX_TEXTURE_TOTAL_BYTES,
+            )?;
         }
         if let Some(pixels) = compose_height(material, resources, &mut cache)? {
-            publish_composed_resource(resources, document, material, TextureRole::Height, pixels)?;
+            publish_composed_resource(
+                resources,
+                document,
+                material,
+                TextureRole::Height,
+                pixels,
+                MAX_TEXTURE_TOTAL_BYTES,
+            )?;
         }
     }
     resources.retain(|resource| {
@@ -1100,10 +1116,65 @@ fn publish_composed_resource(
     material: &PreviewCoreMaterial,
     role: TextureRole,
     image: DecodedRgba8,
+    max_bytes: u64,
 ) -> Result<(), SessionError> {
     let lod_index = usize::try_from(material.lod_index).map_err(|_| {
         SessionError::InvalidManifest("Preview Core material LOD exceeds this platform".to_owned())
     })?;
+    if lod_index >= document.lods.len() {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core composed texture ownership LOD is invalid".to_owned(),
+        ));
+    }
+    let bytes = encode_rgba8_mipmapped_dds(image.width, image.height, &image.pixels, role)
+        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+    let metadata = inspect_dds(&bytes, role)
+        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
+    let existing_index = resources.iter().position(|resource| {
+        resource.role == role
+            && resource.metadata.source_sha256 == metadata.source_sha256
+            && resource.bytes == bytes
+    });
+    if let Some(index) = existing_index
+        && resources[index]
+            .material_indices_by_lod
+            .get(lod_index)
+            .is_none()
+    {
+        return Err(SessionError::InvalidManifest(
+            "Preview Core composed texture ownership LOD is invalid".to_owned(),
+        ));
+    }
+    // Include input and generated DDS bytes, counting a deduplicated output
+    // once and reclaiming only sources whose final owner this output replaces.
+    // Encoding is individually bounded; reject before changing existing owners.
+    let mut retained_bytes = if existing_index.is_none() {
+        bytes.len() as u64
+    } else {
+        0
+    };
+    for (index, resource) in resources.iter().enumerate() {
+        let retained = Some(index) == existing_index
+            || resource
+                .material_indices_by_lod
+                .iter()
+                .enumerate()
+                .any(|(lod, owners)| {
+                    owners.iter().any(|owner| {
+                        resource.role != role
+                            || lod != lod_index
+                            || *owner != material.material_index
+                    })
+                });
+        if retained {
+            retained_bytes = retained_bytes.saturating_add(resource.bytes.len() as u64);
+        }
+    }
+    if retained_bytes > max_bytes {
+        return Err(SessionError::InvalidPayload(
+            "Preview Core composed resources exceed the total texture byte safety limit".to_owned(),
+        ));
+    }
     for resource in resources
         .iter_mut()
         .filter(|resource| resource.role == role)
@@ -1112,16 +1183,8 @@ fn publish_composed_resource(
             owners.retain(|owner| *owner != material.material_index);
         }
     }
-    let bytes = encode_rgba8_mipmapped_dds(image.width, image.height, &image.pixels, role)
-        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-    let metadata = inspect_dds(&bytes, role)
-        .map_err(|error| SessionError::InvalidPayload(error.to_string()))?;
-    if let Some(existing) = resources.iter_mut().find(|resource| {
-        resource.role == role
-            && resource.metadata.source_sha256 == metadata.source_sha256
-            && resource.bytes == bytes
-    }) {
-        let owners = existing
+    if let Some(index) = existing_index {
+        let owners = resources[index]
             .material_indices_by_lod
             .get_mut(lod_index)
             .ok_or_else(|| {
@@ -1133,27 +1196,33 @@ fn publish_composed_resource(
             owners.push(material.material_index);
             owners.sort_unstable();
         }
-        return Ok(());
+    } else {
+        let mut material_indices_by_lod = vec![Vec::new(); document.lods.len()];
+        material_indices_by_lod
+            .get_mut(lod_index)
+            .ok_or_else(|| {
+                SessionError::InvalidManifest(
+                    "Preview Core composed texture ownership LOD is invalid".to_owned(),
+                )
+            })?
+            .push(material.material_index);
+        resources.push(CdmwTextureResource {
+            label: format!(
+                "preview-core-composed-{:04}-{}.dds",
+                material.material_index,
+                role_label(role)
+            ),
+            role,
+            metadata,
+            bytes,
+            material_indices_by_lod,
+        });
     }
-    let mut material_indices_by_lod = vec![Vec::new(); document.lods.len()];
-    material_indices_by_lod
-        .get_mut(lod_index)
-        .ok_or_else(|| {
-            SessionError::InvalidManifest(
-                "Preview Core composed texture ownership LOD is invalid".to_owned(),
-            )
-        })?
-        .push(material.material_index);
-    resources.push(CdmwTextureResource {
-        label: format!(
-            "preview-core-composed-{:04}-{}.dds",
-            material.material_index,
-            role_label(role)
-        ),
-        role,
-        metadata,
-        bytes,
-        material_indices_by_lod,
+    resources.retain(|resource| {
+        resource
+            .material_indices_by_lod
+            .iter()
+            .any(|owners| !owners.is_empty())
     });
     Ok(())
 }
@@ -1254,6 +1323,172 @@ mod tests {
             warnings: Vec::new(),
             structural_fingerprint: String::new(),
         }
+    }
+
+    #[test]
+    fn composed_resource_budget_counts_inputs_deduplication_and_replacements() {
+        let mut document = document();
+        let submesh = document.lods[0].submeshes[0].clone();
+        document.lods[0].submeshes.resize(3, submesh);
+        let mut material = PreviewCoreMaterial {
+            lod_index: 0,
+            material_index: 0,
+            material_slot_index: 0,
+            material_name: "test".to_owned(),
+            base_color: [1.0; 3],
+            layers: vec![layer("base", "r")],
+        };
+        let image = |red| DecodedRgba8 {
+            width: 2,
+            height: 2,
+            pixels: [red, 0, 0, 255].repeat(4),
+        };
+        let encoded =
+            encode_rgba8_mipmapped_dds(2, 2, &image(0).pixels, TextureRole::BaseColor).unwrap();
+        let texture_bytes = encoded.len() as u64;
+        let limit = texture_bytes * 2;
+        // An existing authored texture consumes the same budget as baked output.
+        let mut resources = vec![CdmwTextureResource {
+            label: "authored.dds".to_owned(),
+            role: TextureRole::Normal,
+            metadata: inspect_dds(&encoded, TextureRole::Normal).unwrap(),
+            bytes: encoded,
+            material_indices_by_lod: vec![vec![0]],
+        }];
+        publish_composed_resource(
+            &mut resources,
+            &document,
+            &material,
+            TextureRole::BaseColor,
+            image(16),
+            limit,
+        )
+        .unwrap();
+        assert_eq!(
+            resources.iter().map(|r| r.bytes.len() as u64).sum::<u64>(),
+            limit
+        );
+        material.material_index = 1;
+        let before = resources.clone();
+        let error = publish_composed_resource(
+            &mut resources,
+            &document,
+            &material,
+            TextureRole::BaseColor,
+            image(32),
+            limit,
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("total texture byte safety limit")
+        );
+        assert_eq!(resources.len(), before.len());
+        for (actual, original) in resources.iter().zip(&before) {
+            assert_eq!(actual.bytes, original.bytes);
+            assert_eq!(
+                actual.material_indices_by_lod,
+                original.material_indices_by_lod
+            );
+        }
+        // Sharing the existing composed payload costs no additional bytes.
+        publish_composed_resource(
+            &mut resources,
+            &document,
+            &material,
+            TextureRole::BaseColor,
+            image(16),
+            limit,
+        )
+        .unwrap();
+        assert_eq!(resources.len(), 2);
+        assert_eq!(resources[1].material_indices_by_lod, vec![vec![0, 1]]);
+        // Replacing one owner cannot reclaim the other owner's texture.
+        material.material_index = 0;
+        assert!(
+            publish_composed_resource(
+                &mut resources,
+                &document,
+                &material,
+                TextureRole::BaseColor,
+                image(32),
+                limit
+            )
+            .is_err()
+        );
+        assert_eq!(resources[1].material_indices_by_lod, vec![vec![0, 1]]);
+        // A sole owner's previous payload is reclaimed immediately.
+        resources[1].material_indices_by_lod[0] = vec![0];
+        publish_composed_resource(
+            &mut resources,
+            &document,
+            &material,
+            TextureRole::BaseColor,
+            image(32),
+            limit,
+        )
+        .unwrap();
+        assert_eq!(resources.len(), 2);
+        assert_eq!(
+            resources.iter().map(|r| r.bytes.len() as u64).sum::<u64>(),
+            limit
+        );
+        assert_eq!(
+            decode_dds_rgba8(&resources[1].bytes, TextureRole::BaseColor)
+                .unwrap()
+                .pixels,
+            image(32).pixels
+        );
+    }
+
+    #[test]
+    fn composed_resource_failure_does_not_remove_existing_owners() {
+        let document = document();
+        let material = PreviewCoreMaterial {
+            lod_index: 0,
+            material_index: 0,
+            material_slot_index: 0,
+            material_name: "test".to_owned(),
+            base_color: [1.0; 3],
+            layers: vec![],
+        };
+        let mut resources = Vec::new();
+        publish_composed_resource(
+            &mut resources,
+            &document,
+            &material,
+            TextureRole::BaseColor,
+            DecodedRgba8 {
+                width: 1,
+                height: 1,
+                pixels: vec![255; 4],
+            },
+            MAX_TEXTURE_TOTAL_BYTES,
+        )
+        .unwrap();
+        let original = resources.clone();
+        assert!(
+            publish_composed_resource(
+                &mut resources,
+                &document,
+                &material,
+                TextureRole::BaseColor,
+                DecodedRgba8 {
+                    width: 2,
+                    height: 2,
+                    pixels: vec![]
+                },
+                MAX_TEXTURE_TOTAL_BYTES
+            )
+            .is_err()
+        );
+        assert_eq!(resources.len(), original.len());
+        assert_eq!(resources[0].bytes, original[0].bytes);
+        assert_eq!(
+            resources[0].material_indices_by_lod,
+            original[0].material_indices_by_lod
+        );
     }
 
     #[test]

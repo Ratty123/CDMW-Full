@@ -34,9 +34,23 @@ completed native job folders and their ownership handles as soon as conversion
 to an independent Rust package finishes or fails. Other consumers retain their
 temporary native inputs until they explicitly release the completed attempt or
 exit. Cache-disabled Rust builds remove partial output on errors and cancellation;
-successful output remains owned by the receiving caller.
+successful output remains owned by the receiving caller. Progressive fast-preview
+packages that fail or are cancelled before the receiving callback accepts them
+are also removed. A completed handoff preserves its files on later cancellation,
+and durable cache entries retain their normal cache ownership. Session runtime
+output is removed only after every helper using it has stopped, including a
+retired helper still shutting down after its replacement starts.
 
 GPU recovery and hidden-preview reactivation restore live material parameters
-along with the scene. If recovery fails, selecting another package keeps it queued
-and leaves Retry available. Effect-texture aliases share immutable resident bytes
-by content hash, so the texture byte budget accounts for their retained data.
+along with the scene. Material updates received while hidden are validated and
+retained for reactivation. GPU initialization failures report the same paused
+renderer state as failed recovery, without automatically relaunching the helper.
+Selecting another package keeps it queued and leaves Retry available.
+Effect-texture aliases share immutable resident bytes by content hash, so the
+texture byte budget accounts for their retained data.
+
+Composed material textures share the 512 MiB retained DDS-payload limit with
+authored textures. Publication checks the total after deduplication and before
+changing ownership; payloads losing their final owner are released immediately.
+Encoding retains its separate per-texture bound. These limits cover texture
+payloads, not total process memory or temporary decode/composition buffers.
