@@ -206,6 +206,9 @@ jobs:
           $baseTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-smoke-${{ matrix.python-version }}"
           .\scripts\codex_check.ps1 -Area smoke -PytestBaseTemp $baseTemp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ciContractTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-ci-contract-${{ matrix.python-version }}"
+          .\.venv\Scripts\python -m pytest tests/test_release_packaging.py -k codeql --basetemp $ciContractTemp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run optional exhaustive QA
         if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests
