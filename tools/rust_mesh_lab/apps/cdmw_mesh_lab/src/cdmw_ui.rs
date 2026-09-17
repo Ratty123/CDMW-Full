@@ -16,7 +16,7 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
-const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 14] = [
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 15] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
     (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
@@ -29,6 +29,7 @@ const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 14] = [
         Some(ViewportTool::Inflate),
     ),
     (CdmwRailPage::Pinch, "Pinch", Some(ViewportTool::Pinch)),
+    (CdmwRailPage::VertexParameters, "Vertex Parameters", None),
     (CdmwRailPage::Topology, "Topology", None),
     (CdmwRailPage::Cleanup, "Cleanup", None),
     (CdmwRailPage::Normals, "Normals & Tangents", None),
@@ -288,6 +289,15 @@ fn cdmw_sidebar_button(
                             [0.0, direction * 0.26],
                             [0.27, direction * 0.53],
                         ]);
+                    }
+                }
+                CdmwRailPage::VertexParameters => {
+                    // A vertex connected to its neighbours, beside value rows.
+                    line([-0.6, -0.05], [-0.95, -0.85]);
+                    line([-0.6, -0.05], [-0.95, 0.85]);
+                    painter.circle_stroke(p(-0.6, -0.05), radius * 0.23, stroke);
+                    for y in [-0.65, 0.0, 0.65] {
+                        line([0.1, y], [1.0, y]);
                     }
                 }
                 CdmwRailPage::Topology => {
@@ -638,10 +648,15 @@ impl LabApplication {
             self.draw_cdmw_compact_settings(root_ui, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
-        self.tick_vertex_inspector(cdmw_sidebar_visible(
-            &self.egui_context,
-            CDMW_INSPECTOR_SIDEBAR,
-        ));
+        let vertex_parameters_visible = !self.hair.active()
+            && if tools_expanded {
+                self.cdmw_rail_page == Some(CdmwRailPage::VertexParameters)
+            } else {
+                CdmwSidebarSettings::load(&self.egui_context)
+                    .open
+                    .contains(&CdmwSidebarPage::Tool(CdmwRailPage::VertexParameters))
+            };
+        self.tick_vertex_inspector(vertex_parameters_visible);
         actions
     }
 
@@ -951,13 +966,15 @@ impl LabApplication {
                             )
                             .enumerate()
                         {
-                            if matches!(index, 1 | 2 | 5 | 9 | 14) {
+                            if matches!(index, 1 | 2 | 5 | 9 | 15) {
                                 ui.separator();
                             }
                             let requires_authoring = !matches!(
                                 page,
                                 CdmwSidebarPage::Viewport
-                                    | CdmwSidebarPage::Tool(CdmwRailPage::Select)
+                                    | CdmwSidebarPage::Tool(
+                                        CdmwRailPage::Select | CdmwRailPage::VertexParameters
+                                    )
                             );
                             let enabled = !busy && (!requires_authoring || authoring);
                             let settings = CdmwSidebarSettings::load(ui.ctx());
@@ -1028,6 +1045,19 @@ impl LabApplication {
             }
             self.viewport_tool = tool;
             self.cdmw_orbit_mode = false;
+        }
+    }
+
+    pub(super) fn open_cdmw_tool_settings(&mut self, context: &egui::Context, page: CdmwRailPage) {
+        let tool = CDMW_RAIL_TOOLS
+            .iter()
+            .find(|(candidate, _, _)| *candidate == page)
+            .and_then(|(_, _, tool)| *tool);
+        self.activate_cdmw_rail_page(page, tool);
+        if !cdmw_sidebar_visible(context, CDMW_TOOLS_SIDEBAR) {
+            let mut settings = CdmwSidebarSettings::load(context);
+            settings.show(CdmwSidebarPage::Tool(page), context);
+            settings.store(context);
         }
     }
 
@@ -1194,7 +1224,11 @@ impl LabApplication {
             && (matches!(
                 page,
                 CdmwSidebarPage::Viewport
-                    | CdmwSidebarPage::Tool(CdmwRailPage::Select | CdmwRailPage::RigWeights)
+                    | CdmwSidebarPage::Tool(
+                        CdmwRailPage::Select
+                            | CdmwRailPage::VertexParameters
+                            | CdmwRailPage::RigWeights
+                    )
             ) || state_bool(&self.cdmw_state, "authoring_enabled"));
         // Explicit IDs keep collapsing sections and edit fields alive when their
         // settings move between the expanded rail, floating area and dock.
@@ -1213,6 +1247,9 @@ impl LabApplication {
                         | CdmwRailPage::Smooth
                         | CdmwRailPage::Inflate
                         | CdmwRailPage::Pinch => self.draw_cdmw_brush_page(ui, page),
+                        CdmwRailPage::VertexParameters => {
+                            self.draw_vertex_parameters_body(ui, actions)
+                        }
                         CdmwRailPage::Topology => self.draw_cdmw_topology_page(ui, actions),
                         CdmwRailPage::Cleanup => self.draw_cdmw_cleanup_page(ui, actions),
                         CdmwRailPage::Normals => self.draw_cdmw_normals_page(ui, actions),
@@ -1277,7 +1314,6 @@ impl LabApplication {
                             actions,
                             "Selection",
                             &CDMW_RAIL_TOOLS[0..1],
-                            1,
                             busy,
                             authoring,
                             &policy_reason,
@@ -1287,7 +1323,6 @@ impl LabApplication {
                             actions,
                             "Transform",
                             &CDMW_RAIL_TOOLS[1..4],
-                            3,
                             busy,
                             authoring,
                             &policy_reason,
@@ -1297,7 +1332,6 @@ impl LabApplication {
                             actions,
                             "Sculpt",
                             &CDMW_RAIL_TOOLS[4..8],
-                            2,
                             busy,
                             authoring,
                             &policy_reason,
@@ -1306,32 +1340,21 @@ impl LabApplication {
                             ui,
                             actions,
                             "Mesh Data",
-                            &CDMW_RAIL_TOOLS[8..13],
-                            2,
+                            &CDMW_RAIL_TOOLS[8..14],
                             busy,
                             authoring,
                             &policy_reason,
                         );
                         ui.add_space(3.0);
-                        let active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
-                        if ui
-                            .add_enabled(
-                                !busy && authoring,
-                                Button::new(RichText::new("Morph & Refit").strong())
-                                    .selected(active)
-                                    .min_size(egui::vec2(ui.available_width(), 30.0)),
-                            )
-                            .on_disabled_hover_text(&policy_reason)
-                            .clicked()
-                        {
-                            self.cancel_active_gesture("Morph & Refit toggled");
-                            self.cdmw_rail_page = if active {
-                                None
-                            } else {
-                                Some(CdmwRailPage::MorphRefit)
-                            };
-                            self.cdmw_orbit_mode = true;
-                        }
+                        ui.horizontal_wrapped(|ui| {
+                            self.draw_cdmw_tool_tab(
+                                ui,
+                                CDMW_RAIL_TOOLS[14],
+                                busy,
+                                authoring,
+                                &policy_reason,
+                            );
+                        });
                         if self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit) {
                             ui.push_id("cdmw-morph-root", |ui| {
                                 egui::Frame::group(ui.style())
@@ -1360,7 +1383,6 @@ impl LabApplication {
         actions: &mut Vec<UiAction>,
         heading: &str,
         tools: &[(CdmwRailPage, &str, Option<ViewportTool>)],
-        columns: usize,
         busy: bool,
         authoring: bool,
         policy_reason: &str,
@@ -1376,66 +1398,27 @@ impl LabApplication {
                     .default_open(false)
                     .open(active.then_some(true))
                     .show_unindented(ui, |ui| {
-                        if heading == "Mesh Data" && ui.button("Vertex Parameters").clicked() {
-                            self.reveal_vertex_parameters(ui.ctx());
-                        }
-                        let columns = columns.max(1);
-                        for row in tools.chunks(columns) {
-                            let gap = ui.spacing().item_spacing.x;
-                            let button_width = (ui.available_width()
-                                - gap * (columns.saturating_sub(1) as f32))
-                                / columns as f32;
-                            ui.horizontal(|ui| {
-                                for &(page, label, tool) in row {
-                                    let active = self.cdmw_rail_page == Some(page);
-                                    let requires_authoring = !matches!(
-                                        page,
-                                        CdmwRailPage::Select | CdmwRailPage::RigWeights
-                                    );
-                                    let enabled = !busy && (!requires_authoring || authoring);
-                                    if ui
-                                        .add_enabled_ui(enabled, |ui| {
-                                            ui.add_sized(
-                                                [
-                                                    button_width.max(1.0),
-                                                    ui.spacing().interact_size.y,
-                                                ],
-                                                Button::new(label).selected(active).wrap(),
-                                            )
-                                        })
-                                        .inner
-                                        .on_disabled_hover_text(if busy {
-                                            "Wait for the current shadow operation"
-                                        } else {
-                                            policy_reason
-                                        })
-                                        .clicked()
-                                    {
-                                        if active {
-                                            self.cdmw_rail_page = None;
-                                            self.cancel_active_gesture("Tool closed");
-                                            self.cdmw_orbit_mode = true;
-                                            continue;
-                                        }
-                                        self.activate_cdmw_rail_page(page, tool);
-                                    }
-                                }
-                            });
-                            if let Some(active_page) = row
-                                .iter()
-                                .map(|(page, _, _)| *page)
-                                .find(|page| self.cdmw_rail_page == Some(*page))
-                            {
-                                ui.push_id(format!("cdmw-tool-page-{active_page:?}"), |ui| {
-                                    egui::Frame::group(ui.style()).show(ui, |ui| {
-                                        self.draw_cdmw_sidebar_page(
-                                            ui,
-                                            CdmwSidebarPage::Tool(active_page),
-                                            actions,
-                                        );
-                                    });
-                                });
+                        ui.horizontal_wrapped(|ui| {
+                            for &tool in tools {
+                                self.draw_cdmw_tool_tab(ui, tool, busy, authoring, policy_reason);
                             }
+                        });
+                        // Keep the navigation together instead of inserting a
+                        // settings page between rows of related tool buttons.
+                        if let Some(active_page) = tools
+                            .iter()
+                            .map(|(page, _, _)| *page)
+                            .find(|page| self.cdmw_rail_page == Some(*page))
+                        {
+                            ui.push_id(format!("cdmw-tool-page-{active_page:?}"), |ui| {
+                                egui::Frame::group(ui.style()).show(ui, |ui| {
+                                    self.draw_cdmw_sidebar_page(
+                                        ui,
+                                        CdmwSidebarPage::Tool(active_page),
+                                        actions,
+                                    );
+                                });
+                            });
                         }
                     })
             })
@@ -1450,6 +1433,41 @@ impl LabApplication {
             self.cdmw_rail_page = None;
             self.cancel_active_gesture("Tool section collapsed");
             self.cdmw_orbit_mode = true;
+        }
+    }
+
+    fn draw_cdmw_tool_tab(
+        &mut self,
+        ui: &mut egui::Ui,
+        (page, label, tool): (CdmwRailPage, &str, Option<ViewportTool>),
+        busy: bool,
+        authoring: bool,
+        policy_reason: &str,
+    ) {
+        let active = self.cdmw_rail_page == Some(page);
+        let requires_authoring = !matches!(
+            page,
+            CdmwRailPage::Select | CdmwRailPage::VertexParameters | CdmwRailPage::RigWeights
+        );
+        if ui
+            .add_enabled(
+                !busy && (!requires_authoring || authoring),
+                Button::new(label).selected(active).wrap(),
+            )
+            .on_disabled_hover_text(if busy {
+                "Wait for the current shadow operation"
+            } else {
+                policy_reason
+            })
+            .clicked()
+        {
+            if active {
+                self.cdmw_rail_page = None;
+                self.cancel_active_gesture("Tool closed");
+                self.cdmw_orbit_mode = true;
+            } else {
+                self.activate_cdmw_rail_page(page, tool);
+            }
         }
     }
 
@@ -2462,14 +2480,7 @@ impl LabApplication {
             ));
         if ui.button("Open Selection tool").clicked() {
             self.cancel_active_gesture("Open selection for Morph & Refit");
-            self.cdmw_rail_page = Some(CdmwRailPage::Select);
-            self.viewport_tool = ViewportTool::Select;
-            self.cdmw_orbit_mode = false;
-            if !cdmw_sidebar_visible(ui.ctx(), CDMW_TOOLS_SIDEBAR) {
-                let mut settings = CdmwSidebarSettings::load(ui.ctx());
-                settings.show(CdmwSidebarPage::Tool(CdmwRailPage::Select), ui.ctx());
-                settings.store(ui.ctx());
-            }
+            self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Select);
         }
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
             let parts = self
@@ -3413,11 +3424,6 @@ impl LabApplication {
                             .show(ui, |ui| self.draw_hair_parts(ui, actions));
                         egui::CollapsingHeader::new("Action History")
                             .show(ui, |ui| self.draw_cdmw_history(ui));
-                        ui.add_space(6.0);
-                        egui::Frame::group(ui.style()).show(ui, |ui| {
-                            ui.set_width(ui.available_width());
-                            self.draw_vertex_inspector(ui, actions);
-                        });
                         return;
                     }
                     ui.add_enabled_ui(!busy, |ui| {
@@ -3441,11 +3447,6 @@ impl LabApplication {
                                 self.draw_cdmw_history(ui);
                             });
                         });
-                    });
-                    ui.add_space(6.0);
-                    egui::Frame::group(ui.style()).show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        self.draw_vertex_inspector(ui, actions);
                     });
                 });
             });

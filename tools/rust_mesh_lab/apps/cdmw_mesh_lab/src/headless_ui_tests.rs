@@ -44,33 +44,32 @@ fn seed_vertex_inspection(ui: &mut HeadlessUi, count: u64) {
 }
 
 #[test]
-fn vertex_inspector_shortcut_reveals_hidden_sidebar_without_switching_tools() -> TestResult {
+fn vertex_inspector_mesh_data_tab_keeps_inspector_closed_and_viewport_tool_active() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
     assert!(!ui.application.vertex_inspector.open);
-    let tool = ui.application.viewport_tool;
-    ui.application.cdmw_state["history_entries"] = json!(
-        (0..60)
-            .map(|index| format!("Edit {index}"))
-            .collect::<Vec<_>>()
-    );
-    ui.click("Action History")?;
     assert!(ui.label_rect("Vertex Parameters").is_none());
-    crate::cdmw_ui::set_cdmw_sidebar_expanded(
-        &ui.application.egui_context,
-        crate::cdmw_ui::CDMW_INSPECTOR_SIDEBAR,
-        false,
-    );
+    ui.click_sidebar("Collapse Inspector")?;
+    ui.click_tool_button("Transform")?;
+    ui.click_tool_button("Move")?;
     ui.click_tool_button("Mesh Data")?;
     ui.click_tool_button("Vertex Parameters")?;
     ui.settle_layout();
     assert!(ui.application.vertex_inspector.open);
-    assert_eq!(ui.application.viewport_tool, tool);
+    assert_eq!(
+        ui.application.cdmw_rail_page,
+        Some(CdmwRailPage::VertexParameters)
+    );
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    assert!(!ui.application.cdmw_orbit_mode);
+    assert!(ui.sidebar_button("Expand Inspector").is_some());
     assert!(
         ui.label_rect("Vertex Parameters is unavailable with this host/helper combination.")
-            .is_some(),
-        "the shortcut must scroll past expanded history to reveal Vertex Parameters"
+            .is_some()
     );
+    ui.click_tool_button("Vertex Parameters")?;
+    assert!(!ui.application.vertex_inspector.open);
+    assert!(ui.application.cdmw_orbit_mode);
     Ok(())
 }
 
@@ -78,7 +77,8 @@ fn vertex_inspector_shortcut_reveals_hidden_sidebar_without_switching_tools() ->
 fn vertex_inspector_apply_discard_pagination_and_selection_invalidation() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1100.0));
-    ui.click("Vertex Parameters")?;
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 257);
     ui.click("Position")?;
     ui.reveal("Mixed")?;
@@ -128,7 +128,8 @@ fn vertex_inspector_compact_large_font_controls_remain_reachable() -> TestResult
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1000.0, 650.0));
     ui.application
         .apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
-    ui.click("Vertex Parameters")?;
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 2);
     ui.application.vertex_inspector.draft.position[0] = "1".into();
     ui.click("Position")?;
@@ -143,17 +144,12 @@ fn vertex_inspector_compact_large_font_controls_remain_reachable() -> TestResult
 }
 
 #[test]
-fn vertex_inspector_is_a_framed_section_below_history_with_compact_values() -> TestResult {
+fn vertex_inspector_is_only_in_mesh_data_with_compact_values() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
     let mut previous_bottom = 0.0;
     let mut frame_width: Option<f32> = None;
-    for label in [
-        "Parts",
-        "Geometry Layers",
-        "Action History",
-        "Vertex Parameters",
-    ] {
+    for label in ["Parts", "Geometry Layers", "Action History"] {
         let text = ui.label_rect(label).ok_or(label)?;
         let frame = ui
             .output
@@ -182,7 +178,11 @@ fn vertex_inspector_is_a_framed_section_below_history_with_compact_values() -> T
         frame_width = Some(frame.width());
         previous_bottom = frame.bottom();
     }
-    ui.click("Vertex Parameters")?;
+    assert!(ui.label_rect("Vertex Parameters").is_none());
+    ui.click_tool_button("Mesh Data")?;
+    let tab = ui.label_rect("Vertex Parameters").ok_or("Mesh Data tab")?;
+    assert!(tab.right() < ui.application.viewport_rect.ok_or("viewport")?.left());
+    ui.click_tool_button("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 156);
     for label in [
         "Position",
@@ -224,7 +224,8 @@ fn vertex_inspector_is_a_framed_section_below_history_with_compact_values() -> T
 fn vertex_inspector_weight_form_tracks_the_operation_and_preserves_dispatch() -> TestResult {
     let mut ui =
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
-    ui.click("Vertex Parameters")?;
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 2);
     ui.application.vertex_inspector.data["capabilities"]["weights"] = json!({"editable":true});
     ui.application.vertex_inspector.data["bones"] = json!([{"bone":3,"name":"Spine"}]);
@@ -243,6 +244,189 @@ fn vertex_inspector_weight_form_tracks_the_operation_and_preserves_dispatch() ->
     assert!(ui.label_rect("Influence (0–1)").is_none());
     let actions = ui.actions_from_click("Apply to 2 vertices")?;
     assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand {command:"vertex_edit", arguments,..} if arguments["edits"]["weights"]["mode"] == "normalize" && arguments["edits"]["weights"]["value"].is_null())));
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_tool_page_preserves_draft_and_sections_across_layouts() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1100.0));
+    ui.click_tool_button("Transform")?;
+    ui.click_tool_button("Move")?;
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
+    seed_vertex_inspection(&mut ui, 2);
+    ui.click("Position")?;
+    ui.application.vertex_inspector.draft.position[0] = "0.25".into();
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let fingerprint = mesh.structural_fingerprint();
+    let selection = mesh.selection.clone();
+    let history = ui.application.history.undo_len();
+    let data = ui.application.vertex_inspector.data.clone();
+    ui.click_sidebar("Collapse Tools")?;
+    assert!(!ui.application.vertex_inspector.open);
+    ui.click_sidebar("Vertex Parameters")?;
+    assert!(ui.application.vertex_inspector.open);
+    ui.reveal("Current")?;
+    ui.drag_tool_window("Vertex Parameters", egui::vec2(310.0, 20.0))?;
+    ui.click_sidebar("Pin Vertex Parameters settings")?;
+    ui.reveal("Current")?;
+    assert_eq!(ui.application.vertex_inspector.draft.position[0], "0.25");
+    ui.click_sidebar("Unpin Vertex Parameters settings")?;
+    ui.click_sidebar("Close Vertex Parameters settings")?;
+    assert!(!ui.application.vertex_inspector.open);
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    assert!(!ui.application.cdmw_orbit_mode);
+
+    ui.click_sidebar("Vertex Parameters")?;
+    ui.click_sidebar("Move")?;
+    assert!(
+        ui.application.vertex_inspector.open,
+        "another tool must not hide the inspection"
+    );
+    assert!(
+        ui.sidebar_button("Close Vertex Parameters settings")
+            .is_some()
+    );
+    assert!(ui.sidebar_button("Close Move settings").is_some());
+    ui.click_sidebar("Close Move settings")?;
+    ui.click("Cloth & other data")?;
+    ui.click("Open Cloth Controls")?;
+    assert!(ui.sidebar_button("Expand Tools").is_some());
+    assert!(ui.sidebar_button("Close Cloth settings").is_some());
+    assert!(ui.application.vertex_inspector.open);
+    ui.click_sidebar("Close Cloth settings")?;
+    ui.click_sidebar("Vertex Parameters")?;
+    ui.click_sidebar("Expand Tools")?;
+    assert!(ui.application.vertex_inspector.open);
+    ui.reveal("Current")?;
+    assert_eq!(ui.application.vertex_inspector.data, data);
+    assert_eq!(ui.application.vertex_inspector.draft.position[0], "0.25");
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    assert_eq!(mesh.structural_fingerprint(), fingerprint);
+    assert_eq!(mesh.selection, selection);
+    assert_eq!(ui.application.history.undo_len(), history);
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_read_only_page_still_opens_but_cannot_dispatch_edits() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
+    seed_vertex_inspection(&mut ui, 2);
+    ui.application.cdmw_state["authoring_enabled"] = json!(false);
+    ui.application.cdmw_state["output_policy_reason"] = json!("Read-only inspection");
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
+    assert!(ui.application.vertex_inspector.open);
+    ui.application.vertex_inspector.draft.position[0] = "0.25".into();
+    ui.click("Position")?;
+    ui.reveal("Read-only inspection")?;
+    ui.click("Unchanged")?;
+    ui.frame(vec![Event::Text("0.5".into())]);
+    assert!(ui.application.vertex_inspector.draft.position[2].is_empty());
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply to 2 vertices")?,
+        "vertex_edit"
+    ));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Vertex Parameters")?;
+    assert!(ui.application.vertex_inspector.open);
+    ui.click_sidebar("Pin Vertex Parameters settings")?;
+    assert!(!has_host_command(
+        &ui.actions_from_click("Apply to 2 vertices")?,
+        "vertex_edit"
+    ));
+    ui.click_sidebar("Close Vertex Parameters settings")?;
+    assert!(!ui.application.vertex_inspector.open);
+    Ok(())
+}
+
+#[test]
+fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings() -> TestResult {
+    for (size, font, density) in [
+        (egui::vec2(1800.0, 1100.0), 10.0, "compact"),
+        (egui::vec2(1000.0, 650.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
+        ui.settle_layout();
+        for group in ["Selection", "Transform", "Sculpt", "Mesh Data"] {
+            ui.click_tool_button(group)?;
+        }
+        let style = ui
+            .application
+            .egui_context
+            .style_of(ui.application.egui_context.theme());
+        let line_height = ui
+            .application
+            .egui_context
+            .fonts_mut(|fonts| fonts.row_height(&style.text_styles[&egui::TextStyle::Button]));
+        for label in [
+            "Select",
+            "Move",
+            "Rotate",
+            "Scale",
+            "Grab",
+            "Smooth",
+            "Inflate",
+            "Pinch",
+            "Vertex Parameters",
+            "Topology",
+            "Cleanup",
+            "Normals & Tangents",
+            "UV",
+            "Cloth",
+            "Morph & Refit",
+        ] {
+            let text = ui.reveal(label)?;
+            let button = ui
+                .output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Rect(shape)
+                        if shape.rect.contains_rect(text) && shape.stroke.width > 0.0 =>
+                    {
+                        Some(shape.rect)
+                    }
+                    _ => None,
+                })
+                .min_by(|a, b| a.area().total_cmp(&b.area()))
+                .ok_or("tool button")?;
+            assert!(
+                button.width() - text.width() <= style.spacing.button_padding.x * 2.0 + 8.0,
+                "{label} reserves unused button width: {button:?} vs {text:?}"
+            );
+            assert!(
+                button.height()
+                    <= style
+                        .spacing
+                        .interact_size
+                        .y
+                        .max(line_height + style.spacing.button_padding.y * 2.0)
+                        + 2.0,
+                "{label} should remain a compact single-line tab: {button:?}"
+            );
+        }
+        ui.click_tool_button("Topology")?;
+        ui.reveal("Mesh Data")?;
+        let settings_top = ui.reveal("Extrude distance")?.top();
+        for label in [
+            "Vertex Parameters",
+            "Topology",
+            "Cleanup",
+            "Normals & Tangents",
+            "UV",
+            "Cloth",
+        ] {
+            assert!(
+                ui.label_rect(label).ok_or(label)?.bottom() < settings_top,
+                "{label} must stay above the open settings"
+            );
+        }
+    }
     Ok(())
 }
 
@@ -273,6 +457,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                 "Smooth",
                 "Inflate",
                 "Pinch",
+                "Vertex Parameters",
                 "Topology",
                 "Cleanup",
                 "Normals & Tangents",
@@ -288,6 +473,10 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                     }
                 } else {
                     ui.click_tool_button(label)?;
+                }
+                if label == "Vertex Parameters" {
+                    seed_vertex_inspection(&mut ui, 156);
+                    ui.settle_layout();
                 }
                 let viewport = ui.application.viewport_rect.ok_or("viewport")?;
                 let rail = if compact {
@@ -1672,6 +1861,7 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         ("Smooth", CdmwRailPage::Smooth),
         ("Inflate", CdmwRailPage::Inflate),
         ("Pinch", CdmwRailPage::Pinch),
+        ("Vertex Parameters", CdmwRailPage::VertexParameters),
         ("Topology", CdmwRailPage::Topology),
         ("Cleanup", CdmwRailPage::Cleanup),
         ("Normals & Tangents", CdmwRailPage::Normals),
@@ -3221,6 +3411,7 @@ fn integrated_tool_buttons_toggle_and_sections_collapse_without_geometry_changes
         ("Smooth", CdmwRailPage::Smooth),
         ("Inflate", CdmwRailPage::Inflate),
         ("Pinch", CdmwRailPage::Pinch),
+        ("Vertex Parameters", CdmwRailPage::VertexParameters),
         ("Topology", CdmwRailPage::Topology),
         ("Cleanup", CdmwRailPage::Cleanup),
         ("Normals & Tangents", CdmwRailPage::Normals),

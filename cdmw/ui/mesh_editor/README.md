@@ -42,7 +42,9 @@ One panel can be docked at a time; pinning another returns the previous one to a
 floating window. Unpin returns to floating settings; closing affects only that
 panel. Short windows scroll the icons and settings while keeping their header
 controls available. Panels stay within the available content area after resizing.
-Expanded tool buttons retain their existing toggle-to-Orbit behavior.
+Expanded tools use compact tabs that size to their labels and wrap into rows.
+Each group's settings appear below all its tabs, keeping related tools together.
+Clicking the active tab retains the existing toggle-to-Orbit behavior.
 Floating panels grow with their contents up to the available editor height and
 use the full panel width. Expanded and pinned panels start narrower; tool rows
 wrap at larger font sizes, and action buttons size to their labels. Topology
@@ -347,10 +349,11 @@ geometry, materials, physics sections and companion files are preserved.
 
 ## Vertex Parameters
 
-Open **Inspector > Vertex Parameters**, or use **Mesh Data > Vertex Parameters**
-to reveal the Inspector and open the section. Its framed, collapsible header is
-below **Action History**, matching Parts and Geometry Layers. It starts collapsed
-and follows the current selection without switching tools. Select vertices,
+Open **Mesh Data > Vertex Parameters** in Tools. It is a dedicated tool tab,
+with its own icon when Tools is collapsed, and can float or pin like other tool
+pages. Inspector contains Parts, Geometry Layers, and Action History; Vertex
+Parameters is no longer duplicated there. Opening the page follows the current
+selection without changing the viewport tool. Select vertices,
 edges, faces or whole parts; an empty selection has no target. Edges and faces contribute their
 unique vertices.
 

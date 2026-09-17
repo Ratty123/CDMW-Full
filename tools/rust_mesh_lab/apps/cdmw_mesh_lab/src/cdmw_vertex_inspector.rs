@@ -9,7 +9,6 @@ pub(super) const CAPABILITY: &str = "vertex_parameters_v1";
 #[derive(Default)]
 pub(super) struct VertexInspector {
     pub open: bool,
-    reveal: bool,
     key: Value,
     changed_at: Option<Instant>,
     pending: Option<(u64, Value)>,
@@ -135,17 +134,6 @@ impl VertexInspector {
 }
 
 impl LabApplication {
-    pub(super) fn reveal_vertex_parameters(&mut self, context: &egui::Context) {
-        crate::cdmw_ui::set_cdmw_sidebar_expanded(
-            context,
-            crate::cdmw_ui::CDMW_INSPECTOR_SIDEBAR,
-            true,
-        );
-        self.vertex_inspector.reveal = true;
-        self.vertex_inspector.open = true;
-        self.vertex_inspector.fetch = true;
-    }
-
     fn vertex_token(&self) -> Value {
         json!({"session_id": self.cdmw_state["session_id"], "mesh_revision": self.cdmw_state["base_revision"],
             "selection_revision":self.cdmw_state["selection_revision"],"topology_generation":self.cdmw_state["topology_generation"]})
@@ -172,6 +160,10 @@ impl LabApplication {
     }
 
     pub(super) fn tick_vertex_inspector(&mut self, visible: bool) {
+        if visible && !self.vertex_inspector.open {
+            self.vertex_inspector.fetch = true;
+        }
+        self.vertex_inspector.open = visible;
         let key = self.vertex_key();
         if self.vertex_inspector.key != key {
             self.cancel_vertex_inspection();
@@ -179,12 +171,7 @@ impl LabApplication {
         }
         let available =
             self.cdmw_state["vertex_parameters"]["capability"].as_str() == Some(CAPABILITY);
-        if !visible
-            || !self.vertex_inspector.open
-            || !available
-            || self.cdmw_busy()
-            || self.hair.active()
-        {
+        if !visible || !available || self.cdmw_busy() || self.hair.active() {
             self.cancel_vertex_inspection();
             return;
         }
@@ -256,23 +243,6 @@ impl LabApplication {
         }
     }
 
-    pub(super) fn draw_vertex_inspector(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-        let reveal = std::mem::take(&mut self.vertex_inspector.reveal);
-        let response = egui::CollapsingHeader::new("Vertex Parameters")
-            .id_salt("vertex-parameters")
-            .default_open(false)
-            .open(reveal.then_some(true))
-            .show(ui, |ui| self.draw_vertex_parameters_body(ui, actions));
-        if reveal {
-            response.header_response.scroll_to_me(Some(egui::Align::Min));
-        }
-        let open = response.fully_open();
-        if open && !self.vertex_inspector.open {
-            self.vertex_inspector.fetch = true;
-        }
-        self.vertex_inspector.open = open;
-    }
-
     pub(super) fn draw_vertex_parameters_body(
         &mut self,
         ui: &mut egui::Ui,
@@ -308,7 +278,13 @@ impl LabApplication {
             ui.label("Select vertices, edges, faces or whole parts.");
             return;
         }
+        let authoring = self.cdmw_state["authoring_enabled"].as_bool() == Some(true);
+        let policy_reason = self.cdmw_state["output_policy_reason"]
+            .as_str()
+            .filter(|reason| !reason.is_empty())
+            .unwrap_or("Vertex editing is unavailable under the current output policy.");
         let ready = !self.cdmw_busy()
+            && authoring
             && data["token"] == self.vertex_token()
             && self.vertex_inspector.key == self.vertex_key();
         ui.small("Edit the selection below. Blank fields stay unchanged.");
@@ -325,11 +301,13 @@ impl LabApplication {
                 .default_open(count == 1 && channel == "position")
                 .show(ui, |ui| {
                     if !can_edit {
-                        ui.small(
+                        ui.small(if !authoring {
+                            policy_reason
+                        } else {
                             data["capabilities"][channel]["reason"]
                                 .as_str()
-                                .unwrap_or("Wait for the current operation."),
-                        );
+                                .unwrap_or("Wait for the current operation.")
+                        });
                     }
                     let draft = &mut self.vertex_inspector.draft;
                     let (fields, offset): (&mut [String], Option<&mut bool>) = match channel {
@@ -422,11 +400,13 @@ impl LabApplication {
                 let enabled = ready
                     && data["capabilities"]["weights"]["editable"].as_bool() == Some(true);
                 if !enabled {
-                    ui.small(
+                    ui.small(if !authoring {
+                        policy_reason
+                    } else {
                         data["capabilities"]["weights"]["reason"]
                             .as_str()
-                            .unwrap_or("Weight editing unavailable."),
-                    );
+                            .unwrap_or("Weight editing unavailable.")
+                    });
                 } else {
                     let draft = &mut self.vertex_inspector.draft;
                     ui.checkbox(&mut draft.weight_enabled, "Stage weight change");
@@ -624,12 +604,7 @@ impl LabApplication {
                     data["cloth_summary"]["fixed_count"]
                 ));
                 if ui.button("Open Cloth Controls").clicked() {
-                    crate::cdmw_ui::set_cdmw_sidebar_expanded(
-                        ui.ctx(),
-                        crate::cdmw_ui::CDMW_TOOLS_SIDEBAR,
-                        true,
-                    );
-                    self.activate_cdmw_rail_page(CdmwRailPage::Cloth, None);
+                    self.open_cdmw_tool_settings(ui.ctx(), CdmwRailPage::Cloth);
                 }
                 ui.small("UV1 and vertex colours are unavailable. Other undecoded fields are preserved without editing.");
             });
@@ -745,9 +720,9 @@ mod tests {
     fn vertex_inspection_is_idle_when_closed_or_unsupported() {
         let mut app = crate::headless_tests::triangle_application().unwrap();
         app.cdmw_state = json!({"vertex_parameters":{"capability":CAPABILITY}});
-        app.tick_vertex_inspector(true);
+        app.tick_vertex_inspector(false);
+        assert!(!app.vertex_inspector.open);
         assert!(app.vertex_inspector.pending.is_none());
-        app.vertex_inspector.open = true;
         app.cdmw_state = Value::Null;
         app.tick_vertex_inspector(true);
         assert!(app.vertex_inspector.pending.is_none());
