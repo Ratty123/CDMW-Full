@@ -28,6 +28,8 @@ Clear skips busy publishers and invalidates size accounting so retained packages
 and failed deletions still count against the next write's budget. Archive Browser
 runs disk clear/prune and PAC index clearing on a tracked background worker,
 coalesces queued requests, and reports completion only after the work finishes.
+Concurrent scans cannot overwrite newer disk accounting after publication, clear,
+or eviction; stale scans use the newer total or retry their snapshot.
 
 Related tests: native preview, model preview, and static replacement entries under `tests/`.
 

@@ -23,6 +23,8 @@ first resolve beside their MTL file; the established OBJ/package lookup remains
 available for relocated exports. Full texture paths take priority over filename
 aliases, so same-named images in different directories keep their own bindings.
 Structured material slots take priority over the legacy texture-name field.
+When a relocated reference needs a filename search, a match beneath the model's
+own directory takes priority over matches elsewhere in the package.
 
 ## Body region decomposition
 

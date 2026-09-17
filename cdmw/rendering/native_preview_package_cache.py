@@ -32,6 +32,7 @@ _ACTIVE_PACKAGE_PATHS: dict[str, tuple[Path, int]] = {}
 _RECENT_PACKAGE_PATHS: dict[str, tuple[Path, float]] = {}
 _PENDING_ACCESS_NS: dict[tuple[str, str], int] = {}
 _CACHE_TOTAL_BYTES: dict[str, int] = {}
+_CACHE_TOTAL_GENERATIONS: dict[str, int] = {}
 
 
 @dataclass(frozen=True)
@@ -469,32 +470,44 @@ def _metadata_package_bytes(metadata: Mapping[str, object], entry_dir: Path) -> 
 
 def _cached_total_bytes(cache_root: Path) -> int:
     root_id = _resolved_path_key(Path(cache_root))
-    with _CACHE_STATE_LOCK:
-        cached = _CACHE_TOTAL_BYTES.get(root_id)
-    if cached is not None:
-        return max(0, int(cached))
-    packages_root = native_preview_package_cache_packages_root(cache_root)
-    total = 0
-    try:
-        children = tuple(path for path in packages_root.iterdir() if path.is_dir())
-    except OSError:
-        children = ()
-    for entry_dir in children:
-        if not entry_dir.name.startswith("_staging_"):
-            total += _metadata_package_bytes(_read_metadata(entry_dir), entry_dir)
-    with _CACHE_STATE_LOCK:
-        _CACHE_TOTAL_BYTES[root_id] = total
-    return total
+    while True:
+        with _CACHE_STATE_LOCK:
+            cached = _CACHE_TOTAL_BYTES.get(root_id)
+            generation = _CACHE_TOTAL_GENERATIONS.get(root_id, 0)
+        if cached is not None:
+            return max(0, int(cached))
+        packages_root = native_preview_package_cache_packages_root(cache_root)
+        total = 0
+        try:
+            children = tuple(path for path in packages_root.iterdir() if path.is_dir())
+        except OSError:
+            children = ()
+        for entry_dir in children:
+            if not entry_dir.name.startswith("_staging_"):
+                total += _metadata_package_bytes(_read_metadata(entry_dir), entry_dir)
+        if _set_cached_total_bytes(cache_root, total, expected_generation=generation):
+            return total
+        # A publisher or eviction changed this snapshot. Reuse its newer total,
+        # or rescan if it invalidated accounting, without holding filesystem locks.
 
 
-def _set_cached_total_bytes(cache_root: Path, total_bytes: int) -> None:
+def _set_cached_total_bytes(
+    cache_root: Path, total_bytes: int, *, expected_generation: int | None = None,
+) -> bool:
+    root_id = _resolved_path_key(Path(cache_root))
     with _CACHE_STATE_LOCK:
-        _CACHE_TOTAL_BYTES[_resolved_path_key(Path(cache_root))] = max(0, int(total_bytes))
+        generation = _CACHE_TOTAL_GENERATIONS.get(root_id, 0)
+        if expected_generation is not None and generation != expected_generation:
+            return False
+        _CACHE_TOTAL_BYTES[root_id] = max(0, int(total_bytes))
+        _CACHE_TOTAL_GENERATIONS[root_id] = generation + 1
+        return True
 
 
 def _add_cached_total_bytes(cache_root: Path, added_bytes: int) -> None:
     root_id = _resolved_path_key(Path(cache_root))
     with _CACHE_STATE_LOCK:
+        _CACHE_TOTAL_GENERATIONS[root_id] = _CACHE_TOTAL_GENERATIONS.get(root_id, 0) + 1
         # A concurrent clear may invalidate the snapshot during publication.
         # Keep it invalid so the following budget check counts all survivors.
         if root_id in _CACHE_TOTAL_BYTES:
@@ -503,8 +516,10 @@ def _add_cached_total_bytes(cache_root: Path, added_bytes: int) -> None:
 
 
 def _invalidate_cached_total_bytes(cache_root: Path) -> None:
+    root_id = _resolved_path_key(Path(cache_root))
     with _CACHE_STATE_LOCK:
-        _CACHE_TOTAL_BYTES.pop(_resolved_path_key(Path(cache_root)), None)
+        _CACHE_TOTAL_BYTES.pop(root_id, None)
+        _CACHE_TOTAL_GENERATIONS[root_id] = _CACHE_TOTAL_GENERATIONS.get(root_id, 0) + 1
 
 
 def lookup_native_preview_package_cache(
@@ -589,7 +604,13 @@ def store_native_preview_package_cache(
             _write_metadata(staging_entry_dir, metadata_payload)
             _cached_total_bytes(cache_root)
             try:
-                staging_entry_dir.replace(final_entry_dir)
+                # Publish and account as one short critical section. An unlocked
+                # size scan must not count the new entry before its increment.
+                with _CACHE_STATE_LOCK:
+                    staging_entry_dir.replace(final_entry_dir)
+                    _add_cached_total_bytes(
+                        cache_root, int(metadata_payload.get("package_bytes", 0) or 0),
+                    )
             except OSError:
                 hit = lookup_native_preview_package_cache(cache_root, key, validate_package=validate_package)
                 if hit is None:
@@ -602,10 +623,6 @@ def store_native_preview_package_cache(
                 final_entry_dir,
                 final_entry_dir / "package",
                 metadata_payload,
-            )
-            _add_cached_total_bytes(
-                cache_root,
-                int(metadata_payload.get("package_bytes", 0) or 0),
             )
     finally:
         _release_staging_lease(staging_entry_dir)
@@ -630,6 +647,8 @@ def prune_native_preview_package_cache(
     packages_root = native_preview_package_cache_packages_root(cache_root)
     if max_bytes <= 0 or target_bytes < 0 or not packages_root.is_dir():
         return {"entries": 0, "bytes": 0, "removed_entries": 0, "removed_bytes": 0}
+    with _CACHE_STATE_LOCK:
+        generation = _CACHE_TOTAL_GENERATIONS.get(_resolved_path_key(Path(cache_root)), 0)
     entries: list[tuple[int, int, Path]] = []
     total_bytes = 0
     try:
@@ -660,7 +679,7 @@ def prune_native_preview_package_cache(
         total_bytes += size
         entries.append((last_access_ns, size, entry_dir))
     if total_bytes <= max_bytes:
-        _set_cached_total_bytes(cache_root, total_bytes)
+        _set_cached_total_bytes(cache_root, total_bytes, expected_generation=generation)
         return {"entries": len(entries), "bytes": total_bytes, "removed_entries": 0, "removed_bytes": 0}
     removed_entries = 0
     removed_bytes = 0
@@ -678,12 +697,13 @@ def prune_native_preview_package_cache(
             shutil.rmtree(entry_dir, ignore_errors=True)
             if entry_dir.exists():
                 continue
+            _invalidate_cached_total_bytes(cache_root)
             total_bytes -= size
             removed_entries += 1
             removed_bytes += size
         finally:
             lock.release()
-    _set_cached_total_bytes(cache_root, total_bytes)
+    _set_cached_total_bytes(cache_root, total_bytes, expected_generation=generation)
     return {
         "entries": max(0, len(entries) - removed_entries),
         "bytes": max(0, total_bytes),
