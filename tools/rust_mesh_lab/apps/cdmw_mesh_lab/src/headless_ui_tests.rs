@@ -1102,7 +1102,10 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
         .ok_or("Finish Edit Mesh was clipped by the large comfortable theme")?
         .center()
         .y;
-    assert!((themed_finish_y - themed_header_y).abs() < 8.0);
+    assert!(
+        (themed_finish_y - themed_header_y).abs() < 8.0,
+        "header and Finish must stay on one row: header={themed_header_y}, finish={themed_finish_y}"
+    );
     let themed_controls_y = ui
         .label_rect("Clear Selection")
         .ok_or("Clear Selection was clipped by the large comfortable theme")?
@@ -1118,6 +1121,81 @@ fn integrated_wide_layout_compacts_chrome_and_groups_tool_rows() -> TestResult {
         themed_controls_y > themed_header_y + 8.0,
         "large themed controls should use the readable two-row fallback"
     );
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_toggles_reclaim_space_without_changing_the_edit_session() -> TestResult {
+    for (size, font_size, density) in [
+        (egui::vec2(1440.0, 900.0), 10.0, "compact"),
+        (egui::vec2(1000.0, 650.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(triangle_application()?, size);
+        ui.application.apply_cdmw_theme_payload(&json!({
+            "font_point_size": font_size, "density": density,
+        }));
+        ui.settle_layout();
+        ui.click("Select All")?;
+        ui.click_tool_button("Move")?;
+        ui.application.cdmw_state["replacement"] = json!({
+            "comparison": "edit",
+            "parts": [{"index": 0, "id": "stable:0", "name": "Triangle", "included": false}],
+        });
+        ui.settle_layout();
+        let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+        let mesh_before = format!("{:?}", ui.application.mesh);
+        let document_before = format!("{:?}", ui.application.document);
+        let state_before = ui.application.cdmw_state.clone();
+        let hidden_parts_before = ui.application.cdmw_hidden_parts.clone();
+        let history_before = ui.application.history.undo_len();
+        let transactions_before = ui.application.cdmw_transaction_attempts;
+        let tool_before = ui.application.cdmw_rail_page;
+        ui.last_actions.clear();
+
+        ui.click("Sidebars")?;
+        ui.click("Tools sidebar")?;
+        let tools_hidden = ui.application.viewport_rect.ok_or("viewport")?;
+        assert!(tools_hidden.width() > viewport.width() + 240.0);
+        assert!(ui.label_rect("Tools").is_none());
+        assert!(ui.label_rect("Parts").is_some());
+
+        ui.click("Sidebars")?;
+        ui.click("Inspector sidebar")?;
+        let both_hidden = ui.application.viewport_rect.ok_or("viewport")?;
+        assert!(both_hidden.width() > tools_hidden.width() + 260.0);
+        assert!(both_hidden.width() > size.x - 5.0);
+        assert!(ui.label_rect("Parts").is_none());
+        assert!(ui.label_rect("Finish Edit Mesh").is_some());
+
+        ui.click("Sidebars")?;
+        ui.click("Show all sidebars")?;
+        let restored = ui.application.viewport_rect.ok_or("viewport")?;
+        assert!((restored.width() - viewport.width()).abs() < 1.0);
+        assert!(ui.label_rect("Parts").is_some());
+        assert!(
+            ui.label_rect("Move").is_some(),
+            "expanded sections must survive hiding"
+        );
+
+        ui.click("Sidebars")?;
+        ui.click("Hide all sidebars")?;
+        ui.click("Sidebars")?;
+        ui.click("Show all sidebars")?;
+        assert_eq!(format!("{:?}", ui.application.mesh), mesh_before);
+        assert_eq!(format!("{:?}", ui.application.document), document_before);
+        assert_eq!(ui.application.cdmw_state, state_before);
+        assert_eq!(ui.application.cdmw_hidden_parts, hidden_parts_before);
+        assert_eq!(ui.application.history.undo_len(), history_before);
+        assert_eq!(
+            ui.application.cdmw_transaction_attempts,
+            transactions_before
+        );
+        assert_eq!(ui.application.cdmw_rail_page, tool_before);
+        assert!(
+            ui.last_actions.is_empty(),
+            "sidebar toggles must not dispatch edit actions"
+        );
+    }
     Ok(())
 }
 

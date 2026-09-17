@@ -14,6 +14,8 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 ];
 
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
+const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
+const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
 const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
 const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
 const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
@@ -46,6 +48,45 @@ fn cdmw_chrome_fits_one_row(context: &egui::Context, available_width: f32) -> bo
     let style = context.style_of(context.theme());
     let control_scale = (style.spacing.interact_size.y / 24.0).max(1.0);
     available_width >= CDMW_WIDE_CHROME_MIN_WIDTH * control_scale
+}
+
+fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
+    context.data_mut(|data| data.get_temp::<bool>(egui::Id::new(id)).unwrap_or(true))
+}
+
+fn draw_cdmw_sidebar_menu(ui: &mut egui::Ui, hair_active: bool) {
+    ui.menu_button("Sidebars", |ui| {
+        for (id, label, enabled) in [
+            (CDMW_TOOLS_SIDEBAR, "Tools sidebar", !hair_active),
+            (CDMW_INSPECTOR_SIDEBAR, "Inspector sidebar", true),
+        ] {
+            let mut visible = cdmw_sidebar_visible(ui.ctx(), id);
+            if ui
+                .add_enabled(enabled, egui::Checkbox::new(&mut visible, label))
+                .changed()
+            {
+                ui.ctx()
+                    .data_mut(|data| data.insert_temp(egui::Id::new(id), visible));
+                ui.close();
+            }
+        }
+        ui.separator();
+        let any_visible = cdmw_sidebar_visible(ui.ctx(), CDMW_INSPECTOR_SIDEBAR)
+            || (!hair_active && cdmw_sidebar_visible(ui.ctx(), CDMW_TOOLS_SIDEBAR));
+        let label = if any_visible {
+            "Hide all sidebars"
+        } else {
+            "Show all sidebars"
+        };
+        if ui.button(label).clicked() {
+            ui.ctx().data_mut(|data| {
+                for id in [CDMW_TOOLS_SIDEBAR, CDMW_INSPECTOR_SIDEBAR] {
+                    data.insert_temp(egui::Id::new(id), !any_visible);
+                }
+            });
+            ui.close();
+        }
+    });
 }
 
 fn cdmw_view_mode_label(mode: ViewMode) -> &'static str {
@@ -253,10 +294,12 @@ impl LabApplication {
         let mut actions = Vec::new();
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
-        if !self.hair.active() {
+        if !self.hair.active() && cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR) {
             self.draw_cdmw_left_rail(root_ui, &mut actions);
         }
-        self.draw_cdmw_right_panels(root_ui, &mut actions);
+        if cdmw_sidebar_visible(&self.egui_context, CDMW_INSPECTOR_SIDEBAR) {
+            self.draw_cdmw_right_panels(root_ui, &mut actions);
+        }
         self.draw_cdmw_viewport(root_ui);
         actions
     }
@@ -306,6 +349,7 @@ impl LabApplication {
                                 authoring,
                                 policy_reason,
                             );
+                            draw_cdmw_sidebar_menu(ui, self.hair.active());
                         },
                     );
                 });
@@ -778,9 +822,7 @@ impl LabApplication {
                                                 self.draw_cdmw_normals_page(ui, actions)
                                             }
                                             CdmwRailPage::Uv => self.draw_cdmw_uv_page(ui, actions),
-                                            CdmwRailPage::Cloth => {
-                                                self.draw_cdmw_cloth_page(ui, actions)
-                                            }
+                                            CdmwRailPage::Cloth => self.draw_cdmw_cloth_page(ui, actions),
                                             CdmwRailPage::RigWeights => {
                                                 self.draw_cdmw_rig_weights_page(ui, actions)
                                             }

@@ -14,6 +14,19 @@ Replacement imports and reversible output inclusion extend that foundation in
 the existing Parts panel. General material assignment, recolour/glow authoring,
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
 
+## Sidebar visibility
+
+Use **Sidebars** in the Mesh Editor header to show or hide the Tools and Inspector
+sidebars independently, or hide/show all sidebars together. The header stays
+available when both are hidden. Hair mode uses the Inspector sidebar.
+The controls work in Classic, Compact, and detached Mesh Editor windows.
+
+These are display-only controls: hiding a sidebar preserves its width and open
+sections, active tools, mesh selection, history, and output inclusion. Visibility
+lasts for the current editor window and resets when a new editor process starts.
+The app navigation has a separate arrow button that remains visible when its
+navigation is hidden.
+
 ## Hair creation
 
 Use **Hair Tools (Experimental)** above the viewport. Hairstyles have not been

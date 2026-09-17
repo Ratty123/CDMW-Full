@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from cdmw.ui.display_scaling import CurrentToolStack, scrollable_content
 
 from cdmw.ui.shell.classic_navigation import ClassicNavigation
 from cdmw.ui.shell.compact.config import COMPACT_SHELL_VARIANT
 from cdmw.ui.shell.compact.workspace import CompactWorkspace
+from cdmw.ui.shell.navigation_visibility import NavigationVisibilityButton
 
 
 class ShellRootLayoutMixin:
@@ -30,6 +32,15 @@ class ShellRootLayoutMixin:
         else:
             self.compact_workspace = None
             self.classic_navigation = ClassicNavigation(self, central)
-            root_layout.addWidget(self.classic_navigation)
+            navigation_row = QWidget(central)
+            navigation_layout = QHBoxLayout(navigation_row)
+            navigation_layout.setContentsMargins(0, 0, 0, 0)
+            navigation_layout.setSpacing(0)
+            self.navigation_toggle_button = NavigationVisibilityButton(
+                self.classic_navigation, vertical=True, parent=navigation_row,
+            )
+            navigation_layout.addWidget(self.navigation_toggle_button, alignment=Qt.AlignTop)
+            navigation_layout.addWidget(self.classic_navigation, stretch=1)
+            root_layout.addWidget(navigation_row)
             root_layout.addWidget(scrollable_content(self.tool_stack), stretch=1)
         return central

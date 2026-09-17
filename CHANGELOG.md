@@ -11,9 +11,14 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.18] - 2026-09-17
+
+Pre-release. Cloth influence controls and the reported Blender/NVIDIA driver-reset scenario still need in-game and reporter verification respectively.
+
 ### Added
 
 - Mesh Editor's Cloth controls can reduce or disable existing cloth influence, fix vertices above a chosen height, and fade movement below it across every stored LOD. Settings support Undo/Redo, Restore, drafts and PAC output.
+- Mesh Editor can hide and restore its Tools and Inspector sidebars independently or together. Classic and Compact app navigation can also collapse using an always-available arrow. These display-only controls preserve the active session and editing/output state.
 
 ### Fixed
 
@@ -48,12 +53,17 @@ The format is intentionally simple:
 - OBJ material imports accept spaced or quoted MTL filenames and resolve texture paths relative to their material library, avoiding false missing-library errors and wrong texture choices from nearby folders.
 - Mesh material conversion keeps same-named textures in different folders distinct. Explicit source paths take priority over filename matches, preserving each material's colors and maps.
 - Mesh Editor status messages show their full text on hover and in a scrollable, selectable Details view with a Copy button.
+- New cloth, replacement-draft and preview diagnostics follow the selected interface language across all 14 built-in languages.
 - Archive Browser resolves PAC material and texture references for Asset Family and export even with Load textures off. Partial cached previews no longer require opening Mesh Editor before the remaining assets become available.
 - New Item automatically recovers a stale, unmounted overlay set during installation, preserving its old files and archiving its history with the new install's verified backup. Recovery retries once and rolls back with the install on failure; mounted or conflicting overlays still stop with a clear error.
 - New Item shows overlay installation failures in a warning and keeps the reason visible on Output. Installed overlays identifies saved sets the game no longer mounts and offers a reviewed, backed-up Start fresh action that preserves old files and current game data. Recovery messages follow the selected interface language.
 - Checking mods for game updates avoids repeating archive-directory checks for every game file and shows measured progress percentages for each comparison stage.
 - New Item Model & Placement avoids an unintended 180-degree camera roll when opening a flat view along Y, keeping the grid and Y gizmo from appearing upside down after orbiting. Model fitting and output placement are unchanged.
 - Hardened New Item's Effects preview startup against a native Qt thread-construction crash.
+
+### Docs
+
+- Updated the README and Mesh Editor guide for cloth influence, material import choices, readable status details and collapsible navigation/sidebar controls, including cloth preview and restoration limits.
 
 ## [0.11.0-alpha.17] - 2026-09-14
 
