@@ -377,6 +377,8 @@ def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
 
     assert "if: github.event_name != 'workflow_dispatch' || !inputs.exhaustive_tests" in fast_step
     assert "codex_check.ps1 -Area smoke" in fast_step
+    assert "tests/test_release_packaging.py -k codeql --basetemp $ciContractTemp" in fast_step
+    assert fast_step.rstrip().endswith("if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }")
     assert "codex_check.ps1 -Area mesh-contract" not in fast_step
     assert "codex_check.ps1 -Area mesh-unit" not in fast_step
     assert "codex_check.ps1 -Area full" not in fast_step
