@@ -11,6 +11,9 @@ hides the existing tab bars, routes its rail through the shared activation
 path, reuses the existing actions and status widgets, and never constructs a
 second tool/controller/worker tree. Its shared application theme and category state
 are documented in `docs/features/compact-workspace.md`.
+The Compact navigation rail sizes to its labels, icons, and layout margins,
+including room for a scrollbar, so it stays narrow without clipping larger fonts
+or longer translations. Collapsing categories keeps that width stable.
 Lazy tools reveal an indeterminate progress bar immediately, preload only Qt-free
 data dependencies on a tracked low-priority thread, then import their UI module,
 construct the widget, and apply presentation in separate GUI turns. Tool-specific

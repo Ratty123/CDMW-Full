@@ -227,8 +227,6 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
-        root.addWidget(build_hair_entry_bar(self))
         self.action_bar = MeshEditorActionBar(parent=self)
         self.action_bar.action_requested.connect(self._handle_action_requested)
         root.addWidget(self.action_bar)
@@ -272,6 +270,10 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
         self.workspace_stack = QStackedWidget(self)
         self.workspace_stack.setObjectName("MeshEditorWorkspaceStack")
         self.standalone_workspace = self._build_standalone_workspace()
+        from cdmw.ui.mesh_editor.hair_flow import build_hair_entry_bar
+        root.insertWidget(0, build_hair_entry_bar(
+            self, close_button=self.standalone_workspace.close_session_button,
+        ))
         self.embedded_builder_host = QFrame(self)
         self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")
         self.embedded_builder_host.setFrameShape(QFrame.Shape.NoFrame)

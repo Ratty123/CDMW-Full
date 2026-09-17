@@ -118,7 +118,7 @@ def test_close_session_button_confirms_edits_and_keeps_viewport_available_withou
     tab.current_undo_count = 1
     tab.workspace_stack.setCurrentWidget(tab.standalone_workspace)
     tab._sync_state()
-    close_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorCloseSessionButton")
+    close_button = tab.findChild(QToolButton, "MeshEditorCloseSessionButton")
 
     assert close_button is not None
     assert close_button.isEnabled()

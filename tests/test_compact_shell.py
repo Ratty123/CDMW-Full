@@ -424,7 +424,7 @@ def test_compact_workspace_executes_rail_footer_status_and_drawer_contracts(tmp_
     owner.show()
     app.processEvents()
 
-    assert workspace.rail.width() == 224
+    assert workspace.rail.width() == workspace.rail.sizeHint().width()
     assert set(workspace.rail.tool_buttons) == {spec.key for spec in COMPACT_TOOL_SPECS}
     row = workspace.rail.tool_buttons["archive_browser"]
     QTest.mouseClick(row, Qt.LeftButton)
