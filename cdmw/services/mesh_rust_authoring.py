@@ -7662,7 +7662,9 @@ class RustMeshAuthoringSession:
         material_mesh = nullcontext(mesh)
         replacement = self.shadow_service._session(self.shadow_session_id).replacement_state
         if replacement is not None and replacement.dependencies:
-            from cdmw.services.mesh_rust_replacement_materials import prepared_replacement_material_mesh
+            from cdmw.services.mesh_rust_replacement_materials import (
+                prepared_replacement_material_mesh, retain_replacement_material_textures,
+            )
             material_mesh = prepared_replacement_material_mesh(
                 mesh, replacement.dependencies, required=False, stop_event=stop_event)
         with material_mesh as prepared_material_mesh:
@@ -7674,6 +7676,8 @@ class RustMeshAuthoringSession:
                 synthesis_state=material_synthesis,
                 material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
             )
+            if prepared_material_mesh is not mesh:
+                textures = retain_replacement_material_textures(self, mesh, prepared_material_mesh, textures, stop_event)
             material_presentations = _mesh_material_presentations(
                 prepared_material_mesh,
                 generated_overrides=material_synthesis.presentation_overrides,

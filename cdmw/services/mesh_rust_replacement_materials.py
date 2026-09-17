@@ -31,7 +31,9 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
     from cdmw.core.final_package_preview_model import _material_semantics_for_binding
     from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
     from cdmw.modding.asset_replacement import classify_texture_binding
-    from cdmw.services.mesh_rust_authoring import _TEXTURE_RESOURCE_SPECS, _mesh_lods, _resolved_dds_path
+    from cdmw.services.mesh_rust_authoring import (
+        _TEXTURE_RESOURCE_SPECS, _mesh_lods, _resolved_dds_path, _material_input_texture_role,
+    )
 
     files = {file.path.replace("\\", "/").casefold(): file for file in files}
     bindings = []
@@ -62,6 +64,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
         for level in incoming.lod_levels:
             for part in level:
                 raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
+                retained_roles = set()
                 if not required:
                     # Preserve resolved owner/layer metadata, including native
                     # bindings whose wrapper differs from the geometry name.
@@ -71,16 +74,27 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                         for item in existing:
                             key = str(getattr(item, "source_texture_path", "")).replace("\\", "/").casefold()
                             if key in files:
+                                previous_paths = {str(getattr(item, attribute, "")).replace("\\", "/").casefold()
+                                                  for attribute in ("source_dds_path", "preview_texture_path", "source_texture_path")}
+                                previous_paths.discard("")
+                                path = str(staged_path(key))
+                                # The direct DDS and its input must remain the
+                                # same binding after relocating captured bytes.
+                                for _role, attributes in _TEXTURE_RESOURCE_SPECS:
+                                    for attribute in attributes:
+                                        if str(getattr(part, attribute, "")).replace("\\", "/").casefold() in previous_paths:
+                                            setattr(part, attribute, path)
                                 item = copy.copy(item)
-                                item.source_dds_path = item.preview_texture_path = str(staged_path(key))
+                                item.source_dds_path = item.preview_texture_path = path
                             rebound.append(item)
                         part.preview_material_texture_inputs = tuple(rebound)
                         continue
-                    if any(_resolved_dds_path(getattr(part, attribute, "")) is not None
-                           for _role, attributes in _TEXTURE_RESOURCE_SPECS for attribute in attributes):
-                        continue
+                    retained_roles = {role for role, attributes in _TEXTURE_RESOURCE_SPECS
+                                      if any(_resolved_dds_path(getattr(part, attribute, "")) is not None
+                                             for attribute in attributes)}
                 owned = [binding for binding in bindings
-                         if {binding.material_name, binding.submesh_name, binding.part_name} & {part.name, part.material}]
+                         if {binding.material_name, binding.submesh_name, binding.part_name} & {part.name, part.material}
+                         and _material_input_texture_role(binding) not in retained_roles]
                 missing = [binding.texture_path for binding in owned
                            if binding.texture_path.replace("\\", "/").casefold() not in files]
                 if not owned or missing:
@@ -105,10 +119,50 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                                   confidence="sidecar", visualized=True)
                     inputs.append(PreviewMaterialTextureInput(**values))
                 for _role, attributes in _TEXTURE_RESOURCE_SPECS:
+                    if _role in retained_roles:
+                        continue
                     for attribute in attributes:
                         setattr(part, attribute, "")
                 part.preview_material_texture_inputs = tuple(inputs)
         yield incoming
+
+
+def retain_replacement_material_textures(authoring, original, prepared, textures, stop_event=None):
+    """Keep already accepted direct roles when adding recovered sidecar roles."""
+    from cdmw.services.mesh_rust_authoring import (
+        _TEXTURE_RESOURCE_SPECS, _first_texture_resource_dds_path, _mesh_lods,
+        _publish_rust_texture_resources,
+    )
+
+    lods = _mesh_lods(original)
+    bindings, sources, retained = {}, {}, {}
+    for lod_index, (before, after) in enumerate(zip(lods, _mesh_lods(prepared), strict=True)):
+        for index, (source, recovered) in enumerate(zip(before, after, strict=True)):
+            raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
+            if (getattr(source, "preview_material_texture_inputs", ())
+                    or not getattr(recovered, "preview_material_texture_inputs", ())):
+                continue
+            for role, attributes in _TEXTURE_RESOURCE_SPECS:
+                path = _first_texture_resource_dds_path(source, role, attributes)
+                if path is None:
+                    continue
+                sources[str(path)] = path
+                bindings.setdefault((str(path), role), [set() for _ in lods])[lod_index].add(index)
+                retained.setdefault((role, lod_index), set()).add(index)
+    if not bindings:
+        return textures
+    # Publish through the same bounded, hashed DDS transport. Keep the old
+    # role's authority; do not invent owner-bound sidecar rows for direct maps.
+    kept = _publish_rust_texture_resources(authoring.root, bindings, sources, stop_event, authoring.root_identity)
+    result = []
+    for texture in textures:
+        row = copy.deepcopy(texture)
+        row["material_indices_by_lod"] = [
+            [index for index in indices if index not in retained.get((row["role"], lod_index), ())]
+            for lod_index, indices in enumerate(row["material_indices_by_lod"])]
+        if any(row["material_indices_by_lod"]):
+            result.append(row)
+    return [*result, *kept]
 
 
 def stage_replacement_materials(authoring, mesh, state, stop_event=None):
