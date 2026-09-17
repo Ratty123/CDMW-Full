@@ -555,10 +555,24 @@ def test_whole_page_is_queued_with_visible_cards_first_and_late_thumbnails_ignor
 def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch):
     global _APPLICATION
     _APPLICATION = QApplication.instance() or QApplication([])
+    import gc
+    from PySide6.QtWidgets import QMenu, QWidgetAction
     from cdmw.ui.archive_browser.controls_panel import ArchiveControlsPanelMixin
     from cdmw.ui.archive_browser.asset_catalog_dialog import ArchiveAssetCatalogDialogMixin
+    from cdmw.ui.archive_browser import command_strip
     from cdmw.ui.archive_browser.command_strip import build_archive_command_strip
     from cdmw.constants import DEFAULT_UI_THEME
+
+    class OwnershipCheckedMenu(QMenu):
+        def addAction(self, *args):
+            if args and isinstance(args[0], QWidgetAction):
+                # Qt must not take over parenting mid-action-event, where
+                # an application event filter can trigger Python collection.
+                assert args[0].defaultWidget().parentWidget() is self
+                gc.collect()
+            return super().addAction(*args)
+
+    monkeypatch.setattr(command_strip, "QMenu", OwnershipCheckedMenu)
 
     class Window(ArchiveControlsPanelMixin, ArchiveAssetCatalogDialogMixin, QWidget):
         def _build_archive_location_controls(self): pass
@@ -589,6 +603,17 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     assert strip.layout().indexOf(button) == strip.layout().indexOf(window.archive_asset_catalog_button) + 1
     button.click()
     assert len(messages) == 2
+    filters_menu = root._cdmw_compact_archive_more_filters_button.menu()
+    assert filters_menu.actions()[0].defaultWidget() is window.archive_filters_group
+    filters_menu.show()
+    _APPLICATION.processEvents()
+    assert window.archive_filters_group.isVisible()
+    window.archive_package_filter_edit.setText("0012")
+    filters_menu.close()
+    filters_menu.show()
+    _APPLICATION.processEvents()
+    assert window.archive_package_filter_edit.text() == "0012"
+    filters_menu.close()
     window.deleteLater()
     _APPLICATION.processEvents()
 
