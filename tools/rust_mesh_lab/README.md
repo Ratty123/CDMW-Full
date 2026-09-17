@@ -200,15 +200,20 @@ The interface described below is the standalone Rust Mesh Lab layout. In
 CDMW-managed mode the executable instead presents the Mesh Editor session bar,
 left tool rail, camera strip, Parts, Geometry Layers, Action History, Morph &
 Refit, and output-policy controls supplied by the integrated control contract.
-The integrated Rig & Weights tool is currently hidden. **Vertex Parameters** in the
-Inspector exposes host-authoritative positions, UV0, normals and eligible
-skeletal weights; the Mesh Data shortcut reveals it without switching tools.
-It stages edits for a single atomic Apply, with read-only cloth/tangents and
+The integrated Rig & Weights tool is currently hidden. **Mesh Data > Vertex Parameters**
+is a dedicated tool page with a matching icon in the collapsed rail. It reads
+host-authoritative positions, UV0, normals and eligible skeletal weights without
+changing the active viewport tool, and supports the same floating and pinned
+presentations as other tool pages. Inspector contains Parts, Geometry Layers,
+and Action History.
+Vertex Parameters stages edits for a single atomic Apply, with read-only cloth/tangents and
 explicit unsupported-channel labels. Its additive `vertex_parameters_v1`
 capability uses correlated `vertex_inspect` replies without normal state/document
 publication and a `vertex_edit` command through the prepared-mesh commit path.
 Selection changes debounce and cancel obsolete queries; pages contain at most
-128 rows. The section starts collapsed and performs no inspection while closed.
+128 rows. Queries run only while the page is open, and layout changes preserve
+its staged inputs and section state. Multiple tool windows stay open during
+viewport editing; each window can move, close, or pin independently.
 See the [Vertex Parameters workflow](../../cdmw/ui/mesh_editor/README.md#vertex-parameters).
 
 Morph & Refit can load body and armor from the archive catalogue, assign their roles, and preview an

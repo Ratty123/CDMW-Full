@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.18-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.19-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.18` is the current source version and is offered as a pre-release.
+> `0.11.0-alpha.19` is the current source version and is offered as a pre-release.
 > See [Releases](https://github.com/Ratty123/CDMW-Full/releases) for downloads.
 
 ---
@@ -237,9 +237,9 @@ normals/tangents, UVs, and layers where the active mesh supports them. The Parts
 list controls visibility and whole-part selection. Rig & Weights is temporarily
 hidden from the product tool rail; its underlying implementation is retained.
 
-**Inspector > Vertex Parameters** shows current vertex data for single or batch
-selections. **Mesh Data > Vertex Parameters** opens it even when Inspector is
-hidden. Stage position, UV0, normal or supported skin-weight changes, then use
+**Mesh Data > Vertex Parameters** is a dedicated tool page for single or batch
+selections, with its own icon when Tools is collapsed. It can float or pin beside
+the viewport. Stage position, UV0, normal or supported skin-weight changes, then use
 **Apply** for one Undo step. Cloth influence and bindings are read-only here,
 with a link to Cloth controls. Unsupported channels explain their limits.
 
@@ -263,8 +263,12 @@ profiles. The approximate cloth preview does not visualize the saved influence
 changes, and their behavior in game still needs verification. Keep the original
 asset or draft to restore bindings after exporting with cloth disabled.
 
-Use **Sidebars** in the editor header to hide or restore Tools and Inspector
-individually or together, keeping the current edit and output settings.
+Collapse Tools or Inspector from their header chevrons. Tools becomes an icon
+rail; Inspector keeps an edge handle for reopening. Several tool windows can
+stay open while editing: drag their headers to move them, or pin one beside the
+viewport. Expanded tools use compact tabs with settings below each group.
+Panel layout changes preserve the current edit, selection, and output settings.
+Both panels start expanded in each new editor window.
 
 **Hair Tools (Experimental)** opens one Create/Edit setup for Kliff, Damiane and
 Oongka. Create starts on an empty fitting scalp; Edit loads a registered hairstyle.
