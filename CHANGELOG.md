@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed an intermittent startup crash when Archive Browser's filter controls are attached to their menu. Display scaling now ignores widget construction, reparenting, and destruction events.
+
 ## [0.11.0-alpha.19] - 2026-09-17
 
 Pre-release focused on Mesh Editor panels, tool navigation, and vertex editing.

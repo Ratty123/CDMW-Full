@@ -41,6 +41,8 @@ after smoke, so these settings are checked without requesting the full suite.
 The smoke gate covers startup/tool
 construction, archive confirmation/backup/rollback, output path safety,
 helper cleanup, metadata and localization without building native helpers.
+The real-window localization regression also runs with frequent garbage
+collection to catch native widget lifetime faults during startup.
 Manual `exhaustive_tests` opts into native builds and the full nonvisual suite
 on Python 3.11 and 3.14. Packaging requires the selected QA to pass and runs
 only for tags or manual dispatch; onefile is the default, with onedir and both
