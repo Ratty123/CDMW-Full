@@ -227,6 +227,9 @@ Recovery handles texture roles separately, so a surviving normal map does not
 block restoration of a missing colour texture. Native-selected hair and base
 textures keep their saved binding identity and cutout transparency after their
 captured DDS files are relocated.
+Empty, malformed or truncated cached DDS files can be replaced by validated
+saved copies. Damaged DDS inputs are rejected if neither a valid cached binding
+nor a valid saved copy is available.
 New replacement payloads also retain import normals. Older replacement drafts
 still reopen and export, but require reimporting before Reset Placement or Fit
 to Original because their original normal orientation was not saved. Older

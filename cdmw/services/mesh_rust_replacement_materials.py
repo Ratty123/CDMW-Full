@@ -24,6 +24,19 @@ def replacement_material_key(mesh, state):
     return digest.hexdigest()[:32]
 
 
+def _replacement_texture_path(value):
+    """A cache hit needs the complete DDS payload, not just its magic bytes."""
+    from cdmw.core.dds_native import inspect_dds_native_path
+    from cdmw.services.mesh_rust_authoring import _resolved_dds_path, RustMeshProtocolError
+
+    path = _resolved_dds_path(value)
+    if path is not None:
+        info = inspect_dds_native_path(path)
+        if not info.mip_levels:
+            raise RustMeshProtocolError(f"Replacement preview texture is invalid: {path.name}: {info.reason}")
+    return path
+
+
 @contextmanager
 def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None):
     """Bind captured DDS bytes for the duration of normal material compilation."""
@@ -32,7 +45,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
     from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
     from cdmw.modding.asset_replacement import classify_texture_binding
     from cdmw.services.mesh_rust_authoring import (
-        _TEXTURE_RESOURCE_SPECS, _mesh_lods, _resolved_dds_path, _material_input_texture_role,
+        _TEXTURE_RESOURCE_SPECS, _mesh_lods, _material_input_texture_role, RustMeshProtocolError,
     )
 
     files = {file.path.replace("\\", "/").casefold(): file for file in files}
@@ -58,6 +71,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
             if key not in staged:
                 path = Path(temporary) / f"{len(staged)}.dds"
                 path.write_bytes(files[key].data)
+                _replacement_texture_path(path)
                 staged[key] = path
             return staged[key]
 
@@ -65,6 +79,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
             for part in level:
                 raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
                 retained_roles = set()
+                invalid_roles = {}
                 if not required:
                     # Preserve resolved owner/layer metadata, including native
                     # bindings whose wrapper differs from the geometry name.
@@ -89,14 +104,23 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
                             rebound.append(item)
                         part.preview_material_texture_inputs = tuple(rebound)
                         continue
-                    retained_roles = {role for role, attributes in _TEXTURE_RESOURCE_SPECS
-                                      if any(_resolved_dds_path(getattr(part, attribute, "")) is not None
-                                             for attribute in attributes)}
+                    for role, attributes in _TEXTURE_RESOURCE_SPECS:
+                        for attribute in attributes:
+                            try:
+                                if _replacement_texture_path(getattr(part, attribute, "")) is not None:
+                                    retained_roles.add(role)
+                            except (OSError, RustMeshProtocolError) as exc:
+                                invalid_roles[role] = exc
+                                setattr(part, attribute, "")
                 owned = [binding for binding in bindings
                          if {binding.material_name, binding.submesh_name, binding.part_name} & {part.name, part.material}
                          and _material_input_texture_role(binding) not in retained_roles]
                 missing = [binding.texture_path for binding in owned
                            if binding.texture_path.replace("\\", "/").casefold() not in files]
+                recovered_roles = {_material_input_texture_role(binding) for binding in owned} if not missing else set()
+                for role, error in invalid_roles.items():
+                    if role not in retained_roles | recovered_roles:
+                        raise error
                 if not owned or missing:
                     if required:
                         if missing:
@@ -130,7 +154,7 @@ def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None
 def retain_replacement_material_textures(authoring, original, prepared, textures, stop_event=None):
     """Keep already accepted direct roles when adding recovered sidecar roles."""
     from cdmw.services.mesh_rust_authoring import (
-        _TEXTURE_RESOURCE_SPECS, _first_texture_resource_dds_path, _mesh_lods,
+        _TEXTURE_RESOURCE_SPECS, _mesh_lods,
         _publish_rust_texture_resources,
     )
 
@@ -143,7 +167,8 @@ def retain_replacement_material_textures(authoring, original, prepared, textures
                     or not getattr(recovered, "preview_material_texture_inputs", ())):
                 continue
             for role, attributes in _TEXTURE_RESOURCE_SPECS:
-                path = _first_texture_resource_dds_path(source, role, attributes)
+                path = next((path for attribute in attributes
+                             if (path := _replacement_texture_path(getattr(recovered, attribute, ""))) is not None), None)
                 if path is None:
                     continue
                 sources[str(path)] = path

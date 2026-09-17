@@ -19,6 +19,7 @@ from cdmw.services.mesh_dotnet_material_bindings import (
 from cdmw.services.mesh_replacement_import import initial_replacement_state
 from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
 from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+from cdmw.services.mesh_rust_authoring import RustMeshProtocolError
 from cdmw.services.mesh_rust_replacement_materials import prepared_replacement_material_mesh
 from tests.test_mesh_editor_replacement import editor
 from tests.test_mesh_editor_replacement_materials import material_fixture
@@ -40,7 +41,8 @@ def _texture_colors(host, state, role="base_color", *, pixel=(0, 0)):
 
 
 @pytest.mark.parametrize("material_choice", ["original", "imported"])
-@pytest.mark.parametrize("binding_kind", ["direct", "sidecar", "native-hair", "legacy-base", "partial-cache"])
+@pytest.mark.parametrize("binding_kind", ["direct", "sidecar", "native-hair", "legacy-base", "partial-cache",
+                                        "empty-cache", "invalid-cache", "truncated-cache"])
 def test_offline_draft_retains_original_material_previews(editor, tmp_path, material_choice, binding_kind):
     service, sid = editor
     original = service.capture_export_snapshot(sid)
@@ -116,7 +118,10 @@ def test_offline_draft_retains_original_material_previews(editor, tmp_path, mate
         shadow.retry_mesh_layer_autosave(host.shadow_session_id)
         host.cancel()
         for path in sources.iterdir():
-            if path.is_file():
+            if path in textures and binding_kind in {"empty-cache", "invalid-cache", "truncated-cache"}:
+                path.write_bytes({"empty-cache": b"", "invalid-cache": b"not a DDS",
+                                  "truncated-cache": path.read_bytes()[:128]}[binding_kind])
+            elif path.is_file():
                 path.unlink()
         recovered_service, recovered_sid = open_editor(stack, original.original_data, original.mesh.path, draft)
         recovered = RustMeshAuthoringSession.create(
@@ -207,6 +212,43 @@ def test_incomplete_original_materials_allow_geometry_but_imported_materials_sta
         with prepared_replacement_material_mesh(snapshot.mesh, files, required=False) as prepared:
             assert [part.vertices for part in prepared.submeshes] == [part.vertices for part in snapshot.mesh.submeshes]
             assert not any(getattr(part, "preview_material_texture_inputs", ()) for part in prepared.submeshes)
+
+
+@pytest.mark.parametrize("required", [False, True])
+@pytest.mark.parametrize("fault", ["empty", "signature", "truncated"])
+def test_damaged_captured_dds_is_rejected_without_changing_the_mesh(editor, tmp_path, required, fault):
+    service, sid = editor
+    snapshot = service.capture_export_snapshot(sid)
+    target, context, _ = material_fixture(tmp_path, snapshot)
+    files = capture_replacement_dependencies(target, context)
+    damaged = next(file for file in files if file.path.endswith("original0.dds"))
+    data = {"empty": b"", "signature": b"bad DDS", "truncated": damaged.data[:128]}[fault]
+    files = tuple(replace(file, data=data) if file is damaged else file for file in files)
+    with pytest.raises(RustMeshProtocolError, match="file limit|not a DDS|missing or truncated"):
+        with prepared_replacement_material_mesh(snapshot.mesh, files, required=required):
+            pytest.fail("Damaged captured DDS was accepted")
+    assert not any(getattr(part, "preview_material_texture_inputs", ()) for part in snapshot.mesh.submeshes)
+
+
+@pytest.mark.parametrize("has_alternative", [False, True])
+def test_invalid_cache_requires_a_readable_alternative_or_captured_texture(editor, tmp_path, has_alternative):
+    service, sid = editor
+    mesh = service.capture_export_snapshot(sid).mesh
+    bad = tmp_path / "bad.dds"
+    bad.write_bytes(b"not a DDS")
+    mesh.submeshes[0].preview_texture_dds_path = str(bad)
+    if has_alternative:
+        valid = tmp_path / "valid.dds"
+        Image.new("RGBA", (4, 4), (70, 80, 90, 255)).save(valid)
+        mesh.submeshes[0].preview_texture_path = str(valid)
+        with prepared_replacement_material_mesh(mesh, (), required=False) as prepared:
+            assert prepared.submeshes[0].preview_texture_dds_path == ""
+            assert prepared.submeshes[0].preview_texture_path == str(valid)
+    else:
+        with pytest.raises(RustMeshProtocolError, match="not a DDS"):
+            with prepared_replacement_material_mesh(mesh, (), required=False):
+                pytest.fail("Unrecoverable damaged DDS was accepted")
+    assert mesh.submeshes[0].preview_texture_dds_path == str(bad)
 
 
 def test_cancelled_material_preparation_removes_temporary_dds_without_changing_mesh(editor, tmp_path, monkeypatch):

@@ -25,6 +25,7 @@ The format is intentionally simple:
 - Preview cleanup removes stale or evicted Archive Browser packages and undelivered New Item material packages. Clear and prune include the current Rust cache while preserving live packages.
 - Reopening replacement drafts restores original-material preview textures from the saved dependencies, including untouched parts and Original comparison after temporary texture files disappear.
 - Reopened replacement drafts retain native-selected hair/base textures and cutout transparency. Partial preview caches restore missing texture roles while preserving the surviving maps.
+- Replacement drafts recover empty, malformed or truncated cached DDS files from valid saved textures. Damaged saved copies are rejected before reaching the preview.
 - Terminal preview surface errors pause with Retry available, and interrupted captures report failure instead of leaving capture controls waiting. Covered previews pause redraws without being treated as GPU failures.
 - PAC imports and rebuilds reject UV coordinates that cannot fit the stored format instead of silently replacing them with zero. Rejected replacements preserve the current mesh and Undo/Redo history.
 - Normal and UV edits on original PAC parts retain their geometry and lower LOD records when used with Cloth or Mod output, including alongside replacement of other parts and after draft recovery.
