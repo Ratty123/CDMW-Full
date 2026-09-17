@@ -169,21 +169,10 @@ class DisplayScalingPolicy(QObject):
             self._timer.start(0)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        kind = event.type()
-        # Ignore construction, reparenting and destruction events before
-        # inspecting the native widget. QWidgetAction reparents its default
-        # widget inside QMenu.addAction; probing that intermediate state can
-        # crash PySide when garbage collection runs during the handoff.
-        if kind not in (
-            QEvent.Polish, QEvent.Show, QEvent.FontChange, QEvent.StyleChange,
-            QEvent.Paint, QEvent.LayoutRequest, QEvent.Resize,
-            QEvent.WindowStateChange, QEvent.ScreenChangeInternal,
-            QEvent.DevicePixelRatioChange,
-        ):
-            return False
         # Some existing UI visitors pass layout items, which are not QObjects.
         if self._busy or not isinstance(watched, QWidget) or not isValid(watched):
             return False
+        kind = event.type()
         if kind in (QEvent.Polish, QEvent.Show, QEvent.FontChange, QEvent.StyleChange) or (
             kind == QEvent.Paint and isinstance(watched, QAbstractButton)
         ):
@@ -194,10 +183,10 @@ class DisplayScalingPolicy(QObject):
                 if isinstance(child, (QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QLabel)):
                     self._controls.add(child)
             self._schedule()
-        if kind in (
+        if _normal_window(watched) and kind in (
             QEvent.Show, QEvent.Resize, QEvent.LayoutRequest, QEvent.WindowStateChange,
             QEvent.ScreenChangeInternal, QEvent.DevicePixelRatioChange,
-        ) and _normal_window(watched):
+        ):
             self._windows.add(watched)
             self._schedule()
         return False

@@ -1,5 +1,7 @@
 """Archive Browser's native command bar and secondary menus."""
 
+import gc
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QWidget, QWidgetAction
@@ -95,11 +97,17 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
         filter_menu.setObjectName("CompactArchiveFiltersMenu")
         filter_widget_action = QWidgetAction(filter_menu)
         filter_widget_action.setDefaultWidget(filters_group)
-        # Establish ownership through PySide before QMenu requests the widget.
-        # Reparenting inside the native action event can trigger collection
-        # from an application event filter during Qt's ownership handoff.
-        filters_group.setParent(filter_menu)
-        filter_menu.addAction(filter_widget_action)
+        # PySide can collect wrappers from application event-filter callbacks
+        # while Qt is attaching a QWidgetAction. Keep that native handoff
+        # atomic with respect to automatic collection, then restore the
+        # caller's policy. Collection elsewhere in startup remains enabled.
+        automatic_gc = gc.isenabled()
+        gc.disable()
+        try:
+            filter_menu.addAction(filter_widget_action)
+        finally:
+            if automatic_gc:
+                gc.enable()
         more_filters.setMenu(filter_menu)
     else:
         more_filters.setEnabled(False)
