@@ -471,6 +471,27 @@ impl HeadlessUi {
         Ok(())
     }
 
+    fn sidebar_button(&self, label: &str) -> Option<egui::Response> {
+        self.application
+            .egui_context
+            .read_response(egui::Id::new(("cdmw-sidebar-button", label)))
+    }
+
+    fn click_sidebar(&mut self, label: &str) -> TestResult {
+        for _ in 0..24 {
+            if let Some(response) = self.sidebar_button(label)
+                && response.interact_rect.contains(response.rect.center())
+                && Rect::from_min_size(Pos2::ZERO, self.size).contains(response.rect.center())
+            {
+                self.click_at(response.rect.center());
+                self.settle_layout();
+                return Ok(());
+            }
+            self.scroll_tool_rail(-120.0);
+        }
+        Err(format!("sidebar button {label:?} is unreachable at {:?}", self.size).into())
+    }
+
     fn settle_layout(&mut self) {
         if self.integrated_cdmw {
             for _ in 0..16 {
@@ -1152,23 +1173,23 @@ fn integrated_sidebar_toggles_reclaim_space_without_changing_the_edit_session() 
         let tool_before = ui.application.cdmw_rail_page;
         ui.last_actions.clear();
 
-        ui.click("Sidebars")?;
-        ui.click("Tools sidebar")?;
+        ui.click_sidebar("Collapse Tools")?;
         let tools_hidden = ui.application.viewport_rect.ok_or("viewport")?;
-        assert!(tools_hidden.width() > viewport.width() + 240.0);
+        assert!(tools_hidden.width() > viewport.width() + 200.0);
+        assert!(ui.sidebar_button("Expand Tools").is_some());
         assert!(ui.label_rect("Tools").is_none());
         assert!(ui.label_rect("Parts").is_some());
 
-        ui.click("Sidebars")?;
-        ui.click("Inspector sidebar")?;
+        ui.click_sidebar("Collapse Inspector")?;
         let both_hidden = ui.application.viewport_rect.ok_or("viewport")?;
-        assert!(both_hidden.width() > tools_hidden.width() + 260.0);
-        assert!(both_hidden.width() > size.x - 5.0);
+        assert!(both_hidden.width() > tools_hidden.width() + 230.0);
+        assert!(both_hidden.width() > size.x - 110.0);
+        assert!(ui.sidebar_button("Expand Inspector").is_some());
         assert!(ui.label_rect("Parts").is_none());
         assert!(ui.label_rect("Finish Edit Mesh").is_some());
 
-        ui.click("Sidebars")?;
-        ui.click("Show all sidebars")?;
+        ui.click_sidebar("Expand Tools")?;
+        ui.click_sidebar("Expand Inspector")?;
         let restored = ui.application.viewport_rect.ok_or("viewport")?;
         assert!((restored.width() - viewport.width()).abs() < 1.0);
         assert!(ui.label_rect("Parts").is_some());
@@ -1177,10 +1198,10 @@ fn integrated_sidebar_toggles_reclaim_space_without_changing_the_edit_session() 
             "expanded sections must survive hiding"
         );
 
-        ui.click("Sidebars")?;
-        ui.click("Hide all sidebars")?;
-        ui.click("Sidebars")?;
-        ui.click("Show all sidebars")?;
+        ui.click_sidebar("Collapse Tools")?;
+        ui.click_sidebar("Collapse Inspector")?;
+        ui.click_sidebar("Expand Tools")?;
+        ui.click_sidebar("Expand Inspector")?;
         assert_eq!(format!("{:?}", ui.application.mesh), mesh_before);
         assert_eq!(format!("{:?}", ui.application.document), document_before);
         assert_eq!(ui.application.cdmw_state, state_before);
@@ -1196,6 +1217,268 @@ fn integrated_sidebar_toggles_reclaim_space_without_changing_the_edit_session() 
             "sidebar toggles must not dispatch edit actions"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 980.0),
+    );
+    ui.click_sidebar("Collapse Tools")?;
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    for (label, page) in [
+        ("Select", CdmwRailPage::Select),
+        ("Move", CdmwRailPage::Move),
+        ("Rotate", CdmwRailPage::Rotate),
+        ("Scale", CdmwRailPage::Scale),
+        ("Grab", CdmwRailPage::Grab),
+        ("Smooth", CdmwRailPage::Smooth),
+        ("Inflate", CdmwRailPage::Inflate),
+        ("Pinch", CdmwRailPage::Pinch),
+        ("Topology", CdmwRailPage::Topology),
+        ("Cleanup", CdmwRailPage::Cleanup),
+        ("Normals & Tangents", CdmwRailPage::Normals),
+        ("UV", CdmwRailPage::Uv),
+        ("Cloth", CdmwRailPage::Cloth),
+        ("Morph & Refit", CdmwRailPage::MorphRefit),
+    ] {
+        ui.click_sidebar(label)?;
+        assert_eq!(ui.application.cdmw_rail_page, Some(page));
+        assert!(
+            ui.sidebar_button("Close tool settings").is_some(),
+            "{label}"
+        );
+        assert_eq!(ui.application.viewport_rect, Some(viewport));
+        ui.click_sidebar(label)?;
+        assert!(
+            ui.sidebar_button("Close tool settings").is_none(),
+            "{label} should close on a second click"
+        );
+        assert_eq!(ui.application.cdmw_rail_page, Some(page));
+    }
+    assert!(ui.sidebar_button("Rig & Weights").is_none());
+    assert!(ui.label_rect("Sidebars").is_none());
+    ui.click_sidebar("Move")?;
+    ui.click_sidebar("Rotate")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
+    ui.click_sidebar("Pin tool settings")?;
+    assert!(
+        ui.application
+            .viewport_rect
+            .ok_or("pinned viewport")?
+            .width()
+            < viewport.width() - 240.0
+    );
+    ui.click_sidebar("Unpin tool settings")?;
+    assert_eq!(ui.application.viewport_rect, Some(viewport));
+    ui.click_sidebar("Close tool settings")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
+    assert!(!ui.application.cdmw_orbit_mode);
+    ui.click_sidebar("Viewport")?;
+    assert!(ui.label_rect("Display").is_some());
+    ui.click_sidebar("Pin tool settings")?;
+    ui.click_sidebar("Close tool settings")?;
+    assert_eq!(ui.application.viewport_rect, Some(viewport));
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
+    ui.click_sidebar("Move")?;
+    assert_eq!(
+        ui.application.viewport_rect,
+        Some(viewport),
+        "reopening closed settings starts with a flyout"
+    );
+    assert!(ui.sidebar_button("Pin tool settings").is_some());
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_flyout_owns_pointer_scroll_and_nested_popups() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Select")?;
+    let camera = ui.application.camera.revision();
+    let geometry = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .geometry_revision;
+    let flyout = egui::AreaState::load(
+        &ui.application.egui_context,
+        egui::Id::new("cdmw-tool-flyout"),
+    )
+    .ok_or("flyout")?
+    .rect();
+    let point = flyout.left_top() + egui::vec2(10.0, 10.0);
+    for button in [
+        PointerButton::Primary,
+        PointerButton::Secondary,
+        PointerButton::Middle,
+    ] {
+        ui.frame(vec![
+            Event::PointerMoved(point),
+            pointer_button(point, button, true),
+        ]);
+        assert!(
+            !ui.application.raw_primary_captured
+                && !ui.application.raw_orbit_captured
+                && !ui.application.raw_pan_captured
+        );
+        ui.frame(vec![
+            Event::PointerMoved(point + egui::vec2(2.0, 2.0)),
+            pointer_button(point, button, false),
+        ]);
+    }
+    ui.frame(vec![
+        Event::PointerMoved(flyout.center()),
+        wheel_event(-120.0),
+    ]);
+    assert_eq!(ui.application.camera.revision(), camera);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .geometry_revision,
+        geometry
+    );
+    assert!(ui.sidebar_button("Close tool settings").is_some());
+    ui.click_sidebar("Viewport")?;
+    ui.click("Faces (No Textures)")?;
+    assert!(egui::Popup::is_any_open(&ui.application.egui_context));
+    ui.click("Faces + Wire")?;
+    assert_eq!(ui.application.view_mode, ViewMode::SolidWire);
+    assert!(ui.sidebar_button("Close tool settings").is_some());
+    ui.click_sidebar("Select")?;
+    let vertex = ui.projected_point(SelectionDomain::Vertex)?;
+    assert!(
+        !flyout.contains(egui::pos2(vertex.x, vertex.y)),
+        "fixture must expose the picked vertex beside the flyout"
+    );
+    ui.click_at(egui::pos2(vertex.x, vertex.y));
+    ui.settle_layout();
+    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert!(
+        !ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .selection
+            .vertices
+            .is_empty()
+    );
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+    assert_eq!(ui.application.camera.revision(), camera);
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_compact_controls_fit_small_windows_and_respect_availability() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1000.0, 650.0),
+    );
+    ui.application
+        .apply_cdmw_theme_payload(&json!({"font_point_size": 18.0, "density": "comfortable"}));
+    ui.settle_layout();
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Morph & Refit")?;
+    let area = egui::AreaState::load(
+        &ui.application.egui_context,
+        egui::Id::new("cdmw-tool-flyout"),
+    )
+    .ok_or("flyout")?
+    .rect();
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    assert!(
+        area.left() >= viewport.left() - 1.0 && area.right() <= viewport.right() + 1.0,
+        "{area:?} outside {viewport:?}"
+    );
+    assert!(
+        area.top() >= viewport.top() - 1.0 && area.bottom() <= viewport.bottom() + 1.0,
+        "{area:?} outside {viewport:?}"
+    );
+    ui.application.cdmw_state["authoring_enabled"] = json!(false);
+    ui.settle_layout();
+    assert!(!ui.sidebar_button("Move").ok_or("Move")?.enabled());
+    ui.click_sidebar("Close tool settings")?;
+    ui.click_sidebar("Expand Tools")?;
+    ui.click_sidebar("Collapse Tools")?;
+    assert!(ui.sidebar_button("Select").ok_or("Select")?.enabled());
+    assert!(ui.sidebar_button("Viewport").ok_or("Viewport")?.enabled());
+    ui.application.cdmw_pending_request = Some(CdmwPendingRequest {
+        request_id: 10,
+        event: "command_result",
+        label: "Slow topology".to_owned(),
+        origin: None,
+    });
+    ui.settle_layout();
+    assert!(!ui.sidebar_button("Select").ok_or("Select")?.enabled());
+    ui.click_sidebar("Collapse Inspector")?;
+    ui.click_sidebar("Expand Inspector")?;
+    ui.click_sidebar("Expand Tools")?;
+    assert!(ui.label_rect("Tools").is_some());
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_preserves_sections_and_escape_respects_nested_settings() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    ui.click_tool_button("Viewport")?;
+    ui.click("Overlay appearance")?;
+    ui.application.overlay_wire_width = 3.5;
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Viewport")?;
+    assert!(ui.label_rect("Wire width").is_some());
+    ui.click_sidebar("Pin tool settings")?;
+    assert!(ui.label_rect("Wire width").is_some());
+    ui.click_sidebar("Unpin tool settings")?;
+    assert!(ui.label_rect("Wire width").is_some());
+    assert_eq!(ui.application.overlay_wire_width, 3.5);
+    ui.click("Faces (No Textures)")?;
+    assert!(egui::Popup::is_any_open(&ui.application.egui_context));
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
+    ui.settle_layout();
+    assert!(!egui::Popup::is_any_open(&ui.application.egui_context));
+    assert!(ui.sidebar_button("Close tool settings").is_some());
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
+    ui.settle_layout();
+    assert!(ui.sidebar_button("Close tool settings").is_none());
+    ui.click_sidebar("Expand Tools")?;
+    ui.reveal("Wire width")?;
+    assert_eq!(ui.application.overlay_wire_width, 3.5);
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_hair_inspector_reopens_and_restores_mesh_rail_preference() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1280.0, 900.0));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Move")?;
+    let (state, _) = cdmw_hair::tests::fixture();
+    ui.application.hair.state = Some(state);
+    ui.settle_layout();
+    assert!(ui.sidebar_button("Expand Tools").is_none());
+    assert!(ui.sidebar_button("Close tool settings").is_none());
+    ui.click_sidebar("Collapse Inspector")?;
+    assert!(ui.sidebar_button("Expand Inspector").is_some());
+    ui.click_sidebar("Expand Inspector")?;
+    assert!(ui.label_rect("Parts").is_some());
+    ui.application.hair.state = None;
+    ui.settle_layout();
+    assert!(ui.sidebar_button("Expand Tools").is_some());
+    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
     Ok(())
 }
 

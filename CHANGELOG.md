@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+
+- Mesh Editor panels collapse from their own headers. Tools collapses into an icon rail with settings flyouts that can be pinned beside the viewport; Inspector keeps an edge handle for reopening. Closing a flyout keeps its tool active, and collapsing either panel preserves its width, sections and editing state.
+
 ## [0.11.0-alpha.18] - 2026-09-17
 
 Pre-release. Cloth influence controls and the reported Blender/NVIDIA driver-reset scenario still need in-game and reporter verification respectively.

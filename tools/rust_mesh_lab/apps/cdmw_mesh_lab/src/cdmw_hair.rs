@@ -14,7 +14,7 @@ use cdmw_mesh::hair::HairGroup;
 
 #[cfg(test)]
 #[path = "cdmw_hair_tests.rs"]
-mod tests;
+pub(super) mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum HairTool {
