@@ -1,10 +1,24 @@
 """Archive Browser's native command bar and secondary menus."""
 
-import gc
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QWidget, QWidgetAction
+
+
+class _ArchiveFiltersAction(QWidgetAction):
+    """Give Qt the existing controls through its widget creation callback."""
+
+    def __init__(self, filters: QGroupBox, menu: QMenu) -> None:
+        super().__init__(menu)
+        self._filters = filters
+
+    def createWidget(self, parent: QWidget) -> QWidget:  # noqa: N802 - Qt override
+        # Avoid the native default-widget fallback, which can crash during
+        # QMenu.addAction in PySide6. The explicit callback establishes the
+        # wrapper's parent before returning the widget to Qt.
+        self._filters.setParent(parent)
+        return self._filters
+
 
 def build_archive_command_strip(archive, widget: QWidget) -> None:
     existing = getattr(widget, "_cdmw_compact_archive_command_strip", None)
@@ -95,19 +109,8 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
         filters_group.setProperty("compactStructural", True)
         filter_menu = QMenu(more_filters)
         filter_menu.setObjectName("CompactArchiveFiltersMenu")
-        filter_widget_action = QWidgetAction(filter_menu)
-        filter_widget_action.setDefaultWidget(filters_group)
-        # PySide can collect wrappers from application event-filter callbacks
-        # while Qt is attaching a QWidgetAction. Keep that native handoff
-        # atomic with respect to automatic collection, then restore the
-        # caller's policy. Collection elsewhere in startup remains enabled.
-        automatic_gc = gc.isenabled()
-        gc.disable()
-        try:
-            filter_menu.addAction(filter_widget_action)
-        finally:
-            if automatic_gc:
-                gc.enable()
+        filter_widget_action = _ArchiveFiltersAction(filters_group, filter_menu)
+        filter_menu.addAction(filter_widget_action)
         more_filters.setMenu(filter_menu)
     else:
         more_filters.setEnabled(False)
