@@ -28,7 +28,6 @@ from cdmw.services.preview_rendering_service import (
 )
 from cdmw.services.preview_rendering_service import (
     DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
-    clear_dotnet_preview_package_cache_tiers,
     dotnet_preview_package_cache_budget,
     is_durable_dotnet_preview_package_path,
 )
@@ -36,7 +35,6 @@ from cdmw.services.mesh_rust_preview_cache import (
     rust_preview_package_cache_root,
     validate_rust_preview_cache_package as validate_dotnet_preview_package,
 )
-from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.ui.archive_browser.preview_package_retirement import track_archive_preview_package
 
@@ -74,13 +72,32 @@ class ArchivePreviewCacheMixin:
     """Archive preview cache identity, validation, and local cache helpers."""
 
     def _clear_archive_preview_cache(self, *, clear_native_packages: bool = False) -> None:
+        cleared_count = len(self.archive_preview_cache)
         self.archive_preview_cache.clear()
         self.archive_preview_cache_keys.clear()
         self.archive_preview_cache_last_miss_reason = ""
         self.archive_preview_cache_last_miss_detail = ""
         if clear_native_packages:
-            clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
-            clear_pac_xml_profile_index_cache(self.shell.settings_file_path.parent)
+            self._request_archive_preview_cache_maintenance(clear_index=True, cleared_count=cleared_count)
+
+    def _request_archive_preview_cache_maintenance(
+        self, *, max_bytes: int = 0, target_bytes: int = 0,
+        clear_index: bool = False, cleared_count: int = 0,
+    ) -> None:
+        from cdmw.ui.archive_browser.preview_cache_maintenance import PreviewCacheMaintenanceController
+        from cdmw.workers.preview_cache_maintenance import PreviewCacheMaintenanceRequest
+
+        controller = getattr(self, "_preview_cache_maintenance", None)
+        if controller is None:
+            controller = PreviewCacheMaintenanceController(self, self.shell)
+            controller.completed.connect(self._archive_preview_cache_maintenance_completed)
+            self._preview_cache_maintenance = controller
+        controller.request(PreviewCacheMaintenanceRequest(
+            cache_root=self._native_preview_package_cache_root(),
+            max_bytes=max_bytes, target_bytes=target_bytes,
+            index_root=self.shell.settings_file_path.parent if clear_index else None,
+            cleared_count=cleared_count,
+        ))
 
     @staticmethod
     def _archive_preview_support_texture_slots(settings: object) -> Tuple[str, ...]:

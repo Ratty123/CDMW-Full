@@ -30,6 +30,8 @@ events and the host's `renderer_retry` request retain the process, shadow
 revision, local edits and camera. Read-only Preview can restart its helper and
 replay the retained package and presentation state. These safeguards do not
 establish the cause of an external driver reset.
+Mesh Editor retains egui font/image uploads and texture frees across skipped
+surface frames, merging later changes until a frame successfully consumes them.
 
 ## Imported materials
 

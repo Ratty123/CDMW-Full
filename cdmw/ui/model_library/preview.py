@@ -282,7 +282,11 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             if not isinstance(result, dict):
                 self._set_inline_preview_status("Preview finished with an unexpected response.", error=True)
                 return
-            if int(result.get("request_id", -1)) != int(self._inline_preview_request_id):
+            if (int(result.get("request_id", -1)) != int(self._inline_preview_request_id)
+                    or bool(getattr(self, "_model_library_shutting_down", False))):
+                package_path = str(result.get("rust_preview_package_path", "") or result.get("dotnet_preview_package_path", "") or "")
+                if package_path:
+                    self._remove_inline_d3d11_package_dir(Path(package_path))
                 return
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
             renderer_note = " | renderer: Preview"

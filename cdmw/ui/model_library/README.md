@@ -38,6 +38,10 @@ import and returns its stored geometry/texture summary with the package, so
 re-selecting a model or toggling Flip V back skips parsing and packaging. An
 unsupported or incomplete dependency shape bypasses durable reuse rather than
 risking stale rendering.
+OBJ identities include every declared texture map, including emissive, normal,
+roughness, metallic and opacity maps. Uncached Rust packages are retired after
+replacement or close; cancellation and stale delivery also release private
+packages. Cleanup waits for live renderer leases and preserves durable entries.
 
 Pre-decoded external geometry is labelled `preview` inside the Rust document;
 the manifest separately retains its true glTF, GLB, OBJ, DAE, or converted-FBX

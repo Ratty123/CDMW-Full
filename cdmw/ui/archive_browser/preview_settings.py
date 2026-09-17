@@ -22,9 +22,7 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.services.preview_rendering_service import (
-    clear_dotnet_preview_package_cache_tiers,
     dotnet_preview_package_cache_budget,
-    prune_dotnet_preview_package_cache_tiers,
 )
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
@@ -550,13 +548,21 @@ class ArchivePreviewSettingsMixin:
         return dialog
 
     def _handle_clear_archive_preview_cache_requested(self) -> None:
-        cleared_count = len(self.archive_preview_cache)
         self._clear_archive_preview_cache(clear_native_packages=True)
-        self.shell.append_archive_log(
-            f"Archive preview cache entries cleared: {cleared_count:,}; "
-            "also cleared durable Preview packages and the PAC XML profile index."
-        )
-        self.shell.set_status_message("Archive preview cache cleared.")
+
+    def _archive_preview_cache_maintenance_completed(self, request: object, error: str) -> None:
+        if bool(getattr(self.shell, "_shutting_down", False)):
+            return
+        if error:
+            self.shell.append_archive_log(error)
+            self.shell.set_status_message(error)
+        elif request.index_root is not None:
+            cleared_count = request.cleared_count
+            self.shell.append_archive_log(
+                f"Archive preview cache entries cleared: {cleared_count:,}; "
+                "also cleared durable Preview packages and the PAC XML profile index."
+            )
+            self.shell.set_status_message("Archive preview cache cleared.")
 
     def _handle_reset_tool_pbd_cloth_preview_requested(self) -> None:
         if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
@@ -748,16 +754,7 @@ class ArchivePreviewSettingsMixin:
         if previous_native_cache_mode != performance_settings.native_preview_cache_mode:
             self._stop_archive_native_preview_prefetch()
             max_bytes, target_bytes = dotnet_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
-            if max_bytes > 0:
-                prune_dotnet_preview_package_cache_tiers(
-                    self._native_preview_package_cache_root(),
-                    max_bytes=max_bytes,
-                    target_bytes=target_bytes,
-                )
-            else:
-                # "Off" promises the least disk use, so stop reserving what a
-                # previous mode already wrote.  Packages in use stay pinned.
-                clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
+            self._request_archive_preview_cache_maintenance(max_bytes=max_bytes, target_bytes=target_bytes)
             self.shell.append_archive_log(
                 f"Preview package cache mode set to {performance_settings.native_preview_cache_mode}."
             )

@@ -24,6 +24,10 @@ inputs. This lets concurrent thumbnail jobs trim the shared cache without
 deadlocking each other or blocking cancellation.
 Clear and prune cover the source, legacy derived, and current Rust cache tiers;
 live packages remain protected in each tier.
+Clear skips busy publishers and invalidates size accounting so retained packages
+and failed deletions still count against the next write's budget. Archive Browser
+runs disk clear/prune and PAC index clearing on a tracked background worker,
+coalesces queued requests, and reports completion only after the work finishes.
 
 Related tests: native preview, model preview, and static replacement entries under `tests/`.
 
