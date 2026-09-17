@@ -157,23 +157,26 @@ class MeshEditorRustProcessMixin:
         if process is not self.standalone_rust_process:
             return
         try:
-            chunk = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
+            chunk = bytes(process.readAllStandardOutput())
         except RuntimeError:
             return
-        self.standalone_rust_stdout_buffer += chunk
-        if len(self.standalone_rust_stdout_buffer) > DOTNET_PROTOCOL_BUFFER_LIMIT:
-            self._fail_rust_editor("Mesh Editor protocol buffer exceeded its limit.", incompatible=True)
-            return
-        while "\n" in self.standalone_rust_stdout_buffer:
-            line, self.standalone_rust_stdout_buffer = self.standalone_rust_stdout_buffer.split("\n", 1)
-            line = line.rstrip("\r")
+        # Keep bytes until a whole message arrives: pipe reads can split UTF-8.
+        # A burst of complete messages does not count against the residue limit.
+        data, self.standalone_rust_stdout_buffer = self.standalone_rust_stdout_buffer + chunk, b""
+        offset = 0
+        while (end := data.find(b"\n", offset)) >= 0:
+            line = data[offset:end]
+            offset = end + 1
             if not line:
                 continue
             if len(line) > DOTNET_PROTOCOL_LINE_LIMIT:
                 self._fail_rust_editor("Mesh Editor sent an oversized protocol message.", incompatible=True)
                 return
+            line = line.rstrip(b"\r")
+            if not line:
+                continue
             try:
-                payload = json.loads(line)
+                payload = json.loads(line.decode("utf-8", errors="replace"))
             except ValueError:
                 self._fail_rust_editor("Mesh Editor wrote non-JSON data to its control stream.", incompatible=True)
                 return
@@ -181,6 +184,13 @@ class MeshEditorRustProcessMixin:
                 self._fail_rust_editor("Mesh Editor protocol message was not an object.", incompatible=True)
                 return
             self._handle_rust_protocol_event(payload)
+            if process is not self.standalone_rust_process:
+                return
+        residue = data[offset:]
+        if len(residue) > DOTNET_PROTOCOL_BUFFER_LIMIT:
+            self._fail_rust_editor("Mesh Editor protocol buffer exceeded its limit.", incompatible=True)
+            return
+        self.standalone_rust_stdout_buffer = residue
 
     def _handle_rust_stderr_ready(self, process: QProcess) -> None:
         if process is not self.standalone_rust_process:
@@ -293,6 +303,10 @@ class MeshEditorRustProcessMixin:
             return
         self.standalone_rust_protocol_events.append(dict(payload))
         del self.standalone_rust_protocol_events[:-DOTNET_PROTOCOL_EVENT_LIMIT]
+        if self.standalone_rust_failure_reported:
+            # Keep terminal diagnostics while the failed helper exits, but never
+            # let its remaining replies reactivate rendering or enqueue edits.
+            return
         if event == "hello":
             self._handle_rust_hello(payload)
             return
