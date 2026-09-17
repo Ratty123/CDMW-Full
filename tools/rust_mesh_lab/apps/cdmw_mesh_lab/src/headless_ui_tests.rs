@@ -49,6 +49,13 @@ fn vertex_inspector_shortcut_reveals_hidden_sidebar_without_switching_tools() ->
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
     assert!(!ui.application.vertex_inspector.open);
     let tool = ui.application.viewport_tool;
+    ui.application.cdmw_state["history_entries"] = json!(
+        (0..60)
+            .map(|index| format!("Edit {index}"))
+            .collect::<Vec<_>>()
+    );
+    ui.click("Action History")?;
+    assert!(ui.label_rect("Vertex Parameters").is_none());
     crate::cdmw_ui::set_cdmw_sidebar_expanded(
         &ui.application.egui_context,
         crate::cdmw_ui::CDMW_INSPECTOR_SIDEBAR,
@@ -59,7 +66,11 @@ fn vertex_inspector_shortcut_reveals_hidden_sidebar_without_switching_tools() ->
     ui.settle_layout();
     assert!(ui.application.vertex_inspector.open);
     assert_eq!(ui.application.viewport_tool, tool);
-    ui.reveal("Vertex Parameters is unavailable with this host/helper combination.")?;
+    assert!(
+        ui.label_rect("Vertex Parameters is unavailable with this host/helper combination.")
+            .is_some(),
+        "the shortcut must scroll past expanded history to reveal Vertex Parameters"
+    );
     Ok(())
 }
 
@@ -69,8 +80,8 @@ fn vertex_inspector_apply_discard_pagination_and_selection_invalidation() -> Tes
         HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1100.0));
     ui.click("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 257);
-    ui.reveal("Position XYZ: Mixed · [0,0,0] to [1,0,0]")?;
-    ui.click("Edit Position XYZ")?;
+    ui.click("Position")?;
+    ui.reveal("Mixed")?;
     ui.click("Unchanged")?;
     ui.frame(vec![Event::Text("0.25".into())]);
     let actions = ui.actions_from_click("Apply to 257 vertices")?;
@@ -92,6 +103,7 @@ fn vertex_inspector_apply_discard_pagination_and_selection_invalidation() -> Tes
         .ok_or("mesh")?
         .selection
         .clone();
+    ui.click("Inspect one vertex")?;
     ui.click("Next vertices")?;
     ui.reveal("Page 2 / 3")?;
     assert_eq!(
@@ -119,9 +131,241 @@ fn vertex_inspector_compact_large_font_controls_remain_reachable() -> TestResult
     ui.click("Vertex Parameters")?;
     seed_vertex_inspection(&mut ui, 2);
     ui.application.vertex_inspector.draft.position[0] = "1".into();
+    ui.click("Position")?;
+    ui.reveal("Current")?;
+    ui.reveal("New value")?;
+    ui.reveal("Unchanged")?;
     ui.reveal("Apply to 2 vertices")?;
     ui.reveal("Discard")?;
+    ui.click("Cloth & other data")?;
     ui.reveal("Open Cloth Controls")?;
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_is_a_framed_section_below_history_with_compact_values() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
+    let mut previous_bottom = 0.0;
+    let mut frame_width: Option<f32> = None;
+    for label in [
+        "Parts",
+        "Geometry Layers",
+        "Action History",
+        "Vertex Parameters",
+    ] {
+        let text = ui.label_rect(label).ok_or(label)?;
+        let frame = ui
+            .output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect)
+                    if rect.stroke.width > 0.0 && rect.rect.contains_rect(text) =>
+                {
+                    Some(rect.rect)
+                }
+                _ => None,
+            })
+            .min_by(|a, b| a.area().total_cmp(&b.area()))
+            .ok_or("section frame")?;
+        assert!(
+            frame.top() >= previous_bottom,
+            "{label} should follow the previous section"
+        );
+        if let Some(width) = frame_width {
+            assert!(
+                (frame.width() - width).abs() < 2.0,
+                "{label} should use the same framed row as Parts"
+            );
+        }
+        frame_width = Some(frame.width());
+        previous_bottom = frame.bottom();
+    }
+    ui.click("Vertex Parameters")?;
+    seed_vertex_inspection(&mut ui, 156);
+    for label in [
+        "Position",
+        "UV Coordinates",
+        "Normals",
+        "Skin Weights",
+        "Inspect one vertex",
+        "Cloth & other data",
+    ] {
+        assert!(
+            ui.label_rect(label).is_some(),
+            "{label} should fit in the collapsed overview"
+        );
+    }
+    assert!(ui.label_rect("Unchanged").is_none());
+    ui.application.vertex_inspector.data["summaries"]["position"]["values"][1] =
+        json!(0.123456789012345);
+    ui.click("Position")?;
+    assert!(ui.label_rect("Mixed").is_some());
+    let value = ui.label_rect("0.123457").ok_or("rounded current value")?;
+    ui.frame(vec![Event::PointerMoved(value.center())]);
+    for _ in 0..50 {
+        ui.frame(Vec::new());
+    }
+    assert!(
+        ui.label_rect("Y: 0.123456789012345").is_some(),
+        "full precision should remain available on hover"
+    );
+    ui.click("Skin Weights")?;
+    ui.reveal("No resolved palette.")?;
+    assert!(
+        ui.label_rect("Stage weight change").is_none(),
+        "unavailable channels should show the reason without an unusable form"
+    );
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_weight_form_tracks_the_operation_and_preserves_dispatch() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
+    ui.click("Vertex Parameters")?;
+    seed_vertex_inspection(&mut ui, 2);
+    ui.application.vertex_inspector.data["capabilities"]["weights"] = json!({"editable":true});
+    ui.application.vertex_inspector.data["bones"] = json!([{"bone":3,"name":"Spine"}]);
+    ui.click("Skin Weights")?;
+    ui.click("Stage weight change")?;
+    ui.click("Choose bone")?;
+    ui.click("Spine")?;
+    ui.click("Value")?;
+    ui.frame(vec![Event::Text("0.5".into())]);
+    let actions = ui.actions_from_click("Apply to 2 vertices")?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand {command:"vertex_edit", arguments,..} if arguments["edits"]["weights"] == json!({"mode":"set","bone":3,"value":0.5}))));
+    ui.click("Set")?;
+    ui.click("Normalize")?;
+    ui.settle_layout();
+    assert!(ui.label_rect("Bone").is_none());
+    assert!(ui.label_rect("Influence (0–1)").is_none());
+    let actions = ui.actions_from_click("Apply to 2 vertices")?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand {command:"vertex_edit", arguments,..} if arguments["edits"]["weights"]["mode"] == "normalize" && arguments["edits"]["weights"]["value"].is_null())));
+    Ok(())
+}
+
+#[test]
+fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResult {
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 1000.0), 10.0, "compact"),
+        (egui::vec2(1000.0, 650.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
+        ui.settle_layout();
+        for section in ["Selection", "Transform", "Sculpt", "Mesh Data"] {
+            ui.click_tool_button(section)?;
+        }
+        for presentation in ["expanded", "flyout", "pinned"] {
+            let compact = presentation != "expanded";
+            if presentation == "flyout" {
+                ui.click_sidebar("Collapse Tools")?;
+            }
+            if compact {
+                ui.click_sidebar("Select")?;
+            }
+            if presentation == "pinned" {
+                ui.click_sidebar("Pin tool settings")?;
+            }
+            for label in [
+                "Select",
+                "Move",
+                "Rotate",
+                "Scale",
+                "Grab",
+                "Smooth",
+                "Inflate",
+                "Pinch",
+                "Topology",
+                "Cleanup",
+                "Normals & Tangents",
+                "UV",
+                "Cloth",
+                "Morph & Refit",
+                "Viewport",
+            ] {
+                if compact {
+                    // Select is already open on entering each compact presentation.
+                    if label != "Select" {
+                        ui.click_sidebar(label)?;
+                    }
+                } else {
+                    ui.click_tool_button(label)?;
+                }
+                let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+                let rail = if compact {
+                    ui.sidebar_button("Expand Tools")
+                        .ok_or("rail")?
+                        .rect
+                        .right()
+                        + 6.0
+                } else {
+                    0.0
+                };
+                let panel_right = if presentation == "flyout" {
+                    let area = egui::AreaState::load(
+                        &ui.application.egui_context,
+                        egui::Id::new("cdmw-tool-flyout"),
+                    )
+                    .ok_or("flyout")?
+                    .rect();
+                    assert!(
+                        viewport.expand(1.0).contains_rect(area),
+                        "{label} must stay in the content area: {area:?} vs {viewport:?}"
+                    );
+                    area.right()
+                } else {
+                    viewport.left()
+                };
+                assert!(
+                    panel_right - rail <= 340.0,
+                    "{label} expanded beyond a compact width at font {font}, presentation={presentation}: {viewport:?}"
+                );
+                for clipped in &ui.output.shapes {
+                    if let egui::Shape::Text(text) = &clipped.shape {
+                        let rect = text.visual_bounding_rect();
+                        if clipped.clip_rect.left() >= rail - 2.0
+                            && clipped.clip_rect.right() <= panel_right + 6.0
+                            && clipped.clip_rect.width() > 100.0
+                            && rect.intersects(clipped.clip_rect)
+                        {
+                            assert!(
+                                rect.right() <= clipped.clip_rect.right() + 1.0,
+                                "{label} has horizontally clipped text {:?} at font {font}, presentation={presentation}: {rect:?} vs {:?}",
+                                text.galley.job.text,
+                                clipped.clip_rect
+                            );
+                        }
+                    }
+                }
+                if label == "Topology" && presentation != "flyout" {
+                    let action = ui.reveal("Weld")?;
+                    let button = ui
+                        .output
+                        .shapes
+                        .iter()
+                        .filter_map(|shape| match &shape.shape {
+                            egui::Shape::Rect(rect)
+                                if rect.rect.contains_rect(action)
+                                    && rect.fill != Color32::TRANSPARENT =>
+                            {
+                                Some(rect.rect)
+                            }
+                            _ => None,
+                        })
+                        .min_by(|a, b| a.area().total_cmp(&b.area()))
+                        .ok_or("Weld button")?;
+                    assert!(
+                        button.width() < 120.0,
+                        "topology actions should size to their labels: {button:?}"
+                    );
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -589,7 +833,18 @@ impl HeadlessUi {
                 self.settle_layout();
                 return Ok(());
             }
-            self.scroll_tool_rail(-120.0);
+            let rail_header = self.sidebar_button("Expand Tools").ok_or("icon rail")?.rect;
+            let distance = if self
+                .sidebar_button(label)
+                .is_some_and(|response| response.rect.top() < rail_header.bottom())
+            {
+                120.0
+            } else {
+                -120.0
+            };
+            let position = egui::pos2(rail_header.center().x, self.size.y * 0.5);
+            self.frame(vec![Event::PointerMoved(position), wheel_event(distance)]);
+            self.settle_layout();
         }
         Err(format!("sidebar button {label:?} is unreachable at {:?}", self.size).into())
     }
@@ -625,8 +880,11 @@ impl HeadlessUi {
         let selected = self
             .label_rect_where(current, |rectangle| {
                 (rectangle.center().y - row.center().y).abs() < row.height()
+                    || (rectangle.top() >= row.bottom()
+                        && rectangle.top() - row.bottom() < row.height()
+                        && (rectangle.left() - row.left()).abs() < 16.0)
             })
-            .ok_or_else(|| format!("missing current value {current:?} beside {label:?}"))?;
+            .ok_or_else(|| format!("missing current value {current:?} near {label:?}"))?;
         self.click_at(selected.center());
         let option = self
             .label_rect(next)
@@ -1317,6 +1575,58 @@ fn integrated_sidebar_toggles_reclaim_space_without_changing_the_edit_session() 
         assert!(
             ui.last_actions.is_empty(),
             "sidebar toggles must not dispatch edit actions"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_flyouts_use_available_height_and_full_content_width() -> TestResult {
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 900.0), 10.0, "compact"),
+        (egui::vec2(1000.0, 650.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
+        ui.settle_layout();
+        ui.click_sidebar("Collapse Tools")?;
+        ui.click_sidebar("Select")?;
+        let area = egui::AreaState::load(
+            &ui.application.egui_context,
+            egui::Id::new("cdmw-tool-flyout"),
+        )
+        .ok_or("flyout")?
+        .rect();
+        assert!(
+            ui.label_rect("Create Part").is_some(),
+            "Select's last action should fit without scrolling: {area:?}"
+        );
+        let clip = ui
+            .output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.job.text == "Shape" => Some(shape.clip_rect),
+                _ => None,
+            })
+            .ok_or("Shape clip")?;
+        assert!(
+            area.right() - clip.right() < 16.0,
+            "content must use the flyout width: area={area:?}, clip={clip:?}"
+        );
+        ui.click_sidebar("Move")?;
+        ui.click_sidebar("Select")?;
+        assert!(
+            ui.label_rect("Create Part").is_some(),
+            "a previous short tool must not limit the next tool's height"
+        );
+        ui.click_sidebar("Move")?;
+        ui.click_sidebar("Morph & Refit")?;
+        ui.click("Meshes & selection")?;
+        assert!(
+            ui.label_rect("Open Selection tool").is_some(),
+            "opening Morph's mesh controls should use the available height"
         );
     }
     Ok(())

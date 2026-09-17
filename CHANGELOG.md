@@ -17,10 +17,12 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor tool flyouts use the available height and full content width, including when switching from a short tool to a longer one. Narrow tool panels keep controls reachable at larger font sizes.
 - Vertex channel edits retain their operation records and original PAC bounds across draft recovery and editor reopening. Undo restores the export-validation state of the mesh before the edit.
 
 ### Changed
 
+- Mesh Editor uses narrower tool panels, compact action buttons, labeled Topology settings, and clearer vector tool icons. Vertex Parameters is a framed collapsible section below Action History, with grouped channel controls, readable numbers, exact values on hover, and separate individual-vertex inspection.
 - Mesh Editor panels collapse from their own headers. Tools collapses into an icon rail with settings flyouts that can be pinned beside the viewport; Inspector keeps an edge handle for reopening. Closing a flyout keeps its tool active, and collapsing either panel preserves its width, sections and editing state.
 
 ## [0.11.0-alpha.18] - 2026-09-17
