@@ -1975,12 +1975,22 @@ fn add_cdmw_material_presentations(
     Ok(uploaded)
 }
 
+fn render_pending_egui_textures<E>(
+    pending: &mut egui::TexturesDelta,
+    render: impl FnOnce(&egui::TexturesDelta) -> Result<(), E>,
+) -> Result<(), E> {
+    render(pending)?;
+    pending.clear();
+    Ok(())
+}
+
 struct LabApplication {
     window: Option<Arc<Window>>,
     embedded_parent_hwnd: Option<u64>,
     renderer: Option<WindowRenderer>,
     gpu_recovery: cdmw_render_wgpu::GpuRecovery,
     egui_context: egui::Context,
+    pending_egui_textures: egui::TexturesDelta,
     egui_state: Option<egui_winit::State>,
     loader: Loader,
     current_generation: u64,
@@ -2111,6 +2121,13 @@ struct LabApplication {
     material_reload_count: usize,
 }
 
+impl Drop for LabApplication {
+    fn drop(&mut self) {
+        // No frame can consume remaining uploads after the application closes.
+        self.pending_egui_textures.clear();
+    }
+}
+
 impl LabApplication {
     fn new(mesh_path: Option<PathBuf>, archive_root: Option<PathBuf>) -> Self {
         let mut loader = Loader::start();
@@ -2139,6 +2156,7 @@ impl LabApplication {
             renderer: None,
             gpu_recovery: cdmw_render_wgpu::GpuRecovery::default(),
             egui_context: egui::Context::default(),
+            pending_egui_textures: egui::TexturesDelta::default(),
             egui_state: None,
             loader,
             current_generation,
@@ -6279,7 +6297,11 @@ impl LabApplication {
         };
         let context = self.egui_context.clone();
         let mut actions = Vec::new();
-        let mut full_output = context.run_ui(raw_input, |ui| actions.extend(self.draw_ui(ui)));
+        let full_output = context.run_ui(raw_input, |ui| actions.extend(self.draw_ui(ui)));
+        // Egui emits texture changes once. Keep uploads and frees across skipped
+        // surface frames (or a missing renderer) until a frame consumes them.
+        self.pending_egui_textures
+            .append(full_output.textures_delta);
         if let Some(state) = &mut self.egui_state {
             state.handle_platform_output_with_event_loop(
                 &window,
@@ -6327,17 +6349,13 @@ impl LabApplication {
                     rectangle.height() * scale,
                 ]
             }));
-            renderer
-                .render_egui(
-                    &paint_jobs,
-                    &full_output.textures_delta,
-                    full_output.pixels_per_point,
-                )
-                .err()
+            render_pending_egui_textures(&mut self.pending_egui_textures, |textures| {
+                renderer.render_egui(&paint_jobs, textures, full_output.pixels_per_point)
+            })
+            .err()
         } else {
             None
         };
-        full_output.textures_delta.clear();
         if let Some(error) = render_error {
             error!("frame failed: {error}");
             if matches!(error, cdmw_render_wgpu::RenderError::GpuFault(_)) {

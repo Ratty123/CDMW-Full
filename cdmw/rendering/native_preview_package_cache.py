@@ -495,8 +495,11 @@ def _set_cached_total_bytes(cache_root: Path, total_bytes: int) -> None:
 def _add_cached_total_bytes(cache_root: Path, added_bytes: int) -> None:
     root_id = _resolved_path_key(Path(cache_root))
     with _CACHE_STATE_LOCK:
-        current = max(0, int(_CACHE_TOTAL_BYTES.get(root_id, 0)))
-        _CACHE_TOTAL_BYTES[root_id] = current + max(0, int(added_bytes))
+        # A concurrent clear may invalidate the snapshot during publication.
+        # Keep it invalid so the following budget check counts all survivors.
+        if root_id in _CACHE_TOTAL_BYTES:
+            current = max(0, int(_CACHE_TOTAL_BYTES[root_id]))
+            _CACHE_TOTAL_BYTES[root_id] = current + max(0, int(added_bytes))
 
 
 def _invalidate_cached_total_bytes(cache_root: Path) -> None:
@@ -724,21 +727,27 @@ def clear_native_preview_package_cache(cache_root: Path) -> None:
     try:
         children = tuple(path for path in packages_root.iterdir() if path.is_dir())
     except OSError:
-        _set_cached_total_bytes(cache_root, 0)
+        _invalidate_cached_total_bytes(cache_root)
         return
     for entry_dir in children:
         if entry_dir.name.startswith("_staging_"):
             if not _staging_is_leased(entry_dir):
                 shutil.rmtree(entry_dir, ignore_errors=True)
             continue
-        with native_preview_package_cache_build_lock(cache_root, entry_dir.name):
+        lock = native_preview_package_cache_build_lock(cache_root, entry_dir.name)
+        if not lock.acquire(blocking=False):
+            continue
+        try:
             if not _cache_key_is_active(cache_root, entry_dir.name):
                 shutil.rmtree(entry_dir, ignore_errors=True)
+        finally:
+            lock.release()
     try:
         packages_root.rmdir()
     except OSError:
         pass
-    _set_cached_total_bytes(cache_root, 0)
+    # Active/busy entries and failed deletions still occupy disk space.
+    _invalidate_cached_total_bytes(cache_root)
 
 
 # Canonical Rust Preview names.  The implementation remains in this module so

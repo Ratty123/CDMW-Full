@@ -642,7 +642,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("remove_model_library_preview_package_dir(package_dir)", preview_source)
         self.assertNotIn("shutil.rmtree", preview_source)
         self.assertIn("threading.Thread(", worker_source)
-        self.assertIn("shutil.rmtree(package_dir, ignore_errors=True)", worker_source)
+        self.assertIn("shutil.rmtree(retired, ignore_errors=True)", worker_source)
 
         source_path_start = source.index("    def _inline_preview_source_path_for_payload")
         source_path_body = source[source_path_start: source.index("    def _inline_preview_extract_root_for_source", source_path_start)]

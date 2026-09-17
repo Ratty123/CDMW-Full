@@ -6,6 +6,7 @@ import dataclasses
 import hashlib
 import json
 import shlex
+import shutil
 import struct
 import sys
 import tempfile
@@ -210,7 +211,7 @@ def _model_library_preview_dependency_paths(import_path: Path) -> tuple[Path, ..
                 return None
             for line in material_lines:
                 parts = shlex.split(line, comments=True, posix=True)
-                if parts and parts[0].lower() in {"map_kd", "map_ks", "map_bump", "bump", "disp", "decal"}:
+                if parts and (parts[0].lower().startswith("map_") or parts[0].lower() in {"bump", "norm", "disp", "decal"}):
                     candidate = _model_library_local_reference(material_path, parts[-1])
                     if candidate is None:
                         return None
@@ -591,7 +592,17 @@ def prepare_model_library_inline_preview(
         summary_metadata=summary_metadata,
     )
     package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
-    raise_if_cancelled(stop_event)
+    try:
+        raise_if_cancelled(stop_event)
+    except BaseException:
+        # Durable hits belong to the cache; only this request's private output
+        # can be removed when cancellation wins the delivery boundary.
+        package_path = Path(package_dir).resolve()
+        transient = package_path.parent
+        if (package_path.name == "package" and transient.name.startswith("cdmw_rust_preview_")
+                and transient.parent == cache_root.resolve()):
+            shutil.rmtree(transient, ignore_errors=True)
+        raise
     return {
         "request_id": int(request_id),
         "model_name": name,

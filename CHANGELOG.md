@@ -17,6 +17,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Model Library cleans up current temporary preview packages after replacement, cancellation and stale delivery, while preserving live renderer inputs. Edited emissive and other OBJ material maps invalidate cached previews.
+- Preview cache clearing and budget changes run off the UI thread, skip busy publishers, and keep retained packages in disk-budget accounting. Mesh Editor preserves font and UI texture updates across skipped renderer frames.
 - Preview cleanup removes stale or evicted Archive Browser packages and undelivered New Item material packages. Clear and prune include the current Rust cache while preserving live packages.
 - Terminal preview surface errors pause with Retry available, and interrupted captures report failure instead of leaving capture controls waiting. Covered previews pause redraws without being treated as GPU failures.
 - PAC imports and rebuilds reject UV coordinates that cannot fit the stored format instead of silently replacing them with zero. Rejected replacements preserve the current mesh and Undo/Redo history.

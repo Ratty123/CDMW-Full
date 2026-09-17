@@ -300,8 +300,24 @@ class ModelLibraryTaskWorker(QObject):
 
 
 def _remove_model_library_preview_package_dir(package_dir: Path) -> None:
+    from cdmw.rendering.native_preview_package_cache import native_preview_package_live_paths_guard
+
+    # A rejected replacement can leave the previous package in use. Wait off
+    # the UI thread, then detach it while lease acquisition is excluded.
     try:
-        shutil.rmtree(package_dir, ignore_errors=True)
+        root = package_dir.absolute()
+        if root.resolve() != root:
+            return
+        while True:
+            with native_preview_package_live_paths_guard() as live:
+                if not any(path.is_relative_to(root) for path in live):
+                    if not root.exists():
+                        return
+                    retired = root.with_name(f".cdmw_retired_preview_{uuid.uuid4().hex}")
+                    root.rename(retired)
+                    break
+            threading.Event().wait(0.05)
+        shutil.rmtree(retired, ignore_errors=True)
     except OSError:
         pass
 
@@ -310,9 +326,10 @@ def remove_model_library_preview_package_dir(package_dir: Path | str | None) -> 
     if package_dir is None:
         return None
     path = Path(package_dir)
-    if path.name == "package" and path.parent.name.startswith("cdmw_dotnet_preview_"):
+    prefixes = ("cdmw_dotnet_preview_", "cdmw_rust_preview_")
+    if path.name == "package" and path.parent.name.startswith(prefixes):
         path = path.parent
-    if not path.name.startswith("cdmw_dotnet_preview_"):
+    if not path.name.startswith(prefixes):
         return None
     thread = threading.Thread(
         target=_remove_model_library_preview_package_dir,
