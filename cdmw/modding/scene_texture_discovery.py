@@ -956,8 +956,8 @@ def _resolve_local_texture_reference(source_path: Path, texture_reference: str) 
 
     for root in (source_path.parent, package_root):
         found = _find_first_local_file_by_basename(root, basename)
-    if found is not None:
-        return found
+        if found is not None:
+            return found
     return None
 
 __all__ = [

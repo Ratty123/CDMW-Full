@@ -183,3 +183,49 @@ def test_emissive_edit_rebuilds_real_package_and_then_reuses_it(tmp_path, monkey
 
     monkeypatch.setattr(preview, "import_scene_mesh_with_report", unexpected_import)
     assert preview.prepare_model_library_inline_preview(source)["rust_preview_package_path"] == str(second_path)
+
+
+@pytest.mark.parametrize("declaration", ["", "mtllib\ttriangle.mtl", "mtllib triangle.mtl extra.mtl"])
+def test_obj_cache_tracks_importer_material_library_forms(tmp_path, monkeypatch, declaration):
+    monkeypatch.setattr(preview.tempfile, "tempdir", str(tmp_path))
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    source = _write_obj(inputs, "map_Ke")
+    source.write_text(source.read_text().replace("mtllib triangle.mtl", declaration), encoding="utf-8")
+    (inputs / "extra.mtl").write_text("newmtl unused\nKd 1 1 1\n", encoding="utf-8")
+    first = preview.prepare_model_library_inline_preview(source)
+    Image.new("RGBA", (4, 4), (0, 255, 0, 255)).save(inputs / "triangle_emissive.png")
+    second = preview.prepare_model_library_inline_preview(source)
+    assert first["textures"] == second["textures"] == 1
+    assert first["rust_preview_package_path"] != second["rust_preview_package_path"]
+    def emissive_hash(result):
+        manifest = json.loads((Path(result["rust_preview_package_path"]) / "manifest.json").read_text(encoding="utf-8"))
+        return next(row["file"]["sha256"] for row in manifest["textures"] if row["role"] == "emissive")
+
+    assert emissive_hash(first) != emissive_hash(second)
+    assert not Path(second["rust_preview_package_path"]).parent.name.startswith("cdmw_rust_preview_")
+    third = preview.prepare_model_library_inline_preview(source)
+    assert third["cache_hit"]
+    assert third["rust_preview_package_path"] == second["rust_preview_package_path"]
+
+
+def test_obj_texture_path_with_spaces_does_not_hash_a_basename_decoy(tmp_path):
+    source = _write_obj(tmp_path, "map_Ke")
+    texture = tmp_path / "textures" / "triangle emission.png"
+    texture.parent.mkdir()
+    (tmp_path / "triangle_emissive.png").replace(texture)
+    Image.new("RGBA", (4, 4), (0, 0, 255, 255)).save(tmp_path / "emission.png")
+    (tmp_path / "triangle.mtl").write_text(
+        "newmtl A\nmap_Ke -clamp on textures/triangle emission.png\n", encoding="utf-8",
+    )
+
+    def identity():
+        return preview._model_library_preview_package_cache_identity(
+            source, source, extract_root=None, render_settings=ModelPreviewRenderSettings(),
+            texture_flip_vertical=True, stop_event=None,
+        )
+
+    first = identity()
+    assert first is not None
+    Image.new("RGBA", (4, 4), (0, 255, 0, 255)).save(texture)
+    assert identity() != first

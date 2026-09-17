@@ -42,6 +42,9 @@ OBJ identities include every declared texture map, including emissive, normal,
 roughness, metallic and opacity maps. Uncached Rust packages are retired after
 replacement or close; cancellation and stale delivery also release private
 packages. Cleanup waits for live renderer leases and preserves durable entries.
+OBJ cache discovery uses the importer's material-library and texture-path rules,
+including same-stem MTL fallback, tab-separated or multiple libraries, and texture
+filenames with spaces or map options.
 
 Pre-decoded external geometry is labelled `preview` inside the Rust document;
 the manifest separately retains its true glTF, GLB, OBJ, DAE, or converted-FBX

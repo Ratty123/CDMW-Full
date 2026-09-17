@@ -1,7 +1,57 @@
 import threading
 
+import pytest
+
 from cdmw.rendering import native_preview_package_cache as cache
 from tests.test_native_preview_package_cache_concurrency import _raw_cache_entry, _validate
+
+
+@pytest.mark.parametrize("operation", ["scan", "prune", "evict", "clear_during_scan"])
+def test_old_snapshot_cannot_overwrite_concurrent_cache_changes(tmp_path, monkeypatch, operation):
+    _raw_cache_entry(tmp_path, "old")
+    scanned, resume = threading.Event(), threading.Event()
+    read = cache._read_metadata
+    failures = []
+
+    def pause_after_snapshot(entry):
+        result = read(entry)
+        if threading.current_thread() is reader and not scanned.is_set():
+            scanned.set()
+            assert resume.wait(5)
+        return result
+
+    def inspect():
+        try:
+            if operation in {"scan", "clear_during_scan"}:
+                cache._cached_total_bytes(tmp_path)
+            else:
+                cache.prune_native_preview_package_cache(
+                    tmp_path, max_bytes=1 if operation == "evict" else 1000, target_bytes=0,
+                )
+        except BaseException as exc:
+            failures.append(exc)
+
+    reader = threading.Thread(target=inspect)
+    monkeypatch.setattr(cache, "_read_metadata", pause_after_snapshot)
+    reader.start()
+    try:
+        assert scanned.wait(3)
+        if operation == "clear_during_scan":
+            cache.clear_native_preview_package_cache(tmp_path)
+            assert cache._cached_total_bytes(tmp_path) == 0
+        else:
+            staging = _raw_cache_entry(tmp_path, "_staging_new")
+            cache.store_native_preview_package_cache(
+                tmp_path, "new", staging, {}, validate_package=_validate, max_bytes=1000, target_bytes=800,
+            )
+            assert cache._cached_total_bytes(tmp_path) == 132
+    finally:
+        resume.set()
+        reader.join(5)
+    assert not reader.is_alive()
+    assert not failures
+    expected = {"scan": 132, "prune": 132, "evict": 66, "clear_during_scan": 0}[operation]
+    assert cache._cached_total_bytes(tmp_path) == expected
 
 
 def test_clear_recounts_active_survivor_and_next_write_enforces_budget(tmp_path):

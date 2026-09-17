@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-import shlex
 import shutil
 import struct
 import sys
@@ -192,27 +191,29 @@ def _model_library_preview_dependency_paths(import_path: Path) -> tuple[Path, ..
                     return None
                 discovered.append(candidate)
     elif suffix == ".obj":
-        try:
-            lines = source.read_text(encoding="utf-8-sig", errors="replace").splitlines()
-        except OSError:
-            return None
-        material_paths = []
-        for line in lines:
-            if line.lstrip().lower().startswith("mtllib "):
-                candidate = _model_library_local_reference(source, line.split(None, 1)[1])
-                if candidate is None:
-                    return None
-                material_paths.append(candidate)
-                discovered.append(candidate)
+        from cdmw.modding.scene_texture_discovery import (
+            _obj_material_library_paths,
+            _obj_map_reference_from_parts,
+            _resolve_obj_texture_reference,
+        )
+
+        # Match the importer, including tab/multiple-library declarations and
+        # an existing same-stem MTL even when the OBJ has no mtllib statement.
+        material_paths = list(_obj_material_library_paths(source, include_fallback=False))
+        fallback = source.with_suffix(".mtl")
+        if fallback.is_file() and fallback not in material_paths:
+            material_paths.append(fallback)
+        discovered.extend(material_paths)
         for material_path in material_paths:
             try:
                 material_lines = material_path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
             except OSError:
                 return None
             for line in material_lines:
-                parts = shlex.split(line, comments=True, posix=True)
+                parts = line.split()
                 if parts and (parts[0].lower().startswith("map_") or parts[0].lower() in {"bump", "norm", "disp", "decal"}):
-                    candidate = _model_library_local_reference(material_path, parts[-1])
+                    reference = _obj_map_reference_from_parts(parts[1:])
+                    candidate = _resolve_obj_texture_reference(source, material_path, reference)
                     if candidate is None:
                         return None
                     discovered.append(candidate)
