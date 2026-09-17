@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
@@ -12,6 +13,7 @@ from cdmw.ui.shell.compact.drawer import CompactActivityDrawer
 from cdmw.ui.shell.compact.rail import CompactWorkspaceRail
 from cdmw.ui.shell.compact.snapshots import compact_status_snapshot_for
 from cdmw.ui.shell.compact.status_strip import CompactBottomStatusStrip
+from cdmw.ui.shell.navigation_visibility import NavigationVisibilityButton
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -29,7 +31,16 @@ class CompactWorkspace(QWidget):
         layout.setSpacing(0)
 
         self.rail = CompactWorkspaceRail(owner, owner.shell.settings, self)
-        layout.addWidget(self.rail)
+        navigation_column = QWidget(self)
+        navigation_layout = QVBoxLayout(navigation_column)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
+        navigation_layout.setSpacing(0)
+        self.navigation_toggle_button = NavigationVisibilityButton(
+            self.rail, vertical=False, parent=navigation_column,
+        )
+        navigation_layout.addWidget(self.navigation_toggle_button, alignment=Qt.AlignRight)
+        navigation_layout.addWidget(self.rail, stretch=1)
+        layout.addWidget(navigation_column)
         right = QWidget()
         right.setObjectName("CompactWorkspaceContent")
         right_layout = QVBoxLayout(right)

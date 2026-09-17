@@ -1,7 +1,7 @@
 # Crimson Desert Mod Workbench
 
 [![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
-![version](https://img.shields.io/badge/version-0.11.0--alpha.17-1f6feb?style=flat-square)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.18-1f6feb?style=flat-square)
 ![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.17` is the current source version and is offered as a pre-release.
+> `0.11.0-alpha.18` is the current source version and is offered as a pre-release.
 > See [Releases](https://github.com/Ratty123/CDMW-Full/releases) for downloads.
 
 ---
@@ -63,6 +63,7 @@ Compact is the native, first-run layout. Classic remains available in
 **Settings > Appearance > Layout**. Both use one tool registry and one content
 stack; only navigation changes. Existing saved layout choices remain authoritative.
 Most tools can be detached and reattached without replacing their widgets or state.
+The arrow beside navigation hides or restores it while keeping the active tool open.
 
 ```mermaid
 flowchart LR
@@ -241,6 +242,23 @@ inclusion. Imports keep their size and placement by default. Neutral-appearance
 meshes show an **Experimental** warning about possible
 positioning, scale and animation errors. Use **Output Preview** before Finish
 and Build Mod; required geometry and dependency checks remain active.
+
+**Keep Original Materials** accepts OBJ replacements with missing or stale MTL
+and texture references. Choose **Imported Materials & Textures** when the imported
+materials should replace the originals; that mode requires their dependencies.
+Long status messages are available on hover and in the selectable **Details** view.
+
+For supported original PAC meshes at LOD0, **Mesh Data > Cloth** can reduce or
+disable existing cloth influence, fix vertices above a chosen height, and fade
+movement below it. The rule applies to every stored LOD and supports Undo/Redo,
+Restore, saved drafts and PAC output. These controls change render-vertex cloth
+influence; they do not move simulation anchors or edit collision shapes or physics
+profiles. The approximate cloth preview does not visualize the saved influence
+changes, and their behavior in game still needs verification. Keep the original
+asset or draft to restore bindings after exporting with cloth disabled.
+
+Use **Sidebars** in the editor header to hide or restore Tools and Inspector
+individually or together, keeping the current edit and output settings.
 
 **Hair Tools (Experimental)** opens one Create/Edit setup for Kliff, Damiane and
 Oongka. Create starts on an empty fitting scalp; Edit loads a registered hairstyle.
