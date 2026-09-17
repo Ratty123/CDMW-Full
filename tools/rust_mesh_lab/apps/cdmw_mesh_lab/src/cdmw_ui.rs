@@ -112,7 +112,7 @@ fn cdmw_sidebar_button(
             visuals.bg_stroke,
             egui::StrokeKind::Inside,
         );
-        let stroke = egui::Stroke::new(1.6, visuals.fg_stroke.color);
+        let stroke = egui::Stroke::new((side / 22.0).clamp(1.4, 2.0), visuals.fg_stroke.color);
         let center = rect.center();
         let radius = side * 0.28;
         let p = |x: f32, y: f32| center + egui::vec2(x, y) * radius;
@@ -122,6 +122,14 @@ fn cdmw_sidebar_button(
         let path = |points: &[[f32; 2]]| {
             painter.add(egui::Shape::line(
                 points.iter().map(|v| p(v[0], v[1])).collect(),
+                stroke,
+            ));
+        };
+        let curve = |points: [[f32; 2]; 4]| {
+            painter.add(egui::epaint::CubicBezierShape::from_points_stroke(
+                points.map(|point| p(point[0], point[1])),
+                false,
+                Color32::TRANSPARENT,
                 stroke,
             ));
         };
@@ -165,86 +173,99 @@ fn cdmw_sidebar_button(
             }
             CdmwSidebarIcon::Page(CdmwSidebarPage::Tool(page)) => match page {
                 CdmwRailPage::Select => path(&[
-                    [-0.7, -1.0],
-                    [0.9, 0.3],
-                    [0.1, 0.3],
-                    [-0.3, 1.0],
-                    [-0.7, -1.0],
+                    [-0.62, -0.95],
+                    [0.78, 0.18],
+                    [0.02, 0.18],
+                    [-0.41, 0.84],
+                    [-0.62, -0.95],
                 ]),
                 CdmwRailPage::Move => {
                     line([-1.0, 0.0], [1.0, 0.0]);
                     line([0.0, -1.0], [0.0, 1.0]);
                     for direction in [-1.0, 1.0] {
                         path(&[
-                            [direction * 0.6, -0.3],
+                            [direction * 0.65, -0.35],
                             [direction, 0.0],
-                            [direction * 0.6, 0.3],
+                            [direction * 0.65, 0.35],
                         ]);
                         path(&[
-                            [-0.3, direction * 0.6],
+                            [-0.35, direction * 0.65],
                             [0.0, direction],
-                            [0.3, direction * 0.6],
+                            [0.35, direction * 0.65],
                         ]);
                     }
                 }
                 CdmwRailPage::Rotate => {
-                    let points: Vec<_> = (0..18)
+                    let points: Vec<_> = (0..33)
                         .map(|i| {
-                            let angle = 0.5 + i as f32 * 0.29;
-                            [angle.cos() * 0.85, angle.sin() * 0.85]
+                            let angle = 0.5 + i as f32 * 5.4 / 32.0;
+                            [angle.cos() * 0.9, angle.sin() * 0.9]
                         })
                         .collect();
                     path(&points);
-                    path(&[[0.35, -0.95], [0.9, -0.55], [0.95, -1.0]]);
+                    path(&[[0.48, -0.57], [0.85, -0.34], [0.98, -0.73]]);
                 }
                 CdmwRailPage::Scale => {
-                    square([-1.0, 0.1], [-0.1, 1.0]);
-                    line([-0.3, 0.3], [0.9, -0.9]);
-                    path(&[[0.2, -0.9], [0.9, -0.9], [0.9, -0.2]]);
+                    square([-0.95, 0.22], [-0.22, 0.95]);
+                    line([-0.13, 0.13], [0.9, -0.9]);
+                    path(&[[0.27, -0.9], [0.9, -0.9], [0.9, -0.27]]);
                 }
-                CdmwRailPage::Grab => path(&[
-                    [-0.7, 0.1],
-                    [-0.7, -0.5],
-                    [-0.4, -0.6],
-                    [-0.4, -0.9],
-                    [0.0, -1.0],
-                    [0.2, -0.8],
-                    [0.6, -0.8],
-                    [0.7, -0.3],
-                    [1.0, -0.1],
-                    [0.7, 0.8],
-                    [-0.1, 1.0],
-                    [-0.9, 0.4],
-                    [-0.7, 0.1],
-                ]),
+                CdmwRailPage::Grab => {
+                    curve([[-0.2, 1.0], [-0.42, 1.0], [-0.47, 0.87], [-0.58, 0.67]]);
+                    line([-0.58, 0.67], [-1.0, -0.06]);
+                    curve([[-1.0, -0.06], [-1.12, -0.3], [-0.83, -0.38], [-0.55, 0.04]]);
+                    line([-0.55, 0.04], [-0.55, -0.65]);
+                    curve([
+                        [-0.55, -0.65],
+                        [-0.55, -0.95],
+                        [-0.23, -0.95],
+                        [-0.23, -0.65],
+                    ]);
+                    path(&[[-0.23, -0.65], [-0.23, -0.12], [-0.23, -0.87]]);
+                    curve([[-0.23, -0.87], [-0.23, -1.15], [0.1, -1.15], [0.1, -0.87]]);
+                    path(&[[0.1, -0.87], [0.1, -0.12], [0.1, -0.7]]);
+                    curve([[0.1, -0.7], [0.1, -0.98], [0.43, -0.98], [0.43, -0.7]]);
+                    path(&[[0.43, -0.7], [0.43, -0.05], [0.43, -0.43]]);
+                    curve([[0.43, -0.43], [0.43, -0.68], [0.76, -0.68], [0.76, -0.43]]);
+                    line([0.76, -0.43], [0.76, 0.0]);
+                    curve([[0.76, 0.0], [0.8, 0.38], [0.68, 0.67], [0.43, 0.94]]);
+                    curve([[0.43, 0.94], [0.38, 1.02], [0.06, 1.0], [-0.2, 1.0]]);
+                }
                 CdmwRailPage::Smooth => {
-                    let points: Vec<_> = (0..17)
-                        .map(|i| {
-                            let x = i as f32 / 8.0 - 1.0;
-                            [x, (x * std::f32::consts::PI).sin() * 0.5]
-                        })
-                        .collect();
-                    path(&points);
-                    line([-0.8, 0.9], [0.8, 0.9]);
+                    curve([[-1.0, 0.1], [-0.65, -0.52], [-0.37, -0.52], [0.0, 0.0]]);
+                    curve([[0.0, 0.0], [0.37, 0.52], [0.65, 0.52], [1.0, -0.1]]);
                 }
-                CdmwRailPage::Inflate | CdmwRailPage::Pinch => {
-                    painter.circle_stroke(center, radius * 0.25, stroke);
+                CdmwRailPage::Inflate => {
+                    painter.circle_stroke(center, radius * 0.5, stroke);
                     for direction in [-1.0, 1.0] {
-                        let tip = if page == CdmwRailPage::Inflate {
-                            1.0
-                        } else {
-                            0.4
-                        };
-                        let tail = 0.7;
-                        line([direction * 0.4, 0.0], [direction, 0.0]);
+                        line([direction * 0.73, 0.0], [direction * 1.1, 0.0]);
                         path(&[
-                            [direction * tail, -0.3],
-                            [direction * tip, 0.0],
-                            [direction * tail, 0.3],
+                            [direction * 0.91, -0.2],
+                            [direction * 1.1, 0.0],
+                            [direction * 0.91, 0.2],
                         ]);
-                        if page == CdmwRailPage::Inflate {
-                            line([0.0, direction * 0.5], [0.0, direction]);
-                        }
+                        line([0.0, direction * 0.73], [0.0, direction * 1.1]);
+                        path(&[
+                            [-0.2, direction * 0.91],
+                            [0.0, direction * 1.1],
+                            [0.2, direction * 0.91],
+                        ]);
+                    }
+                }
+                CdmwRailPage::Pinch => {
+                    for direction in [-1.0, 1.0] {
+                        line([direction, 0.0], [direction * 0.26, 0.0]);
+                        path(&[
+                            [direction * 0.53, -0.27],
+                            [direction * 0.26, 0.0],
+                            [direction * 0.53, 0.27],
+                        ]);
+                        line([0.0, direction], [0.0, direction * 0.26]);
+                        path(&[
+                            [-0.27, direction * 0.53],
+                            [0.0, direction * 0.26],
+                            [0.27, direction * 0.53],
+                        ]);
                     }
                 }
                 CdmwRailPage::Topology => {
@@ -257,44 +278,51 @@ fn cdmw_sidebar_button(
                     ]);
                     line([-1.0, 0.0], [1.0, 0.0]);
                     line([0.0, -1.0], [0.0, 1.0]);
+                    for offset in [-0.45, 0.45] {
+                        line([-0.55, offset], [0.55, offset]);
+                        line([offset, -0.55], [offset, 0.55]);
+                    }
                 }
                 CdmwRailPage::Cleanup => {
-                    line([0.0, 0.0], [0.8, -1.0]);
-                    path(&[
-                        [-0.1, -0.1],
-                        [0.4, 0.4],
-                        [-0.1, 1.0],
-                        [-1.0, 0.4],
-                        [-0.1, -0.1],
-                    ]);
-                    line([-0.3, 0.3], [-0.6, 0.7]);
+                    path(&[[-0.32, 0.88], [-0.83, 0.38], [0.34, -0.79]]);
+                    curve([[0.34, -0.79], [0.39, -0.84], [0.47, -0.84], [0.53, -0.79]]);
+                    line([0.53, -0.79], [0.92, -0.4]);
+                    curve([[0.92, -0.4], [0.98, -0.34], [0.98, -0.31], [0.92, -0.25]]);
+                    line([0.92, -0.25], [-0.32, 0.88]);
+                    line([-0.54, 0.1], [-0.05, 0.61]);
+                    line([-0.88, 0.98], [0.95, 0.98]);
                 }
                 CdmwRailPage::Normals => {
-                    path(&[[-1.0, 0.7], [-0.5, 0.3], [0.5, 0.7], [1.0, 0.3]]);
-                    for x in [-0.6, 0.4] {
-                        line([x, 0.4], [x, -0.8]);
-                        path(&[[x - 0.25, -0.5], [x, -0.8], [x + 0.25, -0.5]]);
-                    }
+                    curve([[-0.42, 0.0], [-0.68, 0.2], [-0.91, 0.45], [-1.0, 0.58]]);
+                    curve([[-1.0, 0.58], [-0.42, 0.43], [0.12, 0.57], [0.63, 0.86]]);
+                    line([0.63, 0.86], [1.0, 0.28]);
+                    line([-0.2, 0.25], [-0.2, -0.95]);
+                    path(&[[-0.44, -0.71], [-0.2, -0.95], [0.04, -0.71]]);
+                    curve([[0.06, -0.02], [0.4, -0.02], [0.65, 0.0], [0.96, 0.02]]);
+                    path(&[[0.72, -0.17], [0.96, 0.02], [0.72, 0.16]]);
                 }
                 CdmwRailPage::Uv => {
-                    square([-0.9, -0.9], [0.9, 0.9]);
-                    line([0.0, -0.9], [0.0, 0.9]);
-                    line([-0.9, 0.0], [0.9, 0.0]);
-                    line([-0.9, 0.9], [0.9, -0.9]);
+                    square([-0.85, -0.85], [0.85, 0.85]);
+                    line([0.0, -0.85], [0.0, 0.85]);
+                    line([-0.85, 0.0], [0.85, 0.0]);
                 }
                 CdmwRailPage::Cloth => {
-                    for y in [-0.7, 0.0, 0.7] {
-                        path(&[[-0.9, y - 0.15], [0.0, y + 0.15], [0.9, y - 0.15]]);
-                    }
-                    for x in [-0.9, 0.0, 0.9] {
-                        line([x, -0.8], [x, 0.8]);
-                    }
+                    line([-1.0, 0.7], [-0.48, -0.72]);
+                    curve([[-0.48, -0.72], [-0.3, -1.05], [0.0, -1.0], [0.22, -0.72]]);
+                    curve([[0.22, -0.72], [0.4, -0.51], [0.68, -0.55], [0.82, -0.6]]);
+                    line([0.82, -0.6], [1.0, 0.8]);
+                    curve([[1.0, 0.8], [0.64, 1.08], [0.27, 1.08], [0.07, 0.88]]);
+                    curve([[0.07, 0.88], [-0.42, 0.53], [-0.7, 0.33], [-1.0, 0.7]]);
+                    line([0.22, -0.72], [0.07, 0.88]);
                 }
                 CdmwRailPage::MorphRefit => {
-                    path(&[[-0.7, -1.0], [-1.0, -0.5], [-0.5, 0.0], [-0.8, 0.9]]);
-                    path(&[[0.7, -1.0], [1.0, -0.5], [0.5, 0.0], [0.8, 0.9]]);
-                    line([-0.4, 0.0], [0.4, 0.0]);
-                    path(&[[0.1, -0.3], [0.4, 0.0], [0.1, 0.3]]);
+                    for [x, y] in [[-0.75, -0.75], [0.75, -0.75], [0.75, 0.75], [-0.75, 0.75]] {
+                        painter.circle_stroke(p(x, y), radius * 0.18, stroke);
+                    }
+                    curve([[-0.5, -0.74], [-0.17, -0.5], [0.17, -0.5], [0.5, -0.74]]);
+                    curve([[0.74, -0.5], [0.5, -0.17], [0.5, 0.17], [0.74, 0.5]]);
+                    curve([[0.5, 0.74], [0.17, 0.5], [-0.17, 0.5], [-0.5, 0.74]]);
+                    curve([[-0.74, 0.5], [-0.5, 0.17], [-0.5, -0.17], [-0.74, -0.5]]);
                 }
                 CdmwRailPage::RigWeights => {
                     painter.circle_stroke(center, radius * 0.7, stroke);
@@ -991,7 +1019,9 @@ impl LabApplication {
                 .max(1.0);
             ui.add_sized(
                 [title_width, ui.spacing().interact_size.y],
-                egui::Label::new(RichText::new(page.label()).strong()).truncate(),
+                egui::Label::new(RichText::new(page.label()).strong())
+                    .truncate()
+                    .halign(egui::Align::Min),
             );
             let label = if settings.pinned {
                 "Unpin tool settings"
@@ -1040,14 +1070,15 @@ impl LabApplication {
         };
         if settings.pinned {
             egui::Panel::left("cdmw_pinned_tool_settings")
-                .default_size(320.0)
-                .min_size(250.0)
-                .max_size(430.0)
+                .default_size(280.0)
+                .min_size(230.0)
+                .max_size(340.0)
                 .resizable(true)
                 .show(root_ui, |ui| {
                     self.draw_cdmw_settings_header(ui, page);
                     ScrollArea::vertical()
                         .id_salt(("cdmw-settings-scroll", page.label()))
+                        .auto_shrink([false, true])
                         .show(ui, |ui| {
                             self.draw_cdmw_sidebar_page(ui, page, actions);
                         });
@@ -1059,22 +1090,29 @@ impl LabApplication {
         let nested_popup = egui::Popup::is_any_open(&context);
         let had_gesture = self.selection_gesture.is_some() || self.edit_gesture.is_some();
         let had_text_focus = context.text_edit_focused();
+        let width = 280.0_f32.min(bounds.width());
         let area = egui::Area::new(egui::Id::new("cdmw-tool-flyout"))
             .order(egui::Order::Foreground)
             .movable(false)
             .fixed_pos(bounds.left_top())
             .constrain_to(bounds)
-            .default_width(320.0_f32.min(bounds.width()))
+            .default_size(egui::vec2(width, bounds.height()))
             .show(&context, |ui| {
+                // Area otherwise reuses the previous tool's measured size as
+                // the next tool's constraint. Let each page grow to the editor
+                // bounds and shrink only after its contents have been measured.
+                ui.set_width(width);
+                ui.set_max_height(bounds.height());
                 egui::Frame::popup(ui.style())
                     .inner_margin(6.0)
                     .show(ui, |ui| {
-                        ui.set_width((320.0_f32.min(bounds.width()) - 12.0).max(1.0));
+                        ui.set_width((width - 12.0).max(1.0));
                         self.draw_cdmw_settings_header(ui, page);
                         let height = (bounds.bottom() - ui.cursor().top() - 6.0).max(1.0);
                         ScrollArea::vertical()
                             .id_salt(("cdmw-settings-scroll", page.label()))
                             .max_height(height)
+                            .auto_shrink([false, true])
                             .show(ui, |ui| {
                                 self.draw_cdmw_sidebar_page(ui, page, actions);
                             });
@@ -1123,6 +1161,7 @@ impl LabApplication {
         ui.scope_builder(
             egui::UiBuilder::new().id(egui::Id::new(("cdmw-settings-page", page.label()))),
             |ui| {
+                ui.spacing_mut().combo_width = (ui.available_width() * 0.45).clamp(64.0, 112.0);
                 ui.add_enabled_ui(enabled, |ui| match page {
                     CdmwSidebarPage::Viewport => self.draw_cdmw_viewport_section(ui, actions),
                     CdmwSidebarPage::Tool(page) => match page {
@@ -1154,9 +1193,9 @@ impl LabApplication {
             .unwrap_or("Authoring is unavailable under the current output policy")
             .to_owned();
         egui::Panel::left("cdmw_tool_rail")
-            .default_size(286.0)
-            .min_size(250.0)
-            .max_size(360.0)
+            .default_size(264.0)
+            .min_size(230.0)
+            .max_size(340.0)
             .resizable(true)
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
@@ -1315,15 +1354,16 @@ impl LabApplication {
                                     );
                                     let enabled = !busy && (!requires_authoring || authoring);
                                     if ui
-                                        .add_enabled(
-                                            enabled,
-                                            Button::new(label).selected(active).min_size(
-                                                egui::vec2(
+                                        .add_enabled_ui(enabled, |ui| {
+                                            ui.add_sized(
+                                                [
                                                     button_width.max(1.0),
                                                     ui.spacing().interact_size.y,
-                                                ),
-                                            ),
-                                        )
+                                                ],
+                                                Button::new(label).selected(active).wrap(),
+                                            )
+                                        })
+                                        .inner
                                         .on_disabled_hover_text(if busy {
                                             "Wait for the current shadow operation"
                                         } else {
@@ -1384,7 +1424,10 @@ impl LabApplication {
         if self.view_mode == ViewMode::TexturedSolid && !self.cdmw_textured_mode_available {
             self.view_mode = ViewMode::Solid;
         }
-        ComboBox::from_label("Display")
+        let display_label = ui.label("Display");
+        ComboBox::from_id_salt("Display")
+            .width(ui.available_width())
+            .truncate()
             .selected_text(cdmw_view_mode_label(self.view_mode))
             .show_ui(ui, |ui| {
                 for (mode, label) in CDMW_VIEW_MODES {
@@ -1397,7 +1440,9 @@ impl LabApplication {
                         self.view_mode = mode;
                     }
                 }
-            });
+            })
+            .response
+            .labelled_by(display_label.id);
         if !self.cdmw_textured_mode_available {
             ui.label(
                 RichText::new(&self.cdmw_textured_mode_reason)
@@ -1811,117 +1856,128 @@ impl LabApplication {
     fn draw_cdmw_topology_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let free_edit = state_str(&self.cdmw_state, "output_policy") == Some("free_edit_rebuild");
         let selected = self.selected_counts();
+        ui.label(RichText::new("Tool options").strong());
+        egui::Grid::new("cdmw-topology-options")
+            .num_columns(2)
+            .min_col_width(0.0)
+            .max_col_width((ui.available_width() - 112.0).max(70.0))
+            .spacing([6.0, 6.0])
+            .show(ui, |ui| {
+                ui.label("Extrude distance");
+                ui.add(egui::DragValue::new(&mut self.extrude_distance).speed(0.001));
+                ui.end_row();
+                ui.label("Extrude axis");
+                ComboBox::from_id_salt("cdmw_extrude_axis")
+                    .width(44.0)
+                    .selected_text(self.cdmw_extrude_axis.to_ascii_uppercase())
+                    .show_ui(ui, |ui| {
+                        for axis in ["x", "y", "z"] {
+                            ui.selectable_value(
+                                &mut self.cdmw_extrude_axis,
+                                axis.to_owned(),
+                                axis.to_ascii_uppercase(),
+                            );
+                        }
+                    });
+                ui.end_row();
+                ui.label("Inset amount");
+                ui.add(
+                    egui::DragValue::new(&mut self.inset_amount)
+                        .speed(0.01)
+                        .range(0.01..=0.95),
+                );
+                ui.end_row();
+                ui.label("Loop cuts");
+                ui.add(
+                    egui::DragValue::new(&mut self.cdmw_loop_cut_count)
+                        .speed(1)
+                        .range(1..=16),
+                );
+                ui.end_row();
+                ui.label("Cut position");
+                ui.add(
+                    egui::DragValue::new(&mut self.cdmw_loop_cut_factor)
+                        .speed(0.01)
+                        .range(0.001..=0.999),
+                );
+                ui.end_row();
+                ui.label("Smooth strength");
+                ui.add(
+                    egui::DragValue::new(&mut self.cdmw_refine_strength)
+                        .speed(0.01)
+                        .range(0.0..=1.0),
+                );
+                ui.end_row();
+                ui.label("Smooth passes");
+                ui.add(
+                    egui::DragValue::new(&mut self.cdmw_refine_iterations)
+                        .speed(1)
+                        .range(1..=12),
+                );
+                ui.end_row();
+                ui.label("Weld distance");
+                ui.add(
+                    egui::DragValue::new(&mut self.cdmw_weld_distance)
+                        .speed(0.00001)
+                        .range(0.000001..=1.0),
+                );
+                ui.end_row();
+            });
+        ui.separator();
+        ui.label(RichText::new("Actions").strong());
         ui.horizontal_wrapped(|ui| {
-            ui.label("Extrude distance");
-            ui.add(egui::DragValue::new(&mut self.extrude_distance).speed(0.001));
-            ComboBox::from_id_salt("cdmw_extrude_axis")
-                .selected_text(self.cdmw_extrude_axis.to_ascii_uppercase())
-                .show_ui(ui, |ui| {
-                    for axis in ["x", "y", "z"] {
-                        ui.selectable_value(
-                            &mut self.cdmw_extrude_axis,
-                            axis.to_owned(),
-                            axis.to_ascii_uppercase(),
-                        );
-                    }
-                });
-            ui.label("Inset");
-            ui.add(
-                egui::DragValue::new(&mut self.inset_amount)
-                    .speed(0.01)
-                    .range(0.01..=0.95),
-            );
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Loop cuts");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_loop_cut_count)
-                    .speed(1)
-                    .range(1..=16),
-            );
-            ui.label("Factor");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_loop_cut_factor)
-                    .speed(0.01)
-                    .range(0.001..=0.999),
-            );
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Refine");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_refine_strength)
-                    .speed(0.01)
-                    .range(0.0..=1.0),
-            );
-            ui.label("passes");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_refine_iterations)
-                    .speed(1)
-                    .range(1..=12),
-            );
-        });
-        ui.horizontal(|ui| {
-            ui.label("Weld distance");
-            ui.add(
-                egui::DragValue::new(&mut self.cdmw_weld_distance)
-                    .speed(0.00001)
-                    .range(0.000001..=1.0),
-            );
-        });
-        for (label, action, availability) in [
-            ("Delete Selection", "delete", selected.total() > 0),
-            (
-                "Duplicate Selection",
-                "duplicate",
-                free_edit && selected.total() > 0,
-            ),
-            ("Subdivide", "subdivide", free_edit && selected.faces > 0),
-            (
-                "Refine Smooth",
-                "refine_smooth",
-                free_edit && selected.faces > 0,
-            ),
-            ("Loop Cut", "loop_cut", free_edit && selected.edges > 0),
-            ("Edge Split", "edge_split", free_edit && selected.edges > 0),
-            ("Split", "split", free_edit && selected.total() > 0),
-            ("Dissolve", "dissolve", free_edit && selected.total() > 0),
-            ("Bridge", "bridge", free_edit && selected.edges > 0),
-            ("Fill", "fill", free_edit && selected.edges > 0),
-            ("Merge", "merge", free_edit && selected.vertices > 1),
-            ("Weld", "weld", free_edit && selected.vertices > 1),
-            ("Separate", "separate", free_edit && selected.faces > 0),
-        ] {
-            if ui
-                .add_enabled(
-                    availability,
-                    Button::new(label).min_size(egui::vec2(ui.available_width(), 24.0)),
-                )
-                .on_disabled_hover_text(if !free_edit && action != "delete" {
-                    "This topology action requires Free Edit output"
-                } else {
-                    "Select the required mesh elements first"
-                })
-                .clicked()
-            {
-                let params = match action {
-                    "loop_cut" => json!({
-                        "cuts": self.cdmw_loop_cut_count,
-                        "factor": self.cdmw_loop_cut_factor,
-                    }),
-                    "refine_smooth" => json!({
-                        "smooth_strength": self.cdmw_refine_strength,
-                        "smooth_iterations": self.cdmw_refine_iterations,
-                    }),
-                    "weld" => json!({"threshold": self.cdmw_weld_distance}),
-                    _ => json!({}),
-                };
-                actions.push(UiAction::CdmwTopology {
-                    action,
-                    label,
-                    params,
-                });
+            for (label, action, availability) in [
+                ("Delete Selection", "delete", selected.total() > 0),
+                (
+                    "Duplicate Selection",
+                    "duplicate",
+                    free_edit && selected.total() > 0,
+                ),
+                ("Subdivide", "subdivide", free_edit && selected.faces > 0),
+                (
+                    "Refine Smooth",
+                    "refine_smooth",
+                    free_edit && selected.faces > 0,
+                ),
+                ("Loop Cut", "loop_cut", free_edit && selected.edges > 0),
+                ("Edge Split", "edge_split", free_edit && selected.edges > 0),
+                ("Split", "split", free_edit && selected.total() > 0),
+                ("Dissolve", "dissolve", free_edit && selected.total() > 0),
+                ("Bridge", "bridge", free_edit && selected.edges > 0),
+                ("Fill", "fill", free_edit && selected.edges > 0),
+                ("Merge", "merge", free_edit && selected.vertices > 1),
+                ("Weld", "weld", free_edit && selected.vertices > 1),
+                ("Separate", "separate", free_edit && selected.faces > 0),
+            ] {
+                if ui
+                    .add_enabled(availability, Button::new(label))
+                    .on_disabled_hover_text(if !free_edit && action != "delete" {
+                        "This topology action requires Free Edit output"
+                    } else {
+                        "Select the required mesh elements first"
+                    })
+                    .clicked()
+                {
+                    let params = match action {
+                        "loop_cut" => json!({
+                            "cuts": self.cdmw_loop_cut_count,
+                            "factor": self.cdmw_loop_cut_factor,
+                        }),
+                        "refine_smooth" => json!({
+                            "smooth_strength": self.cdmw_refine_strength,
+                            "smooth_iterations": self.cdmw_refine_iterations,
+                        }),
+                        "weld" => json!({"threshold": self.cdmw_weld_distance}),
+                        _ => json!({}),
+                    };
+                    actions.push(UiAction::CdmwTopology {
+                        action,
+                        label,
+                        params,
+                    });
+                }
             }
-        }
+        });
         ui.horizontal(|ui| {
             let extrude_label = if selected.faces > 0 {
                 "Extrude Faces"
@@ -1988,32 +2044,33 @@ impl LabApplication {
             );
         });
         let threshold = self.cdmw_cleanup_merge_distance;
-        for (label, action, params) in [
-            (
-                "Remove Doubles",
-                "remove_doubles",
-                json!({"threshold": threshold}),
-            ),
-            ("Delete Loose Vertices", "delete_loose_vertices", json!({})),
-            ("Compact Orphans", "compact_orphans", json!({})),
-            ("Repair Winding", "fix_winding", json!({})),
-            ("Fill Holes", "fill_holes", json!({})),
-        ] {
-            if ui
-                .add_enabled(
-                    free_edit,
-                    Button::new(label).min_size(egui::vec2(ui.available_width(), 24.0)),
-                )
-                .on_disabled_hover_text("Cleanup that changes topology requires Free Edit output")
-                .clicked()
-            {
-                actions.push(UiAction::CdmwMeshAction {
-                    action,
-                    label,
-                    params,
-                });
+        ui.horizontal_wrapped(|ui| {
+            for (label, action, params) in [
+                (
+                    "Remove Doubles",
+                    "remove_doubles",
+                    json!({"threshold": threshold}),
+                ),
+                ("Delete Loose Vertices", "delete_loose_vertices", json!({})),
+                ("Compact Orphans", "compact_orphans", json!({})),
+                ("Repair Winding", "fix_winding", json!({})),
+                ("Fill Holes", "fill_holes", json!({})),
+            ] {
+                if ui
+                    .add_enabled(free_edit, Button::new(label))
+                    .on_disabled_hover_text(
+                        "Cleanup that changes topology requires Free Edit output",
+                    )
+                    .clicked()
+                {
+                    actions.push(UiAction::CdmwMeshAction {
+                        action,
+                        label,
+                        params,
+                    });
+                }
             }
-        }
+        });
         ui.separator();
         ui.label(RichText::new("Mirror Copy").strong());
         ui.horizontal_wrapped(|ui| {
@@ -2054,32 +2111,31 @@ impl LabApplication {
         ui.small(
             "Selected elements target their owning Part for Recalculate, Weighted, and Tangents. Flip, Sharpen, Soften, and Copy can use element rows. Normal commands enable the direction preview automatically; tangents are recorded but have no line overlay.",
         );
-        for (label, action) in [
-            ("Recalculate Normals", "recalculate_normals"),
-            ("Generate Tangents", "generate_tangents"),
-            ("Flip Normals", "flip_normals"),
-            ("Sharpen Normals", "sharpen_normals"),
-            ("Soften Normals", "soften_normals"),
-            ("Weighted Normals", "weighted_normals"),
-            ("Copy Source Normals", "copy_normals"),
-        ] {
-            let response = ui
-                .add_enabled(
-                    selected,
-                    Button::new(label).min_size(egui::vec2(ui.available_width(), 24.0)),
-                )
-                .on_disabled_hover_text("Select mesh elements or Parts first");
-            if response.clicked() {
-                if action != "generate_tangents" {
-                    self.show_normals = true;
+        ui.horizontal_wrapped(|ui| {
+            for (label, action) in [
+                ("Recalculate Normals", "recalculate_normals"),
+                ("Generate Tangents", "generate_tangents"),
+                ("Flip Normals", "flip_normals"),
+                ("Sharpen Normals", "sharpen_normals"),
+                ("Soften Normals", "soften_normals"),
+                ("Weighted Normals", "weighted_normals"),
+                ("Copy Source Normals", "copy_normals"),
+            ] {
+                let response = ui
+                    .add_enabled(selected, Button::new(label))
+                    .on_disabled_hover_text("Select mesh elements or Parts first");
+                if response.clicked() {
+                    if action != "generate_tangents" {
+                        self.show_normals = true;
+                    }
+                    actions.push(UiAction::CdmwMeshAction {
+                        action,
+                        label,
+                        params: json!({}),
+                    });
                 }
-                actions.push(UiAction::CdmwMeshAction {
-                    action,
-                    label,
-                    params: json!({}),
-                });
             }
-        }
+        });
         ui.small("Copy Source Normals restores the matching original game-mesh normal rows.");
         if let Some(feedback) = &self.cdmw_normals_feedback {
             ui.label(RichText::new(format!("Result: {feedback}")).small());
@@ -2152,54 +2208,53 @@ impl LabApplication {
         });
         ui.separator();
         ui.label(RichText::new("Island & Layout").strong());
-        for (label, params, needs_free_edit) in [
-            (
-                "Normalize Island",
-                json!({"uv_island": true, "normalize": true}),
-                false,
-            ),
-            ("Normalize to 0-1", json!({"normalize": true}), false),
-            ("Align U", json!({"align_u": "min"}), false),
-            ("Align V", json!({"align_v": "min"}), false),
-            (
-                "Planar Project",
-                json!({"projection": "planar", "plane": "xy"}),
-                false,
-            ),
-            ("Box Project", json!({"projection": "box"}), false),
-            (
-                "Cylindrical Project",
-                json!({"projection": "cylindrical", "axis": "z"}),
-                false,
-            ),
-            (
-                "Auto Unwrap",
-                json!({"auto_uv": true, "allow_topology_change": true}),
-                true,
-            ),
-            ("Pack Islands", json!({"pack": true}), false),
-            ("Snap to Grid", json!({"snap_grid": 0.01}), false),
-        ] {
-            let enabled = selected && (!needs_free_edit || free_edit);
-            if ui
-                .add_enabled(
-                    enabled,
-                    Button::new(label).min_size(egui::vec2(ui.available_width(), 24.0)),
-                )
-                .on_disabled_hover_text(if !selected {
-                    "Select mesh elements or Parts first"
-                } else {
-                    "Auto Unwrap may split vertices and requires Free Edit output"
-                })
-                .clicked()
-            {
-                actions.push(UiAction::CdmwMeshAction {
-                    action: "uv_transform",
-                    label,
-                    params,
-                });
+        ui.horizontal_wrapped(|ui| {
+            for (label, params, needs_free_edit) in [
+                (
+                    "Normalize Island",
+                    json!({"uv_island": true, "normalize": true}),
+                    false,
+                ),
+                ("Normalize to 0-1", json!({"normalize": true}), false),
+                ("Align U", json!({"align_u": "min"}), false),
+                ("Align V", json!({"align_v": "min"}), false),
+                (
+                    "Planar Project",
+                    json!({"projection": "planar", "plane": "xy"}),
+                    false,
+                ),
+                ("Box Project", json!({"projection": "box"}), false),
+                (
+                    "Cylindrical Project",
+                    json!({"projection": "cylindrical", "axis": "z"}),
+                    false,
+                ),
+                (
+                    "Auto Unwrap",
+                    json!({"auto_uv": true, "allow_topology_change": true}),
+                    true,
+                ),
+                ("Pack Islands", json!({"pack": true}), false),
+                ("Snap to Grid", json!({"snap_grid": 0.01}), false),
+            ] {
+                let enabled = selected && (!needs_free_edit || free_edit);
+                if ui
+                    .add_enabled(enabled, Button::new(label))
+                    .on_disabled_hover_text(if !selected {
+                        "Select mesh elements or Parts first"
+                    } else {
+                        "Auto Unwrap may split vertices and requires Free Edit output"
+                    })
+                    .clicked()
+                {
+                    actions.push(UiAction::CdmwMeshAction {
+                        action: "uv_transform",
+                        label,
+                        params,
+                    });
+                }
             }
-        }
+        });
         ui.horizontal_wrapped(|ui| {
             ui.label("Texture px");
             ui.label("W");
@@ -2536,7 +2591,10 @@ impl LabApplication {
         });
         let mut reveal_authoring = self.draw_cdmw_refit_section(ui, actions, &state);
         cdmw_section(ui, "morph-profiles", "Profiles & presets", None, |ui| {
-            ComboBox::from_label("Profile")
+            let profile_label = ui.label("Profile");
+            ComboBox::from_id_salt("Profile")
+                .width(ui.available_width())
+                .truncate()
                 .selected_text(
                     profiles
                         .iter()
@@ -2554,7 +2612,9 @@ impl LabApplication {
                             });
                         }
                     }
-                });
+                })
+                .response
+                .labelled_by(profile_label.id);
             ui.horizontal_wrapped(|ui| {
                 if ui
                     .add_enabled(!profile_id.is_empty(), Button::new("Save Profile"))
@@ -2580,7 +2640,10 @@ impl LabApplication {
             let preset_id = state.get("preset_id").and_then(Value::as_str).unwrap_or("");
             let presets = pair_list(&state, "available_presets");
             ui.add_enabled_ui(!profile_id.is_empty(), |ui| {
-                ComboBox::from_label("Saved preset")
+                let preset_label = ui.label("Saved preset");
+                ComboBox::from_id_salt("Saved preset")
+                    .width(ui.available_width())
+                    .truncate()
                     .selected_text(
                         presets
                             .iter()
@@ -2598,7 +2661,9 @@ impl LabApplication {
                                 });
                             }
                         }
-                    });
+                    })
+                    .response
+                    .labelled_by(preset_label.id);
             });
             ui.horizontal_wrapped(|ui| {
                 ui.add(
@@ -3286,13 +3351,17 @@ impl LabApplication {
                 });
                 ui.separator();
                 ScrollArea::vertical().show(ui, |ui| {
-                    self.draw_vertex_inspector(ui, actions);
                     self.draw_hair_controls(ui, actions);
                     if self.hair.active() {
                         egui::CollapsingHeader::new("Parts")
                             .show(ui, |ui| self.draw_hair_parts(ui, actions));
                         egui::CollapsingHeader::new("Action History")
                             .show(ui, |ui| self.draw_cdmw_history(ui));
+                        ui.add_space(6.0);
+                        egui::Frame::group(ui.style()).show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            self.draw_vertex_inspector(ui, actions);
+                        });
                         return;
                     }
                     ui.add_enabled_ui(!busy, |ui| {
@@ -3316,6 +3385,11 @@ impl LabApplication {
                                 self.draw_cdmw_history(ui);
                             });
                         });
+                    });
+                    ui.add_space(6.0);
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        self.draw_vertex_inspector(ui, actions);
                     });
                 });
             });

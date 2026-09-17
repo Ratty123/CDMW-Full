@@ -32,6 +32,11 @@ has handled cancellation. **Orbit** exits the active tool.
 space. Unpin returns to a flyout; closing pinned settings leaves the icon rail.
 Short windows scroll the icons and settings while keeping their header controls
 available. Expanded tool buttons retain their existing toggle-to-Orbit behavior.
+Flyouts grow with their contents up to the available editor height, including
+when switching from a short tool to a longer one. Settings use the full flyout
+width. Expanded and pinned panels start narrower; tool rows wrap at larger font
+sizes, and action buttons size to their labels. Topology keeps its numeric
+options in labeled rows above the actions.
 
 Collapsing panels preserves their widths and open sections, tool settings, mesh
 selection, history, and output inclusion. Layout choices last for the current
@@ -333,15 +338,20 @@ geometry, materials, physics sections and companion files are preserved.
 ## Vertex Parameters
 
 Open **Inspector > Vertex Parameters**, or use **Mesh Data > Vertex Parameters**
-to reveal the Inspector and open the section. It starts collapsed and follows
-the current selection without switching tools. Select vertices, edges, faces or
-whole parts; an empty selection has no target. Edges and faces contribute their
+to reveal the Inspector and open the section. Its framed, collapsible header is
+below **Action History**, matching Parts and Geometry Layers. It starts collapsed
+and follows the current selection without switching tools. Select vertices,
+edges, faces or whole parts; an empty selection has no target. Edges and faces contribute their
 unique vertices.
 
-Single selections show exact host values. Batches show shared or **Mixed** values
-and ranges. The row picker and pages (at most 128 vertices) let you inspect a
-member without changing the batch target. Rows show current part/vertex indices
-and original or donor indices only when source provenance proves them. Generated
+**Position**, **UV Coordinates**, **Normals**, and **Skin Weights** group the
+selection's values with their editing controls. Component rows show the axis,
+current value, and new input. Displayed numbers are rounded for readability;
+hover a current value for its full precision or the exact **Mixed** selection
+range. **Inspect one vertex** contains the row picker and pages (at most 128
+vertices), letting you inspect a member without changing the batch target. Rows
+show current part/vertex indices and original or donor indices only when source
+provenance proves them. Generated
 and unmapped vertices are identified explicitly. Coordinates are **model editing
 space**, including neutral appearance when active, rather than animated or
 camera positions.
@@ -351,6 +361,9 @@ offer **Set** and **Offset**, defaulting to Set for one vertex and Offset for a
 batch. **Apply to N vertices** commits the complete batch as one Undo step;
 **Discard** clears inputs. Selection, topology or mesh changes discard pending
 inputs with an explanation. Inspecting another row or page keeps the batch.
+Skin Weights shows only the fields needed for its selected operation; unavailable
+weight editing shows its reason. **Cloth & other data** groups read-only summaries,
+unsupported-channel information, and **Open Cloth Controls**.
 
 | Channel | Current support and remaining boundary |
 | --- | --- |
