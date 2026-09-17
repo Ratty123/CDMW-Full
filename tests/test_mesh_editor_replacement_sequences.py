@@ -514,7 +514,8 @@ def test_offline_material_draft_reloads_preserve_edits_and_partial_restores(edit
             assert (material_key == "base") == (generation >= 2)
             if generation < 2:
                 textures = host.archive_refit_material_cache[material_key]["textures"]
-                assert {index for row in textures for index in row["material_indices_by_lod"][0]} == ({0, 1} if generation == 0 else {0})
+                # Restored originals also recover their captured preview DDS.
+                assert {index for row in textures for index in row["material_indices_by_lod"][0]} == {0, 1}
             assert command(host, "replacement_compare", {"mode": "original"})["state"]["archive_refit_materials"]["key"] == "base"
             assert command(host, "replacement_compare", {"mode": "output"})["state"]["archive_refit_materials"]["key"] == material_key
             command(host, "replacement_compare", {"mode": "edit"})

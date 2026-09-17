@@ -219,6 +219,10 @@ Imports, inclusion and placement changes participate in normal Undo/Redo and
 Finish/cancel. Replacement-bearing drafts use version 2 and keep captured
 dependencies and output intent together; older apps reject them. Existing
 version-1 drafts still load unchanged. Source files are unnecessary after Apply.
+Reopened replacement drafts use their captured original DDS and material data
+to restore untouched parts and the **Original** comparison after preview caches
+or source files disappear. Saved material-owner and layer metadata is retained,
+and readable authoritative preview textures keep their existing bindings.
 New replacement payloads also retain import normals. Older replacement drafts
 still reopen and export, but require reimporting before Reset Placement or Fit
 to Original because their original normal orientation was not saved. Older
