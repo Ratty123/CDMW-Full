@@ -37,7 +37,7 @@ CodeQL uploads all security results but disables optional database-archive
 publication, whose bundling can stall after analysis has completed. All five
 language scans and their security-result uploads remain required.
 The default Windows QA path runs focused CodeQL workflow-contract and Archive
-Browser menu-ownership tests after smoke, without requesting the full suite.
+Browser filter-popup tests after smoke, without requesting the full suite.
 The smoke gate covers startup/tool
 construction, archive confirmation/backup/rollback, output path safety,
 helper cleanup, metadata and localization without building native helpers.

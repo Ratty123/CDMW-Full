@@ -593,18 +593,39 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     assert strip.layout().indexOf(button) == strip.layout().indexOf(window.archive_asset_catalog_button) + 1
     button.click()
     assert len(messages) == 2
-    filters_menu = root._cdmw_compact_archive_more_filters_button.menu()
-    assert filters_menu.actions()[0].createdWidgets() == [window.archive_filters_group]
-    assert window.archive_filters_group.parentWidget() is filters_menu
-    filters_menu.show()
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QFrame
+    filters_button = root._cdmw_compact_archive_more_filters_button
+    filters_popup = filters_button.findChild(QFrame, "CompactArchiveFiltersMenu")
+    assert filters_popup.windowType() == Qt.WindowType.Popup
+    assert window.archive_filters_group.parentWidget() is filters_popup
+    filters_button.click()
     _APPLICATION.processEvents()
     assert window.archive_filters_group.isVisible()
     window.archive_package_filter_edit.setText("0012")
-    filters_menu.close()
-    filters_menu.show()
+    QTest.keyClick(window.archive_package_filter_edit, Qt.Key.Key_Escape)
+    assert not filters_popup.isVisible()
+    filters_button.click()
     _APPLICATION.processEvents()
     assert window.archive_package_filter_edit.text() == "0012"
-    filters_menu.close()
+    role_combo = window.archive_role_filter_combo
+    role_combo.showPopup()
+    _APPLICATION.processEvents()
+    assert filters_popup.isVisible()
+    QTest.keyClick(role_combo.view(), Qt.Key.Key_Escape)
+    _APPLICATION.processEvents()
+    assert not role_combo.view().isVisible()
+    assert filters_popup.isVisible()
+    filters_button.click()
+    assert not filters_popup.isVisible()
+    window.resize(1200, 800)
+    window.show()
+    filters_button.click()
+    _APPLICATION.processEvents()
+    QTest.mouseClick(window.windowHandle(), Qt.MouseButton.LeftButton, pos=window.rect().bottomRight())
+    _APPLICATION.processEvents()
+    assert not filters_popup.isVisible()
     window.deleteLater()
     _APPLICATION.processEvents()
 

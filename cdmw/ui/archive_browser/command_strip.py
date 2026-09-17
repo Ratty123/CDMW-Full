@@ -1,23 +1,46 @@
 """Archive Browser's native command bar and secondary menus."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QWidget, QWidgetAction
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QAction, QKeyEvent
+from PySide6.QtWidgets import QAbstractButton, QFrame, QGroupBox, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 
-class _ArchiveFiltersAction(QWidgetAction):
-    """Give Qt the existing controls through its widget creation callback."""
+class _ArchiveFiltersPopup(QFrame):
+    """Keep filter widgets in a popup without QMenu's widget-action handoff."""
 
-    def __init__(self, filters: QGroupBox, menu: QMenu) -> None:
-        super().__init__(menu)
-        self._filters = filters
+    def __init__(self, filters: QGroupBox, button: QToolButton) -> None:
+        super().__init__(button, Qt.WindowType.Popup)
+        self.setObjectName("CompactArchiveFiltersMenu")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoMouseReplay)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.addWidget(filters)
+        self._button = button
 
-    def createWidget(self, parent: QWidget) -> QWidget:  # noqa: N802 - Qt override
-        # Avoid the native default-widget fallback, which can crash during
-        # QMenu.addAction in PySide6. The explicit callback establishes the
-        # wrapper's parent before returning the widget to Qt.
-        self._filters.setParent(parent)
-        return self._filters
+    def toggle(self) -> None:
+        if self.isVisible():
+            self.hide()
+            return
+        self.adjustSize()
+        position = self._button.mapToGlobal(QPoint(0, self._button.height()))
+        screen = self._button.screen()
+        if screen is not None:
+            bounds = screen.availableGeometry()
+            position.setX(max(bounds.left(), min(position.x(), bounds.right() - self.width() + 1)))
+            position.setY(max(bounds.top(), min(position.y(), bounds.bottom() - self.height() + 1)))
+        self.move(position)
+        self.show()
+        self.setFocus(Qt.FocusReason.PopupFocusReason)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 - Qt override
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide()
+            self._button.setFocus(Qt.FocusReason.PopupFocusReason)
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
 
 def build_archive_command_strip(archive, widget: QWidget) -> None:
@@ -102,16 +125,12 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
     more_filters = QToolButton(strip)
     more_filters.setObjectName("CompactArchiveMoreFiltersButton")
     more_filters.setText("More Filters")
-    more_filters.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
     more_filters.setToolTip("Show or hide Archive Browser filters only.")
     if isinstance(filters_group, QGroupBox):
         filters_group.setTitle("")
         filters_group.setProperty("compactStructural", True)
-        filter_menu = QMenu(more_filters)
-        filter_menu.setObjectName("CompactArchiveFiltersMenu")
-        filter_widget_action = _ArchiveFiltersAction(filters_group, filter_menu)
-        filter_menu.addAction(filter_widget_action)
-        more_filters.setMenu(filter_menu)
+        filter_popup = _ArchiveFiltersPopup(filters_group, more_filters)
+        more_filters.clicked.connect(filter_popup.toggle)
     else:
         more_filters.setEnabled(False)
     layout.addWidget(more_filters)
