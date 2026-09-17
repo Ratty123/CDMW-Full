@@ -369,7 +369,10 @@ as named editable parameters until their consumers are proven.
 UV1, vertex colours and undecoded fields explicitly report unavailable or
 unsupported. Renderer placeholder UVs/normals are never used as stored values.
 Editing is limited by the active format, LOD, workflow and proven output path;
-a mixed-capability batch is rejected in full. Unedited channels, materials,
+a missing source map keeps exact channel edits read-only. Skin weights are also
+read-only when neutral appearance uses different bone transforms: the current
+inverse conversion would otherwise move saved vertices during a weight edit.
+A mixed-capability batch is rejected in full. Unedited channels, materials,
 topology and cloth bindings are retained. Geometry-channel edits invalidate
 derived tangents. Channel operations, Undo/Redo and drafts use the existing
 operation types. Ordinary draft generations keep their current format and now

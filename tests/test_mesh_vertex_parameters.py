@@ -321,6 +321,30 @@ def test_weight_remove_normalize_offset_and_noop(editor):
     assert inspect(editor)["rows"][0]["weights"]["total"] == pytest.approx(1)
 
 
+def test_neutral_weight_edit_cannot_silently_move_saved_vertices(tmp_path):
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+    identity = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
+    moved = (*identity[:12], .5, 0., 0., 1.)
+    appearance = NeutralMeshAppearance("owned", tuple(range(8)), (identity,) * 7 + (moved,))
+    _, service, host = _open_exact_session(tmp_path / "neutral-weights", resolved_rig=True, neutral_appearance=appearance)
+    try:
+        select(host, vertices_by_submesh={"0": [0]})
+        before = copy.deepcopy(shadow(host).working_mesh)
+        result = inspect(host)
+        assert not result["capabilities"]["weights"]["editable"]
+        assert result["capabilities"]["position"]["editable"]
+        assert result["rows"][0]["weights"]["resolved"]
+        token = inspection_token(host)
+        with pytest.raises(ValueError, match="different bone transforms"):
+            edit(host, {"position": {"mode": "offset", "values": [.1, None, None]},
+                        "weights": {"mode": "set", "bone": 7, "value": .25}})
+        assert token == inspection_token(host)
+        assert shadow(host).working_mesh.submeshes == before.submeshes
+    finally:
+        host.cancel()
+        service.close_edit_session(host.authoritative_session_id, force_without_saving=True)
+
+
 def test_inspection_generated_mapping_requires_original_provenance(editor):
     from cdmw.domain.mesh.topology import SubmeshTopologyProvenance, VertexOrigin, TOPOLOGY_PROVENANCE_VERSION
     select(editor, source_indices=[0])
