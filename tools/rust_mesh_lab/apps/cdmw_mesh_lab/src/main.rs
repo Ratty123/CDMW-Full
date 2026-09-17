@@ -8,6 +8,7 @@ mod cdmw_preview;
 mod cdmw_rig;
 mod cdmw_session;
 mod cdmw_ui;
+mod cdmw_vertex_inspector;
 mod control_contract;
 #[cfg(test)]
 mod gpu_recovery_tests;
@@ -2074,6 +2075,7 @@ struct LabApplication {
     raw_pan_captured: bool,
     cdmw_bridge: Option<CdmwBridge>,
     cdmw_state: Value,
+    vertex_inspector: cdmw_vertex_inspector::VertexInspector,
     hair: HairEditor,
     cdmw_pending_request: Option<CdmwPendingRequest>,
     cdmw_normals_feedback: Option<String>,
@@ -2242,6 +2244,7 @@ impl LabApplication {
             raw_pan_captured: false,
             cdmw_bridge: None,
             cdmw_state: Value::Null,
+            vertex_inspector: cdmw_vertex_inspector::VertexInspector::default(),
             hair: HairEditor::default(),
             cdmw_pending_request: None,
             cdmw_normals_feedback: None,
@@ -2713,6 +2716,14 @@ impl LabApplication {
             HostEvent::HairPreset(preset) => {
                 self.hair.requested_preset = Some(preset);
             }
+            HostEvent::VertexInspection {
+                request_id,
+                ok,
+                payload,
+                error,
+            } => {
+                self.accept_vertex_inspection(request_id, ok, payload, error);
+            }
             HostEvent::Result {
                 event,
                 request_id,
@@ -2805,6 +2816,16 @@ impl LabApplication {
             return;
         }
         self.cdmw_pending_request.take();
+        if label == "Edit Vertex Parameters" {
+            self.vertex_inspector.note = if ok {
+                "Vertex parameters applied.".into()
+            } else {
+                error.to_owned()
+            };
+            if ok {
+                self.vertex_inspector.clear_draft();
+            }
+        }
         if let Some(CdmwRequestOrigin::MorphValue(definition_id)) = &origin {
             self.cdmw_morph_value_drafts.remove(definition_id);
         }

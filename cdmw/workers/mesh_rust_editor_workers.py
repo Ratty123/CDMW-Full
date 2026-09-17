@@ -214,7 +214,10 @@ class MeshRustProtocolWorker(QObject):
                 # as worker failures, prepared here rather than on the UI thread.
                 raise ValueError(self._preparation_error)
             finish_accepted = False
-            if event_name == "transaction_request":
+            if event_name == "vertex_inspect":
+                payload = self.session.vertex_inspect(self.protocol_event, stop_event=self._stop_event)
+                result_name = "vertex_inspect_result"
+            elif event_name == "transaction_request":
                 payload = self.session.apply_candidate(self.protocol_event, stop_event=self._stop_event)
                 result_name = "transaction_result"
             elif event_name == "command_request":
@@ -283,7 +286,7 @@ class MeshRustProtocolWorker(QObject):
             event_name = str(self.protocol_event.get("event", "") or "").strip().lower()
             if not self._stop_event.is_set() or event_name == "finish_request":
                 recovery: dict[str, object] = {}
-                if not self.session.closed:
+                if not self.session.closed and event_name != "vertex_inspect":
                     try:
                         recovery = {
                             "state": self.session.state_payload(include_document=True)

@@ -132,6 +132,8 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_cloth.rs"),
     "\n",
+    include_str!("cdmw_vertex_inspector.rs"),
+    "\n",
     include_str!("cdmw_hair.rs")
 );
 const MAIN_SOURCE: &str = concat!(
@@ -401,6 +403,9 @@ fn runtime_route(key: &str) -> RuntimeRoute {
             Kind::UiAction,
             "UiAction::SelectAllVertices+UiAction::SelectAllEdges+UiAction::SelectAllFaces",
         ),
+        "vertex.open" | "vertex.stage" => (Kind::LocalState, "vertex_inspector"),
+        "vertex.inspect" => (Kind::ReadOnlyState, "draw_vertex_inspector"),
+        "vertex.apply" => (Kind::ShadowCommand, "vertex_edit"),
         "session.invert" => (Kind::UiAction, "UiAction::InvertSelection"),
         "session.undo" => (Kind::UiAction, "UiAction::Undo"),
         "session.redo" => (Kind::UiAction, "UiAction::Redo"),
@@ -542,6 +547,10 @@ fn parse_product_core_rows() -> Result<Vec<ContractRow<'static>>> {
 // Rust-owned product controls. No external renderer contract is loaded to
 // generate, compare, or validate this inventory.
 const PRODUCT_CORE_ROWS: &str = r#"
+vertex.open|vertex_parameters|executable|session|false|
+vertex.stage|vertex_parameters|executable|session|false|
+vertex.inspect|vertex_parameters|executable|session|true|
+vertex.apply|vertex_parameters|executable|session|true|
 tool.select|tools|executable|session|false|
 tool.move|tools|executable|session|false|
 tool.grab|tools|executable|session|false|

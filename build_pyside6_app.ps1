@@ -919,7 +919,7 @@ function Invoke-RustMeshEditorBuild {
         executable = "cdmw_mesh_lab.exe"
         control_contract = "cdmw_mesh_lab.control-contract.json"
         control_contract_schema = "cdmw_rust_mesh_editor_control_contract_v2"
-        capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2")
+        capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2", "vertex_parameters_v1")
         preview_capabilities = @(
             $contract.preview_contract.capabilities |
                 ForEach-Object { [string]$_ }

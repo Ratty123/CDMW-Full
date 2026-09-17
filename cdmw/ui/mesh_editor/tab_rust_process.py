@@ -331,7 +331,7 @@ class MeshEditorRustProcessMixin:
             message = str(payload.get("message", "") or "Rust renderer reported an error")
             self._fail_rust_editor(message)
             return
-        if event not in {"transaction_request", "command_request", "finish_request", "cancel"}:
+        if event not in {"transaction_request", "command_request", "finish_request", "cancel", "vertex_inspect"}:
             self._fail_rust_editor(f"Mesh Editor sent unsupported event '{event or '(empty)'}'.", incompatible=True)
             return
         if not self.standalone_rust_ready:
@@ -345,6 +345,17 @@ class MeshEditorRustProcessMixin:
             self._send_rust_error_response(payload, "Mesh Editor request was replayed or out of order")
             return
         self.standalone_rust_last_client_request_id = request_id
+        # Inspection shares the owned worker lifecycle, but never delays a newer
+        # selection or mutation. Keep only its newest queued request.
+        self.standalone_rust_protocol_queue[:] = [
+            queued for queued in self.standalone_rust_protocol_queue
+            if queued.get("event") != "vertex_inspect"
+        ]
+        active = self.standalone_rust_active_event or {}
+        if active.get("event") == "vertex_inspect" and self.standalone_rust_protocol_worker is not None:
+            self.standalone_rust_protocol_worker.stop()
+        if event == "vertex_inspect" and payload.get("cancel_only") is True:
+            return
         if len(self.standalone_rust_protocol_queue) >= _RUST_PROTOCOL_QUEUE_LIMIT:
             self._send_rust_error_response(payload, "Mesh Editor command queue is full")
             return
@@ -538,7 +549,8 @@ class MeshEditorRustProcessMixin:
         self.standalone_rust_protocol_thread = thread
         self.standalone_rust_active_event = event
         self.standalone_rust_protocol_status = None
-        self._set_rust_status(self._rust_busy_message(event))
+        if event.get("event") != "vertex_inspect":
+            self._set_rust_status(self._rust_busy_message(event))
         thread.start()
 
     @staticmethod
@@ -563,6 +575,10 @@ class MeshEditorRustProcessMixin:
         if worker_request_id != self.standalone_rust_protocol_request_id:
             return
         active_event = dict(self.standalone_rust_active_event or {})
+        if active_event.get("event") == "vertex_inspect":
+            if not self.standalone_rust_closing and not self.standalone_rust_protocol_worker._stop_event.is_set():
+                self._send_rust_message(response)
+            return
         self._send_rust_message(response)
         hair_status = getattr(self, "hair_entry_status", None)
         hair_active = getattr(self, "standalone_rust_authoring_session", None)
@@ -597,6 +613,10 @@ class MeshEditorRustProcessMixin:
         if worker_request_id != self.standalone_rust_protocol_request_id:
             return
         request = dict(self.standalone_rust_active_event or {})
+        if request.get("event") == "vertex_inspect":
+            if not self.standalone_rust_closing:
+                self._send_rust_error_response(request, message)
+            return
         self._send_rust_error_response(request, message, recovery=recovery)
         hair_status = getattr(self, "hair_entry_status", None)
         if hair_status is not None and (request.get("command") == "hair_begin" or request.get("event") == "transaction_request"):
@@ -674,6 +694,7 @@ class MeshEditorRustProcessMixin:
     ) -> None:
         event = str(request.get("event", "") or "error")
         result_event = {
+            "vertex_inspect": "vertex_inspect_result",
             "transaction_request": "transaction_result",
             "command_request": "command_result",
             "finish_request": "finish_result",

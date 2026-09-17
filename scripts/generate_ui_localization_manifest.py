@@ -48,6 +48,17 @@ PYTHON_SOURCE_ROOTS = (
 MANUAL_SOURCE_KEYS = frozenset(
     {
         # Experimental replacement controls are drawn by the compiled Rust UI.
+        # Vertex inspector labels are retained for the future editor catalog;
+        # the integrated Rust authoring UI currently uses English labels.
+        "Vertex Parameters", "Edit Position XYZ", "Edit UV0", "Edit Normal XYZ",
+        "Refresh values", "No current inspection. Refresh values to retry.",
+        "Edit Skin Weights", "Selected bone influences", "Stage weight change",
+        "Open Cloth Controls", "Previous vertices", "Next vertices", "Vertex values",
+        "Model editing space", "Model editing space (neutral appearance)",
+        "Apply to {value_0} vertices", "Mixed", "Unchanged", "Discard", "Set", "Offset",
+        "Selection or mesh changed. Pending inputs were discarded.",
+        "Vertex Parameters is unavailable with this host/helper combination.",
+        "Viewing a row does not change the batch selection.",
         "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.",
         # Body & Face Finder facets/statuses arrive through typed worker rows.
         "Whole character", "Head", "Facial detail", "Beard", "Unclassified",

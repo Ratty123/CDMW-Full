@@ -40,6 +40,24 @@ MESH_HAIR_GENERATION_FORMAT = "mesh_layer_generation_v5"
 MESH_CLOTH_PROJECT_FORMAT = "mesh_layer_project_v6"
 MESH_CLOTH_GENERATION_FORMAT = "mesh_layer_generation_v6"
 
+
+def draft_retains_original_channel_base(payload, original, working):
+    """Same-topology channel drafts still need the immutable source bounds.
+
+    Layer/topology projects retain their existing recovered-base behavior.
+    Channel operations use the original base for validation and PAC quantization.
+    """
+    operations = payload.get("edit_operations", ())
+    channel_operations = {"replace_positions_same_count", "replace_uv0_same_count",
+                          "replace_normals_same_count", "replace_skin_weights_same_count",
+                          "replace_tangents_same_count", "translate_vertices", "rotate_vertices",
+                          "scale_vertices", "recompute_bounds", "preview_submesh_visibility"}
+    return bool(operations and payload.get("requires_edit_operations")
+                and all(item.get("operation") in channel_operations for item in operations)
+                and len(original.submeshes) == len(working.submeshes)
+                and all(len(a.vertices) == len(b.vertices) and a.faces == b.faces
+                        for a, b in zip(original.submeshes, working.submeshes)))
+
 _BINARY_OUTPUT_KEYS = (
     ("vertices_output_path", "vertices"),
     ("faces_output_path", "faces"),
@@ -104,6 +122,8 @@ def save_mesh_layer_project(
     archive_refit_context: object | None = None,
     replacement_state: object | None = None,
     hair_state: object | None = None,
+    edit_operations: Sequence[object] = (),
+    requires_edit_operations: bool = False,
 ) -> dict[str, object]:
     """Write one complete generation, then atomically point the project at it."""
 
@@ -176,6 +196,14 @@ def save_mesh_layer_project(
             if identity not in replacement_indices:
                 raise RuntimeError("Replacement draft snapshot lost its part identity")
             metadata = _submesh_snapshot_metadata(mesh.submeshes[replacement_indices[identity]])
+        elif edit_operations and index < len(mesh.submeshes):
+            part = mesh.submeshes[index]
+            # Only add immutable layout metadata when the resident summary
+            # agrees with the current host part. Native topology may be newer.
+            if (vertex_count == len(part.vertices) and face_count == len(part.faces)
+                    and str(summary_item.get("name") or "") == part.name
+                    and str(summary_item.get("material") or "") == part.material):
+                metadata = _submesh_snapshot_metadata(part)
         metadata.update({
             "name": str(summary_item.get("name") or ""),
             "material": str(summary_item.get("material") or ""),
@@ -221,6 +249,10 @@ def save_mesh_layer_project(
         "snapshot": persisted_snapshot,
         "archive_refit": save_archive_refit_context(archive_refit_context, project_root, stop),
     }
+    if edit_operations or requires_edit_operations:
+        from cdmw.domain.mesh.operations import mesh_edit_operations_from_dicts, mesh_edit_operations_to_dicts
+        generation_payload["edit_operations"] = mesh_edit_operations_to_dicts(mesh_edit_operations_from_dicts(edit_operations))
+        generation_payload["requires_edit_operations"] = bool(requires_edit_operations)
     if archive_refit_context is not None:
         generation_payload["archive_refit_material_files"] = save_archive_refit_materials(
             persisted_snapshot, project_root, stop,
@@ -325,6 +357,10 @@ def load_mesh_layer_project(
             if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")
             snapshot = payload.get("snapshot")
+            operations = payload.get("edit_operations", [])
+            if (not isinstance(operations, list) or any(not isinstance(item, dict) for item in operations)
+                    or type(payload.get("requires_edit_operations", False)) is not bool):
+                raise ValueError("Invalid draft channel-operation metadata.")
             # Snapshot decoding and output-state validation can both fail after
             # changing geometry. Publish only a fully accepted generation.
             restore_target = copy.deepcopy(mesh)

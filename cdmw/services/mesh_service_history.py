@@ -813,6 +813,8 @@ def _capture_history_session_state(
 ) -> _MeshHistorySnapshot:
     """Capture the reciprocal service-owned state carried by one history marker."""
 
+    if template.requires_edit_operations is not None:
+        snapshot.requires_edit_operations = session.requires_edit_operations
     if template.restore_archive_refit_context:
         snapshot.archive_refit_context = session.archive_refit_context
         snapshot.restore_archive_refit_context = True
@@ -854,6 +856,8 @@ def _restore_history_session_state(
 ) -> None:
     """Restore only the service-owned fields explicitly included in a marker."""
 
+    if snapshot.requires_edit_operations is not None:
+        session.requires_edit_operations = snapshot.requires_edit_operations
     if snapshot.restore_archive_refit_context:
         session.archive_refit_context = snapshot.archive_refit_context
     if snapshot.restore_replacement_state:

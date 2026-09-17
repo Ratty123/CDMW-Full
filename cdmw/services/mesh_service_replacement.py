@@ -406,6 +406,7 @@ class MeshWorkingReplacementServiceMixin:
             history_snapshot = _service_call("_snapshot", session, prefer_native=True)
             history_snapshot.history_action = str(options.history_action or "replace_working_mesh")
             history_snapshot.history_label = str(options.history_label or "Replace Working Mesh")
+            history_snapshot.requires_edit_operations = session.requires_edit_operations
             history_snapshot.archive_refit_context = session.archive_refit_context
             history_snapshot.restore_archive_refit_context = True
             history_snapshot.replacement_state = session.replacement_state

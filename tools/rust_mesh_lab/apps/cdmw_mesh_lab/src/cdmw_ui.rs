@@ -14,8 +14,8 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 ];
 
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
-const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
-const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
+pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
+pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
 const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 14] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
@@ -342,7 +342,7 @@ fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
     context.data_mut(|data| data.get_temp::<bool>(egui::Id::new(id)).unwrap_or(true))
 }
 
-fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
+pub(super) fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
     context.data_mut(|data| data.insert_temp(egui::Id::new(id), expanded));
     context.request_repaint();
 }
@@ -588,6 +588,10 @@ impl LabApplication {
             self.draw_cdmw_compact_settings(root_ui, rail, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
+        self.tick_vertex_inspector(cdmw_sidebar_visible(
+            &self.egui_context,
+            CDMW_INSPECTOR_SIDEBAR,
+        ));
         actions
     }
 
@@ -955,7 +959,11 @@ impl LabApplication {
             .rect
     }
 
-    fn activate_cdmw_rail_page(&mut self, page: CdmwRailPage, tool: Option<ViewportTool>) {
+    pub(super) fn activate_cdmw_rail_page(
+        &mut self,
+        page: CdmwRailPage,
+        tool: Option<ViewportTool>,
+    ) {
         self.cdmw_rail_page = Some(page);
         if page == CdmwRailPage::MorphRefit {
             self.cancel_active_gesture("Morph & Refit opened");
@@ -1289,6 +1297,9 @@ impl LabApplication {
                     .default_open(false)
                     .open(active.then_some(true))
                     .show_unindented(ui, |ui| {
+                        if heading == "Mesh Data" && ui.button("Vertex Parameters").clicked() {
+                            self.reveal_vertex_parameters(ui.ctx());
+                        }
                         let columns = columns.max(1);
                         for row in tools.chunks(columns) {
                             let gap = ui.spacing().item_spacing.x;
@@ -3275,6 +3286,7 @@ impl LabApplication {
                 });
                 ui.separator();
                 ScrollArea::vertical().show(ui, |ui| {
+                    self.draw_vertex_inspector(ui, actions);
                     self.draw_hair_controls(ui, actions);
                     if self.hair.active() {
                         egui::CollapsingHeader::new("Parts")

@@ -95,6 +95,7 @@ class _MeshHistorySnapshot:
     hair_state: HairAuthoringState | None = None
     restore_hair_state: bool = False
     hair_vertex_deltas: tuple[_MeshHairVertexDelta, ...] = ()
+    requires_edit_operations: bool | None = None
 
 
 @dataclass(slots=True)

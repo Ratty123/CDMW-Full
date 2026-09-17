@@ -330,20 +330,64 @@ guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
 
-## Vertex data beyond cloth
+## Vertex Parameters
+
+Open **Inspector > Vertex Parameters**, or use **Mesh Data > Vertex Parameters**
+to reveal the Inspector and open the section. It starts collapsed and follows
+the current selection without switching tools. Select vertices, edges, faces or
+whole parts; an empty selection has no target. Edges and faces contribute their
+unique vertices.
+
+Single selections show exact host values. Batches show shared or **Mixed** values
+and ranges. The row picker and pages (at most 128 vertices) let you inspect a
+member without changing the batch target. Rows show current part/vertex indices
+and original or donor indices only when source provenance proves them. Generated
+and unmapped vertices are identified explicitly. Coordinates are **model editing
+space**, including neutral appearance when active, rather than animated or
+camera positions.
+
+Expand an edit group and enter only the components to change. Position and UV0
+offer **Set** and **Offset**, defaulting to Set for one vertex and Offset for a
+batch. **Apply to N vertices** commits the complete batch as one Undo step;
+**Discard** clears inputs. Selection, topology or mesh changes discard pending
+inputs with an explanation. Inspecting another row or page keeps the batch.
 
 | Channel | Current support and remaining boundary |
 | --- | --- |
-| Position | Existing selection, transform and sculpt tools. PAC output quantizes positions within the part bounds. |
-| UV0 | Existing UV tools and imported UVs reach PAC output. UVs are two half-floats; values outside 0 to 1 are valid when representable. |
-| Normals | Existing normal tools and imported normals reach the packed normal channel. Flip also reverses affected face winding. |
-| Skin weights | The retained Rig & Weights implementation edits skeletal influences, but its product controls are currently hidden. Cloth vertices have four skeletal slots; ordinary supported vertices have six. |
+| Position | Set or offset individual XYZ components. PAC output expands shared bounds when needed and retains lower LOD positions within quantization precision. |
+| UV0 | Set or offset U/V. Tiled UVs outside 0 to 1 are preserved. PAC/PAM/PAMLOD half-float limits apply where those writers are used. |
+| Normals | Set a direction; all three components are required. Valid vectors are normalized; zero-length and nonfinite input is rejected. PAM/PAMLOD normal writeback is unavailable. |
+| Skin weights | Resolved bone names, influences, totals and batch ranges. Set/offset a chosen influence, remove it, or normalize. Other influences redistribute proportionally. Exact PAC LOD0 layout and a resolved palette are required. Cloth vertices support four skeletal slots; ordinary supported rows support six. Removing the last influence or exceeding capacity rejects the batch. The separate Rig & Weights tool remains hidden. |
+| Cloth | Read-only original/effective influence, fixed/moving status and proven guide bindings. Height rules use the existing quantized PAC output path, including the saved neutral frame. Unproven mappings report unavailable. **Open Cloth Controls** opens the existing controls. |
 | Tangent frame | Generate Tangents computes editing data. The current PAC writer retains or clears donor tangent bits; it does not encode an arbitrary authored tangent frame. More writeback validation is needed before promising saved tangent edits. |
 | Packed colour fields | Original record bytes are retained through replacement donors. There is no editable per-vertex colour channel in the current mesh model. Shader-specific interpretation and a complete preview/save path are needed before adding painting controls. |
 
 Viewport selection, weight and deformation colours are overlays, not saved vertex
 colour data. Unidentified tail bits remain source-owned; they should not be shown
 as named editable parameters until their consumers are proven.
+
+UV1, vertex colours and undecoded fields explicitly report unavailable or
+unsupported. Renderer placeholder UVs/normals are never used as stored values.
+Editing is limited by the active format, LOD, workflow and proven output path;
+a mixed-capability batch is rejected in full. Unedited channels, materials,
+topology and cloth bindings are retained. Geometry-channel edits invalidate
+derived tangents. Channel operations, Undo/Redo and drafts use the existing
+operation types. Ordinary draft generations keep their current format and now
+retain channel-operation metadata and original PAC bounds. Ordinary neutral
+edits return to source coordinates at Finish; replacement drafts retain their
+existing explicit neutral-coordinate state.
+
+`cdmw/domain/mesh/vertex_parameters.py` owns selection/numeric rules and
+`cdmw/services/mesh_vertex_parameters.py` owns authoritative inspection and
+candidate validation. `cdmw_vertex_inspector.rs` owns the Rust UI. The additive
+`vertex_parameters_v1` capability enables the read-only `vertex_inspect` event
+and atomic `vertex_edit` command. Older combinations leave the feature
+unavailable. Requests bind session, mesh revision, selection revision and
+topology generation. Inspection is debounced, cancellable background work with
+one active request and only the newest pending query. It stops when closed and
+does not publish a mesh document, advance history/revisions or rebuild materials.
+Inspection errors remain local. Edits validate the entire candidate before the
+existing prepared-mesh commit, preserving an existing Redo branch on rejection.
 
 ## Existing editing controls
 

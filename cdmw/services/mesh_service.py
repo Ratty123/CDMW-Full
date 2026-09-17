@@ -711,11 +711,13 @@ class _MeshServiceSessionLayerCore(
                 expected_source_asset_sha256=source_asset_hash,
             )
             if loaded_layer_project is not None:
-                base_mesh = _clone_mesh_for_service_native_snapshot(
-                    working_mesh,
-                    "session.layer_project_base_clone",
-                    "Python layer-project base clone fallback blocked while native mesh core is available",
-                )
+                from cdmw.services.mesh_layer_project_service import draft_retains_original_channel_base
+                if not draft_retains_original_channel_base(loaded_layer_project, base_mesh, working_mesh):
+                    base_mesh = _clone_mesh_for_service_native_snapshot(
+                        working_mesh,
+                        "session.layer_project_base_clone",
+                        "Python layer-project base clone fallback blocked while native mesh core is available",
+                    )
         if working_mesh is not mesh:
             _copy_mesh_validation_metadata(mesh, working_mesh)
         _copy_mesh_validation_metadata(mesh, base_mesh)
@@ -763,6 +765,9 @@ class _MeshServiceSessionLayerCore(
             len(working_mesh.submeshes),
         )
         if loaded_layer_project is not None:
+            if "edit_operations" in loaded_layer_project:
+                session.edit_operations = tuple(loaded_layer_project["edit_operations"])
+                session.requires_edit_operations = bool(loaded_layer_project.get("requires_edit_operations", False))
             session.archive_refit_context = loaded_layer_project.get("archive_refit_context")
             session.replacement_state = loaded_layer_project.get("replacement_state")
             session.hair_state = loaded_layer_project.get("hair_state")
@@ -1166,7 +1171,7 @@ class _MeshServiceSessionLayerCore(
     ) -> None:
         if session.mesh_layer_project_path is None:
             return
-        if session.replacement_state is not None and not session.native_editor_session_ready:
+        if (session.replacement_state is not None or session.edit_operations) and not session.native_editor_session_ready:
             if session.native_editor_mesh_dirty:
                 raise RuntimeError("Replacement draft cannot save stale resident geometry.")
             opened = open_native_mesh_editor_session(session.working_mesh, session.session_id,
@@ -1199,6 +1204,8 @@ class _MeshServiceSessionLayerCore(
             archive_refit_context=session.archive_refit_context,
             replacement_state=session.replacement_state,
             hair_state=session.hair_state,
+            edit_operations=session.edit_operations,
+            requires_edit_operations=session.requires_edit_operations,
         )
         session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
         session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
