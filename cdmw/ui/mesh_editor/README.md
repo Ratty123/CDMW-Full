@@ -21,22 +21,29 @@ a narrow icon rail; **Inspector** leaves a slim edge handle. Their expand arrows
 stay available, including while an operation is busy. These controls work in
 Classic, Compact, and detached Mesh Editor windows. Hair mode uses Inspector.
 
-Click a tool icon to select it and open its settings beside the rail. Hover an
-icon for its name. **Viewport** has its own icon for display settings. Click the
-same icon again, close the settings, or click outside to dismiss the flyout; the
-selected tool stays active. Clicking the exposed viewport can immediately use
-that tool. Escape closes the flyout after any focused control or active gesture
-has handled cancellation. **Orbit** exits the active tool.
+Click a tool icon to select it and open its settings. Several floating tool
+panels can stay open together, including while you edit in the viewport. Drag a
+panel by its header to place it anywhere within the editor's content area; its
+position is remembered when you close and reopen it. Hover an icon for its name.
+**Viewport** has its own icon for display settings.
 
-**Pin tool settings** docks the settings beside the rail and reserves viewport
-space. Unpin returns to a flyout; closing pinned settings leaves the icon rail.
-Short windows scroll the icons and settings while keeping their header controls
-available. Expanded tool buttons retain their existing toggle-to-Orbit behavior.
-Flyouts grow with their contents up to the available editor height, including
-when switching from a short tool to a longer one. Settings use the full flyout
-width. Expanded and pinned panels start narrower; tool rows wrap at larger font
-sizes, and action buttons size to their labels. Topology keeps its numeric
-options in labeled rows above the actions.
+Clicking an already-open tool's icon activates that tool and brings its panel
+forward. Clicking again while that tool and panel are current closes just that
+panel. Each panel also has its own close button. Closing or moving settings keeps
+the selected tool active; focusing another panel does not change the tool.
+Escape closes the front floating panel after any focused control or active
+gesture has handled cancellation. **Orbit** exits the active tool.
+
+The pin button docks that panel beside the rail and reserves viewport space.
+One panel can be docked at a time; pinning another returns the previous one to a
+floating window. Unpin returns to floating settings; closing affects only that
+panel. Short windows scroll the icons and settings while keeping their header
+controls available. Panels stay within the available content area after resizing.
+Expanded tool buttons retain their existing toggle-to-Orbit behavior.
+Floating panels grow with their contents up to the available editor height and
+use the full panel width. Expanded and pinned panels start narrower; tool rows
+wrap at larger font sizes, and action buttons size to their labels. Topology
+keeps its numeric options in labeled rows above the actions.
 
 Collapsing panels preserves their widths and open sections, tool settings, mesh
 selection, history, and output inclusion. Layout choices last for the current

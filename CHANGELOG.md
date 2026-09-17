@@ -22,6 +22,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor can keep multiple floating tool panels open during viewport editing. Drag their headers to reposition them; each panel has independent close and pin controls, and remembers its floating position when reopened.
 - Mesh Editor uses narrower tool panels, compact action buttons, labeled Topology settings, and clearer vector tool icons. Vertex Parameters is a framed collapsible section below Action History, with grouped channel controls, readable numbers, exact values on hover, and separate individual-vertex inspection.
 - Mesh Editor panels collapse from their own headers. Tools collapses into an icon rail with settings flyouts that can be pinned beside the viewport; Inspector keeps an edge handle for reopening. Closing a flyout keeps its tool active, and collapsing either panel preserves its width, sections and editing state.
 

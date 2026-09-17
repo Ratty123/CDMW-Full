@@ -264,12 +264,6 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
             if presentation == "flyout" {
                 ui.click_sidebar("Collapse Tools")?;
             }
-            if compact {
-                ui.click_sidebar("Select")?;
-            }
-            if presentation == "pinned" {
-                ui.click_sidebar("Pin tool settings")?;
-            }
             for label in [
                 "Select",
                 "Move",
@@ -288,9 +282,9 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                 "Viewport",
             ] {
                 if compact {
-                    // Select is already open on entering each compact presentation.
-                    if label != "Select" {
-                        ui.click_sidebar(label)?;
+                    ui.click_sidebar(label)?;
+                    if presentation == "pinned" {
+                        ui.click_sidebar(&format!("Pin {label} settings"))?;
                     }
                 } else {
                     ui.click_tool_button(label)?;
@@ -308,7 +302,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                 let panel_right = if presentation == "flyout" {
                     let area = egui::AreaState::load(
                         &ui.application.egui_context,
-                        egui::Id::new("cdmw-tool-flyout"),
+                        egui::Id::new(("cdmw-tool-window", label)),
                     )
                     .ok_or("flyout")?
                     .rect();
@@ -362,6 +356,9 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                         button.width() < 120.0,
                         "topology actions should size to their labels: {button:?}"
                     );
+                }
+                if compact {
+                    ui.click_sidebar(&format!("Close {label} settings"))?;
                 }
             }
         }
@@ -821,6 +818,27 @@ impl HeadlessUi {
         self.application
             .egui_context
             .read_response(egui::Id::new(("cdmw-sidebar-button", label)))
+    }
+
+    fn tool_window_rect(&self, label: &str) -> Result<Rect, Box<dyn std::error::Error>> {
+        egui::AreaState::load(
+            &self.application.egui_context,
+            egui::Id::new(("cdmw-tool-window", label)),
+        )
+        .map(|area| area.rect())
+        .ok_or_else(|| format!("missing {label} window").into())
+    }
+
+    fn drag_tool_window(&mut self, label: &str, delta: egui::Vec2) -> TestResult {
+        let start = self.tool_window_rect(label)?.left_top() + egui::vec2(20.0, 16.0);
+        let end = start + delta;
+        self.frame(vec![Event::PointerMoved(start)]);
+        self.frame(vec![pointer_button(start, PointerButton::Primary, true)]);
+        self.frame(vec![Event::PointerMoved(start + delta * 0.5)]);
+        self.frame(vec![Event::PointerMoved(end)]);
+        self.frame(vec![pointer_button(end, PointerButton::Primary, false)]);
+        self.settle_layout();
+        Ok(())
     }
 
     fn click_sidebar(&mut self, label: &str) -> TestResult {
@@ -1594,7 +1612,7 @@ fn integrated_sidebar_flyouts_use_available_height_and_full_content_width() -> T
         ui.click_sidebar("Select")?;
         let area = egui::AreaState::load(
             &ui.application.egui_context,
-            egui::Id::new("cdmw-tool-flyout"),
+            egui::Id::new(("cdmw-tool-window", "Select")),
         )
         .ok_or("flyout")?
         .rect();
@@ -1621,13 +1639,18 @@ fn integrated_sidebar_flyouts_use_available_height_and_full_content_width() -> T
             ui.label_rect("Create Part").is_some(),
             "a previous short tool must not limit the next tool's height"
         );
-        ui.click_sidebar("Move")?;
+        ui.click_sidebar("Close Select settings")?;
+        ui.click_sidebar("Close Move settings")?;
         ui.click_sidebar("Morph & Refit")?;
         ui.click("Meshes & selection")?;
         assert!(
             ui.label_rect("Open Selection tool").is_some(),
             "opening Morph's mesh controls should use the available height"
         );
+        ui.click("Open Selection tool")?;
+        assert_eq!(ui.application.viewport_tool, ViewportTool::Select);
+        assert!(ui.sidebar_button("Close Select settings").is_some());
+        assert!(ui.sidebar_button("Close Morph & Refit settings").is_some());
     }
     Ok(())
 }
@@ -1659,13 +1682,13 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         ui.click_sidebar(label)?;
         assert_eq!(ui.application.cdmw_rail_page, Some(page));
         assert!(
-            ui.sidebar_button("Close tool settings").is_some(),
+            ui.sidebar_button(&format!("Close {label} settings")).is_some(),
             "{label}"
         );
         assert_eq!(ui.application.viewport_rect, Some(viewport));
         ui.click_sidebar(label)?;
         assert!(
-            ui.sidebar_button("Close tool settings").is_none(),
+            ui.sidebar_button(&format!("Close {label} settings")).is_none(),
             "{label} should close on a second click"
         );
         assert_eq!(ui.application.cdmw_rail_page, Some(page));
@@ -1675,7 +1698,7 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
     ui.click_sidebar("Move")?;
     ui.click_sidebar("Rotate")?;
     assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
-    ui.click_sidebar("Pin tool settings")?;
+    ui.click_sidebar("Pin Rotate settings")?;
     assert!(
         ui.application
             .viewport_rect
@@ -1683,15 +1706,15 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
             .width()
             < viewport.width() - 240.0
     );
-    ui.click_sidebar("Unpin tool settings")?;
+    ui.click_sidebar("Unpin Rotate settings")?;
     assert_eq!(ui.application.viewport_rect, Some(viewport));
-    ui.click_sidebar("Close tool settings")?;
+    ui.click_sidebar("Close Rotate settings")?;
     assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
     assert!(!ui.application.cdmw_orbit_mode);
     ui.click_sidebar("Viewport")?;
     assert!(ui.label_rect("Display").is_some());
-    ui.click_sidebar("Pin tool settings")?;
-    ui.click_sidebar("Close tool settings")?;
+    ui.click_sidebar("Pin Viewport settings")?;
+    ui.click_sidebar("Close Viewport settings")?;
     assert_eq!(ui.application.viewport_rect, Some(viewport));
     assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
     ui.click_sidebar("Move")?;
@@ -1700,7 +1723,283 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         Some(viewport),
         "reopening closed settings starts with a flyout"
     );
-    assert!(ui.sidebar_button("Pin tool settings").is_some());
+    assert!(ui.sidebar_button("Pin Move settings").is_some());
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_floating_panels_move_independently_and_keep_their_positions() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    ui.click_sidebar("Collapse Tools")?;
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    let baseline = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .structural_fingerprint();
+    let selection = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .clone();
+    let history = ui.application.history.undo_len();
+    let camera = ui.application.camera.revision();
+    ui.click_sidebar("Move")?;
+    let original = ui.tool_window_rect("Move")?;
+    ui.drag_tool_window("Move", egui::vec2(320.0, 110.0))?;
+    let moved = ui.tool_window_rect("Move")?;
+    assert!(
+        (moved.left() - original.left() - 320.0).abs() < 1.0,
+        "{original:?} -> {moved:?}"
+    );
+    assert!(
+        (moved.top() - original.top() - 110.0).abs() < 1.0,
+        "{original:?} -> {moved:?}"
+    );
+    // Dragging a numeric setting belongs to its widget, not the window or mesh.
+    let value = ui.label_rect("0.020").ok_or("Axis step value")?.center();
+    let step = ui.application.transform_translate_step;
+    ui.frame(vec![Event::PointerMoved(value)]);
+    ui.frame(vec![pointer_button(value, PointerButton::Primary, true)]);
+    ui.frame(vec![Event::PointerMoved(value + egui::vec2(30.0, 0.0))]);
+    ui.frame(vec![pointer_button(
+        value + egui::vec2(30.0, 0.0),
+        PointerButton::Primary,
+        false,
+    )]);
+    ui.settle_layout();
+    assert_ne!(ui.application.transform_translate_step, step);
+    assert_eq!(ui.tool_window_rect("Move")?, moved);
+    ui.click_sidebar("Rotate")?;
+    assert!(ui.sidebar_button("Close Move settings").is_some());
+    assert!(ui.sidebar_button("Close Rotate settings").is_some());
+    assert_eq!(ui.application.viewport_rect, Some(viewport));
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Rotate);
+    let rotate = ui.tool_window_rect("Rotate")?;
+    ui.drag_tool_window("Rotate", egui::vec2(0.0, 240.0))?;
+    assert!(ui.tool_window_rect("Rotate")?.top() > rotate.top() + 239.0);
+    assert_eq!(ui.tool_window_rect("Move")?, moved);
+
+    // An open tool's icon brings its settings forward and activates the tool.
+    // The next click closes just that panel, retaining the active tool.
+    ui.click_sidebar("Move")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    assert!(ui.sidebar_button("Close Move settings").is_some());
+    ui.click_sidebar("Move")?;
+    assert!(ui.sidebar_button("Close Move settings").is_none());
+    assert!(ui.sidebar_button("Close Rotate settings").is_some());
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    ui.click_sidebar("Move")?;
+    assert_eq!(ui.tool_window_rect("Move")?, moved);
+
+    ui.click_sidebar("Pin Move settings")?;
+    let docked_viewport = ui.application.viewport_rect.ok_or("docked viewport")?;
+    assert!(docked_viewport.width() < viewport.width() - 240.0);
+    assert!(ui.sidebar_button("Close Rotate settings").is_some());
+    ui.click_sidebar("Pin Rotate settings")?;
+    assert!(ui.sidebar_button("Unpin Rotate settings").is_some());
+    assert!(ui.sidebar_button("Pin Move settings").is_some());
+    assert_eq!(ui.application.viewport_rect, Some(docked_viewport));
+    assert_eq!(ui.tool_window_rect("Move")?, moved);
+    ui.click_sidebar("Unpin Rotate settings")?;
+    assert_eq!(ui.application.viewport_rect, Some(viewport));
+    // Focusing the background window changes Escape's target, not the tool.
+    ui.click_at(moved.left_top() + egui::vec2(20.0, 16.0));
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
+    ui.settle_layout();
+    assert!(ui.sidebar_button("Close Move settings").is_none());
+    assert!(ui.sidebar_button("Close Rotate settings").is_some());
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        baseline
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selection
+    );
+    assert_eq!(ui.application.history.undo_len(), history);
+    assert_eq!(ui.application.camera.revision(), camera);
+    assert_eq!(ui.application.cdmw_transaction_attempts, 0);
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_floating_move_survives_viewport_edits_and_gesture_cancellation() -> TestResult
+{
+    let root = tempdir()?;
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 900.0));
+    ui.application
+        .handle_actions(vec![UiAction::SelectAllVertices]);
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+        root.path().to_path_buf(),
+        "floating-move",
+        1,
+        0,
+    ));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Move")?;
+    ui.click_sidebar("Viewport")?;
+    ui.click_sidebar("Move")?;
+    let rectangle = ui.application.viewport_rect.ok_or("viewport")?;
+    let mesh = ui.application.mesh.as_ref().ok_or("mesh")?;
+    let baseline = mesh.structural_fingerprint();
+    let pivot = OrbitCamera::selected_center(mesh).ok_or("pivot")?;
+    let center = ui
+        .application
+        .camera
+        .project(pivot, rectangle)
+        .ok_or("center")?
+        .screen;
+    let start = egui::pos2(center.x, center.y);
+    let end = start + egui::vec2(20.0, -8.0);
+    for label in ["Move", "Viewport"] {
+        assert!(
+            !ui.tool_window_rect(label)?.contains(start),
+            "gizmo must be exposed"
+        );
+    }
+    ui.frame(vec![
+        Event::PointerMoved(start),
+        pointer_button(start, PointerButton::Primary, true),
+    ]);
+    ui.frame(vec![Event::PointerMoved(end)]);
+    assert!(ui.application.edit_gesture.is_some());
+    assert_ne!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        baseline
+    );
+    ui.frame(vec![
+        key_event(egui::Key::Escape, true),
+        key_event(egui::Key::Escape, false),
+    ]);
+    ui.frame(vec![pointer_button(end, PointerButton::Primary, false)]);
+    ui.settle_layout();
+    assert!(ui.application.edit_gesture.is_none());
+    assert_eq!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        baseline
+    );
+    assert!(ui.sidebar_button("Close Move settings").is_some());
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
+    assert_eq!(ui.application.cdmw_transaction_attempts, 0);
+
+    ui.drag(
+        &[center, center + Vec2::new(20.0, -8.0)],
+        PointerButton::Primary,
+    );
+    ui.settle_layout();
+    assert_ne!(
+        ui.application
+            .mesh
+            .as_ref()
+            .ok_or("mesh")?
+            .structural_fingerprint(),
+        baseline
+    );
+    assert_eq!(ui.application.history.undo_len(), 2);
+    assert_eq!(ui.application.cdmw_transaction_attempts, 1);
+    assert!(ui.application.cdmw_pending_request.is_some());
+    assert!(
+        ui.sidebar_button("Close Move settings")
+            .ok_or("Move panel")?
+            .enabled()
+    );
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
+    assert!(!ui.sidebar_button("Move").ok_or("Move tool")?.enabled());
+    ui.click_sidebar("Close Move settings")?;
+    assert!(ui.sidebar_button("Close Move settings").is_none());
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
+    assert_eq!(ui.application.cdmw_transaction_attempts, 1);
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_inactive_brush_panels_do_not_clamp_the_active_tool() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Smooth")?;
+    ui.click_sidebar("Pinch")?;
+    ui.click_sidebar("Inflate")?;
+    ui.application.brush_strength = -0.6;
+    ui.settle_layout();
+    assert_eq!(ui.application.brush_strength, -0.6);
+    for label in ["Smooth", "Pinch", "Inflate"] {
+        assert!(
+            ui.sidebar_button(&format!("Close {label} settings"))
+                .is_some()
+        );
+    }
+    ui.click_sidebar("Smooth")?;
+    assert_eq!(ui.application.viewport_tool, ViewportTool::Smooth);
+    assert_eq!(ui.application.brush_strength, 0.01);
+    assert!(ui.sidebar_button("Close Inflate settings").is_some());
+    Ok(())
+}
+
+#[test]
+fn integrated_sidebar_moved_panels_stay_reachable_after_resize_and_font_changes() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 980.0));
+    ui.click_sidebar("Collapse Tools")?;
+    ui.click_sidebar("Move")?;
+    ui.drag_tool_window("Move", egui::vec2(620.0, 480.0))?;
+    ui.size = egui::vec2(1000.0, 650.0);
+    ui.application
+        .apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
+    ui.settle_layout();
+    ui.click_sidebar("Viewport")?;
+    for label in ["Move", "Viewport"] {
+        let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+        let area = ui.tool_window_rect(label)?;
+        assert!(
+            viewport.expand(1.0).contains_rect(area),
+            "{label}: {area:?} vs {viewport:?}"
+        );
+        let close = ui
+            .sidebar_button(&format!("Close {label} settings"))
+            .ok_or("close")?;
+        assert!(close.interact_rect.contains(close.rect.center()));
+    }
+    ui.drag_tool_window("Viewport", egui::vec2(-800.0, -800.0))?;
+    let viewport = ui.application.viewport_rect.ok_or("viewport")?;
+    assert!(
+        viewport
+            .expand(1.0)
+            .contains_rect(ui.tool_window_rect("Viewport")?)
+    );
+    // Pinning one page leaves the other floating within the reduced viewport.
+    ui.click_sidebar("Pin Viewport settings")?;
+    let viewport = ui.application.viewport_rect.ok_or("pinned viewport")?;
+    assert!(
+        viewport
+            .expand(1.0)
+            .contains_rect(ui.tool_window_rect("Move")?)
+    );
+    ui.click_sidebar("Close Move settings")?;
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
     Ok(())
 }
 
@@ -1719,7 +2018,7 @@ fn integrated_sidebar_flyout_owns_pointer_scroll_and_nested_popups() -> TestResu
         .geometry_revision;
     let flyout = egui::AreaState::load(
         &ui.application.egui_context,
-        egui::Id::new("cdmw-tool-flyout"),
+        egui::Id::new(("cdmw-tool-window", "Select")),
     )
     .ok_or("flyout")?
     .rect();
@@ -1756,13 +2055,13 @@ fn integrated_sidebar_flyout_owns_pointer_scroll_and_nested_popups() -> TestResu
             .geometry_revision,
         geometry
     );
-    assert!(ui.sidebar_button("Close tool settings").is_some());
+    assert!(ui.sidebar_button("Close Select settings").is_some());
     ui.click_sidebar("Viewport")?;
     ui.click("Faces (No Textures)")?;
     assert!(egui::Popup::is_any_open(&ui.application.egui_context));
     ui.click("Faces + Wire")?;
     assert_eq!(ui.application.view_mode, ViewMode::SolidWire);
-    assert!(ui.sidebar_button("Close tool settings").is_some());
+    assert!(ui.sidebar_button("Close Select settings").is_some());
     ui.click_sidebar("Select")?;
     let vertex = ui.projected_point(SelectionDomain::Vertex)?;
     assert!(
@@ -1771,7 +2070,8 @@ fn integrated_sidebar_flyout_owns_pointer_scroll_and_nested_popups() -> TestResu
     );
     ui.click_at(egui::pos2(vertex.x, vertex.y));
     ui.settle_layout();
-    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert!(ui.sidebar_button("Close Select settings").is_some());
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
     assert!(
         !ui.application
             .mesh
@@ -1799,7 +2099,7 @@ fn integrated_sidebar_compact_controls_fit_small_windows_and_respect_availabilit
     ui.click_sidebar("Morph & Refit")?;
     let area = egui::AreaState::load(
         &ui.application.egui_context,
-        egui::Id::new("cdmw-tool-flyout"),
+        egui::Id::new(("cdmw-tool-window", "Morph & Refit")),
     )
     .ok_or("flyout")?
     .rect();
@@ -1815,7 +2115,7 @@ fn integrated_sidebar_compact_controls_fit_small_windows_and_respect_availabilit
     ui.application.cdmw_state["authoring_enabled"] = json!(false);
     ui.settle_layout();
     assert!(!ui.sidebar_button("Move").ok_or("Move")?.enabled());
-    ui.click_sidebar("Close tool settings")?;
+    ui.click_sidebar("Close Morph & Refit settings")?;
     ui.click_sidebar("Expand Tools")?;
     ui.click_sidebar("Collapse Tools")?;
     assert!(ui.sidebar_button("Select").ok_or("Select")?.enabled());
@@ -1845,9 +2145,9 @@ fn integrated_sidebar_preserves_sections_and_escape_respects_nested_settings() -
     ui.click_sidebar("Collapse Tools")?;
     ui.click_sidebar("Viewport")?;
     assert!(ui.label_rect("Wire width").is_some());
-    ui.click_sidebar("Pin tool settings")?;
+    ui.click_sidebar("Pin Viewport settings")?;
     assert!(ui.label_rect("Wire width").is_some());
-    ui.click_sidebar("Unpin tool settings")?;
+    ui.click_sidebar("Unpin Viewport settings")?;
     assert!(ui.label_rect("Wire width").is_some());
     assert_eq!(ui.application.overlay_wire_width, 3.5);
     ui.click("Faces (No Textures)")?;
@@ -1858,13 +2158,13 @@ fn integrated_sidebar_preserves_sections_and_escape_respects_nested_settings() -
     ]);
     ui.settle_layout();
     assert!(!egui::Popup::is_any_open(&ui.application.egui_context));
-    assert!(ui.sidebar_button("Close tool settings").is_some());
+    assert!(ui.sidebar_button("Close Viewport settings").is_some());
     ui.frame(vec![
         key_event(egui::Key::Escape, true),
         key_event(egui::Key::Escape, false),
     ]);
     ui.settle_layout();
-    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert!(ui.sidebar_button("Close Viewport settings").is_none());
     ui.click_sidebar("Expand Tools")?;
     ui.reveal("Wire width")?;
     assert_eq!(ui.application.overlay_wire_width, 3.5);
@@ -1881,7 +2181,7 @@ fn integrated_sidebar_hair_inspector_reopens_and_restores_mesh_rail_preference()
     ui.application.hair.state = Some(state);
     ui.settle_layout();
     assert!(ui.sidebar_button("Expand Tools").is_none());
-    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert!(ui.sidebar_button("Close Move settings").is_none());
     ui.click_sidebar("Collapse Inspector")?;
     assert!(ui.sidebar_button("Expand Inspector").is_some());
     ui.click_sidebar("Expand Inspector")?;
@@ -1889,7 +2189,7 @@ fn integrated_sidebar_hair_inspector_reopens_and_restores_mesh_rail_preference()
     ui.application.hair.state = None;
     ui.settle_layout();
     assert!(ui.sidebar_button("Expand Tools").is_some());
-    assert!(ui.sidebar_button("Close tool settings").is_none());
+    assert!(ui.sidebar_button("Close Move settings").is_none());
     assert_eq!(ui.application.viewport_tool, ViewportTool::Move);
     Ok(())
 }

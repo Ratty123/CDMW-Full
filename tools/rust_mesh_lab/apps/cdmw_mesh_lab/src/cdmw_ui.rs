@@ -44,6 +44,13 @@ enum CdmwSidebarPage {
 }
 
 impl CdmwSidebarPage {
+    fn layer(self) -> egui::LayerId {
+        egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new(("cdmw-tool-window", self.label())),
+        )
+    }
+
     fn label(self) -> &'static str {
         match self {
             Self::Viewport => "Viewport",
@@ -55,13 +62,28 @@ impl CdmwSidebarPage {
     }
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 struct CdmwSidebarSettings {
-    page: Option<CdmwSidebarPage>,
-    pinned: bool,
+    // Focus order is independent of the active viewport tool. Each page can be
+    // open once, with one optional dock; egui remembers each floating position.
+    open: Vec<CdmwSidebarPage>,
+    pinned: Option<CdmwSidebarPage>,
 }
 
 impl CdmwSidebarSettings {
+    fn show(&mut self, page: CdmwSidebarPage, context: &egui::Context) {
+        self.open.retain(|candidate| *candidate != page);
+        self.open.push(page);
+        context.move_to_top(page.layer());
+    }
+
+    fn close(&mut self, page: CdmwSidebarPage) {
+        self.open.retain(|candidate| *candidate != page);
+        if self.pinned == Some(page) {
+            self.pinned = None;
+        }
+    }
+
     fn load(context: &egui::Context) -> Self {
         context.data_mut(|data| {
             data.get_temp(egui::Id::new("cdmw-sidebar-settings"))
@@ -582,7 +604,7 @@ impl LabApplication {
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
         let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);
         let rail = if self.hair.active() {
-            if CdmwSidebarSettings::load(&self.egui_context).page.is_some() {
+            if !CdmwSidebarSettings::load(&self.egui_context).open.is_empty() {
                 CdmwSidebarSettings::default().store(&self.egui_context);
             }
             None
@@ -612,8 +634,8 @@ impl LabApplication {
                     }
                 });
         }
-        if let Some(rail) = rail {
-            self.draw_cdmw_compact_settings(root_ui, rail, &mut actions);
+        if rail.is_some() {
+            self.draw_cdmw_compact_settings(root_ui, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
         self.tick_vertex_inspector(cdmw_sidebar_visible(
@@ -940,7 +962,7 @@ impl LabApplication {
                             let enabled = !busy && (!requires_authoring || authoring);
                             let settings = CdmwSidebarSettings::load(ui.ctx());
                             let selected = match page {
-                                CdmwSidebarPage::Viewport => settings.page == Some(page),
+                                CdmwSidebarPage::Viewport => settings.open.contains(&page),
                                 CdmwSidebarPage::Tool(tool) => self.cdmw_rail_page == Some(tool),
                             };
                             let response = ui
@@ -965,9 +987,8 @@ impl LabApplication {
                             }
                             if response.clicked() {
                                 let mut settings = settings;
-                                if settings.page == Some(page) {
-                                    settings.page = None;
-                                    settings.pinned = false;
+                                if settings.open.last() == Some(&page) && selected {
+                                    settings.close(page);
                                 } else {
                                     if let CdmwSidebarPage::Tool(tool) = page {
                                         let viewport_tool = CDMW_RAIL_TOOLS
@@ -976,7 +997,7 @@ impl LabApplication {
                                             .and_then(|(_, _, tool)| *tool);
                                         self.activate_cdmw_rail_page(tool, viewport_tool);
                                     }
-                                    settings.page = Some(page);
+                                    settings.show(page, ui.ctx());
                                 }
                                 settings.store(ui.ctx());
                             }
@@ -1013,62 +1034,61 @@ impl LabApplication {
     fn draw_cdmw_settings_header(&mut self, ui: &mut egui::Ui, page: CdmwSidebarPage) {
         ui.horizontal(|ui| {
             let mut settings = CdmwSidebarSettings::load(ui.ctx());
+            let pinned = settings.pinned == Some(page);
             let title_width = (ui.available_width()
                 - ui.spacing().interact_size.y.max(24.0) * 2.0
                 - ui.spacing().item_spacing.x * 2.0)
                 .max(1.0);
-            ui.add_sized(
+            let title = ui.add_sized(
                 [title_width, ui.spacing().interact_size.y],
                 egui::Label::new(RichText::new(page.label()).strong())
                     .truncate()
-                    .halign(egui::Align::Min),
+                    .halign(egui::Align::Min)
+                    .selectable(false)
+                    .sense(egui::Sense::hover()),
             );
-            let label = if settings.pinned {
-                "Unpin tool settings"
-            } else {
-                "Pin tool settings"
-            };
-            if cdmw_sidebar_button(ui, label, CdmwSidebarIcon::Pin, settings.pinned, 24.0).clicked()
-            {
-                settings.pinned = !settings.pinned;
-                settings.store(ui.ctx());
+            if !pinned {
+                title
+                    .on_hover_cursor(egui::CursorIcon::Grab)
+                    .on_hover_text("Drag to move this panel");
+            }
+            let label = format!(
+                "{} {} settings",
+                if pinned { "Unpin" } else { "Pin" },
+                page.label()
+            );
+            if cdmw_sidebar_button(ui, &label, CdmwSidebarIcon::Pin, pinned, 24.0).clicked() {
+                // Replacing the dock leaves its previous page open and floating.
+                settings.pinned = if pinned { None } else { Some(page) };
+                settings.show(page, ui.ctx());
+                settings.clone().store(ui.ctx());
             }
             if cdmw_sidebar_button(
                 ui,
-                "Close tool settings",
+                &format!("Close {} settings", page.label()),
                 CdmwSidebarIcon::Close,
                 false,
                 24.0,
             )
             .clicked()
             {
-                settings.page = None;
-                settings.pinned = false;
+                settings.close(page);
                 settings.store(ui.ctx());
             }
         });
         ui.separator();
     }
 
-    fn draw_cdmw_compact_settings(
-        &mut self,
-        root_ui: &mut egui::Ui,
-        rail: egui::Rect,
-        actions: &mut Vec<UiAction>,
-    ) {
-        let mut settings = CdmwSidebarSettings::load(root_ui.ctx());
-        // Page-local actions such as Morph's Open Selection use the existing
-        // active page. Follow them without coupling dismissal to tool selection.
-        if let Some(CdmwSidebarPage::Tool(page)) = settings.page
-            && self.cdmw_rail_page != Some(page)
-        {
-            settings.page = self.cdmw_rail_page.map(CdmwSidebarPage::Tool);
-            settings.store(root_ui.ctx());
-        }
-        let Some(page) = settings.page else {
+    fn draw_cdmw_compact_settings(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let context = root_ui.ctx().clone();
+        let settings = CdmwSidebarSettings::load(&context);
+        if settings.open.is_empty() {
             return;
-        };
-        if settings.pinned {
+        }
+        let nested_popup = egui::Popup::is_any_open(&context);
+        let had_gesture = self.selection_gesture.is_some() || self.edit_gesture.is_some();
+        let had_text_focus = context.text_edit_focused();
+        if let Some(page) = settings.pinned {
             egui::Panel::left("cdmw_pinned_tool_settings")
                 .default_size(280.0)
                 .min_size(230.0)
@@ -1083,63 +1103,83 @@ impl LabApplication {
                             self.draw_cdmw_sidebar_page(ui, page, actions);
                         });
                 });
-            return;
         }
-        let context = root_ui.ctx().clone();
         let bounds = root_ui.available_rect_before_wrap();
-        let nested_popup = egui::Popup::is_any_open(&context);
-        let had_gesture = self.selection_gesture.is_some() || self.edit_gesture.is_some();
-        let had_text_focus = context.text_edit_focused();
         let width = 280.0_f32.min(bounds.width());
-        let area = egui::Area::new(egui::Id::new("cdmw-tool-flyout"))
-            .order(egui::Order::Foreground)
-            .movable(false)
-            .fixed_pos(bounds.left_top())
-            .constrain_to(bounds)
-            .default_size(egui::vec2(width, bounds.height()))
-            .show(&context, |ui| {
-                // Area otherwise reuses the previous tool's measured size as
-                // the next tool's constraint. Let each page grow to the editor
-                // bounds and shrink only after its contents have been measured.
-                ui.set_width(width);
-                ui.set_max_height(bounds.height());
-                egui::Frame::popup(ui.style())
-                    .inner_margin(6.0)
-                    .show(ui, |ui| {
-                        ui.set_width((width - 12.0).max(1.0));
-                        self.draw_cdmw_settings_header(ui, page);
-                        let height = (bounds.bottom() - ui.cursor().top() - 6.0).max(1.0);
-                        ScrollArea::vertical()
-                            .id_salt(("cdmw-settings-scroll", page.label()))
-                            .max_height(height)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| {
-                                self.draw_cdmw_sidebar_page(ui, page, actions);
-                            });
-                    });
-            });
-        let pressed_at = context.input(|input| {
-            input
-                .pointer
-                .interact_pos()
-                .filter(|_| input.pointer.any_pressed())
-        });
-        let outside = !nested_popup
-            && pressed_at.is_some_and(|point| {
-                !area.response.rect.contains(point)
-                    && !rail.contains(point)
-                    && context
-                        .layer_id_at(point)
-                        .is_none_or(|layer| layer.order < egui::Order::Foreground)
-            });
-        let escape = !nested_popup
+        let pressed_layer = context
+            .input(|input| {
+                input
+                    .pointer
+                    .interact_pos()
+                    .filter(|_| input.pointer.any_pressed())
+            })
+            .and_then(|point| context.layer_id_at(point));
+        for (index, page) in settings
+            .open
+            .iter()
+            .copied()
+            .filter(|page| Some(*page) != settings.pinned)
+            .enumerate()
+        {
+            if pressed_layer == Some(page.layer()) {
+                let mut current = CdmwSidebarSettings::load(&context);
+                current.show(page, &context);
+                current.store(&context);
+            }
+            // New panels cascade so their separate headers are apparent. Once
+            // moved, egui retains the position through closing and docking.
+            let offset = 28.0 * index as f32;
+            let position = bounds.left_top()
+                + egui::vec2(
+                    offset.min((bounds.width() - width).max(0.0)),
+                    offset.min((bounds.height() - 100.0).max(0.0)),
+                );
+            let area = egui::Area::new(page.layer().id)
+                .order(egui::Order::Foreground)
+                .movable(true)
+                .default_pos(position)
+                .constrain_to(bounds)
+                .default_size(egui::vec2(width, 0.0))
+                .show(&context, |ui| {
+                    // Reset the previous measured size so expanded sections can
+                    // grow to the remaining editor height and use the full width.
+                    ui.set_width(width);
+                    ui.set_max_height((bounds.bottom() - ui.cursor().top()).max(1.0));
+                    egui::Frame::popup(ui.style())
+                        .inner_margin(6.0)
+                        .show(ui, |ui| {
+                            ui.set_width((width - 12.0).max(1.0));
+                            self.draw_cdmw_settings_header(ui, page);
+                            let height = (bounds.bottom() - ui.cursor().top() - 6.0).max(1.0);
+                            ScrollArea::vertical()
+                                .id_salt(("cdmw-settings-scroll", page.label()))
+                                .max_height(height)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    self.draw_cdmw_sidebar_page(ui, page, actions);
+                                });
+                        });
+                });
+            if area.response.dragged() {
+                context.set_cursor_icon(egui::CursorIcon::Grabbing);
+            }
+        }
+        // Viewport input never dismisses tool windows. Escape closes only the
+        // front floating panel after nested widgets and mesh gestures cancel.
+        let mut current = CdmwSidebarSettings::load(&context);
+        if !nested_popup
             && !had_gesture
             && !had_text_focus
+            && let Some(page) = current
+                .open
+                .iter()
+                .rev()
+                .copied()
+                .find(|page| Some(*page) != current.pinned)
             && context
-                .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-        if outside || escape {
-            let mut current = CdmwSidebarSettings::load(&context);
-            current.page = None;
+                .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            current.close(page);
             current.store(&context);
         }
     }
@@ -1799,7 +1839,18 @@ impl LabApplication {
             } else {
                 0.01..=1.0
             };
-            ui.add(egui::Slider::new(&mut self.brush_strength, range).text("Strength"));
+            // An inactive Smooth/Pinch panel must not clamp Inflate's negative
+            // strength just because both settings windows are being drawn.
+            let clamping = if self.cdmw_rail_page == Some(page) {
+                egui::SliderClamping::Always
+            } else {
+                egui::SliderClamping::Edits
+            };
+            ui.add(
+                egui::Slider::new(&mut self.brush_strength, range)
+                    .clamping(clamping)
+                    .text("Strength"),
+            );
             if page == CdmwRailPage::Inflate {
                 ui.small("Positive inflates; negative deflates along the surface normals.");
             }
@@ -2414,6 +2465,11 @@ impl LabApplication {
             self.cdmw_rail_page = Some(CdmwRailPage::Select);
             self.viewport_tool = ViewportTool::Select;
             self.cdmw_orbit_mode = false;
+            if !cdmw_sidebar_visible(ui.ctx(), CDMW_TOOLS_SIDEBAR) {
+                let mut settings = CdmwSidebarSettings::load(ui.ctx());
+                settings.show(CdmwSidebarPage::Tool(CdmwRailPage::Select), ui.ctx());
+                settings.store(ui.ctx());
+            }
         }
         cdmw_section(ui, "morph-part-picker", "Choose Parts", None, |ui| {
             let parts = self
