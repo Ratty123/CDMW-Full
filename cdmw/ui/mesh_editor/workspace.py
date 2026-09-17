@@ -181,9 +181,8 @@ class MeshEditorWorkspace(
         self._last_slow_frame_log_key: tuple[object, ...] | None = None
 
         root = QVBoxLayout(self)
-        margin = 0 if embedded_controls_only else 6
-        root.setContentsMargins(margin, margin, margin, margin)
-        root.setSpacing(4)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(4 if embedded_controls_only else 0)
         top_bar = self._build_top_bar()
         root.addWidget(top_bar)
         if embedded_controls_only:

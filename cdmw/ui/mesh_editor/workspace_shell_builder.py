@@ -377,7 +377,7 @@ class WorkspaceShellBuilderMixin:
         frame.setObjectName("MeshEditorCentralPreview")
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setSpacing(0)
         self.preview_stack = QStackedWidget(frame)
         self.preview_stack.setObjectName("MeshEditorStandalonePreviewStack")
         self.native_host_frame = RustMeshEditorHostFrame(

@@ -20,6 +20,9 @@ Use the arrow in each panel header to collapse it independently. **Tools** becom
 a narrow icon rail; **Inspector** leaves a slim edge handle. Their expand arrows
 stay available, including while an operation is busy. These controls work in
 Classic, Compact, and detached Mesh Editor windows. Hair mode uses Inspector.
+Hair Tools and Close share a compact row above the editor. Close retains its
+unsaved-changes confirmation; the embedded workspace fills the remaining height
+without a separate Close row or outer padding below the viewport.
 
 Click a tool icon to select it and open its settings. Several floating tool
 panels can stay open together, including while you edit in the viewport. Drag a

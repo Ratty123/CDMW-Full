@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QScrollArea,
     QSizePolicy,
+    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -68,7 +69,6 @@ class CompactWorkspaceRail(QFrame):
     def __init__(self, owner: object, settings: object, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("CompactWorkspaceRail")
-        self.setMinimumWidth(224)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self._owner = owner
         self._settings = settings
@@ -97,7 +97,8 @@ class CompactWorkspaceRail(QFrame):
         content_layout.addStretch(1)
         scroll.setWidget(content)
         root.addWidget(scroll, stretch=1)
-        root.addWidget(self._footer(owner))
+        self._footer_widget = self._footer(owner)
+        root.addWidget(self._footer_widget)
         self.refresh_palette()
 
     @property
@@ -270,8 +271,23 @@ class CompactWorkspaceRail(QFrame):
 
     def sizeHint(self):
         hint = super().sizeHint()
-        buttons = tuple(getattr(self, "_tool_buttons", {}).values())
-        hint.setWidth(max(224, max((max(button.sizeHint().width(), button.minimumWidth()) + 32 for button in buttons), default=0)))
+        # Follow the actual labels, icons and layout margins instead of reserving
+        # a fixed empty column. Keep enough room for the vertical scrollbar when
+        # a short window needs one, without squeezing translated tool names.
+        widths = [
+            body.layout().sizeHint().width()
+            for body in getattr(self, "_category_bodies", {}).values()
+        ]
+        widths.extend(
+            header.sizeHint().width()
+            for header in getattr(self, "_category_headers", {}).values()
+        )
+        footer = getattr(self, "_footer_widget", None)
+        if footer is not None:
+            widths.append(footer.layout().sizeHint().width())
+        margins = self.contentsMargins()
+        scrollbar = self.style().pixelMetric(QStyle.PM_ScrollBarExtent, None, self)
+        hint.setWidth(max(widths, default=0) + margins.left() + margins.right() + scrollbar)
         return hint
 
 

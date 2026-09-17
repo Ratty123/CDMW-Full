@@ -17,6 +17,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Mesh Editor combines Hair Tools and Close into one compact row and removes the empty bottom row and outer viewport padding. Compact app navigation sizes to its controls instead of reserving a fixed-width empty column.
 - Mesh Editor tool flyouts use the available height and full content width, including when switching from a short tool to a longer one. Narrow tool panels keep controls reachable at larger font sizes.
 - Vertex channel edits retain their operation records and original PAC bounds across draft recovery and editor reopening. Undo restores the export-validation state of the mesh before the edit.
 

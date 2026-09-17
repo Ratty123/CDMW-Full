@@ -6,11 +6,12 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QLineEdit
+from PySide6.QtWidgets import QLineEdit, QScrollArea, QStackedWidget
 
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.shell.root_layout import ShellRootLayoutMixin
 from cdmw.ui.shell.tab_registry import TabRegistry
+from cdmw.ui.shell.compact.workspace import CompactWorkspace
 from tests.test_compact_shell import _CompactOwner, _app
 
 
@@ -80,6 +81,39 @@ def test_navigation_toggle_preserves_tool_and_preferences(tmp_path, variant, wid
             assert tool.selectedText() == initial_selection
         assert owner.requested_keys == requests_before
         assert {key: settings.value(key) for key in settings.allKeys()} == settings_before
+    finally:
+        owner.close()
+        owner.deleteLater()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("font_size", [10, 18])
+def test_compact_navigation_width_follows_its_controls_without_a_fixed_empty_column(tmp_path, font_size):
+    app = _app()
+    owner = _CompactOwner(create_settings(settings_file_path=tmp_path / "navigation-width.cfg"))
+    workspace = CompactWorkspace(owner, QStackedWidget())
+    owner.setCentralWidget(workspace)
+    try:
+        buttons = tuple(workspace.rail.tool_buttons.values())
+        for button in buttons:
+            button.setFont(QFont("Segoe UI", font_size))
+        # A longer translated label must still fit without a horizontal scrollbar.
+        buttons[0].setText("Browse translated archive collections")
+        owner.resize(1440, 650)
+        owner.show()
+        app.processEvents()
+        app.processEvents()
+        rail = workspace.rail
+        former_width = max(224, max(button.sizeHint().width() + 32 for button in buttons))
+        assert rail.width() < former_width
+        assert all(button.width() >= button.sizeHint().width() for button in buttons)
+        scroll = rail.findChild(QScrollArea, "CompactToolScrollArea")
+        assert scroll is not None and scroll.horizontalScrollBar().maximum() == 0
+        expanded_width = rail.width()
+        for header in rail.category_headers.values():
+            header.setChecked(False)
+        app.processEvents()
+        assert rail.width() == expanded_width
     finally:
         owner.close()
         owner.deleteLater()
