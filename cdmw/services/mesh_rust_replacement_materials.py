@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from contextlib import contextmanager
 from dataclasses import fields
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import bound_part_indices
 from cdmw.services.mesh_replacement_materials import _sidecar_text
 
@@ -22,42 +24,78 @@ def replacement_material_key(mesh, state):
     return digest.hexdigest()[:32]
 
 
-def stage_replacement_materials(authoring, mesh, state, stop_event=None):
+@contextmanager
+def prepared_replacement_material_mesh(mesh, files, *, required, stop_event=None):
+    """Bind captured DDS bytes for the duration of normal material compilation."""
     from cdmw.core.archive_model_references import _parse_archive_model_sidecar_texture_bindings
     from cdmw.core.final_package_preview_model import _material_semantics_for_binding
     from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
-    from cdmw.services.mesh_rust_authoring import (
-        _atomic_write_payload, _mesh_texture_payloads, _mesh_lods,
-        _canonical_json_bytes, _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
-        _TEXTURE_RESOURCE_SPECS, _RustMaterialSynthesisState, _mesh_material_presentations,
-    )
-    key = replacement_material_key(mesh, state)
-    if key not in authoring.archive_refit_material_cache:
-        indices = bound_part_indices(mesh, state)
-        selected = [indices[part.part_id] for part in state.parts if part.material_choice == "imported"]
-        files = {file.path.replace("\\", "/").casefold(): file for file in (*state.dependencies, *state.companion_files)}
-        bindings = [binding for file in files.values() if Path(file.path).suffix.lower() in {".pac_xml", ".pami"}
-                    for binding in _parse_archive_model_sidecar_texture_bindings(_sidecar_text(file.data), sidecar_path=file.path)]
-        incoming = copy.copy(mesh)
-        incoming.submeshes = [copy.copy(mesh.submeshes[index]) for index in selected]
-        incoming.lod_levels = [incoming.submeshes]
-        synthesis = _RustMaterialSynthesisState()
-        with TemporaryDirectory(prefix="cdmw-replacement-preview-") as temporary:
-            for local_index, part in enumerate(incoming.submeshes):
-                for _role, attributes in _TEXTURE_RESOURCE_SPECS:
-                    for attribute in attributes:
-                        setattr(part, attribute, "")
-                part.preview_material_texture_inputs = ()
-                target = mesh.submeshes[selected[local_index]]
-                owned = [binding for binding in bindings if {binding.material_name, binding.submesh_name, binding.part_name} & {target.name, target.material}]
+    from cdmw.modding.asset_replacement import classify_texture_binding
+    from cdmw.services.mesh_rust_authoring import _TEXTURE_RESOURCE_SPECS, _mesh_lods, _resolved_dds_path
+
+    files = {file.path.replace("\\", "/").casefold(): file for file in files}
+    bindings = []
+    for file in files.values():
+        raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
+        if Path(file.path).suffix.lower() not in {".pac_xml", ".pami"}:
+            continue
+        try:
+            text = _sidecar_text(file.data)
+        except ValueError:
+            if required:
+                raise
+            continue
+        bindings.extend(_parse_archive_model_sidecar_texture_bindings(text, sidecar_path=file.path))
+    incoming = copy.copy(mesh)
+    incoming.lod_levels = [[copy.copy(part) for part in level] for level in _mesh_lods(mesh)]
+    incoming.submeshes = incoming.lod_levels[0]
+    with TemporaryDirectory(prefix="cdmw-replacement-preview-") as temporary:
+        staged = {}
+
+        def staged_path(key):
+            if key not in staged:
+                path = Path(temporary) / f"{len(staged)}.dds"
+                path.write_bytes(files[key].data)
+                staged[key] = path
+            return staged[key]
+
+        for level in incoming.lod_levels:
+            for part in level:
+                raise_if_cancelled(stop_event, "Replacement material preparation cancelled.")
+                if not required:
+                    # Preserve resolved owner/layer metadata, including native
+                    # bindings whose wrapper differs from the geometry name.
+                    existing = getattr(part, "preview_material_texture_inputs", ())
+                    if existing:
+                        rebound = []
+                        for item in existing:
+                            key = str(getattr(item, "source_texture_path", "")).replace("\\", "/").casefold()
+                            if key in files:
+                                item = copy.copy(item)
+                                item.source_dds_path = item.preview_texture_path = str(staged_path(key))
+                            rebound.append(item)
+                        part.preview_material_texture_inputs = tuple(rebound)
+                        continue
+                    if any(_resolved_dds_path(getattr(part, attribute, "")) is not None
+                           for _role, attributes in _TEXTURE_RESOURCE_SPECS for attribute in attributes):
+                        continue
+                owned = [binding for binding in bindings
+                         if {binding.material_name, binding.submesh_name, binding.part_name} & {part.name, part.material}]
+                missing = [binding.texture_path for binding in owned
+                           if binding.texture_path.replace("\\", "/").casefold() not in files]
+                if not owned or missing:
+                    if required:
+                        if missing:
+                            raise ValueError(f"Missing prepared texture for {part.name}: {missing[0]}")
+                        raise ValueError(f"Imported material has no prepared texture binding: {part.name}")
+                    # Incomplete original sidecars must not block geometry-only
+                    # recovery or discard bindings supplied by Archive Browser.
+                    continue
                 inputs = []
-                for binding_index, binding in enumerate(owned):
-                    file = files.get(binding.texture_path.replace("\\", "/").casefold())
-                    if file is None:
-                        raise ValueError(f"Missing prepared texture for {target.name}: {binding.texture_path}")
-                    path = Path(temporary) / f"{local_index}-{binding_index}.dds"
-                    path.write_bytes(file.data)
-                    from cdmw.modding.asset_replacement import classify_texture_binding
+                for binding in owned:
+                    key = binding.texture_path.replace("\\", "/").casefold()
+                    file = files[key]
+                    path = staged_path(key)
                     classification = classify_texture_binding(binding.parameter_name, binding.texture_path)
                     semantic, subtype, channels = _material_semantics_for_binding(binding.parameter_name, binding.texture_path)
                     values = {field.name: getattr(binding, field.name) for field in fields(PreviewMaterialTextureInput) if hasattr(binding, field.name)}
@@ -66,11 +104,32 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
                                   semantic_type=semantic, semantic_subtype=subtype, packed_channels=channels,
                                   confidence="sidecar", visualized=True)
                     inputs.append(PreviewMaterialTextureInput(**values))
-                if not inputs:
-                    raise ValueError(f"Imported material has no prepared texture binding: {target.name}")
+                for _role, attributes in _TEXTURE_RESOURCE_SPECS:
+                    for attribute in attributes:
+                        setattr(part, attribute, "")
                 part.preview_material_texture_inputs = tuple(inputs)
+        yield incoming
+
+
+def stage_replacement_materials(authoring, mesh, state, stop_event=None):
+    from cdmw.services.mesh_rust_authoring import (
+        _atomic_write_payload, _mesh_texture_payloads, _mesh_lods,
+        _canonical_json_bytes, _RUST_PREVIEW_PACKAGE_MANIFEST_MAX_BYTES,
+        _RustMaterialSynthesisState, _mesh_material_presentations,
+    )
+    key = replacement_material_key(mesh, state)
+    if key not in authoring.archive_refit_material_cache:
+        indices = bound_part_indices(mesh, state)
+        selected = [indices[part.part_id] for part in state.parts if part.material_choice == "imported"]
+        incoming = copy.copy(mesh)
+        incoming.submeshes = [mesh.submeshes[index] for index in selected]
+        incoming.lod_levels = [incoming.submeshes]
+        synthesis = _RustMaterialSynthesisState()
+        with prepared_replacement_material_mesh(incoming, (*state.dependencies, *state.companion_files),
+                                                required=True, stop_event=stop_event) as incoming:
             added = _mesh_texture_payloads(authoring.root, incoming, expected_root_identity=authoring.root_identity,
                                           stop_event=stop_event, synthesis_state=synthesis)
+            added_presentations = _mesh_material_presentations(incoming, generated_overrides=synthesis.presentation_overrides)
             if synthesis.diagnostics:
                 raise ValueError("Prepared replacement material preview could not be compiled: " + str(synthesis.diagnostics[0]))
             if not added:
@@ -86,7 +145,7 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
             texture["material_indices_by_lod"] = [[selected[index] for index in texture["material_indices_by_lod"][0]],
                                                   *([] for _ in range(len(_mesh_lods(mesh)) - 1))]
         presentations = [row for row in retained["material_presentations"] if row["lod_index"] != 0 or row["material_index"] not in selected]
-        for row in _mesh_material_presentations(incoming, generated_overrides=synthesis.presentation_overrides):
+        for row in added_presentations:
             row["material_index"] = selected[row["material_index"]]
             presentations.append(row)
         authoring.archive_refit_material_cache[key] = {

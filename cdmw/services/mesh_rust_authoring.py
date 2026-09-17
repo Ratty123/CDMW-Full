@@ -7659,18 +7659,25 @@ class RustMeshAuthoringSession:
             expected_root_identity=self.root_identity,
         )
         material_synthesis = _RustMaterialSynthesisState()
-        textures = _mesh_texture_payloads(
-            self.root,
-            mesh,
-            expected_root_identity=self.root_identity,
-            stop_event=stop_event,
-            synthesis_state=material_synthesis,
-            material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
-        )
-        material_presentations = _mesh_material_presentations(
-            mesh,
-            generated_overrides=material_synthesis.presentation_overrides,
-        )
+        material_mesh = nullcontext(mesh)
+        replacement = self.shadow_service._session(self.shadow_session_id).replacement_state
+        if replacement is not None and replacement.dependencies:
+            from cdmw.services.mesh_rust_replacement_materials import prepared_replacement_material_mesh
+            material_mesh = prepared_replacement_material_mesh(
+                mesh, replacement.dependencies, required=False, stop_event=stop_event)
+        with material_mesh as prepared_material_mesh:
+            textures = _mesh_texture_payloads(
+                self.root,
+                prepared_material_mesh,
+                expected_root_identity=self.root_identity,
+                stop_event=stop_event,
+                synthesis_state=material_synthesis,
+                material_package_path=(self.material_package_path if self.shadow_service._session(self.shadow_session_id).archive_refit_context is None else ""),
+            )
+            material_presentations = _mesh_material_presentations(
+                prepared_material_mesh,
+                generated_overrides=material_synthesis.presentation_overrides,
+            )
         self.texture_resource_count = len(textures)
         material_key = getattr(self.shadow_service._session(self.shadow_session_id).archive_refit_context, "context_id", "base")
         self.archive_refit_material_cache[material_key] = {
