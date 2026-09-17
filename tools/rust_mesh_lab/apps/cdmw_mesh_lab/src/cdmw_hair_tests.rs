@@ -2,7 +2,7 @@ use super::*;
 use cdmw_formats::{MeshFormat, MeshLod, SourceRange, Submesh};
 use cdmw_render_wgpu::*;
 
-fn fixture() -> (HairState, MeshDocument) {
+pub(crate) fn fixture() -> (HairState, MeshDocument) {
     let mut positions = vec![];
     let mut triangles = vec![];
     for z in 0..17 {

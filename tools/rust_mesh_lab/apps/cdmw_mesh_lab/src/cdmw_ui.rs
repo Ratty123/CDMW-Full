@@ -16,6 +16,294 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 14] = [
+    (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
+    (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
+    (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
+    (CdmwRailPage::Scale, "Scale", Some(ViewportTool::Scale)),
+    (CdmwRailPage::Grab, "Grab", Some(ViewportTool::Grab)),
+    (CdmwRailPage::Smooth, "Smooth", Some(ViewportTool::Smooth)),
+    (
+        CdmwRailPage::Inflate,
+        "Inflate",
+        Some(ViewportTool::Inflate),
+    ),
+    (CdmwRailPage::Pinch, "Pinch", Some(ViewportTool::Pinch)),
+    (CdmwRailPage::Topology, "Topology", None),
+    (CdmwRailPage::Cleanup, "Cleanup", None),
+    (CdmwRailPage::Normals, "Normals & Tangents", None),
+    (CdmwRailPage::Uv, "UV", None),
+    (CdmwRailPage::Cloth, "Cloth", None),
+    (CdmwRailPage::MorphRefit, "Morph & Refit", None),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CdmwSidebarPage {
+    Viewport,
+    Tool(CdmwRailPage),
+}
+
+impl CdmwSidebarPage {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Viewport => "Viewport",
+            Self::Tool(page) => CDMW_RAIL_TOOLS
+                .iter()
+                .find(|(candidate, _, _)| *candidate == page)
+                .map_or("Rig & Weights", |(_, label, _)| *label),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+struct CdmwSidebarSettings {
+    page: Option<CdmwSidebarPage>,
+    pinned: bool,
+}
+
+impl CdmwSidebarSettings {
+    fn load(context: &egui::Context) -> Self {
+        context.data_mut(|data| {
+            data.get_temp(egui::Id::new("cdmw-sidebar-settings"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn store(self, context: &egui::Context) {
+        context.data_mut(|data| data.insert_temp(egui::Id::new("cdmw-sidebar-settings"), self));
+        context.request_repaint();
+    }
+}
+
+#[derive(Clone, Copy)]
+enum CdmwSidebarIcon {
+    Chevron(bool),
+    Close,
+    Pin,
+    Page(CdmwSidebarPage),
+}
+
+// Vector icons use the current widget palette and scale with the controls. Their
+// stable response IDs also expose the real hit targets to the headless UI tests.
+fn cdmw_sidebar_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    icon: CdmwSidebarIcon,
+    selected: bool,
+    minimum_size: f32,
+) -> egui::Response {
+    let side = ui.spacing().interact_size.y.max(minimum_size);
+    let (_, rect) = ui.allocate_space(egui::vec2(side, side));
+    let response = ui.interact(
+        rect,
+        egui::Id::new(("cdmw-sidebar-button", label)),
+        egui::Sense::click(),
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), selected, label)
+    });
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact_selectable(&response, selected);
+        let painter = ui.painter();
+        painter.rect(
+            rect,
+            visuals.corner_radius,
+            visuals.bg_fill,
+            visuals.bg_stroke,
+            egui::StrokeKind::Inside,
+        );
+        let stroke = egui::Stroke::new(1.6, visuals.fg_stroke.color);
+        let center = rect.center();
+        let radius = side * 0.28;
+        let p = |x: f32, y: f32| center + egui::vec2(x, y) * radius;
+        let line = |a: [f32; 2], b: [f32; 2]| {
+            painter.line_segment([p(a[0], a[1]), p(b[0], b[1])], stroke);
+        };
+        let path = |points: &[[f32; 2]]| {
+            painter.add(egui::Shape::line(
+                points.iter().map(|v| p(v[0], v[1])).collect(),
+                stroke,
+            ));
+        };
+        let square = |a: [f32; 2], b: [f32; 2]| {
+            painter.rect_stroke(
+                egui::Rect::from_two_pos(p(a[0], a[1]), p(b[0], b[1])),
+                0.0,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+        };
+        match icon {
+            CdmwSidebarIcon::Chevron(right) => {
+                let direction = if right { 1.0 } else { -1.0 };
+                path(&[
+                    [-0.4 * direction, -0.7],
+                    [0.4 * direction, 0.0],
+                    [-0.4 * direction, 0.7],
+                ]);
+            }
+            CdmwSidebarIcon::Close => {
+                line([-0.6, -0.6], [0.6, 0.6]);
+                line([-0.6, 0.6], [0.6, -0.6]);
+            }
+            CdmwSidebarIcon::Pin => {
+                path(&[
+                    [-0.5, -0.9],
+                    [0.5, -0.9],
+                    [0.4, -0.1],
+                    [0.7, 0.3],
+                    [-0.7, 0.3],
+                    [-0.4, -0.1],
+                    [-0.5, -0.9],
+                ]);
+                line([0.0, 0.3], [0.0, 1.0]);
+            }
+            CdmwSidebarIcon::Page(CdmwSidebarPage::Viewport) => {
+                square([-1.0, -0.8], [1.0, 0.6]);
+                line([-0.6, 1.0], [0.6, 1.0]);
+                line([0.0, 0.6], [0.0, 1.0]);
+            }
+            CdmwSidebarIcon::Page(CdmwSidebarPage::Tool(page)) => match page {
+                CdmwRailPage::Select => path(&[
+                    [-0.7, -1.0],
+                    [0.9, 0.3],
+                    [0.1, 0.3],
+                    [-0.3, 1.0],
+                    [-0.7, -1.0],
+                ]),
+                CdmwRailPage::Move => {
+                    line([-1.0, 0.0], [1.0, 0.0]);
+                    line([0.0, -1.0], [0.0, 1.0]);
+                    for direction in [-1.0, 1.0] {
+                        path(&[
+                            [direction * 0.6, -0.3],
+                            [direction, 0.0],
+                            [direction * 0.6, 0.3],
+                        ]);
+                        path(&[
+                            [-0.3, direction * 0.6],
+                            [0.0, direction],
+                            [0.3, direction * 0.6],
+                        ]);
+                    }
+                }
+                CdmwRailPage::Rotate => {
+                    let points: Vec<_> = (0..18)
+                        .map(|i| {
+                            let angle = 0.5 + i as f32 * 0.29;
+                            [angle.cos() * 0.85, angle.sin() * 0.85]
+                        })
+                        .collect();
+                    path(&points);
+                    path(&[[0.35, -0.95], [0.9, -0.55], [0.95, -1.0]]);
+                }
+                CdmwRailPage::Scale => {
+                    square([-1.0, 0.1], [-0.1, 1.0]);
+                    line([-0.3, 0.3], [0.9, -0.9]);
+                    path(&[[0.2, -0.9], [0.9, -0.9], [0.9, -0.2]]);
+                }
+                CdmwRailPage::Grab => path(&[
+                    [-0.7, 0.1],
+                    [-0.7, -0.5],
+                    [-0.4, -0.6],
+                    [-0.4, -0.9],
+                    [0.0, -1.0],
+                    [0.2, -0.8],
+                    [0.6, -0.8],
+                    [0.7, -0.3],
+                    [1.0, -0.1],
+                    [0.7, 0.8],
+                    [-0.1, 1.0],
+                    [-0.9, 0.4],
+                    [-0.7, 0.1],
+                ]),
+                CdmwRailPage::Smooth => {
+                    let points: Vec<_> = (0..17)
+                        .map(|i| {
+                            let x = i as f32 / 8.0 - 1.0;
+                            [x, (x * std::f32::consts::PI).sin() * 0.5]
+                        })
+                        .collect();
+                    path(&points);
+                    line([-0.8, 0.9], [0.8, 0.9]);
+                }
+                CdmwRailPage::Inflate | CdmwRailPage::Pinch => {
+                    painter.circle_stroke(center, radius * 0.25, stroke);
+                    for direction in [-1.0, 1.0] {
+                        let tip = if page == CdmwRailPage::Inflate {
+                            1.0
+                        } else {
+                            0.4
+                        };
+                        let tail = 0.7;
+                        line([direction * 0.4, 0.0], [direction, 0.0]);
+                        path(&[
+                            [direction * tail, -0.3],
+                            [direction * tip, 0.0],
+                            [direction * tail, 0.3],
+                        ]);
+                        if page == CdmwRailPage::Inflate {
+                            line([0.0, direction * 0.5], [0.0, direction]);
+                        }
+                    }
+                }
+                CdmwRailPage::Topology => {
+                    path(&[
+                        [0.0, -1.0],
+                        [1.0, 0.0],
+                        [0.0, 1.0],
+                        [-1.0, 0.0],
+                        [0.0, -1.0],
+                    ]);
+                    line([-1.0, 0.0], [1.0, 0.0]);
+                    line([0.0, -1.0], [0.0, 1.0]);
+                }
+                CdmwRailPage::Cleanup => {
+                    line([0.0, 0.0], [0.8, -1.0]);
+                    path(&[
+                        [-0.1, -0.1],
+                        [0.4, 0.4],
+                        [-0.1, 1.0],
+                        [-1.0, 0.4],
+                        [-0.1, -0.1],
+                    ]);
+                    line([-0.3, 0.3], [-0.6, 0.7]);
+                }
+                CdmwRailPage::Normals => {
+                    path(&[[-1.0, 0.7], [-0.5, 0.3], [0.5, 0.7], [1.0, 0.3]]);
+                    for x in [-0.6, 0.4] {
+                        line([x, 0.4], [x, -0.8]);
+                        path(&[[x - 0.25, -0.5], [x, -0.8], [x + 0.25, -0.5]]);
+                    }
+                }
+                CdmwRailPage::Uv => {
+                    square([-0.9, -0.9], [0.9, 0.9]);
+                    line([0.0, -0.9], [0.0, 0.9]);
+                    line([-0.9, 0.0], [0.9, 0.0]);
+                    line([-0.9, 0.9], [0.9, -0.9]);
+                }
+                CdmwRailPage::Cloth => {
+                    for y in [-0.7, 0.0, 0.7] {
+                        path(&[[-0.9, y - 0.15], [0.0, y + 0.15], [0.9, y - 0.15]]);
+                    }
+                    for x in [-0.9, 0.0, 0.9] {
+                        line([x, -0.8], [x, 0.8]);
+                    }
+                }
+                CdmwRailPage::MorphRefit => {
+                    path(&[[-0.7, -1.0], [-1.0, -0.5], [-0.5, 0.0], [-0.8, 0.9]]);
+                    path(&[[0.7, -1.0], [1.0, -0.5], [0.5, 0.0], [0.8, 0.9]]);
+                    line([-0.4, 0.0], [0.4, 0.0]);
+                    path(&[[0.1, -0.3], [0.4, 0.0], [0.1, 0.3]]);
+                }
+                CdmwRailPage::RigWeights => {
+                    painter.circle_stroke(center, radius * 0.7, stroke);
+                }
+            },
+        }
+    }
+    response.on_hover_text(label)
+}
 const REFIT_BODY_COLOUR: Color32 = Color32::from_rgb(100, 190, 245);
 const REFIT_ARMOR_COLOUR: Color32 = Color32::from_rgb(240, 190, 95);
 const REFIT_READY_COLOUR: Color32 = Color32::from_rgb(110, 210, 160);
@@ -54,39 +342,9 @@ fn cdmw_sidebar_visible(context: &egui::Context, id: &str) -> bool {
     context.data_mut(|data| data.get_temp::<bool>(egui::Id::new(id)).unwrap_or(true))
 }
 
-fn draw_cdmw_sidebar_menu(ui: &mut egui::Ui, hair_active: bool) {
-    ui.menu_button("Sidebars", |ui| {
-        for (id, label, enabled) in [
-            (CDMW_TOOLS_SIDEBAR, "Tools sidebar", !hair_active),
-            (CDMW_INSPECTOR_SIDEBAR, "Inspector sidebar", true),
-        ] {
-            let mut visible = cdmw_sidebar_visible(ui.ctx(), id);
-            if ui
-                .add_enabled(enabled, egui::Checkbox::new(&mut visible, label))
-                .changed()
-            {
-                ui.ctx()
-                    .data_mut(|data| data.insert_temp(egui::Id::new(id), visible));
-                ui.close();
-            }
-        }
-        ui.separator();
-        let any_visible = cdmw_sidebar_visible(ui.ctx(), CDMW_INSPECTOR_SIDEBAR)
-            || (!hair_active && cdmw_sidebar_visible(ui.ctx(), CDMW_TOOLS_SIDEBAR));
-        let label = if any_visible {
-            "Hide all sidebars"
-        } else {
-            "Show all sidebars"
-        };
-        if ui.button(label).clicked() {
-            ui.ctx().data_mut(|data| {
-                for id in [CDMW_TOOLS_SIDEBAR, CDMW_INSPECTOR_SIDEBAR] {
-                    data.insert_temp(egui::Id::new(id), !any_visible);
-                }
-            });
-            ui.close();
-        }
-    });
+fn set_cdmw_sidebar_expanded(context: &egui::Context, id: &str, expanded: bool) {
+    context.data_mut(|data| data.insert_temp(egui::Id::new(id), expanded));
+    context.request_repaint();
 }
 
 fn cdmw_view_mode_label(mode: ViewMode) -> &'static str {
@@ -294,11 +552,40 @@ impl LabApplication {
         let mut actions = Vec::new();
         self.draw_cdmw_session_bar(root_ui, &mut actions);
         self.draw_cdmw_bottom_bar(root_ui, &mut actions);
-        if !self.hair.active() && cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR) {
+        let tools_expanded = cdmw_sidebar_visible(&self.egui_context, CDMW_TOOLS_SIDEBAR);
+        let rail = if self.hair.active() {
+            if CdmwSidebarSettings::load(&self.egui_context).page.is_some() {
+                CdmwSidebarSettings::default().store(&self.egui_context);
+            }
+            None
+        } else if tools_expanded {
             self.draw_cdmw_left_rail(root_ui, &mut actions);
-        }
+            None
+        } else {
+            Some(self.draw_cdmw_icon_rail(root_ui))
+        };
         if cdmw_sidebar_visible(&self.egui_context, CDMW_INSPECTOR_SIDEBAR) {
             self.draw_cdmw_right_panels(root_ui, &mut actions);
+        } else {
+            egui::Panel::right("cdmw_inspector_edge")
+                .exact_size(root_ui.spacing().interact_size.y.max(24.0) + 8.0)
+                .frame(egui::Frame::side_top_panel(root_ui.style()).inner_margin(4.0))
+                .show(root_ui, |ui| {
+                    if cdmw_sidebar_button(
+                        ui,
+                        "Expand Inspector",
+                        CdmwSidebarIcon::Chevron(false),
+                        false,
+                        24.0,
+                    )
+                    .clicked()
+                    {
+                        set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, true);
+                    }
+                });
+        }
+        if let Some(rail) = rail {
+            self.draw_cdmw_compact_settings(root_ui, rail, &mut actions);
         }
         self.draw_cdmw_viewport(root_ui);
         actions
@@ -349,7 +636,6 @@ impl LabApplication {
                                 authoring,
                                 policy_reason,
                             );
-                            draw_cdmw_sidebar_menu(ui, self.hair.active());
                         },
                     );
                 });
@@ -579,6 +865,280 @@ impl LabApplication {
             });
     }
 
+    fn draw_cdmw_icon_rail(&mut self, root_ui: &mut egui::Ui) -> egui::Rect {
+        let busy = self.cdmw_show_busy_controls();
+        let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
+        let width = root_ui.spacing().interact_size.y.max(32.0) + 12.0;
+        egui::Panel::left("cdmw_tool_icons")
+            .exact_size(width)
+            .frame(egui::Frame::side_top_panel(root_ui.style()).inner_margin(6.0))
+            .show(root_ui, |ui| {
+                if cdmw_sidebar_button(
+                    ui,
+                    "Expand Tools",
+                    CdmwSidebarIcon::Chevron(true),
+                    false,
+                    32.0,
+                )
+                .clicked()
+                {
+                    set_cdmw_sidebar_expanded(ui.ctx(), CDMW_TOOLS_SIDEBAR, true);
+                    CdmwSidebarSettings::default().store(ui.ctx());
+                }
+                ui.separator();
+                ScrollArea::vertical()
+                    .id_salt("cdmw-icon-scroll")
+                    .show(ui, |ui| {
+                        for (index, page) in std::iter::once(CdmwSidebarPage::Viewport)
+                            .chain(
+                                CDMW_RAIL_TOOLS
+                                    .iter()
+                                    .map(|(page, _, _)| CdmwSidebarPage::Tool(*page)),
+                            )
+                            .enumerate()
+                        {
+                            if matches!(index, 1 | 2 | 5 | 9 | 14) {
+                                ui.separator();
+                            }
+                            let requires_authoring = !matches!(
+                                page,
+                                CdmwSidebarPage::Viewport
+                                    | CdmwSidebarPage::Tool(CdmwRailPage::Select)
+                            );
+                            let enabled = !busy && (!requires_authoring || authoring);
+                            let settings = CdmwSidebarSettings::load(ui.ctx());
+                            let selected = match page {
+                                CdmwSidebarPage::Viewport => settings.page == Some(page),
+                                CdmwSidebarPage::Tool(tool) => self.cdmw_rail_page == Some(tool),
+                            };
+                            let response = ui
+                                .add_enabled_ui(enabled, |ui| {
+                                    cdmw_sidebar_button(
+                                        ui,
+                                        page.label(),
+                                        CdmwSidebarIcon::Page(page),
+                                        selected,
+                                        32.0,
+                                    )
+                                })
+                                .inner;
+                            if !enabled {
+                                response.clone().on_disabled_hover_text(if busy {
+                                    "Wait for the current shadow operation"
+                                } else {
+                                    state_str(&self.cdmw_state, "output_policy_reason").unwrap_or(
+                                        "Authoring is unavailable under the current output policy",
+                                    )
+                                });
+                            }
+                            if response.clicked() {
+                                let mut settings = settings;
+                                if settings.page == Some(page) {
+                                    settings.page = None;
+                                    settings.pinned = false;
+                                } else {
+                                    if let CdmwSidebarPage::Tool(tool) = page {
+                                        let viewport_tool = CDMW_RAIL_TOOLS
+                                            .iter()
+                                            .find(|(candidate, _, _)| *candidate == tool)
+                                            .and_then(|(_, _, tool)| *tool);
+                                        self.activate_cdmw_rail_page(tool, viewport_tool);
+                                    }
+                                    settings.page = Some(page);
+                                }
+                                settings.store(ui.ctx());
+                            }
+                        }
+                    });
+            })
+            .response
+            .rect
+    }
+
+    fn activate_cdmw_rail_page(&mut self, page: CdmwRailPage, tool: Option<ViewportTool>) {
+        self.cdmw_rail_page = Some(page);
+        if page == CdmwRailPage::MorphRefit {
+            self.cancel_active_gesture("Morph & Refit opened");
+            self.cdmw_orbit_mode = true;
+        } else if page == CdmwRailPage::RigWeights {
+            self.cancel_active_gesture("Rig inspection cancelled the previous gesture");
+            self.viewport_tool = ViewportTool::Select;
+            self.selection_domain = SelectionDomain::Vertex;
+            self.cdmw_orbit_mode = false;
+        } else if let Some(tool) = tool {
+            if self.viewport_tool != tool {
+                self.cancel_active_gesture("Tool change cancelled the previous gesture");
+            }
+            self.viewport_tool = tool;
+            self.cdmw_orbit_mode = false;
+        }
+    }
+
+    fn draw_cdmw_settings_header(&mut self, ui: &mut egui::Ui, page: CdmwSidebarPage) {
+        ui.horizontal(|ui| {
+            let mut settings = CdmwSidebarSettings::load(ui.ctx());
+            let title_width = (ui.available_width()
+                - ui.spacing().interact_size.y.max(24.0) * 2.0
+                - ui.spacing().item_spacing.x * 2.0)
+                .max(1.0);
+            ui.add_sized(
+                [title_width, ui.spacing().interact_size.y],
+                egui::Label::new(RichText::new(page.label()).strong()).truncate(),
+            );
+            let label = if settings.pinned {
+                "Unpin tool settings"
+            } else {
+                "Pin tool settings"
+            };
+            if cdmw_sidebar_button(ui, label, CdmwSidebarIcon::Pin, settings.pinned, 24.0).clicked()
+            {
+                settings.pinned = !settings.pinned;
+                settings.store(ui.ctx());
+            }
+            if cdmw_sidebar_button(
+                ui,
+                "Close tool settings",
+                CdmwSidebarIcon::Close,
+                false,
+                24.0,
+            )
+            .clicked()
+            {
+                settings.page = None;
+                settings.pinned = false;
+                settings.store(ui.ctx());
+            }
+        });
+        ui.separator();
+    }
+
+    fn draw_cdmw_compact_settings(
+        &mut self,
+        root_ui: &mut egui::Ui,
+        rail: egui::Rect,
+        actions: &mut Vec<UiAction>,
+    ) {
+        let mut settings = CdmwSidebarSettings::load(root_ui.ctx());
+        // Page-local actions such as Morph's Open Selection use the existing
+        // active page. Follow them without coupling dismissal to tool selection.
+        if let Some(CdmwSidebarPage::Tool(page)) = settings.page
+            && self.cdmw_rail_page != Some(page)
+        {
+            settings.page = self.cdmw_rail_page.map(CdmwSidebarPage::Tool);
+            settings.store(root_ui.ctx());
+        }
+        let Some(page) = settings.page else {
+            return;
+        };
+        if settings.pinned {
+            egui::Panel::left("cdmw_pinned_tool_settings")
+                .default_size(320.0)
+                .min_size(250.0)
+                .max_size(430.0)
+                .resizable(true)
+                .show(root_ui, |ui| {
+                    self.draw_cdmw_settings_header(ui, page);
+                    ScrollArea::vertical()
+                        .id_salt(("cdmw-settings-scroll", page.label()))
+                        .show(ui, |ui| {
+                            self.draw_cdmw_sidebar_page(ui, page, actions);
+                        });
+                });
+            return;
+        }
+        let context = root_ui.ctx().clone();
+        let bounds = root_ui.available_rect_before_wrap();
+        let nested_popup = egui::Popup::is_any_open(&context);
+        let had_gesture = self.selection_gesture.is_some() || self.edit_gesture.is_some();
+        let had_text_focus = context.text_edit_focused();
+        let area = egui::Area::new(egui::Id::new("cdmw-tool-flyout"))
+            .order(egui::Order::Foreground)
+            .movable(false)
+            .fixed_pos(bounds.left_top())
+            .constrain_to(bounds)
+            .default_width(320.0_f32.min(bounds.width()))
+            .show(&context, |ui| {
+                egui::Frame::popup(ui.style())
+                    .inner_margin(6.0)
+                    .show(ui, |ui| {
+                        ui.set_width((320.0_f32.min(bounds.width()) - 12.0).max(1.0));
+                        self.draw_cdmw_settings_header(ui, page);
+                        let height = (bounds.bottom() - ui.cursor().top() - 6.0).max(1.0);
+                        ScrollArea::vertical()
+                            .id_salt(("cdmw-settings-scroll", page.label()))
+                            .max_height(height)
+                            .show(ui, |ui| {
+                                self.draw_cdmw_sidebar_page(ui, page, actions);
+                            });
+                    });
+            });
+        let pressed_at = context.input(|input| {
+            input
+                .pointer
+                .interact_pos()
+                .filter(|_| input.pointer.any_pressed())
+        });
+        let outside = !nested_popup
+            && pressed_at.is_some_and(|point| {
+                !area.response.rect.contains(point)
+                    && !rail.contains(point)
+                    && context
+                        .layer_id_at(point)
+                        .is_none_or(|layer| layer.order < egui::Order::Foreground)
+            });
+        let escape = !nested_popup
+            && !had_gesture
+            && !had_text_focus
+            && context
+                .input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+        if outside || escape {
+            let mut current = CdmwSidebarSettings::load(&context);
+            current.page = None;
+            current.store(&context);
+        }
+    }
+
+    fn draw_cdmw_sidebar_page(
+        &mut self,
+        ui: &mut egui::Ui,
+        page: CdmwSidebarPage,
+        actions: &mut Vec<UiAction>,
+    ) {
+        let enabled = !self.cdmw_show_busy_controls()
+            && (matches!(
+                page,
+                CdmwSidebarPage::Viewport
+                    | CdmwSidebarPage::Tool(CdmwRailPage::Select | CdmwRailPage::RigWeights)
+            ) || state_bool(&self.cdmw_state, "authoring_enabled"));
+        // Explicit IDs keep collapsing sections and edit fields alive when their
+        // settings move between the expanded rail, floating area and dock.
+        ui.scope_builder(
+            egui::UiBuilder::new().id(egui::Id::new(("cdmw-settings-page", page.label()))),
+            |ui| {
+                ui.add_enabled_ui(enabled, |ui| match page {
+                    CdmwSidebarPage::Viewport => self.draw_cdmw_viewport_section(ui, actions),
+                    CdmwSidebarPage::Tool(page) => match page {
+                        CdmwRailPage::Select => self.draw_cdmw_selection_page(ui, actions),
+                        CdmwRailPage::Move | CdmwRailPage::Rotate | CdmwRailPage::Scale => {
+                            self.draw_cdmw_transform_page(ui, actions, page)
+                        }
+                        CdmwRailPage::Grab
+                        | CdmwRailPage::Smooth
+                        | CdmwRailPage::Inflate
+                        | CdmwRailPage::Pinch => self.draw_cdmw_brush_page(ui, page),
+                        CdmwRailPage::Topology => self.draw_cdmw_topology_page(ui, actions),
+                        CdmwRailPage::Cleanup => self.draw_cdmw_cleanup_page(ui, actions),
+                        CdmwRailPage::Normals => self.draw_cdmw_normals_page(ui, actions),
+                        CdmwRailPage::Uv => self.draw_cdmw_uv_page(ui, actions),
+                        CdmwRailPage::Cloth => self.draw_cdmw_cloth_page(ui, actions),
+                        CdmwRailPage::RigWeights => self.draw_cdmw_rig_weights_page(ui, actions),
+                        CdmwRailPage::MorphRefit => self.draw_cdmw_morph_page(ui, actions),
+                    },
+                });
+            },
+        );
+    }
+
     fn draw_cdmw_left_rail(&mut self, root_ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         let busy = self.cdmw_show_busy_controls();
         let authoring = state_bool(&self.cdmw_state, "authoring_enabled");
@@ -591,6 +1151,22 @@ impl LabApplication {
             .max_size(360.0)
             .resizable(true)
             .show(root_ui, |ui| {
+                ui.horizontal(|ui| {
+                    if cdmw_sidebar_button(
+                        ui,
+                        "Collapse Tools",
+                        CdmwSidebarIcon::Chevron(false),
+                        false,
+                        24.0,
+                    )
+                    .clicked()
+                    {
+                        set_cdmw_sidebar_expanded(ui.ctx(), CDMW_TOOLS_SIDEBAR, false);
+                        CdmwSidebarSettings::default().store(ui.ctx());
+                    }
+                    ui.label(RichText::new("Tools").heading().strong());
+                });
+                ui.separator();
                 ScrollArea::vertical()
                     .id_salt("cdmw-tool-scroll")
                     .show(ui, |ui| {
@@ -600,17 +1176,20 @@ impl LabApplication {
                                     .id_salt("cdmw-viewport")
                                     .default_open(false)
                                     .show_unindented(ui, |ui| {
-                                        self.draw_cdmw_viewport_section(ui, actions)
+                                        self.draw_cdmw_sidebar_page(
+                                            ui,
+                                            CdmwSidebarPage::Viewport,
+                                            actions,
+                                        )
                                     });
                             });
                         });
                         ui.separator();
-                        ui.label(RichText::new("Tools").heading().strong());
                         self.draw_cdmw_tool_group(
                             ui,
                             actions,
                             "Selection",
-                            &[(CdmwRailPage::Select, "Select", Some(ViewportTool::Select))],
+                            &CDMW_RAIL_TOOLS[0..1],
                             1,
                             busy,
                             authoring,
@@ -620,11 +1199,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Transform",
-                            &[
-                                (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
-                                (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
-                                (CdmwRailPage::Scale, "Scale", Some(ViewportTool::Scale)),
-                            ],
+                            &CDMW_RAIL_TOOLS[1..4],
                             3,
                             busy,
                             authoring,
@@ -634,16 +1209,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Sculpt",
-                            &[
-                                (CdmwRailPage::Grab, "Grab", Some(ViewportTool::Grab)),
-                                (CdmwRailPage::Smooth, "Smooth", Some(ViewportTool::Smooth)),
-                                (
-                                    CdmwRailPage::Inflate,
-                                    "Inflate",
-                                    Some(ViewportTool::Inflate),
-                                ),
-                                (CdmwRailPage::Pinch, "Pinch", Some(ViewportTool::Pinch)),
-                            ],
+                            &CDMW_RAIL_TOOLS[4..8],
                             2,
                             busy,
                             authoring,
@@ -653,13 +1219,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Mesh Data",
-                            &[
-                                (CdmwRailPage::Topology, "Topology", None),
-                                (CdmwRailPage::Cleanup, "Cleanup", None),
-                                (CdmwRailPage::Normals, "Normals & Tangents", None),
-                                (CdmwRailPage::Uv, "UV", None),
-                                (CdmwRailPage::Cloth, "Cloth", None),
-                            ],
+                            &CDMW_RAIL_TOOLS[8..13],
                             2,
                             busy,
                             authoring,
@@ -693,7 +1253,11 @@ impl LabApplication {
                                     .inner_margin(10.0)
                                     .show(ui, |ui| {
                                         ui.add_enabled_ui(!busy && authoring, |ui| {
-                                            self.draw_cdmw_morph_page(ui, actions)
+                                            self.draw_cdmw_sidebar_page(
+                                                ui,
+                                                CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit),
+                                                actions,
+                                            )
                                         });
                                     });
                             });
@@ -762,24 +1326,7 @@ impl LabApplication {
                                             self.cdmw_orbit_mode = true;
                                             continue;
                                         }
-                                        self.cdmw_rail_page = Some(page);
-                                        if page == CdmwRailPage::RigWeights {
-                                            self.cancel_active_gesture(
-                                                "Rig inspection cancelled the previous gesture",
-                                            );
-                                            self.viewport_tool = ViewportTool::Select;
-                                            self.selection_domain = SelectionDomain::Vertex;
-                                            self.cdmw_orbit_mode = false;
-                                        }
-                                        if let Some(tool) = tool {
-                                            if self.viewport_tool != tool {
-                                                self.cancel_active_gesture(
-                                                    "Tool change cancelled the previous gesture",
-                                                );
-                                            }
-                                            self.viewport_tool = tool;
-                                            self.cdmw_orbit_mode = false;
-                                        }
+                                        self.activate_cdmw_rail_page(page, tool);
                                     }
                                 }
                             });
@@ -788,48 +1335,13 @@ impl LabApplication {
                                 .map(|(page, _, _)| *page)
                                 .find(|page| self.cdmw_rail_page == Some(*page))
                             {
-                                let enabled = !busy
-                                    && (matches!(
-                                        active_page,
-                                        CdmwRailPage::Select | CdmwRailPage::RigWeights
-                                    ) || authoring);
                                 ui.push_id(format!("cdmw-tool-page-{active_page:?}"), |ui| {
                                     egui::Frame::group(ui.style()).show(ui, |ui| {
-                                        ui.add_enabled_ui(enabled, |ui| match active_page {
-                                            CdmwRailPage::Select => {
-                                                self.draw_cdmw_selection_page(ui, actions)
-                                            }
-                                            CdmwRailPage::Move
-                                            | CdmwRailPage::Rotate
-                                            | CdmwRailPage::Scale => self.draw_cdmw_transform_page(
-                                                ui,
-                                                actions,
-                                                active_page,
-                                            ),
-                                            CdmwRailPage::Grab
-                                            | CdmwRailPage::Smooth
-                                            | CdmwRailPage::Inflate
-                                            | CdmwRailPage::Pinch => {
-                                                self.draw_cdmw_brush_page(ui, active_page)
-                                            }
-                                            CdmwRailPage::Topology => {
-                                                self.draw_cdmw_topology_page(ui, actions)
-                                            }
-                                            CdmwRailPage::Cleanup => {
-                                                self.draw_cdmw_cleanup_page(ui, actions)
-                                            }
-                                            CdmwRailPage::Normals => {
-                                                self.draw_cdmw_normals_page(ui, actions)
-                                            }
-                                            CdmwRailPage::Uv => self.draw_cdmw_uv_page(ui, actions),
-                                            CdmwRailPage::Cloth => self.draw_cdmw_cloth_page(ui, actions),
-                                            CdmwRailPage::RigWeights => {
-                                                self.draw_cdmw_rig_weights_page(ui, actions)
-                                            }
-                                            CdmwRailPage::MorphRefit => {
-                                                self.draw_cdmw_morph_page(ui, actions)
-                                            }
-                                        });
+                                        self.draw_cdmw_sidebar_page(
+                                            ui,
+                                            CdmwSidebarPage::Tool(active_page),
+                                            actions,
+                                        );
                                     });
                                 });
                             }
@@ -2747,6 +3259,21 @@ impl LabApplication {
             .max_size(430.0)
             .resizable(true)
             .show(root_ui, |ui| {
+                ui.horizontal(|ui| {
+                    if cdmw_sidebar_button(
+                        ui,
+                        "Collapse Inspector",
+                        CdmwSidebarIcon::Chevron(true),
+                        false,
+                        24.0,
+                    )
+                    .clicked()
+                    {
+                        set_cdmw_sidebar_expanded(ui.ctx(), CDMW_INSPECTOR_SIDEBAR, false);
+                    }
+                    ui.label(RichText::new("Inspector").heading().strong());
+                });
+                ui.separator();
                 ScrollArea::vertical().show(ui, |ui| {
                     self.draw_hair_controls(ui, actions);
                     if self.hair.active() {

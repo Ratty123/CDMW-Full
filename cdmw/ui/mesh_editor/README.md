@@ -14,16 +14,28 @@ Replacement imports and reversible output inclusion extend that foundation in
 the existing Parts panel. General material assignment, recolour/glow authoring,
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
 
-## Sidebar visibility
+## Collapsible panels and tool icons
 
-Use **Sidebars** in the Mesh Editor header to show or hide the Tools and Inspector
-sidebars independently, or hide/show all sidebars together. The header stays
-available when both are hidden. Hair mode uses the Inspector sidebar.
-The controls work in Classic, Compact, and detached Mesh Editor windows.
+Use the arrow in each panel header to collapse it independently. **Tools** becomes
+a narrow icon rail; **Inspector** leaves a slim edge handle. Their expand arrows
+stay available, including while an operation is busy. These controls work in
+Classic, Compact, and detached Mesh Editor windows. Hair mode uses Inspector.
 
-These are display-only controls: hiding a sidebar preserves its width and open
-sections, active tools, mesh selection, history, and output inclusion. Visibility
-lasts for the current editor window and resets when a new editor process starts.
+Click a tool icon to select it and open its settings beside the rail. Hover an
+icon for its name. **Viewport** has its own icon for display settings. Click the
+same icon again, close the settings, or click outside to dismiss the flyout; the
+selected tool stays active. Clicking the exposed viewport can immediately use
+that tool. Escape closes the flyout after any focused control or active gesture
+has handled cancellation. **Orbit** exits the active tool.
+
+**Pin tool settings** docks the settings beside the rail and reserves viewport
+space. Unpin returns to a flyout; closing pinned settings leaves the icon rail.
+Short windows scroll the icons and settings while keeping their header controls
+available. Expanded tool buttons retain their existing toggle-to-Orbit behavior.
+
+Collapsing panels preserves their widths and open sections, tool settings, mesh
+selection, history, and output inclusion. Layout choices last for the current
+editor window; a new editor process starts with both panels expanded.
 The app navigation has a separate arrow button that remains visible when its
 navigation is hidden.
 
