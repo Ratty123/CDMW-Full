@@ -1529,6 +1529,7 @@ enum CdmwRailPage {
     Smooth,
     Inflate,
     Pinch,
+    VertexParameters,
     Topology,
     Cleanup,
     Normals,

@@ -404,7 +404,7 @@ fn runtime_route(key: &str) -> RuntimeRoute {
             "UiAction::SelectAllVertices+UiAction::SelectAllEdges+UiAction::SelectAllFaces",
         ),
         "vertex.open" | "vertex.stage" => (Kind::LocalState, "vertex_inspector"),
-        "vertex.inspect" => (Kind::ReadOnlyState, "draw_vertex_inspector"),
+        "vertex.inspect" => (Kind::ReadOnlyState, "draw_vertex_parameters_body"),
         "vertex.apply" => (Kind::ShadowCommand, "vertex_edit"),
         "session.invert" => (Kind::UiAction, "UiAction::InvertSelection"),
         "session.undo" => (Kind::UiAction, "UiAction::Undo"),
