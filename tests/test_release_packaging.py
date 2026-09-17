@@ -356,6 +356,15 @@ def test_codeql_workflow_preserves_security_coverage_without_compilation() -> No
     assert "pull_request_target" not in source
 
 
+def test_codeql_uploads_security_results_without_optional_database_bundles() -> None:
+    source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+    analyze_step = source.split("      - name: Analyze code\n", 1)[1]
+    assert re.search(r"^          upload-database: false$", analyze_step, re.MULTILINE)
+    assert re.search(r"^          upload: always$", analyze_step, re.MULTILINE)
+    assert "skip-queries:" not in source
+    assert "continue-on-error:" not in source
+
+
 def test_windows_workflow_defaults_to_focused_checks_and_opt_in_full() -> None:
     """Pushes, PRs and releases must not implicitly run the exhaustive matrix."""
 

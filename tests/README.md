@@ -33,6 +33,9 @@ issue/pull-request template-only pushes and pull requests skip both Windows
 Build and CodeQL; mixed code/documentation changes still run. The CodeQL
 workflow owns its triggers instead of GitHub's automatic default setup and
 retains the existing five-language coverage and weekly security refresh.
+CodeQL uploads all security results but disables optional database-archive
+publication, whose bundling can stall after analysis has completed. All five
+language scans and their security-result uploads remain required.
 The smoke gate covers startup/tool
 construction, archive confirmation/backup/rollback, output path safety,
 helper cleanup, metadata and localization without building native helpers.
@@ -40,6 +43,10 @@ Manual `exhaustive_tests` opts into native builds and the full nonvisual suite
 on Python 3.11 and 3.14. Packaging requires the selected QA to pass and runs
 only for tags or manual dispatch; onefile is the default, with onedir and both
 available explicitly. Packaged helper and startup checks remain mandatory.
+Before publishing a release, wait for Windows Build and every CodeQL language
+check on its commit to finish successfully. Pending, cancelled, timed-out, or
+failed checks must be resolved before publication. Jobs skipped by the documented
+conditions above are expected; they do not replace any required check.
 Feature-specific and native regressions should use their owning tests when
 those surfaces change. There is no nightly schedule. CI excludes
 `visual`, `real_game` and machine-sensitive `timing` tests.
