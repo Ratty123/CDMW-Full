@@ -566,10 +566,7 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     class OwnershipCheckedMenu(QMenu):
         def addAction(self, *args):
             if args and isinstance(args[0], QWidgetAction):
-                # Qt must not take over parenting mid-action-event, where
-                # an application event filter can trigger Python collection.
-                assert args[0].defaultWidget().parentWidget() is self
-                gc.collect()
+                assert not gc.isenabled(), "Automatic collection can interrupt Qt's widget handoff"
             return super().addAction(*args)
 
     monkeypatch.setattr(command_strip, "QMenu", OwnershipCheckedMenu)
@@ -598,7 +595,10 @@ def test_archive_controls_wire_finder_in_classic_and_compact_layouts(monkeypatch
     assert len(messages) == 1 and "updated archive helper" in messages[0]
     root = QWidget(window)
     QVBoxLayout(root)
+    automatic_gc = gc.isenabled()
     build_archive_command_strip(window, root)
+    assert gc.isenabled() == automatic_gc
+    gc.collect()
     strip = root._cdmw_compact_archive_command_strip
     assert strip.layout().indexOf(button) == strip.layout().indexOf(window.archive_asset_catalog_button) + 1
     button.click()
