@@ -687,9 +687,18 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
         stderr=subprocess.PIPE,
         timeout=60,
     )
+    native_fault = ""
+    if result.returncode:
+        # MainWindow redirects faulthandler to the app log. Preserve this
+        # child's trace before the next startup scenario replaces that log.
+        fault_path = Path(__file__).resolve().parents[1] / "workspace/logs/native_fault_current.log"
+        if fault_path.is_file():
+            with fault_path.open("rb") as fault_file:
+                fault_file.seek(max(0, fault_path.stat().st_size - 8192))
+                native_fault = fault_file.read().decode("utf-8", errors="replace")
     assert result.returncode == 0, (
         "Saved-locale production construction failed.\n"
-        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nNATIVE FAULT:\n{native_fault}"
     )
 
 
