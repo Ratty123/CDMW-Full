@@ -629,9 +629,9 @@ inspect the bind rig; they do not pose it or paint weights with a brush.
 
 ### Morph & Refit workflow
 
-**Morph & Refit** opens as a bordered panel beneath its highlighted tool button,
-with its section headings visibly inside that panel. Click an open tool again
-to close it and return to Orbit navigation. Viewport, the tool groups, Parts,
+**Morph & Refit** uses a collapsible arrow header in the expanded Tools panel,
+matching the other tool groups. Click its header to open or close the settings;
+closing returns to Orbit navigation. Viewport, the tool groups, Parts,
 Geometry Layers, Action History, and the individual Morph & Refit sections start
 collapsed. Each section remembers its open state while navigating between tools
 in the current editor session. Closing panels preserves geometry and selection.
@@ -643,8 +643,11 @@ current selection. New sliders capture that selection; existing sliders and
 presets use their saved regions without requiring another selection. **Shape
 sliders** holds preview values, Reset, and Bake. **Create / edit sliders** opens
 when editing a slider and keeps its rule/axis/strength and advanced scope options
-together. The preview warning means that topology and definition changes are
-locked until Reset or Bake; it does not mean the topology is incompatible.
+together. Slider definition labels and fields use separate rows to fit the
+expanded panel, pinned settings, and floating windows without horizontal clipping.
+Short windows scroll vertically. The preview warning means that topology and
+definition changes are locked until Reset or Bake; it does not mean the topology
+is incompatible.
 
 Framing a small selection retains the complete mesh's camera clipping range.
 Scrolling a panel cannot carry camera zoom into a later viewport click.

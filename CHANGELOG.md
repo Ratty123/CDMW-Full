@@ -11,15 +11,21 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.19] - 2026-09-17
+
+Pre-release focused on Mesh Editor panels, tool navigation, and vertex editing.
+
 ### Added
 
 - Mesh Editor's Vertex Parameters tool shows single-vertex values and batch ranges, with reversible position, UV0, normal and supported skin-weight edits. Open it from Mesh Data; cloth and tangents are read-only and unsupported channels are identified.
 
 ### Fixed
 
+- Morph & Refit's Slider definition controls stay within expanded, pinned, and floating panels instead of extending behind the viewport. Its expanded entry uses a collapsible arrow header like the other tool groups.
 - Mesh Editor combines Hair Tools and Close into one compact row and removes the empty bottom row and outer viewport padding. Compact app navigation sizes to its controls instead of reserving a fixed-width empty column.
 - Mesh Editor tool flyouts use the available height and full content width, including when switching from a short tool to a longer one. Narrow tool panels keep controls reachable at larger font sizes.
 - Vertex channel edits retain their operation records and original PAC bounds across draft recovery and editor reopening. Undo restores the export-validation state of the mesh before the edit.
+- Skin-weight editing stays read-only when neutral appearance uses different bone transforms, preventing weight changes from moving saved vertices.
 
 ### Changed
 
@@ -27,6 +33,10 @@ The format is intentionally simple:
 - Mesh Editor can keep multiple floating tool panels open during viewport editing. Drag their headers to reposition them; each panel has independent close and pin controls, and remembers its floating position when reopened.
 - Mesh Editor uses narrower tool panels, compact action buttons, labeled Topology settings, and clearer vector tool icons. Vertex Parameters has grouped channel controls, readable numbers, exact values on hover, and separate individual-vertex inspection.
 - Mesh Editor panels collapse from their own headers. Tools collapses into an icon rail with settings flyouts that can be pinned beside the viewport; Inspector keeps an edge handle for reopening. Closing a flyout keeps its tool active, and collapsing either panel preserves its width, sections and editing state.
+
+### Docs
+
+- Updated the README, Mesh Editor and shell guides, and Rust helper documentation for tool tabs, movable panels, and the dedicated Vertex Parameters page.
 
 ## [0.11.0-alpha.18] - 2026-09-17
 

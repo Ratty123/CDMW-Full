@@ -378,7 +378,6 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
             "Normals & Tangents",
             "UV",
             "Cloth",
-            "Morph & Refit",
         ] {
             let text = ui.reveal(label)?;
             let button = ui
@@ -4030,6 +4029,118 @@ fn integrated_refit_apply_never_broadens_an_empty_selection_to_all_garments() ->
             ..
         } if arguments.get("submesh_indices") == Some(&json!([0]))
     )));
+    Ok(())
+}
+
+#[test]
+fn integrated_morph_header_has_a_collapse_arrow_and_remembers_its_sections() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1000.0));
+    let title = ui.reveal("Morph & Refit")?;
+    let arrow = ui
+        .output
+        .shapes
+        .iter()
+        .find_map(|clipped| {
+            let egui::Shape::Path(path) = &clipped.shape else {
+                return None;
+            };
+            let bounds = Rect::from_points(&path.points);
+            (path.closed
+                && path.points.len() == 3
+                && bounds.right() < title.left()
+                && title.left() - bounds.right() < 20.0
+                && (bounds.center().y - title.center().y).abs() < title.height() * 0.5)
+                .then_some(bounds)
+        })
+        .ok_or("Morph & Refit collapse arrow")?;
+    ui.click_at(arrow.center());
+    ui.settle_layout();
+    assert_eq!(
+        ui.application.cdmw_rail_page,
+        Some(CdmwRailPage::MorphRefit)
+    );
+    ui.click("Create / edit sliders")?;
+    ui.click("Slider definition")?;
+    ui.application.cdmw_morph_definition_label = "My slider".into();
+    ui.click_tool_button("Morph & Refit")?;
+    assert_eq!(ui.application.cdmw_rail_page, None);
+    assert!(ui.label_rect("Create / edit sliders").is_none());
+    ui.click_tool_button("Morph & Refit")?;
+    ui.reveal("Mirror")?;
+    assert_eq!(ui.application.cdmw_morph_definition_label, "My slider");
+    assert!(ui.application.cdmw_orbit_mode);
+    Ok(())
+}
+
+#[test]
+fn integrated_morph_slider_definition_stays_inside_each_panel() -> TestResult {
+    for (presentation, size, font) in [
+        ("expanded", egui::vec2(1000.0, 650.0), 18.0),
+        ("pinned", egui::vec2(1000.0, 650.0), 18.0),
+        ("floating", egui::vec2(1440.0, 1400.0), 18.0),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw(triangle_application()?, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":"comfortable"}));
+        ui.settle_layout();
+        if presentation == "expanded" {
+            ui.click_tool_button("Morph & Refit")?;
+        } else {
+            ui.click_sidebar("Collapse Tools")?;
+            ui.click_sidebar("Morph & Refit")?;
+            if presentation == "pinned" {
+                ui.click_sidebar("Pin Morph & Refit settings")?;
+            }
+        }
+        ui.click("Create / edit sliders")?;
+        ui.click("Slider definition")?;
+        for label in [
+            "Profile name",
+            "Slider label",
+            "Rule",
+            "Axis",
+            "100% strength",
+            "Feather rings",
+            "Falloff",
+            "Mirror",
+            "Add Slider",
+        ] {
+            let text = ui.reveal(label)?;
+            let right = if presentation == "floating" {
+                ui.tool_window_rect("Morph & Refit")?.right()
+            } else {
+                ui.application.viewport_rect.ok_or("viewport")?.left()
+            };
+            assert!(
+                text.right() <= right,
+                "{presentation}: {label} spills into the viewport"
+            );
+            for clipped in &ui.output.shapes {
+                if let egui::Shape::Text(text) = &clipped.shape {
+                    let rect = text.visual_bounding_rect();
+                    if clipped.clip_rect.width() > 100.0
+                        && clipped.clip_rect.right() <= right + 5.0
+                        && rect.intersects(clipped.clip_rect)
+                    {
+                        assert!(
+                            rect.right() <= clipped.clip_rect.right() + 1.0,
+                            "{presentation}: {:?} is horizontally clipped: {rect:?} vs {:?}",
+                            text.galley.job.text,
+                            clipped.clip_rect
+                        );
+                    }
+                }
+            }
+        }
+        ui.click("volume")?;
+        let menu = ui.label_rect("Volume").ok_or("open Rule menu")?.center();
+        ui.frame(vec![Event::PointerMoved(menu), wheel_event(-250.0)]);
+        ui.settle_layout();
+        ui.click("Twist")?;
+        ui.reveal("100% rotation (degrees)")?;
+        assert_eq!(ui.application.cdmw_morph_rule, "twist");
+    }
     Ok(())
 }
 

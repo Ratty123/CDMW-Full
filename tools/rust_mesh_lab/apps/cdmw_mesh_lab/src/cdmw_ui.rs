@@ -1346,31 +1346,36 @@ impl LabApplication {
                             &policy_reason,
                         );
                         ui.add_space(3.0);
-                        ui.horizontal_wrapped(|ui| {
-                            self.draw_cdmw_tool_tab(
-                                ui,
-                                CDMW_RAIL_TOOLS[14],
-                                busy,
-                                authoring,
-                                &policy_reason,
-                            );
-                        });
-                        if self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit) {
-                            ui.push_id("cdmw-morph-root", |ui| {
-                                egui::Frame::group(ui.style())
-                                    .stroke(egui::Stroke::new(1.0, ui.visuals().selection.bg_fill))
-                                    .fill(ui.visuals().faint_bg_color)
-                                    .inner_margin(10.0)
-                                    .show(ui, |ui| {
-                                        ui.add_enabled_ui(!busy && authoring, |ui| {
+                        let active = self.cdmw_rail_page == Some(CdmwRailPage::MorphRefit);
+                        let morph = ui
+                            .add_enabled_ui(active || (!busy && authoring), |ui| {
+                                egui::CollapsingHeader::new("Morph & Refit")
+                                    .id_salt("cdmw-morph-root")
+                                    .default_open(false)
+                                    .open(Some(active))
+                                    .show_unindented(ui, |ui| {
+                                        egui::Frame::group(ui.style()).show(ui, |ui| {
                                             self.draw_cdmw_sidebar_page(
                                                 ui,
                                                 CdmwSidebarPage::Tool(CdmwRailPage::MorphRefit),
                                                 actions,
-                                            )
+                                            );
                                         });
-                                    });
-                            });
+                                    })
+                            })
+                            .inner;
+                        if morph
+                            .header_response
+                            .on_disabled_hover_text(&policy_reason)
+                            .clicked()
+                        {
+                            if active {
+                                self.cdmw_rail_page = None;
+                                self.cancel_active_gesture("Morph & Refit collapsed");
+                                self.cdmw_orbit_mode = true;
+                            } else {
+                                self.activate_cdmw_rail_page(CdmwRailPage::MorphRefit, None);
+                            }
                         }
                     });
             });
@@ -2924,20 +2929,16 @@ impl LabApplication {
                 } else {
                     "Select a Part or region before creating a slider."
                 });
-                ui.horizontal(|ui| {
-                    ui.label("Profile name");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.cdmw_morph_profile_name)
-                            .desired_width(ui.available_width()),
-                    );
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Slider label");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.cdmw_morph_definition_label)
-                            .desired_width(ui.available_width()),
-                    );
-                });
+                ui.label("Profile name");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.cdmw_morph_profile_name)
+                        .desired_width(ui.available_width()),
+                );
+                ui.label("Slider label");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.cdmw_morph_definition_label)
+                        .desired_width(ui.available_width()),
+                );
                 let editing_definition = !self.cdmw_morph_definition_edit_id.is_empty();
                 if editing_definition {
                     ui.horizontal_wrapped(|ui| {
@@ -2964,39 +2965,41 @@ impl LabApplication {
                 let replace_edit_scope =
                     editing_definition && self.cdmw_morph_replace_selection_on_edit;
                 cdmw_section(ui, "morph-definition", "Slider definition", None, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        ComboBox::from_label("Rule")
-                            .selected_text(&self.cdmw_morph_rule)
-                            .show_ui(ui, |ui| {
-                                for (value, label) in [
-                                    ("volume", "Volume"),
-                                    ("scale", "Scale"),
-                                    ("move", "Move"),
-                                    ("flatten", "Flatten"),
-                                    ("taper", "Taper"),
-                                    ("twist", "Twist"),
-                                    ("radius", "Radius"),
-                                ] {
-                                    ui.selectable_value(
-                                        &mut self.cdmw_morph_rule,
-                                        value.to_owned(),
-                                        label,
-                                    );
-                                }
-                            });
-                        ComboBox::from_label("Axis")
-                            .selected_text(self.cdmw_morph_axis.to_ascii_uppercase())
-                            .show_ui(ui, |ui| {
-                                for axis in ["x", "y", "z"] {
-                                    ui.selectable_value(
-                                        &mut self.cdmw_morph_axis,
-                                        axis.to_owned(),
-                                        axis.to_ascii_uppercase(),
-                                    );
-                                }
-                            });
-                    });
-                    ui.horizontal(|ui| {
+                    ui.label("Rule");
+                    ComboBox::from_id_salt("morph-rule")
+                        .width(ui.available_width())
+                        .selected_text(&self.cdmw_morph_rule)
+                        .show_ui(ui, |ui| {
+                            for (value, label) in [
+                                ("volume", "Volume"),
+                                ("scale", "Scale"),
+                                ("move", "Move"),
+                                ("flatten", "Flatten"),
+                                ("taper", "Taper"),
+                                ("twist", "Twist"),
+                                ("radius", "Radius"),
+                            ] {
+                                ui.selectable_value(
+                                    &mut self.cdmw_morph_rule,
+                                    value.to_owned(),
+                                    label,
+                                );
+                            }
+                        });
+                    ui.label("Axis");
+                    ComboBox::from_id_salt("morph-axis")
+                        .width(ui.available_width())
+                        .selected_text(self.cdmw_morph_axis.to_ascii_uppercase())
+                        .show_ui(ui, |ui| {
+                            for axis in ["x", "y", "z"] {
+                                ui.selectable_value(
+                                    &mut self.cdmw_morph_axis,
+                                    axis.to_owned(),
+                                    axis.to_ascii_uppercase(),
+                                );
+                            }
+                        });
+                    ui.vertical(|ui| {
                         let twist = self.cdmw_morph_rule == "twist";
                         ui.label(if twist {
                             "100% rotation (degrees)"
@@ -3010,36 +3013,38 @@ impl LabApplication {
                         );
                     });
                     ui.add_enabled_ui(!editing_definition || replace_edit_scope, |ui| {
-                        ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
                             ui.label("Feather rings");
                             ui.add(
                                 egui::DragValue::new(&mut self.cdmw_morph_feather).range(0..=64),
                             );
                         });
-                        ui.horizontal_wrapped(|ui| {
-                            ComboBox::from_label("Falloff")
-                                .selected_text(&self.cdmw_morph_falloff)
-                                .show_ui(ui, |ui| {
-                                    for falloff in ["constant", "linear", "smooth"] {
-                                        ui.selectable_value(
-                                            &mut self.cdmw_morph_falloff,
-                                            falloff.to_owned(),
-                                            falloff,
-                                        );
-                                    }
-                                });
-                            ComboBox::from_label("Mirror")
-                                .selected_text(&self.cdmw_morph_mirror_mode)
-                                .show_ui(ui, |ui| {
-                                    for mirror in ["off", "x", "y", "z"] {
-                                        ui.selectable_value(
-                                            &mut self.cdmw_morph_mirror_mode,
-                                            mirror.to_owned(),
-                                            mirror,
-                                        );
-                                    }
-                                });
-                        });
+                        ui.label("Falloff");
+                        ComboBox::from_id_salt("morph-falloff")
+                            .width(ui.available_width())
+                            .selected_text(&self.cdmw_morph_falloff)
+                            .show_ui(ui, |ui| {
+                                for falloff in ["constant", "linear", "smooth"] {
+                                    ui.selectable_value(
+                                        &mut self.cdmw_morph_falloff,
+                                        falloff.to_owned(),
+                                        falloff,
+                                    );
+                                }
+                            });
+                        ui.label("Mirror");
+                        ComboBox::from_id_salt("morph-mirror")
+                            .width(ui.available_width())
+                            .selected_text(&self.cdmw_morph_mirror_mode)
+                            .show_ui(ui, |ui| {
+                                for mirror in ["off", "x", "y", "z"] {
+                                    ui.selectable_value(
+                                        &mut self.cdmw_morph_mirror_mode,
+                                        mirror.to_owned(),
+                                        mirror,
+                                    );
+                                }
+                            });
                     });
                     if editing_definition && !replace_edit_scope {
                         ui.small("Feather, falloff, and mirror stay locked because the stored scope is being preserved.");
