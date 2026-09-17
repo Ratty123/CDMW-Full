@@ -585,6 +585,8 @@ Preview runtime from its pinned Cargo lock, and run offscreen startup and D3D12
 capture checks. The single Rust executable and its verified provenance are
 packaged at `native/rust_mesh_editor/cdmw_mesh_lab.exe`; the separate .NET
 full-archive worker remains packaged for catalogue/content work only.
+Packaging verifies required helper capabilities and provenance hashes while
+accepting additional optional capabilities.
 Output is published only after the atomic result marker reports
 `post_construction`:
 

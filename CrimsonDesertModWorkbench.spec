@@ -254,7 +254,6 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
         "executable": expected_files["executable"].name,
         "control_contract": expected_files["control_contract"].name,
         "control_contract_schema": "cdmw_rust_mesh_editor_control_contract_v2",
-        "capabilities": ["embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2"],
     }
     mismatches = [
         f"{field}={manifest.get(field)!r}"
@@ -266,6 +265,14 @@ def _validate_rust_mesh_editor_payload(root, *, required_release=False):
             "Rust Mesh Editor manifest fields do not match the packaged payload: "
             + ", ".join(mismatches)
         )
+    required_editor_capabilities = {
+        "embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2",
+    }
+    editor_capabilities = manifest.get("capabilities")
+    if (not isinstance(editor_capabilities, list)
+            or not all(isinstance(value, str) for value in editor_capabilities)
+            or not required_editor_capabilities.issubset(editor_capabilities)):
+        raise SystemExit("Rust Mesh Editor manifest capabilities are incomplete or invalid.")
     required_preview_capabilities = {
         "preview_profile_read_only_v1",
         "preview_session_v1",
