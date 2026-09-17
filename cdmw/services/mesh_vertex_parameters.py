@@ -63,7 +63,7 @@ def _context(authoring, check):
     return session, mesh, scope, view, reason, capability
 
 
-def _capabilities(session, mesh, scope, view, reason, skin):
+def _capabilities(session, mesh, scope, view, reason, skin, neutral_appearance):
     total = sum(map(len, scope.values()))
     editable_format = view.mesh_format.lower() in {"pac", "pam", "pamlod"} or view.output_policy == "free_edit_rebuild"
     unproven_map = view.output_policy == "exact_game_asset" and any(
@@ -83,6 +83,11 @@ def _capabilities(session, mesh, scope, view, reason, skin):
         result[channel] = {"editable": bool(total and not why), "reason": why,
                            "available": bool(total and not missing)}
     why = reason or (skin.reason if not skin.enabled else "")
+    if not why and neutral_appearance is not None and len({
+        tuple(neutral_appearance.skin_matrices[index]) for index in neutral_appearance.bone_palette
+        if 0 <= index < len(neutral_appearance.skin_matrices)
+    }) > 1:
+        why = "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices."
     if not why and any(p not in skin.eligible_submesh_indices for p in scope):
         why = "One or more selected parts cannot preserve exact PAC skin weights."
     result["weights"] = {"editable": bool(total and not why), "reason": why}
@@ -272,7 +277,7 @@ def inspect_vertices(authoring, args, check):
             "rows": rows, "summaries": {**{k: v.payload(count) for k, v in summaries.items()}, "weight_total": weight_summary.payload(count)},
             "weight_summaries": weight_summaries,
             "cloth_summary": {**{key: value.payload(count) for key, value in cloth_summaries.items()}, "fixed_count": fixed_count},
-            "capabilities": _capabilities(session, mesh, scope, view, reason, skin),
+            "capabilities": _capabilities(session, mesh, scope, view, reason, skin, authoring.neutral_appearance),
             "bones": [{"bone": bone, "slot": slot, "name": bones[skin.palette[slot]].name}
                       for bone, slot in skin.skeleton_bone_to_palette_slot.items()],
             "space": "Model editing space (neutral appearance)" if authoring.neutral_appearance is not None else "Model editing space",
@@ -289,7 +294,7 @@ def edit_vertices(authoring, args, check):
     edits = args["edits"]
     if not isinstance(edits, dict) or not edits or set(edits) - set(_OPERATIONS):
         raise ValueError("Choose supported vertex channels to edit.")
-    capabilities = _capabilities(session, mesh, scope, view, reason, skin)
+    capabilities = _capabilities(session, mesh, scope, view, reason, skin, authoring.neutral_appearance)
     for channel in edits:
         if not capabilities[channel]["editable"]:
             raise ValueError(capabilities[channel]["reason"] or "Select vertices before applying an edit.")

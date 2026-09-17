@@ -21136,7 +21136,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 291,
+          "line": 296,
           "sink": "ValueError"
         }
       ]
@@ -47991,7 +47991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 315,
+          "line": 320,
           "sink": "ValueError"
         }
       ]
@@ -64426,12 +64426,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 153,
-          "sink": "python-return:_cloth_row"
-        },
-        {
-          "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 160,
+          "line": 158,
           "sink": "python-return:_cloth_row"
         },
         {
@@ -64441,12 +64436,17 @@
         },
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 169,
+          "line": 170,
           "sink": "python-return:_cloth_row"
         },
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 177,
+          "line": 174,
+          "sink": "python-return:_cloth_row"
+        },
+        {
+          "path": "cdmw/services/mesh_vertex_parameters.py",
+          "line": 182,
           "sink": "python-return:_cloth_row"
         }
       ]
@@ -96091,7 +96091,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 295,
+          "line": 300,
           "sink": "ValueError"
         }
       ]
@@ -99935,6 +99935,11 @@
           "sink": "add_step"
         }
       ]
+    },
+    {
+      "key": "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Skin-weight transfer is too far from source surface for part {value_0}: p95 {value_1} exceeds 5% bbox limit {value_2}.",
@@ -107506,7 +107511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 318,
+          "line": 323,
           "sink": "ValueError"
         }
       ]
@@ -110456,7 +110461,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 160,
+          "line": 165,
           "sink": "python-return:_cloth_row"
         }
       ]
@@ -110710,6 +110715,11 @@
           "sink": "setPlainText"
         }
       ]
+    },
+    {
+      "key": "This selection has no proven source mapping for same-count channel edits.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "This session contains {value_0} earlier operation(s). They are not part of this move and will not be packaged unless you select them.",
@@ -113621,7 +113631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 197,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -116086,7 +116096,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 286,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -116096,7 +116106,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 201,
+          "line": 206,
           "sink": "ValueError"
         }
       ]
@@ -139926,7 +139936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_vertex_parameters.py",
-          "line": 328,
+          "line": 333,
           "sink": "ValueError"
         }
       ]

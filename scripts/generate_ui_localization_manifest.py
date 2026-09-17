@@ -59,6 +59,8 @@ MANUAL_SOURCE_KEYS = frozenset(
         "Selection or mesh changed. Pending inputs were discarded.",
         "Vertex Parameters is unavailable with this host/helper combination.",
         "Viewing a row does not change the batch selection.",
+        "This selection has no proven source mapping for same-count channel edits.",
+        "Skin weights are read-only while neutral appearance uses different bone transforms; changing them could move saved vertices.",
         "Experimental: positioning, scale or animation may be wrong in game. Skin weights are transferred from the original part; export reverses its neutral display transform.",
         # Body & Face Finder facets/statuses arrive through typed worker rows.
         "Whole character", "Head", "Facial detail", "Beard", "Unclassified",
