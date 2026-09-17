@@ -13,7 +13,7 @@ The format is intentionally simple:
 
 ### Fixed
 
-- Fixed an intermittent startup crash when Archive Browser's filter controls are attached to their menu. Display scaling now ignores widget construction, reparenting, and destruction events.
+- Fixed an intermittent startup crash when Archive Browser's filter controls are attached to their menu. The controls are parented before attachment, and display scaling ignores widget construction, reparenting, and destruction events.
 
 ## [0.11.0-alpha.19] - 2026-09-17
 

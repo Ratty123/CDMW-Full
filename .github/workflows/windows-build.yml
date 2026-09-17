@@ -209,6 +209,9 @@ jobs:
           $ciContractTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-ci-contract-${{ matrix.python-version }}"
           .\.venv\Scripts\python -m pytest tests/test_release_packaging.py -k codeql --basetemp $ciContractTemp
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $menuContractTemp = Join-Path $env:RUNNER_TEMP "cdmw-pytest-menu-contract-${{ matrix.python-version }}"
+          .\.venv\Scripts\python -m pytest tests/test_character_finder_dialog.py::test_archive_controls_wire_finder_in_classic_and_compact_layouts --basetemp $menuContractTemp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run optional exhaustive QA
         if: github.event_name == 'workflow_dispatch' && inputs.exhaustive_tests

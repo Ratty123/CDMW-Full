@@ -95,6 +95,10 @@ def build_archive_command_strip(archive, widget: QWidget) -> None:
         filter_menu.setObjectName("CompactArchiveFiltersMenu")
         filter_widget_action = QWidgetAction(filter_menu)
         filter_widget_action.setDefaultWidget(filters_group)
+        # Establish ownership through PySide before QMenu requests the widget.
+        # Reparenting inside the native action event can trigger collection
+        # from an application event filter during Qt's ownership handoff.
+        filters_group.setParent(filter_menu)
         filter_menu.addAction(filter_widget_action)
         more_filters.setMenu(filter_menu)
     else:
