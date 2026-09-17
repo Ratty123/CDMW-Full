@@ -1200,12 +1200,13 @@ class RustPreviewSessionController(
         if not chunk:
             return
         self._stdout_tail = append_bounded_text(self._stdout_tail, chunk.decode("utf-8", errors="replace"))
-        self._stdout_buffer += chunk
-        if len(self._stdout_buffer) > DOTNET_PROTOCOL_BUFFER_LIMIT:
-            self._fail_current_process("Preview protocol buffer exceeded its safety limit.", static_failure=False)
-            return
-        while b"\n" in self._stdout_buffer:
-            raw_line, self._stdout_buffer = self._stdout_buffer.split(b"\n", 1)
+        # QProcess can deliver many valid messages together after a busy frame.
+        # Bound individual lines and the unfinished residue, not the whole burst.
+        data, self._stdout_buffer = self._stdout_buffer + chunk, b""
+        offset = 0
+        while (end := data.find(b"\n", offset)) >= 0:
+            raw_line = data[offset:end]
+            offset = end + 1
             if len(raw_line) > DOTNET_PROTOCOL_LINE_LIMIT:
                 self._fail_current_process("Preview protocol line exceeded its safety limit.", static_failure=False)
                 return
@@ -1218,6 +1219,14 @@ class RustPreviewSessionController(
                 continue
             if isinstance(payload, Mapping):
                 self._handle_protocol_event(dict(payload), generation)
+                # A callback can retire this helper without changing generation.
+                if not self._is_current_process(process, generation):
+                    return
+        residue = data[offset:]
+        if len(residue) > DOTNET_PROTOCOL_BUFFER_LIMIT:
+            self._fail_current_process("Preview protocol buffer exceeded its safety limit.", static_failure=False)
+            return
+        self._stdout_buffer = residue
 
     def _read_stderr(self, process: object, generation: int) -> None:
         if not self._is_current_process(process, generation):

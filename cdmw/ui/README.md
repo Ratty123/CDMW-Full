@@ -21,4 +21,11 @@ restarts, but sends only the changed fields to a running renderer. Display
 changes therefore preserve the user's live camera and do not request a geometry
 refresh. Shared Mesh Editor hosts continue to use their tab's presentation owner.
 
+Preview and direct Mesh Editor protocol readers retain bytes until a complete
+line arrives, preserving UTF-8 across pipe reads. Complete message bursts are
+drained before enforcing the unfinished-buffer limit; individual lines remain
+bounded in bytes, and rejected input is released. A helper losing ownership
+stops the current batch. Failed editor sessions still retain terminal diagnostics
+while their helper exits, but cannot accept further actions or reactivate rendering.
+
 Related tests: UI source guards and feature-specific entries under `tests/`.

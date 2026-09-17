@@ -17,6 +17,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Preview and Mesh Editor stay connected when valid replies arrive in large bursts, preserve Unicode paths split across reads, and release rejected oversized input.
+- Late replies from retired helpers are discarded. Failed Mesh Editor sessions keep final diagnostics without accepting further actions or reactivating rendering.
 - Concurrent preview cache scans preserve newer disk-budget totals. Model Library invalidates cached OBJ previews when fallback or multi-library materials and textures change, and relocated texture lookup keeps the nearest model's match.
 - Model Library cleans up current temporary preview packages after replacement, cancellation and stale delivery, while preserving live renderer inputs. Edited emissive and other OBJ material maps invalidate cached previews.
 - Preview cache clearing and budget changes run off the UI thread, skip busy publishers, and keep retained packages in disk-budget accounting. Mesh Editor preserves font and UI texture updates across skipped renderer frames.

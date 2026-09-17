@@ -104,7 +104,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         self.standalone_rust_checked_executable = ""
         self.standalone_rust_checked_executable_signature = ""
         self.standalone_rust_incompatible_reason = ""
-        self.standalone_rust_stdout_buffer = ""
+        self.standalone_rust_stdout_buffer = b""
         self.standalone_rust_stderr_tail = ""
         self.standalone_rust_stderr_diagnostic = ""
         self.standalone_rust_stderr_partial = ""
@@ -681,7 +681,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
     def _reset_rust_protocol_state(self) -> None:
         self.standalone_rust_protocol_queue.clear()
         self.standalone_rust_protocol_events.clear()
-        self.standalone_rust_stdout_buffer = ""
+        self.standalone_rust_stdout_buffer = b""
         self.standalone_rust_stderr_tail = ""
         self.standalone_rust_stderr_diagnostic = ""
         self.standalone_rust_stderr_partial = ""
