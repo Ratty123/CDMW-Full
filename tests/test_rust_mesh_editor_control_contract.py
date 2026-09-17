@@ -298,6 +298,21 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
     write_manifest()
     validate(tmp_path, required_release=True)
 
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    required_capabilities = list(manifest["capabilities"])
+    manifest["capabilities"] = [*required_capabilities, "vertex_parameters_v1", "future_optional_v1"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    validate(tmp_path, required_release=True)
+    for capabilities in (
+        *([value for value in required_capabilities if value != required] for required in required_capabilities),
+        None, "embedded_child_window_v1", [*required_capabilities, {}],
+    ):
+        manifest["capabilities"] = capabilities
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        with pytest.raises(SystemExit, match="manifest capabilities"):
+            validate(tmp_path, required_release=True)
+    write_manifest()
+
     executable.write_bytes(b"tampered")
     with pytest.raises(SystemExit, match="executable_sha256"):
         validate(tmp_path, required_release=True)

@@ -149,7 +149,7 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'preview_protocol = "cdmw_rust_preview_protocol_v1"' in source
     assert 'preview_package = "cdmw_rust_preview_package_v1"' in source
     assert 'preview_backend = "cdmw_rust_preview_0.1"' in source
-    assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2")' in source
+    assert 'capabilities = @("embedded_child_window_v1", "rust_preview_runtime_v1", "hair_authoring_v2", "vertex_parameters_v1")' in source
     assert "The Rust Preview control contract did not report success." in source
     assert "The Rust Preview control contract did not advertise any capabilities." in source
     assert "preview_capabilities = @(" in source
