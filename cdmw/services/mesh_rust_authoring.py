@@ -86,6 +86,7 @@ from cdmw.services.mesh_rust_contract import (
     RUST_MESH_EDITOR_PROTOCOL,
     RUST_MESH_MAX_PAYLOAD_BYTES,
     RUST_MESH_RENDERER,
+    RUST_VERTEX_PARAMETERS_CAPABILITY,
     RustMeshExecutableResolution,
     resolve_rust_mesh_editor,
     rust_mesh_editor_candidate_paths,
@@ -6817,6 +6818,8 @@ def _capture_shadow_session_seed(authoritative_service: MeshService, authoritati
             authoritative_session,
             clone=True,
         )
+        shadow_mesh._cdmw_edit_operations = tuple(copy.deepcopy(authoritative_session.edit_operations))
+        shadow_mesh._cdmw_requires_edit_operations = bool(authoritative_session.requires_edit_operations)
         geometry_layer_seed = _geometry_layer_seed(authoritative_session)
         geometry_layer_seed["archive_refit_context"] = authoritative_session.archive_refit_context
         rigging_seed = _rigging_seed(authoritative_session)
@@ -7843,6 +7846,7 @@ class RustMeshAuthoringSession:
                 "Mesh Morph state exceeds the 16 MiB inline protocol limit"
             )
         state: dict[str, object] = {
+            "vertex_parameters": {"capability": RUST_VERTEX_PARAMETERS_CAPABILITY, "max_page_size": 128},
             "morph_preset_directory": str(
                 self.authoritative_morph_root.parent / "mesh_presets"
                 if self.authoritative_morph_root is not None else self.root / "mesh_presets"
@@ -8263,7 +8267,10 @@ class RustMeshAuthoringSession:
 
 
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
-        if command == "hair_begin":
+        if command == "vertex_edit":
+            from cdmw.services.mesh_vertex_parameters import edit_vertices
+            result = edit_vertices(self, args, lambda: self._raise_if_cancelled(stop_event))
+        elif command == "hair_begin":
             from cdmw.services.mesh_rust_hair import setup_hair
             result = setup_hair(self, args, stop_event)
         elif command in {"hair_texture", "hair_texture_export"}:
@@ -8405,6 +8412,21 @@ class RustMeshAuthoringSession:
             raise RustMeshProtocolError(f"Unsupported Mesh command: {command or '(empty)'}")
         return result
 
+
+    @_with_protocol_lock
+    def vertex_inspect(self, request, *, stop_event=None):
+        """Read-only replies never enter state publication or revision/history paths."""
+        from cdmw.services.mesh_vertex_parameters import inspect_vertices
+        self._require_open()
+        self.validate_message_identity(request)
+        self._require_shadow_revision(request)
+        self._raise_if_cancelled(stop_event)
+        arguments = request.get("arguments")
+        if not isinstance(arguments, Mapping):
+            raise RustMeshProtocolError("Vertex inspection requires arguments.")
+        session = self.shadow_service._session(self.shadow_session_id)
+        with session.export_lock:
+            return inspect_vertices(self, dict(arguments), lambda: self._raise_if_cancelled(stop_event))
 
     @_with_protocol_lock
     @_with_pinned_session_root

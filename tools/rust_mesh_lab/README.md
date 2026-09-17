@@ -200,8 +200,18 @@ The interface described below is the standalone Rust Mesh Lab layout. In
 CDMW-managed mode the executable instead presents the Mesh Editor session bar,
 left tool rail, camera strip, Parts, Geometry Layers, Action History, Morph &
 Refit, and output-policy controls supplied by the integrated control contract.
-The integrated Rig & Weights tool is currently hidden. Morph & Refit can load
-body and armor from the archive catalogue, assign their roles, and preview an
+The integrated Rig & Weights tool is currently hidden. **Vertex Parameters** in the
+Inspector exposes host-authoritative positions, UV0, normals and eligible
+skeletal weights; the Mesh Data shortcut reveals it without switching tools.
+It stages edits for a single atomic Apply, with read-only cloth/tangents and
+explicit unsupported-channel labels. Its additive `vertex_parameters_v1`
+capability uses correlated `vertex_inspect` replies without normal state/document
+publication and a `vertex_edit` command through the prepared-mesh commit path.
+Selection changes debounce and cancel obsolete queries; pages contain at most
+128 rows. The section starts collapsed and performs no inspection while closed.
+See the [Vertex Parameters workflow](../../cdmw/ui/mesh_editor/README.md#vertex-parameters).
+
+Morph & Refit can load body and armor from the archive catalogue, assign their roles, and preview an
 initial **Fit to body** without a shape slider. The host's native Surface solver
 preserves layers and limits sleeve/cuff distortion, with a 90-second command
 budget for large fits. Inspect complex trim before Bake. Exact archive refits

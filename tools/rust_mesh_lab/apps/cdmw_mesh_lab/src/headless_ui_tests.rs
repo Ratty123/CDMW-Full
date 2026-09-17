@@ -23,6 +23,108 @@ struct HeadlessUi {
     last_actions: Vec<UiAction>,
 }
 
+fn seed_vertex_inspection(ui: &mut HeadlessUi, count: u64) {
+    ui.application.cdmw_state["vertex_parameters"] = json!({"capability":"vertex_parameters_v1"});
+    ui.application.cdmw_state["session_id"] = json!("vertex-ui-test");
+    ui.application.cdmw_state["selection_revision"] = json!(1);
+    ui.application.cdmw_state["topology_generation"] = json!(1);
+    ui.application.tick_vertex_inspector(false);
+    ui.application.vertex_inspector.data = json!({
+        "token":{"session_id":"vertex-ui-test","mesh_revision":0,"selection_revision":1,"topology_generation":1},
+        "count":count,"page":0,"page_size":128,"lod":0,"space":"Model editing space",
+        "summaries":{
+            "position":{"available_count":count,"selection_count":count,"values":[null,0,0],"mixed":[true,false,false],"min":[0,0,0],"max":[1,0,0]},
+            "uv0":{"available_count":count,"selection_count":count,"values":[0,0],"mixed":[false,false]},
+            "normal":{"available_count":count,"selection_count":count,"values":[0,0,1],"mixed":[false,false,false]}
+        },
+        "capabilities":{"position":{"editable":true},"uv0":{"editable":true},"normal":{"editable":true},"weights":{"editable":false,"reason":"No resolved palette."}},
+        "rows":[{"part":0,"part_name":"Dress","vertex":0,"position":[0,0,0],"uv0":[0,0],"normal":[0,0,1],"source":{"kind":"source","original_index":0},"cloth":{"available":false,"reason":"Cloth unavailable."}}]
+    });
+    ui.frame(Vec::new());
+}
+
+#[test]
+fn vertex_inspector_shortcut_reveals_hidden_sidebar_without_switching_tools() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1400.0, 1000.0));
+    assert!(!ui.application.vertex_inspector.open);
+    let tool = ui.application.viewport_tool;
+    crate::cdmw_ui::set_cdmw_sidebar_expanded(
+        &ui.application.egui_context,
+        crate::cdmw_ui::CDMW_INSPECTOR_SIDEBAR,
+        false,
+    );
+    ui.click_tool_button("Mesh Data")?;
+    ui.click_tool_button("Vertex Parameters")?;
+    ui.settle_layout();
+    assert!(ui.application.vertex_inspector.open);
+    assert_eq!(ui.application.viewport_tool, tool);
+    ui.reveal("Vertex Parameters is unavailable with this host/helper combination.")?;
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_apply_discard_pagination_and_selection_invalidation() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1440.0, 1100.0));
+    ui.click("Vertex Parameters")?;
+    seed_vertex_inspection(&mut ui, 257);
+    ui.reveal("Position XYZ: Mixed · [0,0,0] to [1,0,0]")?;
+    ui.click("Edit Position XYZ")?;
+    ui.click("Unchanged")?;
+    ui.frame(vec![Event::Text("0.25".into())]);
+    let actions = ui.actions_from_click("Apply to 257 vertices")?;
+    assert!(actions.iter().any(|action| matches!(action, UiAction::CdmwCommand{command:"vertex_edit",arguments,..} if arguments["edits"]["position"]["values"] == json!([null,null,0.25]))), "actions={actions:?}");
+    ui.click("Discard")?;
+    assert!(
+        ui.application
+            .vertex_inspector
+            .draft
+            .position
+            .iter()
+            .all(String::is_empty)
+    );
+    ui.application.vertex_inspector.draft.position[0] = "2".into();
+    let selection = ui
+        .application
+        .mesh
+        .as_ref()
+        .ok_or("mesh")?
+        .selection
+        .clone();
+    ui.click("Next vertices")?;
+    ui.reveal("Page 2 / 3")?;
+    assert_eq!(
+        ui.application.mesh.as_ref().ok_or("mesh")?.selection,
+        selection
+    );
+    assert_eq!(ui.application.vertex_inspector.draft.position[0], "2");
+    ui.application
+        .mesh
+        .as_mut()
+        .ok_or("mesh")?
+        .selection_revision += 1;
+    ui.frame(Vec::new());
+    assert!(ui.application.vertex_inspector.draft.position[0].is_empty());
+    ui.reveal("Selection or mesh changed. Pending inputs were discarded.")?;
+    Ok(())
+}
+
+#[test]
+fn vertex_inspector_compact_large_font_controls_remain_reachable() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1000.0, 650.0));
+    ui.application
+        .apply_cdmw_theme_payload(&json!({"font_point_size":18.0,"density":"comfortable"}));
+    ui.click("Vertex Parameters")?;
+    seed_vertex_inspection(&mut ui, 2);
+    ui.application.vertex_inspector.draft.position[0] = "1".into();
+    ui.reveal("Apply to 2 vertices")?;
+    ui.reveal("Discard")?;
+    ui.reveal("Open Cloth Controls")?;
+    Ok(())
+}
+
 fn painted_label_contrast(ui: &HeadlessUi, label: &str) -> Result<f32, Box<dyn std::error::Error>> {
     let text = ui
         .output

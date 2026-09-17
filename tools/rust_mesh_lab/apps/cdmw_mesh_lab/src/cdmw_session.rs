@@ -385,6 +385,12 @@ pub enum HostEvent {
     Theme(Value),
     RendererRetry,
     HairPreset(String),
+    VertexInspection {
+        request_id: u64,
+        ok: bool,
+        payload: Value,
+        error: String,
+    },
     Result {
         event: String,
         request_id: u64,
@@ -784,6 +790,7 @@ impl CdmwBridge {
                 "host_layers_v1",
                 "host_morph_refit_v1",
                 "hair_authoring_v2",
+                "vertex_parameters_v1",
                 "control_contract_v2"
             ]
         }))?;
@@ -1001,6 +1008,19 @@ impl CdmwBridge {
             "command": command,
             "arguments": arguments
         }))?;
+        Ok(request_id)
+    }
+
+    pub fn submit_vertex_inspect(
+        &mut self,
+        arguments: Value,
+        cancel_only: bool,
+    ) -> Result<u64, SessionError> {
+        let request_id = self.take_request_id();
+        self.send_message(json!({"event":"vertex_inspect", "protocol":PROTOCOL,
+            "session_id":self.manifest.session_id,"request_id":request_id,
+            "base_revision":self.shadow_revision,"process_generation":self.manifest.process_generation,
+            "arguments":arguments,"cancel_only":cancel_only}))?;
         Ok(request_id)
     }
 
@@ -1328,6 +1348,16 @@ impl CdmwBridge {
                 "theme_update" => Ok(HostEvent::Theme(
                     value.get("payload").cloned().unwrap_or(Value::Null),
                 )),
+                "vertex_inspect_result" => Ok(HostEvent::VertexInspection {
+                    request_id: required_u64(&value, "request_id")?,
+                    ok: value.get("ok").and_then(Value::as_bool).unwrap_or(false),
+                    payload: value.get("payload").cloned().unwrap_or(Value::Null),
+                    error: value
+                        .get("error")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                }),
                 "transaction_result" | "command_result" | "finish_result" => {
                     let request_id = required_u64(&value, "request_id")?;
                     let base_revision = required_u64(&value, "base_revision")?;
@@ -4078,6 +4108,25 @@ mod tests {
 
         manifest.material_presentations = vec![material_presentation(), material_presentation()];
         assert!(validate_material_presentations(&manifest, &document()).is_err());
+    }
+
+    #[test]
+    fn vertex_inspection_replies_do_not_publish_state_or_advance_revision() {
+        let root = tempdir().expect("root");
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "session", 3, 4);
+        for ok in [true, false] {
+            let decoded = bridge.decode_host_event(json!({
+                "event": "vertex_inspect_result", "protocol": PROTOCOL,
+                "session_id": "session", "process_generation": 3,
+                "request_id": 7, "base_revision": 99, "ok": ok,
+                "payload": {"rows": [], "state": {"base_revision": 99}},
+                "error": "Inspection unavailable"
+            }));
+            assert!(
+                matches!(decoded, HostEvent::VertexInspection { request_id: 7, ok: actual, .. } if actual == ok)
+            );
+            assert_eq!(bridge.shadow_revision(), 4);
+        }
     }
 
     #[test]

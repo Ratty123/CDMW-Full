@@ -237,6 +237,12 @@ normals/tangents, UVs, and layers where the active mesh supports them. The Parts
 list controls visibility and whole-part selection. Rig & Weights is temporarily
 hidden from the product tool rail; its underlying implementation is retained.
 
+**Inspector > Vertex Parameters** shows current vertex data for single or batch
+selections. **Mesh Data > Vertex Parameters** opens it even when Inspector is
+hidden. Stage position, UV0, normal or supported skin-weight changes, then use
+**Apply** for one Undo step. Cloth influence and bindings are read-only here,
+with a link to Cloth controls. Unsupported channels explain their limits.
+
 The Parts panel also offers **Import Replacement…** and reversible **Mod**
 inclusion. Imports keep their size and placement by default. Neutral-appearance
 meshes show an **Experimental** warning about possible

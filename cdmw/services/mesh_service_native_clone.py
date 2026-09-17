@@ -41,6 +41,8 @@ def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> No
         "_cdmw_mesh_asset_unknown_sections",
         "_cdmw_sidecar_source_asset_hash",
         "_cdmw_sidecar_source_asset_size",
+        "_cdmw_edit_operations",
+        "_cdmw_requires_edit_operations",
         "material_slots",
         "unknown_sections",
     ):

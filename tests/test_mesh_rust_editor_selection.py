@@ -1665,6 +1665,61 @@ def test_protocol_cancel_ack_uses_the_versioned_cancel_event() -> None:
     ]
 
 
+def test_vertex_inspection_worker_failure_is_local_and_cancel_is_silent() -> None:
+    application = QApplication.instance() or QApplication([])
+    def fail(_event, *, stop_event):
+        raise ValueError("Inspection unavailable")
+    session = SimpleNamespace(closed=False, vertex_inspect=fail,
+        state_payload=lambda **kwargs: (_ for _ in ()).throw(AssertionError("Inspection must not rebuild recovery state")))
+    event = {"event": "vertex_inspect", "request_id": 8}
+    worker = MeshRustProtocolWorker(12, session, event)
+    errors, completed, finished = [], [], []
+    worker.error.connect(lambda *args: errors.append(args))
+    worker.completed.connect(lambda *args: completed.append(args))
+    worker.finished.connect(lambda: finished.append(True))
+    worker.run()
+    application.processEvents()
+    assert errors[0][-2:] == ("Inspection unavailable", {})
+    assert finished == [True] and not completed
+    worker.stop()
+    worker.run()
+    assert len(errors) == 1 and finished == [True, True]
+
+
+def test_vertex_inspection_queue_keeps_only_newest_and_yields_to_mutations(tmp_path) -> None:
+    tab = _tab(tmp_path)
+    tab.standalone_rust_authoring_session = SimpleNamespace(session_id="rust-session")
+    tab.standalone_rust_process_generation = 4
+    tab.standalone_rust_ready = True
+    tab._start_next_rust_protocol_worker = lambda: None
+    cancelled = []
+    tab.standalone_rust_active_event = {"event": "vertex_inspect"}
+    tab.standalone_rust_protocol_worker = SimpleNamespace(stop=lambda: cancelled.append(True))
+    event = {"event":"vertex_inspect", "protocol":"cdmw_rust_mesh_editor_protocol_v1", "session_id":"rust-session",
+             "request_id":1, "base_revision":0, "process_generation":4, "arguments":{}}
+    try:
+        for request in range(1, 5):
+            tab._handle_rust_protocol_event({**event, "request_id":request})
+        assert len(tab.standalone_rust_protocol_queue) == 1
+        assert tab.standalone_rust_protocol_queue[0]["request_id"] == 4
+        tab._handle_rust_protocol_event({**event, "request_id":5, "event":"command_request", "command":"undo"})
+        assert [request["command"] for request in tab.standalone_rust_protocol_queue] == ["undo"]
+        tab._handle_rust_protocol_event({**event, "request_id":6, "cancel_only":True})
+        assert len(tab.standalone_rust_protocol_queue) == 1
+        assert len(cancelled) == 6
+        tab.standalone_rust_closing = True
+        sent = []
+        tab._send_rust_message = sent.append
+        tab._handle_rust_protocol_completed(tab.standalone_rust_protocol_request_id,1,{"event":"vertex_inspect_result"},False)
+        assert not sent
+    finally:
+        tab.standalone_rust_authoring_session = None
+        tab.standalone_rust_protocol_worker = None
+        tab.standalone_rust_active_event = None
+        tab.standalone_rust_protocol_queue.clear()
+        _dispose(tab)
+
+
 def test_protocol_worker_preserves_qobject_event_when_moved_to_thread() -> None:
     event = {
         "event": "command_request",

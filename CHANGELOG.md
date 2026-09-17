@@ -11,6 +11,14 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's Vertex Parameters inspector shows single-vertex values and batch ranges, with reversible position, UV0, normal and supported skin-weight edits. Mesh Data offers a shortcut; cloth and tangents are read-only and unsupported channels are identified.
+
+### Fixed
+
+- Vertex channel edits retain their operation records and original PAC bounds across draft recovery and editor reopening. Undo restores the export-validation state of the mesh before the edit.
+
 ### Changed
 
 - Mesh Editor panels collapse from their own headers. Tools collapses into an icon rail with settings flyouts that can be pinned beside the viewport; Inspector keeps an edge handle for reopening. Closing a flyout keeps its tool active, and collapsing either panel preserves its width, sections and editing state.
