@@ -586,13 +586,17 @@ def test_live_cycle_preserves_state_and_localizes_late_and_model_backed_text(
     app.processEvents()
 
 
+@pytest.mark.parametrize("frequent_gc", [False, True], ids=["default-gc", "frequent-gc"])
 def test_real_main_window_honors_saved_non_english_locale_offscreen(
-    tmp_path: Path,
+    tmp_path: Path, frequent_gc: bool,
 ) -> None:
     settings_path = tmp_path / "saved-german.ini"
     script = "\n".join(
         (
-            "import os, sys",
+            "import os, sys, gc",
+            # Reproduce collection during QWidgetAction's native menu handoff,
+            # which otherwise only happened intermittently on Windows CI.
+            "gc.set_threshold(1, 1, 1)" if frequent_gc else "# Default GC thresholds",
             "from pathlib import Path",
             "os.environ['QT_QPA_PLATFORM'] = 'offscreen'",
             "os.environ['CDMW_GUI_STARTUP_SMOKE'] = '1'",

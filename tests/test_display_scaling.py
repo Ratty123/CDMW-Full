@@ -15,6 +15,7 @@ from cdmw.ui.display_scaling import (
 from tests.qt_font_metrics_support import ensure_default_ui_font_available
 from cdmw.ui.shell.compact.icons import compact_line_icon
 from cdmw.ui.wrapping_layout import WrappingLayout
+import cdmw.ui.display_scaling as display_scaling
 
 
 @pytest.fixture
@@ -35,6 +36,25 @@ def app():
 def _settle(app):
     for _ in range(8):
         app.processEvents()
+
+
+@pytest.mark.parametrize("kind", [
+    QEvent.ChildAdded, QEvent.ChildRemoved, QEvent.ParentAboutToChange,
+    QEvent.ParentChange, QEvent.Destroy, QEvent.DeferredDelete,
+])
+def test_scaling_does_not_inspect_widgets_during_lifecycle_events(app, monkeypatch, kind):
+    policy = display_scaling.DisplayScalingPolicy(app)
+    widget = QWidget()
+
+    def reject_native_probe(_widget):
+        pytest.fail("Scaling inspected a widget during a native lifetime transition")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(display_scaling, "isValid", reject_native_probe)
+        patch.setattr(display_scaling, "_normal_window", reject_native_probe)
+        assert policy.eventFilter(widget, QEvent(kind)) is False
+    widget.deleteLater()
+    policy.deleteLater()
 
 
 def test_late_controls_and_font_changes_keep_full_text(app):
