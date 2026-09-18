@@ -14,6 +14,9 @@ The format is intentionally simple:
 ### Fixed
 
 - Fixed an intermittent startup crash while initializing Archive Browser's More Filters menu.
+- Fixed Mesh Editor Finish and Cancel reading an already closed editing session. Accepted refits now keep their success status when the editor closes, including during worker cleanup.
+- Fixed opening Hair Tools during Finish cleanup and late command replies overwriting Mesh Editor exit errors.
+- Mesh Editor's Current Tool Log now shows progress, failures, and final outcomes. Unexpected exits are reported as errors even when the helper returns exit code 0.
 
 ## [0.11.0-alpha.19] - 2026-09-17
 

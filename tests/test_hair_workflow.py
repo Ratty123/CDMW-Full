@@ -219,7 +219,7 @@ def test_same_generated_style_uses_preset_message_and_no_archive_reopen(owner, m
     sent, opened = [], []
     target = SimpleNamespace(path="character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0008_01_player.pac", identity="hair")
     state = SimpleNamespace(payload={"template":{"character":"Damiane"}, "groups":[{"mode":"generated"}], "converted":False})
-    owner.standalone_rust_authoring_session = SimpleNamespace(shadow_service=SimpleNamespace(_session=lambda _: SimpleNamespace(hair_state=state)), shadow_session_id="current")
+    owner.standalone_rust_authoring_session = SimpleNamespace(closed=False, shadow_service=SimpleNamespace(_session=lambda _: SimpleNamespace(hair_state=state)), shadow_session_id="current")
     owner._current_target_entry = lambda: target
     owner.shell = SimpleNamespace(_activate_tool_widget=lambda _: None, _prepare_mesh_editor_archive_launch=lambda *args, **kwargs: opened.append(args))
     owner._rust_host_message = lambda event, **kwargs: {"event":event, **kwargs}

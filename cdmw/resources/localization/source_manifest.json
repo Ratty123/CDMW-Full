@@ -4136,7 +4136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 57,
+          "line": 96,
           "sink": "setText"
         },
         {
@@ -8416,7 +8416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 71,
+          "line": 76,
           "sink": "setText"
         }
       ]
@@ -16481,12 +16481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 766,
+          "line": 783,
           "sink": "show_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 837,
+          "line": 845,
           "sink": "show_result"
         }
       ]
@@ -17521,12 +17521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 914,
+          "line": 930,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 931,
+          "line": 947,
           "sink": "_set_rust_status"
         }
       ]
@@ -18481,7 +18481,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 241,
+          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -22546,7 +22546,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 947,
+          "line": 959,
           "sink": "question"
         }
       ]
@@ -26211,7 +26211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 19,
+          "line": 21,
           "sink": "setToolTip"
         }
       ]
@@ -29201,7 +29201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 633,
+          "line": 645,
           "sink": "setToolTip"
         }
       ]
@@ -29211,7 +29211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 631,
+          "line": 643,
           "sink": "setToolTip"
         }
       ]
@@ -29836,7 +29836,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 947,
+          "line": 959,
           "sink": "question"
         }
       ]
@@ -31501,7 +31501,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 375,
+          "line": 387,
           "sink": "addTab"
         }
       ]
@@ -42511,7 +42511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 13,
+          "line": 16,
           "sink": "QPushButton"
         },
         {
@@ -42926,12 +42926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 56,
+          "line": 61,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 79,
+          "line": 84,
           "sink": "setText"
         }
       ]
@@ -43371,7 +43371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 175,
+          "line": 176,
           "sink": "setText"
         },
         {
@@ -51836,7 +51836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 88,
+          "line": 93,
           "sink": "setText"
         }
       ]
@@ -54961,12 +54961,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 914,
+          "line": 930,
           "sink": "_set_rust_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 931,
+          "line": 947,
           "sink": "_set_rust_status"
         }
       ]
@@ -54976,7 +54976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 627,
+          "line": 644,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -55006,7 +55006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 847,
+          "line": 859,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -55361,8 +55361,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 595,
-          "sink": "_stop_rust_editor_process"
+          "line": 598,
+          "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
@@ -55476,8 +55476,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 846,
-          "sink": "_set_rust_status"
+          "line": 862,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -55486,7 +55486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 852,
+          "line": 868,
           "sink": "show_error"
         }
       ]
@@ -55496,8 +55496,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 831,
-          "sink": "_set_rust_status"
+          "line": 854,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -55506,7 +55506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 603,
+          "line": 618,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -55571,7 +55571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 774,
+          "line": 791,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -55626,18 +55626,18 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 769,
+          "line": 786,
           "sink": "_publish_rust_protocol_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 781,
+          "line": 798,
           "sink": "_stop_rust_editor_process"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 840,
-          "sink": "_set_rust_status"
+          "line": 848,
+          "sink": "_publish_rust_protocol_status"
         }
       ]
     },
@@ -55671,7 +55671,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 914,
+          "line": 926,
           "sink": "RuntimeError"
         }
       ]
@@ -56016,7 +56016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 800,
+          "line": 817,
           "sink": "_fail_rust_editor"
         }
       ]
@@ -56056,7 +56056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 631,
+          "line": 648,
           "sink": "_publish_rust_protocol_status"
         }
       ]
@@ -58741,7 +58741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 111,
+          "line": 123,
           "sink": "QLabel"
         },
         {
@@ -59841,7 +59841,7 @@
         },
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 198,
+          "line": 199,
           "sink": "setText"
         }
       ]
@@ -59861,7 +59861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 88,
+          "line": 127,
           "sink": "setText"
         }
       ]
@@ -67621,7 +67621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 139,
+          "line": 151,
           "sink": "QPushButton"
         }
       ]
@@ -67831,7 +67831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 154,
+          "line": 159,
           "sink": "ValueError"
         }
       ]
@@ -67841,7 +67841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 102,
+          "line": 107,
           "sink": "ValueError"
         }
       ]
@@ -68321,7 +68321,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 141,
+          "line": 153,
           "sink": "setToolTip"
         }
       ]
@@ -80716,7 +80716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 199,
+          "line": 200,
           "sink": "setToolTip"
         }
       ]
@@ -82396,7 +82396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_rust_process.py",
-          "line": 587,
+          "line": 611,
           "sink": "setText"
         }
       ]
@@ -84231,7 +84231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 164,
+          "line": 169,
           "sink": "ValueError"
         }
       ]
@@ -89201,7 +89201,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 259,
+          "line": 258,
           "sink": "QPushButton"
         }
       ]
@@ -95046,7 +95046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 132,
+          "line": 144,
           "sink": "QLabel"
         }
       ]
@@ -98161,7 +98161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 114,
+          "line": 126,
           "sink": "QPushButton"
         }
       ]
@@ -98481,7 +98481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/command_strip.py",
-          "line": 90,
+          "line": 128,
           "sink": "setToolTip"
         }
       ]
@@ -98541,7 +98541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 243,
+          "line": 242,
           "sink": "setToolTip"
         }
       ]
@@ -102111,7 +102111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab.py",
-          "line": 260,
+          "line": 259,
           "sink": "QPushButton"
         }
       ]
@@ -103846,7 +103846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 187,
+          "line": 188,
           "sink": "setText"
         },
         {
@@ -104946,7 +104946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 108,
+          "line": 120,
           "sink": "QLabel"
         }
       ]
@@ -106881,12 +106881,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 62,
+          "line": 67,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 68,
+          "line": 73,
           "sink": "setText"
         }
       ]
@@ -107746,7 +107746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 168,
+          "line": 173,
           "sink": "ValueError"
         }
       ]
@@ -120395,6 +120395,11 @@
       "key": "[{value_0}] {value_1}",
       "origins": [
         {
+          "path": "cdmw/ui/mesh_editor/tab_shell.py",
+          "line": 81,
+          "sink": "appendPlainText"
+        },
+        {
           "path": "cdmw/ui/shell/log_controller.py",
           "line": 43,
           "sink": "appendPlainText"
@@ -121801,7 +121806,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 162,
+          "line": 167,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -126641,7 +126646,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/hair_flow.py",
-          "line": 162,
+          "line": 167,
           "sink": "HairReferencePickerDialog"
         }
       ]
@@ -140906,7 +140911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/compact/rail.py",
-          "line": 51,
+          "line": 52,
           "sink": "setAccessibleName"
         }
       ]
