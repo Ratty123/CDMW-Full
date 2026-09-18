@@ -27,7 +27,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.19` is the current source version and is offered as a pre-release.
+> `0.11.0-alpha.20` is the current source version and is offered as a pre-release.
 > See [Releases](https://github.com/Ratty123/CDMW-Full/releases) for downloads.
 
 ---

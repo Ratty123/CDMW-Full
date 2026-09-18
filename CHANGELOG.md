@@ -11,6 +11,11 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.20] - 2026-09-18
+
+Pre-release with experimental jiggle controls and Mesh Editor lifecycle fixes.
+Jiggle changes need reporter verification in-game; intermediate strength values remain unidentified.
+
 ### Added
 
 - Mesh Editor's Cloth panel includes experimental jiggle Disable/Restore controls for selected PAC parts, optionally limited to vertices below a chosen height. Edits cover all stored LODs and support Undo/Redo and drafts. The disable value is reporter-tested on a Damiane body; other models and intermediate strength values remain unverified.
