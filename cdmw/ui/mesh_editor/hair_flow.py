@@ -42,7 +42,7 @@ def start_hair_workflow(tab, mode="generated", preset="bob", *, character=None, 
     current_target = getattr(tab, "_current_target_entry", lambda: None)()
     authoring = getattr(tab, "standalone_rust_authoring_session", None)
     active_hair = None
-    if authoring is not None:
+    if authoring is not None and not authoring.closed:
         active_hair = authoring.shadow_service._session(authoring.shadow_session_id).hair_state
     if character is None:
         profile = unique_hair_character(current_target.path) if current_target is not None else None

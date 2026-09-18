@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel,
-    QPushButton, QSizePolicy, QTabWidget, QVBoxLayout, QWidget,
+    QPlainTextEdit, QPushButton, QSizePolicy, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
@@ -67,6 +67,18 @@ class MeshEditorTabShellMixin(
     # rather than borrowing it from whatever else the tab happens to compose.
     MeshEditorDotNetSessionEventMixin,
 ):
+
+    def _initialize_tool_log(self) -> None:
+        # The compact drawer borrows this document through its existing adapter.
+        self.log_view = QPlainTextEdit(self)
+        self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(2000)
+        self.log_view.hide()
+        self.status_message_requested.connect(self._append_tool_log)
+
+    def _append_tool_log(self, message: str, _error: bool) -> None:
+        timestamp = time.strftime("%H:%M:%S")
+        self.log_view.appendPlainText("[" + timestamp + "] " + str(message))
 
     def _initialize_dotnet_material_parameter_state(self) -> None:
         self.standalone_dotnet_material_parameter_generation = 0

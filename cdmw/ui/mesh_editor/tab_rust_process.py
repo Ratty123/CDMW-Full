@@ -575,25 +575,40 @@ class MeshEditorRustProcessMixin:
         if worker_request_id != self.standalone_rust_protocol_request_id:
             return
         active_event = dict(self.standalone_rust_active_event or {})
+        if self.standalone_rust_closing and not finish_accepted and active_event.get("event") != "cancel":
+            return
         if active_event.get("event") == "vertex_inspect":
             if not self.standalone_rust_closing and not self.standalone_rust_protocol_worker._stop_event.is_set():
                 self._send_rust_message(response)
             return
-        self._send_rust_message(response)
-        hair_status = getattr(self, "hair_entry_status", None)
-        hair_active = getattr(self, "standalone_rust_authoring_session", None)
-        hair_active = hair_active is not None and hair_active.shadow_service._session(hair_active.shadow_session_id).hair_state is not None
-        if hair_status is not None and (active_event.get("command") == "hair_begin" or hair_active and active_event.get("event") == "transaction_request"):
-            hair_status.setText("Ready — select visible hair to begin editing.")
+        cancelled = active_event.get("event") == "cancel"
+        # Finish and Cancel have already disposed the shadow. Record their
+        # outcome before replying, since the helper may exit as soon as it reads it.
         if finish_accepted:
             self.standalone_rust_finish_accepted = True
             self.standalone_rust_ready = False
-            self._refresh_after_rust_finish(response)
-            self.standalone_rust_finish_timer.start(_RUST_FINISH_EXIT_TIMEOUT_MS)
-        elif str(active_event.get("event", "") or "") == "cancel":
+        elif cancelled:
             self.standalone_rust_closing = True
-            self._stop_rust_editor_process(reason="Mesh Editor cancelled; CDMW mesh unchanged.")
+        self._send_rust_message(response)
+        if finish_accepted:
+            self._refresh_after_rust_finish(response)
+            if self.standalone_rust_process is not None:
+                self.standalone_rust_finish_timer.start(_RUST_FINISH_EXIT_TIMEOUT_MS)
+        elif cancelled:
+            self._publish_rust_protocol_status("Mesh Editor cancelled; CDMW mesh unchanged.")
+            self._stop_rust_editor_process()
         else:
+            hair_status = getattr(self, "hair_entry_status", None)
+            if hair_status is not None:
+                session = self.standalone_rust_authoring_session
+                hair_active = (
+                    active_event.get("event") == "transaction_request"
+                    and session is not None
+                    and not session.closed
+                    and session.shadow_service._session(session.shadow_session_id).hair_state is not None
+                )
+                if active_event.get("command") == "hair_begin" or hair_active:
+                    hair_status.setText("Ready — select visible hair to begin editing.")
             payload = response.get("payload", {})
             result = payload.get("result", {}) if isinstance(payload, dict) else {}
             if isinstance(result, dict) and result.get("hair_texture_source"):
@@ -613,6 +628,8 @@ class MeshEditorRustProcessMixin:
         if worker_request_id != self.standalone_rust_protocol_request_id:
             return
         request = dict(self.standalone_rust_active_event or {})
+        if self.standalone_rust_closing and request.get("event") not in {"finish_request", "cancel"}:
+            return
         if request.get("event") == "vertex_inspect":
             if not self.standalone_rust_closing:
                 self._send_rust_error_response(request, message)
@@ -822,30 +839,29 @@ class MeshEditorRustProcessMixin:
             process.deleteLater()
         except RuntimeError:
             pass
-        finish_still_running = self._rust_finish_protocol_active()
-        if finish_still_running:
-            session = self.standalone_rust_authoring_session
-            if session is not None and not session.closed:
-                session.request_cancel()
-            self.standalone_rust_stop_after_protocol = True
-            self._set_rust_status(
-                "Mesh Editor closed while Finish was running; waiting for the safe terminal result."
-            )
-        elif self.standalone_rust_finish_accepted:
+        if self.standalone_rust_finish_accepted:
             show_result = getattr(host, "show_result", None)
             if callable(show_result):
                 show_result(
                     "CDMW accepted the validated mesh revision. Choose an output action, reopen editing, or close the session."
                 )
-            self._set_rust_status("Mesh Editor finished and CDMW accepted the validated geometry.")
+            self._publish_rust_protocol_status("Mesh Editor finished and CDMW accepted the validated geometry.")
+        elif self._rust_finish_protocol_active():
+            session = self.standalone_rust_authoring_session
+            if session is not None and not session.closed:
+                session.request_cancel()
+            self.standalone_rust_stop_after_protocol = True
+            self._publish_rust_protocol_status(
+                "Mesh Editor closed while Finish was running; waiting for the safe terminal result."
+            )
         elif (
             self.standalone_rust_process_error_reported
-            or not self.standalone_rust_failure_reported
+            or (not self.standalone_rust_closing and not self.standalone_rust_failure_reported)
         ):
             suffix = self._rust_process_diagnostic_suffix()
-            self._set_rust_status(
+            self._publish_rust_protocol_status(
                 f"Mesh Editor closed (exit {int(exit_code)}); its shadow changes were discarded.{suffix}",
-                error=bool(exit_code) or self.standalone_rust_process_error_reported,
+                error=True,
             )
             show_error = getattr(host, "show_error", None)
             if callable(show_error):

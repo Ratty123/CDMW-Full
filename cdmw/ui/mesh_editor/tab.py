@@ -222,6 +222,7 @@ class MeshEditorTab(MeshEditorCharacterContextMixin, MeshEditorTabShellMixin, Me
             ensure_archive_texture_indexes=ensure_archive_texture_indexes,
         )
         self._initialize_rust_editor_runtime_state()
+        self._initialize_tool_log()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)

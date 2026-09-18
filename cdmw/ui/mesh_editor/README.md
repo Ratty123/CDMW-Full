@@ -859,6 +859,16 @@ publish it. Build Mod supports DMM/JMM/CDUMM/Crimson Sharp loose packages and a
 DMM archive group through owned sibling staging; overlay installation keeps the
 existing confirmation, backup, rollback, receipt, and restore lifecycle. Neither
 route rewrites source PAMT/PAZ archives in place.
+
+Finish and Cancel record their terminal outcome before replying to the helper;
+neither reads the disposed shadow session. A successful helper exit preserves
+the accepted Finish or intentional Cancel status, including during worker teardown.
+Late command replies cannot overwrite a terminal outcome, and reopening Hair
+Tools during cleanup does not read a disposed session.
+Mesh Editor's Current Tool Log retains its latest 2,000 status lines, including
+progress, validation failures, and terminal outcomes. Copy and Clear act on this
+tool's log without clearing another tool's output.
+
 `tab_ui_state.py` is the effect bridge into the domain reducer. Existing mixins
 still send protocol messages, run workers, load packages and record diagnostics,
 but action visibility, blocker reasons, report/output authority and the resident
