@@ -297,6 +297,13 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             raise ValueError("Cloth influence editing is supported only for PAC meshes.")
         from cdmw.modding.pac_cloth import apply_pac_cloth_rules
         data = apply_pac_cloth_rules(data, cloth_rules, appearance=state.neutral_appearance)
+    jiggle_rules = {part.target_index: part.jiggle for part in state.parts
+                    if part.included and part.jiggle is not None}
+    if jiggle_rules:
+        if original.format.lower() != "pac":
+            raise ValueError("Jiggle editing is supported only for PAC meshes.")
+        from cdmw.modding.pac_jiggle import apply_pac_jiggle_rules
+        data = apply_pac_jiggle_rules(data, jiggle_rules, appearance=state.neutral_appearance)
     parsed = parse_mesh(data, state.target_path)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")

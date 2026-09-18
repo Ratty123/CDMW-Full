@@ -336,9 +336,9 @@ exact record-map checks before accepting these edits.
 These controls edit render-vertex cloth influence, not simulation anchors,
 collision shapes or the shared physics profile. The existing cloth simulation
 preview remains approximate and does not visualize these saved influence edits.
-Cloth drafts use project/generation v6 and replacement payload v4 so older apps
+Cloth-only drafts use project/generation v6 and replacement payload v4 so older apps
 reject them before attempting recovery that could lose the settings. Drafts
-without cloth settings retain their existing formats.
+without cloth settings retain their existing formats unless jiggle settings are present.
 
 `mesh_rust_cloth.py` owns the command/state handoff, `domain/mesh/cloth.py` the
 height rule, and `modding/pac_cloth.py` the validated byte patch. In cloth mode,
@@ -346,6 +346,41 @@ only four packed slots are skeletal; the other four influences address cloth
 guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
+
+### Experimental jiggle disable
+
+Expand **Jiggle (experimental)** in the same **Mesh Data > Cloth** panel. Select
+the intended body or clothing part, keep **Selected parts** enabled, and use
+**Only below height > Below Y** to limit the edit to the lower body. The boundary
+uses displayed model coordinates and applies strictly below that height at every
+stored LOD. Its initial midpoint is not an anatomical waist detector. Unchecking
+the height limit disables the whole selected part.
+
+**Disable jiggle** writes only zero-based byte 38 (`0x26`) of the validated
+40-byte PAC records. Colours, the separate cloth gate at byte 39, skinning,
+geometry and other bytes are retained. **Restore original jiggle** removes the
+rule and restores the retained source values. Undo/Redo, Finish and saved drafts
+use the existing replacement output transaction. Restore cannot recover values
+lost before the source PAC was opened. Layouts without proven record ownership
+at every LOD are rejected. Jiggle drafts use project/generation v7 and replacement
+payload v5; older draft formats remain readable.
+
+The disable value `255` is externally reported as tested on a modified Damiane
+body. This is not a decoded strength scale or a claim of in-game validation by
+CDMW. Values 249-254 remain unidentified, and the editor does not simulate this
+jiggle. The source waist threshold `Y < 1.2` applies only to the reporter's model.
+
+Reporter test: retain the original PAC and export disabled and restored variants
+using **Build PAC**. On the same game build, compare walking, sprinting and
+stopping, then change camera distance to exercise LODs. Check that chest, hair,
+accessory and cloth movement and normal animation remain intact. Repeat with
+0145 and 0166 clothing, recording whether any returning jiggle belongs to the
+clothing or the visible underlying body. Include the game build, exact input and
+output hashes, selected part and height with any regression report.
+
+`mesh_rust_jiggle.py` owns the command/state handoff, `domain/mesh/jiggle.py` the
+height rule, and `modding/pac_jiggle.py` the byte patch. The shared PAC LOD reader
+validates record ownership without requiring cloth bindings.
 
 ## Vertex Parameters
 

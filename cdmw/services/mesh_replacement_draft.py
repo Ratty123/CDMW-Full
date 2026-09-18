@@ -11,6 +11,7 @@ import struct
 from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementFile, ReplacementPart
 from cdmw.domain.mesh.cloth import PacClothRule
+from cdmw.domain.mesh.jiggle import PacJiggleRule
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -40,7 +41,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     return {
-        "version": 4 if any(part.cloth is not None for part in state.parts) else (3 if state.neutral_appearance is not None else 2),
+        "version": (5 if any(part.jiggle is not None for part in state.parts) else
+                    4 if any(part.cloth is not None for part in state.parts) else
+                    3 if state.neutral_appearance is not None else 2),
         **({"neutral_appearance": {"version": 1, **asdict(state.neutral_appearance)},
             "neutral_coordinates": state.neutral_coordinates} if state.neutral_appearance is not None else {}),
         "target_path": state.target_path, "target_sha256": state.target_sha256,
@@ -51,7 +54,8 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    "import_positions": blob(b"".join(struct.pack("<3d", *point) for point in part.import_positions)),
                    "import_normals": (blob(b"".join(struct.pack("<3d", *normal) for normal in part.import_normals))
                                       if part.import_normals is not None else None),
-                   **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {})}
+                   **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {}),
+                   **({"jiggle": part.jiggle.to_dict()} if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
         "companion_files": [file_payload(file) for file in state.companion_files],
@@ -69,7 +73,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -106,6 +110,9 @@ def _load_replacement_state(payload, project_root):
         if payload["version"] < 4 and "cloth" in value:
             raise ValueError("Cloth influence settings require replacement draft version 4.")
         cloth = PacClothRule.from_dict(value["cloth"]) if "cloth" in value else None
+        if payload["version"] < 5 and "jiggle" in value:
+            raise ValueError("Jiggle settings require replacement draft version 5.")
+        jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
         data = blob(value["import_positions"])
         if len(data) % 24:
             raise ValueError("Invalid replacement import placement data.")
@@ -126,13 +133,13 @@ def _load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle))
     if any(not part.part_id for part in parts) or len({part.part_id for part in parts}) != len(parts):
         raise ValueError("Replacement draft part identities are missing or duplicated.")
     if {part.target_index for part in parts} != set(range(len(parts))):
         raise ValueError("Replacement draft target mappings are invalid or incomplete.")
     appearance, neutral = None, False
-    if payload["version"] == 3 or (payload["version"] == 4 and "neutral_appearance" in payload):
+    if payload["version"] == 3 or (payload["version"] >= 4 and "neutral_appearance" in payload):
         from cdmw.modding.mesh_importer import _load_obj_neutral_appearance
         appearance = _load_obj_neutral_appearance(payload.get("neutral_appearance"))
         neutral = payload.get("neutral_coordinates")

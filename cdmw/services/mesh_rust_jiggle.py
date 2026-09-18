@@ -1,0 +1,84 @@
+"""Experimental jiggle controls using the editor's reversible PAC output state."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from cdmw.domain.mesh.jiggle import PacJiggleRule
+from cdmw.modding.pac_cloth import pac_cloth_lods
+from cdmw.modding.pac_jiggle import PAC_JIGGLE_DISABLED, PAC_JIGGLE_OFFSET
+from cdmw.services.mesh_replacement_import import (
+    commit_replacement, initial_replacement_state, mesh_with_part_ids,
+)
+
+
+def jiggle_ui_state(authoring, replacement):
+    session = authoring.shadow_service._session(authoring.shadow_session_id)
+    state = session.replacement_state
+    reason = replacement["reason"]
+    if session.mesh_format != "pac":
+        reason = "Jiggle editing requires an original PAC mesh."
+    elif session.hair_state is not None:
+        reason = "Finish the hair workflow before editing jiggle."
+    if reason:
+        return {"available": False, "reason": reason, "parts": []}
+    data = session.original_data
+    appearance = state.neutral_appearance if state and state.neutral_appearance is not None else authoring.neutral_appearance
+    cached = authoring.jiggle_source_cache
+    if cached is None or cached[0] is not data or cached[1] is not appearance:
+        try:
+            levels = pac_cloth_lods(data)
+            displayed = appearance.to_neutral(levels[0]) if appearance is not None else levels[0]
+            rows = []
+            for index, part in enumerate(levels[0].submeshes):
+                heights = [point[1] for point in displayed.submeshes[index].vertices]
+                counts = [sum(data[offset + PAC_JIGGLE_OFFSET] != PAC_JIGGLE_DISABLED
+                              for offset in level.submeshes[index].source_vertex_offsets) for level in levels]
+                rows.append({"lod_counts": counts,
+                             "min_y": min(heights, default=0.0), "max_y": max(heights, default=0.0)})
+            metadata = {"parts": rows, "lod_count": len(levels), "reason": ""}
+        except ValueError as exc:
+            metadata = {"parts": [], "lod_count": 0, "reason": str(exc)}
+        authoring.jiggle_source_cache = (data, appearance, metadata)
+    else:
+        metadata = cached[2]
+    bindings = {part.part_id: part for part in state.parts} if state else {}
+    parts = []
+    for part in replacement["parts"]:
+        binding = bindings.get(part["id"])
+        index = binding.target_index if binding else part["index"]
+        if not 0 <= index < len(metadata["parts"]):
+            continue
+        source = metadata["parts"][index]
+        if not any(source["lod_counts"]) and not (binding and binding.jiggle):
+            continue
+        parts.append({**part, **source, "rule": binding.jiggle.to_dict() if binding and binding.jiggle else None})
+    reason = metadata["reason"] or ("This PAC already has jiggle byte 255 on every vertex." if not parts else "")
+    return {"available": not reason, "reason": reason, "parts": parts, "lod_count": metadata["lod_count"]}
+
+
+def set_jiggle_rule(authoring, snapshot, args, *, entry, dependencies, stop_event):
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+    ui = jiggle_ui_state(authoring, replacement_ui_state(authoring))
+    if not ui["available"]:
+        raise ValueError(ui["reason"])
+    reset = args.get("reset", False)
+    if type(reset) is not bool:
+        raise ValueError("Invalid jiggle reset request.")
+    keys = args.get("part_ids")
+    if (not isinstance(keys, (list, tuple)) or not keys
+            or any(not isinstance(key, str) for key in keys) or len(set(keys)) != len(keys)):
+        raise ValueError("Choose unique jiggle parts.")
+    available = {part["id"] for part in ui["parts"] if part["included"]}
+    if not set(keys) <= available:
+        raise ValueError("Choose included parts with editable jiggle data.")
+    rule = None if reset else PacJiggleRule.from_dict(args.get("rule"))
+    state = snapshot.replacement_state or initial_replacement_state(snapshot, entry, dependencies)
+    parts = tuple(replace(part, jiggle=rule) if part.part_id in keys else part for part in state.parts)
+    if parts == state.parts:
+        return authoring.shadow_service.session_view(authoring.shadow_session_id)
+    state = replace(state, parts=parts, revision=state.revision + 1)
+    mesh = mesh_with_part_ids(snapshot, state)
+    return commit_replacement(authoring.shadow_service, snapshot, mesh, state,
+                              label="Restore original jiggle" if reset else "Disable jiggle",
+                              stop_event=stop_event)
