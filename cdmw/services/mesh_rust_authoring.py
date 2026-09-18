@@ -6956,6 +6956,7 @@ class RustMeshAuthoringSession:
     texture_resource_count: int = 0
     hair_file_cache: tuple[bytes, dict[str, object]] | None = None
     cloth_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
+    jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     hair_skin_donor_mesh: ParsedMesh | None = None
     hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -7892,6 +7893,8 @@ class RustMeshAuthoringSession:
         state["replacement"] = replacement_ui_state(self)
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_rust_jiggle import jiggle_ui_state
+        state["jiggle"] = jiggle_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_hair import hair_ui_state
         state["hair"] = hair_ui_state(self)
         if self.replacement_comparison != "edit":

@@ -39,6 +39,8 @@ MESH_HAIR_PROJECT_FORMAT = "mesh_layer_project_v5"
 MESH_HAIR_GENERATION_FORMAT = "mesh_layer_generation_v5"
 MESH_CLOTH_PROJECT_FORMAT = "mesh_layer_project_v6"
 MESH_CLOTH_GENERATION_FORMAT = "mesh_layer_generation_v6"
+MESH_JIGGLE_PROJECT_FORMAT = "mesh_layer_project_v7"
+MESH_JIGGLE_GENERATION_FORMAT = "mesh_layer_generation_v7"
 
 
 def draft_retains_original_channel_base(payload, original, working):
@@ -233,8 +235,10 @@ def save_mesh_layer_project(
     from cdmw.services.mesh_replacement_draft import save_replacement_state
     experimental = replacement_state is not None and replacement_state.neutral_appearance is not None
     cloth = replacement_state is not None and any(part.cloth is not None for part in replacement_state.parts)
+    jiggle = replacement_state is not None and any(part.jiggle is not None for part in replacement_state.parts)
     generation_payload = {
-        "format": (MESH_CLOTH_GENERATION_FORMAT if cloth else
+        "format": (MESH_JIGGLE_GENERATION_FORMAT if jiggle else
+                   MESH_CLOTH_GENERATION_FORMAT if cloth else
                    MESH_HAIR_GENERATION_FORMAT if hair_state is not None else
                    MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT if experimental else
                    MESH_REPLACEMENT_GENERATION_FORMAT if replacement_state is not None else MESH_LAYER_GENERATION_FORMAT),
@@ -275,7 +279,7 @@ def save_mesh_layer_project(
     if target.is_file():
         try:
             previous = json.loads(target.read_text(encoding="utf-8"))
-            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT}:
+            if isinstance(previous, Mapping) and previous.get("format") in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT}:
                 previous_generation = str(previous.get("current_generation") or "")
                 previous_generation_manifest_sha256 = str(
                     previous.get("current_generation_manifest_sha256") or ""
@@ -284,7 +288,8 @@ def save_mesh_layer_project(
             previous_generation = ""
             previous_generation_manifest_sha256 = ""
     descriptor = {
-        "format": (MESH_CLOTH_PROJECT_FORMAT if cloth else
+        "format": (MESH_JIGGLE_PROJECT_FORMAT if jiggle else
+                   MESH_CLOTH_PROJECT_FORMAT if cloth else
                    MESH_HAIR_PROJECT_FORMAT if hair_state is not None else
                    MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT if experimental else
                    MESH_REPLACEMENT_PROJECT_FORMAT if replacement_state is not None else MESH_LAYER_PROJECT_FORMAT),
@@ -321,7 +326,7 @@ def load_mesh_layer_project(
     if not target.is_file():
         return None
     descriptor = json.loads(target.read_text(encoding="utf-8"))
-    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT}:
+    if not isinstance(descriptor, Mapping) or descriptor.get("format") not in {MESH_LAYER_PROJECT_FORMAT, MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT}:
         raise ValueError("Unsupported Mesh Editor layer project descriptor")
     expected_hash = str(expected_source_asset_sha256 or "").strip().lower()
     stored_hash = str(descriptor.get("source_asset_sha256") or "").strip().lower()
@@ -354,7 +359,7 @@ def load_mesh_layer_project(
             load_archive_refit_materials(
                 payload["snapshot"], payload.get("archive_refit_material_files"), target.parent, stop,
             )
-            if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
+            if descriptor.get("format") in {MESH_REPLACEMENT_PROJECT_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_PROJECT_FORMAT, MESH_HAIR_PROJECT_FORMAT, MESH_LEGACY_HAIR_PROJECT_FORMAT, MESH_CLOTH_PROJECT_FORMAT, MESH_JIGGLE_PROJECT_FORMAT} and payload.get("format") != descriptor["format"].replace("project", "generation"):
                 raise ValueError("A replacement draft cannot fall back to a generation without its output state.")
             snapshot = payload.get("snapshot")
             operations = payload.get("edit_operations", [])
@@ -379,14 +384,18 @@ def load_mesh_layer_project(
             if payload.get("format") in {MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT} and hair is None:
                 raise ValueError("Hair draft omitted its authoring state.")
             replacement = load_replacement_state(payload.get("replacement"), target.parent)
-            if payload.get("format") in {MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT, MESH_CLOTH_GENERATION_FORMAT} and replacement is None:
+            if payload.get("format") in {MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT, MESH_CLOTH_GENERATION_FORMAT, MESH_JIGGLE_GENERATION_FORMAT} and replacement is None:
                 raise ValueError("Replacement draft omitted its output state.")
             if payload.get("format") == MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT and replacement.neutral_appearance is None:
                 raise ValueError("Experimental replacement draft omitted its coordinate transform.")
             if payload.get("format") == MESH_CLOTH_GENERATION_FORMAT and not any(part.cloth is not None for part in replacement.parts):
                 raise ValueError("Cloth draft omitted its influence settings.")
-            if replacement is not None and any(part.cloth is not None for part in replacement.parts) and payload.get("format") != MESH_CLOTH_GENERATION_FORMAT:
+            if replacement is not None and any(part.cloth is not None for part in replacement.parts) and payload.get("format") not in {MESH_CLOTH_GENERATION_FORMAT, MESH_JIGGLE_GENERATION_FORMAT}:
                 raise ValueError("Cloth settings require a cloth-capable draft format.")
+            if payload.get("format") == MESH_JIGGLE_GENERATION_FORMAT and not any(part.jiggle is not None for part in replacement.parts):
+                raise ValueError("Jiggle draft omitted its settings.")
+            if replacement is not None and any(part.jiggle is not None for part in replacement.parts) and payload.get("format") != MESH_JIGGLE_GENERATION_FORMAT:
+                raise ValueError("Jiggle settings require a jiggle-capable draft format.")
             if replacement is not None:
                 if replacement.target_sha256 != stored_hash or refit_context is not None:
                     raise ValueError("Replacement draft target or workflow does not match.")
@@ -413,7 +422,7 @@ def _load_generation(
     if expected_manifest_sha256 and _sha256_file(manifest_path) != expected_manifest_sha256:
         raise ValueError("layer generation manifest checksum mismatch")
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT, MESH_CLOTH_GENERATION_FORMAT}:
+    if not isinstance(payload, Mapping) or payload.get("format") not in {MESH_LAYER_GENERATION_FORMAT, MESH_REPLACEMENT_GENERATION_FORMAT, MESH_EXPERIMENTAL_REPLACEMENT_GENERATION_FORMAT, MESH_HAIR_GENERATION_FORMAT, MESH_LEGACY_HAIR_GENERATION_FORMAT, MESH_CLOTH_GENERATION_FORMAT, MESH_JIGGLE_GENERATION_FORMAT}:
         raise ValueError("unsupported layer generation")
     if str(payload.get("source_asset_sha256") or "").strip().lower() != source_hash:
         raise ValueError("layer generation fingerprint mismatch")

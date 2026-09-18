@@ -3678,6 +3678,66 @@ fn integrated_cloth_controls_apply_boundary_disable_and_restore() -> TestResult 
 }
 
 #[test]
+fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?,
+        egui::vec2(1440.0, 1100.0),
+    );
+    ui.application.cdmw_state["cloth"] = json!({"available": false,
+        "reason": "This PAC has no existing cloth bindings.", "parts": []});
+    ui.application.cdmw_state["jiggle"] = json!({
+        "available": true, "reason": "", "lod_count": 4,
+        "parts": [{"index": 0, "id": "body:0", "included": true,
+            "min_y": 0.0, "max_y": 2.0, "rule": null},
+            {"index": 1, "id": "excluded:1", "included": false,
+            "min_y": 0.0, "max_y": 2.0, "rule": null}]
+    });
+    ui.click_tool_button("Cloth")?;
+    ui.click("Jiggle (experimental)")?;
+    ui.settle_layout();
+    assert!(ui.label_rect("Select an included part with editable jiggle data.").is_some());
+    assert!(ui.label_rect("Disable jiggle").is_none());
+    ui.click("Selected parts")?;
+    ui.settle_layout();
+    assert!(ui.application.cdmw_jiggle.use_height);
+    ui.application.cdmw_jiggle.height = 1.2;
+    let actions = ui.actions_from_click("Disable jiggle")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "rule": {"below_y": 1.2}})
+    )));
+    ui.click("Only below height")?;
+    let actions = ui.actions_from_click("Disable jiggle")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "rule": {"below_y": null}})
+    )));
+    ui.application.cdmw_state["jiggle"]["parts"][0]["rule"] = json!({"below_y": 1.2});
+    let actions = ui.actions_from_click("Restore original jiggle")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "reset": true})
+    )));
+    Ok(())
+}
+
+#[test]
+fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?, egui::vec2(1440.0, 980.0),
+    );
+    ui.application.cdmw_state["jiggle"] = json!({"available": false,
+        "reason": "Jiggle editing requires an original PAC mesh.", "parts": []});
+    ui.click_tool_button("Cloth")?;
+    ui.click("Jiggle (experimental)")?;
+    ui.settle_layout();
+    assert!(ui.label_rect("Jiggle editing requires an original PAC mesh.").is_some());
+    assert!(ui.label_rect("Disable jiggle").is_none());
+    assert!(ui.label_rect("Restore original jiggle").is_none());
+    Ok(())
+}
+
+#[test]
 fn integrated_cloth_unavailable_shows_reason_and_no_mutation_buttons() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,

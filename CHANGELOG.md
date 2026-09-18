@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Mesh Editor's Cloth panel includes experimental jiggle Disable/Restore controls for selected PAC parts, optionally limited to vertices below a chosen height. Edits cover all stored LODs and support Undo/Redo and drafts. The disable value is reporter-tested on a Damiane body; other models and intermediate strength values remain unverified.
+
 ### Fixed
 
 - Fixed an intermittent startup crash while initializing Archive Browser's More Filters menu.

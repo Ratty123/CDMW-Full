@@ -3606,7 +3606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 358,
+          "line": 363,
           "sink": "ValueError"
         }
       ]
@@ -20987,6 +20987,16 @@
       "manual": true
     },
     {
+      "key": "Choose included parts with editable jiggle data.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 74,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose included parts with existing cloth bindings.",
       "origins": [
         {
@@ -21348,6 +21358,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 70,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Choose unique jiggle parts.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 71,
+          "sink": "ValueError"
         }
       ]
     },
@@ -22576,7 +22596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 387,
+          "line": 392,
           "sink": "ValueError"
         }
       ]
@@ -22611,7 +22631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 107,
+          "line": 111,
           "sink": "ValueError"
         }
       ]
@@ -22631,7 +22651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 389,
+          "line": 394,
           "sink": "ValueError"
         }
       ]
@@ -31041,7 +31061,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 347,
+          "line": 354,
           "sink": "ValueError"
         }
       ]
@@ -31511,7 +31531,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 9342,
+          "line": 9345,
           "sink": "RuntimeError"
         }
       ]
@@ -34261,7 +34281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 385,
+          "line": 390,
           "sink": "ValueError"
         }
       ]
@@ -38902,6 +38922,21 @@
       ]
     },
     {
+      "key": "Finish the hair workflow before editing jiggle.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 24,
+          "sink": "python-return:jiggle_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 57,
+          "sink": "python-return:jiggle_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Finished DDS -> PNG. Converted/planned={value_0}, skipped={value_1}, failed={value_2}.",
       "origins": [
         {
@@ -42596,7 +42631,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 380,
+          "line": 385,
           "sink": "ValueError"
         }
       ]
@@ -47641,7 +47676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 363,
+          "line": 368,
           "sink": "ValueError"
         }
       ]
@@ -47681,7 +47716,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 140,
+          "line": 147,
           "sink": "ValueError"
         }
       ]
@@ -47742,6 +47777,16 @@
         {
           "path": "cdmw/services/mesh_rust_hair.py",
           "line": 523,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid jiggle reset request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 67,
           "sink": "ValueError"
         }
       ]
@@ -47891,7 +47936,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 96,
+          "line": 100,
           "sink": "ValueError"
         }
       ]
@@ -47901,7 +47946,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 345,
+          "line": 352,
           "sink": "ValueError"
         }
       ]
@@ -47911,7 +47956,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 104,
+          "line": 108,
           "sink": "ValueError"
         }
       ]
@@ -47921,7 +47966,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 84,
+          "line": 88,
           "sink": "ValueError"
         }
       ]
@@ -47931,7 +47976,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 111,
+          "line": 118,
           "sink": "ValueError"
         }
       ]
@@ -47941,7 +47986,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 126,
+          "line": 133,
           "sink": "ValueError"
         }
       ]
@@ -49167,6 +49212,61 @@
       ]
     },
     {
+      "key": "Jiggle draft omitted its settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 396,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Jiggle editing is supported only for PAC meshes.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_output.py",
+          "line": 304,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Jiggle editing requires an original PAC mesh.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 24,
+          "sink": "python-return:jiggle_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 57,
+          "sink": "python-return:jiggle_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Jiggle settings require a jiggle-capable draft format.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_layer_project_service.py",
+          "line": 398,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Jiggle settings require replacement draft version 5.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 114,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Joint Strength",
       "origins": [
         {
@@ -50091,7 +50191,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 411,
+          "line": 420,
           "sink": "ValueError"
         }
       ]
@@ -52976,7 +53076,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 66,
+          "line": 70,
           "sink": "ValueError"
         }
       ]
@@ -55841,7 +55941,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 329,
+          "line": 334,
           "sink": "ValueError"
         }
       ]
@@ -56806,22 +56906,22 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 141,
+          "line": 143,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 163,
+          "line": 165,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 298,
+          "line": 303,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 435,
+          "line": 444,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -56906,7 +57006,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 346,
+          "line": 351,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -56936,7 +57036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 133,
+          "line": 135,
           "sink": "ValueError"
         }
       ]
@@ -56946,7 +57046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 455,
+          "line": 464,
           "sink": "RuntimeError"
         }
       ]
@@ -56956,7 +57056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 438,
+          "line": 447,
           "sink": "RuntimeError"
         }
       ]
@@ -56966,7 +57066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 451,
+          "line": 460,
           "sink": "RuntimeError"
         }
       ]
@@ -59931,7 +60031,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8673,
+          "line": 8676,
           "sink": "RuntimeError"
         }
       ]
@@ -60011,7 +60111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8603,
+          "line": 8606,
           "sink": "RuntimeError"
         }
       ]
@@ -60021,7 +60121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8599,
+          "line": 8602,
           "sink": "RuntimeError"
         }
       ]
@@ -60031,7 +60131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 8574,
+          "line": 8577,
           "sink": "RuntimeError"
         }
       ]
@@ -61081,7 +61181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 149,
+          "line": 151,
           "sink": "RuntimeError"
         }
       ]
@@ -61111,7 +61211,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 172,
+          "line": 174,
           "sink": "RuntimeError"
         }
       ]
@@ -61121,7 +61221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 154,
+          "line": 156,
           "sink": "RuntimeError"
         }
       ]
@@ -61131,7 +61231,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 181,
+          "line": 183,
           "sink": "RuntimeError"
         }
       ]
@@ -61141,7 +61241,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 189,
+          "line": 191,
           "sink": "RuntimeError"
         }
       ]
@@ -61151,7 +61251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 157,
+          "line": 159,
           "sink": "RuntimeError"
         }
       ]
@@ -61161,7 +61261,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 185,
+          "line": 187,
           "sink": "RuntimeError"
         }
       ]
@@ -61171,7 +61271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 221,
+          "line": 223,
           "sink": "RuntimeError"
         }
       ]
@@ -65416,7 +65516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 399,
+          "line": 408,
           "sink": "RuntimeError"
         }
       ]
@@ -65566,7 +65666,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 124,
+          "line": 131,
           "sink": "ValueError"
         }
       ]
@@ -65576,7 +65676,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 114,
+          "line": 121,
           "sink": "ValueError"
         }
       ]
@@ -71776,7 +71876,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 325,
+          "line": 332,
           "sink": "ValueError"
         }
       ]
@@ -71786,7 +71886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 319,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -71796,7 +71896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 337,
+          "line": 344,
           "sink": "ValueError"
         }
       ]
@@ -83071,7 +83171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 305,
+          "line": 312,
           "sink": "ValueError"
         }
       ]
@@ -86376,7 +86476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 142,
+          "line": 149,
           "sink": "ValueError"
         }
       ]
@@ -86416,7 +86516,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 117,
+          "line": 124,
           "sink": "ValueError"
         }
       ]
@@ -86426,7 +86526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 383,
+          "line": 388,
           "sink": "ValueError"
         }
       ]
@@ -86436,7 +86536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 131,
+          "line": 138,
           "sink": "ValueError"
         }
       ]
@@ -86446,7 +86546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 89,
+          "line": 93,
           "sink": "ValueError"
         }
       ]
@@ -86456,7 +86556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 86,
+          "line": 90,
           "sink": "ValueError"
         }
       ]
@@ -86466,7 +86566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 32,
+          "line": 33,
           "sink": "ValueError"
         }
       ]
@@ -86476,7 +86576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 29,
+          "line": 30,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -86486,7 +86586,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 197,
+          "line": 199,
           "sink": "RuntimeError"
         }
       ]
@@ -86506,7 +86606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 133,
+          "line": 140,
           "sink": "ValueError"
         }
       ]
@@ -86516,7 +86616,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 392,
+          "line": 401,
           "sink": "ValueError"
         }
       ]
@@ -86821,7 +86921,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 302,
+          "line": 309,
           "sink": "ValueError"
         }
       ]
@@ -87061,7 +87161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_output.py",
-          "line": 339,
+          "line": 346,
           "sink": "ValueError"
         }
       ]
@@ -91796,7 +91896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 121,
+          "line": 128,
           "sink": "ValueError"
         },
         {
@@ -110022,6 +110122,21 @@
       ]
     },
     {
+      "key": "This PAC already has jiggle byte 255 on every vertex.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 24,
+          "sink": "python-return:jiggle_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 57,
+          "sink": "python-return:jiggle_ui_state"
+        }
+      ]
+    },
+    {
       "key": "This PAC has no existing cloth bindings.",
       "origins": [
         {
@@ -113256,7 +113371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 325,
+          "line": 330,
           "sink": "ValueError"
         }
       ]
@@ -113576,7 +113691,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_rust_replacement.py",
-          "line": 125,
+          "line": 129,
           "sink": "ValueError"
         }
       ]
@@ -113586,7 +113701,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_replacement_draft.py",
-          "line": 74,
+          "line": 78,
           "sink": "ValueError"
         }
       ]
@@ -124276,7 +124391,7 @@
         },
         {
           "path": "cdmw/services/mesh_rust_authoring.py",
-          "line": 7271,
+          "line": 7272,
           "sink": "open_edit_session"
         },
         {
@@ -127536,7 +127651,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 419,
+          "line": 428,
           "sink": "ValueError"
         }
       ]
@@ -127546,7 +127661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 414,
+          "line": 423,
           "sink": "ValueError"
         }
       ]
@@ -127556,7 +127671,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 423,
+          "line": 432,
           "sink": "ValueError"
         }
       ]
@@ -129481,7 +129596,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 373,
+          "line": 378,
           "sink": "RuntimeError"
         }
       ]
@@ -136336,7 +136451,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_layer_project_service.py",
-          "line": 417,
+          "line": 426,
           "sink": "ValueError"
         }
       ]

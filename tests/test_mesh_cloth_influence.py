@@ -296,7 +296,8 @@ def test_invalid_command_is_inert(cloth_session, extra):
     assert shadow_output(session) == source
 
 
-def test_host_attaches_archive_context_to_cloth_command_without_file_dialog(tmp_path, monkeypatch):
+@pytest.mark.parametrize("command_name", ["replacement_cloth", "replacement_jiggle"])
+def test_host_attaches_archive_context_to_cloth_command_without_file_dialog(tmp_path, monkeypatch, command_name):
     from tests.test_mesh_rust_editor_selection import _tab, _dispose, _archive_entry
     from PySide6.QtWidgets import QFileDialog
     tab = _tab(tmp_path)
@@ -319,8 +320,9 @@ def test_host_attaches_archive_context_to_cloth_command_without_file_dialog(tmp_
         raise ReachedWorker
     monkeypatch.setattr("cdmw.workers.mesh_rust_editor_workers.MeshRustProtocolWorker", capture_worker)
     try:
-        tab.standalone_rust_protocol_queue.append({"event": "command_request", "command": "replacement_cloth",
-            "arguments": {"part_ids": ["owned:0"], "rule": PacClothRule(0).to_dict()}})
+        rule = PacClothRule(0).to_dict() if command_name == "replacement_cloth" else {"below_y": 1.2}
+        tab.standalone_rust_protocol_queue.append({"event": "command_request", "command": command_name,
+            "arguments": {"part_ids": ["owned:0"], "rule": rule}})
         with pytest.raises(ReachedWorker):
             tab._start_next_rust_protocol_worker()
     finally:

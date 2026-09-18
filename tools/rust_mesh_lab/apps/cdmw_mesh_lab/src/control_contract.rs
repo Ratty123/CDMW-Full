@@ -709,6 +709,8 @@ page.cloth|cloth|CdmwRailPage::Cloth|Cloth,
 cloth.apply|cloth|"Apply cloth settings"|UiAction::CdmwCommand
 cloth.disable|cloth|"Disable cloth"|UiAction::CdmwCommand
 cloth.restore|cloth|"Restore cloth"|UiAction::CdmwCommand
+jiggle.disable|cloth|"Disable jiggle"|UiAction::CdmwCommand
+jiggle.restore|cloth|"Restore original jiggle"|UiAction::CdmwCommand
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction
