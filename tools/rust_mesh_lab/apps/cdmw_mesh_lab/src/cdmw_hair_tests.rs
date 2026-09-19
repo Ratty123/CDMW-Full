@@ -991,6 +991,10 @@ fn capture_hair_workflow_step(
 }
 
 fn capture_hair_workflow_view(app: &LabApplication, input: &Value, root: &std::path::Path, name: &str, yaw: f32) {
+    capture_hair_workflow_camera(app, input, root, name, yaw, 0.0);
+}
+
+fn capture_hair_workflow_camera(app: &LabApplication, input: &Value, root: &std::path::Path, name: &str, yaw: f32, pitch: f32) {
     if std::env::var_os("CDMW_HAIR_PROBE_CAPTURE_STEPS").is_none() {
         return;
     }
@@ -1054,7 +1058,7 @@ fn capture_hair_workflow_view(app: &LabApplication, input: &Value, root: &std::p
             height: 900,
             camera: Some(HeadlessMaterialCaptureCamera {
                 yaw_degrees: yaw,
-                pitch_degrees: 0.0,
+                pitch_degrees: pitch,
             }),
             ..Default::default()
         },
@@ -1199,6 +1203,9 @@ fn hair_production_workflow_matrix() {
                 app.hair.feedback
             );
             capture_hair_workflow_step(&app, &input, &mailbox, &format!("draw-{}", stroke + 1));
+            if !long_draw {
+                capture_hair_workflow_camera(&app, &input, &mailbox, &format!("draw-{}-top", stroke + 1), 0.0, -89.0);
+            }
             results.push(json!({"tool":format!("Draw {}",stroke+1),"symmetry":stroke==1,"geometry_changed":true,"acknowledged":true}));
             if long_draw {
                 std::fs::write(mailbox.join(format!("long-draw-{}.json", stroke + 1)),
@@ -1297,7 +1304,13 @@ fn hair_production_workflow_matrix() {
     }
     capture_hair_workflow_step(&app, &input, &mailbox, "prepared");
     app.camera
-        .set_standard_view(crate::camera::StandardView::Front);
+        .set_standard_view(if empty_start && !long_draw {
+            // Short crown strokes are visible from their drawing view; the
+            // head can correctly occlude them from the front.
+            crate::camera::StandardView::Top
+        } else {
+            crate::camera::StandardView::Front
+        });
     app.camera.frame_positions_in_viewport(
         app.hair
             .scene
@@ -2264,6 +2277,34 @@ fn hair_generated_legacy_locks_upgrade_without_regeneration_or_geometry_changes(
 }
 
 #[test]
+fn hair_conversion_full_snapshot_completes_its_matching_publication() {
+    let (mut app, _) = ready_hair_app();
+    app.run_hair_action(HairAction::Convert);
+    await_hair(&mut app);
+    let converted = app.hair.state.clone().unwrap();
+    assert!(converted.converted);
+    let document = app.hair.preview.clone().unwrap();
+    app.hair.inflight = Some(PreparedHair {
+        state: converted.clone(), document: document.clone(),
+        label: "Convert hair to ordinary mesh".into(), milliseconds: 1.0,
+    });
+    assert!(app.hair.preparing());
+    app.hydrate_hair(Some(converted.clone()));
+    assert!(!app.hair.preparing(), "An accepted conversion must release Finish and history");
+    assert_eq!(app.hair.acknowledged, Some((converted.clone(), document.clone())));
+
+    // A repeated notification for the current preview cannot acknowledge a
+    // different revision still in flight.
+    let mut newer = converted.clone();
+    newer.revision += 1;
+    app.hair.inflight = Some(PreparedHair {
+        state: newer, document, label: "Later edit".into(), milliseconds: 1.0,
+    });
+    app.hydrate_hair(Some(converted));
+    assert!(app.hair.inflight.is_some());
+}
+
+#[test]
 fn hair_history_requests_queue_behind_completed_strokes_without_merging_steps() {
     let (mut app, rect) = ready_hair_app();
     let (point, _) = visible_lock(&app, rect);
@@ -2502,4 +2543,53 @@ fn hair_shape_picker_and_follow_scalp_checkbox_drive_the_live_tool() {
         }]);
     }
     assert!(!app.hair.draw_follow_scalp);
+}
+
+#[test]
+fn hair_prepared_sections_keep_root_and_rigid_correction_controls() {
+    let (mut app, _) = ready_hair_app();
+    let state = app.hair.state.as_mut().unwrap();
+    state.groups[0].mode = GroupMode::Existing;
+    for lock in &mut state.locks {
+        lock.kind = LockKind::Bound;
+    }
+    let selected = state.locks[0].id;
+    app.hair.selected = HashSet::from([selected as usize]);
+    let ctx = egui::Context::default();
+    ctx.all_styles_mut(|style| style.animation_time = 0.0);
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 1800.0));
+    let frame = |app: &mut LabApplication, events| {
+        let mut actions = vec![];
+        let mut output = ctx.run_ui(egui::RawInput {
+            screen_rect: Some(rect), events, ..Default::default()
+        }, |ui| app.draw_hair_controls(ui, &mut actions));
+        output.textures_delta.clear();
+        (output, actions)
+    };
+    let click = |app: &mut LabApplication, label: &str| {
+        let (output, _) = frame(app, vec![]);
+        let point = output.shapes.iter().find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) if text.galley.job.text == label =>
+                Some(text.pos + text.galley.rect.center().to_vec2()),
+            _ => None,
+        }).unwrap_or_else(|| panic!("Missing hair control: {label}"));
+        let mut actions = vec![];
+        for pressed in [true, false] {
+            actions.extend(frame(app, vec![egui::Event::PointerMoved(point), egui::Event::PointerButton {
+                pos: point, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE,
+            }]).1);
+        }
+        actions
+    };
+    click(&mut app, "Prepare sections for grooming");
+    click(&mut app, "Set root / group selected sections");
+    assert_eq!(app.hair.tool, Some(HairTool::Root));
+    let actions = click(&mut app, "Mark selected scalp sections as rigid");
+    assert!(actions.iter().any(|action| matches!(action, UiAction::Hair(HairAction::Rigid))));
+    app.run_hair_action(HairAction::Rigid);
+    await_hair(&mut app);
+    assert_eq!(app.hair.state.as_ref().unwrap().locks.iter().find(|l| l.id == selected).unwrap().kind, LockKind::Rigid);
+    app.hair.tool = Some(HairTool::Select);
+    click(&mut app, "Set root / group selected sections");
+    assert_eq!(app.hair.tool, Some(HairTool::Root));
 }

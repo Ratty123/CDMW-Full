@@ -97,6 +97,25 @@ def test_topology_source_map_cannot_select_target_donor_records() -> None:
     assert _choose_pac_donor_indices(original, candidate) == [2]
 
 
+@pytest.mark.parametrize("vectorized", [False, True])
+def test_pac_donor_matching_keeps_exact_hits_and_first_nearest_ties(monkeypatch, vectorized):
+    import random
+    import numpy as np
+    from cdmw.modding import mesh_pac_builder
+
+    monkeypatch.setattr(mesh_pac_builder, "_np_module", lambda: np if vectorized else None)
+    rng = random.Random(73)
+    vertices = [(-1., 0., 0.), (1., 0., 0.)]
+    vertices += [tuple(rng.uniform(10., 20.) for _ in range(3)) for _ in range(128)]
+    vertices += [vertices[2]]
+    queries = [(0., 0., 0.), vertices[2], tuple(v + 1e-8 for v in vertices[2])]
+    queries += [tuple(rng.uniform(-20., 30.) for _ in range(3)) for _ in range(96)]
+    original, changed = SubMesh(vertices=vertices), SubMesh(vertices=queries)
+    expected = [0, 2, 2] + [min(range(len(vertices)), key=lambda i:
+        sum((point[axis] - vertices[i][axis]) ** 2 for axis in range(3))) for point in queries[3:]]
+    assert _choose_pac_donor_indices(original, changed) == expected
+
+
 def test_pac_skin_weights_encode_and_reparse_with_exact_unorm_sum() -> None:
     raw, original = _skinned_pac()
     updated = copy.deepcopy(original)
@@ -113,7 +132,8 @@ def test_pac_skin_weights_encode_and_reparse_with_exact_unorm_sum() -> None:
 
 
 @pytest.mark.parametrize("extra_weights", [(40, 60), (0, 0)])
-def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_weights) -> None:
+@pytest.mark.parametrize("complete_swap", [False, True])
+def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_weights, complete_swap) -> None:
     from tests.test_pac_skin_extra_influences import _record
 
     raw, original = _skinned_pac()
@@ -131,7 +151,7 @@ def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_w
     replacement.submeshes[0].bone_indices = [(1, 2)] * 3
     replacement.submeshes[0].bone_weights = [(0.25, 0.75)] * 3
     options = _static_options()
-    options.complete_external_swap = True
+    options.complete_external_swap = complete_swap
 
     output, report = build_static_mesh_replacement(raw, original, replacement, options)
 
@@ -140,7 +160,7 @@ def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_w
     for vertex in range(3):
         assert _weight_map(reparsed.submeshes[0], vertex) == pytest.approx({1: 64 / 255, 2: 191 / 255})
     for offset in reparsed.submeshes[0].source_vertex_offsets:
-        if any(extra_weights):
+        if any(extra_weights) or not complete_swap:
             assert output[offset + 39] == 0xC0
             assert output[offset + 12:offset + 16] == record[12:16]
             assert output[offset + 32:offset + 36] == record[32:36]
@@ -148,6 +168,42 @@ def test_full_replacement_keeps_cloth_guides_separate_from_authored_skin(extra_w
             assert output[offset + 39] == 0xFF
             assert output[offset + 12:offset + 16] == b"\x00\x00\x00\x3c"
             assert output[offset + 34:offset + 36] == b"\x00\x00"
+
+
+@pytest.mark.parametrize("influences", [5, 6])
+@pytest.mark.parametrize("complete_swap", [False, True])
+def test_generated_skin_uses_ordinary_records_when_cloth_donor_has_too_few_slots(influences, complete_swap):
+    from cdmw.modding.pac_cloth import pac_cloth_binding
+    from tests.test_pac_skin_extra_influences import _record
+
+    raw, original = _skinned_pac()
+    donor = bytearray(raw)
+    record = _record(gate=0xC0)
+    for offset in original.submeshes[0].source_vertex_offsets:
+        for start, end in ((12, 16), (20, 36), (39, 40)):
+            donor[offset + start:offset + end] = record[start:end]
+    raw = bytes(donor)
+    original = parse_pac(raw, "target.pac")
+    replacement = _replacement(list(original.submeshes[0].vertices))
+    bones = tuple(range(influences))
+    replacement.submeshes[0].bone_indices = [bones] * 3
+    replacement.submeshes[0].bone_weights = [(1 / influences,) * influences] * 3
+    options = _static_options()
+    options.complete_external_swap = complete_swap
+
+    output, report = build_static_mesh_replacement(raw, original, replacement, options)
+
+    assert not report.errors
+    reparsed = parse_pac(output, "target.pac")
+    for vertex, offset in enumerate(reparsed.submeshes[0].source_vertex_offsets):
+        assert set(reparsed.submeshes[0].bone_indices[vertex]) == set(bones)
+        assert sum(reparsed.submeshes[0].bone_weights[vertex]) == pytest.approx(1.0)
+        assert reparsed.submeshes[0].bone_weights[vertex] == pytest.approx(
+            (1 / influences,) * influences, abs=1 / 255)
+        assert output[offset + 39] == 0xFF
+        assert pac_cloth_binding(output, offset) is None
+    assert all(pac_cloth_binding(raw, offset) is not None
+               for offset in original.submeshes[0].source_vertex_offsets)
 
 
 @pytest.mark.parametrize("guide", [float("nan"), float("inf"), -1., 2048.])

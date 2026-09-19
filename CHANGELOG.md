@@ -19,6 +19,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- PAC export accelerates nearest donor matching for generated hair and rebuilt meshes while preserving original-record mappings and deterministic selection.
 - Hair Creator supports compatible registered hairstyles without a `_player` filename suffix. Large barber catalogues now use searchable pages, bounded background checks, and their supplied thumbnails while retaining the selected hairstyle's 3D preview.
 
 ### Fixed
@@ -26,6 +27,8 @@ The format is intentionally simple:
 - Localization read failures identify unsupported PALOC versions and malformed tables with their archive source, preserving the cause through encrypted archive reads.
 - New Item reads compressed `paloc` localization containers instead of reporting a decryption error for valid item-name tables. Exported names preserve the source table's container format.
 - Hair Tools loads the game's `Hair` barber slot as well as older `hairShape` catalogues, restoring Create and Edit choices and preserving the original slot on export. Setup and loading errors stay compact; Edit expands when its gallery is ready.
+- Hair editing keeps root and rigid-attachment correction available after preparation. Converting hair to an ordinary mesh now completes its save acknowledgement so Undo and Finish can proceed.
+- Generated hairstyles no longer fail export when transferred skin weights exceed a cloth donor vertex's four-bone capacity. Existing compatible cloth bindings remain intact.
 - Archive Browser reuses a compact file-extension index so searches such as `.pac` plus `nude` only check matching file types instead of scanning every catalogue entry.
 - Hair Creator keeps mouse and keyboard selections while other hairstyles finish compatibility checks.
 - Drawing and rebuilding generated hair preserve the existing section's Include in Mod setting.

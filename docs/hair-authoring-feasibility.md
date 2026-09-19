@@ -1,6 +1,6 @@
 # Hair creation in the existing Mesh Editor
 
-Updated on 2026-09-19. Experimental hair authoring uses one
+Updated on 2026-09-20. Experimental hair authoring uses one
 setup dialog for Kliff, Damiane and Oongka. Hairstyles have not been tested in game
 and may not work correctly. Local package creation is read-only against installed
 archives. Desktop interaction and in-game acceptance are separate from source and
@@ -42,7 +42,7 @@ body crown/back geometry are partitioned to avoid an overlapping face shell.
 The resulting scalp and neck/shoulder
 references stay outside output geometry.
 
-The mounted catalogue audited on 2026-09-14 contained:
+The mounted catalogue re-audited on 2026-09-20 contained:
 
 | Character | Registered | Compatible | Unavailable registration |
 |---|---:|---:|---|
@@ -127,7 +127,9 @@ rigid sections, unresolved groups and unsupported existing-hair operations repor
 requirements rather than silently succeeding. Draw and follower generation require
 generated hair. Ambiguous existing sections are described as original sections
 without grooming guides, without warning colours or automatic highlighting.
-Their preparation controls are collapsed until needed. Root/group assignment or
+Their preparation controls are collapsed until needed and remain available after
+all sections are prepared, allowing roots and rigid attachments to be corrected.
+Root/group assignment or
 a rigid classification is required for motion preview; shaping an unprepared
 section explains how to assign its guide.
 
@@ -140,12 +142,26 @@ Changed unprepared sections remain blocked. Generated geometry still requires
 guide coverage; draft versions and the original skin-weight layout stay unchanged.
 
 Each completed action uses the ordered publication queue and receives the normal
-host acknowledgement. Incremental edits retain unchanged channels and references;
+host acknowledgement. Conversion's full-state reply also completes its matching
+publication when it equals the locally prepared state, releasing Undo and Finish.
+Incremental edits retain unchanged channels and references;
 new topology uses complete output validation. An immutable original PAC skin donor
 is retained in authoring coordinates and matched by stable part identity. Generated
 preview geometry never becomes the donor for subsequent strokes. Exact vertex
-lineage preserves original packed records, including eight influences; new vertices
-use the existing validated weight transfer. The 40-byte layout guard stays enabled.
+lineage preserves original packed records, including their separate skeletal and
+cloth-guide lanes. New vertices use the existing validated weight transfer.
+Ordinary PAC records support six skeletal influences; cloth-bound records support
+four and reserve the remaining lanes for simulation guides. Generated vertices
+requiring five or six bones use the ordinary branch instead of copying an
+incompatible cloth binding. Compatible existing cloth records remain intact.
+The 40-byte layout guard stays enabled.
+
+PAC donor matching keeps verified original-vertex maps and rounded-position
+matches first. Remaining nearest-record searches use NumPy float64 operations
+with the same arithmetic and first-index tie rule as the scalar path. Temporary
+memory scales with the donor mesh, not every source/target pair. A local spot
+check with 2,000 queries and 1,500 donors took 0.264 seconds before and 0.019 seconds
+after with NumPy loaded; this measures donor matching only, not complete export.
 
 The XPBD preview keeps roots, scalp and reference transforms aligned. Cached scalp
 surface contacts check guide segments and card width; neck and shoulder collision
@@ -198,13 +214,22 @@ before combining them. No in-game installation is performed by verification.
 
 ## Verification and reproducible probes
 
+The 2026-09-20 mounted-data pass completed empty-scalp creation, drawing,
+selection, Undo/Redo, draft reopening and temporary package export for all three
+characters using compatible donors. Damiane also completed 30 existing-hair and
+38 generated-hair host transactions, including grooming, cuts, conversion and
+Undo; generated hair included settled-shape Undo/Redo. The final dense draft
+reparsed at 50,319 vertices. All 13 package payload hashes matched before and
+after donor-search acceleration, and each successful run retained unchanged
+installed archive fingerprints. These are offscreen editor and file checks.
+
 | Area | Evidence and acceptance |
 |---|---|
 | Setup and switching | Real Qt construction tests: no catalogue, required character, Start gating, accepted preparation, failure/retry, cancellation, stale results, same-target preset dispatch; existing archive-switch confirmation tests |
 | Grooming | Production pointer dispatcher plus normal serialized candidates and Python host acknowledgements; geometry changes and fixed roots, Select/Ctrl/marquee, consecutive Draw, Cut/Erase/Delete, Lengthen and all shaping tools |
 | Appearance | Production archive/material loaders; authored component-scale tests; root/group and rigid assignment; synthetic symmetry, width/density and DDS handoff/reapplication tests |
 | Motion | Production draw buffers and DX12 captures; six movement presets, scalp card penetration, transient state, Pause/Reset, editing during playback and settled-shape Undo/Redo |
-| Persistence and output | Generated and existing sequences, eight-influence preservation, repeated save/reopen, conversion/Undo, inclusion, pending Finish, PAC reparsing and complete temporary overlay packages |
+| Persistence and output | Generated and existing sequences, skeletal/cloth-record preservation, five/six-bone generated output, repeated save/reopen, conversion/Undo, inclusion, pending Finish, PAC reparsing and complete temporary overlay packages |
 | Desktop and game | Offscreen captures do not prove normal-window interaction or presentation latency. Packaged startup/provenance is a separate check. In-game installation, barber selection, save/load, headgear and physics remain unverified. |
 
 Focused commands (run Python with a pytest base temp outside the checkout):
@@ -225,8 +250,16 @@ loader. `--live-renderer` points to the compiled Rust test executable and runs t
 production pointer/host matrix; `--capture-steps` also records textured per-tool
 DX12 captures from the real material loader. `--resume-draft` checks reopening,
 saving again and export. `--skip-package` limits an already covered output run.
+An isolated checkout also needs the built native helpers: use the existing
+`CDMW_MESH_CORE_BIN` and `CDMW_ARCHIVE_ACCELERATOR_BIN` overrides when those
+binaries are in the main checkout.
+`--style-index` selects a zero-based catalogue entry directly; use a compatible
+entry from `--audit-all` (Oongka's first supported entry is index 1).
 Set `CDMW_HAIR_PROBE_EMPTY_START=1` for the focused empty-scalp sequence: two
 Draw strokes, selection, Lengthen, Undo/Redo, draft reopening and package export.
+Short crown strokes are selected from the top view where they were drawn;
+the front view may correctly hide them behind the head. Step captures include
+that top view as well as the front view.
 Every successful installed-data probe verifies unchanged archive fingerprints.
 
 The Rust ignored `hair_production_render_and_benchmark` test consumes the probe's

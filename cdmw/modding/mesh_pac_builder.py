@@ -25,6 +25,7 @@ from .mesh_parser import (
     _compute_smooth_normals,
     _find_pac_descriptors,
     _find_pac_section_layout,
+    _np_module,
     _parse_pac_geometry_section,
     _parse_par_sections,
     _validated_pac_descriptor_prefix,
@@ -277,6 +278,7 @@ def _choose_pac_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
         else []
     )
     donor_indices: list[int] = []
+    donor_positions = None
     for vertex_index, new_pos in enumerate(new_sm.vertices):
         if vertex_index < len(sidecar_source_map):
             mapped_index = int(sidecar_source_map[vertex_index])
@@ -288,6 +290,17 @@ def _choose_pac_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
         exact_hits = exact_map.get(key)
         if exact_hits:
             donor_indices.append(exact_hits[0])
+            continue
+
+        np = _np_module()
+        if np is not None:
+            if donor_positions is None:
+                donor_positions = np.asarray(orig_sm.vertices, dtype=np.float64)
+            delta = donor_positions - new_pos
+            # Match scalar arithmetic and first-index tie handling. Keep memory
+            # proportional to the donor mesh, never all source/target pairs.
+            distances = delta[:, 0] * delta[:, 0] + delta[:, 1] * delta[:, 1] + delta[:, 2] * delta[:, 2]
+            donor_indices.append(int(np.argmin(distances)))
             continue
 
         best_idx = 0
@@ -1256,9 +1269,11 @@ def _build_pac_full_rebuild(
                     )
 
                 if prepared["skin_export"]:
-                    if preserve_runtime_abi and not retain_cloth:
-                        # A six-bone import requires the ordinary shader branch.
-                        # Four-bone rows retain their existing guide binding.
+                    if not retain_cloth and (preserve_runtime_abi
+                            or len(prepared["submesh"].bone_indices[skin_vi]) > 4):
+                        # Generated hair and partial imports also need the ordinary
+                        # shader branch when their skeletal weights occupy guide slots.
+                        # Rows with up to four bones retain their valid guide binding.
                         donor_rec[PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_PALETTE_SLOTS:
                                   PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(
                             PAC_SKIN_INFLUENCES - PAC_SKIN_PALETTE_SLOTS

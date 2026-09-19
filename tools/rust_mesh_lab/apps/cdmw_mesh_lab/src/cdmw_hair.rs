@@ -291,6 +291,14 @@ impl LabApplication {
         }
         let changed = self.hair.state.as_ref() != state.as_ref();
         if !changed {
+            // Conversion publishes a full host snapshot instead of a compact
+            // hair ACK. It can equal the preview already installed locally.
+            if self.hair.inflight.as_ref().is_some_and(|pending| {
+                state.as_ref() == Some(&pending.state)
+            }) {
+                let pending = self.hair.inflight.take().unwrap();
+                self.hair.acknowledged = Some((pending.state, pending.document));
+            }
             // Selection/material notifications can repeat the acknowledged hair
             // state without a new mesh document. Keep its generated geometry;
             // the generic document can still contain the original PAC donor.
@@ -1009,9 +1017,11 @@ impl LabApplication {
             if unresolved>0 {
                 ui.weak(format!("{unresolved} original sections have no grooming guides"));
                 ui.weak("Unchanged sections can be exported with their original game skinning. Prepare them only for grooming or motion preview.");
+            }
+            if !generated {
                 egui::CollapsingHeader::new("Prepare sections for grooming").show(ui, |ui| {
                 let groups:Vec<_>=self.hair.state.as_ref().unwrap().groups.iter().filter_map(|g|{
-                    let ids:Vec<_>=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|l.part==g.part&&l.kind==LockKind::Unresolved).map(|l|l.id as usize).collect();
+                    let ids:Vec<_>=self.hair.state.as_ref().unwrap().locks.iter().filter(|l|l.part==g.part&&!l.vertices.is_empty()).map(|l|l.id as usize).collect();
                     if ids.is_empty(){None}else{Some((g.name.clone(),ids))}
                 }).collect();
                 egui::ComboBox::from_id_salt("hair_unprepared_sections").selected_text("Select sections to prepare").show_ui(ui,|ui|{
@@ -1020,8 +1030,8 @@ impl LabApplication {
                         if ui.button(format!("{label} · {} sections",ids.len())).clicked(){self.hair.selected=ids.iter().copied().collect();self.hair.tool=Some(HairTool::Select);}
                     }
                 });
-                if ui.button("Set root / group selected sections").clicked(){self.hair.tool=Some(HairTool::Root);}
-                if ui.button("Mark selected scalp sections as rigid").clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
+                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Set root / group selected sections")).clicked(){self.hair.tool=Some(HairTool::Root);}
+                if ui.add_enabled(!self.hair.selected.is_empty(),egui::Button::new("Mark selected scalp sections as rigid")).clicked(){actions.push(UiAction::Hair(HairAction::Rigid));}
                 });
             }
             egui::CollapsingHeader::new("Setup").show(ui,|ui| {

@@ -134,7 +134,9 @@ without preparation. To groom them or preview their motion, expand preparation,
 select a group or visible locks, choose **Set root / group selected sections**,
 then click the scalp. This explicitly combines selected sections sharing a
 material. Changed sections without valid guides remain blocked. Mark rigid scalp
-pieces as rigid. Draw and follower density are available for generated hair;
+pieces as rigid. Preparation controls remain available after every section has
+been assigned, so roots and rigid attachments can be corrected without resetting
+the hairstyle. Draw and follower density are available for generated hair;
 unsupported controls explain
 that limitation. Existing locks support grooming, cutting and deletion once bound.
 
@@ -168,7 +170,8 @@ texture's identity; separate DDS bindings remain independent even when their byt
 match. Repeated edits and Undo preserve the same preview and export bindings.
 Missing required DDS files block game-ready validation. Guides are an optional
 overlay. **Convert to ordinary
-mesh** is an explicit undoable action under Advanced.
+mesh** is an explicit undoable action under Advanced. Once the host accepts the
+conversion, Undo and Finish are available without waiting for another edit.
 
 Hair state v2 records stable locks, geometry ownership and retained source vertices.
 Drafts use `mesh_layer_project_v5`/`mesh_layer_generation_v5`, with reads of v1-4.
@@ -195,7 +198,9 @@ the new choice inherits the first matching donor slot's settings and icon.
 Retained PAC vertices preserve their original skeletal and cloth-guide records
 when reshaped, cut or deleted. Generated geometry always transfers skinning from
 an immutable original PAC donor matched by stable part identity, including after
-consecutive Draw strokes, Undo/Redo and reopening. The 40-byte PAC layout guard
+consecutive Draw strokes, Undo/Redo and reopening. Generated vertices needing five
+or six bone weights use ordinary skin records; compatible cloth bindings remain
+intact. The 40-byte PAC layout guard
 remains in force. Drafts can be reopened and saved repeatedly without losing part
 identities. A multi-LOD donor is blocked until its writer is verified. Installed archives stay
 read-only. In-game barber selection, save/load, headgear and motion remain unverified.
