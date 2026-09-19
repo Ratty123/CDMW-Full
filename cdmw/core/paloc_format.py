@@ -4,9 +4,8 @@
 text the game shows: quest dialogue, item names, UI labels, subtitles. There are 14 of
 them, one per language, and each carries the same 187,521 entries.
 
-The layout is a flat run of records with the count at the *end* of the file, which is
-why a reader that looks for a header finds nothing and has to scan for the first
-plausible record:
+The decoded table is a flat run of records with the count at the *end* of the
+payload:
 
     repeat count times:
         u32 category          one of 38 values; groups entries by where they are used
@@ -14,6 +13,11 @@ plausible record:
         u32 key_length;   key   UTF-8
         u32 text_length;  text  UTF-8, may be empty
     u32 count                 the footer
+
+Some files wrap that payload in a 512-byte header: `paloc`, u32 version (0),
+u32 compressed size, u32 uncompressed size, then opaque padding. The remaining
+bytes are an LZ4 block, independent of the archive entry's compression flags.
+Edits retain the source container and untouched tables re-encode byte for byte.
 
 Nothing is offset-addressed and nothing is aligned, so a translated line may be any
 length: rewriting the table is just re-emitting the records. That is what makes
@@ -32,12 +36,21 @@ from __future__ import annotations
 import struct
 from bisect import bisect_right
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Iterable, Mapping, Sequence, Tuple
+
+try:
+    import lz4.block as lz4_block
+except ImportError:
+    lz4_block = None
 
 #: The count is a u32 footer, so a valid file is at least that.
 _FOOTER = 4
 _RECORD_HEAD = 12
+_CONTAINER_MAGIC = b"paloc"
+_CONTAINER_HEADER = 512
+# Check the declared expansion before asking LZ4 to allocate an output buffer.
+_MAX_CONTAINER_PAYLOAD = 256 * 1024 * 1024
 
 
 class PalocFormatError(ValueError):
@@ -60,6 +73,8 @@ class LocalizationTable:
     """A parsed `.paloc`."""
 
     entries: Tuple[LocalizationEntry, ...]
+    #: Original wrapper retained for exact rebuilds and container-preserving edits.
+    source_container: bytes = field(default=b"", repr=False, compare=False)
 
     def __len__(self) -> int:
         return len(self.entries)
@@ -73,6 +88,27 @@ class LocalizationTable:
         return dict(Counter(entry.category for entry in self.entries))
 
 
+def _container_payload(data: bytes, where: str) -> bytes:
+    if len(data) < _CONTAINER_HEADER:
+        raise PalocFormatError(f"PALOC container header is truncated{where}")
+    version, stored_size, payload_size = struct.unpack_from("<III", data, 5)
+    if version != 0:
+        raise PalocFormatError(f"unsupported PALOC container version {version}{where}")
+    if stored_size != len(data) - _CONTAINER_HEADER:
+        raise PalocFormatError(f"PALOC container compressed size does not match its bytes{where}")
+    if not _FOOTER <= payload_size <= _MAX_CONTAINER_PAYLOAD:
+        raise PalocFormatError(f"PALOC container uncompressed size is out of bounds{where}")
+    if lz4_block is None:
+        raise PalocFormatError(f"compressed PALOC containers require the lz4 package{where}")
+    try:
+        payload = lz4_block.decompress(data[_CONTAINER_HEADER:], uncompressed_size=payload_size)
+    except lz4_block.LZ4BlockError as exc:
+        raise PalocFormatError(f"PALOC container LZ4 decompression failed{where}: {exc}") from exc
+    if len(payload) != payload_size:
+        raise PalocFormatError(f"PALOC container uncompressed size does not match its payload{where}")
+    return payload
+
+
 def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
     """Parse a `.paloc` string table.
 
@@ -82,6 +118,9 @@ def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
     """
 
     where = f" ({name})" if name else ""
+    container = data if data.startswith(_CONTAINER_MAGIC) else b""
+    if container:
+        data = _container_payload(container, where)
     if len(data) < _FOOTER:
         raise PalocFormatError(f"buffer is too short to hold a count{where}")
     declared = struct.unpack_from("<I", data, len(data) - _FOOTER)[0]
@@ -118,7 +157,7 @@ def parse_paloc(data: bytes, *, name: str = "") -> LocalizationTable:
         raise PalocFormatError(
             f"the footer counts {declared:,} records but the table walks {len(entries):,}{where}"
         )
-    return LocalizationTable(entries=tuple(entries))
+    return LocalizationTable(entries=tuple(entries), source_container=container)
 
 
 def encode_paloc(table: LocalizationTable | Iterable[LocalizationEntry]) -> bytes:
@@ -139,7 +178,18 @@ def encode_paloc(table: LocalizationTable | Iterable[LocalizationEntry]) -> byte
         out += struct.pack("<I", len(text))
         out += text
     out += struct.pack("<I", len(entries))
-    return bytes(out)
+    payload = bytes(out)
+    if isinstance(table, LocalizationTable) and table.source_container:
+        original = _container_payload(table.source_container, "")
+        if payload == original:
+            return table.source_container
+        if len(payload) > _MAX_CONTAINER_PAYLOAD:
+            raise PalocFormatError("PALOC container uncompressed size is out of bounds")
+        compressed = lz4_block.compress(payload, store_size=False)
+        header = bytearray(table.source_container[:_CONTAINER_HEADER])
+        struct.pack_into("<II", header, 9, len(compressed), len(payload))
+        return bytes(header) + compressed
+    return payload
 
 
 def replace_text(
@@ -167,7 +217,7 @@ def replace_text(
         else:
             entries.append(entry)
     missing = tuple(sorted(set(wanted) - seen))
-    return LocalizationTable(entries=tuple(entries)), missing
+    return replace(table, entries=tuple(entries)), missing
 
 
 def add_localization_entries(
@@ -223,7 +273,7 @@ def add_localization_entries(
             at = spine[-1][1] + 1 if spine else len(table.entries)
         merged.insert(at, entry)
     named = tuple(entry for entry in additions if not entry.key.isdigit())
-    return LocalizationTable(entries=tuple(merged) + named)
+    return replace(table, entries=tuple(merged) + named)
 
 
 def entries_like(

@@ -563,8 +563,11 @@ Current StoreInfo retains the additional stock condition bytes and all opaque
 fields. Every writable shape must round-trip without changes first.
 
 Item text uses the current per-language `item.paloc` files, including Arabic,
-or the legacy monolithic localization tables. Unspecified text falls back to
-English using the existing derived keys. Arabic is an item-text option, not an
+or the legacy monolithic localization tables. Both raw tables and tables with
+the 512-byte `paloc` LZ4 container are supported. New names preserve the source
+container and its opaque header bytes; untouched tables rebuild byte for byte.
+Unspecified text falls back to English using the existing derived keys.
+Arabic is an item-text option, not an
 additional workbench UI language.
 
 Template searches initially use the game's equipment category, with **All

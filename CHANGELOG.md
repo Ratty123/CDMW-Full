@@ -22,6 +22,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item reads compressed `paloc` localization containers instead of reporting a decryption error for valid item-name tables. Exported names preserve the source table's container format.
 - Hair Tools loads the game's `Hair` barber slot as well as older `hairShape` catalogues, restoring Create and Edit choices and preserving the original slot on export. Setup and loading errors stay compact; Edit expands when its gallery is ready.
 - Archive Browser reuses a compact file-extension index so searches such as `.pac` plus `nude` only check matching file types instead of scanning every catalogue entry.
 - Hair Creator keeps mouse and keyboard selections while other hairstyles finish compatibility checks.
