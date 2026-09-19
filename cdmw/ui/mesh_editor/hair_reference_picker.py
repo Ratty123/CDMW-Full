@@ -135,6 +135,7 @@ class HairReferencePickerDialog(QDialog):
         for request in self._requests: self._service.cancel(request)
         self._requests.clear(); self._rows.clear(); self._preview.clear_page()
         self._prepare.cancel(); self.grid.clear(); self.choose.setEnabled(False)
+        self._selection_touched = False
         self._audit_prepare.cancel(); self._audit_queue.clear(); self._audit_active = None
         self._style_queue.clear(); self._details.clear(); self._verified.clear(); self._audit_errors.clear()
         self._icon_images.clear(); self._page_icon_paths.clear(); self._pending_icon_keys.clear()
@@ -212,7 +213,7 @@ class HairReferencePickerDialog(QDialog):
                 self._preview.select(result, self._generation)
                 self.choose.setEnabled(len(result.models) == 1)
         self._refresh_thumbnails()
-        if self.grid.currentRow() < 0 and self.grid.count(): self.grid.setCurrentRow(0)
+        if self.grid.currentRow() < 0 and self.grid.count(): self._select_row(0)
         if self.auto_choose_first and self.choose.isEnabled():
             self._choose()
         if kind == "style" and not self._base_only:
@@ -243,7 +244,16 @@ class HairReferencePickerDialog(QDialog):
         item = self.grid.currentItem()
         return item.data(Qt.UserRole) if item is not None else None
 
-    def _select(self, *_):
+    def _select_row(self, index):
+        touched = self._selection_touched
+        self.grid.setCurrentRow(index)
+        self._selection_touched = touched
+
+    def _select(self, *changed):
+        if changed and changed[0] is not None:
+            # currentItemChanged includes keyboard navigation; automatic choices
+            # restore the prior intent through _select_row.
+            self._selection_touched = True
         self._preparation_generation += 1
         self._prepare.cancel(); self.choose.setEnabled(False)
         key = self._key()
@@ -344,13 +354,14 @@ class HairReferencePickerDialog(QDialog):
                     item.setText(item.text() + " — unavailable")
                     item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
                 elif not self._selection_touched and inputs.detail.row.path.casefold() == self._preferred_path:
-                    self.grid.setCurrentRow(i)
-        if inputs is not None and (not self._selection_touched or self._key() not in self._verified):
+                    self._select_row(i)
+        if inputs is not None and (not self._selection_touched or self._key() is None
+                                   or self._key() in self._audit_errors):
             preferred = next((i for i in range(self.grid.count()) if self._rows[self.grid.item(i).data(Qt.UserRole)].path.casefold() == self._preferred_path
                               and self.grid.item(i).flags() & Qt.ItemIsEnabled), None)
             for i in range(self.grid.count()):
                 if self.grid.item(i).data(Qt.UserRole) in self._verified:
-                    self.grid.setCurrentRow(preferred if preferred is not None and not self._selection_touched else i)
+                    self._select_row(preferred if preferred is not None and not self._selection_touched else i)
                     break
         self._select()
         if error and self._key() == key:

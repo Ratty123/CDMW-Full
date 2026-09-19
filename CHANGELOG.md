@@ -17,6 +17,9 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Hair Creator keeps mouse and keyboard selections while other hairstyles finish compatibility checks.
+- Drawing and rebuilding generated hair preserve the existing section's Include in Mod setting.
+- Hair DDS edits keep distinct texture bindings separate even when their original contents match, preserving preview/export agreement and subsequent edits.
 - Hair Creator handles repeated barber slots from mods such as Barber Unlocked without duplicating chooser entries or rejecting export. New hairstyles inherit the first matching slot's settings and icon while preserving existing choices.
 - Fixed hair cuts being mistaken for bone-weight edits during export. Surviving vertices retain their original skin and cloth records.
 

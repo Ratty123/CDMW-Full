@@ -51,6 +51,45 @@ def test_hair_mode_allows_mod_inclusion_without_conversion(editor):
         assert live.hair_state == original and not live.hair_state.payload["converted"]
 
 
+@pytest.mark.parametrize("included", [False, True])
+def test_generated_hair_edit_preserves_output_inclusion_and_history(editor, included):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    request = _fixtures._request(authoring, "command_request", 911)
+    request.update(command="replacement_include",
+                   arguments={"part_ids": [live.replacement_state.parts[0].part_id], "included": included})
+    authoring.run_command(request)
+    before = live.replacement_state
+    apply_hair_candidate(authoring, candidate(authoring, topology=True), "Draw another lock")
+    after = live.replacement_state
+    assert after.parts[0].included is included
+    snapshot = service.capture_export_snapshot(sid)
+    if included:
+        validate_hair_output(snapshot)
+    else:
+        with pytest.raises(ValueError, match="No authored hair section is included"):
+            validate_hair_output(snapshot)
+    service.undo(sid)
+    assert live.replacement_state == before
+    service.redo(sid)
+    assert live.replacement_state == after
+
+
+def test_generated_hair_first_draw_after_empty_is_included(editor):
+    _, authoring = editor
+    live = authoring.shadow_service._session(authoring.shadow_session_id)
+    drawn = candidate(authoring, topology=True)
+    empty = candidate(authoring)
+    empty["hair"].update(guides=[], bindings=[], locks=[])
+    empty["submeshes"][0] = dict(positions=[], normals=[], uvs=[], indices=[])
+    apply_hair_candidate(authoring, empty, "Start empty")
+    assert not live.replacement_state.parts[0].included
+    drawn["hair"]["revision"] = live.hair_state.revision + 1
+    apply_hair_candidate(authoring, drawn, "Draw first lock")
+    assert live.replacement_state.parts[0].included
+
+
 def test_reopened_hair_draft_can_save_and_export_again(editor, tmp_path):
     from cdmw.domain.mesh.replacement import bound_part_indices
     _, authoring = editor
@@ -397,6 +436,91 @@ def test_dds_edit_preserves_material_binding_and_undo(editor, tmp_path):
     assert after.mesh.submeshes[0].preview_texture_dds_path != str(source)
     service.undo(sid)
     assert service.capture_export_snapshot(sid).hair_state == before.hair_state
+
+
+@pytest.mark.parametrize("bindings", ["legacy", "native", "shared_cache", "rebased"])
+def test_dds_edits_keep_distinct_identical_textures_separate(editor, tmp_path, bindings):
+    from pathlib import Path
+    from cdmw.models import PreviewMaterialParameterInput
+    from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_binding
+    from cdmw.services.mesh_rust_hair import hair_texture_command
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    other_logical = "character/texture/other_hair.dds" if bindings == "legacy" else "character/texture/other/hair.dds"
+    material = f'<Material _pbdSimulationMaterialName="Hair"><Texture _path="{TEXTURE}"/><Texture _path="{other_logical}"/></Material>'.encode()
+    live.replacement_state = replace(live.replacement_state, dependencies=(
+        ReplacementFile(MATERIAL, material), ReplacementFile(TEXTURE, dds()), ReplacementFile(other_logical, dds())))
+    source = tmp_path / ("hair.dds" if bindings == "legacy" else "opaque-base.dds")
+    other = source if bindings == "shared_cache" else tmp_path / ("other_hair.dds" if bindings == "legacy" else "opaque-material.dds")
+    source.write_bytes(dds())
+    other.write_bytes(dds())
+    part = live.working_mesh.submeshes[0]
+    if bindings == "legacy":
+        part.preview_texture_dds_path = part.preview_texture_path = str(source)
+        part.preview_material_texture_dds_path = part.preview_material_texture_path = str(other)
+    else:
+        assert apply_dotnet_native_material_batch_binding(part, {"dds_textures": {
+            "base": {"source_path": str(source), "archive_path": TEXTURE, "semantic_type": "base_color"},
+            "material": {"source_path": str(other), "archive_path": other_logical, "semantic_type": "material"},
+        }})
+        if bindings == "rebased":
+            part.preview_material_texture_inputs = tuple(replace(item,
+                parameter_name=f"texture{i}", source_texture_path=item.source_dds_path,
+                material_parameters=(PreviewMaterialParameterInput(parameter_name=f"texture{i}",
+                    texture_path=logical),))
+                for i, (item, logical) in enumerate(zip(part.preview_material_texture_inputs, (TEXTURE, other_logical))))
+    modified, later = tmp_path / "green.dds", tmp_path / "blue.dds"
+    Image.new("RGBA", (4, 4), (10, 120, 80, 255)).save(modified, format="DDS", pixel_format="DXT5")
+    Image.new("RGBA", (4, 4), (10, 40, 180, 255)).save(later, format="DDS", pixel_format="DXT5")
+    before = service.capture_export_snapshot(sid)
+    hair_texture_command(authoring, {"texture_path": TEXTURE, "_dds_path": str(modified)}, threading.Event())
+    first = service.capture_export_snapshot(sid)
+    part = first.mesh.submeshes[0]
+    assert Path(part.preview_texture_dds_path).read_bytes() == modified.read_bytes()
+    assert Path(part.preview_material_texture_dds_path).read_bytes() == dds()
+    assert {file.path: file.data for file in first.replacement_state.companion_files} == {TEXTURE: modified.read_bytes()}
+    if bindings != "legacy":
+        inputs = part.preview_material_texture_inputs
+        assert Path(inputs[0].source_dds_path).read_bytes() == modified.read_bytes()
+        assert inputs[1] == before.mesh.submeshes[0].preview_material_texture_inputs[1]
+    # Even equal edits of same-named source textures must keep independent bindings.
+    hair_texture_command(authoring, {"texture_path": other_logical, "_dds_path": str(modified)}, threading.Event())
+    both = service.capture_export_snapshot(sid)
+    assert both.mesh.submeshes[0].preview_texture_dds_path != both.mesh.submeshes[0].preview_material_texture_dds_path
+    hair_texture_command(authoring, {"texture_path": TEXTURE, "_dds_path": str(later)}, threading.Event())
+    after = service.capture_export_snapshot(sid)
+    assert Path(after.mesh.submeshes[0].preview_material_texture_dds_path).read_bytes() == modified.read_bytes()
+    assert {file.path: file.data for file in after.replacement_state.companion_files} == {
+        TEXTURE: later.read_bytes(), other_logical: modified.read_bytes()}
+    service.undo(sid)
+    service.undo(sid)
+    undone = service.capture_export_snapshot(sid)
+    assert undone.replacement_state == first.replacement_state and undone.hair_state == first.hair_state
+    assert undone.mesh.submeshes[0].preview_material_texture_dds_path == first.mesh.submeshes[0].preview_material_texture_dds_path
+    service.redo(sid)
+    assert service.capture_export_snapshot(sid).replacement_state == both.replacement_state
+    assert source.read_bytes() == other.read_bytes() == dds()
+
+
+def test_dds_edit_rejects_ambiguous_legacy_bindings_without_publishing(editor, tmp_path):
+    from cdmw.services.mesh_rust_hair import hair_texture_command
+
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    other = "character/texture/other/hair.dds"
+    material = f'<Material><Texture _path="{TEXTURE}"/><Texture _path="{other}"/></Material>'.encode()
+    live.replacement_state = replace(live.replacement_state, dependencies=(
+        ReplacementFile(MATERIAL, material), ReplacementFile(TEXTURE, dds()), ReplacementFile(other, dds())))
+    source = tmp_path / "opaque.dds"
+    source.write_bytes(dds())
+    live.working_mesh.submeshes[0].preview_texture_dds_path = str(source)
+    before = service.capture_export_snapshot(sid)
+    with pytest.raises(ValueError, match="no resolved preview binding"):
+        hair_texture_command(authoring, {"texture_path": TEXTURE, "_dds_path": str(source)}, threading.Event())
+    assert live.hair_state == before.hair_state and live.replacement_state == before.replacement_state
 
 
 def test_float32_wire_reference_roundtrip_preserves_host_reference(editor):

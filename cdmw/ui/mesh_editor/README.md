@@ -90,6 +90,8 @@ from Finder starts on its page. Mounted barber DDS icons supply the grid images;
 missing or unreadable icons use the existing rendered thumbnails. The selected
 style still gets its full 3D preview. Page changes cancel obsolete icon and
 compatibility work, and unavailable styles keep their explanation.
+Mouse and keyboard selections stay selected while other compatibility checks
+finish. Start waits for the selected hairstyle's own check.
 
 Start prepares a complete replacement in isolation before the existing unsaved
 work confirmation and scene switch. Cancellation and failed preparation preserve
@@ -157,8 +159,11 @@ frames never modify drafts, output or history. **Use settled shape** explicitly
 accepts the neutral-coordinate result as one undoable edit after motion has played.
 
 **Open in Texture Editor** and **Apply edited DDS** retain the template's verified
-material slots, dimensions, compression and mip counts. Missing required DDS files
-block game-ready validation. Guides are an optional overlay. **Convert to ordinary
+material slots, dimensions, compression and mip counts. Edits follow the selected
+texture's identity; separate DDS bindings remain independent even when their bytes
+match. Repeated edits and Undo preserve the same preview and export bindings.
+Missing required DDS files block game-ready validation. Guides are an optional
+overlay. **Convert to ordinary
 mesh** is an explicit undoable action under Advanced.
 
 Hair state v2 records stable locks, geometry ownership and retained source vertices.
@@ -172,6 +177,8 @@ unchanged UVs, materials and skin records remain resident. Each completed action
 keeps its own Undo step. Pending Undo/Redo and Finish wait for ordered publication.
 Parts, action history, guides/roots and collision overlays remain available in
 collapsed panels; visibility never removes hair from the exported result.
+Drawing and rebuilding populated sections preserve their **Include in Mod**
+setting. The first hair drawn into an empty section starts included.
 Incremental candidates reuse immutable references; acknowledgements preserve the
 camera, selection and newer local edits. Finish drains pending actions first.
 Acknowledgements read the validated revision without decoding the complete hair

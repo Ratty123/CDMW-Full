@@ -307,6 +307,54 @@ def test_unsupported_registered_style_is_disabled_and_next_verified_base_selecte
     dialog.reject()
 
 
+@pytest.mark.parametrize("interaction", ["mouse", "keyboard"])
+@pytest.mark.parametrize("verified", [False, True])
+def test_hairstyle_selection_survives_other_background_checks(owner, interaction, verified):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=((0, "first"), (1, "second"), (2, "third")), audit_hair=True)
+    QApplication.processEvents()
+    first, second, selected = row(1), row(2), row(3)
+    dialog._details = {item.key: replace(detail(item), models=(SimpleNamespace(entry_id=i),))
+                       for i, item in enumerate((first, second, selected))}
+    for item in (first, second, selected):
+        dialog._add(item)
+    dialog._verified[first.key] = SimpleNamespace(detail=dialog._details[first.key])
+    if verified:
+        dialog._verified[selected.key] = SimpleNamespace(detail=dialog._details[selected.key])
+    dialog._select_row(0)
+    if interaction == "keyboard":
+        QTest.keyClick(dialog.grid, Qt.Key_End)
+    else:
+        dialog.grid.setCurrentRow(2)
+        dialog.grid.itemClicked.emit(dialog.grid.item(2))
+    assert dialog._key() == selected.key
+    dialog._audit_active = second.key
+    dialog._audit_done(dialog._generation, SimpleNamespace(detail=dialog._details[second.key]), "")
+    assert dialog._key() == selected.key
+    assert dialog.choose.isEnabled() is verified
+    dialog._audit_active = selected.key
+    dialog._audit_done(dialog._generation, SimpleNamespace(detail=dialog._details[selected.key]), "")
+    assert dialog._key() == selected.key and dialog.choose.isEnabled()
+    dialog.reject()
+
+
+def test_requested_hairstyle_is_selected_automatically_until_user_intervenes(owner):
+    first, preferred = row(1), row(2)
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=((0, "first"), (1, "second")),
+        audit_hair=True, preferred_path=preferred.path)
+    QApplication.processEvents()
+    for request, item in zip(owner.archive_catalogue_service.calls, (first, preferred)):
+        value = replace(detail(item), models=(SimpleNamespace(entry_id=item.key),))
+        owner.archive_catalogue_service.result_ready.emit(request[0], "get_character_catalog_detail", value)
+        dialog._audit_done(dialog._generation, SimpleNamespace(detail=value), "")
+    assert dialog._key() == preferred.key and dialog.choose.isEnabled()
+    assert not dialog._selection_touched
+    dialog.reject()
+
+
 def test_create_checks_one_base_at_a_time_and_waits_for_start_without_thumbnails(owner):
     dialog = picker_module.HairReferencePickerDialog(owner, "hair",
         styles=((0, "first"), (1, "second"), (2, "third")), audit_hair=True, base_only=True)

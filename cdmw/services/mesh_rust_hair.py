@@ -158,6 +158,86 @@ def hair_ui_state(authoring):
     return result
 
 
+def _rewrite_hair_texture_bindings(mesh, logical, local, declared, files):
+    from pathlib import Path
+    from cdmw.services.mesh_rust_authoring import (
+        _TEXTURE_RESOURCE_SPECS, _RUST_TEXTURE_PATH_NAME_COMPANIONS, _material_input_texture_role,
+    )
+
+    def normalized(value):
+        return str(value or "").replace("\\", "/").casefold()
+
+    digests, path_identities = {}, {}
+
+    def identity(hints, source):
+        hints = [normalized(value) for value in hints if value]
+        exact = {value for value in hints if not Path(value).is_absolute()
+                 and "/" in value and value.endswith(".dds")}
+        if exact:
+            return next(iter(exact)) if len(exact) == 1 else None
+        names = {PurePosixPath(value).name for value in (*hints, normalized(source))}
+        matches = {path for path in declared if PurePosixPath(path).name in names}
+        if matches:
+            return next(iter(matches)) if len(matches) == 1 else None
+        # Older drafts may retain only an opaque cache filename. Content can
+        # identify that binding only when exactly one declared DDS owns it.
+        key = normalized(source)
+        if key not in path_identities:
+            path = Path(source)
+            match = None
+            if path.is_absolute() and path.is_file() and path.stat().st_size <= 128 * 1024 * 1024:
+                digest = hashlib.sha256(path.read_bytes()).digest()
+                if not digests:
+                    for name in declared:
+                        if name in files:
+                            digests.setdefault(hashlib.sha256(files[name].data).digest(), set()).add(name)
+                owners = digests.get(digest, set())
+                if len(owners) == 1:
+                    match = next(iter(owners))
+            path_identities[key] = match
+        return path_identities[key]
+
+    replacements = 0
+    for part in mesh.submeshes:
+        inputs = tuple(getattr(part, "preview_material_texture_inputs", ()) or ())
+        parameters = tuple(getattr(part, "preview_material_parameters", ()) or ())
+        aliases, scoped_aliases, updated = {}, {}, []
+        for item in inputs:
+            declared_parameters = [p.texture_path for p in (*item.material_parameters, *parameters)
+                                   if item.parameter_name and p.parameter_name == item.parameter_name]
+            owner = identity((item.source_texture_path, *declared_parameters, item.texture_name), item.source_dds_path)
+            role = _material_input_texture_role(item)
+            for value in (item.source_dds_path, item.preview_texture_path, item.source_texture_path):
+                if value and Path(value).is_absolute():
+                    key = normalized(value)
+                    aliases.setdefault(key, set()).add(owner)
+                    scoped_aliases.setdefault((role, key), set()).add(owner)
+            if owner == logical:
+                item = replace(item, source_texture_path=logical, source_dds_path=str(local), preview_texture_path=str(local))
+                replacements += 1
+            updated.append(item)
+        for role, attributes in _TEXTURE_RESOURCE_SPECS:
+            for attribute in attributes:
+                value = str(getattr(part, attribute, "") or "")
+                if not Path(value).is_absolute() or not value.casefold().endswith(".dds"):
+                    continue
+                owners = scoped_aliases.get((role, normalized(value)), aliases.get(normalized(value)))
+                if owners is not None:
+                    owner = next(iter(owners)) if len(owners) == 1 else None
+                else:
+                    name = _RUST_TEXTURE_PATH_NAME_COMPANIONS.get(attribute, "texture")
+                    owner = identity((getattr(part, name, ""),), value)
+                if owner == logical:
+                    setattr(part, attribute, str(local))
+                    paired = attribute.replace("_dds_path", "_path")
+                    if paired != attribute and hasattr(part, paired):
+                        setattr(part, paired, str(local))
+                    replacements += 1
+        if inputs:
+            part.preview_material_texture_inputs = tuple(updated)
+    return replacements
+
+
 def hair_texture_command(authoring, args, stop_event, *, export=False):
     """DDS edits use captured logical material paths and one reversible transaction."""
     from pathlib import Path
@@ -191,37 +271,16 @@ def hair_texture_command(authoring, args, stop_event, *, export=False):
     if dds_shape(data) != dds_shape(before.data):
         raise ValueError("Keep the template DDS dimensions, format and mip count when editing hair textures.")
     digest = hashlib.sha256(data).hexdigest()
-    local = app_temp_cache_path("mesh_hair_textures", digest, PurePosixPath(logical).name)
+    cache_key = hashlib.sha256(f"{logical}:{digest}".encode("utf-8")).hexdigest()
+    local = app_temp_cache_path("mesh_hair_textures", cache_key, PurePosixPath(logical).name)
     with app_temp_cache_build(local):
         local.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(local, data)
     authoring._raise_if_cancelled(stop_event)
     if export:
         return {"hair_texture_source": str(local), "texture_path": logical}
-    old_digest = hashlib.sha256(before.data).hexdigest()
     candidate = mesh_with_part_ids(snapshot, output)
-    replacements = 0
-
-    def rewrite(container):
-        nonlocal replacements
-        if isinstance(container, dict):
-            for key, value in list(container.items()):
-                if isinstance(value, str) and Path(value).is_absolute() and value.lower().endswith(".dds"):
-                    path = Path(value)
-                    if path.is_file() and path.stat().st_size <= 128 * 1024 * 1024 and hashlib.sha256(path.read_bytes()).hexdigest() == old_digest:
-                        container[key] = str(local)
-                        paired = key.replace("_dds_path", "_path")
-                        if paired != key and paired in container:
-                            container[paired] = str(local)
-                        replacements += 1
-                elif isinstance(value, (dict, list, tuple)):
-                    rewrite(value)
-        elif isinstance(container, (list, tuple)):
-            for value in container:
-                rewrite(value)
-
-    for part in candidate.submeshes:
-        rewrite(vars(part))
+    replacements = _rewrite_hair_texture_bindings(candidate, logical, local, declared, files)
     if not replacements:
         raise ValueError("The DDS has no resolved preview binding. Reload the hair with its complete material dependencies.")
     companions = {file.path.casefold(): file for file in output.companion_files}
@@ -648,9 +707,15 @@ def apply_hair_candidate(authoring, payload, label, stop_event=None):
     generated_only = all(group["mode"] == "generated" for group in new["groups"])
     active_parts = {group["part"] for group in new["groups"]
                     if any(guide["group"] == group["id"] for guide in new["guides"])}
+    previous_active_parts = {group["part"] for group in old["groups"]
+                             if any(guide["group"] == group["id"] for guide in old["guides"])}
+    # Newly populated sections start included; editing existing hair must keep
+    # the user's output choice even when a draw rebuilds its geometry.
     parts = tuple(replace(part, import_positions=tuple(candidate.submeshes[part.target_index].vertices),
                           import_normals=tuple(candidate.submeshes[part.target_index].normals),
-                          included=(part.target_index in active_parts if generated_only else part.included) and part.target_index not in empty_parts,
+                          included=((part.target_index in active_parts
+                                     and (part.included or part.target_index not in previous_active_parts))
+                                    if generated_only else part.included) and part.target_index not in empty_parts,
                           source_label="Hair guides")
                   if part.target_index in owned else replace(part, included=False) if generated_only else part
                   for part in snapshot.replacement_state.parts)
