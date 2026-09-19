@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- New Item's Appearance controls include experimental per-material translucency with live thickness and extinction adjustments. Selected parts export as `SkinnedMeshTranslucent`; the viewport approximates absorption without game refraction. Choices follow model variants, and disabling the option restores the imported preview materials.
+
 ### Changed
 
 - Hair Creator supports compatible registered hairstyles without a `_player` filename suffix. Large barber catalogues now use searchable pages, bounded background checks, and their supplied thumbnails while retaining the selected hairstyle's 3D preview.

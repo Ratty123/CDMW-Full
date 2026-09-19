@@ -113,6 +113,22 @@ The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shade
 semantics explicitly: preserved alpha pixels do not establish matching game
 transparency. Existing exported or installed
 items need to be rebuilt to pick up these material corrections.
+The Appearance page also offers **Translucency (experimental)** for imported models.
+Enable it, tick the material parts to change, and adjust **Thickness** and
+**Extinction** from 0 to 1. Defaults are 0.1 and 0.3 respectively; increasing
+either generally reduces transmission. Texture colour, texture alpha and viewing
+angle also matter, so these values are not percentages of opacity. Selecting parts
+enables Plain PBR and writes `SkinnedMeshTranslucent` with `_thickness` and
+`_extinctionCoefficient`, preserving the chosen parts' texture bindings. Other
+parts retain the normal Plain PBR export route. Settings follow each model variant.
+The resident Rust viewport updates without rebuilding geometry and restores the
+imported material when disabled. Effects previews carry the same settings.
+The viewport approximates the game's absorption with sorted alpha blending; it
+does not reproduce scene refraction, coloured background transmission, game
+lighting or shadow behaviour. Verify the result in-game. Glow and translucency
+currently require separate material parts; export reports a conflict instead of
+dropping emission. A mixed opaque/translucent atlas must be separated or all its
+materials selected, and missing material selections block export.
 Moving to step 3 reparents that
 live viewport without rebuilding
 its package or resetting its camera. Texture upgrades wait for an active drag or

@@ -19,6 +19,7 @@ class PlannedEffectItemSource:
     snapshot: object
     template_key: int | None
     glow: object
+    translucency: object = None
 
     def __call__(self, stop_event):
         self._check_cancelled(stop_event)
@@ -96,6 +97,9 @@ class PlannedEffectItemSource:
     def _finish(self, mesh, kind, stop_event, origin=None):
         self._check_cancelled(stop_event)
         preview = glow_preview_mesh(mesh, self.glow)
+        from cdmw.services.new_item_translucency import translucency_preview_mesh
+
+        preview = translucency_preview_mesh(preview, self.translucency)
         if self._is_wearable():
             point = origin
             if point is None and getattr(preview, "bbox_min", None) is not None and getattr(preview, "bbox_max", None) is not None:

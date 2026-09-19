@@ -621,6 +621,12 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._set_glow_details_visible(False)
         model_layout.addWidget(self.glow_box)
         self._set_glow_swatch()
+        from cdmw.ui.new_item.translucency_editor import TranslucencyEditor
+
+        self.translucency_editor = TranslucencyEditor(self)
+        self.translucency_editor.changed.connect(self._translucency_changed)
+        self.translucency_editor.refresh(self._controller.material_parts(), self._controller.draft.translucency)
+        model_layout.addWidget(self.translucency_editor)
         self.flip_texture_v = QCheckBox("Flip texture V")
         self.flip_texture_v.setToolTip(
             "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
@@ -869,6 +875,7 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
 
         chosen = set(self._controller.draft.glow_parts)
         parts = self._controller.material_parts()
+        self.translucency_editor.refresh(parts, self._controller.draft.translucency)
         self.glow_parts.blockSignals(True)
         self.glow_parts.clear()
         for name, label in parts:
@@ -906,8 +913,15 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         self._controller.invalidate_plan()
         self._sync_glow_preview()
 
+    def _translucency_changed(self, choice) -> None:
+        self._controller.draft.translucency = choice
+        if choice is not None:
+            self.plain_pbr.setChecked(True)
+        self._controller.invalidate_plan()
+        self._sync_glow_preview()
+
     def _sync_glow_preview(self) -> None:
-        """Show the glow in the step's viewport as it stands in the draft.
+        """Replay the draft's Glow and translucency choices together.
 
         Only for the placement scene of a live import: that is the only mesh a glow
         applies to, and the only role the renderer's parameter channel can touch. The
@@ -922,17 +936,19 @@ class ModelPanel(ModelPanelPreviewMixin, QGroupBox):
         if source is None or not callable(sender) or not preview.showing_placement:
             return
         glow = glow_choice(self._controller.draft)
-        if glow is None and not self._glow_preview_touched:
+        translucency = self._controller.draft.translucency
+        if glow is None and translucency is None and not self._glow_preview_touched:
             return
         try:
             mesh = source.baked_preview_mesh()
         except Exception:  # noqa: BLE001 - no preview glow is a smaller loss than a step that errors
             return
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
+        from cdmw.services.new_item_translucency import translucency_preview_parameter_groups
 
-        groups = glow_preview_parameter_groups(mesh, glow)
+        groups = glow_preview_parameter_groups(mesh, glow) + translucency_preview_parameter_groups(mesh, translucency)
         if groups and sender(groups):
-            self._glow_preview_touched = self._glow_preview_touched or glow is not None
+            self._glow_preview_touched = self._glow_preview_touched or glow is not None or translucency is not None
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor

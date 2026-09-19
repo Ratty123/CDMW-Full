@@ -633,11 +633,17 @@ def route_plain_pbr(
     encode_factors: Callable[[float, float], bytes] = encode_sp_from_factors,
     encode_glow: Callable[[], bytes] = encode_emissive_solid,
     glow: object = None,
+    translucency: object = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> PlainPbrRoute:
     """Rewrite import-owned wrappers to the plain shaders described by this module."""
 
     sources = dict(sources or {})
+    from cdmw.services.new_item_translucency import selected_translucency
+
+    if translucency is not None:
+        translucency.validate()
+    translucent_matches: set[str] = set()
     glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
     glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
     glow_intensity = float(getattr(glow, "intensity", 1.0))
@@ -659,20 +665,22 @@ def route_plain_pbr(
             continue
         normal = owned.get("_normalTexture", "")
         source = sources.get(wrapper.submesh_name.casefold()) or source_by_base.get(base.replace("\\", "/").casefold())
+        matches = selected_translucency(translucency, wrapper.submesh_name, source)
+        translucent_matches.update(matches)
         is_atlas = source is not None and source.atlas_section is not None
         if source is not None and not is_atlas and source.normal is None:
             normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
         if source is not None and source.name not in warned_sources:
             warned_sources.add(source.name)
-            if source.alpha_mode in {"BLEND", "MASK"}:
+            if source.alpha_mode in {"BLEND", "MASK"} and not matches:
                 detail = f" (cutoff {source.alpha_cutoff:g})" if source.alpha_mode == "MASK" else ""
                 warnings.append(
                     f"{source.name}: source {source.alpha_mode}{detail} opacity is retained in the base DDS, "
                     "but the plain-PBR game shader has no verified mapping for this alpha mode; "
                     "the exported material does not support the source transparency behavior."
                 )
-            if source.double_sided:
+            if source.double_sided and not matches:
                 warnings.append(f"{source.name}: the source is double-sided; the plain-PBR export has no verified two-sided game shader mapping.")
         material = ""
         how = ""
@@ -784,14 +792,28 @@ def route_plain_pbr(
                 # the source glows and the reader also said how: the map is the source's,
                 # the colour and the strength are theirs
                 color, intensity = glow_color, glow_intensity
+        if matches and emissive:
+            raise NewItemPlanError(
+                f"{source_name}: Glow and translucency currently require separate material parts. "
+                "This material has emission; separate its glowing detail before enabling translucency."
+            )
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,
             emissive_texture=emissive, emissive_color=color, emissive_intensity=intensity,
+            translucency=(translucency.thickness, translucency.extinction) if matches else None,
         )
         parts = ["base", "normal" if normal else "no normal", how]
         if emissive:
             parts.append(f"emissive {color} x{intensity:g}")
         lines.append(f"{wrapper.submesh_name}: {replacements[wrapper.submesh_name].shader}, " + ", ".join(parts))
+    if translucency is not None:
+        missing = {name.casefold() for name in translucency.parts} - translucent_matches
+        if missing:
+            raise NewItemPlanError("Translucency materials were not found in the exported model: " + ", ".join(sorted(missing)))
+        warnings.append(
+            "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. "
+            "Viewport transmission is approximate; game refraction and lighting may differ."
+        )
     return _finish_plain_pbr_route(
         files=files,
         xml_key=xml_key,
@@ -812,6 +834,7 @@ def route_model_files(
     result: object = None,
     scene: object = None,
     glow: object = None,
+    translucency: object = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ModelFiles:
     """`files` written the way `route` says: the Builder's as they are, or the plain-PBR
@@ -820,7 +843,9 @@ def route_model_files(
 
     if route is MaterialRoute.PLAIN_PBR:
         sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
-        return route_plain_pbr(files, sources=sources, glow=glow, on_log=on_log).files
+        return route_plain_pbr(files, sources=sources, glow=glow, translucency=translucency, on_log=on_log).files
+    if translucency is not None:
+        raise NewItemPlanError("Enable Plain PBR materials to export translucency.")
     return ModelFiles(
         pac_data=files.pac_data, side_files=files.side_files, material_route=MaterialRoute.BUILDER.value,
         notes=(*files.notes, "the Builder's material sidecar as it came (Material Authority)"), warnings=files.warnings,

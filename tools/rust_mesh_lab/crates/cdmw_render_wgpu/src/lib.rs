@@ -58,6 +58,7 @@ struct MaterialUniform {
     surface_factors: vec4<f32>,
     relief_factors: vec4<f32>,
     texture_tint_and_strength: vec4<f32>,
+    translucency_factors: vec4<f32>,
 };
 
 @group(0) @binding(0) var base_texture: texture_2d<f32>;
@@ -459,7 +460,24 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
         material_alpha = textureSampleBias(opacity_texture, material_sampler, sample_uv, MATERIAL_MIP_LOD_BIAS).r;
     }
     material_alpha = clamp(material_alpha * material.opacity, 0.0, 1.0);
-    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u {
+    if material.translucency_factors.z > 0.5 {
+        // Approximate the game's ordinary SkinnedMeshTranslucent absorption path.
+        // Mean RGB transmission drives sorted blending; scene refraction and the
+        // game's coloured background compositor are deliberately not simulated.
+        let thickness = round(clamp(material.translucency_factors.x, 0.0, 1.0) * 255.0) / 255.0;
+        let view = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
+        let normal = safe_normalize(input.normal, view);
+        let distance = max(thickness / (abs(dot(normal, view)) + 0.001), 0.00001);
+        let absorption_alpha = select(1.0, material_alpha, material.translucency_factors.w > 0.5);
+        let coefficient = 10.0 * clamp(0.1 * absorption_alpha * material.translucency_factors.y, 0.0, 1.0);
+        let absorption = vec3<f32>(coefficient) / max(texel.rgb, vec3<f32>(0.001));
+        let sigma = vec3<f32>(
+            dot(vec3<f32>(0.61312, 0.33951, 0.04737), absorption),
+            dot(vec3<f32>(0.07020, 0.91636, 0.01345), absorption),
+            dot(vec3<f32>(0.02062, 0.10958, 0.86980), absorption));
+        material_alpha = clamp(1.0 - dot(exp(-distance * sigma), vec3<f32>(1.0 / 3.0)), 0.0, 1.0);
+    }
+    if (material.flags & MATERIAL_ALPHA_CUTOUT) != 0u && material.translucency_factors.z < 0.5 {
         if material_alpha < material.surface_factors.w {
             discard;
         }
@@ -1240,6 +1258,7 @@ struct MaterialUniform {
     surface_factors: [f32; 4],
     relief_factors: [f32; 4],
     texture_tint_and_strength: [f32; 4],
+    translucency_factors: [f32; 4],
 }
 
 const MATERIAL_BASE_COLOR: u32 = 1;
@@ -1467,6 +1486,7 @@ pub struct MaterialPreviewFactors {
     pub alpha_cutoff: Option<f32>,
     pub alpha_blend: Option<bool>,
     pub opacity: Option<f32>,
+    pub translucency: Option<[f32; 2]>,
     pub gltf_metallic_roughness: Option<bool>,
     pub hair_anisotropy: Option<bool>,
     pub layer_mask_channel: Option<u32>,
@@ -3896,6 +3916,7 @@ fn validate_material_factor_ownership(
         && factors.alpha_cutoff.is_none()
         && factors.alpha_blend.is_none()
         && factors.opacity.is_none()
+        && factors.translucency.is_none()
         && factors.gltf_metallic_roughness.is_none()
         && factors.hair_anisotropy.is_none()
         && factors.layer_mask_channel.is_none()
@@ -3938,6 +3959,11 @@ fn validate_material_factor_ownership(
         return Err(RenderError::Texture(
             "material factors contain a non-finite or out-of-range value".to_owned(),
         ));
+    }
+    if factors.translucency.is_some_and(|values| {
+        values.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+    }) {
+        return Err(RenderError::Texture("translucency factors must be in 0..=1".to_owned()));
     }
     if factors.category_code.is_some_and(|code| code > 14) {
         return Err(RenderError::Texture(
@@ -7787,6 +7813,9 @@ pub fn preview_material_factors(
         if changes.opacity.is_some() {
             target.opacity = changes.opacity;
         }
+        if changes.translucency.is_some() {
+            target.translucency = changes.translucency;
+        }
         if changes.gltf_metallic_roughness.is_some() {
             target.gltf_metallic_roughness = changes.gltf_metallic_roughness;
         }
@@ -7949,6 +7978,14 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.alpha_blend = Some(alpha_blend);
+            }
+            if let Some(translucency) = factors.translucency {
+                if resolved.translucency.is_some_and(|existing| existing != translucency) {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting translucency factors in LOD {lod_index}"
+                    )));
+                }
+                resolved.translucency = Some(translucency);
             }
             if let Some(opacity) = factors.opacity {
                 if resolved
@@ -8724,7 +8761,7 @@ fn create_material_bind_group(
     if factors.alpha_cutoff.is_some_and(|cutoff| cutoff > 0.0) {
         flags |= MATERIAL_ALPHA_CUTOUT;
     }
-    if factors.alpha_blend == Some(true) {
+    if factors.alpha_blend == Some(true) || factors.translucency.is_some() {
         flags |= MATERIAL_ALPHA_BLEND;
     }
     if factors.gltf_metallic_roughness == Some(true) {
@@ -8776,6 +8813,14 @@ fn create_material_bind_group(
             factors.category_confidence.unwrap_or(0.35),
         ],
         texture_tint_and_strength: texture_tint_and_strength.unwrap_or([1.0, 1.0, 1.0, 0.0]),
+        translucency_factors: factors.translucency.map_or([0.0; 4], |values| {
+            // Plain PBR export makes glTF OPAQUE alpha solid, including its
+            // opacity factor. BLEND/MASK and directly imported DDS retain alpha.
+            let use_alpha = factors.gltf_metallic_roughness != Some(true)
+                || factors.alpha_blend == Some(true)
+                || factors.alpha_cutoff.is_some();
+            [values[0], values[1], 1.0, if use_alpha { 1.0 } else { 0.0 }]
+        }),
     };
     let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("CDMW Rust Mesh Lab material uniform"),
@@ -8863,7 +8908,7 @@ fn create_material_bind_group(
     GpuMaterialBinding {
         bind_group,
         _uniform_buffer: uniform_buffer,
-        alpha_blend: factors.alpha_blend == Some(true),
+        alpha_blend: factors.alpha_blend == Some(true) || factors.translucency.is_some(),
     }
 }
 

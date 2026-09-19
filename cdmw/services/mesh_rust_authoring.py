@@ -5778,6 +5778,7 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
             ),
             "alpha_mode": alpha_mode,
             "gltf_metallic_roughness": factor_parameters.get("gltf_metallic_roughness") is True,
+            "translucency": factor_parameters.get("translucency"),
             "opacity": _rust_material_optional_scalar(
                 factor_parameters,
                 "opacity",

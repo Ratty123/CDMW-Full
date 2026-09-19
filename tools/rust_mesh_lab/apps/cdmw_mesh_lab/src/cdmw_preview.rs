@@ -64,6 +64,7 @@ pub(crate) const CAPABILITIES: &[&str] = &[
     "lighting_presets_v1",
     "static_replacement_mesh_input_v1",
     "effect_particle_preview_v1",
+    "translucent_material_preview_v1",
     "textured_effect_particles_v1",
     "ui_theme_state_v1",
     "ui_localization_v1",
@@ -2894,6 +2895,11 @@ fn apply_preview_material_parameters(
             texture_tint: color3(group.get("texture_tint")),
             emissive_color: color3(group.get("emissive_color")),
             emissive_intensity: optional_f32(group, "emissive_intensity"),
+            translucency: match group.get("translucency").filter(|value| !value.is_null()) {
+                Some(value) => Some(serde_json::from_value::<[f32; 2]>(value.clone())
+                    .map_err(|_| "Translucency requires thickness and extinction numbers".to_owned())?),
+                None => None,
+            },
             ..MaterialPreviewFactors::default()
         };
         if factors != MaterialPreviewFactors::default() {
@@ -3717,6 +3723,33 @@ mod tests {
         assert!(apply_preview_material_parameters(None, &[], &conflicting, 1, 0).is_err());
         let invalid = json!({"groups": [{"source_submesh_indices": [0], "roughness": -1.0}]});
         assert!(apply_preview_material_parameters(None, &[], &invalid, 1, 0).is_err());
+    }
+
+    #[test]
+    fn translucency_updates_validate_ranges_and_restore_authored_materials() {
+        let ownership = vec![vec![0_u32]];
+        let authored = vec![(MaterialPreviewFactors {
+            roughness: Some(0.7), alpha_blend: Some(false),
+            ..MaterialPreviewFactors::default()
+        }, ownership.clone())];
+        let overrides = vec![(MaterialPreviewFactors {
+            translucency: Some([0.1, 0.3]),
+            ..MaterialPreviewFactors::default()
+        }, ownership)];
+        let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
+        assert_eq!(changed[0].0.translucency, Some([0.1, 0.3]));
+        assert_eq!(changed[0].0.roughness, Some(0.7));
+        let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
+        assert_eq!(restored[0].0.translucency, None);
+        assert_eq!(restored[0].0.alpha_blend, Some(false));
+        for value in [json!([0.1, 0.3]), Value::Null] {
+            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+            assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok());
+        }
+        for value in [json!([-0.1, 0.3]), json!([0.1, 2.0]), json!([0.1]), json!("bad")] {
+            let parameters = json!({"groups": [{"source_submesh_indices": [0], "translucency": value}]});
+            assert!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_err());
+        }
     }
 
     #[test]

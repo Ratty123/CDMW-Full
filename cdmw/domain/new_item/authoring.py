@@ -1,5 +1,6 @@
 """Typed optional authoring choices. None inherits; an empty tuple clears."""
 from dataclasses import dataclass
+from cdmw.domain.new_item.translucency import TranslucencyChoice
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +84,8 @@ class VariantAppearance:
     glow_parts: tuple[str, ...] = ()
     glow_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     glow_intensity: float = 4.0
+
+    translucency: "TranslucencyChoice | None" = None
 
     def glow_choice(self):
         from cdmw.domain.new_item.spec import GlowChoice

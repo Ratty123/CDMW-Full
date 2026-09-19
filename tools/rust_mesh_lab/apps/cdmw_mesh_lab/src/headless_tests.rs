@@ -2115,6 +2115,80 @@ fn offscreen_d3d12_capture_pads_odd_rows_and_matches_alpha_cutout_owners() -> Te
 }
 
 #[test]
+#[ignore = "requires a local Direct3D 12 adapter"]
+fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> TestResult {
+    let mut document = triangle_application()?.document.clone().ok_or("missing document")?;
+    let mut reference = document.lods[0].submeshes[0].clone();
+    reference.name = "opaque reference".to_owned();
+    reference.material = "reference material".to_owned();
+    for position in &mut reference.positions {
+        position[0] += 3.0;
+    }
+    document.lods[0].submeshes.push(reference);
+    let snapshot = WorkingMesh::from_document(&document)?.draw_snapshot();
+    let temporary = tempdir()?;
+    let root = std::env::var_os("CDMW_RUST_MATERIAL_PROOF_BMP")
+        .map(std::path::PathBuf::from)
+        .and_then(|path| path.parent().map(|parent| parent.join("translucency")))
+        .unwrap_or_else(|| temporary.path().join("translucency"));
+    std::fs::create_dir_all(&root)?;
+    let ownership = vec![vec![0_u32]];
+    let mut captures = Vec::new();
+    let mut reference_luma = Vec::new();
+    for (name, translucency, alpha, gltf_opaque) in [
+        ("opaque", None, 255_u8, false),
+        ("clear", Some([0.5, 0.0]), 255, false),
+        ("thin", Some([0.01, 0.1]), 255, false),
+        ("dense", Some([0.5, 1.0]), 255, false),
+        ("zero-alpha", Some([0.5, 1.0]), 0, false),
+        ("gltf-opaque-alpha", Some([0.5, 1.0]), 0, true),
+    ] {
+        let mut base = cdmw_texture::synthetic::rgba8_checker_dds();
+        for pixel in base[148..].chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[180, 160, 140, alpha]);
+        }
+        let textures = [HeadlessMaterialTexture {
+            bytes: &base, role: cdmw_texture::TextureRole::BaseColor,
+            material_indices_by_lod: &ownership,
+        }];
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                translucency, alpha_blend: Some(false), gltf_metallic_roughness: Some(gltf_opaque),
+                opacity: Some(if gltf_opaque { 0.0 } else { 1.0 }),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &ownership,
+        }];
+        let base_path = root.join(format!("{name}-base.bmp"));
+        let report = pollster::block_on(cdmw_render_wgpu::run_headless_material_capture(
+            &snapshot, &textures, &factors,
+            HeadlessMaterialCaptureOptions { width: 96, height: 96, lod_index: 0, ..HeadlessMaterialCaptureOptions::default() },
+            HeadlessMaterialCaptureOutput {
+                textured_bmp: &root.join(format!("{name}.bmp")), base_color_bmp: &base_path,
+                part_id_bmp: &root.join(format!("{name}-parts.bmp")),
+                normal_map: None, material_response: None, layer_mask: None,
+            },
+        ))?;
+        reference_luma.push(report.owner_coverage.iter().find(|owner| owner.material_index == 1)
+            .ok_or("reference material missing")?.textured_mean_luma_255);
+        captures.push(std::fs::read(base_path)?);
+    }
+    let difference = |pixels: &[u8]| -> u64 {
+        pixels[54..].chunks_exact(4).zip(captures[1][54..].chunks_exact(4))
+            .map(|(pixel, clear)| (0..3).map(|i| u64::from(pixel[i].abs_diff(clear[i]))).sum::<u64>()).sum()
+    };
+    let opaque = difference(&captures[0]);
+    let thin = difference(&captures[2]);
+    let dense = difference(&captures[3]);
+    assert!(opaque > dense && dense > thin && thin > 0, "opaque={opaque}, dense={dense}, thin={thin}");
+    assert_eq!(difference(&captures[4]), 0, "zero texture alpha must transmit the background");
+    assert_eq!(&captures[5][54..], &captures[3][54..], "glTF OPAQUE ignores texture and factor alpha, matching export");
+    assert!(reference_luma.iter().all(|value| *value == reference_luma[0]), "unselected reference appearance changed");
+    println!("D3D12 translucency pixels: opaque={opaque}, dense={dense}, thin={thin}; captures={}", root.display());
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires a local Direct3D 12 adapter and an owned CDMW session package"]
 fn offscreen_d3d12_captures_the_exact_cdmw_material_package_without_a_window() -> TestResult {
     let manifest = std::env::var_os("CDMW_RUST_REAL_SESSION_MANIFEST")

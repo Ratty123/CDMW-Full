@@ -179,6 +179,8 @@ pub struct SessionMaterialPresentation {
     pub alpha_cutoff: Option<f32>,
     pub opacity: Option<f32>,
     #[serde(default)]
+    pub translucency: Option<[f32; 2]>,
+    #[serde(default)]
     pub gltf_metallic_roughness: bool,
     pub double_sided: bool,
     pub roughness: Option<f32>,
@@ -1967,6 +1969,10 @@ fn validate_material_presentations(
         }
         validate_optional_factor(row.alpha_cutoff, 0.0, 1.0, "alpha cutoff")?;
         validate_optional_factor(row.opacity, 0.0, 1.0, "opacity")?;
+        if let Some(values) = row.translucency {
+            validate_optional_factor(Some(values[0]), 0.0, 1.0, "translucency thickness")?;
+            validate_optional_factor(Some(values[1]), 0.0, 1.0, "translucency extinction")?;
+        }
         validate_optional_factor(row.roughness, 0.0, 1.0, "roughness")?;
         validate_optional_factor(row.metalness, 0.0, 1.0, "metalness")?;
         validate_optional_factor(row.specular, 0.0, 1.0, "specular")?;
@@ -3238,6 +3244,7 @@ mod tests {
             alpha_mode: "cutout".to_owned(),
             alpha_cutoff: Some(0.17),
             opacity: None,
+            translucency: None,
             gltf_metallic_roughness: false,
             double_sided: false,
             roughness: Some(0.22),

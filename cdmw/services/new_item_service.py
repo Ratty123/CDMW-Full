@@ -230,7 +230,7 @@ class NewItemService:
             appearance = VariantAppearance(part.prefab_path,path,custom_model=True,
                 material_route=spec.material_route.value,keep_template_physics=spec.keep_template_physics,
                 glow_parts=glow.parts if glow else (),glow_color=glow.color if glow else (1.0,1.0,1.0),
-                glow_intensity=glow.intensity if glow else 4.0)
+                glow_intensity=glow.intensity if glow else 4.0,translucency=spec.translucency)
             spec = replace(spec,variants=(appearance,))
         if snapshot.provenance:
             snapshot.provenance.capture().validate(stop_event)
@@ -249,10 +249,12 @@ class NewItemService:
             pass
         elif isinstance(model, ModelFiles):
             files = model
+            if allocated.translucency is not None:
+                files = route_model_files(files, allocated.material_route, translucency=allocated.translucency, on_log=on_log)
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
-            files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, on_log=on_log)
+            files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, translucency=allocated.translucency, on_log=on_log)
         built = icon
         prepared_variants = {}
         if allocated.variants is not None:

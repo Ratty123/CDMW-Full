@@ -142,6 +142,7 @@ class Placement:
 
 
 from cdmw.domain.new_item.effect_authoring import EffectLook, EffectLayer
+from cdmw.domain.new_item.translucency import TranslucencyChoice
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +240,7 @@ class NewItemSpec:
     #: place (see :mod:`cdmw.core.effect_edit`). Only read with an effect.
     effect_look: "EffectLook" = field(default_factory=lambda: EffectLook())
     effect_layers: Optional[Tuple[EffectLayer, ...]] = None
+    translucency: Optional[TranslucencyChoice] = None
 
     @property
     def active_effect_layers(self) -> Tuple[EffectLayer, ...]:

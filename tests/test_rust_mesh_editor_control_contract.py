@@ -278,6 +278,7 @@ def test_packaging_validator_rejects_hash_and_rust_contract_mismatches(tmp_path:
                         "alignment_preview_v1",
                         "static_replacement_mesh_input_v1",
                         "effect_particle_preview_v1",
+                        "translucent_material_preview_v1",
                         "ui_theme_state_v1",
                         "ui_localization_v1",
                     ],

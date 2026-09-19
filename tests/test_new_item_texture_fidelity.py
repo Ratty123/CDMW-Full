@@ -39,7 +39,7 @@ def write_gltf(root, materials, images):
     return path
 
 
-def export_materials(path, root, *, socket_attached=False, atlas=False, glow=None):
+def export_materials(path, root, *, socket_attached=False, atlas=False, glow=None, translucency=None):
     scene = import_scene_mesh_with_report(path)
     if socket_attached:
         from dataclasses import replace
@@ -93,6 +93,7 @@ def export_materials(path, root, *, socket_attached=False, atlas=False, glow=Non
     files = route_model_files(
         ModelFiles(pac_data=b"owned synthetic geometry", side_files={payload.target_path: payload.payload_data for payload in payloads}),
         MaterialRoute.PLAIN_PBR, result=SimpleNamespace(source_owned_output_draw_sections=sections), scene=scene, glow=glow,
+        translucency=translucency,
     )
     wrappers = {targets[item.submesh_name]: item for item in find_material_wrappers(files.side_files[xml_path].decode("utf-8-sig"))}
     assert len(wrappers) == len(targets)
@@ -103,6 +104,26 @@ def pixels(files, material, role="_baseColorTexture"):
     data = files.side_files[material.textures[role]]
     with Image.open(BytesIO(data)) as image:
         return np.asarray(image.convert("RGBA"))
+
+
+@pytest.mark.parametrize("alpha_mode, expected_alpha", [("BLEND", 64), ("OPAQUE", 255)])
+def test_selected_translucency_keeps_source_alpha_through_import_and_export(tmp_path, alpha_mode, expected_alpha):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+    Image.new("RGBA", (16, 16), (200, 100, 50, 128)).save(tmp_path / "glass.png")
+    materials = [
+        {"name": "Glass", "alphaMode": alpha_mode, "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1, 1, 1, 0.5]}},
+        {"name": "Grip", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}},
+    ]
+    _, files, wrappers = export_materials(
+        write_gltf(tmp_path, materials, ["glass.png"]), tmp_path,
+        socket_attached=True, translucency=TranslucencyChoice(("Glass",), 0.2, 0.6),
+    )
+    assert wrappers["Glass"].shader == "SkinnedMeshTranslucent"
+    assert wrappers["Glass"].value("_thickness") == "0.200000"
+    assert wrappers["Glass"].value("_extinctionCoefficient") == "0.600000"
+    assert abs(int(pixels(files, wrappers["Glass"])[0, 0, 3]) - expected_alpha) <= 1
+    assert wrappers["Grip"].shader == "SkinnedMeshStandard"
 
 
 def test_shared_images_and_factor_only_materials_keep_their_own_colour(tmp_path):

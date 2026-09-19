@@ -44,6 +44,13 @@ def validate_authoring(spec):
         from cdmw.domain.new_item.spec import MaterialRoute
         if variant.material_route not in {route.value for route in MaterialRoute}:
             issues.append(_issue("variant.material", "variants", "Choose a supported variant material route."))
+        if variant.translucency is not None:
+            try:
+                variant.translucency.validate()
+                if not variant.custom_model or variant.material_route != MaterialRoute.PLAIN_PBR.value:
+                    raise ValueError("Translucency requires an imported model with Plain PBR materials enabled.")
+            except ValueError as exc:
+                issues.append(_issue("variant.translucency", "variants", str(exc)))
         if (len(variant.glow_color) != 3 or any(not 0 <= value <= 1 for value in variant.glow_color)
                 or not 0 <= variant.glow_intensity <= 20):
             issues.append(_issue("variant.glow", "variants", "Variant glow needs three color components and a supported intensity."))

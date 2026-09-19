@@ -7021,6 +7021,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             alpha_cutoff: Some(0.08),
             alpha_blend: None,
             opacity: None,
+            translucency: None,
             gltf_metallic_roughness: None,
             hair_anisotropy: Some(true),
             layer_mask_channel: Some(2),

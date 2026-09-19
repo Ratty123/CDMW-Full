@@ -28,6 +28,7 @@ from cdmw.domain.new_item.spec import (
     EnhancementRows,
     IconSource,
     ItemGroupsChoice,
+    MaterialRoute,
     ModelSource,
     NewItemSpec,
     Placement,
@@ -157,6 +158,13 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 
     issues: list[ValidationIssue] = []
     name = str(spec.internal_name or "")
+    if spec.translucency is not None:
+        try:
+            spec.translucency.validate()
+            if spec.model_source is not ModelSource.IMPORTED or spec.material_route is not MaterialRoute.PLAIN_PBR:
+                raise ValueError("Translucency requires an imported model with Plain PBR materials enabled.")
+        except ValueError as exc:
+            issues.append(_issue("translucency.invalid", "translucency", str(exc)))
     if not name:
         issues.append(_issue("internal_name.empty", "internal_name", "Give the item an internal name."))
     elif not _INTERNAL_NAME_RE.match(name):

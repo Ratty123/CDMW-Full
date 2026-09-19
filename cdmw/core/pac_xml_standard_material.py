@@ -35,6 +35,7 @@ from typing import Dict, Mapping, Optional, Tuple
 
 STANDARD_SHADER = "SkinnedMeshStandard"
 EMISSIVE_SHADER = "SkinnedMeshEmissive"
+TRANSLUCENT_SHADER = "SkinnedMeshTranslucent"
 LAYERED_SHADER = "SkinnedMeshStandard_Ver2"
 
 #: `_emissiveIntensityTexture`, `_emissiveColor`, `_emissiveIntensity` on every shipped
@@ -114,9 +115,13 @@ class PlainMaterial:
     emissive_intensity: float = 1.0
     #: `_renderSettingFlag`; None leaves it out (as most shipped weapon materials do)
     render_flag: Optional[int] = None
+    #: Opt-in absorption controls, not conventional texture alpha blending.
+    translucency: Optional[Tuple[float, float]] = None
 
     @property
     def shader(self) -> str:
+        if self.translucency is not None:
+            return TRANSLUCENT_SHADER
         return EMISSIVE_SHADER if self.emissive_texture else STANDARD_SHADER
 
 
@@ -176,6 +181,11 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
 
     if not material.base:
         raise PacXmlMaterialError("a plain material needs a base colour texture")
+    if material.translucency is not None:
+        if len(material.translucency) != 2 or any(not 0 <= value <= 1 for value in material.translucency):
+            raise PacXmlMaterialError("translucency needs thickness and extinction in 0..1")
+        if material.emissive_texture:
+            raise PacXmlMaterialError("Glow and translucency currently require separate material parts")
     known = [("_baseColorTexture", material.base)]
     if material.normal:
         known.append(("_normalTexture", material.normal))
@@ -204,6 +214,17 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
             f'_value="{int(material.render_flag)}" Index="{index}"/>'
         )
         index += 1
+    if material.translucency is not None:
+        # Stable parameter IDs observed in stock SkinnedMeshTranslucent sidecars.
+        for name, item_id, value in (
+            ("_thickness", "3214133184954366", material.translucency[0]),
+            ("_extinctionCoefficient", "3161969463918590", material.translucency[1]),
+        ):
+            lines.append(
+                f'{p_indent}<MaterialParameterFloat StringItemID="{name}" ItemID="{item_id}" '
+                f'_name="{name}" _value="{float(value):.6f}" Index="{index}"/>'
+            )
+            index += 1
     if material.emissive_texture:
         lines.append(
             f'{p_indent}<MaterialParameterTexture StringItemID="_emissiveIntensityTexture" ItemID="{_EMISSIVE_TEXTURE_ID}" '

@@ -141,6 +141,37 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_translucency_controls_update_draft_and_resident_viewport(self) -> None:
+        from PySide6.QtCore import Qt
+        from unittest.mock import PropertyMock
+        from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.show_step(2)
+        panel = tab.model_panel
+        self.assertTrue(panel.preview._ensure_host())
+        mesh = SimpleNamespace(submeshes=[SimpleNamespace(name="part_0", material="Blade")])
+        source = SimpleNamespace(baked_preview_mesh=lambda: mesh)
+        tab.controller.model_import = source
+        try:
+            with patch.object(tab.controller, "material_parts", return_value=(("Blade", "Blade"),)), \
+                 patch.object(type(panel.preview), "showing_placement", new_callable=PropertyMock, return_value=True), \
+                 patch.object(panel.preview.host, "apply_material_parameter_groups", return_value=True) as send:
+                panel.refresh_glow_parts()
+                editor = panel.translucency_editor
+                editor.setChecked(True)
+                editor.parts.item(0).setCheckState(Qt.CheckState.Checked)
+                editor.extinction.setValue(0.6)
+                self.assertEqual(tab.controller.draft.translucency, TranslucencyChoice(("Blade",), 0.1, 0.6))
+                self.assertTrue(panel.plain_pbr.isChecked())
+                self.assertTrue(any(group.get("translucency") == [0.1, 0.6] for group in send.call_args.args[0]))
+                editor.setChecked(False)
+                self.assertIsNone(tab.controller.draft.translucency)
+                self.assertTrue(all(group.get("translucency") is None for group in send.call_args.args[0]))
+        finally:
+            tab.controller.model_import = None
+
     def test_pending_post_install_refresh_is_cancelled_when_tab_is_deleted(self) -> None:
         from PySide6.QtCore import QCoreApplication, QEvent
 

@@ -83,10 +83,14 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
             raise ValueError(f"Apply the imported model for {appearance.model_path} before planning.")
         if isinstance(model, ModelFiles):
             files = model
+            if appearance.translucency is not None:
+                files = route_model_files(files, MaterialRoute(appearance.material_route),
+                                          translucency=appearance.translucency, on_log=on_log)
         else:
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
-                                      scene=scenes.get(appearance.identity), glow=appearance.glow_choice(), on_log=on_log)
+                                      scene=scenes.get(appearance.identity), glow=appearance.glow_choice(),
+                                      translucency=appearance.translucency, on_log=on_log)
         try:
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
         except _SkinPaletteBoundsError:

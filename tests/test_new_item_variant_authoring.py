@@ -78,11 +78,15 @@ def test_variant_switch_preserves_placement_and_sources_until_shutdown(tmp_path)
     controller.select_variant(first)
     source=ModelImportSource(Path("first.obj"),Path("first.obj"),SimpleNamespace(),None,None)
     controller.model_import=source
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    controller.draft.translucency = TranslucencyChoice(("Blade",), 0.25, 0.4)
     controller.set_model_placement(ModelPlacement(offset=(1.0,2.0,3.0)))
     controller.select_variant(second)
     assert controller.model_import is None and not source._retired
+    assert controller.draft.translucency is None
     controller.select_variant(first)
     assert controller.model_import is source
+    assert controller.draft.translucency == TranslucencyChoice(("Blade",), 0.25, 0.4)
     assert controller.model_placement.offset==(1.0,2.0,3.0)
     assert controller.template_primary_entry().path.casefold()==first[1]
     assert controller.template_prefab_entries()[0].path.casefold()==first[0]
@@ -96,11 +100,14 @@ def test_single_model_adapter_targets_primary_and_variant_glow_is_separate(tmp_p
         plan=service.plan(spec(),snapshot,model=ModelFiles(b"primary only"))
     assert len(plan.spec.variants)==1
     assert sum(v["appearance"]=="custom model" for v in plan.manifest["variants"])==1
-    choice=replace(selections(snapshot)[0],custom_model=True,glow_parts=("blade",),glow_color=(1,0,0))
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    choice=replace(selections(snapshot)[0],custom_model=True,glow_parts=("blade",),glow_color=(1,0,0),
+                   translucency=TranslucencyChoice(("Glass",)))
     result=SimpleNamespace(rebuilt_data=b"applied",supplemental_file_specs=())
     with patch("cdmw.services.new_item_variants.validate_variant_rig"), patch("cdmw.services.new_item_materials.route_model_files",return_value=ModelFiles(b"applied")) as route:
         prepare_variant_models(replace(spec(),variants=(choice,)),snapshot,{choice.identity:result},{})
     assert route.call_args.kwargs["glow"].color==(1,0,0)
+    assert route.call_args.kwargs["translucency"] == choice.translucency
 
 
 def test_variant_plan_holds_all_sources_until_worker_exit(tmp_path):

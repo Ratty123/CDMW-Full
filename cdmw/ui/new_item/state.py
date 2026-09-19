@@ -18,6 +18,7 @@ from cdmw.domain.new_item.spec import (
     EffectLook,
     EnhancementRows,
     GlowChoice,
+    TranslucencyChoice,
     IconSource,
     ItemGroupsChoice,
     MaterialRoute,
@@ -237,6 +238,7 @@ class NewItemDraft:
     effect_emitter_edits: Tuple[EmitterEdit, ...] = ()
     effect_emitter_order: Optional[Tuple[int, ...]] = None
     effect_layers: Optional[Tuple[EffectLayer, ...]] = None
+    translucency: Optional[TranslucencyChoice] = None
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -254,6 +256,7 @@ class NewItemDraft:
         self.reward_acquisitions = None
         self.authoring_errors.clear()
         self.variants = None
+        self.translucency = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -418,6 +421,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         sheathed_model=draft.sheathed_model,
         keep_template_physics=draft.keep_template_physics,
         glow=glow_choice(draft),
+        translucency=draft.translucency,
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,

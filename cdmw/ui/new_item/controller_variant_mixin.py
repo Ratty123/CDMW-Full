@@ -60,7 +60,7 @@ class NewItemVariantControllerMixin:
         appearance = replace(appearance,custom_model=self.draft.model_source is ModelSource.IMPORTED and (self.model_import is not None or self.model_result is not None),
                              material_route=self.draft.material_route.value,keep_template_physics=self.draft.keep_template_physics,
                              glow_parts=tuple(self.draft.glow_parts),glow_color=tuple(self.draft.glow_color),
-                             glow_intensity=self.draft.glow_intensity)
+                             glow_intensity=self.draft.glow_intensity,translucency=self.draft.translucency)
         self._variant_states[identity] = VariantModelState(appearance,self.model_import,self.model_result,self.model_entry,
             self.model_scene,self.model_placement,tuple(self.draft.glow_parts),tuple(self.draft.glow_color),self.draft.glow_intensity,
             prior.camera if prior else None)
@@ -92,6 +92,7 @@ class NewItemVariantControllerMixin:
         self.draft.material_route = MaterialRoute(state.appearance.material_route)
         self.draft.keep_template_physics = state.appearance.keep_template_physics
         self.draft.glow_parts,self.draft.glow_color,self.draft.glow_intensity = state.glow_parts,state.glow_color,state.glow_intensity
+        self.draft.translucency = state.appearance.translucency
         self._held_character,self._material_parts = (),()
         self.invalidate_plan()
         self.variant_changed.emit(identity)
