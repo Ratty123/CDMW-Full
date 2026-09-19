@@ -289,7 +289,9 @@ def test_missing_texture_blocks_game_output_but_preserves_draft(editor):
         validate_hair_output(snapshot)
 
 
-def test_authored_bundle_clones_textures_and_retains_existing_barber_choices(editor):
+@pytest.mark.parametrize("repeat_slot", [False, True])
+@pytest.mark.parametrize("player_variant", [True, False])
+def test_authored_bundle_clones_textures_and_retains_existing_barber_choices(editor, repeat_slot, player_variant):
     from cdmw.core.pathc_format import block_infos_for, encode_pathc, parse_pathc
     from tests.test_pathc_format import build_table
     from cdmw.domain.hair_registration import read_hair_choices
@@ -298,9 +300,23 @@ def test_authored_bundle_clones_textures_and_retains_existing_barber_choices(edi
     apply_hair_candidate(session, candidate(session, topology=True), "Generated bob")
     snapshot = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
     rebuilt = session.shadow_service._replacement_output_for_snapshot(snapshot)
-    files = registration_fixture()
-    files[MESH] = snapshot.original_data
-    files.update({f.path: f.data for f in snapshot.replacement_state.dependencies})
+    stem = STEM if player_variant else STEM.removesuffix("_player")
+    mesh_path = MESH.replace(STEM, stem)
+    if not player_variant:
+        state = snapshot.hair_state.payload
+        state["template"]["path"] = mesh_path
+        snapshot = replace(snapshot, hair_state=hair_state_from_payload(state),
+            replacement_state=replace(snapshot.replacement_state, dependencies=tuple(
+                replace(f, path=f.path.replace(STEM, stem)) for f in snapshot.replacement_state.dependencies)))
+    files = registration_fixture(stem=stem)
+    if repeat_slot:
+        duplicate = (f'<MeshSet Index="1" DecorationParamIndex="0 1" MinValue="40 50">'
+                     f'<MeshList MeshFileName="{stem}" IconPath="ui/texture/image/questimage/questionmark.dds"/>'
+                     '</MeshSet>').encode()
+        boundary = b'</ParamDesc>\r\n<ParamDesc Index="3"'
+        files[DAMIANE_MESH_PARAM] = files[DAMIANE_MESH_PARAM].replace(boundary, duplicate + boundary)
+    files[mesh_path] = snapshot.original_data
+    files.update({f.path.replace(STEM, stem): f.data for f in snapshot.replacement_state.dependencies})
     files[ICON] = dds()
     table = build_table(headers=[dds()[:128]], entries=[(TEXTURE, 0, block_infos_for(dds())), (ICON, 0, block_infos_for(dds()))])
     before = copy.deepcopy(files)
@@ -309,13 +325,56 @@ def test_authored_bundle_clones_textures_and_retains_existing_barber_choices(edi
     writes = {f.path: f.data for f in (*plan.replacements, *plan.additions)}
     assert MESH not in writes and MATERIAL not in writes and TEXTURE not in writes
     assert writes[MESH.replace(STEM, NEW)] == rebuilt.data
-    assert writes[MATERIAL.replace(STEM, NEW)] != files[MATERIAL]
+    assert writes[MATERIAL.replace(STEM, NEW)] != files[MATERIAL.replace(STEM, stem)]
     assert read_hair_choices(writes[DAMIANE_MESH_PARAM])[:-1] == read_hair_choices(files[DAMIANE_MESH_PARAM])
+    import xml.etree.ElementTree as ET
+    slot = ET.fromstring(writes[DAMIANE_MESH_PARAM]).find("ParamDesc[@UIKey='hairShape']")
+    assert slot[-1].get("FutureField") == "keep"  # First slot, never the placeholder.
+    assert plan.choice_index == 1 + int(repeat_slot)
     assert len(parse_pathc(pathc).entries) == len(table.entries) + 2
     texture = next(f for f in plan.additions if "_texture_" in f.path)
     assert texture.data == files[TEXTURE]
     with pytest.raises(ValueError, match="already exists"):
         prepare_authored_hair(snapshot, rebuilt, files, {*files, texture.path}, encode_pathc(table))
+
+
+def test_export_resolves_registered_icon_outside_the_customizeimage_folder(editor, tmp_path, monkeypatch):
+    from cdmw.models import ArchiveEntry
+    from cdmw.services import mesh_hair_output as output
+    from cdmw.services.hair_registration import DAMIANE_MESH_PARAM
+    _, session = editor
+    snapshot = session.shadow_service.capture_export_snapshot(session.shadow_session_id)
+    rebuilt = session.shadow_service._replacement_output_for_snapshot(snapshot)
+    files = registration_fixture()
+    files[MESH] = snapshot.original_data
+    files.update({f.path: f.data for f in snapshot.replacement_state.dependencies})
+    icon_path = "ui/texture/image/questimage/custom_hair.dds"
+    files[DAMIANE_MESH_PARAM] = files[DAMIANE_MESH_PARAM].replace(ICON.encode(), icon_path.encode())
+    files[icon_path] = dds()
+    files[output.PBD_CONFIG] = b"owned config"
+    files["character/descriptors/pbd/hair.xml"] = b"owned physics profile"
+    game = tmp_path / "game"
+    (game / "meta").mkdir(parents=True)
+    for name in ("0.papgt", "0.pathc", "0.paver"):
+        (game / "meta" / name).write_bytes(b"owned metadata")
+    pamt = game / "0001/0.pamt"
+    pamt.parent.mkdir()
+    pamt.write_bytes(b"owned index")
+    paz = pamt.with_suffix(".paz"); paz.write_bytes(b"owned archive")
+    entries = {path: ArchiveEntry(path, pamt, paz, index, len(data), len(data), 0, 0)
+               for index, (path, data) in enumerate(files.items())}
+    monkeypatch.setattr(output, "parse_papgt", lambda _: [SimpleNamespace(name="0001")])
+    monkeypatch.setattr(output, "parse_archive_pamt", lambda _: tuple(entries.values()))
+    monkeypatch.setattr(output, "read_archive_entry_data", lambda entry, *_: (files[entry.path], ""))
+    monkeypatch.setattr(output, "parse_pbd_config_materials", lambda _: {"hair": SimpleNamespace(filename="hair.xml")})
+    class ReadComplete(Exception): pass
+    def prepared(_snapshot, _rebuilt, sources, *_args):
+        assert sources[icon_path] == files[icon_path]
+        raise ReadComplete
+    monkeypatch.setattr(output, "prepare_authored_hair", prepared)
+    with pytest.raises(ReadComplete):
+        output.export_hair_package(snapshot, rebuilt, entries[MESH], tmp_path / "new-hair")
+    assert not (tmp_path / "new-hair").exists()
 
 
 def test_dds_edit_preserves_material_binding_and_undo(editor, tmp_path):
@@ -449,7 +508,7 @@ def test_finder_stale_hair_preparation_restores_actions(finder):
     assert dialog._hair_handoff is None and dialog._create_hair.isEnabled()
 
 
-@pytest.mark.parametrize("operation", ["reshape", "cut", "delete"])
+@pytest.mark.parametrize("operation", ["reshape", "cut", "cut_and_weight_edit", "delete"])
 def test_existing_hair_preserves_skeletal_and_cloth_record_bytes(editor, operation):
     from tests.test_pac_skin_extra_influences import _record
     from cdmw.modding.mesh_parser import parse_mesh
@@ -458,10 +517,10 @@ def test_existing_hair_preserves_skeletal_and_cloth_record_bytes(editor, operati
     _, session=editor
     snapshot=session.shadow_service.capture_export_snapshot(session.shadow_session_id)
     data=bytearray(snapshot.original_data)
-    skin=_record(palette=(1,2,3,4,5,6),weights=(60,50,40,30,20,10,25,20),extra=(0.,7.),gate=0)
     original=parse_mesh(bytes(data),MESH)
     offsets=original.submeshes[0].source_vertex_offsets
-    for offset in offsets:
+    for index, offset in enumerate(offsets):
+        skin=_record(palette=(1,2,3,4,5,6),weights=(60-2*index,50+2*index,40,30,20,10,25,20),extra=(0.,7.),gate=0)
         data[offset+12:offset+16]=skin[12:16]
         data[offset+20:offset+36]=skin[20:36]
         data[offset+39]=skin[39]
@@ -476,7 +535,7 @@ def test_existing_hair_preserves_skeletal_and_cloth_record_bytes(editor, operati
     mesh.submeshes[0].vertices=[(x+.03,y,z) for x,y,z in mesh.submeshes[0].vertices]
     state=payload(hashlib.sha256(source).hexdigest(),mode='existing')
     sources = list(range(len(mesh.submeshes[0].vertices)))
-    if operation == "cut":
+    if operation in {"cut", "cut_and_weight_edit"}:
         from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TARGET_DONOR
         part = mesh.submeshes[0]
         sources = list(reversed(part.faces[0]))
@@ -487,11 +546,17 @@ def test_existing_hair_preserves_skeletal_and_cloth_record_bytes(editor, operati
         part.vertex_count, part.face_count = len(sources), 1
         part.source_vertex_map = sources
         part.source_vertex_map_authority = SOURCE_VERTEX_MAP_TARGET_DONOR
+        if operation == "cut_and_weight_edit":
+            part.bone_weights[0] = tuple(reversed(part.bone_weights[0]))
         output = replace(output, parts=tuple(replace(p, import_positions=tuple(part.vertices), import_normals=tuple(part.normals)) if p.target_index == 0 else p for p in output.parts))
     elif operation == "delete":
         output = replace(output, parts=tuple(replace(p, included=False) if p.target_index == 0 else p for p in output.parts))
         sources = [0, 0, 0]
     snapshot=replace(snapshot,mesh=mesh,replacement_state=output,hair_state=hair_state_from_payload(state))
+    if operation == "cut_and_weight_edit":
+        with pytest.raises(ValueError, match="unchanged non-empty vertex count"):
+            prepare_replacement_output(snapshot)
+        return
     rebuilt=prepare_replacement_output(snapshot)
     assert rebuilt.data != source
     reparsed = parse_mesh(rebuilt.data, MESH)

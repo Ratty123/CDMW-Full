@@ -1,8 +1,9 @@
 """Role-limited character choices with the real textured Finder preview path."""
 from dataclasses import replace
 from pathlib import Path
+import threading
 from PySide6.QtCore import QProcess, QSize, QTimer, Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QLineEdit, QListView, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout
 from cdmw.domain.archives.character_catalogue import CharacterCatalogSearchRequest, CharacterCatalogSearchResult, CharacterCatalogDetailRequest, CharacterCatalogDetailResult
 from cdmw.ui.character_finder.preview_controller import CharacterFinderPreviewController
@@ -17,7 +18,7 @@ class HairReferencePickerDialog(QDialog):
     preparation_failed = Signal(str)
     base_ready = Signal()
 
-    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path="", base_only=False):
+    def __init__(self, owner, role, *, styles=(), character="Damiane", audit_hair=False, preferred_path="", base_only=False, icons=None):
         super().__init__(owner)
         if role not in {"head", "body", "hair"}:
             raise ValueError("Unknown Hair reference role")
@@ -37,7 +38,26 @@ class HairReferencePickerDialog(QDialog):
         self._closed, self._generation, self._page_start = False, 1, 0
         self._preparation_generation = 0
         self._requests, self._rows, self._details = {}, {}, {}
-        self._styles = tuple(styles)
+        unique = {}
+        for index, stem in styles:
+            unique.setdefault(stem, (index, stem))
+        self._styles = tuple(unique.values())
+        self._style_queue = []
+        self._page_size = 24 if role == "hair" else 72
+        if role == "hair" and not base_only:
+            position = next((i for i, (_, stem) in enumerate(self._styles)
+                if self._profile.hair_root + stem + ".pac" == self._preferred_path), 0)
+            self._page_start = position // self._page_size * self._page_size
+        self._audit_errors = {}
+        self._audit_stop = threading.Event()
+        self._icon_paths = dict(icons or {})
+        self._icon_images, self._page_icon_paths = {}, {}
+        self._pending_icon_keys = set()
+        self._icon_preparation = None
+        if self._icon_paths and not base_only:
+            from cdmw.ui.mesh_editor.hair_icon_preparation import HairIconPreparation
+            self._icon_preparation = HairIconPreparation(owner, self)
+            self._icon_preparation.ready.connect(self._registered_icons)
         self.auto_choose_first = False
         self.selected_entry = self.selected_dependencies = None
         self.setWindowTitle({"head": "Choose a compatible head", "body": "Choose a base body", "hair": "Choose a hairstyle"}[role])
@@ -99,7 +119,7 @@ class HairReferencePickerDialog(QDialog):
         QTimer.singleShot(0, self._search)
 
     def _page(self, delta):
-        self._page_start = max(0, self._page_start + delta * 72)
+        self._page_start = max(0, self._page_start + delta * self._page_size)
         self._search()
 
     def _filter_changed(self):
@@ -109,21 +129,40 @@ class HairReferencePickerDialog(QDialog):
     def _search(self):
         if self._closed: return
         self._generation += 1
+        self._audit_stop.set()
+        self._audit_stop = threading.Event()
         self._preparation_generation += 1
         for request in self._requests: self._service.cancel(request)
         self._requests.clear(); self._rows.clear(); self._preview.clear_page()
         self._prepare.cancel(); self.grid.clear(); self.choose.setEnabled(False)
         self._audit_prepare.cancel(); self._audit_queue.clear(); self._audit_active = None
+        self._style_queue.clear(); self._details.clear(); self._verified.clear(); self._audit_errors.clear()
+        self._icon_images.clear(); self._page_icon_paths.clear(); self._pending_icon_keys.clear()
+        if self._icon_preparation:
+            self._icon_preparation.cancel()
         try:
             if self._role == "hair":
                 if self._base_only:
                     self._base_remaining = list(self._styles)
                     self._request_next_base()
-                for index, stem in (() if self._base_only else self._styles[:1] if self.auto_choose_first else self._styles):
-                    key = f"asset:{self._profile.hair_root}{stem}.pac"
-                    request = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(self._session_id, key), ui_generation=self._generation)
-                    self._requests[request] = ("style", index)
-                self.previous.setEnabled(False); self.next.setEnabled(False)
+                    self.previous.setEnabled(False); self.next.setEnabled(False)
+                else:
+                    query = self.search.text().strip().casefold()
+                    styles = [style for style in self._styles if query in
+                              f"{self._profile.name} hairstyle {style[0] + 1} {style[1]}".casefold()]
+                    if self.auto_choose_first:
+                        styles = styles[:1]
+                    self._page_start = min(self._page_start, max(0, (len(styles) - 1) // self._page_size * self._page_size))
+                    self._style_queue = styles[self._page_start:self._page_start + self._page_size]
+                    self.previous.setEnabled(self._page_start > 0)
+                    self.next.setEnabled(self._page_start + self._page_size < len(styles))
+                    self.status.setText(f"{len(styles)} registered hairstyles" if styles else "No matching hairstyles.")
+                    if self._icon_preparation:
+                        self._page_icon_paths = {f"asset:{self._profile.hair_root}{stem}.pac": self._icon_paths[stem].casefold()
+                                                for _, stem in self._style_queue if self._icon_paths.get(stem)}
+                        self._pending_icon_keys = set(self._page_icon_paths)
+                        self._icon_preparation.start(self._session_id, self._page_icon_paths.values(), self._generation)
+                    self._request_styles()
             else:
                 request = self._service.search_character_catalog(CharacterCatalogSearchRequest(self._session_id,
                     query=self.search.text(), tab="all", body_family=self._profile.reference_family,
@@ -131,6 +170,19 @@ class HairReferencePickerDialog(QDialog):
                 self._requests[request] = ("search", None)
         except Exception as error:
             self._error(str(error))
+
+    def _request_styles(self):
+        """Bound catalogue work to the current page, including after a filter."""
+        while (not self._closed and self._style_queue
+               and sum(kind == "style" for kind, _ in self._requests.values()) < 4):
+            index, stem = self._style_queue.pop(0)
+            key = f"asset:{self._profile.hair_root}{stem}.pac"
+            try:
+                request = self._service.get_character_catalog_detail(
+                    CharacterCatalogDetailRequest(self._session_id, key), ui_generation=self._generation)
+                self._requests[request] = ("style", index)
+            except Exception as error:
+                self._error(str(error))
 
     def _result(self, request, _operation, result):
         if self._closed or request not in self._requests or getattr(result, "session_id", None) != self._session_id: return
@@ -151,7 +203,7 @@ class HairReferencePickerDialog(QDialog):
                 row = replace(result.row, label=f"{self._profile.name} hairstyle {index + 1}")
                 result = replace(result, row=row)
                 self._details[row.key] = result
-                if self.search.text().casefold() in row.label.casefold(): self._add(row)
+                self._add(row)
                 if self._audit_hair and row.key not in self._verified:
                     self._audit_queue.append(result)
                     self._audit_next()
@@ -159,13 +211,16 @@ class HairReferencePickerDialog(QDialog):
                 self._details[result.row.key] = result
                 self._preview.select(result, self._generation)
                 self.choose.setEnabled(len(result.models) == 1)
-        if not self.auto_choose_first and not self._base_only:
-            self._preview.visible(tuple(self._rows.values()), session_id=self._session_id, generation=self._generation)
+        self._refresh_thumbnails()
         if self.grid.currentRow() < 0 and self.grid.count(): self.grid.setCurrentRow(0)
         if self.auto_choose_first and self.choose.isEnabled():
             self._choose()
+        if kind == "style" and not self._base_only:
+            self._request_styles()
 
     def _add(self, row):
+        if row.key in self._rows:
+            return
         self._rows[row.key] = row
         label = row.label
         if self._role != "hair" and (label.endswith(".pac") or label.startswith("cd_")):
@@ -174,6 +229,8 @@ class HairReferencePickerDialog(QDialog):
             variant = stem.removeprefix(prefix).replace("_", " ")
             label = self._profile.name + (" head " if self._role == "head" else " base body ") + variant
         item = QListWidgetItem(label)
+        if row.key in self._icon_images:
+            item.setIcon(self._icon_images[row.key])
         item.setToolTip(row.path)
         item.setData(Qt.UserRole, row.key); item.setSizeHint(QSize(168, 192))
         ranks = {stem: index for index, stem in self._styles}
@@ -194,11 +251,13 @@ class HairReferencePickerDialog(QDialog):
         detail = self._details.get(key)
         if detail:
             if not self.auto_choose_first and not self._base_only:
+                self._refresh_thumbnails()
                 self._preview.select(detail, self._generation)
             self.choose.setEnabled(len(detail.models) == 1 and (not self._audit_hair or key in self._verified))
             if self._audit_hair:
-                self.status.setText("Compatible base: " + detail.row.path if key in self._verified else
-                                   "Checking original PAC layout, skin records and materials…")
+                self.status.setText(self._audit_errors.get(key) or
+                    ("Compatible base: " + detail.row.path if key in self._verified else
+                     "Checking original PAC layout, skin records and materials…"))
         else:
             try:
                 request = self._service.get_character_catalog_detail(CharacterCatalogDetailRequest(self._session_id, key), ui_generation=self._generation)
@@ -242,11 +301,15 @@ class HairReferencePickerDialog(QDialog):
     def _audit_prepared(self, token, inputs):
         if self._closed or token != self._generation or self._audit_active != inputs.detail.row.key:
             return
+        stop = self._audit_stop
+        character = self._profile.name
         def inspect(_log):
+            from cdmw.domain.cancellation import raise_if_cancelled
             from cdmw.core.archive_extraction import read_archive_entry_data
             from cdmw.modding.mesh_parser import parse_mesh
             from cdmw.services.mesh_rust_hair import validate_hair_donor
             from cdmw.services.hair_registration import validate_hair_prefab_donor
+            raise_if_cancelled(stop, "Hairstyle check cancelled.")
             if not inputs.dependencies_complete or len(inputs.detail.models) != 1:
                 raise ValueError("This hairstyle has incomplete or ambiguous dependencies.")
             entry = inputs.entries_by_id[inputs.detail.models[0].entry_id]
@@ -255,8 +318,11 @@ class HairReferencePickerDialog(QDialog):
             prefabs = [item for item in inputs.entries if item.basename.casefold() == Path(entry.path).stem.casefold() + ".prefab"]
             if len(prefabs) != 1 or prefabs[0].orig_size > 2 * 1024 * 1024:
                 raise ValueError("The registered hairstyle needs one unambiguous mounted prefab.")
-            validate_hair_prefab_donor(read_archive_entry_data(prefabs[0])[0], entry.path)
-            validate_hair_donor(parse_mesh(read_archive_entry_data(entry)[0], entry.path), self._profile.name)
+            validate_hair_prefab_donor(read_archive_entry_data(prefabs[0], stop)[0], entry.path)
+            data = read_archive_entry_data(entry, stop)[0]
+            raise_if_cancelled(stop, "Hairstyle check cancelled.")
+            validate_hair_donor(parse_mesh(data, entry.path), character)
+            raise_if_cancelled(stop, "Hairstyle check cancelled.")
             return inputs
         self._owner._run_utility_task_when_idle(status_message="Checking hairstyle compatibility…", task=inspect,
             on_complete=lambda value: self._audit_done(token, value, ""),
@@ -268,6 +334,8 @@ class HairReferencePickerDialog(QDialog):
         key, self._audit_active = self._audit_active, None
         if inputs is not None:
             self._verified[key] = inputs
+        elif error:
+            self._audit_errors[key] = error
         for i in range(self.grid.count()):
             item = self.grid.item(i)
             if item.data(Qt.UserRole) == key:
@@ -314,8 +382,30 @@ class HairReferencePickerDialog(QDialog):
         self.choose.setEnabled(detail is not None and len(detail.models) == 1)
         self._error(message)
 
+    def _refresh_thumbnails(self):
+        if not self._closed and not self.auto_choose_first and not self._base_only:
+            # The preview controller retains selected jobs only while their
+            # row belongs to its page. Keep that row even with a barber icon.
+            selected = self._key()
+            self._preview.visible(tuple(row for key, row in self._rows.items()
+                if key == selected or (key not in self._pending_icon_keys and key not in self._icon_images)),
+                session_id=self._session_id, generation=self._generation)
+
+    def _registered_icons(self, generation, images):
+        if self._closed or generation != self._generation:
+            return
+        self._pending_icon_keys.clear()
+        for key, path in self._page_icon_paths.items():
+            if path in images and not images[path].isNull():
+                self._icon_images[key] = QIcon(QPixmap.fromImage(images[path]))
+        for index in range(self.grid.count()):
+            item = self.grid.item(index)
+            if item.data(Qt.UserRole) in self._icon_images:
+                item.setIcon(self._icon_images[item.data(Qt.UserRole)])
+        self._refresh_thumbnails()
+
     def _thumbnail(self, key, result):
-        if self._closed or not result.thumbnail_path: return
+        if self._closed or key in self._icon_images or not result.thumbnail_path: return
         for index in range(self.grid.count()):
             if self.grid.item(index).data(Qt.UserRole) == key: self.grid.item(index).setIcon(QIcon(result.thumbnail_path))
 
@@ -324,11 +414,13 @@ class HairReferencePickerDialog(QDialog):
 
     def _failed(self, request, error):
         if request in self._requests and not self._closed:
-            self._requests.pop(request)
+            kind, _ = self._requests.pop(request)
             if self._base_only:
                 self._request_next_base()
             else:
                 self._error(str(getattr(error, "message", error)))
+                if kind == "style":
+                    self._request_styles()
 
     def _error(self, message):
         if self._closed: return
@@ -349,6 +441,10 @@ class HairReferencePickerDialog(QDialog):
     def done(self, result):
         if not self._closed:
             self._closed = True; self._timer.stop()
+            self._audit_stop.set()
+            if self._icon_preparation:
+                self._icon_preparation.cancel()
+            self._style_queue.clear()
             for request in self._requests: self._service.cancel(request)
             self._requests.clear(); self._prepare.cancel(); self._audit_prepare.cancel(); self._preview.shutdown(); self.host.controller.shutdown()
             self._release_timer.start()

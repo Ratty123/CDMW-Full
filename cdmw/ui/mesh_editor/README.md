@@ -77,10 +77,19 @@ brows. Heads without fitted covers retain their separate eye reference.
 Reference loading parses fitting geometry and
 authored transforms directly, without opening editable sessions or decoding DDS.
 Eyes follow the head but remain outside the scalp planting and collision surface.
-Compatible single-mesh `_player.pac` registrations at LOD0 are supported. Entries
+Compatible single-mesh PAC registrations at LOD0 are supported, including
+registered variants without a `_player` suffix. Entries
 with multiple PAC references, additional LODs, unsupported layouts or incomplete
 dependencies explain their restriction before Start. Ordinary hair PACs retain
 the general mesh tools.
+
+The hairstyle chooser shows each registered mesh once, keeps the first slot's
+number and icon, and searches both that number and the asset name. It loads 24
+choices per page with at most four detail requests in flight. Opening a hairstyle
+from Finder starts on its page. Mounted barber DDS icons supply the grid images;
+missing or unreadable icons use the existing rendered thumbnails. The selected
+style still gets its full 3D preview. Page changes cancel obsolete icon and
+compatibility work, and unavailable styles keep their explanation.
 
 Start prepares a complete replacement in isolation before the existing unsaved
 work confirmation and scene switch. Cancellation and failed preparation preserve
@@ -169,8 +178,10 @@ Acknowledgements read the validated revision without decoding the complete hair
 document again.
 
 Packages retain the additional-choice contract, automatically allocate distinct
-internal identities and use the readable name in their manifest. Retained existing
-PAC vertices preserve their original skin records, including eight influences,
+internal identities and use the readable name in their manifest. Existing
+barber slots, including mod-added duplicates, remain byte-for-byte unchanged;
+the new choice inherits the first matching donor slot's settings and icon.
+Retained PAC vertices preserve their original skeletal and cloth-guide records
 when reshaped, cut or deleted. Generated geometry always transfers skinning from
 an immutable original PAC donor matched by stable part identity, including after
 consecutive Draw strokes, Undo/Redo and reopening. The 40-byte PAC layout guard

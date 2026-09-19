@@ -123,7 +123,8 @@ class HairSetupDialog(QDialog):
             creating = self.mode.currentData() == "generated"
             picker = HairReferencePickerDialog(self._owner, "hair", character=profile.name,
                 styles=tuple((c.index, c.prefab_stem) for c in choices), audit_hair=True,
-                preferred_path=self._target_path, base_only=creating)
+                preferred_path=self._target_path, base_only=creating,
+                icons={c.prefab_stem: c.icon_path for c in reversed(choices)})
             self._picker = picker
             picker.setParent(self, Qt.Widget)
             picker.choose.setText("Start")

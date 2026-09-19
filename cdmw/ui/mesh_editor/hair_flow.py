@@ -104,7 +104,7 @@ def begin_hair_context(tab, session, event):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
-        raise ValueError("Open a registered player hairstyle before entering Hair.")
+        raise ValueError("Open a registered hairstyle before entering Hair.")
     dependencies = getattr(tab, "archive_session_dependencies", None) or archive_workflow_dependency_context(owner, target)
     previous = getattr(tab, "_hair_context_preparation", None)
     if previous is not None:
@@ -156,7 +156,7 @@ def prepare_hair_event(tab, session, event):
         owner = owner.owner
     target = tab._current_target_entry()
     if target is None:
-        raise ValueError("Open a registered player hairstyle before changing references.")
+        raise ValueError("Open a registered hairstyle before changing references.")
     service = owner.archive.archive_catalogue_service
     archive_session = service.current_session
     arguments = {**dict(event.get("arguments") or {}), "_target_entry": target,

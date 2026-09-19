@@ -331,6 +331,95 @@ def test_create_checks_one_base_at_a_time_and_waits_for_start_without_thumbnails
     assert dialog.selected_entry is target and dialog._closed
 
 
+def test_large_hair_catalogue_deduplicates_pages_and_cancels_stale_searches(owner):
+    stems = [f"cd_phw_00_hair_00_{i:04d}" for i in range(180)]
+    styles = (*enumerate(stems), (180, stems[0]), (181, stems[0]))
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=styles)
+    QApplication.processEvents()
+    service = owner.archive_catalogue_service
+    assert len(dialog._styles) == 180 and len(service.calls) == 4
+    assert dialog.next.isEnabled() and not dialog.previous.isEnabled()
+    while dialog._requests:
+        token = next(iter(dialog._requests))
+        request = next(call[1] for call in service.calls if call[0] == token)
+        path = request.key.removeprefix("asset:")
+        selected = row(len(service.calls), key=request.key, path=path)
+        service.result_ready.emit(token, "get_character_catalog_detail", detail(selected))
+        assert len(dialog._requests) <= 4
+    assert len(service.calls) == 24 and dialog.grid.count() == 24
+    assert len(set(dialog._rows)) == 24
+    dialog._page(1)
+    old_requests = dict(dialog._requests)
+    old_stop = dialog._audit_stop
+    assert dialog.previous.isEnabled() and len(old_requests) == 4
+    assert stems[24] in service.calls[-4][1].key
+    dialog.search.setText("0175")
+    dialog._timer.stop()
+    dialog._search()
+    assert old_stop.is_set() and old_requests.keys() <= set(service.cancelled)
+    assert len(dialog._requests) == 1 and stems[175] in service.calls[-1][1].key
+    assert not dialog.previous.isEnabled() and not dialog.next.isEnabled()
+    for token in old_requests:
+        service.result_ready.emit(token, "get_character_catalog_detail", detail(row()))
+    assert dialog.grid.count() == 0
+    token, request, _ = service.calls[-1]
+    selected = row(key=request.key, path=request.key.removeprefix("asset:"))
+    service.result_ready.emit(token, "get_character_catalog_detail", detail(selected))
+    assert dialog.grid.count() == 1 and dialog.grid.item(0).text() == "Damiane hairstyle 176"
+    dialog.reject()
+    assert dialog._audit_stop.is_set() and not dialog._style_queue
+
+
+def test_hair_page_failure_continues_queued_choices_and_preserves_unavailable_reason(owner):
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair",
+        styles=tuple((i, f"style{i}") for i in range(12)), audit_hair=True)
+    QApplication.processEvents()
+    service = owner.archive_catalogue_service
+    token = service.calls[0][0]
+    service.request_failed.emit(token, SimpleNamespace(message="Missing style"))
+    assert len(service.calls) == 5 and len(dialog._requests) == 4
+    selected = row()
+    dialog._details[selected.key] = detail(selected)
+    dialog._add(selected)
+    dialog._audit_active = selected.key
+    dialog._audit_done(dialog._generation, None, "Unsupported PAC layout")
+    dialog.grid.setCurrentRow(0)
+    dialog._select()
+    assert dialog.status.text() == "Unsupported PAC layout" and not dialog.choose.isEnabled()
+    dialog.reject()
+
+
+def test_picker_opens_the_page_containing_the_requested_hairstyle(owner):
+    styles = tuple((i, f"style{i}") for i in range(180))
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", styles=styles,
+        preferred_path="character/model/1_pc/2_phw/head/hair/style175.pac")
+    QApplication.processEvents()
+    assert dialog._page_start == 168 and dialog.previous.isEnabled() and not dialog.next.isEnabled()
+    assert "style168.pac" in owner.archive_catalogue_service.calls[0][1].key
+    dialog.reject()
+
+
+def test_obsolete_hair_audit_stops_before_archive_read(owner, monkeypatch):
+    from cdmw.core import archive_extraction
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    dialog = picker_module.HairReferencePickerDialog(owner, "hair", audit_hair=True)
+    QApplication.processEvents()
+    selected = row()
+    dialog._audit_active = selected.key
+    inputs = SimpleNamespace(detail=detail(selected))
+    dialog._audit_prepared(dialog._generation, inputs)
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Obsolete audit read an archive")
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", forbidden)
+    dialog._search()
+    with pytest.raises(RuntimeError, match="cancelled"):
+        tasks[0]["task"](lambda _: None)
+    tasks[0]["on_error"]("Obsolete error")
+    assert "Obsolete" not in dialog.status.text()
+    dialog.reject()
+
+
 def test_create_dialog_loads_scene_only_after_start_and_mode_change_invalidates_base(owner):
     from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
     tasks = []
@@ -338,7 +427,7 @@ def test_create_dialog_loads_scene_only_after_start_and_mode_change_invalidates_
     dialog = HairSetupDialog(owner, character="Damiane")
     context = SimpleNamespace(character="Damiane", dependencies=SimpleNamespace(entry_for_path=lambda _: object()))
     dialog._context_ready(context)
-    tasks.pop()["on_complete"]([SimpleNamespace(index=0, prefab_stem="first")])
+    tasks.pop()["on_complete"]([SimpleNamespace(index=0, prefab_stem="first", icon_path="")])
     picker = dialog._picker
     assert picker.isHidden() and dialog.preset.currentData() == "empty"
     started = []

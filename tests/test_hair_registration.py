@@ -26,16 +26,17 @@ XML = (b'\xef\xbb\xbf<!-- retained </ParamDesc> comment -->\r\n<MeshParam>\r\n'
        + b'</ParamDesc>\r\n<ParamDesc Index="3" Default="0" /></MeshParam>')
 
 
-def fixture():
-    record = PartPrefabRecord(STEM, "1_pc/02_phw/head/hair", "", flag=0, parts=(PartPrefabPart("CD_Hair"),))
+def fixture(*, stem=STEM):
+    mesh = MESH.replace(STEM, stem)
+    record = PartPrefabRecord(stem, "1_pc/02_phw/head/hair", "", flag=0, parts=(PartPrefabPart("CD_Hair"),))
     table = PartPrefabTable((record,), tag_prefix=b"\x01")
     files = {
-        DAMIANE_MESH_PARAM: XML,
+        DAMIANE_MESH_PARAM: XML.replace(STEM.encode(), stem.encode()),
         PART_PREFAB_TABLE: encode_pappt(table),
-        record.prefab_path: _build(MESH),
-        MESH: b"opaque source mesh with all LODs and skin lanes",
-        MESH.replace("character/model/", "character/modelproperty/") + "_xml": b"authored material, opacity and PBD binding",
-        MESH.replace("character/model/", "character/bin__/meshphysics/")[:-4] + ".hkx": b"opaque physics",
+        record.prefab_path: _build(mesh),
+        mesh: b"opaque source mesh with all LODs and skin lanes",
+        mesh.replace("character/model/", "character/modelproperty/") + "_xml": b"authored material, opacity and PBD binding",
+        mesh.replace("character/model/", "character/bin__/meshphysics/")[:-4] + ".hkx": b"opaque physics",
         ICON: b"authored DDS",
     }
     return files
@@ -52,11 +53,14 @@ def test_prefab_donor_gate_explains_multi_mesh_and_alias_choices(monkeypatch, re
 
 
 @pytest.mark.parametrize("character", ["Kliff", "Damiane", "Oongka"])
-def test_registration_uses_selected_characters_barber_document(character):
+@pytest.mark.parametrize("player_variant", [True, False])
+def test_registration_uses_selected_characters_barber_document(character, player_variant):
     from cdmw.domain.hair_characters import hair_character
     from cdmw.services.hair_registration import prepare_hair_registration
     profile = hair_character(character)
     stem = STEM if character == "Damiane" else STEM.replace("phw", "phm")
+    if not player_variant:
+        stem = stem.removesuffix("_player")
     mesh = profile.hair_root + stem + ".pac"
     files = fixture()
     files[profile.mesh_param_path] = files.pop(DAMIANE_MESH_PARAM).replace(STEM.encode(), stem.encode())
@@ -74,6 +78,49 @@ def test_registration_uses_selected_characters_barber_document(character):
     outputs = {item.path: item.data for item in plan.replacements}
     assert read_hair_choices(outputs[profile.mesh_param_path])[-1].prefab_stem == "my_added_hair"
     assert len(plan.additions) == 5
+
+
+@pytest.mark.parametrize("filename,accepted", [
+    ("cd_phw_00_hair_00_0001.pac", True),
+    ("cd_phw_00_hair_00_0008_01_player.pac", True),
+    ("my_authored_hair.pac", True),
+    ("../head/other_player.pac", False),
+    ("nested/other_player.pac", False),
+    ("/other_player.pac", False),
+    ("bad.pac:extra", False),
+    ("hair.pam", False),
+])
+def test_hair_family_accepts_registered_variants_but_keeps_paths_contained(filename, accepted):
+    from cdmw.domain.hair_characters import hair_character, unique_hair_character
+    profile = hair_character("Damiane")
+    path = profile.hair_root + filename
+    assert profile.accepts_hair(path) == accepted
+    assert profile.accepts_hair(path.upper().replace("/", "\\")) == accepted
+    assert not hair_character("Kliff").accepts_hair(path)
+    assert (unique_hair_character(path) is profile) == accepted
+
+
+@pytest.mark.parametrize("character", ["Kliff", "Damiane", "Oongka"])
+def test_non_player_donors_still_require_original_lod_and_skin_records(character):
+    from cdmw.domain.hair_characters import hair_character
+    from cdmw.modding.mesh_skinning import PAC_SKIN_WEIGHT_LAYOUT
+    from cdmw.services.mesh_rust_hair import validate_hair_donor
+    part = SimpleNamespace(name="hair", vertices=[(0., 0., 0.)], source_vertex_stride=40,
+        source_skin_weight_layout=PAC_SKIN_WEIGHT_LAYOUT, bone_indices=[(0,)], bone_weights=[(1.,)])
+    mesh = SimpleNamespace(path=hair_character(character).hair_root + "cd_custom_hair.pac",
+                           submeshes=[part], lod_levels=[])
+    validate_hair_donor(mesh, character)
+    part.source_vertex_stride = 44
+    with pytest.raises(ValueError, match="stride"):
+        validate_hair_donor(mesh, character)
+    part.source_vertex_stride = 40
+    part.bone_weights = []
+    with pytest.raises(ValueError, match="skin records"):
+        validate_hair_donor(mesh, character)
+    part.bone_weights = [(1.,)]
+    mesh.lod_levels = [[], []]
+    with pytest.raises(ValueError, match="additional PAC LODs"):
+        validate_hair_donor(mesh, character)
 
 
 def test_append_retains_every_source_byte_and_existing_option():

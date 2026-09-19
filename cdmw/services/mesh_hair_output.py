@@ -181,11 +181,13 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
     profile = hair_character(template["character"])
     donor_stem = PurePosixPath(template["path"].replace("\\", "/")).stem
     choices = read_hair_choices(files[profile.mesh_param_path])
-    indices = [choice.index for choice in choices if choice.prefab_stem == donor_stem]
-    if len(indices) != 1:
-        raise ValueError("The donor must be one unambiguous current barber choice for this character.")
+    # Repeated slots can share a prefab. Match the chooser's first occurrence
+    # and clone that slot's settings and icon without disturbing any other slot.
+    choice = next((choice for choice in choices if choice.prefab_stem == donor_stem), None)
+    if choice is None:
+        raise ValueError("The donor must be a current barber choice for this character.")
     plan = prepare_hair_registration(files, new_stem=template["target_stem"],
-                                     template_index=indices[0], existing_paths=existing_paths,
+                                     template_index=choice.index, existing_paths=existing_paths,
                                      character=profile.name)
     donor_path = template["path"].replace("\\", "/").casefold()
     if files[donor_path] != snapshot.original_data:
@@ -238,7 +240,7 @@ def prepare_authored_hair(snapshot, rebuilt, files, existing_paths, pathc_bytes)
     additions = tuple(replace(item, data=rebuilt.data if item.path.endswith(".pac") else material)
                       if item.path.endswith((".pac", ".pac_xml")) else item for item in plan.additions)
     icon = next(item for item in additions if item.path.endswith(".dds"))
-    icon_donor = choices[indices[0]].icon_path.casefold()
+    icon_donor = choice.icon_path.casefold()
     registry = register_texture(registry, icon.path, like=icon_donor, dds_header=icon.data)
     encoded = encode_pathc(registry)
     if parse_pathc(encoded) != registry:
@@ -278,7 +280,7 @@ def export_hair_package(snapshot, rebuilt, entry, output, *, stop_event=None, on
             for item in parse_archive_pamt(pamt):
                 raise_if_cancelled(stop_event, "Hair catalogue scan cancelled.")
                 key = item.path.replace("\\", "/").casefold()
-                if ("/hair/" in key or key.startswith(("character/texture/", "ui/texture/image/customizeimage/",
+                if ("/hair/" in key or key.startswith(("character/texture/", "ui/texture/",
                         "character/descriptors/pbd/")) or key in {profile.mesh_param_path, PART_PREFAB_TABLE}
                         or new_stem in key):
                     entries.setdefault(key, item)

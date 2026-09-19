@@ -11,6 +11,15 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+
+- Hair Creator supports compatible registered hairstyles without a `_player` filename suffix. Large barber catalogues now use searchable pages, bounded background checks, and their supplied thumbnails while retaining the selected hairstyle's 3D preview.
+
+### Fixed
+
+- Hair Creator handles repeated barber slots from mods such as Barber Unlocked without duplicating chooser entries or rejecting export. New hairstyles inherit the first matching slot's settings and icon while preserving existing choices.
+- Fixed hair cuts being mistaken for bone-weight edits during export. Surviving vertices retain their original skin and cloth records.
+
 ## [0.11.0-alpha.20] - 2026-09-18
 
 Pre-release with experimental jiggle controls and Mesh Editor lifecycle fixes.

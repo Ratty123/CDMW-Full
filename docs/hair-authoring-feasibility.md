@@ -1,6 +1,6 @@
 # Hair creation in the existing Mesh Editor
 
-Updated for 0.11.0-alpha.17 on 2026-09-14. Experimental hair authoring uses one
+Updated on 2026-09-19. Experimental hair authoring uses one
 setup dialog for Kliff, Damiane and Oongka. Hairstyles have not been tested in game
 and may not work correctly. Local package creation is read-only against installed
 archives. Desktop interaction and in-game acceptance are separate from source and
@@ -13,6 +13,21 @@ Create opens an empty scalp; a sequential compatibility check finds the first
 usable registered skin/material base without preparing thumbnails. Optional
 procedural fills remain in the editor. Edit uses registered thumbnails. Start is
 disabled until the catalogue and donor checks finish.
+
+Barber catalogues can include registered PACs without `_player` in their filename.
+These use the same prefab, material, LOD and original-skin validation as player
+variants. Repeated prefab IDs appear once in the chooser using their first slot,
+while export appends a new choice without changing any existing slot or unrelated
+customization setting. It clones the first matching slot's metadata and icon.
+
+Edit filters by hairstyle number or asset name before requesting details, shows
+24 choices per page and allows at most four detail lookups at a time. A requested
+Finder hairstyle opens on its page. Active mounted DDS icons are resolved by
+their exact registration paths and decoded off-thread in bounded page batches;
+shadowed or ambiguous icon sources are not selected. Missing/corrupt icons use
+the existing rendered thumbnails, and selecting a hairstyle retains the full 3D
+preview. Page/filter changes cancel icon and compatibility work and reject late
+results. Failed compatibility checks retain their explanation when reselected.
 
 The character's mounted appearance and customization documents own fitting roles,
 scales and registration. Oongka uses `5_pom` head/body references and `1_phm` hair;
@@ -27,7 +42,7 @@ body crown/back geometry are partitioned to avoid an overlapping face shell.
 The resulting scalp and neck/shoulder
 references stay outside output geometry.
 
-The mounted catalogue audited on this date contains:
+The mounted catalogue audited on 2026-09-14 contained:
 
 | Character | Registered | Compatible | Unavailable registration |
 |---|---:|---:|---|
@@ -40,6 +55,14 @@ closure, LOD0, supported 40-byte skin layout and valid influence rows. Multi-mes
 registrations, aliases, additional LODs and incomplete dependencies are gated in
 the chooser with a reason; successful loading of a similarly named PAC is
 insufficient. Oongka's first compatible base is registered choice 2, `0016_player`.
+
+The supplied Barber Unlocked archive was inspected separately: its Kliff,
+Damiane and Oongka selectors have 182/77/175 slots referencing 171/75/171 distinct
+hair IDs. Its XML append operations and 24 supplied DDS icon decodes passed local
+checks. These counts do not establish compatible donor counts: the ZIP contains
+no PAC meshes, rigs or physics. The mod's colour palettes remain owned by the
+mounted game/mod; no global palette or existing colour indices are replaced by
+hair package export. Beard entries are reference data, not beard-authoring support.
 
 Only Start prepares the replacement editor. Preparation owns a cancellation token,
 rejects stale catalogue/character/selection results and retains the current scene
@@ -166,6 +189,9 @@ translation framework.
 its prefab, PAC, PAC_XML, HKX and icon under a distinct identity.
 `mesh_hair_output.py` creates independent DDS/PATHC entries and verifies geometry,
 weights, material closure and exact package payload readbacks before publication.
+Cuts compare surviving skin rows through their original vertex mapping, so
+removing or reordering vertices does not incorrectly enter the unchanged-topology
+weight-edit path. Actual weight edits still require its exact-record checks.
 Installed PAMT/PAZ files stay unchanged. Selector/PAPPT/PATHC data is shared, so
 independently built hair packages must be reconciled against the mounted catalogue
 before combining them. No in-game installation is performed by verification.

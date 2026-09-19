@@ -1,6 +1,7 @@
 """Playable-character ownership of hair, fitting references and barber slots."""
 
 from dataclasses import dataclass
+import re
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +19,10 @@ class HairCharacter:
 
     def accepts_hair(self, path):
         path = str(path).replace("\\", "/").casefold()
-        return path.startswith(self.hair_root) and path.endswith("_player.pac")
+        # Barber mods also register non-_player variants. Mounted registration
+        # and PAC checks decide usability; keep paths in this exact hair folder.
+        return (path.startswith(self.hair_root)
+                and re.fullmatch(r"[a-z][a-z0-9_]{0,126}\.pac", path[len(self.hair_root):]) is not None)
 
     def accepts_reference(self, path, role):
         path = str(path).replace("\\", "/").casefold()

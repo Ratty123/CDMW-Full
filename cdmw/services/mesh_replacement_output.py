@@ -191,9 +191,19 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
                     and list(edited.faces) == list(source.faces)
                     and any(list(getattr(edited, channel)) != list(getattr(source, channel))
                             for channel in ("vertices", "uvs", "normals")))
-                skin_changed = pac_skin_weights_changed(source, edited)
+                donor_lineage = source_vertex_map_is_target_donor_lineage(source, edited)
+                skin_source = source
+                if (donor_lineage and len(source.bone_indices) == len(source.vertices)
+                        and len(source.bone_weights) == len(source.vertices)):
+                    # Hair cuts retain/reorder original records. Compare each
+                    # surviving row with its donor before treating it as a
+                    # weight edit that requires unchanged topology.
+                    skin_source = copy.copy(source)
+                    skin_source.bone_indices = [source.bone_indices[int(i)] for i in edited.source_vertex_map]
+                    skin_source.bone_weights = [source.bone_weights[int(i)] for i in edited.source_vertex_map]
+                skin_changed = pac_skin_weights_changed(skin_source, edited)
                 if (part.included and (vertex_channels_changed or
-                        (source_vertex_map_is_target_donor_lineage(source, edited) and skin_changed))):
+                        (donor_lineage and skin_changed))):
                     checked = edited
                     if edited.source_vertex_stride == 0:
                         # Older drafts omitted stride metadata. The exact patch

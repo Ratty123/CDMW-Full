@@ -28,7 +28,7 @@ def validate_hair_donor(mesh, character="Damiane", lod_index=0):
     from cdmw.modding.mesh_skinning import PAC_SKIN_WEIGHT_LAYOUT
     import math
     if lod_index != 0 or not hair_character(character).accepts_hair(mesh.path):
-        raise ValueError("Choose a registered player hairstyle at LOD0.")
+        raise ValueError("Choose a registered hairstyle for this character at LOD0.")
     if not mesh.submeshes or not any(p.vertices for p in mesh.submeshes):
         raise ValueError("The hairstyle has no editable geometry at LOD0.")
     if len(mesh.lod_levels) > 1:
