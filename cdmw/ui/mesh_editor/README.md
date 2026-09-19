@@ -66,6 +66,10 @@ does not load a thumbnail gallery. Edit shows registered hairstyles with
 thumbnails and preselects the active compatible hairstyle. **Start** stays disabled until the
 catalogue and donor checks are ready. Browsing choices does not replace the scene.
 Finder Create/Edit Hair uses this same dialog.
+Setup, loading, and catalogue errors use a compact form with one action row;
+Edit expands for the hairstyle gallery once the catalogue is available.
+Mounted barber documents using `Hair` and older/modded documents using
+`hairShape` are both supported without changing their slot names or existing choices.
 
 Mounted appearance and customization documents supply the head, facial details,
 scalp, neck and shoulders. Authored head scales use the head joint as their pivot;

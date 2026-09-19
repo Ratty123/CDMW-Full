@@ -9,6 +9,9 @@ import xml.etree.ElementTree as ET
 from xml.parsers import expat
 
 
+_HAIR_SLOT_KEYS = frozenset({"Hair", "hairShape"})
+
+
 class HairRegistrationError(ValueError):
     """The source does not support a proven, additive hair registration."""
 
@@ -44,10 +47,12 @@ def _hair_slot(data: bytes) -> ET.Element:
         raise HairRegistrationError(f"Invalid hair option XML: {exc}") from exc
     if root.tag != "MeshParam":
         raise HairRegistrationError("Expected a MeshParam customization document.")
+    # Mounted game documents use Hair; older/modded catalogues use hairShape.
+    # Keep the shared slot index and reject conflicting registrations.
     slots = [node for node in root if node.tag == "ParamDesc" and
-             (node.get("Index") == "2" or node.get("UIKey") == "hairShape")]
-    if len(slots) != 1 or slots[0].get("Index") != "2" or slots[0].get("UIKey") != "hairShape":
-        raise HairRegistrationError("The document must have exactly one hairShape slot at Index 2.")
+             (node.get("Index") == "2" or node.get("UIKey") in _HAIR_SLOT_KEYS)]
+    if len(slots) != 1 or slots[0].get("Index") != "2" or slots[0].get("UIKey") not in _HAIR_SLOT_KEYS:
+        raise HairRegistrationError("The document must have exactly one hairstyle slot at Index 2.")
     return slots[0]
 
 
@@ -105,7 +110,8 @@ def append_hair_choice(data: bytes, *, template_index: int, prefab_stem: str,
 
     def end(tag):
         current, attrs = stack[-1]
-        if len(stack) == 2 and current == "ParamDesc" and attrs.get("UIKey") == "hairShape":
+        if (len(stack) == 2 and current == "ParamDesc"
+                and attrs.get("Index") == slot.get("Index") and attrs.get("UIKey") == slot.get("UIKey")):
             offsets.append(parser.CurrentByteIndex)
         stack.pop()
 

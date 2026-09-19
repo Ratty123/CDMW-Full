@@ -54,7 +54,8 @@ def test_prefab_donor_gate_explains_multi_mesh_and_alias_choices(monkeypatch, re
 
 @pytest.mark.parametrize("character", ["Kliff", "Damiane", "Oongka"])
 @pytest.mark.parametrize("player_variant", [True, False])
-def test_registration_uses_selected_characters_barber_document(character, player_variant):
+@pytest.mark.parametrize("slot_key", [b"Hair", b"hairShape"])
+def test_registration_uses_selected_characters_barber_document(character, player_variant, slot_key):
     from cdmw.domain.hair_characters import hair_character
     from cdmw.services.hair_registration import prepare_hair_registration
     profile = hair_character(character)
@@ -64,6 +65,7 @@ def test_registration_uses_selected_characters_barber_document(character, player
     mesh = profile.hair_root + stem + ".pac"
     files = fixture()
     files[profile.mesh_param_path] = files.pop(DAMIANE_MESH_PARAM).replace(STEM.encode(), stem.encode())
+    files[profile.mesh_param_path] = files[profile.mesh_param_path].replace(b'UIKey="hairShape"', b'UIKey="' + slot_key + b'"')
     record = PartPrefabRecord(stem, "1_pc/01_phm/head/hair" if character != "Damiane" else "1_pc/02_phw/head/hair",
                               "", flag=0, parts=(PartPrefabPart("CD_Hair"),))
     old_record = parse_pappt(files[PART_PREFAB_TABLE]).records[0]
@@ -123,11 +125,13 @@ def test_non_player_donors_still_require_original_lod_and_skin_records(character
         validate_hair_donor(mesh, character)
 
 
-def test_append_retains_every_source_byte_and_existing_option():
-    result = append_hair_choice(XML, template_index=0, prefab_stem=NEW, icon_path=ICON)
-    assert result.data[:result.insertion_offset] + result.data[result.insertion_offset + len(result.inserted_bytes):] == XML
+@pytest.mark.parametrize("slot_key", [b"Hair", b"hairShape"])
+def test_append_retains_every_source_byte_and_existing_option(slot_key):
+    source = XML.replace(b'UIKey="hairShape"', b'UIKey="' + slot_key + b'"')
+    result = append_hair_choice(source, template_index=0, prefab_stem=NEW, icon_path=ICON)
+    assert result.data[:result.insertion_offset] + result.data[result.insertion_offset + len(result.inserted_bytes):] == source
     choices = read_hair_choices(result.data)
-    assert choices[:-1] == read_hair_choices(XML)
+    assert choices[:-1] == read_hair_choices(source)
     assert choices[-1].index == 1 and choices[-1].prefab_stem == NEW
     node = ET.fromstring(result.data).findall("ParamDesc")[1][-1]
     assert node.get("FutureField") == "keep"
@@ -140,6 +144,10 @@ def test_append_retains_every_source_byte_and_existing_option():
     XML.replace(b'</MeshSet>', b'<MeshList MeshFileName="another"/></MeshSet>'),
     b'<!DOCTYPE MeshParam [<!ENTITY x "x">]><MeshParam/>',
     XML.replace(b'</MeshParam>', b'<ParamDesc Index="2" UIKey="hairShape"/></MeshParam>'),
+    XML.replace(b'UIKey="hairShape"', b'UIKey="Beard"'),
+    XML.replace(b'Index="2"', b'Index="7"').replace(b'UIKey="hairShape"', b'UIKey="Hair"'),
+    XML.replace(b'</MeshParam>', b'<ParamDesc Index="7" UIKey="Hair"/></MeshParam>'),
+    XML.replace(b'</MeshParam>', b'<ParamDesc Index="2" UIKey="Beard"/></MeshParam>'),
 ])
 def test_ambiguous_or_unsupported_slots_are_rejected(data):
     with pytest.raises(HairRegistrationError):

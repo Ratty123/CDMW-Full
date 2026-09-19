@@ -1,6 +1,6 @@
 """One cancellable setup surface shared by Finder and the Mesh Editor."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QDialog, QFormLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from cdmw.domain.hair_characters import HAIR_CHARACTERS, hair_character
 from cdmw.ui.mesh_editor.hair_context_preparation import HairContextPreparation
@@ -23,10 +23,11 @@ class HairSetupDialog(QDialog):
         import threading
         self._stop = threading.Event()
         self.setWindowTitle("Hair Tools (Experimental)")
-        self.resize(1060, 800)
+        self.resize(620, 220)
         layout = QVBoxLayout(self)
         notice = QLabel("Not tested in game. Hairstyles may not work correctly.")
         notice.setWordWrap(True)
+        notice.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(notice)
         form = QFormLayout()
         self.character = QComboBox()
@@ -47,15 +48,23 @@ class HairSetupDialog(QDialog):
         layout.addLayout(form)
         self.status = QLabel("Choose a character. The current scene stays open until you start its replacement.")
         self.status.setWordWrap(True)
+        self.status.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         layout.addWidget(self.status)
+        choices = QWidget(self)
+        self._choices_layout = QVBoxLayout(choices)
+        self._choices_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(choices, 1)
+        buttons = QHBoxLayout()
+        self.retry = QPushButton("Retry loading choices")
+        buttons.addWidget(self.retry)
+        buttons.addStretch(1)
         self.waiting_start = QPushButton("Start")
         self.waiting_start.setEnabled(False)
         self.waiting_start.clicked.connect(self._start)
-        layout.addWidget(self.waiting_start)
-        self.retry = QPushButton("Retry loading choices")
-        layout.addWidget(self.retry)
+        buttons.addWidget(self.waiting_start)
         self.cancel_button = QPushButton("Cancel")
-        layout.addWidget(self.cancel_button)
+        buttons.addWidget(self.cancel_button)
+        layout.addLayout(buttons)
         self._resolver = HairContextPreparation(self._service, self)
         self._resolver.ready.connect(self._context_ready)
         self._resolver.failed.connect(self._failed)
@@ -76,7 +85,6 @@ class HairSetupDialog(QDialog):
     def _load(self):
         if self._closed:
             return
-        self.resize(620, 320) if self.mode.currentData() == "generated" else self.resize(1060, 800)
         self.waiting_start.setEnabled(False)
         for control in (self.character, self.mode, self.preset, self.retry):
             control.setEnabled(True)
@@ -89,9 +97,12 @@ class HairSetupDialog(QDialog):
         if self._picker:
             picker = self._picker
             self._picker = None
-            self.layout().removeWidget(picker)
+            self._choices_layout.removeWidget(picker)
             picker.reject()
         self.waiting_start.show()
+        self.cancel_button.show()
+        self.layout().activate()
+        self.resize(620, 220)
         character = self.character.currentData()
         if self._service.current_session is None:
             self.status.setText("Load the archive catalogue to choose a hairstyle. Start is unavailable until it is ready.")
@@ -140,9 +151,11 @@ class HairSetupDialog(QDialog):
                 self.status.setText("Checking character compatibility for an empty hairstyle…")
             else:
                 self.waiting_start.hide()
-                self.layout().insertWidget(self.layout().indexOf(self.status) + 1, picker, 1)
+                self.cancel_button.hide()  # The embedded chooser has its own Cancel.
+                self._choices_layout.addWidget(picker)
                 picker.show()
                 self.status.setText("Choose an existing hairstyle to load and edit.")
+                self.resize(1060, 800)
         def failed(message):
             if generation == self._generation:
                 self._failed(message)
@@ -156,9 +169,12 @@ class HairSetupDialog(QDialog):
             self.selected_entry = picker.selected_entry
             self.selected_dependencies = picker.selected_dependencies
             self._picker = None
-            self.layout().removeWidget(picker)
+            self._choices_layout.removeWidget(picker)
             self.waiting_start.show()
+            self.cancel_button.show()
             self.waiting_start.setEnabled(False)
+            self.layout().activate()
+            self.resize(620, 220)
             if (self._reuse_target == (self.context.character, self.selected_entry.identity)
                     and self.mode.currentData() == "generated"):
                 self.accept()

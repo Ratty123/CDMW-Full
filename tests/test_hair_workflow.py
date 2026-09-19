@@ -158,6 +158,85 @@ def test_single_setup_requires_character_and_catalogue_and_rejects_stale_choices
     unavailable.reject()
 
 
+@pytest.mark.parametrize("mode", ["generated", "existing"])
+@pytest.mark.parametrize("slot_key", [b"Hair", b"hairShape"])
+def test_setup_reads_catalogue_and_starts_selected_mode(owner, monkeypatch, mode, slot_key):
+    from cdmw.core import archive_extraction
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+    from tests.test_hair_catalogue_icons import IconService
+    from tests.test_hair_registration import XML, MESH
+
+    service = IconService()
+    service.current_session = owner.archive_catalogue_service.current_session
+    owner.archive_catalogue_service = service
+    tasks = []
+    owner._run_utility_task_when_idle = lambda **kwargs: tasks.append(kwargs)
+    data = XML.replace(b'UIKey="hairShape"', b'UIKey="' + slot_key + b'"')
+    monkeypatch.setattr(archive_extraction, "read_archive_entry_data", lambda entry: (data, ""))
+    dialog = HairSetupDialog(owner, character="Damiane", mode=mode)
+    dialog.show()
+    QApplication.processEvents()
+    assert dialog.height() <= 300
+    context = SimpleNamespace(character="Damiane", arguments=lambda: {"character": "Damiane"},
+        dependencies=SimpleNamespace(entry_for_path=lambda _: SimpleNamespace(orig_size=len(data))))
+    dialog._context_ready(context)
+    loading = tasks.pop()
+    loading["on_complete"](loading["task"](lambda _: None))
+    picker = dialog._picker
+    assert picker is not None
+    QApplication.processEvents()
+    token, request, _ = next(call for call in reversed(service.calls) if call[0].startswith("detail"))
+    selected = row(path=MESH, key=request.key, body_family="2_phw", role="hair")
+    target = SimpleNamespace(identity="hair", path=MESH, basename=MESH.rsplit("/", 1)[-1])
+    value = replace(detail(selected), models=(SimpleNamespace(entry_id=1),))
+    service.result_ready.emit(token, "get_character_catalog_detail", value)
+    inputs = SimpleNamespace(detail=value, dependencies_complete=True, entries=(target,), entries_by_id={1: target})
+    picker._audit_done(picker._generation, inputs, "")
+    assert picker.grid.count() == 1 and picker.choose.isEnabled()
+    assert not tasks and dialog.prepared_result is None
+    if mode == "generated":
+        assert picker.isHidden() and dialog.height() <= 300
+        assert dialog.waiting_start.isEnabled()
+        dialog.waiting_start.click()
+    else:
+        assert not picker.isHidden() and dialog.height() > 300
+        assert dialog.waiting_start.isHidden()
+        picker.choose.click()
+    assert dialog.selected_entry is target and len(tasks) == 1
+    assert "Preparing the new editor scene" in dialog.status.text()
+    assert dialog.height() <= 300
+    dialog.reject()
+
+
+@pytest.mark.parametrize("mode", ["generated", "existing"])
+def test_setup_loading_failure_and_retry_keep_controls_compact(owner, mode):
+    from PySide6.QtWidgets import QLabel
+    from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
+
+    dialog = HairSetupDialog(owner, character="Damiane", mode=mode)
+    dialog.show()
+    QApplication.processEvents()
+    assert dialog.height() <= 300
+    dialog.resize(1060, 800)
+    QApplication.processEvents()
+    notice = next(label for label in dialog.findChildren(QLabel) if label.text().startswith("Not tested"))
+    assert notice.height() < notice.fontMetrics().lineSpacing() * 3
+    assert dialog.character.geometry().top() - notice.geometry().bottom() < 40
+    assert dialog.status.geometry().top() - dialog.mode.geometry().bottom() < 40
+    assert dialog.waiting_start.geometry().top() == dialog.cancel_button.geometry().top()
+    assert dialog.waiting_start.width() < dialog.width() // 2
+    dialog._resolver.failed.emit("Unavailable catalogue")
+    assert "Unavailable catalogue" in dialog.status.text()
+    assert not dialog.waiting_start.isEnabled()
+    assert dialog.retry.isEnabled()
+    previous = len(owner.archive_catalogue_service.calls)
+    dialog.retry.click()
+    QApplication.processEvents()
+    assert len(owner.archive_catalogue_service.calls) == previous + 1
+    assert dialog.height() <= 300 and "Loading" in dialog.status.text()
+    dialog.reject()
+
+
 def test_reference_geometry_cache_is_bounded_generation_scoped_and_returns_isolated_snapshots(monkeypatch):
     import threading
     from cdmw.workers import mesh_archive_refit_worker as worker
