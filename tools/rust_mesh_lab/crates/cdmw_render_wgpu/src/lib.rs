@@ -1994,6 +1994,42 @@ fn topology_signature(snapshot: &DrawSnapshot) -> u64 {
     hasher.finish()
 }
 
+#[derive(Clone, Copy)]
+enum VertexOverlay<'a> {
+    Deformation(Option<&'a [[f32; 3]]>),
+    Colours(&'a [[f32; 4]]),
+}
+
+impl VertexOverlay<'_> {
+    fn signature(self, vertex_count: usize) -> Result<u64, RenderError> {
+        match self {
+            Self::Deformation(reference) => deformation_signature(reference),
+            Self::Colours(colours) => {
+                if colours.len() != vertex_count
+                    || colours.iter().flatten().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+                {
+                    return Err(RenderError::InvalidSnapshot("vertex overlay colours must match the mesh and contain finite RGBA values in 0..1".to_owned()));
+                }
+                let mut hasher = DefaultHasher::new();
+                2_u8.hash(&mut hasher);
+                colours.len().hash(&mut hasher);
+                for value in colours.iter().flatten() { value.to_bits().hash(&mut hasher); }
+                Ok(hasher.finish())
+            }
+        }
+    }
+
+    fn colours(self, snapshot: &DrawSnapshot) -> Result<Vec<[f32; 4]>, RenderError> {
+        match self {
+            Self::Deformation(reference) => deformation_colours(snapshot, reference),
+            Self::Colours(colours) => {
+                self.signature(snapshot.positions.len())?;
+                Ok(colours.to_vec())
+            }
+        }
+    }
+}
+
 fn deformation_signature(reference: Option<&[[f32; 3]]>) -> Result<u64, RenderError> {
     let Some(reference) = reference else {
         return Ok(0);
@@ -2098,7 +2134,7 @@ fn deformation_colours(
 
 fn gpu_vertices_with_tangents(
     snapshot: &DrawSnapshot,
-    deformation_reference: Option<&[[f32; 3]]>,
+    deformation_reference: VertexOverlay<'_>,
     scene_roles: Option<&[u32]>,
     tangents: &[[f32; 4]],
 ) -> Result<Vec<GpuVertex>, RenderError> {
@@ -2116,7 +2152,7 @@ fn gpu_vertices_with_tangents(
             snapshot.positions.len()
         )));
     }
-    let deformation = deformation_colours(snapshot, deformation_reference)?;
+    let deformation = deformation_reference.colours(snapshot)?;
     Ok(snapshot
         .positions
         .iter()
@@ -2143,13 +2179,13 @@ fn gpu_vertices_with_tangents(
 
 impl GpuMeshBuffers {
     pub fn upload(device: &wgpu::Device, snapshot: &DrawSnapshot) -> Result<Self, RenderError> {
-        Self::upload_with_deformation(device, snapshot, None, None)
+        Self::upload_with_deformation(device, snapshot, VertexOverlay::Deformation(None), None)
     }
 
     fn upload_with_deformation(
         device: &wgpu::Device,
         snapshot: &DrawSnapshot,
-        deformation_reference: Option<&[[f32; 3]]>,
+        deformation_reference: VertexOverlay<'_>,
         scene_roles: Option<&[u32]>,
     ) -> Result<Self, RenderError> {
         let tangents = vertex_tangents(snapshot)?;
@@ -2208,7 +2244,7 @@ impl GpuMeshBuffers {
                 .map_err(|_| RenderError::ResourceLimit)?,
             mesh_identity: snapshot.mesh_identity,
             topology_signature: topology_signature(snapshot),
-            deformation_signature: deformation_signature(deformation_reference)?,
+            deformation_signature: deformation_reference.signature(snapshot.positions.len())?,
             role_signature: scene_role_signature(scene_roles, snapshot.positions.len())?,
             tangents,
             tangents_exact: true,
@@ -2251,7 +2287,7 @@ impl GpuMeshBuffers {
         &mut self,
         queue: &wgpu::Queue,
         snapshot: &DrawSnapshot,
-        deformation_reference: Option<&[[f32; 3]]>,
+        deformation_reference: VertexOverlay<'_>,
         deformation_signature: u64,
         scene_roles: Option<&[u32]>,
         role_signature: u64,
@@ -2940,7 +2976,7 @@ impl WindowRenderer {
     ) -> Result<(), RenderError> {
         self.set_snapshot_with_deformation_mode(
             snapshot,
-            None,
+            VertexOverlay::Deformation(None),
             Some(scene_roles),
             GeometryUpdateMode::Final,
         )
@@ -2953,7 +2989,7 @@ impl WindowRenderer {
     ) -> Result<(), RenderError> {
         self.set_snapshot_with_deformation_mode(
             snapshot,
-            deformation_reference,
+            VertexOverlay::Deformation(deformation_reference),
             None,
             GeometryUpdateMode::Final,
         )
@@ -2966,7 +3002,21 @@ impl WindowRenderer {
     ) -> Result<(), RenderError> {
         self.set_snapshot_with_deformation_mode(
             snapshot,
-            deformation_reference,
+            VertexOverlay::Deformation(deformation_reference),
+            None,
+            GeometryUpdateMode::Interactive,
+        )
+    }
+
+    /// Viewport-only diagnostic colours; source materials and mesh data are untouched.
+    pub fn set_snapshot_with_vertex_colours(
+        &mut self,
+        snapshot: &DrawSnapshot,
+        colours: &[[f32; 4]],
+    ) -> Result<(), RenderError> {
+        self.set_snapshot_with_deformation_mode(
+            snapshot,
+            VertexOverlay::Colours(colours),
             None,
             GeometryUpdateMode::Interactive,
         )
@@ -2975,11 +3025,11 @@ impl WindowRenderer {
     fn set_snapshot_with_deformation_mode(
         &mut self,
         snapshot: &DrawSnapshot,
-        deformation_reference: Option<&[[f32; 3]]>,
+        deformation_reference: VertexOverlay<'_>,
         scene_roles: Option<&[u32]>,
         update_mode: GeometryUpdateMode,
     ) -> Result<(), RenderError> {
-        let deformation_signature = deformation_signature(deformation_reference)?;
+        let deformation_signature = deformation_reference.signature(snapshot.positions.len())?;
         let role_signature = scene_role_signature(scene_roles, snapshot.positions.len())?;
         let mut action = self
             .mesh
@@ -4245,7 +4295,7 @@ async fn material_capture_batch(
                 if topology_signature(&frame) != topology_signature(capture_snapshot) {
                     return Err(RenderError::InvalidSnapshot("motion changed topology".into()));
                 }
-                mesh.refresh_geometry(&queue, &frame, None, 0, None, 0, GeometryUpdateMode::Interactive)?;
+                mesh.refresh_geometry(&queue, &frame, VertexOverlay::Deformation(None), 0, None, 0, GeometryUpdateMode::Interactive)?;
                 let readback = render_headless_readback_at(&device, &queue, format, &mesh,
                     &default_material_binding.bind_group, &active_material_bindings, &camera_bind_group,
                     &pipelines, &mut camera_uniform, &camera_buffer, ViewMode::TexturedSolid,
@@ -5020,7 +5070,7 @@ async fn run_headless_render_smoke_internal(
     mesh.refresh_geometry(
         &queue,
         &refreshed_mesh,
-        None,
+        VertexOverlay::Deformation(None),
         0,
         None,
         0,
@@ -9327,7 +9377,7 @@ mod material_transparency {
                 .extend([first, first + 1, first + 2, first, first + 2, first + 3]);
             snapshot.triangle_materials.extend([material, material]);
         }
-        let mesh = GpuMeshBuffers::upload_with_deformation(device, &snapshot, None, Some(&roles))?;
+        let mesh = GpuMeshBuffers::upload_with_deformation(device, &snapshot, crate::VertexOverlay::Deformation(None), Some(&roles))?;
         let mut factors = [
             super::MaterialPreviewFactors {
                 texture_tint: Some([0.0, 0.0, 1.0]),
@@ -9468,7 +9518,7 @@ mod material_transparency {
         // The authored PBR values must win over an inferred material category.
         snapshot.normals.fill([-0.12, 0.14, -0.98285]);
         let lit_mesh =
-            GpuMeshBuffers::upload_with_deformation(device, &snapshot, None, Some(&roles))?;
+            GpuMeshBuffers::upload_with_deformation(device, &snapshot, crate::VertexOverlay::Deformation(None), Some(&roles))?;
         let mut samples = Vec::new();
         for (tint, roughness, category) in [
             ([0.8, 0.8, 0.8], 0.18, 0),
@@ -10174,6 +10224,34 @@ mod tests {
             MeshUploadAction::UpdateGeometry,
             "gesture completion must restore an exact tangent basis"
         );
+    }
+
+    #[test]
+    fn jiggle_region_colours_use_the_gpu_overlay_without_changing_geometry() {
+        let snapshot = DrawSnapshot {
+            mesh_identity: 1, draw_revision: 1, topology_generation: 1,
+            positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, 1.0]; 3], uvs: vec![[0.0, 0.0]; 3],
+            indices: vec![0, 1, 2], triangle_materials: vec![0],
+            selected_vertices: Vec::new(), fingerprint: String::new(),
+        };
+        let colours = [[0.06, 0.85, 0.18, 0.88], [0.32, 0.34, 0.38, 0.88], [0.55, 0.12, 0.85, 0.88]];
+        let overlay = VertexOverlay::Colours(&colours);
+        let tangents = vertex_tangents(&snapshot).unwrap();
+        let painted = gpu_vertices_with_tangents(&snapshot, overlay, None, &tangents).unwrap();
+        let off = gpu_vertices_with_tangents(&snapshot, VertexOverlay::Deformation(None), None, &tangents).unwrap();
+        for i in 0..3 {
+            assert_eq!(painted[i].position, off[i].position);
+            assert_eq!(painted[i].normal, off[i].normal);
+            assert_eq!(painted[i].uv, off[i].uv);
+            assert_eq!(painted[i].deformation, colours[i]);
+            assert_eq!(off[i].deformation, [0.0; 4]);
+        }
+        let signature = overlay.signature(3).unwrap();
+        assert_ne!(signature, VertexOverlay::Deformation(None).signature(3).unwrap());
+        assert_ne!(signature, VertexOverlay::Colours(&[colours[1]; 3]).signature(3).unwrap());
+        assert!(overlay.signature(2).is_err());
+        assert!(VertexOverlay::Colours(&[[f32::NAN; 4]; 3]).signature(3).is_err());
     }
 
     #[test]

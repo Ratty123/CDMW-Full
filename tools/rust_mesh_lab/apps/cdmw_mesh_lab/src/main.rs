@@ -2993,6 +2993,9 @@ impl LabApplication {
         } else {
             self.refresh_cdmw_skeleton_overlay();
             self.hydrate_hair(hair);
+            if self.cdmw_jiggle.show_regions {
+                self.publish_mesh_snapshot();
+            }
         }
         result
     }
@@ -3672,6 +3675,9 @@ impl LabApplication {
         self.material_parameter_entries = material_parameter_entries;
         self.material_factor_entries = material_factor_entries;
         self.skeleton_entry = skeleton_entry;
+        if self.cdmw_jiggle.show_regions {
+            self.publish_mesh_snapshot();
+        }
     }
 
     fn draw_ui(&mut self, root_ui: &mut egui::Ui) -> Vec<UiAction> {
@@ -5150,6 +5156,7 @@ impl LabApplication {
         }
         self.projection = None;
         self.ensure_deformation_reference();
+        self.refresh_jiggle_regions();
         let visible_submeshes = self.cdmw_visible_submeshes();
         let snapshot = self.mesh.as_ref().map(|mesh| {
             visible_submeshes.as_ref().map_or_else(
@@ -5166,7 +5173,9 @@ impl LabApplication {
             )
         });
         if let (Some(renderer), Some(snapshot)) = (&mut self.renderer, snapshot)
-            && let Err(error) = if self.edit_gesture.is_some() {
+            && let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else if self.edit_gesture.is_some() {
                 renderer.set_snapshot_with_deformation_interactive(&snapshot, deformation_reference)
             } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
@@ -5962,6 +5971,13 @@ impl LabApplication {
     }
 
     fn refresh_face_selection_overlay(&mut self) {
+        if self.cdmw_jiggle.region_colours.is_some() {
+            self.face_selection_overlay = None;
+            if let Some(renderer) = &mut self.renderer {
+                let _ = renderer.set_face_selection(&[], [0.0; 4]);
+            }
+            return;
+        }
         let visible = self.cdmw_visible_submeshes();
         let mut colour = renderer_colour(self.overlay_selection_colour);
         colour[3] = 72.0 / 255.0;
@@ -6278,6 +6294,7 @@ impl LabApplication {
                 texture_warning.as_deref(),
             );
         }
+        self.refresh_jiggle_regions();
         if let Some(mesh) = &self.mesh {
             let visible_submeshes = self.cdmw_visible_submeshes();
             let snapshot = visible_submeshes.as_ref().map_or_else(
@@ -6290,8 +6307,11 @@ impl LabApplication {
                 visible_submeshes.as_ref(),
                 &snapshot,
             );
-            if let Err(error) =
+            if let Err(error) = if let Some(colours) = &self.cdmw_jiggle.region_colours {
+                renderer.set_snapshot_with_vertex_colours(&snapshot, colours)
+            } else {
                 renderer.set_snapshot_with_deformation(&snapshot, deformation_reference)
+            }
             {
                 self.status = format!("CDMW mesh upload failed: {error}");
             }
@@ -6362,7 +6382,11 @@ impl LabApplication {
         let camera_matrix = self
             .viewport_rect
             .map(|rectangle| self.camera.view_projection(rectangle));
-        let view_mode = self.view_mode;
+        let view_mode = if self.cdmw_jiggle.region_colours.is_some() {
+            ViewMode::Solid
+        } else {
+            self.view_mode
+        };
         let show_normals = self.show_normals;
         let show_bounds = self.show_bounds;
         let show_bones = self.show_bones && self.cdmw_jiggle.preview.scene.is_none();

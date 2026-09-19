@@ -4,7 +4,13 @@ use crate::cdmw_ui::{state_bool, state_str, state_u64};
 use cdmw_mesh::{Provenance, jiggle};
 use std::collections::{HashMap, HashSet};
 
+const REGION_ENABLED: [f32; 4] = [0.06, 0.85, 0.18, 0.88];
+const REGION_DISABLED: [f32; 4] = [0.32, 0.34, 0.38, 0.88];
+const REGION_UNKNOWN: [f32; 4] = [0.55, 0.12, 0.85, 0.88];
+
 pub(super) struct JiggleView {
+    pub show_regions: bool,
+    pub region_colours: Option<Vec<[f32; 4]>>,
     pub selected_only: bool,
     pub use_height: bool,
     pub height: f64,
@@ -15,6 +21,8 @@ pub(super) struct JiggleView {
 impl Default for JiggleView {
     fn default() -> Self {
         Self {
+            show_regions: false,
+            region_colours: None,
             selected_only: true,
             use_height: true,
             height: 0.0,
@@ -93,6 +101,23 @@ fn surface_normals(snapshot: &DrawSnapshot, sums: &mut [Vec3]) {
 impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         ui.small("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.");
+        if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions").changed() {
+            if self.cdmw_jiggle.preview.scene.is_some() {
+                self.refresh_jiggle_regions();
+            } else {
+                self.publish_mesh_snapshot();
+            }
+        }
+        if self.cdmw_jiggle.show_regions {
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(egui::Color32::from_rgb(55, 230, 95), "Enabled");
+                ui.colored_label(egui::Color32::GRAY, "Disabled");
+                ui.colored_label(egui::Color32::from_rgb(195, 90, 240), "Unknown");
+            });
+            ui.small("Current jiggle flags on all visible parts. Motion comparisons do not change these colours.");
+            ui.small("Unknown: no verified PAC LOD0 flags for this geometry or comparison view.");
+        }
+        ui.separator();
         let jiggle = self.cdmw_state["jiggle"].clone();
         ui.small("Reported on Damiane. Verify other models in-game. Strength is not decoded.");
         if !state_bool(&jiggle, "available") {
@@ -162,6 +187,64 @@ impl LabApplication {
         });
         ui.small("Disable / Restore is saved with Build PAC and drafts.");
         self.draw_jiggle_preview_controls(ui, &parts);
+    }
+
+    pub(super) fn refresh_jiggle_regions(&mut self) {
+        self.cdmw_jiggle.region_colours = None;
+        if !self.cdmw_jiggle.show_regions || self.hair.active() {
+            return;
+        }
+        let Some(mesh) = &self.mesh else { return; };
+        let visible = self.cdmw_visible_submeshes();
+        let elements = visible.as_ref().map(|v| mesh.element_handles_for_submeshes(v));
+        let mut masks = HashMap::new();
+        let mut invalid = HashSet::new();
+        let vertex_count = mesh.vertices().count();
+        let verified_view = self.active_lod_index == 0
+            && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
+        if verified_view {
+            for part in self.cdmw_state["jiggle"]["overlay_parts"].as_array().into_iter().flatten() {
+                let Some(index) = part["index"].as_u64().and_then(|v| u32::try_from(v).ok()) else { continue; };
+                let data = &part["preview"];
+                let mask = (|| {
+                    if data["available"].as_bool() != Some(true) { return None; }
+                    let count = data["vertex_count"].as_u64().filter(|n| *n > 0 && *n <= vertex_count as u64)? as usize;
+                    let mut mask = vec![false; count];
+                    for vertex in data["current_vertices"].as_array()? {
+                        let vertex = vertex.as_u64().filter(|i| *i < count as u64)? as usize;
+                        if mask[vertex] { return None; }
+                        mask[vertex] = true;
+                    }
+                    Some(mask)
+                })();
+                if let Some(mask) = mask {
+                    if masks.insert(index, mask).is_some() { invalid.insert(index); }
+                } else {
+                    invalid.insert(index);
+                }
+            }
+        }
+        let mut seen: HashMap<u32, HashSet<u32>> = HashMap::new();
+        for (_, vertex) in mesh.vertices() {
+            if let Provenance::Source { submesh, element } = vertex.provenance
+                && let Some(mask) = masks.get(&submesh)
+                && (element as usize >= mask.len() || !seen.entry(submesh).or_default().insert(element))
+            {
+                invalid.insert(submesh);
+            }
+        }
+        masks.retain(|index, mask| !invalid.contains(index) && seen.get(index).is_some_and(|s| s.len() == mask.len()));
+        let colours = mesh.vertices()
+            .filter(|(handle, _)| elements.as_ref().is_none_or(|e| e.vertices.contains(handle)))
+            .map(|(_, vertex)| {
+                let Provenance::Source { submesh, element } = vertex.provenance else { return REGION_UNKNOWN; };
+                match masks.get(&submesh).and_then(|mask| mask.get(element as usize)) {
+                    Some(true) => REGION_ENABLED,
+                    Some(false) => REGION_DISABLED,
+                    None => REGION_UNKNOWN,
+                }
+            }).collect();
+        self.cdmw_jiggle.region_colours = Some(colours);
     }
 
     pub(super) fn draw_jiggle_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value]) {
@@ -475,7 +558,11 @@ impl LabApplication {
                 (&mut self.renderer, &self.cdmw_jiggle.preview.scene)
             {
                 renderer.set_face_selection(&[], [0.0; 4])?;
-                renderer.set_snapshot_with_deformation_interactive(&scene.frame, None)?;
+                if let Some(colours) = &self.cdmw_jiggle.region_colours {
+                    renderer.set_snapshot_with_vertex_colours(&scene.frame, colours)?;
+                } else {
+                    renderer.set_snapshot_with_deformation_interactive(&scene.frame, None)?;
+                }
             }
             Ok(())
         });

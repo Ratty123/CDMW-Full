@@ -714,6 +714,7 @@ cloth.apply|cloth|"Apply cloth settings"|UiAction::CdmwCommand
 cloth.disable|cloth|"Disable cloth"|UiAction::CdmwCommand
 cloth.restore|cloth|"Restore cloth"|UiAction::CdmwCommand
 page.jiggle|jiggle|CdmwRailPage::Jiggle|Jiggle,
+jiggle.regions|jiggle|"Show jiggle regions"|refresh_jiggle_regions
 jiggle.disable|jiggle|"Disable jiggle"|UiAction::CdmwCommand
 jiggle.restore|jiggle|"Restore original jiggle"|UiAction::CdmwCommand
 jiggle.preview.play|jiggle|"Play preview"|start_jiggle_preview

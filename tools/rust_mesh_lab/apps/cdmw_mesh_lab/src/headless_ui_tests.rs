@@ -3742,6 +3742,52 @@ fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
 }
 
 #[test]
+fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?, egui::vec2(1440.0, 1100.0));
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.application.cdmw_state["jiggle"] = json!({
+        "available": false, "reason": "No editable jiggle parts.", "parts": [],
+        "overlay_parts": [{"index": 0, "preview": {
+            "available": true, "vertex_count": 3, "current_vertices": [1]}}]
+    });
+    ui.click_tool_button("Jiggle")?;
+    assert!(!ui.application.cdmw_jiggle.show_regions);
+    assert!(ui.application.cdmw_jiggle.region_colours.is_none());
+    ui.click("Show jiggle regions")?;
+    let colours = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap();
+    assert_eq!(colours[0], colours[2]);
+    assert!(colours[1][1] > colours[1][0] && colours[1][1] > colours[1][2]);
+    assert_ne!(colours[0], colours[1]);
+    assert!(ui.label_rect("Enabled").is_some());
+    assert!(ui.label_rect("Disabled").is_some());
+    assert!(ui.label_rect("Unknown").is_some());
+    let disabled = colours[0];
+    ui.application.refresh_face_selection_overlay();
+    assert!(ui.application.face_selection_overlay.is_none());
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_vertices"] = json!([]);
+    ui.application.publish_mesh_snapshot();
+    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![disabled; 3]);
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["available"] = json!(false);
+    ui.application.publish_mesh_snapshot();
+    let unknown = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[0];
+    assert_ne!(unknown, disabled);
+    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["available"] = json!(true);
+    ui.application.active_lod_index = 1;
+    ui.application.publish_mesh_snapshot();
+    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    ui.application.active_lod_index = 0;
+    ui.application.cdmw_state["replacement"]["comparison"] = json!("original");
+    ui.application.publish_mesh_snapshot();
+    assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![unknown; 3]);
+    ui.click("Show jiggle regions")?;
+    assert!(ui.application.cdmw_jiggle.region_colours.is_none());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
+#[test]
 fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?, egui::vec2(1440.0, 1400.0));
@@ -3757,6 +3803,12 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     ui.click_tool_button("Jiggle")?;
     ui.click("Selected parts")?;
     ui.click("Play preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    ui.click("Show jiggle regions")?;
+    assert!(ui.application.cdmw_jiggle.region_colours.is_some());
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    ui.click("Show jiggle regions")?;
+    assert!(ui.application.cdmw_jiggle.region_colours.is_none());
     assert!(ui.application.cdmw_jiggle.preview.playing);
     for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
     let moving = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();

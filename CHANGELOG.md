@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor's Jiggle page includes an optional region overlay: green for enabled flags, gray for disabled flags, and purple for unknown data. It covers visible body and clothing parts without changing mesh colors or exports.
 - Mesh Editor's experimental Jiggle controls have their own Mesh Data entry for compatible body and clothing PAC meshes. Motion preview defaults to up/down movement, with start/stop and turning tests, current/original/disabled comparisons, and preview-only softness and damping. Supported source PAC meshes deform without changing drafts or exports; the preview does not reproduce the game's physics or inter-part collisions.
 - New Item's Appearance controls include experimental per-material translucency with live thickness and extinction adjustments. Selected parts export as `SkinnedMeshTranslucent`; the viewport approximates absorption without game refraction. Choices follow model variants, and disabling the option restores the imported preview materials.
 

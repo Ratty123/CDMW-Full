@@ -379,6 +379,19 @@ uses displayed model coordinates and applies strictly below that height at every
 stored LOD. Its initial midpoint is not an anatomical waist detector. Unchecking
 the height limit disables the whole selected part.
 
+**Show jiggle regions** is an optional viewport overlay, off by default. Green
+marks enabled jiggle flags, gray marks disabled flags, and purple marks unknown
+data. It shows the current flags across all visible parts, independent of part
+selection and motion comparisons, and remains usable on an entirely disabled PAC.
+Disable/restore, Undo/Redo, and visibility changes refresh the colors. The toggle
+works during playback without restarting it; turning it off restores the normal
+viewport display. It does not change vertex colors, materials, drafts, or exports.
+
+Only verified source PAC LOD0 vertex mappings are classified. Other formats,
+imported or unverified geometry, other LODs, and Original/Output comparison views
+show unknown instead of being treated as disabled. These colors identify the
+experimental byte flags, not decoded strength or confirmed in-game deformation.
+
 **Disable jiggle** writes only zero-based byte 38 (`0x26`) of the validated
 40-byte PAC records. Colours, the separate cloth gate at byte 39, skinning,
 geometry and other bytes are retained. **Restore original jiggle** removes the

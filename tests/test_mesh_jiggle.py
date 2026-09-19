@@ -128,6 +128,7 @@ def test_jiggle_preserves_cloth_and_imported_output(jiggle_session, tmp_path):
     command(host, "replacement_apply", {"targets": [key], "materials": "original"})
     imported = shadow_output(host)
     assert not host.state_payload()["jiggle"]["parts"][0]["preview"]["available"]
+    assert not host.state_payload()["jiggle"]["overlay_parts"][0]["preview"]["available"]
     set_jiggle(host)
     disabled = shadow_output(host)
     assert disabled == apply_pac_jiggle_rules(imported, {0: PacJiggleRule()})
@@ -143,6 +144,7 @@ def test_preview_masks_are_read_only_and_follow_disable_undo_restore(jiggle_sess
     assert preview["available"]
     assert preview["original_vertices"] == list(range(preview["vertex_count"]))
     assert preview["current_vertices"] == preview["original_vertices"]
+    assert host.state_payload()["jiggle"]["overlay_parts"] == [{"index": 0, "preview": preview}]
     assert shadow_output(host) == source
     after = host.shadow_service.session_view(host.shadow_session_id)
     assert (after.revision, after.undo_count) == (before.revision, before.undo_count)
@@ -150,6 +152,7 @@ def test_preview_masks_are_read_only_and_follow_disable_undo_restore(jiggle_sess
     disabled = host.state_payload()["jiggle"]["parts"][0]["preview"]
     assert disabled["original_vertices"] == preview["original_vertices"]
     assert disabled["current_vertices"] == []
+    assert host.state_payload()["jiggle"]["overlay_parts"][0]["preview"] == disabled
     command(host, "undo")
     assert host.state_payload()["jiggle"]["parts"][0]["preview"] == preview
     set_jiggle(host, .5)
@@ -167,6 +170,22 @@ def test_preview_rejects_lost_vertex_ownership_without_blocking_saved_controls(j
     ui = host.state_payload()["jiggle"]
     assert ui["available"]
     assert not ui["parts"][0]["preview"]["available"]
+    assert not ui["overlay_parts"][0]["preview"]["available"]
+
+
+def test_jiggle_overlay_retains_verified_parts_with_every_flag_disabled(tmp_path, monkeypatch):
+    source = apply_pac_jiggle_rules(jiggle_fixture(), {0: PacJiggleRule()})
+    monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
+    with ExitStack() as stack:
+        _, service, host = _open_exact_session(tmp_path / "session")
+        stack.callback(service.close_edit_session, host.authoritative_session_id, force_without_saving=True)
+        stack.callback(lambda: host.cancel() if not host.closed else None)
+        state = host.state_payload()["jiggle"]
+        assert not state["available"] and state["parts"] == []
+        overlay = state["overlay_parts"][0]["preview"]
+        assert overlay["available"] and overlay["vertex_count"] > 0
+        assert overlay["original_vertices"] == overlay["current_vertices"] == []
+        assert shadow_output(host) == source
 
 
 def test_jiggle_draft_roundtrip_rejects_downgrade_and_keeps_older_payloads(jiggle_session, tmp_path):

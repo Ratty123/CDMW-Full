@@ -21,7 +21,7 @@ def jiggle_ui_state(authoring, replacement):
     elif session.hair_state is not None:
         reason = "Finish the hair workflow before editing jiggle."
     if reason:
-        return {"available": False, "reason": reason, "parts": []}
+        return {"available": False, "reason": reason, "parts": [], "overlay_parts": []}
     data = session.original_data
     appearance = state.neutral_appearance if state and state.neutral_appearance is not None else authoring.neutral_appearance
     cached = authoring.jiggle_source_cache
@@ -47,14 +47,13 @@ def jiggle_ui_state(authoring, replacement):
         metadata = cached[2]
     bindings = {part.part_id: part for part in state.parts} if state else {}
     parts = []
+    overlay_parts = []
     for part in replacement["parts"]:
         binding = bindings.get(part["id"])
         index = binding.target_index if binding else part["index"]
         if not 0 <= index < len(metadata["parts"]):
             continue
         source = metadata["parts"][index]
-        if not any(source["lod_counts"]) and not (binding and binding.jiggle):
-            continue
         original = metadata["source_parts"][index]
         current = session.working_mesh.submeshes[part["index"]]
         rule = binding.jiggle if binding else None
@@ -71,9 +70,13 @@ def jiggle_ui_state(authoring, replacement):
                       (rule.below_y is not None and current.vertices[i][1] >= rule.below_y)]
             preview = {"available": True, "vertex_count": len(current.vertices),
                        "original_vertices": candidates, "current_vertices": active}
+        overlay_parts.append({"index": part["index"], "preview": preview})
+        if not any(source["lod_counts"]) and not (binding and binding.jiggle):
+            continue
         parts.append({**part, **source, "rule": rule.to_dict() if rule else None, "preview": preview})
     reason = metadata["reason"] or ("This PAC already has jiggle byte 255 on every vertex." if not parts else "")
-    return {"available": not reason, "reason": reason, "parts": parts, "lod_count": metadata["lod_count"]}
+    return {"available": not reason, "reason": reason, "parts": parts,
+            "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"]}
 
 
 def set_jiggle_rule(authoring, snapshot, args, *, entry, dependencies, stop_event):
