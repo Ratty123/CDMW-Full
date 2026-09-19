@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod hair;
+pub mod jiggle;
 
 use cdmw_evidence::sha256_bytes;
 use cdmw_formats::{MeshDocument, Submesh};

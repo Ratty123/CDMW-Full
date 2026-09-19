@@ -132,6 +132,8 @@ const CDMW_UI_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_cloth.rs"),
     "\n",
+    include_str!("cdmw_jiggle.rs"),
+    "\n",
     include_str!("cdmw_vertex_inspector.rs"),
     "\n",
     include_str!("cdmw_hair.rs")
@@ -145,7 +147,9 @@ const MAIN_SOURCE: &str = concat!(
     "\n",
     include_str!("cdmw_hair_geometry.rs"),
     "\n",
-    include_str!("cdmw_hair_motion.rs")
+    include_str!("cdmw_hair_motion.rs"),
+    "\n",
+    include_str!("cdmw_jiggle.rs")
 );
 
 const PRODUCT_ROW_FIELDS: [&str; 14] = [
@@ -711,6 +715,14 @@ cloth.disable|cloth|"Disable cloth"|UiAction::CdmwCommand
 cloth.restore|cloth|"Restore cloth"|UiAction::CdmwCommand
 jiggle.disable|cloth|"Disable jiggle"|UiAction::CdmwCommand
 jiggle.restore|cloth|"Restore original jiggle"|UiAction::CdmwCommand
+jiggle.preview.play|cloth|"Play preview"|start_jiggle_preview
+jiggle.preview.pause|cloth|"Pause preview"|preview.playing = false
+jiggle.preview.resume|cloth|"Resume preview"|preview.playing = true
+jiggle.preview.reset|cloth|"Reset preview"|publish_mesh_snapshot
+jiggle.preview.motion|cloth|"Start / stop"|advance_jiggle_preview
+jiggle.preview.compare|cloth|"Current flags"|Comparison::
+jiggle.preview.softness|cloth|"Preview softness"|settings.softness
+jiggle.preview.damping|cloth|"Preview damping"|settings.damping
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction

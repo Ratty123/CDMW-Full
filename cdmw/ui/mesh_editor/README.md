@@ -385,8 +385,32 @@ payload v5; older draft formats remain readable.
 
 The disable value `255` is externally reported as tested on a modified Damiane
 body. This is not a decoded strength scale or a claim of in-game validation by
-CDMW. Values 249-254 remain unidentified, and the editor does not simulate this
-jiggle. The source waist threshold `Y < 1.2` applies only to the reporter's model.
+CDMW. Values 249-254 remain unidentified. The source waist threshold `Y < 1.2`
+applies only to the reporter's model.
+
+**Motion preview** in the same section provides experimental inertial deformation
+of the rendered mesh. Choose **Start / stop** or **Turning**, then **Play preview**.
+**Current flags**, **Original flags** and **All disabled** compare the saved jiggle
+rule, the retained source byte flags, and rigid motion using the same geometry.
+Changing comparison or motion restarts a playing test for a repeatable comparison.
+**Pause preview** retains the frame; **Reset preview** returns to the editable
+rest shape. Camera orbit and framing remain available during playback.
+
+Preview softness/damping are editor-only settings, unrelated to values 249-254.
+The fixed-step spring and distance-constraint simulation preserves shape and
+bounds displacement; it is not the game's solver. It drives controlled motion
+of the whole model, not decoded game animation or bone-specific jiggle profiles,
+and does not simulate collisions between parts. Original byte-255 vertices follow
+the controlled model motion without added deformation. Existing custom normals
+are rotated with the deforming surface.
+
+The initial preview supports LOD0 with verified, unchanged source vertex ownership
+and up to 100,000 visible vertices / 200,000 triangles. Imported replacements and
+topology-changed meshes remain editable but cannot use this preview. Preview frames
+never modify mesh data, drafts, Undo/Redo or exported PACs. Surface picking waits
+for Reset; source edits, selection changes and host state updates discard playback.
+`cdmw_jiggle.rs` owns playback and viewport snapshots; `cdmw_mesh::jiggle` owns the
+pure simulation. Compatibility with game motion still needs reporter comparison.
 
 Reporter test: retain the original PAC and export disabled and restored variants
 using **Build PAC**. On the same game build, compare walking, sprinting and

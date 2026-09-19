@@ -127,12 +127,46 @@ def test_jiggle_preserves_cloth_and_imported_output(jiggle_session, tmp_path):
     key = pending["state"]["replacement"]["pending"]["targets"][0]["id"]
     command(host, "replacement_apply", {"targets": [key], "materials": "original"})
     imported = shadow_output(host)
+    assert not host.state_payload()["jiggle"]["parts"][0]["preview"]["available"]
     set_jiggle(host)
     disabled = shadow_output(host)
     assert disabled == apply_pac_jiggle_rules(imported, {0: PacJiggleRule()})
     set_jiggle(host, reset=True)
     assert shadow_output(host) == imported
     assert host.shadow_service.capture_export_snapshot(host.shadow_session_id).original_data == source
+
+
+def test_preview_masks_are_read_only_and_follow_disable_undo_restore(jiggle_session):
+    source, _, host = jiggle_session
+    before = host.shadow_service.session_view(host.shadow_session_id)
+    preview = host.state_payload()["jiggle"]["parts"][0]["preview"]
+    assert preview["available"]
+    assert preview["original_vertices"] == list(range(preview["vertex_count"]))
+    assert preview["current_vertices"] == preview["original_vertices"]
+    assert shadow_output(host) == source
+    after = host.shadow_service.session_view(host.shadow_session_id)
+    assert (after.revision, after.undo_count) == (before.revision, before.undo_count)
+    set_jiggle(host)
+    disabled = host.state_payload()["jiggle"]["parts"][0]["preview"]
+    assert disabled["original_vertices"] == preview["original_vertices"]
+    assert disabled["current_vertices"] == []
+    command(host, "undo")
+    assert host.state_payload()["jiggle"]["parts"][0]["preview"] == preview
+    set_jiggle(host, .5)
+    current = host.shadow_service._session(host.shadow_session_id).working_mesh.submeshes[0]
+    assert host.state_payload()["jiggle"]["parts"][0]["preview"]["current_vertices"] == [
+        i for i in preview["original_vertices"] if current.vertices[i][1] >= .5]
+    set_jiggle(host, reset=True)
+    assert host.state_payload()["jiggle"]["parts"][0]["preview"] == preview
+
+
+def test_preview_rejects_lost_vertex_ownership_without_blocking_saved_controls(jiggle_session):
+    _, _, host = jiggle_session
+    current = host.shadow_service._session(host.shadow_session_id).working_mesh.submeshes[0]
+    current.source_vertex_map = list(reversed(current.source_vertex_map))
+    ui = host.state_payload()["jiggle"]
+    assert ui["available"]
+    assert not ui["parts"][0]["preview"]["available"]
 
 
 def test_jiggle_draft_roundtrip_rejects_downgrade_and_keeps_older_payloads(jiggle_session, tmp_path):

@@ -4,6 +4,7 @@
 mod camera;
 mod cdmw_cloth;
 mod cdmw_hair;
+mod cdmw_jiggle;
 mod cdmw_preview;
 mod cdmw_rig;
 mod cdmw_session;
@@ -2926,6 +2927,9 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
+        if self.cdmw_jiggle.preview.scene.is_some() {
+            self.publish_mesh_snapshot();
+        }
         let hair = self
             .cdmw_bridge
             .as_ref()
@@ -4317,6 +4321,11 @@ impl LabApplication {
     }
 
     fn handle_actions(&mut self, actions: Vec<UiAction>) {
+        if actions.iter().any(|action| !matches!(action,
+            UiAction::FrameAll | UiAction::StandardView(_) | UiAction::OrbitYaw(_) | UiAction::OrbitMode))
+            && self.cdmw_jiggle.preview.scene.is_some() {
+            self.publish_mesh_snapshot();
+        }
         let mut publish_mesh = false;
         let mut cdmw_transaction = None;
         for action in actions {
@@ -5130,6 +5139,7 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.cdmw_jiggle.preview.invalidate();
         self.hair.invalidate_scene();
         self.face_selection_overlay = None;
         self.cdmw_rig.overlay_key = None;
@@ -5410,6 +5420,10 @@ impl LabApplication {
     }
 
     fn begin_primary_gesture(&mut self, rectangle: egui::Rect, point: Vec2) {
+        if self.cdmw_jiggle.preview.scene.is_some() {
+            self.status = "Reset motion preview before editing the surface.".to_owned();
+            return;
+        }
         if self.mesh.is_none() || self.selection_gesture.is_some() || self.edit_gesture.is_some() {
             return;
         }
@@ -6342,6 +6356,7 @@ impl LabApplication {
             self.deformation_heatmap_applied = self.deformation_heatmap_enabled;
             self.publish_mesh_snapshot();
         }
+        self.render_jiggle();
         let paint_jobs = context.tessellate(full_output.shapes, full_output.pixels_per_point);
         let camera_matrix = self
             .viewport_rect
@@ -6349,7 +6364,7 @@ impl LabApplication {
         let view_mode = self.view_mode;
         let show_normals = self.show_normals;
         let show_bounds = self.show_bounds;
-        let show_bones = self.show_bones;
+        let show_bones = self.show_bones && self.cdmw_jiggle.preview.scene.is_none();
         let background = self.viewport_background_colour;
         let wire_colour = renderer_colour(self.overlay_wire_colour);
         let point_colour = renderer_colour(self.overlay_vertex_colour);

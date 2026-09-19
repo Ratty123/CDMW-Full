@@ -37,6 +37,9 @@ def jiggle_ui_state(authoring, replacement):
                 rows.append({"lod_counts": counts,
                              "min_y": min(heights, default=0.0), "max_y": max(heights, default=0.0)})
             metadata = {"parts": rows, "lod_count": len(levels), "reason": ""}
+            # Retain the parsed LOD0 privately: source record ownership is required
+            # before supplying vertex flags to the renderer (counts are not proof).
+            metadata["source_parts"] = levels[0].submeshes
         except ValueError as exc:
             metadata = {"parts": [], "lod_count": 0, "reason": str(exc)}
         authoring.jiggle_source_cache = (data, appearance, metadata)
@@ -52,7 +55,23 @@ def jiggle_ui_state(authoring, replacement):
         source = metadata["parts"][index]
         if not any(source["lod_counts"]) and not (binding and binding.jiggle):
             continue
-        parts.append({**part, **source, "rule": binding.jiggle.to_dict() if binding and binding.jiggle else None})
+        original = metadata["source_parts"][index]
+        current = session.working_mesh.submeshes[part["index"]]
+        rule = binding.jiggle if binding else None
+        preview = {"available": False}
+        if (not (binding and binding.import_positions)
+                and current.topology_provenance is None
+                and len(current.vertices) == len(original.vertices)
+                and current.source_vertex_map == list(range(len(original.vertices)))
+                and current.source_vertex_offsets == original.source_vertex_offsets
+                and current.faces == original.faces):
+            candidates = [i for i, offset in enumerate(original.source_vertex_offsets)
+                          if data[offset + PAC_JIGGLE_OFFSET] != PAC_JIGGLE_DISABLED]
+            active = [i for i in candidates if rule is None or
+                      (rule.below_y is not None and current.vertices[i][1] >= rule.below_y)]
+            preview = {"available": True, "vertex_count": len(current.vertices),
+                       "original_vertices": candidates, "current_vertices": active}
+        parts.append({**part, **source, "rule": rule.to_dict() if rule else None, "preview": preview})
     reason = metadata["reason"] or ("This PAC already has jiggle byte 255 on every vertex." if not parts else "")
     return {"available": not reason, "reason": reason, "parts": parts, "lod_count": metadata["lod_count"]}
 

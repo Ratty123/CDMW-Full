@@ -30,6 +30,7 @@ pub(super) struct JiggleView {
     pub use_height: bool,
     pub height: f64,
     key: Value,
+    pub preview: crate::cdmw_jiggle::Preview,
 }
 
 impl Default for JiggleView {
@@ -39,6 +40,7 @@ impl Default for JiggleView {
             use_height: true,
             height: 0.0,
             key: Value::Null,
+            preview: crate::cdmw_jiggle::Preview::default(),
         }
     }
 }
@@ -169,6 +171,7 @@ impl LabApplication {
         let jiggle = self.cdmw_state["jiggle"].clone();
         ui.small("Reported on Damiane. Verify other models in-game. Strength is not decoded.");
         if !state_bool(&jiggle, "available") {
+            if self.cdmw_jiggle.preview.scene.is_some() { self.publish_mesh_snapshot(); }
             ui.label(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable."));
             return;
         }
@@ -186,6 +189,7 @@ impl LabApplication {
             .cloned()
             .collect();
         if parts.is_empty() {
+            if self.cdmw_jiggle.preview.scene.is_some() { self.publish_mesh_snapshot(); }
             ui.label("Select an included part with editable jiggle data.");
             return;
         }
@@ -231,6 +235,7 @@ impl LabApplication {
                 });
             }
         });
-        ui.small("Saved with Build PAC and drafts. Jiggle is not simulated in this preview.");
+        ui.small("Disable / Restore is saved with Build PAC and drafts.");
+        self.draw_jiggle_preview_controls(ui, &parts);
     }
 }

@@ -3738,6 +3738,70 @@ fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
 }
 
 #[test]
+fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?, egui::vec2(1440.0, 1400.0));
+    ui.application.cdmw_state["cloth"] = json!({"available": false, "parts": []});
+    ui.application.cdmw_state["jiggle"] = json!({
+        "available": true, "lod_count": 4,
+        "parts": [{"index": 0, "id": "body:0", "included": true,
+            "min_y": 0.0, "max_y": 1.0, "rule": null,
+            "preview": {"available": true, "vertex_count": 3,
+                "original_vertices": [0, 1], "current_vertices": [1]}}]
+    });
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click_tool_button("Cloth")?;
+    ui.click("Jiggle (experimental)")?;
+    ui.click("Selected parts")?;
+    ui.click("Play preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let moving = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    assert_ne!(moving.positions, authored.positions);
+    assert_eq!(moving.indices, authored.indices);
+    assert_eq!(moving.uvs, authored.uvs);
+    assert!(moving.normals.iter().flatten().all(|n| n.is_finite()));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    ui.application.begin_primary_gesture(crate::headless_tests::viewport(), Vec2::ZERO);
+    assert!(ui.application.selection_gesture.is_none() && ui.application.edit_gesture.is_none());
+    ui.click("Pause preview")?;
+    ui.application.advance_jiggle_preview(1.0)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, moving.positions);
+    ui.click("Original flags")?;
+    ui.click("Play preview")?;
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let original = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions.clone();
+    assert_ne!(original, moving.positions);
+    ui.click("All disabled")?;
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let disabled = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
+    assert_ne!(*disabled, original);
+    for i in 1..3 {
+        let distance = Vec3::from(disabled[i]).distance(Vec3::from(disabled[0]));
+        let rest_distance = Vec3::from(authored.positions[i]).distance(Vec3::from(authored.positions[0]));
+        assert!((distance - rest_distance).abs() < 1e-5);
+    }
+    let normals = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.normals;
+    for (actual, expected) in normals.iter().zip(&authored.normals) {
+        assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5);
+    }
+    ui.application.handle_actions(vec![UiAction::FrameAll]);
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    ui.click("Reset preview")?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    ui.click("Play preview")?;
+    ui.application.publish_mesh_snapshot();
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    ui.click("Play preview")?;
+    ui.click("Selected parts")?;
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    Ok(())
+}
+
+#[test]
 fn integrated_cloth_unavailable_shows_reason_and_no_mutation_buttons() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?,
