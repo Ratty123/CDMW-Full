@@ -402,12 +402,25 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertIn("unsupported PALOC container version 1", tab._status.text())
         self.assertIn(path, tab._status.text())
         self.assertTrue(tab._read_button.isEnabled())
+        self.assertFalse(tab._read_failure.isHidden())
+        self.assertIn("NI-UNSUPPORTED-FORMAT", tab._read_failure.report_text)
+        self.assertIn(path, tab._read_failure.report_text)
+        self.assertIn("Reading the English localisation table", tab._read_failure.report_text)
+        tab._read_failure.copy_button.click()
+        self.assertEqual(self.app.clipboard().text(), tab._read_failure.report_text)
 
         # Once a supported table is available, the existing retry path can load it.
         files[path] = valid
         self.entries = tuple(parse_archive_pamt(build_package(self.root, files)))
         tab.start_snapshot()
         self.assertTrue(tab.controller.ready)
+        self.assertTrue(tab._read_failure.isHidden())
+        self.assertEqual(tab._read_failure.report_text, "")
+
+        # The report remains available if a later refresh fails after bootstrap removal.
+        tab._snapshot_failed("permission denied while reading 0020/0.paz")
+        self.assertFalse(tab._read_failure.isHidden())
+        self.assertIn("NI-ACCESS-DENIED", tab._read_failure.report_text)
 
     def test_snapshot_receives_the_archive_browsers_published_indexes(self) -> None:
         from types import SimpleNamespace

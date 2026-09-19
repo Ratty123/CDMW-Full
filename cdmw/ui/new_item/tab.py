@@ -43,6 +43,7 @@ from cdmw.ui.new_item.panels_perks import PerksPanel
 from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
+from cdmw.ui.new_item.read_failure import ArchiveReadFailurePanel
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, note, step_style, tinted
 from cdmw.ui.new_item.workflow_header import WorkflowHeader, WorkflowStepState
 
@@ -155,6 +156,7 @@ class NewItemStudioTab(QWidget):
         self._syncing_step = False
 
         self._status = QLabel("Create New Item reads the item, string, store, group and language tables once, then plans a new item against them.")
+        self._status.setTextFormat(Qt.TextFormat.PlainText)
         self._status.setWordWrap(True)
         self._status.setAlignment(Qt.AlignCenter)
         self._progress = QProgressBar()
@@ -179,6 +181,9 @@ class NewItemStudioTab(QWidget):
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._bootstrap, 1)
+        self._read_failure = ArchiveReadFailurePanel(self)
+        self._layout.insertWidget(0, self._read_failure)
+        self.controller.log_message.connect(self._read_failure.capture_progress)
 
         self.controller.snapshot_ready.connect(self._snapshot_ready)
         self.controller.snapshot_failed.connect(self._snapshot_failed)
@@ -279,6 +284,7 @@ class NewItemStudioTab(QWidget):
     def start_snapshot(self) -> None:
         if self.controller.busy:
             return
+        self._read_failure.begin()
         fresh_install = self._refresh_after_install
         entries = () if fresh_install else tuple(self._get_entries() or ())
         package_root: Optional[Path] = None
@@ -287,10 +293,7 @@ class NewItemStudioTab(QWidget):
             # entry list; the studio then lists the archives itself from the package root
             root_text = str(self._get_package_root() or "").strip()
             if not root_text or not Path(root_text).is_dir():
-                if self._panels_built:
-                    self.status_message_requested.emit("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.", True)
-                else:
-                    self._status.setText("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
+                self._snapshot_failed("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
                 return
             package_root = Path(root_text)
         if self._panels_built:
@@ -326,6 +329,7 @@ class NewItemStudioTab(QWidget):
         update_note = self._snapshot_game_update_note(message)
         if update_note:
             message = f"{message}\n\n{update_note}"
+        self._read_failure.show_failure(message, game_root=str(self._get_package_root() or ""))
         if self._panels_built:
             self.output_panel.append_log(f"The archives could not be read for a new item.\n\n{message}")
             self.status_message_requested.emit(message, True)
@@ -336,6 +340,7 @@ class NewItemStudioTab(QWidget):
         self._status.setText(f"The archives could not be read for a new item.\n\n{message}")
 
     def _snapshot_ready(self) -> None:
+        self._read_failure.clear()
         self._record_snapshot_game_compatibility()
         if self._panels_built:
             self.template_panel._refresh_matches()

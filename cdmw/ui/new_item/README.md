@@ -569,6 +569,13 @@ container and its opaque header bytes; untouched tables rebuild byte for byte.
 Unreadable encrypted tables retain the parser's reason and archive source in the
 error message, including unsupported container versions, rather than collapsing
 every failure into a ChaCha20 error. Unsupported data cannot produce an item plan.
+Initial-load and refresh failures show contextual next steps and a **Copy error
+report** button. **Details** previews the same report: error code, workbench and
+runtime versions, UTC time, exact error and the last twelve loading messages.
+Reports use existing progress only, do not read more archives, and replace configured
+game-folder and user-profile prefixes with placeholders. Copying is local; users add
+their game version, active mods and reproduction steps before sharing. Retrying
+clears the previous report, and successful loading hides the panel.
 Unspecified text falls back to English using the existing derived keys.
 Arabic is an item-text option, not an
 additional workbench UI language.

@@ -24,6 +24,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item loading errors include contextual guidance and a copyable report with the workbench version, exact cause, archive details and recent loading steps.
 - Localization read failures identify unsupported PALOC versions and malformed tables with their archive source, preserving the cause through encrypted archive reads.
 - New Item reads compressed `paloc` localization containers instead of reporting a decryption error for valid item-name tables. Exported names preserve the source table's container format.
 - Hair Tools loads the game's `Hair` barber slot as well as older `hairShape` catalogues, restoring Create and Edit choices and preserving the original slot on export. Setup and loading errors stay compact; Edit expands when its gallery is ready.

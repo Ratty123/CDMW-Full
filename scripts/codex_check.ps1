@@ -17,6 +17,7 @@ $TestsByArea = @{
         "tests/test_restructure_runtime_regression_smoke.py",
         # New Item must load and export supported localization containers in CI.
         "tests/test_paloc_container.py",
+        "tests/test_new_item_read_failure.py",
         # Fixture-backed safety checks stay on the short default route.
         "tests/test_archive_patch_preflight.py",
         "tests/test_archive_mutation_service.py",
