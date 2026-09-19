@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import struct
 import sys
 import tempfile
 import threading
@@ -34,7 +35,7 @@ from cdmw.ui.new_item.state import (  # noqa: E402
 )
 from cdmw.ui.new_item.workflow_header import WorkflowStepState  # noqa: E402
 from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
-from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthetic_files  # noqa: E402
+from test_new_item_service import LOC, OTHER, TEMPLATE, _read, build_package, synthetic_files  # noqa: E402
 from tests.new_item_studio_tab_authoring_tests import _TabAuthoringMixin  # noqa: E402
 from tests.new_item_studio_tab_lifecycle_tests import InstallReportTests, _TabLifecycleMixin  # noqa: E402
 from tests.new_item_studio_tab_output_tests import _TabOutputMixin  # noqa: E402
@@ -384,6 +385,29 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         self.assertEqual(requested, [])
         tab.close()
         tab.deleteLater()
+
+    def test_unsupported_paloc_version_stays_visible_and_retry_recovers(self) -> None:
+        from test_paloc_container import wrapped
+
+        files = synthetic_files()
+        path = f"{LOC}/localizationstring_eng.paloc"
+        valid = wrapped(files[path])
+        files[path] = valid[:5] + struct.pack("<I", 1) + valid[9:]
+        self.entries = tuple(parse_archive_pamt(build_package(self.root, files)))
+        tab = self._tab()
+        tab.start_snapshot()
+
+        self.assertFalse(tab.controller.ready)
+        self.assertIsNone(tab.controller.snapshot)
+        self.assertIn("unsupported PALOC container version 1", tab._status.text())
+        self.assertIn(path, tab._status.text())
+        self.assertTrue(tab._read_button.isEnabled())
+
+        # Once a supported table is available, the existing retry path can load it.
+        files[path] = valid
+        self.entries = tuple(parse_archive_pamt(build_package(self.root, files)))
+        tab.start_snapshot()
+        self.assertTrue(tab.controller.ready)
 
     def test_snapshot_receives_the_archive_browsers_published_indexes(self) -> None:
         from types import SimpleNamespace

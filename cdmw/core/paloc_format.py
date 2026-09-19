@@ -93,7 +93,10 @@ def _container_payload(data: bytes, where: str) -> bytes:
         raise PalocFormatError(f"PALOC container header is truncated{where}")
     version, stored_size, payload_size = struct.unpack_from("<III", data, 5)
     if version != 0:
-        raise PalocFormatError(f"unsupported PALOC container version {version}{where}")
+        raise PalocFormatError(
+            f"unsupported PALOC container version {version}{where}; "
+            "the workbench needs support for this layout before it can be read"
+        )
     if stored_size != len(data) - _CONTAINER_HEADER:
         raise PalocFormatError(f"PALOC container compressed size does not match its bytes{where}")
     if not _FOOTER <= payload_size <= _MAX_CONTAINER_PAYLOAD:

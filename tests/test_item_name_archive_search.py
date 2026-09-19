@@ -176,7 +176,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         data = encode_paloc((LocalizationEntry(category=1, key="named_key", text="Text"),))
         malformed = data[:-4] + struct.pack("<I", 2)
         encrypted = crypt_chacha20_filename(malformed, entry.basename)
-        with self.assertRaisesRegex(ValueError, "decryption validation failed"):
+        with self.assertRaisesRegex(ValueError, "the footer counts 2 records but the table walks 1"):
             try_decrypt_archive_entry_data(entry, encrypted)
 
     def test_archive_filter_matches_item_display_name_alias(self) -> None:

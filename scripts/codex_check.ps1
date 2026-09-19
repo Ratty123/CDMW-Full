@@ -15,6 +15,8 @@ $TestsByArea = @{
         "tests/test_qt_test_cleanup.py",
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_restructure_runtime_regression_smoke.py",
+        # New Item must load and export supported localization containers in CI.
+        "tests/test_paloc_container.py",
         # Fixture-backed safety checks stay on the short default route.
         "tests/test_archive_patch_preflight.py",
         "tests/test_archive_mutation_service.py",
@@ -83,6 +85,8 @@ $TestsByArea = @{
         "tests/test_archive_overlay_install.py",
         "tests/test_archive_entry_addition.py",
         "tests/test_pappt_format.py",
+        "tests/test_paloc_format.py",
+        "tests/test_paloc_container.py",
         "tests/test_stringinfo_table.py",
         "tests/test_iteminfo_row.py",
         # New Item Studio, phase 2: store rows, model families, and new icons.

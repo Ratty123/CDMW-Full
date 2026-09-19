@@ -566,6 +566,9 @@ Item text uses the current per-language `item.paloc` files, including Arabic,
 or the legacy monolithic localization tables. Both raw tables and tables with
 the 512-byte `paloc` LZ4 container are supported. New names preserve the source
 container and its opaque header bytes; untouched tables rebuild byte for byte.
+Unreadable encrypted tables retain the parser's reason and archive source in the
+error message, including unsupported container versions, rather than collapsing
+every failure into a ChaCha20 error. Unsupported data cannot produce an item plan.
 Unspecified text falls back to English using the existing derived keys.
 Arabic is an item-text option, not an
 additional workbench UI language.

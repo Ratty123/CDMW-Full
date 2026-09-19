@@ -90,19 +90,62 @@ def test_malformed_containers_are_refused(container, damage):
         parse_paloc(bytes(data))
 
 
-@pytest.mark.parametrize("outer_compressed", [False, True])
-def test_encrypted_archive_read_accepts_the_container(tmp_path, container, outer_compressed):
+def archived_paloc(tmp_path, data, *, encrypted=True, outer_compressed=False):
     path = "gamedata/stringtable/binary__/eng/item.paloc"
-    stored = lz4.block.compress(container, store_size=False) if outer_compressed else container
+    stored = lz4.block.compress(data, store_size=False) if outer_compressed else data
     paz = tmp_path / "0.paz"
-    paz.write_bytes(crypt_chacha20_filename(stored, "item.paloc"))
-    entry = ArchiveEntry(path=path, pamt_path=tmp_path / "0.pamt", paz_file=paz,
-                         offset=0, comp_size=len(stored), orig_size=len(container),
-                         flags=(3 << 4) | (2 if outer_compressed else 0), paz_index=0)
+    paz.write_bytes(crypt_chacha20_filename(stored, "item.paloc") if encrypted else stored)
+    return ArchiveEntry(path=path, pamt_path=tmp_path / "0.pamt", paz_file=paz,
+                        offset=0, comp_size=len(stored), orig_size=len(data),
+                        flags=((3 << 4) if encrypted else 0) | (2 if outer_compressed else 0), paz_index=0)
+
+
+@pytest.mark.parametrize("outer_compressed", [False, True])
+@pytest.mark.parametrize("encrypted", [False, True])
+@pytest.mark.parametrize("use_container", [False, True])
+def test_archive_read_accepts_supported_paloc_encodings(tmp_path, container, outer_compressed, encrypted, use_container):
+    expected = container if use_container else encode_paloc(parse_paloc(container).entries)
+    entry = archived_paloc(tmp_path, expected, encrypted=encrypted, outer_compressed=outer_compressed)
     data, _decompressed, note = read_archive_entry_data(entry)
-    assert data == container
-    assert "ChaCha20" in note
+    assert data == expected
+    assert ("ChaCha20" in note) == encrypted
     assert len(parse_paloc(data)) == 2
+
+
+@pytest.mark.parametrize("outer_compressed", [False, True])
+@pytest.mark.parametrize("damage,reason", [
+    ("version", "unsupported PALOC container version 1"),
+    ("lz4", "PALOC container LZ4 decompression failed"),
+    ("footer", "the footer counts 2 records but the table walks 1"),
+])
+def test_encrypted_paloc_failure_keeps_the_parser_reason(tmp_path, container, outer_compressed, damage, reason):
+    data = bytearray(container)
+    if damage == "version":
+        struct.pack_into("<I", data, 5, 1)
+    elif damage == "lz4":
+        data[512:] = bytes(len(data) - 512)
+    else:
+        payload = encode_paloc([LocalizationEntry(7, "100", "Name")])
+        data = wrapped(payload[:-4] + struct.pack("<I", 2))
+    entry = archived_paloc(tmp_path, bytes(data), outer_compressed=outer_compressed)
+    before = entry.paz_file.read_bytes()
+    with pytest.raises(ValueError) as caught:
+        read_archive_entry_data(entry)
+    message = str(caught.value)
+    assert reason in message
+    assert entry.path in message
+    assert entry.package_label in message
+    assert "ChaCha20 decryption validation failed" not in message
+    assert entry.paz_file.read_bytes() == before
+
+
+def test_archive_lz4_failure_keeps_the_compression_stage(tmp_path, container):
+    entry = archived_paloc(tmp_path, container, outer_compressed=True)
+    entry.paz_file.write_bytes(crypt_chacha20_filename(bytes(entry.comp_size), "item.paloc"))
+    with pytest.raises(ValueError, match="archive LZ4 decompression failed") as caught:
+        read_archive_entry_data(entry)
+    assert entry.path in str(caught.value)
+    assert entry.package_label in str(caught.value)
 
 
 def test_new_item_loads_and_exports_wrapped_names(tmp_path):

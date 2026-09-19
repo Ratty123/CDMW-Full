@@ -430,11 +430,12 @@ def test_codex_check_keeps_smoke_build_free_and_splits_mesh_contracts() -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
-@pytest.mark.parametrize("fail_second_module", (False, True))
-def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_path, fail_second_module):
+@pytest.mark.parametrize("failure_path", ("", "tests/test_runtime_dependency_smoke.py", "tests/test_paloc_container.py"))
+def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_path, failure_path):
     source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
     smoke = source.split("    smoke = @(\n", 1)[1].split("    )", 1)[0]
     modules = re.findall(r'"(tests/[^"\n]+\.py)"', smoke)
+    assert "tests/test_paloc_container.py" in modules
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "codex_check.ps1").write_text(source, encoding="utf-8")
@@ -442,7 +443,6 @@ def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_pat
         target = tmp_path / module
         target.parent.mkdir(exist_ok=True)
         target.touch()
-    failure_path = modules[1] if fail_second_module else ""
     runner = tmp_path / "run.ps1"
     runner.write_text(
         "$global:moduleCalls = Join-Path $PSScriptRoot 'calls.jsonl'\n"
@@ -460,9 +460,9 @@ def test_smoke_runs_each_module_in_a_fresh_process_and_preserves_failure(tmp_pat
         cwd=tmp_path, text=True, capture_output=True, timeout=20,
     )
     calls = [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text(encoding="utf-8-sig").splitlines()]
-    expected_modules = modules[:2] if fail_second_module else modules
+    expected_modules = modules[:modules.index(failure_path) + 1] if failure_path else modules
     assert calls == [[module] for module in expected_modules]
-    assert result.returncode == (47 if fail_second_module else 0), result.stdout + result.stderr
+    assert result.returncode == (47 if failure_path else 0), result.stdout + result.stderr
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")

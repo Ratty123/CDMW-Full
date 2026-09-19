@@ -324,6 +324,25 @@ def try_decrypt_archive_entry_data(entry: ArchiveEntry, data: bytes) -> Tuple[by
     if entry.encryption_type != 3:
         raise ValueError(f"Unsupported archive encryption type {entry.encryption_type} for {entry.path}")
     candidate = crypt_chacha20_filename(data, entry.basename)
+    if entry.extension == ".paloc":
+        # Keep the format decoder's reason instead of reducing a recognized but
+        # unsupported container (or a damaged record) to a cipher failure.
+        from cdmw.core.paloc_format import PalocFormatError, parse_paloc
+
+        context = f"Could not validate decoded localization table {entry.path} ({entry.package_label})"
+        payload = candidate
+        if entry.compression_type == 2:
+            if lz4_block is None:
+                raise ValueError(f"{context}: archive LZ4 decompression requires the lz4 package")
+            try:
+                payload = lz4_block.decompress(candidate, uncompressed_size=entry.orig_size)
+            except lz4_block.LZ4BlockError as exc:
+                raise ValueError(f"{context}: archive LZ4 decompression failed: {exc}") from exc
+        try:
+            parse_paloc(payload)
+        except PalocFormatError as exc:
+            raise ValueError(f"{context}: {exc}") from exc
+        return candidate, "ChaCha20"
     if not _looks_like_decrypted_payload(entry, candidate):
         if entry.extension in _ARCHIVE_XML_LIKE_EXTENSIONS and _looks_like_decrypted_payload(entry, data):
             return data, "ChaCha20FlagMismatch"
