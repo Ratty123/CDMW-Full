@@ -16,6 +16,8 @@ public sealed class ArchiveIndex : IDisposable
     private readonly long _recordsOffset;
     private readonly long _stringsOffset;
     private readonly long _stringsSize;
+    private readonly SemaphoreSlim _extensionIndexGate = new(1, 1);
+    private Dictionary<string, long[]>? _extensionEntryIds;
     private int _disposed;
 
     private ArchiveIndex(
@@ -179,6 +181,79 @@ public sealed class ArchiveIndex : IDisposable
         var pathOffset = checked((long)_view.ReadUInt64(record));
         var pathLength = checked((int)_view.ReadUInt32(record + 48));
         return NormalizePath(ReadPooledString(pathOffset, pathLength));
+    }
+
+    // Built from paths once per mapped catalogue. Queries can then read/enrich
+    // only the selected file types, without loading the general lookup tables.
+    internal long[] GetEntryIdsByExtension(
+        IReadOnlyList<string> extensions,
+        CancellationToken cancellationToken,
+        Action<long>? progress = null)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        var index = Volatile.Read(ref _extensionEntryIds);
+        if (index is null)
+        {
+            _extensionIndexGate.Wait(cancellationToken);
+            try
+            {
+                index = _extensionEntryIds;
+                if (index is null)
+                {
+                    var buckets = new Dictionary<string, List<long>>(StringComparer.OrdinalIgnoreCase);
+                    for (long entryId = 0; entryId < EntryCount; entryId++)
+                    {
+                        if ((entryId & 0xFFF) == 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            progress?.Invoke(entryId);
+                        }
+                        var extension = System.IO.Path.GetExtension(ReadEntryPath(entryId));
+                        if (!buckets.TryGetValue(extension, out var ids))
+                        {
+                            buckets[extension] = ids = [];
+                        }
+                        ids.Add(entryId);
+                    }
+                    var built = new Dictionary<string, long[]>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var (extension, ids) in buckets)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        built.Add(extension, ids.ToArray());
+                    }
+                    progress?.Invoke(EntryCount);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+                    // Never publish a partial or cancelled build to another query.
+                    Volatile.Write(ref _extensionEntryIds, built);
+                    index = built;
+                }
+            }
+            finally
+            {
+                _extensionIndexGate.Release();
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (extensions.Count == 1)
+        {
+            return index.GetValueOrDefault(extensions[0]) ?? [];
+        }
+        var combined = new List<long>();
+        foreach (var extension in extensions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (index.TryGetValue(extension, out var ids))
+            {
+                combined.AddRange(ids);
+            }
+        }
+        // Each entry has one extension; the caller supplies distinct extensions.
+        // Restore native entry order when several posting lists are combined.
+        combined.Sort();
+        cancellationToken.ThrowIfCancellationRequested();
+        return combined.ToArray();
     }
 
     internal int GetPathByteLength(long entryId)

@@ -359,6 +359,26 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateExtensionSearchAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-extension-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        var payloads = Enumerable.Range(0, 9000)
+            .Select(index => ($"texture/.pac/nude_distractor{index:D5}.dds", new byte[] { 1 }))
+            .ToList();
+        payloads.AddRange([
+            ("character/model/nude_body2.pac", new byte[] { 1, 2 }),
+            ("character/model/nude_body10.pac", new byte[] { 1, 2, 3 }),
+            ("character/model/armored_body.pac", new byte[] { 1 }),
+            ("other/nude_body.pac", new byte[] { 1 }),
+            ("character/model/nude_body.pac_xml", new byte[] { 1 }),
+            ("character/model/nude_body.pam", new byte[] { 1 }),
+        ]);
+        await BuildPackageAsync(root, "0009", payloads).ConfigureAwait(false);
+        return fixture;
+    }
+
     /// <summary>
     /// A folder tree whose names sit on the boundaries a prefix search gets wrong:
     /// '_' next to a letter (where uppercase and lowercase orderings disagree), a file

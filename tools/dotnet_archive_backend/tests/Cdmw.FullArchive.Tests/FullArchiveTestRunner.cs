@@ -10,7 +10,7 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync()
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
@@ -25,6 +25,9 @@ internal static class FullArchiveTestRunner
             ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
             ("preview_material_dependency_bounds", PreviewMaterialDependencyBoundsAsync),
             ("query_sort_parity", QuerySortParityAsync),
+            ("extension_index_query", ArchiveQueryTests.ExtensionSearchAsync),
+            ("extension_index_cancellation", ArchiveQueryTests.CancellationAsync),
+            ("extension_index_item_names", ArchiveQueryTests.ItemNamesAsync),
             ("folder_children_prefix_walk", FolderChildrenPrefixWalkAsync),
             ("exact_path_lookup_follows_index_order", ExactPathLookupFollowsIndexOrderAsync),
             ("duplicate_override_state", DuplicateOverrideStateAsync),
@@ -39,6 +42,13 @@ internal static class FullArchiveTestRunner
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
         };
+        if (archiveQueryOnly)
+        {
+            tests = tests.Where(static test => test.Name is
+                "query_lookup_search_prepare_export" or "query_sort_parity" or
+                "item_catalogue_paging_and_bounded_scope" or
+                "extension_index_query" or "extension_index_cancellation" or "extension_index_item_names").ToArray();
+        }
         var failures = new List<string>();
         foreach (var test in tests)
         {

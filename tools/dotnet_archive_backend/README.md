@@ -64,6 +64,14 @@ only remote pages and bounded compatibility snapshots; its flat presentation
 uses a virtual table so publishing a million-row result does not trigger
 `QTreeView`'s all-row layout pass.
 
+The first file-extension query builds compact in-memory entry-ID lists from
+catalogue paths, once per mapped catalogue. Later searches and extension changes
+reuse those lists and read/enrich only the selected file types. This preparation
+runs in the query worker, is cancellable, and publishes only a complete index.
+Explicit entry scopes retain their order; text/name matching, other filters,
+sorting and paging keep their existing behavior. No cache-file format changes
+or archive payload reads are required.
+
 Item Finder uses the fingerprint-owned native item catalogue on first open.
 Search, category/material facets, paging, visible icon batches, and exact/related
 scope resolution stay worker-side; bounded entry IDs are then applied through
@@ -88,6 +96,12 @@ ctest --test-dir native/cdmw_full_archive_core/build -C Release --output-on-fail
 dotnet build tools/dotnet_archive_backend/Cdmw.FullArchive.slnx -c Release --nologo --verbosity:minimal
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build
 .venv\Scripts\python.exe tools/dotnet_archive_backend/probe_full_archive_backend.py --worker tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/bin/Release/net10.0-windows/win-x64/cdmw-full-archive-worker.exe
+```
+
+For focused query regression checks, including compilation:
+
+```powershell
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --archive-query
 ```
 
 The Python probe is synthetic and headless. It exercises the frozen catalogue

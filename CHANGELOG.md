@@ -22,6 +22,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive Browser reuses a compact file-extension index so searches such as `.pac` plus `nude` only check matching file types instead of scanning every catalogue entry.
 - Hair Creator keeps mouse and keyboard selections while other hairstyles finish compatibility checks.
 - Drawing and rebuilding generated hair preserve the existing section's Include in Mod setting.
 - Hair DDS edits keep distinct texture bindings separate even when their original contents match, preserving preview/export agreement and subsequent edits.

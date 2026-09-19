@@ -328,7 +328,19 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         }
         var candidates = query.SortActive ? new List<QueryCandidate>() : null;
         var unsortedIds = query.SortActive ? null : new List<long>();
-        var total = requestedIds?.LongLength ?? session.Index.EntryCount;
+        var candidateIds = requestedIds;
+        if (candidateIds is null && query.Extensions is { Count: > 0 })
+        {
+            var extensions = query.Extensions.Select(NormalizeExtension).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (!extensions.Any(static value => value is "*" or ".*" or "all"))
+            {
+                candidateIds = session.Index.GetEntryIdsByExtension(
+                    extensions,
+                    cancellationToken,
+                    current => Publish(progress, new ProgressUpdate(current, session.Index.EntryCount, "query_extension_index")));
+            }
+        }
+        var total = candidateIds?.LongLength ?? session.Index.EntryCount;
         Publish(progress, new ProgressUpdate(0, total, "query_scan"));
         for (long candidateIndex = 0; candidateIndex < total; candidateIndex++)
         {
@@ -337,7 +349,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 cancellationToken.ThrowIfCancellationRequested();
                 Publish(progress, new ProgressUpdate(candidateIndex, total, "query_scan"));
             }
-            var entryId = requestedIds is null ? candidateIndex : requestedIds[candidateIndex];
+            var entryId = candidateIds is null ? candidateIndex : candidateIds[candidateIndex];
             if (entryId < 0 || entryId >= session.Index.EntryCount)
             {
                 continue;
@@ -483,16 +495,20 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
 
     private static bool MatchesExtension(string extension, string candidate)
     {
-        var normalized = candidate.Trim().ToLowerInvariant();
+        var normalized = NormalizeExtension(candidate);
         if (normalized is "*" or ".*" or "all")
         {
             return true;
         }
-        if (!normalized.StartsWith('.'))
-        {
-            normalized = "." + normalized;
-        }
         return extension.Equals(normalized, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeExtension(string candidate)
+    {
+        var normalized = candidate.Trim().ToLowerInvariant();
+        return normalized is "*" or ".*" or "all" || normalized.StartsWith('.')
+            ? normalized
+            : "." + normalized;
     }
 
     private static int CompareCandidates(
