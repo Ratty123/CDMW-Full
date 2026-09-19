@@ -713,16 +713,17 @@ page.cloth|cloth|CdmwRailPage::Cloth|Cloth,
 cloth.apply|cloth|"Apply cloth settings"|UiAction::CdmwCommand
 cloth.disable|cloth|"Disable cloth"|UiAction::CdmwCommand
 cloth.restore|cloth|"Restore cloth"|UiAction::CdmwCommand
-jiggle.disable|cloth|"Disable jiggle"|UiAction::CdmwCommand
-jiggle.restore|cloth|"Restore original jiggle"|UiAction::CdmwCommand
-jiggle.preview.play|cloth|"Play preview"|start_jiggle_preview
-jiggle.preview.pause|cloth|"Pause preview"|preview.playing = false
-jiggle.preview.resume|cloth|"Resume preview"|preview.playing = true
-jiggle.preview.reset|cloth|"Reset preview"|publish_mesh_snapshot
-jiggle.preview.motion|cloth|"Start / stop"|advance_jiggle_preview
-jiggle.preview.compare|cloth|"Current flags"|Comparison::
-jiggle.preview.softness|cloth|"Preview softness"|settings.softness
-jiggle.preview.damping|cloth|"Preview damping"|settings.damping
+page.jiggle|jiggle|CdmwRailPage::Jiggle|Jiggle,
+jiggle.disable|jiggle|"Disable jiggle"|UiAction::CdmwCommand
+jiggle.restore|jiggle|"Restore original jiggle"|UiAction::CdmwCommand
+jiggle.preview.play|jiggle|"Play preview"|start_jiggle_preview
+jiggle.preview.pause|jiggle|"Pause preview"|preview.playing = false
+jiggle.preview.resume|jiggle|"Resume preview"|preview.playing = true
+jiggle.preview.reset|jiggle|"Reset preview"|publish_mesh_snapshot
+jiggle.preview.motion|jiggle|"Up / down"|advance_jiggle_preview
+jiggle.preview.compare|jiggle|"Current flags"|Comparison::
+jiggle.preview.softness|jiggle|"Preview softness"|settings.softness
+jiggle.preview.damping|jiggle|"Preview damping"|settings.damping
 uv.transform|uv|"uv_transform"|UiAction::CdmwMeshAction
 uv.auto_unwrap|uv|"auto_uv"|UiAction::CdmwMeshAction
 uv.pixel_snap|uv|"snap_pixels"|UiAction::CdmwMeshAction

@@ -13,7 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
-- Mesh Editor's experimental Jiggle controls now offer a motion-driven viewport preview with start/stop and turning tests, current/original/disabled comparisons, and preview-only softness and damping. Supported source PAC meshes deform without changing drafts or exports; the preview does not reproduce the game's physics or inter-part collisions.
+- Mesh Editor's experimental Jiggle controls have their own Mesh Data entry for compatible body and clothing PAC meshes. Motion preview defaults to up/down movement, with start/stop and turning tests, current/original/disabled comparisons, and preview-only softness and damping. Supported source PAC meshes deform without changing drafts or exports; the preview does not reproduce the game's physics or inter-part collisions.
 - New Item's Appearance controls include experimental per-material translucency with live thickness and extinction adjustments. Selected parts export as `SkinnedMeshTranslucent`; the viewport approximates absorption without game refraction. Choices follow model variants, and disabling the option restores the imported preview materials.
 
 ### Changed

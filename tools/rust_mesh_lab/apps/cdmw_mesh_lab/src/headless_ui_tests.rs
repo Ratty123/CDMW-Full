@@ -378,6 +378,7 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
             "Normals & Tangents",
             "UV",
             "Cloth",
+            "Jiggle",
         ] {
             let text = ui.reveal(label)?;
             let button = ui
@@ -419,6 +420,7 @@ fn integrated_expanded_tool_tabs_fit_labels_and_keep_navigation_above_settings()
             "Normals & Tangents",
             "UV",
             "Cloth",
+            "Jiggle",
         ] {
             assert!(
                 ui.label_rect(label).ok_or(label)?.bottom() < settings_top,
@@ -462,6 +464,7 @@ fn integrated_tool_pages_keep_compact_widths_in_all_presentations() -> TestResul
                 "Normals & Tangents",
                 "UV",
                 "Cloth",
+                "Jiggle",
                 "Morph & Refit",
                 "Viewport",
             ] {
@@ -1866,6 +1869,7 @@ fn integrated_sidebar_icons_open_switch_close_and_pin_existing_tools() -> TestRe
         ("Normals & Tangents", CdmwRailPage::Normals),
         ("UV", CdmwRailPage::Uv),
         ("Cloth", CdmwRailPage::Cloth),
+        ("Jiggle", CdmwRailPage::Jiggle),
         ("Morph & Refit", CdmwRailPage::MorphRefit),
     ] {
         ui.click_sidebar(label)?;
@@ -3692,9 +3696,10 @@ fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -
             {"index": 1, "id": "excluded:1", "included": false,
             "min_y": 0.0, "max_y": 2.0, "rule": null}]
     });
-    ui.click_tool_button("Cloth")?;
-    ui.click("Jiggle (experimental)")?;
+    ui.click_tool_button("Jiggle")?;
     ui.settle_layout();
+    assert_eq!(ui.application.cdmw_rail_page, Some(CdmwRailPage::Jiggle));
+    assert!(ui.label_rect("This PAC has no existing cloth bindings.").is_none());
     assert!(ui.label_rect("Select an included part with editable jiggle data.").is_some());
     assert!(ui.label_rect("Disable jiggle").is_none());
     ui.click("Selected parts")?;
@@ -3728,8 +3733,7 @@ fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
     );
     ui.application.cdmw_state["jiggle"] = json!({"available": false,
         "reason": "Jiggle editing requires an original PAC mesh.", "parts": []});
-    ui.click_tool_button("Cloth")?;
-    ui.click("Jiggle (experimental)")?;
+    ui.click_tool_button("Jiggle")?;
     ui.settle_layout();
     assert!(ui.label_rect("Jiggle editing requires an original PAC mesh.").is_some());
     assert!(ui.label_rect("Disable jiggle").is_none());
@@ -3750,14 +3754,16 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
                 "original_vertices": [0, 1], "current_vertices": [1]}}]
     });
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
-    ui.click_tool_button("Cloth")?;
-    ui.click("Jiggle (experimental)")?;
+    ui.click_tool_button("Jiggle")?;
     ui.click("Selected parts")?;
     ui.click("Play preview")?;
     assert!(ui.application.cdmw_jiggle.preview.playing);
     for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
     let moving = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
     assert_ne!(moving.positions, authored.positions);
+    assert_eq!(moving.positions[0][0], authored.positions[0][0]);
+    assert_eq!(moving.positions[0][2], authored.positions[0][2]);
+    assert!(moving.positions[0][1] > authored.positions[0][1]);
     assert_eq!(moving.indices, authored.indices);
     assert_eq!(moving.uvs, authored.uvs);
     assert!(moving.normals.iter().flatten().all(|n| n.is_finite()));
@@ -3785,6 +3791,18 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     for (actual, expected) in normals.iter().zip(&authored.normals) {
         assert!(Vec3::from(*actual).distance(Vec3::from(*expected)) < 1e-5);
     }
+    let vertical = disabled.clone();
+    ui.click("Turning")?;
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    assert_ne!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, vertical);
+    ui.click("Up / down")?;
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, vertical);
+    ui.click("Start / stop")?;
+    for _ in 0..40 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let stopped = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions;
+    assert_eq!(stopped[0][1], authored.positions[0][1]);
+    assert!(stopped[0][2] > authored.positions[0][2]);
     ui.application.handle_actions(vec![UiAction::FrameAll]);
     assert!(ui.application.cdmw_jiggle.preview.playing);
     ui.click("Reset preview")?;

@@ -7,6 +7,7 @@ const STEP: f64 = 1.0 / 120.0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Motion {
     #[default]
+    UpDown,
     StartStop,
     Turn,
 }
@@ -136,6 +137,10 @@ impl Simulation {
     fn pose(&self, motion: Motion) -> (Quat, Vec3) {
         let phase = (self.elapsed % 4.0) as f32;
         match motion {
+            Motion::UpDown => {
+                let bounce = (self.elapsed % 1.2) as f32 * std::f32::consts::TAU / 1.2;
+                (Quat::IDENTITY, Vec3::Y * self.scale * 0.06 * (1.0 - bounce.cos()))
+            }
             Motion::StartStop => {
                 let fraction = if phase < 0.6 {
                     phase / 0.6
@@ -243,6 +248,37 @@ mod tests {
             active,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn jiggle_up_down_cycles_vertically_with_inertia_and_rigid_comparison() {
+        assert_eq!(Motion::default(), Motion::UpDown);
+        let mut soft = fixture(vec![true; 3]);
+        let mut rigid = fixture(vec![false; 3]);
+        let mut height = 0.0;
+        let mut went_up = false;
+        let mut went_down = false;
+        let mut lagged = false;
+        for _ in 0..288 {
+            soft.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            rigid.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            let next_height = rigid.positions[0].y;
+            went_up |= next_height > height + 1e-5;
+            went_down |= next_height < height - 1e-5;
+            height = next_height;
+            assert_eq!(rigid.positions, rigid.targets);
+            assert_eq!(rigid.rotation(Motion::UpDown), Quat::IDENTITY);
+            for i in 0..3 {
+                assert_eq!(rigid.positions[i].x, rigid.rest[i].x);
+                assert_eq!(rigid.positions[i].z, rigid.rest[i].z);
+                assert!(soft.positions[i].is_finite());
+                let offset = soft.positions[i].distance(rigid.positions[i]);
+                lagged |= offset > 0.0001;
+                assert!(offset <= soft.scale * 0.04001);
+            }
+        }
+        assert!(went_up && went_down && lagged);
+        assert!(rigid.positions[0].distance(rigid.rest[0]) < 1e-5);
     }
 
     #[test]

@@ -371,8 +371,9 @@ geometry, materials, physics sections and companion files are preserved.
 
 ### Experimental jiggle disable
 
-Expand **Jiggle (experimental)** in the same **Mesh Data > Cloth** panel. Select
-the intended body or clothing part, keep **Selected parts** enabled, and use
+Open **Mesh Data > Jiggle**, separately from Cloth. Compatible original body and
+clothing PAC meshes are supported; cloth bindings are not required. Select
+the intended part, keep **Selected parts** enabled, and use
 **Only below height > Below Y** to limit the edit to the lower body. The boundary
 uses displayed model coordinates and applies strictly below that height at every
 stored LOD. Its initial midpoint is not an anatomical waist detector. Unchecking
@@ -393,7 +394,9 @@ CDMW. Values 249-254 remain unidentified. The source waist threshold `Y < 1.2`
 applies only to the reporter's model.
 
 **Motion preview** in the same section provides experimental inertial deformation
-of the rendered mesh. Choose **Start / stop** or **Turning**, then **Play preview**.
+of the rendered mesh. **Up / down** is the default: it repeatedly raises and lowers
+the model along its displayed Y axis, making vertical lag and bounce easier to compare.
+**Start / stop** and **Turning** remain available. Choose a motion, then **Play preview**.
 **Current flags**, **Original flags** and **All disabled** compare the saved jiggle
 rule, the retained source byte flags, and rigid motion using the same geometry.
 Changing comparison or motion restarts a playing test for a repeatable comparison.

@@ -16,7 +16,7 @@ const CDMW_VIEW_MODES: [(ViewMode, &str); 7] = [
 const CDMW_WIDE_CHROME_MIN_WIDTH: f32 = 1_280.0;
 pub(super) const CDMW_TOOLS_SIDEBAR: &str = "cdmw_tools_sidebar_visible";
 pub(super) const CDMW_INSPECTOR_SIDEBAR: &str = "cdmw_inspector_sidebar_visible";
-const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 15] = [
+const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 16] = [
     (CdmwRailPage::Select, "Select", Some(ViewportTool::Select)),
     (CdmwRailPage::Move, "Move", Some(ViewportTool::Move)),
     (CdmwRailPage::Rotate, "Rotate", Some(ViewportTool::Rotate)),
@@ -35,6 +35,7 @@ const CDMW_RAIL_TOOLS: [(CdmwRailPage, &str, Option<ViewportTool>); 15] = [
     (CdmwRailPage::Normals, "Normals & Tangents", None),
     (CdmwRailPage::Uv, "UV", None),
     (CdmwRailPage::Cloth, "Cloth", None),
+    (CdmwRailPage::Jiggle, "Jiggle", None),
     (CdmwRailPage::MorphRefit, "Morph & Refit", None),
 ];
 
@@ -346,6 +347,11 @@ fn cdmw_sidebar_button(
                     curve([[1.0, 0.8], [0.64, 1.08], [0.27, 1.08], [0.07, 0.88]]);
                     curve([[0.07, 0.88], [-0.42, 0.53], [-0.7, 0.33], [-1.0, 0.7]]);
                     line([0.22, -0.72], [0.07, 0.88]);
+                }
+                CdmwRailPage::Jiggle => {
+                    path(&[[-0.6, -0.5], [0.0, -1.0], [0.6, -0.5]]);
+                    path(&[[-0.6, 0.5], [0.0, 1.0], [0.6, 0.5]]);
+                    curve([[-0.9, 0.0], [-0.3, -0.6], [0.3, 0.6], [0.9, 0.0]]);
                 }
                 CdmwRailPage::MorphRefit => {
                     for [x, y] in [[-0.75, -0.75], [0.75, -0.75], [0.75, 0.75], [-0.75, 0.75]] {
@@ -966,7 +972,7 @@ impl LabApplication {
                             )
                             .enumerate()
                         {
-                            if matches!(index, 1 | 2 | 5 | 9 | 15) {
+                            if matches!(index, 1 | 2 | 5 | 9 | 16) {
                                 ui.separator();
                             }
                             let requires_authoring = !matches!(
@@ -1255,6 +1261,7 @@ impl LabApplication {
                         CdmwRailPage::Normals => self.draw_cdmw_normals_page(ui, actions),
                         CdmwRailPage::Uv => self.draw_cdmw_uv_page(ui, actions),
                         CdmwRailPage::Cloth => self.draw_cdmw_cloth_page(ui, actions),
+                        CdmwRailPage::Jiggle => self.draw_cdmw_jiggle_page(ui, actions),
                         CdmwRailPage::RigWeights => self.draw_cdmw_rig_weights_page(ui, actions),
                         CdmwRailPage::MorphRefit => self.draw_cdmw_morph_page(ui, actions),
                     },
@@ -1340,7 +1347,7 @@ impl LabApplication {
                             ui,
                             actions,
                             "Mesh Data",
-                            &CDMW_RAIL_TOOLS[8..14],
+                            &CDMW_RAIL_TOOLS[8..15],
                             busy,
                             authoring,
                             &policy_reason,
