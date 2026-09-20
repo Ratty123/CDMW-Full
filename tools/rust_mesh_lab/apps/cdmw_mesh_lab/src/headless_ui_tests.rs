@@ -4177,6 +4177,67 @@ fn integrated_replacement_mapping_defaults_to_original_materials() -> TestResult
 }
 
 #[test]
+fn integrated_replacement_long_names_keep_controls_clickable() -> TestResult {
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 980.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 720.0), 18.0, "comfortable"),
+    ] {
+        let names = [
+            "CD_PHW_00_Head_Base_Youth_0010",
+            "CD_PHW_00_Head_Youth_0010_Eyecover",
+        ];
+        let mut application = two_part_application()?;
+        for (part, name) in application.document.as_mut().ok_or("document")?.lods[0]
+            .submeshes
+            .iter_mut()
+            .zip(names)
+        {
+            part.name = name.to_owned();
+        }
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(application, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
+        ui.application.cdmw_state["replacement"] = json!({
+            "available": true, "active": false, "comparison": "edit", "experimental": true,
+            "parts": [
+                {"index": 0, "id": "stable:0", "name": names[0], "included": true},
+                {"index": 1, "id": "stable:1", "name": names[1], "included": true}
+            ],
+            "pending": {"token": "long-names", "source": "test.obj",
+                "targets": [{"id": "stable:0", "name": names[0]}, {"id": "stable:1", "name": names[1]}],
+                "sources": [{"name": names[0], "target": "stable:0"}, {"name": names[1], "target": "stable:1"}]}
+        });
+        ui.settle_layout();
+        for (label, expected) in [("All", vec![0, 1]), ("None", vec![]), ("Invert", vec![0, 1])] {
+            let actions = ui.actions_from_click(label)?;
+            assert!(
+                actions.iter().any(|action| matches!(action,
+                    UiAction::SetPartSelection(indices) if indices == &expected
+                )),
+                "{label} ignored its painted position at {size:?}, {font}: {actions:?}"
+            );
+        }
+        let material_id = egui::Id::new(("replacement_materials", "long-names"));
+        for (label, expected) in [("Imported Materials & Textures", true), ("Keep Original Materials", false)] {
+            ui.click(label)?;
+            assert_eq!(
+                ui.application.egui_context.data_mut(|data| data.get_temp::<bool>(material_id)),
+                Some(expected),
+                "{label} ignored its painted position at {size:?}, {font}"
+            );
+        }
+        let actions = ui.actions_from_click("Apply Replacement")?;
+        assert!(actions.iter().any(|action| matches!(action,
+            UiAction::CdmwCommand { command: "replacement_apply", arguments, .. }
+                if arguments["targets"] == json!(["stable:0", "stable:1"])
+                    && arguments["materials"] == "original"
+        )), "Apply Replacement ignored its painted position at {size:?}, {font}: {actions:?}");
+        assert!(has_host_command(&ui.actions_from_click("Cancel Import")?, "replacement_cancel"));
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_refit_selects_loaded_garments_before_they_are_bound() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         two_part_application()?,

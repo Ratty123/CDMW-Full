@@ -224,6 +224,9 @@ the original PAC vertex and index records at every LOD. Multiple
 source parts can map to a target with original materials; imported-material mode
 requires one source material part per target.
 
+Mapping rows stay within the Inspector width; hover a shortened source or target
+name to read it in full. Apply and Cancel wrap when the panel is narrow.
+
 OBJ face regions with different materials appear as separate source parts even
 when they belong to the same object. Material assignments continue across OBJ
 object/group boundaries until the file specifies another material.

@@ -3536,14 +3536,19 @@ impl LabApplication {
                         let mut choice = ui.ctx().data_mut(|data| data.get_temp::<String>(id))
                             .unwrap_or_else(|| source["target"].as_str().unwrap_or("").to_owned());
                         ui.horizontal(|ui| {
-                            ui.label(source["name"].as_str().unwrap_or("Part"));
+                            let name = source["name"].as_str().unwrap_or("Part");
+                            let name_width = (ui.available_width() - ui.spacing().item_spacing.x) * 0.5;
+                            ui.add_sized(
+                                [name_width, ui.spacing().interact_size.y],
+                                egui::Label::new(name).truncate(),
+                            ).on_hover_text(name);
                             let text = targets.iter().find(|row| row["id"].as_str() == Some(choice.as_str()))
                                 .and_then(|row| row["name"].as_str()).unwrap_or("Choose target…");
-                            ComboBox::from_id_salt(id).selected_text(text).width(140.0).show_ui(ui, |ui| {
+                            ComboBox::from_id_salt(id).selected_text(text).width(ui.available_width()).truncate().show_ui(ui, |ui| {
                                 for target in &targets {
                                     ui.selectable_value(&mut choice, target["id"].as_str().unwrap_or("").to_owned(), target["name"].as_str().unwrap_or("Part"));
                                 }
-                            });
+                            }).response.on_hover_text(text);
                         });
                         ui.ctx().data_mut(|data| data.insert_temp(id, choice.clone()));
                         choices.push(choice);
@@ -3555,7 +3560,7 @@ impl LabApplication {
                         ui.radio_value(&mut imported, true, "Imported Materials & Textures");
                     });
                     ui.ctx().data_mut(|data| data.insert_temp(material_id, imported));
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         if ui.add_enabled(choices.iter().all(|value| !value.is_empty()), Button::new("Apply Replacement")).clicked() {
                             actions.push(UiAction::CdmwCommand {
                                 command: "replacement_apply", arguments: json!({"token": token, "targets": choices, "materials": if imported { "imported" } else { "original" }}), label: "Apply replacement",
