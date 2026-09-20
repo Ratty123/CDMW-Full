@@ -259,6 +259,43 @@ records unprojected in this constraint loop. That does not establish global
 area support or behavior in other stages. These references do not implement a
 complete solver or change the approximate preview.
 
+`pac_cloth_base.py` provides the normal base-step force, damping, contact-response
+and position-prediction math, checked against packed and native-16-bit variants
+of `ComputePbdProcessBaseMovement`. It operates after animation/space adjustment
+and runtime eligibility selection. Gravity is parameter half 260, or scene
+half 82 when frame bit `0x4000000` selects that override, plus parameter half
+262. Extra-data half 16 replaces the entire sum only when it is zero or negative;
+positive values mean fallback. Damping uses a different rule: a nonnegative
+extra-data half 18 overrides parameter half 256. Neither rule invents a clamp.
+
+`integrate_cloth_forces` applies gravity opposite the supplied scene direction
+and adds the decoded Y-only buoyancy term using density and inverse mass. Bone
+inertia uses frame float3 at 12 times parameter float 48, limited by global PBD
+float 1132 before adding resolved environmental acceleration. The caller must
+supply that environmental term after air/water force construction, its separate
+cap, orientation response and wave modulation. The explicit external-force
+skip still permits gravity/buoyancy; it does not mean a stationary particle.
+
+`apply_cloth_damping` runs after forces. Its axis coefficients are `float32(0.1)`
+times damping, with frame `0x2000000` adding the global
+`_positionBasedDynamicsParameter.x` only to X/Z. This is a per-step multiplier,
+without timestep exponentiation. Frame flag `0x4` plus a non-`FFFF` u16 at 74 selects
+the 36-byte `AdvancedDamping` record: center position, center velocity and angular
+velocity. That path adds a correction toward rigid group motion using the
+particle's **old** position and velocity, preserving newly added forces.
+
+`cloth_contact_velocity_response` implements the already-eligible inward-contact
+branch: tangential motion scales by `1-friction`, while normal motion reverses
+with restitution. `predict_cloth_position` advances position and projects it
+against the gravity-direction ground plane. With ground collision disabled,
+the shader still uses a scalar limit of 1000 in that direction. Neither helper
+silently normalizes the supplied direction/normal. Runtime contact eligibility,
+special movement boosts, flag bookkeeping, scene sampling and reset/hold paths
+remain separate. Synthetic composition tests connect this base math to authored
+stretch constraints and final movement; a repeated-step test checks damped fall
+against an independent geometric-series solution. This is not a complete solver
+or evidence of visible/game parity, and does not change the preview.
+
 `pac_cloth_movement.py` implements the decoded core of the normal final-movement
 pass, confirmed against both packed and native-16-bit variants of
 `ComputePbdProcessFinalMovement`. `cloth_attachment_correction` uses the selected
