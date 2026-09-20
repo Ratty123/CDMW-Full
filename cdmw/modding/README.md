@@ -54,16 +54,17 @@ of the file. `pac_bone_palette_candidates` returns every table matching that
 shape and `resolve_pac_bone_palette` picks the one that fully resolves against a
 given skeleton, so a mismatched rig yields nothing rather than wrong names.
 
-The decoder reads all six packed influences. It also reads two additional
-indices from half-float fields at bytes 12–15, with weights at bytes 34–35, when
-the low six bits of byte 39 are not 63. These extra lanes can bring a vertex to
-eight influences; invalid or disabled entries are excluded.
+When the low six bits of byte 39 equal 63, all six packed influences are
+skeletal. Below 63, only the first four are skeletal: two packed indices and
+the two half-float indices at bytes 12–15 address cloth guides instead. Their
+four weights at bytes 32–35 are independent of the four skeletal weights.
+Guide indices must never appear as named skeleton bones.
 
-The writer authors only the six packed palette lanes and preserves the extra
-lanes. `pack_pac_skin_weights` keeps the six strongest inputs and quantizes
-their weights to sum to 255. Callers that require lossless influence coverage
-must reject wider rows before calling it. Do not reinterpret packed slots as
-four u8 indices or reduce named-bone inspection to the primary influence.
+`pack_pac_skin_weights` retains the appropriate four- or six-bone capacity and
+quantizes skeletal weights to sum to 255 while preserving cloth bindings.
+Callers that require lossless influence coverage must reject wider rows before
+calling it. Do not reinterpret packed slots as four u8 indices or reduce
+named-bone inspection to the primary influence.
 
 Rigid attachments may have a single full-weight slot 0 and no bone palette.
 Their target bone must come from attachment or prefab data outside the mesh;
@@ -78,5 +79,35 @@ they previously agreed on the wrong offsets (28/32), which decoded 72% of every
 vanilla body as unweighted and capped authored bones at index 3.
 `tests/test_pac_skin_layout_regression.py` pins this against real bodies and
 skips when they are absent.
+
+## PAC cloth guides (read-only)
+
+`pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.
+The low nibble of metadata flag byte 1 selects the guide layout; zero means
+there is no guide section, not that the model has no other physics. The guide
+block follows the complete submesh descriptor table. It has its own bounding
+box, up to 1024 vertices, triangle indices and a separate alpha bitmask.
+
+Each 16-byte guide record contains three unsigned 15-bit coordinates, a fourth
+10-bit bone palette slot at bytes 6–7, three more 10-bit slots packed at bytes
+8–11, and four byte weights at bytes 12–15. The shader uses each weight divided
+by 255; the decoder retains sums of 254 or 256 instead of silently normalizing.
+Coordinates use the guide bounds, not any visible part's bounds.
+
+The two per-guide byte arrays and count-prefixed constraint tables remain raw.
+Their storage is decoded, but they are not exposed as pin, mass or stiffness
+controls. This reader does not replace the approximate simulation preview.
+Unsupported layouts, mismatched descriptor counts, out-of-range triangles and
+truncated metadata report unavailable without reading into geometry sections.
+
+Inspect loose decoded files with:
+
+```powershell
+.\.venv\Scripts\python.exe tools\pac_cloth_guide_study.py 'C:\path\model.pac'
+```
+
+The command reads its inputs and prints JSON with source hashes, decoded guide
+geometry, raw channels and field offsets. It returns a nonzero status if any
+input is unavailable. Keep reports and game-derived data outside the repository.
 
 Related tests: mesh, static replacement, material, and package entries under `tests/`.
