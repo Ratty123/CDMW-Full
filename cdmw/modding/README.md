@@ -234,6 +234,46 @@ versus hit settings. Source presence alone does not establish active game physic
 Focused tests compose the CPU flags/upload with the existing bone-mask shader
 reference; this is synthetic nonvisual evidence, not captured game playback.
 
+### Wind and water jiggle samples
+
+`pac_jiggle_samples.step_jiggle_sample` decodes `UpdateJiggleBoneSample` from
+build `1.0.0.2944`. It consumes one 96-byte sample plus the supplied 224-byte
+`JiggleBoneEffectGlobalData` block (constant-buffer bytes 48..272), and returns
+the updated record and matrix at `1024 + sample_index`. The shader accepts
+indices 0..511; the second sample-offset uint selects the wind/water boundary.
+CPU publisher `0x142D8FE90` writes a boundary of 256, clamps its supplied dt to
+0.03, and copies distinct normal/water settings. The reference consumes the
+already-prepared block without inventing weather values or a sample direction.
+
+Only the first cycle timer advances. Rollover discards elapsed overshoot and
+clamps the newly perturbed duration to float32 0.0333. Water rollover rotates
+the retained linear cycle vector with random yaw/pitch and replaces its angular
+cycle vector; it does not substitute the global water direction in this shader.
+The second cycle-info pair and the first cycle vector's fourth component survive.
+The GPU random seed combines sample/frame indices and stored velocity float bits.
+
+Both branches first apply the decoded linear/angular springs, then add external
+velocity and integrate position/rotation **again**. This second integration also
+includes the spring velocity. There is no final speed/displacement clamp after
+the environment term, so the settings' spring limits are not final sample bounds.
+Wind consumes the prepared direction/rotation perturbations, speed, acceleration,
+damping and sinusoidal bias/rate. Its angular sign is positive only when the sine
+is strictly positive. Water uses its retained cycle vectors and speed modulation.
+Reflected strength/direction fields not reread here may still affect upstream
+preparation; absence from this shader does not mean they have no game effect.
+
+Nonzero `isCPUMode` preserves the supplied sample and still emits its matrix.
+It is not a reset. The same CPU publisher has a separate update branch at
+`0x142D9035D..0x142D90A80`, using a mutable CPU RNG and different water-direction
+initialization. This reference implements the GPU branch and its CPU bypass,
+not that CPU simulator. Live mode selection, sample initialization, weather
+production and the water-sample consumers remain unresolved.
+
+Focused synthetic tests cover cycles, retained state, separate settings, force
+ordering, CPU bypass and a generated wind matrix through the existing vertex
+blend. The sample generator is not yet connected to the native preview, and
+Python arithmetic does not establish GPU-exact or in-game playback parity.
+
 ### Bone-to-render handoff
 
 The native counterpart is `cdmw_mesh::jiggle_skinning`; its focused tests include
@@ -268,8 +308,9 @@ added separately. Wind blending precedes the final ordinary/jiggle blend.
 The returned XYZ rows have a canonical affine fourth column for direct use by
 `blend_render_cloth_matrix`; the blend metadata has already been consumed.
 
-These functions require resolved buffers and explicit activation. They do not
-infer rig binding, generate wind samples, implement special LOD corrections,
+These functions require resolved buffers and explicit activation. Wind samples
+can be supplied by the separate reference above. These functions do not
+infer rig binding, implement special LOD corrections,
 or establish production-preview, normal-packing or in-game parity. Synthetic
 coverage composes bone motion, inverse bind, byte-38 blending and guide cloth.
 
