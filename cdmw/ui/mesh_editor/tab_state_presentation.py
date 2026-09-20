@@ -107,6 +107,13 @@ class MeshEditorStatePresentationMixin:
                 native_editor_available=native_editor_available,
                 authoring_blockers=authoring_blockers,
             )
+        if not has_target and (
+            getattr(self, "archive_session_retry_request", None) is not None
+            or getattr(self, "standalone_file_retry_request", None) is not None
+        ):
+            # The individual authoring actions above remain disabled. The
+            # loading/error host must still accept Retry before a mesh exists.
+            self.standalone_workspace.setEnabled(True)
 
     def _apply_mesh_editor_launch_button_state(
         self,

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from PySide6.QtCore import QObject, Signal, Slot
 
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.modding.skeleton_parser import parse_pab
 from cdmw.services.mesh_service import MeshService
@@ -191,6 +192,7 @@ class MeshArchiveSessionLoadWorker(QObject):
                 payload_cache: dict[tuple[str, str, int, int], bytes] = {}
 
                 def read_dependency(candidate: ArchiveEntry) -> bytes:
+                    raise_if_cancelled(self.stop_event)
                     key = (
                         str(candidate.path or ""),
                         str(candidate.paz_file or ""),
@@ -475,9 +477,31 @@ class MeshArchiveMaterialContextWorker(QObject):
             (str, bytes, bytearray),
         ) or not batches:
             return None
+        if len(batches) > 4096:
+            raise ValueError("Archive material manifest contains too many mesh parts.")
+        source_count = len(batches)
+        for fallback_index, batch in enumerate(batches):
+            if not isinstance(batch, Mapping):
+                continue
+            identity = batch.get("editor_identity")
+            identity = identity if isinstance(identity, Mapping) else {}
+            try:
+                component_index = int(identity.get("source_component_index", 0))
+                local_index = int(identity.get(
+                    "source_local_submesh_index", identity.get("source_submesh_index", fallback_index),
+                ))
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError("Archive material manifest has an invalid mesh part identity.") from None
+            if identity.get("prefab_component", False) or component_index != 0:
+                continue
+            if not 0 <= local_index < 4096:
+                raise ValueError("Archive material manifest has an invalid mesh part identity.")
+            # Preview batches omit empty parts. Their source indices still
+            # address the original PAC, so the last batch can exceed len(batches).
+            source_count = max(source_count, local_index + 1)
         material_sources = [
             SimpleNamespace(source_submesh_index=index)
-            for index in range(len(batches))
+            for index in range(source_count)
         ]
         preview_model = SimpleNamespace(
             path=str(manifest.get("source_path", "") or ""),
@@ -649,6 +673,9 @@ class MeshFileSessionLoadWorker(QObject):
 
     @Slot()
     def run(self) -> None:
+        service = None
+        view = None
+        transferred = False
         try:
             if self.stop_event.is_set():
                 return
@@ -663,11 +690,16 @@ class MeshFileSessionLoadWorker(QObject):
             )
             if not self.stop_event.is_set():
                 self.loaded.emit(self.request_id, service, view, mesh)
+                transferred = True
         except Exception as exc:
             if not self.stop_event.is_set():
                 self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
         finally:
-            self.finished.emit()
+            try:
+                if not transferred and service is not None and view is not None:
+                    service.close_edit_session(view.session_id, force_without_saving=True)
+            finally:
+                self.finished.emit()
 
 
 class MeshTextureSourceResolveWorker(QObject):

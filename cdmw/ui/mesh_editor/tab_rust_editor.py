@@ -329,6 +329,11 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         label = getattr(self, "standalone_status_label", None)
         if label is not None:
             label.setText(str(message or ""))
+        if error and not bool(getattr(self, "standalone_rust_ready", False)):
+            host = getattr(self, "standalone_native_host_frame", None)
+            show_error = getattr(host, "show_error", None)
+            if callable(show_error):
+                show_error(str(message or ""))
         self.status_message_requested.emit(str(message or ""), bool(error))
 
     def _start_selected_mesh_editor(self, controller: object) -> None:
@@ -344,6 +349,14 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             return
         controller = getattr(self, "standalone_controller", None)
         if controller is None or not str(getattr(controller, "active_session_id", "") or ""):
+            retry_request = getattr(self, "archive_session_retry_request", None)
+            if retry_request is not None:
+                self.open_archive_session(**retry_request)
+                return
+            file_retry = getattr(self, "standalone_file_retry_request", None)
+            if file_retry is not None:
+                self.open_mesh_file_session_async(**file_retry)
+                return
             self._set_rust_status("Mesh Editor cannot retry because the mesh session is closed.", error=True)
             return
         host = getattr(self, "standalone_native_host_frame", None)
@@ -598,6 +611,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.prepared.connect(self._handle_rust_session_prepared)
+        worker.progress.connect(self._handle_rust_session_prepare_progress)
         worker.error.connect(self._handle_rust_session_prepare_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
@@ -629,6 +643,20 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
             self._sync_mesh_editor_backend_controls()
             return
         thread.start()
+
+    def _handle_rust_session_prepare_progress(self, request_id: int, message: str) -> None:
+        if not self._rust_prepare_context_is_current(
+            request_id=request_id,
+            controller=self.standalone_rust_prepare_controller,
+            service=self.standalone_rust_prepare_service,
+            session_id=self.standalone_rust_prepare_session_id,
+            process_generation=self.standalone_rust_prepare_process_generation,
+        ):
+            return
+        host = getattr(self, "standalone_native_host_frame", None)
+        if host is not None:
+            host.show_loading(message)
+        self._set_rust_status(message)
 
     def _rust_prepare_context_is_current(
         self,

@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 from typing import Callable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import ArchiveEntry
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_parser import pac_bone_palette_candidates
 from cdmw.modding.skeleton_parser import Skeleton, iter_pab_candidate_basenames, parse_pab
 
@@ -668,6 +669,8 @@ def resolve_skeleton_descriptor_for_model(
             continue
         try:
             text = read_entry_data(descriptor_entry).decode("utf-8", "ignore")
+        except RunCancelled:
+            raise
         except Exception as exc:
             errors.append(f"{descriptor_entry.path}: {exc}")
             continue
@@ -719,6 +722,8 @@ def resolve_skeleton_descriptor_for_model(
                     skeleton_matches[skeleton_path] = bool(
                         _skeleton_palette_hits(skeleton, pac_data, palettes=palettes)
                     )
+                except RunCancelled:
+                    raise
                 except Exception:
                     skeleton_matches[skeleton_path] = False
             if not skeleton_matches[skeleton_path]:
@@ -930,6 +935,8 @@ def resolve_skeleton_for_model(
                 if palette_hits:
                     score += 200 + min(120, palette_hits * 6)
                     reasons.append(f"{palette_hits} matching palette bone hash(es)")
+            except RunCancelled:
+                raise
             except Exception as exc:
                 score -= 20
                 reasons.append(f"parse failed: {exc}")

@@ -343,6 +343,35 @@ def test_current_rust_archive_material_context_preserves_full_graph_and_lease(
     assert not lease.active
 
 
+def test_native_material_context_keeps_sparse_original_pac_part_indices(tmp_path: Path) -> None:
+    entry = _entry(tmp_path)
+    rust, native = _canonical_rust_package(tmp_path, entry)
+    manifest_path = native / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["batches"][0]["editor_identity"] = {"source_local_submesh_index": 7}
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    worker = MeshArchiveMaterialContextWorker(1, entry, material_package_path=rust)
+    model = worker._native_package_material_model()
+    assert model is not None
+    assert len(model.submeshes) == 8
+    assert not hasattr(model.submeshes[0], "preview_texture_dds_path")
+    assert model.submeshes[7].source_submesh_index == 7
+    assert Path(model.submeshes[7].preview_texture_dds_path).read_bytes().startswith(b"DDS ")
+
+
+@pytest.mark.parametrize("source_index", [-1, 4096, "invalid"])
+def test_native_material_context_rejects_invalid_pac_part_indices(tmp_path: Path, source_index) -> None:
+    entry = _entry(tmp_path)
+    rust, native = _canonical_rust_package(tmp_path, entry)
+    manifest_path = native / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["batches"][0]["editor_identity"] = {"source_local_submesh_index": source_index}
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    worker = MeshArchiveMaterialContextWorker(1, entry, material_package_path=rust)
+    with pytest.raises(ValueError, match="invalid mesh part identity"):
+        worker._native_package_material_model()
+
+
 def test_missing_rust_blocks_before_archive_texture_resolution(tmp_path: Path) -> None:
     entry = _entry(tmp_path)
     geometry = _package(tmp_path / "geometry", entry, textured=False)

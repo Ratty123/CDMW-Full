@@ -4440,6 +4440,47 @@ class RustMeshAuthoringTests(unittest.TestCase):
         self.assertEqual(distinct_parameters, snapshot_inputs[1].material_parameters)
         self.assertEqual(shared_parameters, repeated_input.material_parameters)
 
+    def test_native_layer_parameter_tables_are_shared_without_losing_owners(self) -> None:
+        sources = []
+        for owner in range(2):
+            inputs = tuple(
+                PreviewMaterialTextureInput(
+                    parameter_name=f"texture{index}", owner_slot_index=owner,
+                    material_parameters=tuple(
+                        PreviewMaterialParameterInput(
+                            parameter_kind="float", parameter_name=f"value{field}",
+                            numeric_value=float(owner * 1000 + (index % 7) * 50 + field),
+                        ) for field in range(50)
+                    ),
+                ) for index in range(159)
+            )
+            sources.append(SimpleNamespace(
+                source_submesh_index=owner, preview_material_texture_inputs=inputs,
+            ))
+        snapshot = rust_authoring_module._snapshot_rust_preview_model(
+            SimpleNamespace(path="layered-weapon.pac", submeshes=sources),
+        )
+        for owner, source in enumerate(snapshot.submeshes):
+            retained = source.preview_material_texture_inputs
+            self.assertEqual(sources[owner].preview_material_texture_inputs, retained)
+            self.assertEqual(owner, retained[0].owner_slot_index)
+            self.assertIs(retained[0].material_parameters, retained[7].material_parameters)
+            self.assertIsNot(retained[0].material_parameters, retained[1].material_parameters)
+        sources[0].preview_material_texture_inputs[0].material_parameters[0].numeric_value = -10
+        self.assertEqual(0.0, snapshot.submeshes[0].preview_material_texture_inputs[0].material_parameters[0].numeric_value)
+
+    def test_shared_material_nodes_still_obey_cycle_and_depth_bounds(self) -> None:
+        shared = {"value": 1}
+        nested = shared
+        for _ in range(9):
+            nested = [nested]
+        with self.assertRaisesRegex(rust_authoring_module.RustMeshAuthoringError, "safe snapshot limit"):
+            rust_authoring_module._validate_bounded_rust_material_value([shared, nested], [131072])
+        cyclic = []
+        cyclic.append(cyclic)
+        with self.assertRaisesRegex(rust_authoring_module.RustMeshAuthoringError, "safe snapshot limit"):
+            rust_authoring_module._validate_bounded_rust_material_value(cyclic, [131072])
+
     def test_preview_material_context_preserves_same_dds_rgb_parameter_bindings(
         self,
     ) -> None:
@@ -5428,6 +5469,24 @@ class RustMeshAuthoringTests(unittest.TestCase):
             self.assertGreater(maximum_written, 0)
             self.assertLessEqual(maximum_written, limit)
             self.assertEqual([], list(session_root.iterdir()))
+
+    def test_failed_geometry_preparation_removes_its_owned_session_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "failed-session"
+            with self.assertRaisesRegex(rust_authoring_module.RustMeshAuthoringError, "authoritative"):
+                RustMeshAuthoringSession.create(object(), root, process_generation=1)
+            self.assertFalse(root.exists())
+
+    def test_progress_cancellation_before_geometry_capture_removes_owned_session_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "cancelled-session"
+            stop = threading.Event()
+            with self.assertRaises(RustMeshCancellationError):
+                RustMeshAuthoringSession.create(
+                    object(), root, process_generation=1, stop_event=stop,
+                    progress=lambda _message: stop.set(),
+                )
+            self.assertFalse(root.exists())
 
     def test_pre_cancelled_texture_preparation_creates_no_session_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -10307,6 +10307,31 @@
       ]
     },
     {
+      "key": "Archive material manifest contains too many mesh parts.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_aux_workers.py",
+          "line": 481,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Archive material manifest has an invalid mesh part identity.",
+      "origins": [
+        {
+          "path": "cdmw/workers/mesh_editor_aux_workers.py",
+          "line": 494,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/workers/mesh_editor_aux_workers.py",
+          "line": 498,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Archive mesh path escapes the loose package",
       "origins": [
         {
@@ -19553,6 +19578,16 @@
           "path": "cdmw/workers/archive_sidecar_workers.py",
           "line": 90,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Checking the prepared Mesh Editor session...",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 7178,
+          "sink": "report"
         }
       ]
     },
@@ -51976,8 +52011,13 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 612,
+          "line": 659,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 660,
+          "sink": "show_loading"
         }
       ]
     },
@@ -52071,12 +52111,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 231,
+          "line": 257,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 327,
+          "line": 258,
+          "sink": "show_loading"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 354,
           "sink": "setText"
         }
       ]
@@ -55671,12 +55716,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 428,
+          "line": 455,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 429,
+          "line": 459,
+          "sink": "show_error"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 460,
           "sink": "emit"
         }
       ]
@@ -55986,13 +56036,8 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 633,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 634,
-          "sink": "emit"
+          "line": 682,
+          "sink": "_set_rust_status"
         }
       ]
     },
@@ -56752,11 +56797,16 @@
       ]
     },
     {
-      "key": "Mesh Editor will open the requested mesh after the current Finish has stopped safely.",
+      "key": "Mesh Editor will open the requested mesh after the previous session has stopped safely.",
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 180,
+          "line": 199,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
+          "line": 621,
           "sink": "emit"
         }
       ]
@@ -76382,6 +76432,16 @@
       ]
     },
     {
+      "key": "Preparing Mesh Editor files...",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 7176,
+          "sink": "report"
+        }
+      ]
+    },
+    {
       "key": "Preparing Mesh Editor...",
       "origins": [
         {
@@ -76833,6 +76893,36 @@
           "path": "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py",
           "line": 812,
           "sink": "_run_utility_task_when_idle"
+        }
+      ]
+    },
+    {
+      "key": "Preparing material textures for Mesh Editor...",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 7731,
+          "sink": "progress"
+        }
+      ]
+    },
+    {
+      "key": "Preparing mesh geometry...",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 7045,
+          "sink": "report"
+        }
+      ]
+    },
+    {
+      "key": "Preparing mesh materials...",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_authoring.py",
+          "line": 7069,
+          "sink": "report"
         }
       ]
     },
@@ -108833,16 +108923,6 @@
           "path": "cdmw/services/mesh_rust_replacement.py",
           "line": 102,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "The mesh file can open after the current Finish has stopped safely.",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 581,
-          "sink": "emit"
         }
       ]
     },

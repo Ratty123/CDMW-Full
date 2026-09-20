@@ -43,6 +43,7 @@ from cdmw.workers.mesh_rust_editor_workers import (
     MeshRustSessionDisposeWorker,
     MeshRustSessionPrepareWorker,
 )
+from cdmw.workers.mesh_editor_aux_workers import MeshFileSessionLoadWorker
 
 
 def _tab(tmp_path: Path, *, backend: str | None = None) -> MeshEditorTab:
@@ -470,6 +471,225 @@ def test_prepare_worker_forwards_cancellation_into_texture_resolution(
     assert errors == []
     assert finished == [True]
     assert not (tmp_path / "session-cancelled").exists()
+
+
+def test_prepare_progress_is_correlated_and_stale_updates_cannot_hide_errors(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    controller = SimpleNamespace(active_session_id="mesh", mesh_service=object())
+    tab.standalone_controller = controller
+    tab.standalone_rust_target_controller = controller
+    tab.standalone_rust_prepare_controller = controller
+    tab.standalone_rust_prepare_service = controller.mesh_service
+    tab.standalone_rust_prepare_session_id = controller.active_session_id
+    tab.standalone_rust_prepare_request_id = 4
+    tab.standalone_rust_prepare_active_request_id = 4
+    tab.standalone_rust_process_generation = 2
+    tab.standalone_rust_prepare_process_generation = 2
+    host = tab.standalone_native_host_frame
+    tab._handle_rust_session_prepare_progress(4, "Preparing material textures...")
+    assert host._status_label.text() == "Preparing material textures..."
+    assert tab.standalone_status_label.text() == host._status_label.text()
+    assert host._retry_button.isHidden()
+    tab._set_rust_status("Preparation failed", error=True)
+    assert host._status_label.text() == "Preparation failed"
+    assert not host._retry_button.isHidden()
+    tab._handle_rust_session_prepare_progress(3, "Stale progress")
+    controller.active_session_id = "replacement"
+    tab._handle_rust_session_prepare_progress(4, "Wrong session")
+    assert host._status_label.text() == "Preparation failed"
+    tab.standalone_rust_ready = True
+    host.show_editor()
+    tab._set_rust_status("An editing command failed", error=True)
+    assert host._editor_visible
+    _dispose(tab)
+
+
+def test_material_capture_failure_replaces_loading_overlay_with_retry(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    resolution = _provenanced_resolution(tmp_path / "helper")
+    host = tab.standalone_native_host_frame
+    host.show_loading("Preparing an isolated Mesh Editor session...")
+    with (
+        patch("cdmw.ui.mesh_editor.tab_rust_editor.resolve_rust_mesh_editor", return_value=resolution),
+        patch.object(tab, "_prime_rust_preview_material_context", side_effect=ValueError("bad materials")),
+    ):
+        tab._start_rust_editor_requested(object())
+    assert "bad materials" in host._status_label.text()
+    assert not host._retry_button.isHidden()
+    assert tab.standalone_rust_prepare_thread is None
+    _dispose(tab)
+
+
+def test_archive_load_retry_retains_target_and_draft_and_close_clears_retry(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    entry = _archive_entry(tmp_path)
+    draft = tmp_path / "draft" / "manifest.json"
+    with patch.object(tab, "_start_archive_session_load_when_indexes_ready") as start:
+        request = tab.open_archive_session(entry, resume_manifest_path=draft)
+        tab._handle_archive_session_load_error(request, "read failed")
+        host = tab.standalone_native_host_frame
+        assert "read failed" in host._status_label.text()
+        assert not host._retry_button.isHidden()
+        host._retry_button.click()
+        assert start.call_count == 2
+        assert start.call_args.args[0] > request
+        assert start.call_args.args[1] == entry
+        assert start.call_args.kwargs["resume_manifest_path"] == draft
+        assert host._retry_button.isHidden()
+        tab.close_standalone_session()
+        tab._retry_rust_editor_requested()
+        assert start.call_count == 2
+        assert tab.archive_session_retry_request is None
+    _dispose(tab)
+
+
+def test_prepare_worker_reports_stages_only_for_its_current_controller(tmp_path: Path) -> None:
+    controller = SimpleNamespace(active_session_id="mesh", mesh_service=object())
+    worker = MeshRustSessionPrepareWorker(7, controller, tmp_path / "session", process_generation=1)
+    events = []
+    worker.progress.connect(lambda request, message: events.append((request, message)))
+    worker._report_progress("Preparing geometry")
+    controller.active_session_id = "new mesh"
+    worker._report_progress("Obsolete materials")
+    assert events == [(7, "Preparing geometry")]
+    assert worker._stop_event.is_set()
+
+
+def test_file_load_cancel_after_open_closes_unpublished_session(tmp_path: Path) -> None:
+    worker = MeshFileSessionLoadWorker(2, tmp_path / "mesh.pac")
+    closed = []
+    published = []
+    finished = []
+
+    def open_session(_mesh, **_kwargs):
+        worker.stop()
+        return SimpleNamespace(session_id="unpublished")
+
+    service = SimpleNamespace(
+        load_mesh_file=lambda *_args, **_kwargs: object(),
+        open_edit_session=open_session,
+        close_edit_session=lambda session, **kwargs: closed.append((session, kwargs)),
+    )
+    worker.loaded.connect(lambda *_args: published.append(True))
+    worker.finished.connect(lambda: finished.append(True))
+    with patch("cdmw.workers.mesh_editor_aux_workers.MeshService", return_value=service):
+        worker.run()
+    assert not published
+    assert closed == [("unpublished", {"force_without_saving": True})]
+    assert finished == [True]
+
+
+def test_close_invalidates_late_file_result_even_after_worker_cleanup(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    request = tab.standalone_file_load_request_id
+    tab.close_standalone_session()
+    closed = []
+    service = SimpleNamespace(close_edit_session=lambda session, **kwargs: closed.append((session, kwargs)))
+    tab._handle_standalone_file_loaded(request, service, SimpleNamespace(session_id="late"), object())
+    assert tab.standalone_controller is None
+    assert closed == [("late", {"force_without_saving": True})]
+    _dispose(tab)
+
+
+def test_missing_pac_file_reports_failure_and_retry_reloads_same_path(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    application = QApplication.instance()
+    path = tmp_path / "missing.pac"
+    first_request = tab.open_mesh_file_session_async(path, mode="edit", session_id="file-retry")
+    try:
+        for attempt in range(2):
+            deadline = time.monotonic() + 5
+            while tab.standalone_file_load_thread is not None and time.monotonic() < deadline:
+                application.processEvents()
+                QThread.msleep(1)
+            assert tab.standalone_file_load_thread is None
+            host = tab.standalone_native_host_frame
+            assert "file load failed" in host._status_label.text()
+            assert not host._retry_button.isHidden()
+            assert tab.standalone_file_retry_request["path"] == path
+            assert tab.standalone_file_retry_request["mode"] == "edit"
+            if attempt == 0:
+                host._retry_button.click()
+                assert tab.standalone_file_load_request_id > first_request
+        tab.close_standalone_session()
+        assert tab.standalone_file_retry_request is None
+    finally:
+        tab.request_shutdown()
+        _dispose(tab)
+
+
+def test_replacing_a_loading_pac_retains_old_worker_and_opens_only_latest_request(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    stopped = []
+    old_thread = SimpleNamespace(
+        requestInterruption=lambda: None, quit=lambda: None,
+        wait=lambda _timeout: True, deleteLater=lambda: None,
+    )
+    old_worker = SimpleNamespace(stop=lambda: stopped.append(True), deleteLater=lambda: None)
+    tab.archive_session_load_thread = old_thread
+    tab.archive_session_load_worker = old_worker
+    first = _archive_entry(tmp_path, offset=1)
+    latest = _archive_entry(tmp_path, offset=2)
+    with patch.object(tab, "_start_archive_session_load_when_indexes_ready") as start:
+        assert tab.open_archive_session(first) is None
+        assert tab.open_archive_session(latest) is None
+        QApplication.processEvents()
+        start.assert_not_called()
+        assert tab.archive_session_load_thread is old_thread
+        assert tab.archive_session_load_worker is old_worker
+        assert stopped
+        assert tab.archive_session_open_pending["entry"].identity == latest.identity
+        tab._cleanup_archive_session_loader(old_thread, old_worker)
+        tab._resume_queued_archive_session_open()
+        start.assert_called_once()
+        assert start.call_args.args[1].identity == latest.identity
+        assert tab.archive_session_open_pending is None
+    tab.request_shutdown()
+    _dispose(tab)
+
+
+def test_replacement_pac_waits_for_old_rust_preparation_before_loading(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    old_thread = object()
+    tab.standalone_rust_prepare_thread = old_thread
+    with (
+        patch.object(tab, "_stop_rust_editor_process"),
+        patch.object(tab, "_start_archive_session_load_when_indexes_ready") as start,
+    ):
+        assert tab.open_archive_session(_archive_entry(tmp_path)) is None
+        tab._resume_queued_archive_session_open()
+        start.assert_not_called()
+        assert tab.standalone_rust_prepare_thread is old_thread
+        tab.standalone_rust_prepare_thread = None
+        tab._resume_queued_archive_session_open()
+        start.assert_called_once()
+    tab.request_shutdown()
+    _dispose(tab)
+
+
+def test_file_open_replaces_queued_archive_and_waits_for_its_worker(tmp_path: Path) -> None:
+    tab = _tab(tmp_path)
+    old_thread = SimpleNamespace(
+        requestInterruption=lambda: None, quit=lambda: None,
+        wait=lambda _timeout: True, deleteLater=lambda: None,
+    )
+    old_worker = SimpleNamespace(stop=lambda: None, deleteLater=lambda: None)
+    tab.archive_session_load_thread = old_thread
+    tab.archive_session_load_worker = old_worker
+    releases = []
+    lease = SimpleNamespace(release=lambda: releases.append(True))
+    tab.open_archive_session(_archive_entry(tmp_path), material_package_lease=lease)
+    path = tmp_path / "next.pac"
+    assert tab.open_mesh_file_session_async(path) is None
+    assert releases == [True]
+    assert tab.standalone_file_load_thread is None
+    assert tab.archive_session_load_thread is old_thread
+    tab._cleanup_archive_session_loader(old_thread, old_worker)
+    with patch.object(tab, "open_mesh_file_session_async") as start:
+        tab._resume_queued_archive_session_open()
+        assert start.call_args.args == (path,)
+    tab.request_shutdown()
+    _dispose(tab)
 
 
 def test_prepare_worker_discards_result_when_authoritative_session_changes(

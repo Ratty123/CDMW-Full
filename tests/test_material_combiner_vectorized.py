@@ -666,6 +666,43 @@ def test_synthesized_normal_arrays_match_the_per_pixel_loops(
     assert array_strength == pytest.approx(loop_strength, abs=1e-9)
 
 
+@pytest.mark.parametrize("channel", ["r", "g", "b", "a"])
+def test_masked_normal_tiles_preserve_inactive_pixels_and_skip_inactive_math(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, channel: str,
+) -> None:
+    pytest.importorskip("numpy")
+    base = QImage(str(_pattern(tmp_path / "base.png", 7, 69, 13)))
+    layer = QImage(str(_pattern(tmp_path / "layer.png", 7, 69, 19)))
+    mask = QImage(7, 69, QImage.Format.Format_RGBA8888)
+    mask.fill(QColor(0, 0, 0, 0))
+    # Only the last tile has a live pixel; all other source bytes must survive.
+    mask.setPixelColor(3, 68, QColor(255, 255, 255, 255))
+    convert = material_combiner_support_maps._numpy_unit_bytes
+    converted_sizes = []
+
+    def count_conversions(numpy, values):
+        converted_sizes.append(values.size)
+        return convert(numpy, values)
+
+    monkeypatch.setattr(material_combiner_support_maps, "_numpy_unit_bytes", count_conversions)
+    result, applied = material_combiner_support_maps._compose_normal_layer(
+        base, layer, mask, channel=channel, weight=0.6,
+    )
+    assert applied
+    assert converted_sizes == [1, 1, 1]
+    for y in range(69):
+        for x in range(7):
+            if (x, y) != (3, 68):
+                assert result.pixelColor(x, y).getRgb()[:3] == base.pixelColor(x, y).getRgb()[:3]
+    mask.fill(QColor(0, 0, 0, 0))
+    unchanged, applied = material_combiner_support_maps._compose_normal_layer(
+        base, layer, mask, channel=channel, weight=0.6,
+    )
+    assert not applied
+    assert unchanged is base
+    assert converted_sizes == [1, 1, 1]
+
+
 def test_chunked_normal_height_and_derived_normal_match_scalar_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

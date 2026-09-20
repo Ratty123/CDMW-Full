@@ -148,7 +148,10 @@ def _submesh_snapshot_metadata(submesh: object) -> dict[str, object]:
 
 def _snapshot_metadata_value(value: object) -> object:
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return _snapshot_metadata_value(dataclasses.asdict(value))
+        return {
+            field.name: _snapshot_metadata_value(getattr(value, field.name))
+            for field in dataclasses.fields(value)
+        }
     if isinstance(value, Mapping):
         return {str(key): _snapshot_metadata_value(item) for key, item in value.items()}
     if isinstance(value, (list, set, tuple)):

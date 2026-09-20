@@ -64,6 +64,7 @@ def _remove_owned_session_root(
 
 class MeshRustSessionPrepareWorker(QObject):
     prepared = Signal(int, object)
+    progress = Signal(int, str)
     error = Signal(int, str)
     finished = Signal()
 
@@ -111,6 +112,12 @@ class MeshRustSessionPrepareWorker(QObject):
             == self.expected_session_id
         )
 
+    def _report_progress(self, message: str) -> None:
+        if not self._controller_context_is_current():
+            self._stop_event.set()
+        if not self._stop_event.is_set():
+            self.progress.emit(self.request_id, message)
+
     @Slot()
     def run(self) -> None:
         session: RustMeshAuthoringSession | None = None
@@ -125,6 +132,7 @@ class MeshRustSessionPrepareWorker(QObject):
                 process_generation=self.process_generation,
                 theme=self.theme,
                 stop_event=self._stop_event,
+                progress=self._report_progress,
                 **({"hair_start_mode": self.hair_start_mode} if self.hair_start_mode else {}),
             )
             if (

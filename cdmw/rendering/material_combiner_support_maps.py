@@ -608,31 +608,47 @@ def _compose_normal_layer(
         for row_start in range(0, height, _NUMPY_ROW_CHUNK):
             _raise_if_material_combiner_cancelled(cancelled)
             row_count = min(_NUMPY_ROW_CHUNK, height - row_start)
-            base = _numpy_rgba_row_chunk(
-                numpy, base_view, base_stride, width, row_start, row_count
-            )
-            over_bytes = _numpy_rgba_byte_rows(
-                numpy, layer_view, layer_stride, width, row_start, row_count
-            )
-            over = (
-                over_bytes.astype(numpy.float32) / numpy.float32(255.0)
-            ).astype(numpy.float64)
             if mask_view is None:
                 mask_alpha = numpy.ones((row_count, width), dtype=numpy.float64)
             else:
-                mask_alpha = _numpy_rgba_row_chunk(
+                mask_bytes = _numpy_rgba_byte_rows(
                     numpy, mask_view, mask_stride, width, row_start, row_count
                 )[:, :, mask_index]
+                mask_alpha = (
+                    mask_bytes.astype(numpy.float32) / numpy.float32(255.0)
+                ).astype(numpy.float64)
             alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)
             live = alpha > 0.001
-            applied = applied or bool(live.any())
-            base_x = (base[:, :, 0] * 2.0) - 1.0
-            base_y = (base[:, :, 1] * 2.0) - 1.0
+            base_bytes = _numpy_rgba_byte_rows(
+                numpy, base_view, base_stride, width, row_start, row_count
+            )
+            output = _numpy_write_row_chunk(
+                numpy, result_view, result_stride, width, row_start, row_count, 4
+            )
+            output[:, :, :3] = base_bytes[:, :, :3]
+            output[:, :, 3] = 255
+            if not bool(live.any()):
+                continue
+            applied = True
+            # Only live texels need composition, and only normal XY channels
+            # need float conversion. Keep QColor's float32-to-float64 rounding.
+            base = (
+                base_bytes[live, :2].astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            over_bytes = _numpy_rgba_byte_rows(
+                numpy, layer_view, layer_stride, width, row_start, row_count
+            )[live, :2]
+            over = (
+                over_bytes.astype(numpy.float32) / numpy.float32(255.0)
+            ).astype(numpy.float64)
+            alpha = alpha[live]
+            base_x = (base[:, 0] * 2.0) - 1.0
+            base_y = (base[:, 1] * 2.0) - 1.0
             base_z = numpy.sqrt(
                 numpy.maximum(0.0, 1.0 - (base_x * base_x) - (base_y * base_y))
             )
-            layer_x = (over[:, :, 0] * 2.0) - 1.0
-            layer_y = (((255.0 - over_bytes[:, :, 1]) / 255.0) * 2.0) - 1.0
+            layer_x = (over[:, 0] * 2.0) - 1.0
+            layer_y = (((255.0 - over_bytes[:, 1]) / 255.0) * 2.0) - 1.0
             layer_z = numpy.sqrt(
                 numpy.maximum(0.0, 1.0 - (layer_x * layer_x) - (layer_y * layer_y))
             )
@@ -644,16 +660,9 @@ def _compose_normal_layer(
                 0.001,
                 numpy.sqrt((out_x * out_x) + (out_y * out_y) + (out_z * out_z)),
             )
-            red = numpy.where(live, ((out_x / length) * 0.5) + 0.5, base[:, :, 0])
-            green = numpy.where(live, ((out_y / length) * 0.5) + 0.5, base[:, :, 1])
-            blue = numpy.where(live, ((out_z / length) * 0.5) + 0.5, base[:, :, 2])
-            output = _numpy_write_row_chunk(
-                numpy, result_view, result_stride, width, row_start, row_count, 4
-            )
-            output[:, :, 0] = _numpy_unit_bytes(numpy, red)
-            output[:, :, 1] = _numpy_unit_bytes(numpy, green)
-            output[:, :, 2] = _numpy_unit_bytes(numpy, blue)
-            output[:, :, 3] = 255
+            output[:, :, 0][live] = _numpy_unit_bytes(numpy, ((out_x / length) * 0.5) + 0.5)
+            output[:, :, 1][live] = _numpy_unit_bytes(numpy, ((out_y / length) * 0.5) + 0.5)
+            output[:, :, 2][live] = _numpy_unit_bytes(numpy, ((out_z / length) * 0.5) + 0.5)
     except (BufferError, MemoryError, TypeError, ValueError):
         return None
     return (result, True) if applied else (target, False)

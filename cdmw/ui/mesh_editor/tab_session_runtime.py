@@ -30,6 +30,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         *,
         preserve_lease: object | None = None,
     ) -> None:
+        self.archive_session_open_retry_timer.stop()
         pending = getattr(self, "archive_session_open_pending", None)
         self.archive_session_open_pending = None
         if not isinstance(pending, Mapping):
@@ -62,6 +63,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         archive_dependencies: ArchiveWorkflowDependencyContext | None,
         prepared_result: object | None = None,
     ) -> None:
+        self.archive_session_open_retry_timer.stop()
         previous = getattr(self, "archive_session_open_pending", None)
         previous_result = previous.get("prepared_result") if isinstance(previous, Mapping) else None
         if previous_result is not None and previous_result is not prepared_result:
@@ -94,13 +96,29 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             "archive_dependencies": archive_dependencies,
             "prepared_result": prepared_result,
         }
+        self.archive_session_open_retry_timer.start(0)
+
+    def _mesh_session_load_is_retiring(self) -> bool:
+        return bool(
+            self.archive_session_load_thread is not None
+            or self.standalone_file_load_thread is not None
+            or self._rust_editor_task_active()
+            or self.standalone_rust_terminal_close_pending
+        )
 
     def _resume_queued_archive_session_open(self) -> None:
         pending = getattr(self, "archive_session_open_pending", None)
-        self.archive_session_open_pending = None
         if not isinstance(pending, Mapping):
             return
+        if self._mesh_session_load_is_retiring():
+            self.archive_session_open_retry_timer.start(25)
+            return
+        self.archive_session_open_pending = None
         payload = dict(pending)
+        file_path = payload.pop("file_path", None)
+        if file_path is not None:
+            self.open_mesh_file_session_async(file_path, **payload)
+            return
         entry = payload.pop("entry", None)
         if not isinstance(entry, _tab.ArchiveEntry):
             if payload.get("prepared_result") is not None:
@@ -162,8 +180,9 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         )
         if carries_current_package_lease:
             self.archive_material_context_package_lease = None
-        if self.close_standalone_session() is False:
-            if carries_current_package_lease:
+        closed = self.close_standalone_session()
+        if closed is False or self._mesh_session_load_is_retiring():
+            if closed is False and carries_current_package_lease:
                 self.archive_material_context_package_lease = current_package_lease
             self._queue_archive_session_open(
                 entry,
@@ -178,7 +197,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 prepared_result=prepared_result,
             )
             self.status_message_requested.emit(
-                "Mesh Editor will open the requested mesh after the current Finish has stopped safely.",
+                "Mesh Editor will open the requested mesh after the previous session has stopped safely.",
                 False,
             )
             return None
@@ -187,6 +206,13 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         request_id = self.archive_session_load_request_id
         entry_snapshot = copy.deepcopy(entry)
         resume_path = Path(resume_manifest_path) if resume_manifest_path is not None else None
+        self.archive_session_retry_request = {
+            "entry": entry_snapshot,
+            "resume_manifest_path": resume_path,
+            "archive_dependencies": archive_dependencies,
+            "material_companion_entry": copy.deepcopy(material_companion_entry),
+            "material_package_path": material_package_path,
+        }
         self.archive_session_load_entry = entry
         self.archive_session_dependencies = archive_dependencies
         self.archive_session_load_material_model = (
@@ -229,6 +255,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.standalone_status_label.setText(f"Loading archive mesh: {entry.path}")
+        self.standalone_native_host_frame.show_loading(f"Loading archive mesh: {entry.path}")
         self.update_editor_session_state(None)
         self._sync_state()
         if prepared_result is not None:
@@ -426,6 +453,10 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self._replace_archive_material_context_package_lease(None)
         text = f"Mesh Editor archive load failed: {message}"
         self.standalone_status_label.setText(text)
+        host = getattr(self, "standalone_native_host_frame", None)
+        show_error = getattr(host, "show_error", None)
+        if callable(show_error):
+            show_error(text)
         self.status_message_requested.emit(text, True)
         self.update_editor_session_state(None)
 
@@ -577,14 +608,30 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
                 self.status_message_requested.emit(message, True)
                 self._sync_mesh_editor_backend_controls()
                 return None
-        if self.close_standalone_session() is False:
+        self._discard_queued_archive_session_open()
+        if self.close_standalone_session() is False or self._mesh_session_load_is_retiring():
+            self.archive_session_open_pending = {
+                "file_path": source_path,
+                "target_entry": target_entry,
+                "session_id": session_id,
+                "mode": mode,
+                "source_skeleton": source_skeleton,
+            }
+            self.archive_session_open_retry_timer.start(0)
             self.status_message_requested.emit(
-                "The mesh file can open after the current Finish has stopped safely.",
+                "Mesh Editor will open the requested mesh after the previous session has stopped safely.",
                 False,
             )
             return None
         self.standalone_file_load_request_id += 1
         request_id = self.standalone_file_load_request_id
+        self.standalone_file_retry_request = {
+            "path": source_path,
+            "target_entry": target_entry,
+            "session_id": session_id,
+            "mode": mode,
+            "source_skeleton": source_skeleton,
+        }
         worker = _tab.MeshFileSessionLoadWorker(
             request_id,
             source_path,
@@ -610,12 +657,14 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.empty_state.setVisible(False)
         self.workspace_stack.setCurrentWidget(self.standalone_workspace)
         self.standalone_status_label.setText(f"Loading Mesh Editor file: {source_path}")
+        self.standalone_native_host_frame.show_loading(f"Loading Mesh Editor file: {source_path}")
         self.update_editor_session_state(None)
         thread.start(QThread.LowPriority)
         self.status_message_requested.emit(f"Mesh Editor loading standalone mesh: {source_path.name}", False)
         return request_id
     def _handle_standalone_file_loaded(self, request_id: int, mesh_service: _tab.MeshService, view: _tab.MeshEditSessionView, mesh: _tab.ParsedMesh) -> None:
         if int(request_id) != self.standalone_file_load_request_id:
+            mesh_service.close_edit_session(view.session_id, force_without_saving=True)
             return
         self.standalone_controller = _tab.MeshEditorController(mesh_service=mesh_service)
         view = self.standalone_controller.attach_session(view.session_id)
@@ -630,8 +679,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         if int(request_id) != self.standalone_file_load_request_id:
             return
         self.standalone_controller = None
-        self.standalone_status_label.setText(f"Mesh Editor file load failed: {message}")
-        self.status_message_requested.emit(f"Mesh Editor file load failed: {message}", True)
+        self._set_rust_status(f"Mesh Editor file load failed: {message}", error=True)
         self.update_editor_session_state(None)
     def _cleanup_standalone_file_loader(self, thread: QThread, worker: _tab.MeshFileSessionLoadWorker) -> None:
         if self.standalone_file_load_thread is thread:
@@ -643,9 +691,9 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
     def _cancel_standalone_file_load(self) -> None:
         worker = self.standalone_file_load_worker
         thread = self.standalone_file_load_thread
+        self.standalone_file_load_request_id += 1
         if worker is None and thread is None:
             return
-        self.standalone_file_load_request_id += 1
         if worker is not None:
             try:
                 worker.stop()
@@ -762,6 +810,8 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self._cancel_archive_session_load()
         self._cancel_archive_material_context_resolution()
         self.archive_session_dependencies = None
+        self.archive_session_retry_request = None
+        self.standalone_file_retry_request = None
         self._cancel_standalone_file_load()
         self._cancel_standalone_action_worker()
         self._cancel_standalone_export_validation_worker()

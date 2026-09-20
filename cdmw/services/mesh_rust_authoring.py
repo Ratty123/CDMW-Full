@@ -20,7 +20,7 @@ import stat
 import struct
 import tempfile
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager, nullcontext
 from ctypes import wintypes
 from dataclasses import dataclass, field, fields, is_dataclass, replace
@@ -53,7 +53,7 @@ from cdmw.modding.mesh_parser import (
     ParsedMesh,
     resolve_pac_bone_palette,
 )
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, PreviewMaterialParameterInput
 from cdmw.rendering.crimson_shader_registry import normalize_shader_family
 from cdmw.rendering.material_category_contract import (
     MATERIAL_CATEGORY_UNCLASSIFIED,
@@ -718,6 +718,7 @@ def _validate_bounded_rust_material_value(
     budget: list[int],
     *,
     depth: int = 0,
+    validated: dict[int, int] | None = None,
 ) -> None:
     budget[0] -= 1
     if budget[0] < 0 or depth > _RUST_PREVIEW_MATERIAL_VALUE_DEPTH:
@@ -732,14 +733,22 @@ def _validate_bounded_rust_material_value(
         raise RustMeshAuthoringError(
             "Resolved Archive Browser material context exceeds the safe snapshot limit."
         )
+    if validated is None:
+        validated = {}
+    # Shared parameter tables are one retained object in the detached snapshot.
+    # Count every reference, but walk its fields only once at a given depth.
+    # Remember only completed walks so cycles still fail the depth bound.
+    if id(value) in validated and depth <= validated[id(value)]:
+        return
     if isinstance(value, Mapping):
         if len(value) > _RUST_PREVIEW_MATERIAL_VALUE_ITEMS:
             raise RustMeshAuthoringError(
                 "Resolved Archive Browser material context exceeds the safe snapshot limit."
             )
         for key, item in value.items():
-            _validate_bounded_rust_material_value(key, budget, depth=depth + 1)
-            _validate_bounded_rust_material_value(item, budget, depth=depth + 1)
+            _validate_bounded_rust_material_value(key, budget, depth=depth + 1, validated=validated)
+            _validate_bounded_rust_material_value(item, budget, depth=depth + 1, validated=validated)
+        validated[id(value)] = depth
         return
     if is_dataclass(value) and not isinstance(value, type):
         for item in getattr(value, "__dataclass_fields__", {}).values():
@@ -747,7 +756,9 @@ def _validate_bounded_rust_material_value(
                 getattr(value, item.name),
                 budget,
                 depth=depth + 1,
+                validated=validated,
             )
+        validated[id(value)] = depth
         return
     if isinstance(value, Sequence) and not isinstance(
         value,
@@ -758,29 +769,31 @@ def _validate_bounded_rust_material_value(
                 "Resolved Archive Browser material context exceeds the safe snapshot limit."
             )
         for item in value:
-            _validate_bounded_rust_material_value(item, budget, depth=depth + 1)
+            _validate_bounded_rust_material_value(item, budget, depth=depth + 1, validated=validated)
+        validated[id(value)] = depth
 
 
 def _deduplicate_rust_texture_input_parameters(
     value: object,
     source_parameters: tuple[object, ...],
 ) -> object:
-    """Drop only exact per-input copies of the source parameter table.
+    """Share equal layer tables and drop exact copies of the source table.
 
     Archive Browser texture bindings can each retain the complete owning PAC
     material-parameter tuple.  Copying that same immutable table into every
     Rust snapshot input multiplies a legitimate layered weapon by tens of
     thousands of recursively visited values without adding any information.
-    Keep the authoritative source-level table once and preserve any input that
-    carries a distinct parameter tuple.
+    Keep the authoritative source-level table once. Inputs with distinct layer
+    values retain their tables and ownership in the detached snapshot.
     """
 
-    if not source_parameters or not isinstance(value, Sequence) or isinstance(
+    if not isinstance(value, Sequence) or isinstance(
         value,
         (str, bytes, bytearray, memoryview),
     ):
         return value
     normalized: list[object] = []
+    parameter_tables: dict[tuple[object, ...], tuple[object, ...]] = {}
     changed = False
     for item in value:
         input_parameters = getattr(item, "material_parameters", None)
@@ -788,10 +801,30 @@ def _deduplicate_rust_texture_input_parameters(
             input_parameters
             and is_dataclass(item)
             and not isinstance(item, type)
+            and source_parameters
             and tuple(input_parameters) == source_parameters
         ):
             item = replace(item, material_parameters=())
             changed = True
+        elif input_parameters and is_dataclass(item) and not isinstance(item, type):
+            parameters = tuple(input_parameters)
+            if all(isinstance(parameter, PreviewMaterialParameterInput) for parameter in parameters):
+                # Native batches carry a separate parameter table for each
+                # layer, often repeated on dozens of texture inputs. Preserve
+                # each layer's values and owner, sharing only equal tables.
+                key = tuple(
+                    tuple(getattr(parameter, field) for field in parameter.__dataclass_fields__)
+                    for parameter in parameters
+                )
+                try:
+                    retained = parameter_tables.setdefault(key, parameters)
+                except TypeError:
+                    # Malformed/non-scalar metadata still goes through the
+                    # ordinary bounded validator, without interning it.
+                    retained = parameters
+                if retained is not input_parameters:
+                    item = replace(item, material_parameters=retained)
+                    changed = True
         normalized.append(item)
     if not changed:
         return value
@@ -6993,32 +7026,47 @@ class RustMeshAuthoringSession:
         theme: Mapping[str, object] | None = None,
         stop_event: threading.Event | None = None,
         hair_start_mode: str = "",
+        progress: Callable[[str], None] | None = None,
     ) -> "RustMeshAuthoringSession":
+        def report(message: str) -> None:
+            if stop_event is not None and stop_event.is_set():
+                raise RustMeshCancellationError("Mesh session preparation was cancelled")
+            if progress is not None:
+                progress(message)
+            if stop_event is not None and stop_event.is_set():
+                raise RustMeshCancellationError("Mesh session preparation was cancelled")
+
         if stop_event is not None and stop_event.is_set():
             raise RustMeshCancellationError("Mesh session preparation was cancelled")
         session_root = Path(root).resolve()
         session_root.mkdir(parents=True, exist_ok=False)
         root_identity = _session_root_identity(session_root)
-        authoritative_service = getattr(authoritative_controller, "mesh_service", None)
-        authoritative_session_id = str(
-            getattr(authoritative_controller, "active_session_id", "") or ""
-        )
-        if not isinstance(authoritative_service, MeshService) or not authoritative_session_id:
-            raise RustMeshAuthoringError("CDMW has no authoritative Mesh Edit session")
-        authoritative_session = authoritative_service._session(authoritative_session_id)
-        preview_context = getattr(
-            authoritative_controller,
-            _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR,
-            None,
-        )
-        texture_unavailable_reason = str(
-            getattr(preview_context, "unavailable_reason", "") or ""
-        ).strip()
-        (
-            authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
-            base_morph_session_revision, authoritative_morph_state,
-        ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
         try:
+            report("Preparing mesh geometry...")
+            authoritative_service = getattr(authoritative_controller, "mesh_service", None)
+            authoritative_session_id = str(
+                getattr(authoritative_controller, "active_session_id", "") or ""
+            )
+            if not isinstance(authoritative_service, MeshService) or not authoritative_session_id:
+                raise RustMeshAuthoringError("CDMW has no authoritative Mesh Edit session")
+            authoritative_session = authoritative_service._session(authoritative_session_id)
+            preview_context = getattr(
+                authoritative_controller,
+                _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR,
+                None,
+            )
+            texture_unavailable_reason = str(
+                getattr(preview_context, "unavailable_reason", "") or ""
+            ).strip()
+            (
+                authoritative_view, shadow_mesh, geometry_layer_seed, rigging_seed,
+                base_morph_session_revision, authoritative_morph_state,
+            ) = _capture_shadow_session_seed(authoritative_service, authoritative_session)
+        except Exception:
+            _cleanup_failed_session_root(session_root, root_identity)
+            raise
+        try:
+            report("Preparing mesh materials...")
             shadow_mesh.active_lod_index = authoritative_view.lod_index
             if geometry_layer_seed.get("archive_refit_context") is None:
                 preview_material_binding_count, texture_unavailable_reason = _prepare_shadow_mesh_materials(
@@ -7125,7 +7173,9 @@ class RustMeshAuthoringSession:
             )
             if authoritative_morph_root is not None:
                 (authoritative_morph_root.parent / "mesh_presets").mkdir(parents=True, exist_ok=True)
-            instance._write_initial_manifest(stop_event=stop_event)
+            report("Preparing Mesh Editor files...")
+            instance._write_initial_manifest(stop_event=stop_event, progress=report)
+            report("Checking the prepared Mesh Editor session...")
             _validate_owned_session_tree(session_root, root_identity)
             return instance
         except Exception:
@@ -7638,6 +7688,7 @@ class RustMeshAuthoringSession:
         self,
         *,
         stop_event: threading.Event | None = None,
+        progress: Callable[[str], None] | None = None,
     ) -> None:
         # create() has not published this session yet. Its worker exclusively
         # owns the shadow until the complete package is returned, so serializers
@@ -7676,6 +7727,8 @@ class RustMeshAuthoringSession:
             )
             material_mesh = prepared_replacement_material_mesh(
                 mesh, replacement.dependencies, required=False, stop_event=stop_event)
+        if progress is not None:
+            progress("Preparing material textures for Mesh Editor...")
         with material_mesh as prepared_material_mesh:
             textures = _mesh_texture_payloads(
                 self.root,

@@ -41,6 +41,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_file_load_target_entry: object | None = None
         self.standalone_file_load_source_skeleton: object | None = None
         self.standalone_file_load_request_id = 0
+        self.standalone_file_retry_request: dict[str, object] | None = None
         self.archive_session_load_thread: _tab.QThread | None = None
         self.archive_session_load_worker: _tab.MeshArchiveSessionLoadWorker | None = None
         self.archive_session_load_request_id = 0
@@ -48,6 +49,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_session_load_material_model: object | None = None
         self.archive_session_dependencies: ArchiveWorkflowDependencyContext | None = None
         self.archive_session_open_pending: dict[str, object] | None = None
+        self.archive_session_open_retry_timer = QTimer(self)
+        self.archive_session_open_retry_timer.setSingleShot(True)
+        self.archive_session_open_retry_timer.timeout.connect(self._resume_queued_archive_session_open)
+        self.archive_session_retry_request: dict[str, object] | None = None
         self.standalone_archive_material_preview_model: object | None = None
         self.archive_material_context_companion_entry: _tab.ArchiveEntry | None = None
         self.archive_material_context_package_path = ""

@@ -187,6 +187,48 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
         self.assertFalse(binding.is_complete)
         self.assertIn("No PAB-ordered skeleton bones", "\n".join(binding.blocking_errors))
 
+    def test_skeleton_resolver_propagates_cancellation_without_scanning_remaining_candidates(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+
+        model = _entry("character/model/body_a.pac")
+        candidates = [_entry(f"character/skeleton/rig_{index}.pab") for index in range(3)]
+        reads = []
+
+        def cancelled_read(entry):
+            reads.append(entry)
+            raise RunCancelled("cancelled")
+
+        with self.assertRaises(RunCancelled):
+            resolve_skeleton_for_model(
+                model, candidates, pac_data=b"palette", read_entry_data=cancelled_read,
+            )
+        self.assertEqual(len(reads), 1)
+
+    def test_skeleton_descriptor_propagates_cancellation_during_descriptor_or_pab_read(self) -> None:
+        from cdmw.domain.cancellation import RunCancelled
+
+        model = _entry("character/model/body_a.pac")
+        descriptor = _entry("character/prefab/body_a.prefabdata_xml")
+        skeleton = _entry("character/model/body_a.pab")
+        for cancel_descriptor in (True, False):
+            with self.subTest(cancel_descriptor=cancel_descriptor):
+                reads = []
+
+                def read(entry):
+                    reads.append(entry)
+                    if cancel_descriptor or entry is skeleton:
+                        raise RunCancelled("cancelled")
+                    return b'<PrefabData><SkeletonName FileName="body_a.pab"/></PrefabData>'
+
+                with patch.object(skeleton_resolver, "pac_bone_palette_candidates", return_value=(1,)):
+                    with self.assertRaises(RunCancelled):
+                        skeleton_resolver.resolve_skeleton_descriptor_for_model(
+                            model, (descriptor, skeleton), pac_data=b"PAR ",
+                            read_entry_data=read, authored_descriptor=descriptor,
+                            archive_entries_by_normalized_path={skeleton.path: (skeleton,)},
+                        )
+                self.assertEqual(len(reads), 1 if cancel_descriptor else 2)
+
     def test_skeleton_resolver_prefers_palette_evidence_over_exact_path(self) -> None:
         model = _entry("character/model/body_a.pac", data=b"\x56\x34\x12\x00")
         exact = _entry("character/model/body_a.pab")

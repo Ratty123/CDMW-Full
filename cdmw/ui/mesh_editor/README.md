@@ -21,6 +21,18 @@ replacement controls retain their existing construction path. Initial authoring
 packages read the worker-owned shadow directly; authoritative, editable shadow
 and immutable base geometry remain separate.
 
+PAC opening covers archive bytes, appearance and skeleton, material context,
+the isolated authoring package, and the Rust host. Preparation
+reports geometry, material, texture and final validation stages. Load failures
+replace the loading overlay with the error and a Retry action for the same
+archive entry or local file, preserving draft selection. Close cancels the load
+and rejects late results. A replacement request waits for retiring loaders and
+Rust workers, retaining only the latest requested file. Unpublished sessions
+and failed preparation folders are disposed. Sparse preview batches retain their original PAC part indices,
+and repeated layer parameter tables share snapshot storage without losing owners
+or relaxing the depth and size bounds. Texture composition skips inactive normal
+mask pixels while retaining the original output bytes.
+
 ## Collapsible panels and tool icons
 
 Use the arrow in each panel header to collapse it independently. **Tools** becomes
