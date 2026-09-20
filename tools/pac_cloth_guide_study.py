@@ -18,7 +18,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cdmw.modding.pac_cloth_guides import (
-    decode_pac_cloth_guides, inspect_guide_particle_initialization, inspect_guide_topology,
+    decode_pac_cloth_guides, inspect_guide_constraint_geometry,
+    inspect_guide_particle_initialization, inspect_guide_topology,
 )
 
 
@@ -37,7 +38,8 @@ def inspect_pac(data: bytes, *, path: str = "") -> dict:
             "triangle_count": len(guides.triangles), "guides": payload,
             "topology_evidence": inspect_guide_topology(guides),
             "particle_initialization": inspect_guide_particle_initialization(guides),
-            "limitations": "Particle channels describe initialization, not final runtime motion. Inverse-mass factors require the material Mass; both vertex-alpha blend modes are shown because the active material is unresolved. Dynamic-fix groups require runtime activation. Constraint conversion, collisions and runtime overrides are not simulated."}
+            "constraint_geometry": inspect_guide_constraint_geometry(guides),
+            "limitations": "Particle channels describe initialization, not final runtime motion. Inverse-mass factors require the material Mass; both vertex-alpha blend modes are shown because the active material is unresolved. Dynamic-fix groups require runtime activation. Constraint rest geometry uses CPU coordinates before skinning; active area/bending modes, collisions and runtime overrides are not simulated."}
 
 
 def main(argv: list[str] | None = None) -> int:

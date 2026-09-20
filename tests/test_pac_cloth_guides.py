@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import replace
 import json
+import math
 from pathlib import Path
 import struct
 import subprocess
@@ -13,7 +14,8 @@ import sys
 import pytest
 
 from cdmw.modding.pac_cloth_guides import (
-    decode_pac_cloth_guides, inspect_guide_particle_initialization, inspect_guide_topology,
+    decode_pac_cloth_guides, inspect_guide_constraint_geometry,
+    inspect_guide_particle_initialization, inspect_guide_topology,
 )
 from tools.pac_cloth_guide_study import inspect_pac
 
@@ -81,6 +83,7 @@ def test_guide_geometry_uses_its_own_bounds_and_preserves_packed_weights(layout)
     guides = decode_pac_cloth_guides(data)
     assert guides.layout == layout
     assert guides.vertices[0] == pytest.approx((-2, 3 + 16384 / 32767 * 8, 17))
+    assert guides.cpu_unskinned_vertices[0] == pytest.approx((-2 + 32768 / 32767 * 4, 3 + 16384 / 32767 * 8, 17))
     assert guides.bone_indices == ((9, 513, 1023, 7),) * 3
     assert [sum(row) for row in guides.bone_weight_bytes] == [254, 255, 256]
     assert guides.triangles == ((0, 1, 2),)
@@ -162,6 +165,67 @@ def topology_fixture(layout):
     metadata += data[offsets["bbox"]:offsets["bbox"] + 24]
     metadata[offsets["channel_b"] - 80:offsets["channel_b"] - 76] = bytes((255, 255, 128, 0))
     return pack_pac(metadata)
+
+
+@pytest.mark.parametrize("supplied", [False, True])
+def test_authored_constraint_rest_geometry_uses_cpu_or_supplied_particle_positions(supplied):
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    positions = ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, 0, 2))
+    kwargs = {"particle_positions": positions} if supplied else {}
+    if not supplied:
+        guides = replace(guides, cpu_unskinned_vertices=positions)
+    result = inspect_guide_constraint_geometry(guides, **kwargs)
+    assert result["position_basis"] == ("caller_supplied" if supplied else "cpu_unskinned")
+    rows = result["constraints"]
+    assert [row["source_index"] for row in rows] == list(range(7))
+    assert [row["rest_length"] for row in rows[:4]] == pytest.approx([math.sqrt(8), 2, 2, math.sqrt(8)])
+    assert [row["rest_area"] for row in rows[5:]] == [2, 2]
+    hinge = rows[4]
+    assert hinge["vertices"] == (0, 1, 2, 3)
+    assert hinge["rest_angle_radians"] == pytest.approx(math.pi / 2)
+    assert hinge["bending_coefficients"] == pytest.approx((math.sqrt(3), 0, -math.sqrt(3) / 2, -math.sqrt(3) / 2))
+    assert hinge["degenerate"] is False
+    assert hinge["cotangent_limit_passed"] is True
+    assert guides.constraint_records[0][-1] == 0xE300
+
+
+def test_flat_adjacent_faces_use_pi_rest_angle_and_translation_preserves_rest_geometry():
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    points = ((0, 0, 0), (2, 0, 0), (0, 2, 0), (0, -2, 0))
+    baseline = inspect_guide_constraint_geometry(guides, particle_positions=points)
+    assert baseline["constraints"][4]["rest_angle_radians"] == pytest.approx(math.pi)
+    shifted = tuple(tuple(v + offset for v, offset in zip(point, (7, -3, 9))) for point in points)
+    assert inspect_guide_constraint_geometry(guides, particle_positions=shifted) == baseline
+
+
+def test_degenerate_and_unrecognized_constraints_remain_explicit_and_json_safe():
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    guides = replace(guides, constraint_records=guides.constraint_records + ((0, 1, 2, 4, 1),))
+    result = inspect_guide_constraint_geometry(guides)
+    hinge = result["constraints"][4]
+    assert hinge["degenerate"] is True
+    assert hinge["rest_angle_radians"] == pytest.approx(math.pi / 2)
+    assert hinge["bending_coefficients"] is None
+    assert result["constraints"][-1] == {"source_index": 7, "kind": "unrecognized", "vertices": ()}
+    json.dumps(result, allow_nan=False)
+
+
+def test_narrow_triangle_reports_the_bending_cotangent_limit_without_selecting_a_solver():
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    result = inspect_guide_constraint_geometry(
+        guides, particle_positions=((0, 0, 0), (2, 0, 0), (0, 0.1, 0), (0, -2, 0)),
+    )
+    hinge = result["constraints"][4]
+    assert hinge["degenerate"] is False
+    assert hinge["cotangent_limit_passed"] is False
+    assert hinge["bending_coefficients"] is not None
+
+
+@pytest.mark.parametrize("positions", [(), ((0, 0, 0),) * 3, ((0, 0),) * 4, ((float("nan"), 0, 0),) * 4])
+def test_constraint_geometry_rejects_incomplete_or_nonfinite_particle_positions(positions):
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    with pytest.raises(ValueError, match="one finite 3D position per guide vertex"):
+        inspect_guide_constraint_geometry(guides, particle_positions=positions)
 
 
 @pytest.mark.parametrize("layout", [3, 7])
@@ -284,6 +348,7 @@ def test_read_only_study_cli_emits_decoded_and_unavailable_results(tmp_path):
     assert first["vertex_count"] == 3 and first["triangle_count"] == 1
     assert first["guides"]["channel_a"] == [19, 19, 19]
     assert first["particle_initialization"]["fixed_vertex_indices"] == [0, 1, 2]
+    assert first["constraint_geometry"]["position_basis"] == "cpu_unskinned"
     assert "initialization, not final runtime motion" in first["limitations"]
     assert second["status"] == "unavailable"
     assert pac.read_bytes() == data

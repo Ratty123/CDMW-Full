@@ -11,6 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 import math
 import struct
+from typing import Sequence
 
 from .mesh_parser import (
     _find_pac_descriptors, _parse_par_sections, _validated_pac_descriptor_prefix,
@@ -45,6 +46,7 @@ class PacClothGuides:
     vertex_constraint_spans: tuple[tuple[int, int], ...] = ()
     groups_b: tuple[tuple[int, ...], ...] = ()
     edge_indices: tuple[int, ...] = ()
+    cpu_unskinned_vertices: tuple[tuple[float, float, float], ...] = ()
 
 
 def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
@@ -132,10 +134,14 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
     box = struct.unpack("<6f", take("guide_bbox", 2, 12))
     if any(not math.isfinite(v) for v in box) or any(v < 0 for v in box[3:]):
         raise ValueError("PAC guide bounding box is invalid.")
-    vertices, bone_indices, bone_weight_bytes = [], [], []
+    vertices, cpu_vertices, bone_indices, bone_weight_bytes = [], [], [], []
     for x, y, z, fourth, packed, w0, w1, w2, w3 in struct.iter_unpack("<4HI4B", records):
         vertices.append(tuple(box[i] + (value & 32767) / 32767 * box[i + 3]
                               for i, value in enumerate((x, y, z))))
+        # The CPU initializer reads all 16 bits; the guide animation shader
+        # masks them to 15. Keep both views explicit instead of conflating them.
+        cpu_vertices.append(tuple(box[i] + value / 32767 * box[i + 3]
+                                  for i, value in enumerate((x, y, z))))
         bone_indices.append((packed & 1023, (packed >> 10) & 1023,
                              (packed >> 20) & 1023, fourth & 1023))
         bone_weight_bytes.append((w0, w1, w2, w3))
@@ -144,7 +150,7 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
         tuple(bone_weight_bytes), tuple(zip(indices[::3], indices[1::3], indices[2::3])),
         channel_a, channel_b, alpha_words, tuple(ranges),
         groups_a, group_a_tags, constraint_records, constraint_indices,
-        vertex_constraint_spans, groups_b, edge_indices,
+        vertex_constraint_spans, groups_b, edge_indices, tuple(cpu_vertices),
     )
 
 
@@ -176,6 +182,104 @@ def inspect_guide_particle_initialization(guides: PacClothGuides) -> dict:
     }
 
 
+def _classify_guide_constraints(guides: PacClothGuides) -> list[tuple[str, tuple[int, ...]]]:
+    count = len(guides.vertices)
+    classified = []
+    for a, b, c, d, tag in guides.constraint_records:
+        low = tag & 255
+        if low == 0 and c == d == 0:
+            kind, vertices = "pair", (a, b)
+        elif low == 0 and d == 65535:
+            kind, vertices = "triangle", (a, b, c)
+        elif low == 1:
+            kind, vertices = "hinge", (a, b, c, d)
+        else:
+            kind, vertices = "unrecognized", ()
+        if any(v >= count for v in vertices) or len(set(vertices)) != len(vertices):
+            kind, vertices = "unrecognized", ()
+        classified.append((kind, vertices))
+    return classified
+
+
+def inspect_guide_constraint_geometry(
+    guides: PacClothGuides, *, particle_positions: Sequence[Sequence[float]] | None = None,
+) -> dict:
+    """Derive rest geometry from authored records and explicit particle positions.
+
+    CPU preparation at 0x143CCB740 expands 10-byte records to 36-byte records:
+    distance, angle and area are stored in the same float lane. The optional
+    bending path at 0x143CCE5B0 derives four cotangent coefficients. These are
+    mathematical values before binary16 upload, not bit-exact CPU emulation.
+
+    Without supplied positions, use the decoded CPU coordinates before skinning.
+    Area activation, sequential bending-mode selection and runtime overrides
+    require additional state and are not inferred from these measurements.
+    """
+    supplied = particle_positions is not None
+    positions = tuple(tuple(point) for point in (
+        particle_positions if supplied else guides.cpu_unskinned_vertices
+    ))
+    if len(positions) != len(guides.vertices) or any(
+        len(point) != 3 or any(not math.isfinite(v) for v in point) for point in positions
+    ):
+        raise ValueError("Constraint geometry requires one finite 3D position per guide vertex.")
+
+    def sub(a, b):
+        return tuple(x - y for x, y in zip(a, b))
+
+    def dot(a, b):
+        return sum(x * y for x, y in zip(a, b))
+
+    def cross(a, b):
+        return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0])
+
+    records = []
+    for index, (kind, vertices) in enumerate(_classify_guide_constraints(guides)):
+        row = {"source_index": index, "kind": kind, "vertices": vertices}
+        records.append(row)
+        if kind == "unrecognized":
+            continue
+        a, b = (positions[v] for v in vertices[:2])
+        edge = sub(b, a)
+        if kind == "pair":
+            row["rest_length"] = math.hypot(*edge)
+            continue
+        c = positions[vertices[2]]
+        n1 = cross(edge, sub(c, a))
+        length1 = math.hypot(*n1)
+        if kind == "triangle":
+            row["rest_area"] = 0.5 * length1
+            row["degenerate"] = length1 == 0
+            continue
+        d = positions[vertices[3]]
+        # Both normals use the same directed edge in the CPU initializer.
+        # A flat pair of adjacent triangles therefore has rest angle pi.
+        n2 = cross(edge, sub(d, a))
+        length2 = math.hypot(*n2)
+        degenerate = length1 == 0 or length2 == 0
+        # CPU normalization leaves a zero normal unchanged, giving acos(0).
+        cosine = dot(n1, n2) / length1 / length2 if not degenerate else 0.0
+        row["rest_angle_radians"] = math.acos(max(-1.0, min(1.0, cosine)))
+        row["degenerate"] = degenerate
+        cotangents = (
+            dot(sub(b, c), edge) / length1 if length1 > 0.001 else 0.0,
+            dot(sub(c, a), edge) / length1 if length1 > 0.001 else 0.0,
+            dot(sub(d, a), edge) / length2 if length2 > 0.001 else 0.0,
+            dot(sub(b, d), edge) / length2 if length2 > 0.001 else 0.0,
+        )
+        row["cotangent_limit_passed"] = all(value < 11.43 for value in cotangents)
+        row["bending_coefficients"] = None
+        if not degenerate:
+            c0, c1, c2, c3 = cotangents
+            scale = math.sqrt(3.0 / (0.5 * (length1 + length2)))
+            row["bending_coefficients"] = tuple(
+                value * scale for value in (c0 + c3, c1 + c2, -c0 - c1, -c2 - c3)
+            )
+    return {"position_basis": "caller_supplied" if supplied else "cpu_unskinned",
+            "constraints": records}
+
+
 def inspect_guide_topology(guides: PacClothGuides) -> dict:
     """Report structural relationships, not runtime pin or solver semantics.
 
@@ -191,20 +295,7 @@ def inspect_guide_topology(guides: PacClothGuides) -> dict:
         for x, y, opposite in ((a, b, c), (b, c, a), (c, a, b)):
             edge_faces.setdefault(tuple(sorted((x, y))), []).append(opposite)
     edges = set(edge_faces)
-    classified = []
-    for a, b, c, d, tag in guides.constraint_records:
-        low = tag & 255
-        if low == 0 and c == d == 0:
-            kind, vertices = "pair", (a, b)
-        elif low == 0 and d == 65535:
-            kind, vertices = "triangle", (a, b, c)
-        elif low == 1:
-            kind, vertices = "hinge", (a, b, c, d)
-        else:
-            kind, vertices = "unrecognized", ()
-        if any(v >= count for v in vertices) or len(set(vertices)) != len(vertices):
-            kind, vertices = "unrecognized", ()
-        classified.append((kind, vertices))
+    classified = _classify_guide_constraints(guides)
     kinds = Counter(kind for kind, _ in classified)
     pairs = {tuple(sorted(v)) for kind, v in classified if kind == "pair"}
     areas = Counter(tuple(sorted(v)) for kind, v in classified if kind == "triangle")

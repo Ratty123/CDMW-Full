@@ -124,6 +124,9 @@ Each 16-byte guide record contains three unsigned 15-bit coordinates, a fourth
 8–11, and four byte weights at bytes 12–15. The shader uses each weight divided
 by 255; the decoder retains sums of 254 or 256 instead of silently normalizing.
 Coordinates use the guide bounds, not any visible part's bounds.
+`cpu_unskinned_vertices` separately retains the CPU initializer's full unsigned
+coordinate interpretation. These positions precede skeletal transformation;
+the CPU also normalizes valid skinning weights, unlike the shader path.
 
 The reader also retains the two per-guide byte arrays, ordered index groups,
 layout-7 group tags, complete 10-byte constraint records, per-vertex constraint
@@ -149,10 +152,27 @@ Membership does not establish whether a runtime bit is active.
 
 The alpha bitmask and ordered group starts remain separate evidence. Neither
 is used to infer pinning; group starts do not always match fixed vertices.
-CPU initialization uses full unsigned coordinate words and normalizes valid
-skin weights, unlike the shader geometry view decoded above. Initialization
-does not establish final motion: runtime overrides, constraint conversion,
-collision behavior and CPU/GPU skinning differences remain outside this reader.
+The traced ordered-group consumer prepares spline attachment data; cloth mode
+uses a separate triangle-based preparation path.
+
+`inspect_guide_constraint_geometry` derives rest lengths, triangle areas and
+hinge angles from the authored records. It defaults to CPU coordinates before
+skinning, or accepts explicitly supplied particle positions. The CPU uses the
+same directed edge for both hinge normals, so flat adjacent faces have rest
+angle pi. Optional bending coefficients follow the traced cotangent formula;
+the report includes its cotangent limit and marks degenerate geometry explicitly.
+Unrecognized records remain present without invented measurements.
+
+The game expands each 10-byte PAC record to a 36-byte CPU record, then packs it
+into a 16-byte upload record. Upload types distinguish distance, angle bending,
+coefficient bending and triangle area. The latter requires both the global area
+switch and material `UseAreaConstraint`; bending selection also depends on the
+ordered initialization results. Rest measurements alone do not select an active
+solver. They are mathematical values before half-precision upload, not bit-exact
+CPU emulation.
+
+Initialization does not establish final motion: runtime overrides, active solver
+selection, collision behavior and skeletal transformation remain unresolved here.
 It does not replace the approximate simulation preview or enable pin editing;
 changing fixed vertices can also require rebuilding the authored constraints.
 Unsupported layouts, mismatched descriptor counts, out-of-range triangles and
@@ -165,7 +185,8 @@ Inspect loose decoded files with:
 ```
 
 The command reads its inputs and prints JSON with source hashes, decoded guide
-geometry, complete stored tables, particle initialization, topology comparisons and field offsets. It
+geometry, complete stored tables, particle initialization, rest-constraint geometry,
+topology comparisons and field offsets. It
 returns a nonzero status if any input is unavailable. Keep reports and game-derived
 data outside the repository.
 
