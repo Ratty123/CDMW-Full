@@ -402,10 +402,28 @@ the existing 104-byte definition consumed by `update_guide_cloth_collider_result
 The CPU producer at `0x142D3EE80` copies the local matrix, radius and height,
 and initializes the low type word and both local-center fields to zero. Its
 runtime bone sets replace flag bits `0x2`, `0x4` and `0x8`, so the helper requires
-explicitly resolved flags instead of treating the source word as final. Shape
-deduplication, active resource selection and native preview integration remain
-separate work. Box/mesh geometry can be inspected but is not substituted with
-approximate primitive contacts.
+explicitly resolved flags instead of treating the source word as final. Box/mesh
+geometry can be inspected but is not substituted with approximate primitive
+contacts.
+
+`prepare_pabv_cloth_colliders` performs the primitive producer's flag override
+and deduplication after strict bone binding. It requires all three runtime hash
+sets explicitly, keyed by output bits `0x2`, `0x4` and `0x8`. These are not
+automatically equated with the material XML inclusion/exclusion name lists.
+The comparison at `0x143A52AC0` checks both type words and flags exactly, then
+uses an inclusive float32(0.001) tolerance for radius, height and all 16 matrix
+values. Bone identity does not participate. The first matching definition and
+its binding are retained; matches are checked against kept definitions in source
+order, without transitive grouping. Returned source ordinals preserve that
+provenance. The activation summary is only the producer's OR of flag bit `0x1`;
+it does not establish whether the game enables the collider group.
+
+Active appearance metadata is required for resource selection. For example,
+the shipped Damiane `00` Nude prefab declares `SkeletonVolumeName`, while the
+`02` Nude prefab has no volume declaration. A replacement mesh's filename alone
+therefore cannot establish which collider file the game uses. Active resource
+selection, runtime set ownership and native preview integration remain separate
+work.
 
 `tests/test_pabv_parser.py` covers both flag layouts, all decoded shape tags,
 source bounds, strict rig binding and a capsule passed through the existing

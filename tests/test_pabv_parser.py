@@ -7,7 +7,8 @@ import struct
 import pytest
 
 from cdmw.modding.pabv_parser import (
-    decode_pabv, pabv_cloth_collider_definition, resolve_pabv_bones,
+    decode_pabv, pabv_cloth_collider_definition, prepare_pabv_cloth_colliders,
+    resolve_pabv_bones,
 )
 from cdmw.modding.pac_cloth_collisions import update_guide_cloth_collider_result
 from cdmw.modding.skeleton_parser import Bone, Skeleton
@@ -180,3 +181,74 @@ def test_decoded_capsule_drives_existing_animated_collider_geometry():
     assert struct.unpack_from('<3f', result, 44) == (11., 23., 33.)
     assert result[8:20] == result[20:32]  # First update resets both history endpoints.
     assert result[32:44] == result[44:56]
+
+
+def test_preparation_replaces_all_three_runtime_bits_and_retains_other_source_flags():
+    volumes = decode_pabv(container(
+        record(key=11, flags=0x8000000F), record(key=22, flags=0x20), flags=3,
+    ))
+    prepared = prepare_pabv_cloth_colliders(
+        volumes, rig(11, 22), flag_bone_sets={2: {11}, 4: {22}, 8: {11, 22}},
+    )
+    assert [struct.unpack_from('<I', d, 100)[0] for d in prepared.definitions] == [0x8000000B, 0x2C]
+    assert prepared.bone_indices == (0, 1) and prepared.source_ordinals == (0, 1)
+    assert prepared.has_activation_flag
+    assert volumes.volumes[0].flags == 0x8000000F
+
+
+def test_preparation_uses_resolved_hashes_for_legacy_index_records():
+    prepared = prepare_pabv_cloth_colliders(
+        decode_pabv(container(record(key=1), flags=0)), rig(11, 22),
+        flag_bone_sets={2: {22}, 4: {1}, 8: set()},
+    )
+    assert struct.unpack_from('<I', prepared.definitions[0], 100)[0] == 2
+    assert prepared.bone_indices == (1,) and not prepared.has_activation_flag
+
+
+def test_deduplication_keeps_first_mapping_even_when_identical_geometry_uses_different_bones():
+    volumes = decode_pabv(container(record(key=22), record(key=11)))
+    prepared = prepare_pabv_cloth_colliders(volumes, rig(11, 22), flag_bone_sets={2: (), 4: (), 8: ()})
+    assert len(prepared.definitions) == 1
+    assert prepared.bone_indices == (1,) and prepared.source_ordinals == (0,)
+
+
+def test_deduplication_threshold_is_inclusive_float32_and_compares_only_kept_records():
+    threshold_bits = struct.unpack('<I', struct.pack('<f', .001))[0]
+    threshold, = struct.unpack('<f', struct.pack('<I', threshold_bits))
+    above, = struct.unpack('<f', struct.pack('<I', threshold_bits + 1))
+
+    def translated(value):
+        return record(matrix=IDENTITY[:12] + (value, 0., 0., 1.))
+
+    for offsets in ((0., threshold, above), (0., .0008, .0016)):
+        volumes = decode_pabv(container(*(translated(value) for value in offsets)))
+        prepared = prepare_pabv_cloth_colliders(
+            volumes, rig(0x12345678), flag_bone_sets={2: (), 4: (), 8: ()},
+        )
+        assert prepared.source_ordinals == (0, 2)
+
+
+def test_deduplication_compares_type_flags_and_full_matrix():
+    volumes = decode_pabv(container(
+        record(flags=0), record(1, flags=0), record(flags=1),
+        record(matrix=IDENTITY[:15] + (1.01,), flags=0), flags=3,
+    ))
+    prepared = prepare_pabv_cloth_colliders(volumes, rig(0x12345678), flag_bone_sets={2: (), 4: (), 8: ()})
+    assert prepared.source_ordinals == (0, 1, 2, 3)
+    assert prepared.has_activation_flag
+
+
+def test_large_finite_matrix_differences_do_not_overflow_deduplication():
+    volumes = decode_pabv(container(
+        record(matrix=IDENTITY[:12] + (3e38, 0., 0., 1.)),
+        record(matrix=IDENTITY[:12] + (-3e38, 0., 0., 1.)),
+    ))
+    prepared = prepare_pabv_cloth_colliders(volumes, rig(0x12345678), flag_bone_sets={2: (), 4: (), 8: ()})
+    assert prepared.source_ordinals == (0, 1)
+
+
+@pytest.mark.parametrize('sets', [{2: (), 4: ()}, {2: (), 4: (), 8: (), 16: ()},
+                                   {2: {-1}, 4: (), 8: ()}, {2: (), 4: {True}, 8: ()}])
+def test_preparation_requires_complete_valid_runtime_bone_sets(sets):
+    with pytest.raises(ValueError, match='bone sets'):
+        prepare_pabv_cloth_colliders(decode_pabv(container()), rig(), flag_bone_sets=sets)

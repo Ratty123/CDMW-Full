@@ -7,10 +7,12 @@ does not select an active character variant or infer collision activation.
 
 from __future__ import annotations
 
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 import math
 import struct
 
+from ._pbd_numeric import f32
 from .skeleton_parser import Skeleton
 
 
@@ -50,6 +52,14 @@ class PabvVolumes:
     @property
     def has_volume_flags(self) -> bool:
         return bool(self.flags & 2)
+
+
+@dataclass(frozen=True, slots=True)
+class PabvClothColliders:
+    definitions: tuple[bytes, ...]
+    bone_indices: tuple[int, ...]
+    source_ordinals: tuple[int, ...]
+    has_activation_flag: bool
 
 
 def decode_pabv(data: bytes) -> PabvVolumes:
@@ -170,4 +180,67 @@ def pabv_cloth_collider_definition(volume: PabvVolume, *, resolved_flags: int) -
     return struct.pack(
         "<I24fI", volume.shape_type << 16, radius, height,
         *volume.local_matrix, *([0.0] * 6), resolved_flags,
+    )
+
+
+def prepare_pabv_cloth_colliders(
+    volumes: PabvVolumes, skeleton: Skeleton, *,
+    flag_bone_sets: Mapping[int, Collection[int]],
+) -> PabvClothColliders:
+    """Prepare primitive definitions in the CPU producer's source order.
+
+    The caller supplies the three actual runtime bone-hash sets keyed by their
+    output bits 0x2, 0x4 and 0x8. All three must be explicit, including empty
+    sets. They replace those bits; other authored flags remain unchanged. The
+    material XML name lists are a separate source and must not be assumed to
+    be these sets without resolving the runtime owner.
+
+    The producer keeps the first definition when both type words and flags
+    match and each radius/height/matrix float differs by at most float32(0.001).
+    Bone identity is not part of that comparison. Returned bindings and source
+    ordinals follow the first kept records, matching the mapped-output branch.
+    This does not implement live resource discovery or the instance's later
+    mapper/LOD updates. has_activation_flag reports only the producer's OR of
+    definition flag bit 0, not whether the game enables a collider group.
+    """
+    if (set(flag_bone_sets) != {2, 4, 8}
+            or any(type(bit) is not int for bit in flag_bone_sets)):
+        raise ValueError("PABV preparation requires explicit bone sets for bits 0x2, 0x4 and 0x8.")
+    sets = {}
+    for bit, values in flag_bone_sets.items():
+        if any(type(value) is not int or not 0 <= value <= 0xFFFFFFFF for value in values):
+            raise ValueError("PABV runtime bone sets must contain uint32 hashes.")
+        sets[bit] = frozenset(values)
+
+    bindings = resolve_pabv_bones(volumes, skeleton)
+    definitions, kept_bindings, ordinals, geometry = [], [], [], []
+    has_activation = False
+    tolerance = f32(.001)
+    for ordinal, (volume, bone_index) in enumerate(zip(volumes.volumes, bindings)):
+        bone_hash = skeleton.bones[bone_index].name_hash
+        flags = volume.flags & ~0xE
+        for bit, hashes in sets.items():
+            if bone_hash in hashes:
+                flags |= bit
+        definition = pabv_cloth_collider_definition(volume, resolved_flags=flags)
+        has_activation |= bool(flags & 1)
+        values = struct.unpack_from('<18f', definition, 4)
+        duplicate = False
+        for previous, previous_values in zip(definitions, geometry):
+            if previous[:4] != definition[:4] or previous[100:] != definition[100:]:
+                continue
+            # Large finite differences cannot match, and might overflow during
+            # float32 subtraction. Only the tolerance neighborhood needs rounding.
+            if all(abs(a - b) <= 2 * tolerance and abs(f32(a - b)) <= tolerance
+                   for a, b in zip(values, previous_values)):
+                duplicate = True
+                break
+        if duplicate:
+            continue
+        definitions.append(definition)
+        geometry.append(values)
+        kept_bindings.append(bone_index)
+        ordinals.append(ordinal)
+    return PabvClothColliders(
+        tuple(definitions), tuple(kept_bindings), tuple(ordinals), has_activation,
     )
