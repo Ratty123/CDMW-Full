@@ -93,7 +93,8 @@ def select_guide_result_positions(
     the scaled clock when flags2 bit 0x8000 is set. animation_blend is the
     decoded half at per-frame offset 78 (high half of packed `_p6`). Native
     16-bit shader reflection names it `_fadingRatio`, distinct from offset 96's
-    packed smoothing field. Its CPU/lifecycle owner is not established here.
+    packed smoothing field. pac_cloth_runtime.advance_cloth_frame_blend supplies
+    the decoded CPU fade update from explicit controller/scene inputs.
     """
     flags = _flags(per_frame_flags2)
     count = len(animation_positions)

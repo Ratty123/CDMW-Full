@@ -631,10 +631,48 @@ already-parsed value. This stage does not establish the complete dispatch loop.
 
 The dynamic-fix mask has a different source: `0x143CE1F00` copies live owner
 `+0x158` to simulation parameter `+168`. PAC guide membership and a material
-name alone do not determine which groups are active. Controller assignment,
-collision/contact generation, fading-ratio production and preview integration
-remain separate work. Synthetic tests connect the new stiffness upload to the
+name alone do not determine which groups are active. Upstream controller
+assignment, collision/contact generation and preview integration remain
+separate work. Synthetic tests connect the new stiffness upload to the
 existing stretch projection without claiming visible or in-game parity.
+
+The same module now follows LOD and blend state into the two separate frame
+halves: elasticity at 76 and fading at 78. `select_cloth_simulation_lod` applies
+eligible material scale and global scale to screen ratio, then checks thresholds
+in LOD3/LOD2/LOD1 order. Comparisons are strict; equality continues toward higher
+detail. A forced global other than -1 supplies its signed low byte. Earlier
+caller branches that force LOD3, LOD0 or skip simulation remain explicit.
+
+`update_cloth_lod_state` operates on a **64-byte slice at owner+0x60..0x9F**,
+not a complete controller object. Crossing from below the simulation LOD limit
+to at/above it sets fade direction +1; crossing back sets -1. Explicit early
+force branches instead clear the direction. Every LOD update clears the
+elasticity override at owner+0x68. The returned reactivation, resource+0x103
+reset, LOD-change and count+0x1C8 requests describe external side effects for the
+caller to apply; this reference does not dereference resources or mutate them.
+
+`advance_cloth_frame_blend` consumes that slice and an already-selected timestep.
+The timed elasticity amount contributes only while its timer remains positive
+after decrement. A separate timer updates the additive elasticity ratio from
+remaining time/duration, optionally inverted; once inactive, it retains the last
+ratio. The base elasticity sum clamps to [0,1], then two ordered overrides blend
+it toward 1 without another implicit clamp. Ragdoll and scene terms are explicit.
+
+An active fade uses `max(minimum_rate, 1 / reciprocal_denominator)`. Reaching
+exactly 0 or 1 retains the direction; only crossing the endpoint clears it.
+Direction zero uploads a fading value of **zero**, preserving the stored ratio.
+`NeedNaturalWarmUp` (material byte `0x197`) plus the scene warmup request clears
+stored/uploaded fading unless the updated direction is +1. Fading and elasticity
+are never substituted for each other. Both upload through the same half-value
+comparison/packing rules as stiffness, preserving unrelated frame/controller bytes.
+
+Decoded initialization values are global screen scale float32(1.4), ordered
+thresholds float32(0.1/0.3/0.6), simulation LOD limit 3, fade reciprocal denominator
+5, minimum fade rate 1 and elasticity-transition duration 0.5. These are supplied
+explicitly and are not evidence of live scene configuration. The source of the
+scene warmup request, timer activation and external elasticity ratio still needs
+upstream tracing. Synthetic composition connects LOD reactivation to the uploaded
+fade and `select_guide_result_positions`; no visible or gameplay claim follows.
 
 `pac_cloth_environment.py` constructs the environmental acceleration consumed
 by the base integrator from explicit runtime records and scene samples. It uses
@@ -719,7 +757,8 @@ unless per-frame flags2 bit `0x800` bypasses interpolation, then blends toward
 `_ix`. The interpolation ratio is remaining/fixed simulation delta time from the
 appropriate clock (`0x8000` selects the scaled clock). The second blend is
 `_fadingRatio`, identified by native 16-bit reflection at offset 78 (the high
-half of packed `_p6`). Its CPU/lifecycle owner remains unresolved; it is not
+half of packed `_p6`). `pac_cloth_runtime.advance_cloth_frame_blend` implements
+its CPU producer from explicit controller and scene inputs; it is not
 offset 96's packed smoothing field.
 
 `update_guide_result_frames` preserves the entire frame when per-frame bit
