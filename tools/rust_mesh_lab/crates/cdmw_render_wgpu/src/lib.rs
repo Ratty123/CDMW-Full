@@ -382,8 +382,12 @@ fn neutral_surface(normal: vec3<f32>, front_facing: bool) -> vec3<f32> {
 fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
     if input.deformation.a > 0.0001 {
         let overlay_amount = clamp(input.deformation.a, 0.0, 0.88);
+        let surface = neutral_surface(input.normal, front_facing);
+        // Tint the lit surface. Flat colour used to suppress 88% of the shape
+        // cues precisely where users needed to see the physics deformation.
+        let lit_tint = input.deformation.rgb * surface / vec3<f32>(0.56, 0.58, 0.62);
         return present(
-            mix(neutral_surface(input.normal, front_facing), input.deformation.rgb, overlay_amount),
+            mix(surface, lit_tint, overlay_amount),
             1.0);
     }
     if camera.view_mode == 1u {

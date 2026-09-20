@@ -359,6 +359,15 @@ class ArchivePreviewResultMixin:
                 self._archive_pending_texture_result = finalized_result
                 self.current_archive_preview_result = previous_result
                 self._refresh_archive_preview_details_text()
+                notify_mesh_editor = getattr(
+                    self.shell, "_finish_pending_rust_mesh_editor_texture_launch", None
+                )
+                if callable(notify_mesh_editor):
+                    QTimer.singleShot(
+                        0, lambda request_id=int(texture_request_id): notify_mesh_editor(
+                            request_id=request_id, success=True,
+                        ),
+                    )
                 return
             self._refresh_archive_preview_details_text()
             if (

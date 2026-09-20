@@ -33,6 +33,13 @@ and repeated layer parameter tables share snapshot storage without losing owners
 or relaxing the depth and size bounds. Texture composition skips inactive normal
 mask pixels while retaining the original output bytes.
 
+**Open Mesh** can lease the prepared texture package and its matching material
+context while Archive Browser is hidden. It does not wait for the archive
+viewport to render the package; stale requests and mismatched entries are rejected.
+Large command responses, including dense jiggle data returned after part selection,
+use an atomic session-owned file with verified size and SHA-256. The control pipe
+keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.
+
 ## Collapsible panels and tool icons
 
 Use the arrow in each panel header to collapse it independently. **Tools** becomes
@@ -400,7 +407,9 @@ geometry, materials, physics sections and companion files are preserved.
 
 **Motion preview** in **Mesh Data > Cloth** now applies those saved influence
 edits to an experimental native guide simulation. Choose **Up / down**,
-**Start / stop** or **Turning**, then **Play preview**. **Current flags** uses
+**Start / stop**, **Turning** or **Freehand**, then **Play preview**. Freehand
+moves the whole model with a left-mouse drag in the viewport; release to let the
+cloth settle. **Current flags** uses
 the saved cloth amount/height/fade rule; **Original flags** uses retained source
 weights; **All disabled** shows rigid motion. Height rules use the original neutral
 display coordinates, matching PAC output even after sculpting. Jiggle flags are
@@ -474,6 +483,8 @@ selection and motion comparisons, and remains usable on an entirely disabled PAC
 Disable/restore, Undo/Redo, and visibility changes refresh the colors. The toggle
 works during playback without restarting it; turning it off restores the normal
 viewport display. It does not change vertex colors, materials, drafts, or exports.
+Region colours retain directional surface shading so bends remain visible.
+**Region tint** adjusts the colour strength without restarting playback.
 
 Only verified source PAC LOD0 vertex mappings are classified. Other formats,
 imported or unverified geometry, other LODs, and Original/Output comparison views
@@ -513,6 +524,13 @@ the reporter's model.
 of the rendered mesh. **Up / down** is the default: it repeatedly raises and lowers
 the model along its displayed Y axis, making vertical lag and bounce easier to compare.
 **Start / stop** and **Turning** remain available. Choose a motion, then **Play preview**.
+**Freehand** lets you drag the whole model with the left mouse button in the
+viewport. The affected regions react to that motion; releasing holds the model
+in place while physics settles. Dragging follows the camera's screen plane and
+is limited to one model extent from the starting position. Right mouse orbits,
+middle mouse pans, and Reset returns the model to its starting position. Freehand
+works with approximate jiggle, decoded bones and guide cloth. It changes only the
+motion preview, leaving mesh transforms, history, drafts and exports unchanged.
 **Current flags**, **Original flags** and **All disabled** compare the saved jiggle
 rule, the retained source weights, and rigid motion using the same geometry.
 Changing comparison or motion restarts a playing test for a repeatable comparison.

@@ -350,6 +350,25 @@ class MeshEditorShellBridgeMixin:
         self,
         entry: ArchiveEntry,
     ) -> Path | None:
+        # A hidden Archive Browser queues renderer application until it is
+        # shown. The prepared, validated package already belongs to its host
+        # and can be leased by Mesh Editor without waiting for that viewport.
+        pending_result = getattr(self.archive, "_archive_pending_texture_result", None)
+        pending_path = str(getattr(pending_result, "dotnet_preview_package_path", "") or "")
+        if (
+            pending_path
+            and bool(getattr(self.archive, "_archive_texture_request_loading", False))
+            and int(getattr(self.archive, "_archive_texture_request_id", 0) or 0)
+            == int(getattr(self.archive, "archive_preview_request_id", -1) or -1)
+        ):
+            from cdmw.ui.archive_browser.preview_state import archive_model_package_has_textures
+
+            package = native_material_package_for_rust_preview(Path(pending_path)) or Path(pending_path)
+            if (
+                self._mesh_editor_package_matches_archive_entry(package, entry)
+                and archive_model_package_has_textures(package)
+            ):
+                return package
         package_path = getattr(
             self.archive,
             "archive_isolated_renderer_active_package",
@@ -649,6 +668,13 @@ class MeshEditorShellBridgeMixin:
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
         current_preview = getattr(self.archive, "current_archive_preview_result", None)
+        prepared_preview = getattr(self.archive, "_archive_pending_texture_result", None)
+        prepared_path = str(getattr(prepared_preview, "dotnet_preview_package_path", "") or "")
+        textured_package = self._mesh_editor_active_textured_package_for_entry(entry)
+        if prepared_path and textured_package is not None:
+            prepared_package = native_material_package_for_rust_preview(Path(prepared_path)) or Path(prepared_path)
+            if prepared_package == textured_package:
+                current_preview = prepared_preview
         material_preview_model = getattr(current_preview, "preview_model", None)
         current_entry_getter = getattr(self.archive, "_current_archive_entry", None)
         current_preview_entry = (

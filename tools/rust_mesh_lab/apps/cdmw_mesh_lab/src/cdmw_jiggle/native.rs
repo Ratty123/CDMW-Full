@@ -135,7 +135,8 @@ mod tests {
                 .unwrap();
         }
         assert_ne!(changed.positions, original.positions);
-        for motion in [jiggle::Motion::StartStop, jiggle::Motion::Turn] {
+        for motion in [jiggle::Motion::StartStop, jiggle::Motion::Turn,
+            jiggle::Motion::Freehand(Vec3::new(0.2, 0.15, -0.1))] {
             let mut a = simulation(true, vec![240; 3]);
             let mut b = simulation(true, vec![240; 3]);
             for _ in 0..20 {
@@ -526,6 +527,7 @@ impl Simulation {
         settings: Settings,
     ) -> Result<()> {
         if !seconds.is_finite()
+            || !motion.is_valid()
             || seconds < 0.0
             || settings.values.iter().any(|v| !v.is_finite() || *v < 0.0)
             || !settings.wind.valid()
@@ -545,6 +547,7 @@ impl Simulation {
     fn step(&mut self, motion: jiggle::Motion, settings: Settings, dt: f64) -> Result<()> {
         let phase = (self.elapsed % 4.0) as f32;
         let (rotation, translation) = match motion {
+            jiggle::Motion::Freehand(offset) => (Quat::IDENTITY, offset),
             jiggle::Motion::UpDown => {
                 let phase = (self.elapsed % 1.2) as f32 * std::f32::consts::TAU / 1.2;
                 (

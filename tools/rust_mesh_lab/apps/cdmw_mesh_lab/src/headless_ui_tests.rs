@@ -3958,7 +3958,7 @@ fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
 #[test]
 fn jiggle_preview_hover_keeps_wrapped_controls_stationary() -> TestResult {
     let mut ui =
-        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1024.0, 768.0));
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1024.0, 1400.0));
     for (font, density) in [(10.0, "compact"), (11.0, "normal"), (18.0, "comfortable")] {
         ui.application
             .apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
@@ -3987,6 +3987,7 @@ fn jiggle_preview_hover_keeps_wrapped_controls_stationary() -> TestResult {
                 "Turning",
                 "Current flags",
                 "Start / stop",
+                "Freehand",
             ] {
                 draw(&mut ui, vec![Event::PointerGone]);
                 for _ in 0..3 {
@@ -4035,6 +4036,7 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     assert!(ui.label_rect("High weight").is_some());
     assert!(ui.label_rect("Zero weight").is_some());
     assert!(ui.label_rect("Unknown").is_some());
+    assert!(ui.label_rect("Region tint").is_some());
     let disabled = colours[0];
     let low_nibble = colours[1];
     assert!(ui.label_rect("8-bit mode").is_none());
@@ -4171,6 +4173,59 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     wait(&mut ui)?;
     assert!(!ui.application.cdmw_jiggle.preview.playing);
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    Ok(())
+}
+
+#[test]
+fn integrated_freehand_motion_drives_the_whole_model_without_mesh_edits() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        overlapping_parts_application()?, egui::vec2(1440.0, 1400.0));
+    ui.application.cdmw_state["jiggle"] = json!({"available": true, "lod_count": 1,
+        "parts": [{"index": 0, "id": "body:0", "included": true, "min_y": 0.0, "max_y": 1.0,
+            "preview": {"available": true, "vertex_count": 3,
+                "original_bytes": [255, 240, 255], "current_bytes": [255, 240, 255]}}]});
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click_tool_button("Jiggle")?;
+    ui.click("Selected parts")?;
+    ui.click("Approximate vertices")?;
+    ui.click("Freehand")?;
+    ui.click("Play preview")?;
+    ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    let center = ui.application.viewport_rect.unwrap().center();
+    let center = Vec2::new(center.x, center.y);
+    let delta = Vec2::new(40.0, -30.0);
+    let offset = ui.application.camera.screen_delta_to_world(delta, ui.application.viewport_rect.unwrap());
+    ui.drag(&[center, center + delta], PointerButton::Primary);
+    ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_none());
+    let frame = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+    for index in [0, 2, 3, 4, 5] {
+        assert!(Vec3::from(frame.positions[index]).distance(Vec3::from(authored.positions[index]) + offset) < 1e-5,
+            "non-simulated vertex {index} did not follow the whole model");
+    }
+    let target = Vec3::from(authored.positions[1]) + offset;
+    let lag = Vec3::from(frame.positions[1]).distance(target);
+    assert!(lag > 1e-5);
+    for _ in 0..180 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    assert!(Vec3::from(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions[1]).distance(target) < lag);
+    ui.click("Pause preview")?;
+    let paused = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    ui.drag(&[center, center - delta], PointerButton::Primary);
+    ui.application.advance_jiggle_preview(0.1)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, paused);
+    ui.click("Resume preview")?;
+    ui.application.pointer_events.push(ViewportPointerEvent::PrimaryPressed(center));
+    ui.frame(Vec::new());
+    assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_some());
+    ui.application.cancel_active_gesture("Focus loss");
+    assert!(ui.application.cdmw_jiggle.preview.manual_drag.is_none());
+    ui.click("Reset preview")?;
+    ui.click("Play preview")?;
+    ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.positions, authored.positions);
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    assert!(ui.application.history.undo_len() == 0 && ui.application.cdmw_transaction_attempts == 0);
     Ok(())
 }
 

@@ -24,12 +24,19 @@ impl WeightDecode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Motion {
     #[default]
     UpDown,
     StartStop,
     Turn,
+    Freehand(Vec3),
+}
+
+impl Motion {
+    pub fn is_valid(self) -> bool {
+        !matches!(self, Self::Freehand(offset) if !offset.is_finite())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -163,6 +170,7 @@ impl Simulation {
     fn pose(&self, motion: Motion) -> (Quat, Vec3) {
         let phase = (self.elapsed % 4.0) as f32;
         match motion {
+            Motion::Freehand(offset) => (Quat::IDENTITY, offset),
             Motion::UpDown => {
                 let bounce = (self.elapsed % 1.2) as f32 * std::f32::consts::TAU / 1.2;
                 (Quat::IDENTITY, Vec3::Y * self.scale * 0.06 * (1.0 - bounce.cos()))
@@ -194,6 +202,7 @@ impl Simulation {
         settings: Settings,
     ) -> Result<(), &'static str> {
         if !seconds.is_finite()
+            || !motion.is_valid()
             || seconds < 0.0
             || !settings.softness.is_finite()
             || !(0.0..=1.0).contains(&settings.softness)

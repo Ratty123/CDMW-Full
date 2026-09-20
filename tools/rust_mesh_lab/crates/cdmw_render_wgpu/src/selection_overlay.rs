@@ -81,6 +81,19 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         Some(wgpu::BlendState::REPLACE),
         1,
     );
+    let tinted_pipeline = create_pipeline(
+        &device,
+        format,
+        &layout,
+        &shader,
+        "lit physics regions",
+        wgpu::PrimitiveTopology::TriangleList,
+        "fs_solid",
+        None,
+        PipelineDepth::Write,
+        Some(wgpu::BlendState::REPLACE),
+        1,
+    );
     // An opaque green foreground covers the left half of the screen.
     let occluder_positions = [
         [-1., -1., 0.2],
@@ -103,6 +116,7 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
     let mut selection =
         FaceSelectionRenderer::new(&device, format, &texture_layout, &camera_layout, 1);
     let colour = [1., 0., 0., 0.6];
+    let mut first_tint_red = None;
     for (label, xray, depth, empty) in [
         ("visible", false, 0.6, false),
         ("wire", false, 0.6, false),
@@ -110,7 +124,23 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         ("same depth", false, 0.2, false),
         ("cleared", false, 0.6, true),
         ("weight gradient", false, 0.6, false),
+        ("lit region", false, 0.6, true),
+        ("shaded region", false, 0.6, true),
     ] {
+        let tinted = label == "lit region" || label == "shaded region";
+        let tint_buffer = tinted.then(|| {
+            let vertices = occluder_positions.map(|position| {
+                let mut vertex = GpuVertex::overlay(Vec3::from_array(position));
+                vertex.normal = [0., 0., if label == "lit region" { -1. } else { 1. }];
+                vertex.deformation = [1., 0.35, 0.06, 0.6];
+                vertex
+            });
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("physics region proof"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        });
         let positions = [[-1., -1., depth], [1., -1., depth], [0., 1., depth]];
         selection.upload(
             &device,
@@ -162,12 +192,14 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
             });
             pass.set_bind_group(0, &material.bind_group, &[]);
             pass.set_bind_group(1, &camera_binding, &[]);
-            pass.set_pipeline(if label == "wire" {
+            pass.set_pipeline(if tinted {
+                &tinted_pipeline
+            } else if label == "wire" {
                 &selection.depth
             } else {
                 &occluder_pipeline
             });
-            pass.set_vertex_buffer(0, occluder_buffer.slice(..));
+            pass.set_vertex_buffer(0, tint_buffer.as_ref().unwrap_or(&occluder_buffer).slice(..));
             pass.draw(0..6, 0..1);
             selection.draw(&mut pass, &material.bind_group, &camera_binding, xray);
         }
@@ -196,6 +228,18 @@ pub async fn verify_face_selection_depth() -> Result<(), RenderError> {
         let pixels = read_headless_pixels(&device, &readback, 32, 32)?;
         let left_red = pixels[(24 * 32 + 10) * 4 + 2];
         let right_red = pixels[(24 * 32 + 22) * 4 + 2];
+        if tinted {
+            let left_blue = pixels[(24 * 32 + 10) * 4];
+            if left_red <= left_blue.saturating_add(40)
+                || first_tint_red.is_some_and(|red: u8| red.abs_diff(left_red) < 50)
+            {
+                return Err(RenderError::InvalidOverlay(format!(
+                    "region tint lost its colour or surface shading: previous={first_tint_red:?}, red={left_red}, blue={left_blue}"
+                )));
+            }
+            first_tint_red = Some(left_red);
+            continue;
+        }
         if label == "weight gradient" {
             let right_blue = pixels[(24 * 32 + 22) * 4];
             let right_green = pixels[(24 * 32 + 22) * 4 + 1];

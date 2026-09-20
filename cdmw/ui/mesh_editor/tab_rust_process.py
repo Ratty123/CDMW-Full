@@ -757,7 +757,11 @@ class MeshEditorRustProcessMixin:
         process = self.standalone_rust_process
         if process is None or not qprocess_is_running(process):
             return False
-        data = (json.dumps(dict(payload), ensure_ascii=False, separators=(",", ":")) + "\n").encode(
+        message = dict(payload)
+        body = message.get("payload")
+        if isinstance(body, Mapping) and "payload_file" in body:
+            message["payload"] = {"payload_file": body["payload_file"]}
+        data = (json.dumps(message, ensure_ascii=False, separators=(",", ":")) + "\n").encode(
             "utf-8"
         )
         try:

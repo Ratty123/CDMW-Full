@@ -84,7 +84,7 @@ impl Simulation {
         motion: jiggle::Motion,
         settings: cloth::Settings,
     ) -> Result<()> {
-        if !seconds.is_finite() || seconds < 0.0 {
+        if !seconds.is_finite() || seconds < 0.0 || !motion.is_valid() {
             bail!("Invalid cloth preview frame time.");
         }
         let settings = substep_settings(settings)?;
@@ -93,6 +93,7 @@ impl Simulation {
             let elapsed = self.elapsed + STEP;
             let phase = (elapsed % 4.0) as f32;
             let (rotation, translation) = match motion {
+                jiggle::Motion::Freehand(offset) => (Quat::IDENTITY, offset),
                 jiggle::Motion::UpDown => {
                     let phase = (elapsed % 1.2) as f32 * std::f32::consts::TAU / 1.2;
                     (
@@ -238,6 +239,11 @@ mod tests {
             maximum_ratio < 1.15,
             "strip stretched {maximum_ratio} times its rest length"
         );
+        let offset = Vec3::new(0.1, 0.05, -0.08);
+        for _ in 0..30 {
+            simulation.advance(FRAME_STEP, jiggle::Motion::Freehand(offset), cloth::Settings::default())?;
+        }
+        assert!(Vec3::from(simulation.positions()[0]).distance(Vec3::from(rest[0]) + offset) < 1e-5);
         assert!(
             simulation
                 .positions()

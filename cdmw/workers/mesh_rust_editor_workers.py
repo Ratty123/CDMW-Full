@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession
+from cdmw.services.mesh_rust_authoring import RustMeshAuthoringSession, _canonical_json_bytes
 
 
 def _path_is_reparse_point(path: Path) -> bool:
@@ -282,7 +282,7 @@ class MeshRustProtocolWorker(QObject):
                 "base_revision": self._response_revision(),
                 "process_generation": int(self.protocol_event.get("process_generation", 0) or 0),
                 "ok": True,
-                "payload": payload,
+                "payload": self._prepare_control_payload(payload),
             }
             self.completed.emit(
                 self.worker_request_id,
@@ -317,6 +317,10 @@ class MeshRustProtocolWorker(QObject):
                                 }
                         except (KeyError, RuntimeError, TypeError, ValueError):
                             recovery = {}
+                try:
+                    recovery = self._prepare_control_payload(recovery)
+                except (OSError, RuntimeError, TypeError, ValueError):
+                    recovery = {}
                 self.error.emit(
                     self.worker_request_id,
                     int(self.protocol_event.get("request_id", 0) or 0),
@@ -337,6 +341,16 @@ class MeshRustProtocolWorker(QObject):
                         lease.lease.release()
                         lease.lease = None
             self.finished.emit()
+
+    def _prepare_control_payload(self, payload: dict[str, object]) -> dict[str, object]:
+        # Inspections are independently cancellable and may overlap a command.
+        # Keep their bounded pages inline rather than sharing the command file.
+        if self.protocol_event.get("event") == "vertex_inspect":
+            return payload
+        # Reserve space for the envelope beneath Rust's 256 KiB control-line cap.
+        if len(_canonical_json_bytes(payload)) <= 192 * 1024:
+            return payload
+        return self.session.stage_control_payload(payload)
 
     def _response_revision(self) -> int:
         if self.session.closed:

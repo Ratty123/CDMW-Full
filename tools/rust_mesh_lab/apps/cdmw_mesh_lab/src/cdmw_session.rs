@@ -1352,9 +1352,25 @@ impl CdmwBridge {
         bridge
     }
 
-    fn decode_host_event(&mut self, value: Value) -> HostEvent {
+    fn decode_host_event(&mut self, mut value: Value) -> HostEvent {
         let result = (|| {
             validate_identity(&value, &self.manifest)?;
+            if let Some(reference) = value.get("payload").and_then(|p| p.get("payload_file")) {
+                let reference: FileReference = serde_json::from_value(reference.clone())?;
+                if reference.path != "host-control.json"
+                    || reference.data_type != "host_control_json"
+                    || reference.count != 1
+                    || reference.byte_length > MAX_MANIFEST_BYTES
+                    || value["payload"].as_object().is_none_or(|body| body.len() != 1)
+                {
+                    return Err(SessionError::InvalidPayload("invalid host control reference".into()));
+                }
+                let payload: Value = serde_json::from_slice(&read_json_reference(&self.root, &reference)?)?;
+                if !payload.is_object() || payload.get("payload_file").is_some() {
+                    return Err(SessionError::InvalidPayload("invalid host control payload".into()));
+                }
+                value["payload"] = payload;
+            }
             let event = value
                 .get("event")
                 .and_then(Value::as_str)
@@ -3915,6 +3931,38 @@ mod tests {
         fs::write(root.path().join("jiggle-rig.json"), b"{\"version\":2}").unwrap();
         assert!(bridge.jiggle_source(&manifest["state"]).unwrap().read().is_err());
         assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
+    }
+
+    #[test]
+    fn large_host_control_payload_is_verified_before_selection_state_is_applied() {
+        let root = tempdir().unwrap();
+        let mut bridge = CdmwBridge::for_test(root.path().to_path_buf(), "selection", 1, 0);
+        let payload = json!({"state": {"session_id": "selection", "base_revision": 1,
+            "selection": {"source_indices": [0]}, "jiggle": {"bytes": vec![249; 80_000]}}});
+        let bytes = serde_json::to_vec(&payload).unwrap();
+        assert!(bytes.len() > MAX_CONTROL_LINE_BYTES);
+        fs::write(root.path().join("host-control.json"), &bytes).unwrap();
+        let reference = json!({"path": "host-control.json", "data_type": "host_control_json",
+            "count": 1, "byte_length": bytes.len(), "sha256": sha256_upper(&bytes),
+            "content_type": "application/json"});
+        let message = json!({"protocol": PROTOCOL, "session_id": "selection", "process_generation": 1,
+            "event": "command_result", "request_id": 1, "base_revision": 1, "ok": true,
+            "payload": {"payload_file": reference}});
+        assert!(serde_json::to_vec(&message).unwrap().len() < MAX_CONTROL_LINE_BYTES);
+        let HostEvent::Result { payload: received, .. } = bridge.decode_host_event(message.clone()) else {
+            panic!("owned selection response was rejected");
+        };
+        let prepared = bridge.prepare_host_result("command_result", 1, "command_result", 1, 1, true, &received).unwrap();
+        assert_eq!(prepared.into_parts().1.unwrap(), payload["state"]);
+        for (key, bad) in [("path", json!("../host-control.json")), ("count", json!(2)),
+            ("byte_length", json!(MAX_MANIFEST_BYTES + 1)), ("data_type", json!("other_json")),
+            ("sha256", json!("0".repeat(64)))] {
+            let mut invalid = message.clone();
+            invalid["payload"]["payload_file"][key] = bad;
+            assert!(matches!(bridge.decode_host_event(invalid), HostEvent::Fatal(_)));
+        }
+        fs::write(root.path().join("host-control.json"), b"{}").unwrap();
+        assert!(matches!(bridge.decode_host_event(message), HostEvent::Fatal(_)));
     }
 
     #[test]

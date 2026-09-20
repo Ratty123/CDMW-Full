@@ -456,6 +456,57 @@ def test_rust_texture_completion_is_dropped_after_archive_selection_changes(
     assert harness._mesh_editor_pending_rust_texture_launch is None
 
 
+@pytest.mark.parametrize("stale", [False, True])
+def test_hidden_archive_preparation_resumes_mesh_editor_without_renderer_ack(tmp_path, stale, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    from cdmw.models import ArchivePreviewResult
+    from tests.test_archive_d3d11_process_lifecycle import _PreviewResultHarness
+
+    app = QApplication.instance() or QApplication([])
+    entry = _entry(tmp_path)
+    geometry = _package(tmp_path / "geometry", entry, textured=False)
+    textured = _package(tmp_path / "textured", entry, textured=True)
+    launch = _LaunchHarness(entry, geometry)
+    launch._launch_archive_mesh_editor_for_entry(entry)
+    archive = _PreviewResultHarness()
+    archive.shell = launch
+    launch.archive = archive
+    archive.entry = entry
+    archive.archive_preview_request_id = archive._archive_texture_request_id = 41
+    archive._archive_texture_request_loading = True
+    archive._archive_pending_texture_result = None
+    archive.archive_isolated_renderer_active_package = geometry
+    archive.current_archive_preview_result = launch.current_archive_preview_result
+    controller = archive.archive_d3d11_preview_host.controller
+    controller.package_generation = 9
+    controller.applied_package_generation = 0
+    result = ArchivePreviewResult(status="ok", preferred_view="model",
+        dotnet_preview_package_path=str(textured), preview_model="prepared-material-model")
+    lease = _Lease()
+    monkeypatch.setattr("cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package", lambda _: (True, ()))
+    monkeypatch.setattr("cdmw.ui.mesh_editor.shell_bridge.acquire_dotnet_preview_package_cache_lease_for_path", lambda _: lease)
+    launch._write_crash_report = lambda *args, **kwargs: pytest.fail(str(args))
+    launch._collect_crash_context = lambda: {}
+    archive._apply_archive_preview_result(result, request_id=41)
+    assert not launch.opened  # Completion is queued to the owning Qt thread.
+    if stale:
+        archive.entry = _entry(tmp_path, "other.pac", offset=8)
+    app.processEvents()
+    assert controller.applied_package_generation == 0
+    assert archive.archive_isolated_renderer_active_package == geometry
+    if stale:
+        assert not launch.opened
+    else:
+        assert len(launch.opened) == 1
+        assert launch.opened[0][1]["material_package_path"] == str(textured)
+        assert launch.opened[0][1]["material_preview_model"] == "prepared-material-model"
+        assert launch.opened[0][1]["material_package_lease"] is lease
+        # Reopening while the viewport is still hidden reuses the prepared result.
+        launch._launch_archive_mesh_editor_for_entry(entry)
+        assert len(launch.opened) == 2
+        assert launch.texture_requests == [True]
+
+
 def test_rust_texture_failure_opens_untextured_once_without_recursive_request(
     tmp_path: Path,
 ) -> None:

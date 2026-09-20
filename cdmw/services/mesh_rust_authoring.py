@@ -1774,6 +1774,7 @@ def _validate_owned_session_tree(
         "shadow-mesh-layers.json",
         "hair-state.json",
         "jiggle-rig.json",
+        "host-control.json",
     }
     entry_count = 0
     total_bytes = 0
@@ -8013,6 +8014,24 @@ class RustMeshAuthoringSession:
                 "reason": _bounded_text(exc),
             }
         return state
+
+    @_with_protocol_lock
+    @_with_pinned_session_root
+    def stage_control_payload(self, payload: dict[str, object]) -> dict[str, object]:
+        """Publish a large host reply on the command worker, outside the control pipe.
+
+        Only one command is in flight. Its immutable bytes are consumed before
+        the next request can replace this file; the reference verifies that fact.
+        Keep the full payload in memory for the owning Qt completion handler.
+        """
+        self._require_open()
+        if len(_canonical_json_bytes(payload)) > 16 * 1024 * 1024:
+            raise RustMeshProtocolError("Mesh control payload exceeds the 16 MiB state limit")
+        reference = _atomic_write_payload(
+            self.root, "host-control.json", payload,
+            data_type="host_control_json", expected_root_identity=self.root_identity,
+        )
+        return {**payload, "payload_file": reference}
 
     @staticmethod
     def _shadow_protocol_signature_locked(session: object) -> tuple[object, ...]:

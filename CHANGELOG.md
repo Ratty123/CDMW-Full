@@ -11,7 +11,15 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+
+- Jiggle and Cloth motion previews include Freehand: drag the whole model with the mouse and release to let physics settle. This does not change mesh positions, drafts or exports.
+- Jiggle region colours preserve surface shading and include a Region tint slider, making deformation easier to see while keeping the affected areas highlighted.
+
 ### Fixed
+
+- Selecting parts on PACs with large jiggle data no longer closes Mesh Editor because the host response exceeds the control-message limit. Large responses use a bounded, size- and hash-verified session file.
+- Mesh Editor's Open Mesh can use prepared archive textures while Archive Browser is hidden, without waiting for that tab to be shown.
 
 - Create New Item no longer scans every archive entry when checking its effects cache, preventing that work from stalling template selection and delaying textures. Loading is labelled, early progress and preview messages remain in Current Tool Log and diagnostics, and incomplete effect metadata includes names and decoder reasons.
 

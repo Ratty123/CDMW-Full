@@ -5352,6 +5352,9 @@ impl LabApplication {
         let edit_gesture_before = self.edit_gesture.is_some();
         let pointer_events = self.pointer_events.drain().collect::<Vec<_>>();
         for event in pointer_events {
+            if self.handle_jiggle_pointer(&event, rectangle) {
+                continue;
+            }
             match event {
                 ViewportPointerEvent::PrimaryPressed(point) => {
                     self.begin_primary_gesture(rectangle, point);
@@ -5956,6 +5959,7 @@ impl LabApplication {
     }
 
     fn cancel_active_gesture(&mut self, reason: impl Into<String>) {
+        self.cdmw_jiggle.preview.manual_drag = None;
         let reason = reason.into();
         let mut cancelled = false;
         if let Some(gesture) = self.selection_gesture.take()

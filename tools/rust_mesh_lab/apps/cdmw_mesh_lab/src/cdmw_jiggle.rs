@@ -27,6 +27,7 @@ fn preview_weights(data: &Value, key: &str, limit: usize) -> Result<Vec<f32>> {
 
 pub(super) struct JiggleView {
     pub show_regions: bool,
+    pub region_opacity: f32,
     pub region_colours: Option<Vec<[f32; 4]>>,
     pub selected_only: bool,
     pub use_height: bool,
@@ -40,6 +41,7 @@ impl Default for JiggleView {
     fn default() -> Self {
         Self {
             show_regions: false,
+            region_opacity: 0.60,
             region_colours: None,
             selected_only: true,
             use_height: true,
@@ -80,6 +82,7 @@ pub(super) struct Preview {
     parts: Vec<u64>,
     feedback: String,
     last_tick: Instant,
+    pub manual_drag: Option<(Vec2, Vec3)>,
 }
 
 impl Default for Preview {
@@ -97,6 +100,7 @@ impl Default for Preview {
             parts: Vec::new(),
             feedback: String::new(),
             last_tick: Instant::now(),
+            manual_drag: None,
         }
     }
 }
@@ -108,6 +112,10 @@ impl Preview {
         self.pending = None;
         self.feedback.clear();
         self.last_tick = Instant::now();
+        self.manual_drag = None;
+        if matches!(self.motion, jiggle::Motion::Freehand(_)) {
+            self.motion = jiggle::Motion::Freehand(Vec3::ZERO);
+        }
     }
 }
 
@@ -119,6 +127,15 @@ pub(super) struct Scene {
     rest_surface_normals: Vec<Vec3>,
     tick: u64,
     moving: usize,
+    motion_scale: f32,
+}
+
+fn motion_scale(rest: &DrawSnapshot) -> f32 {
+    let (min, max) = rest.positions.iter().map(|v| Vec3::from(*v)).fold(
+        (Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)),
+        |(min, max), point| (min.min(point), max.max(point)),
+    );
+    (max - min).max_element().max(1e-6)
 }
 
 pub(crate) enum Simulation {
@@ -182,6 +199,14 @@ impl LabApplication {
             }
         }
         if self.cdmw_jiggle.show_regions {
+            if ui.add(egui::Slider::new(&mut self.cdmw_jiggle.region_opacity, 0.15..=0.85)
+                .text("Region tint")).changed() {
+                if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
+                    self.refresh_jiggle_regions();
+                } else {
+                    self.publish_mesh_snapshot();
+                }
+            }
             ui.horizontal_wrapped(|ui| {
                 ui.colored_label(egui::Color32::from_rgb(15, 80, 220), "Low weight");
                 ui.colored_label(egui::Color32::from_rgb(255, 140, 15), "High weight");
@@ -327,7 +352,7 @@ impl LabApplication {
                     Some(_) => REGION_DISABLED,
                     None => REGION_UNKNOWN,
                 }
-            }).collect();
+            }).map(|mut colour| { colour[3] = self.cdmw_jiggle.region_opacity; colour }).collect();
         self.cdmw_jiggle.region_colours = Some(colours);
     }
 
@@ -409,17 +434,23 @@ impl LabApplication {
                 (jiggle::Motion::UpDown, "Up / down"),
                 (jiggle::Motion::StartStop, "Start / stop"),
                 (jiggle::Motion::Turn, "Turning"),
+                (jiggle::Motion::Freehand(Vec3::ZERO), "Freehand"),
             ] {
+                let selected = std::mem::discriminant(&preview.motion) == std::mem::discriminant(&motion);
                 if ui
-                    .add(egui::Button::new(label).selected(preview.motion == motion))
+                    .add(egui::Button::new(label).selected(selected))
                     .clicked()
-                    && preview.motion != motion
+                    && !selected
                 {
                     preview.motion = motion;
                     changed = true;
                 }
             }
         });
+        if matches!(preview.motion, jiggle::Motion::Freehand(_)) {
+            ui.small("Play, then drag in the viewport to move the model. Release to let physics settle.");
+            ui.small("Right mouse orbits; middle mouse pans. Reset returns the model to its starting position.");
+        }
         ui.horizontal_wrapped(|ui| {
             for (comparison, label) in [
                 (Comparison::Current, "Current flags"),
@@ -559,6 +590,7 @@ impl LabApplication {
             {
                 if self.cdmw_jiggle.preview.playing {
                     self.cdmw_jiggle.preview.playing = false;
+                    self.cdmw_jiggle.preview.manual_drag = None;
                 } else if self.cdmw_jiggle.preview.scene.is_some() && self.cdmw_jiggle.preview.feedback.is_empty() {
                     self.cdmw_jiggle.preview.playing = true;
                     self.cdmw_jiggle.preview.last_tick = Instant::now();
@@ -722,6 +754,7 @@ impl LabApplication {
             *normal = normal.normalize_or_zero();
         }
         let scene = Scene {
+            motion_scale: motion_scale(&rest),
             rest_surface_normals,
             frame: rest.clone(),
             normal_sums: vec![Vec3::ZERO; rest.positions.len()],
@@ -735,6 +768,34 @@ impl LabApplication {
         self.cdmw_jiggle.preview.feedback.clear();
         self.cdmw_jiggle.preview.last_tick = Instant::now();
         Ok(())
+    }
+
+    pub(super) fn handle_jiggle_pointer(&mut self, event: &ViewportPointerEvent, rectangle: egui::Rect) -> bool {
+        let preview = &mut self.cdmw_jiggle.preview;
+        let Some(scene) = &preview.scene else { return false; };
+        let jiggle::Motion::Freehand(offset) = preview.motion else { return false; };
+        match *event {
+            ViewportPointerEvent::PrimaryPressed(point) => {
+                if preview.playing && point.is_finite() {
+                    preview.manual_drag = Some((point, offset));
+                }
+            }
+            ViewportPointerEvent::PrimaryMoved(point) | ViewportPointerEvent::PrimaryReleased(point) => {
+                if let Some((start, offset)) = preview.manual_drag
+                    && preview.playing && point.is_finite()
+                {
+                    let offset = offset + self.camera.screen_delta_to_world(point - start, rectangle);
+                    if offset.is_finite() {
+                        preview.motion = jiggle::Motion::Freehand(offset.clamp_length_max(scene.motion_scale));
+                    }
+                }
+                if matches!(event, ViewportPointerEvent::PrimaryReleased(_)) {
+                    preview.manual_drag = None;
+                }
+            }
+            _ => return false,
+        }
+        true
     }
 
     pub(super) fn advance_jiggle_preview(&mut self, seconds: f64) -> Result<()> {
@@ -819,7 +880,7 @@ impl LabApplication {
                     return;
                 }
                 let count = prepared.rest.positions.len();
-                self.cdmw_jiggle.preview.scene = Some(Scene { frame: prepared.rest.clone(), rest: prepared.rest,
+                self.cdmw_jiggle.preview.scene = Some(Scene { motion_scale: motion_scale(&prepared.rest), frame: prepared.rest.clone(), rest: prepared.rest,
                     simulation: prepared.simulation, normal_sums: vec![Vec3::ZERO; count],
                     rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving });
                 self.cdmw_jiggle.preview.playing = true;
