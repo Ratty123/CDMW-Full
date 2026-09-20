@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod cloth;
 pub mod hair;
 pub mod jiggle;
 pub mod jiggle_bones;

@@ -412,6 +412,29 @@ resolve the active material. Channel A supplies the particle's group ID; only
 IDs 1 through 31 select dynamic-fix bits in the traced base-movement shader.
 Membership does not establish whether a runtime bit is active.
 
+`pac_cloth_preview.build_cloth_preview_snapshot` now prepares the guide data for
+native playback using the host's already resolved PAB/PAC palette and neutral
+appearance. Animation frames preserve guide weights divided by 255; CPU rest
+geometry uses normalized weights and the separate full-16-bit coordinates.
+Constraint lengths, angles and areas retain the decoded half upload. Fixed
+points come from channel B equal to 255, with the optional vertex-alpha blend
+retained separately. Undecoded constraints, zero guide-bone weights and invalid
+palette references make this capability unavailable instead of inventing pins.
+
+The existing owned `jiggle-rig.json` can carry an optional `cloth` snapshot;
+`jiggle.decoded.cloth` reports its availability and guide/fixed/area counts.
+It is cached with the source and rig, uses the existing atomic payload writer,
+and preserves all retained render record lanes. A missing or unsupported guide
+mesh leaves decoded jiggle available. This additive transport does not change
+the payload version or require older readers to consume the new member.
+The native `cdmw_mesh::cloth` core consumes this snapshot with retained render
+records. Its controlled preview profile uses unit dynamic inverse masses,
+explicit gravity/damping/stiffness, a bounded Jacobi schedule, optional vertex
+alpha and a preview floor. These choices are not inferred active game settings.
+Area records remain counted but inactive; guide rotation correction, runtime
+dispatch/overrides and the full collision stages remain incomplete. The native
+core and transport are implemented; viewport playback/control wiring is pending.
+
 The cloth attachment report compares the two decoded mode-1 preparation paths:
 candidate pools per connected component, and one pool for the entire guide mesh.
 Initially fixed vertices and dynamic-fix group IDs 1 through 31 are eligible.

@@ -21,6 +21,7 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
     """
     from cdmw.modding.mesh_parser import resolve_pac_bone_palette
     from cdmw.modding.mesh_skinning import pack_pac_skin_weights
+    from cdmw.modding.pac_cloth_preview import build_cloth_preview_snapshot
     from cdmw.modding.pac_jiggle_rig import prepare_jiggle_rig
     from cdmw.services.mesh_rust_authoring import _atomic_write_payload
 
@@ -45,6 +46,15 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                            "neutral_global_matrices": rows(rig.neutral_global_matrices),
                            "neutral_local_matrices": rows(rig.neutral_local_matrices)}
             metadata["decoded_rig"] = (skeleton, rig_payload)
+            try:
+                cloth = build_cloth_preview_snapshot(session.original_data, rig_payload)
+                metadata["decoded_cloth"] = (cloth, {
+                    "available": True, "reason": "", "guide_count": len(cloth["fixed"]),
+                    "fixed_count": sum(cloth["fixed"]),
+                    "area_constraint_count": sum(row["kind"] == "triangle" for row in cloth["constraints"]),
+                })
+            except ValueError as exc:
+                metadata["decoded_cloth"] = (None, {"available": False, "reason": str(exc)})
         else:
             rig_payload = rig_cached[1]
         parts = []
@@ -70,13 +80,16 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 records.append(record.hex())
             parts.append({"index": index, "records": records})
         payload = {"version": 1, "rig": rig_payload, "parts": parts}
+        cloth, cloth_state = metadata["decoded_cloth"]
+        if cloth is not None:
+            payload["cloth"] = cloth
         file_cache = metadata.get("decoded_file")
         if file_cache is None or file_cache[0] != payload:
             reference = _atomic_write_payload(
                 authoring.root, "jiggle-rig.json", payload, data_type="jiggle_rig_json",
                 element_count=len(parts), expected_root_identity=authoring.root_identity)
             metadata["decoded_file"] = (payload, reference)
-        result = {"available": True, "reason": "", "file": dict(metadata["decoded_file"][1])}
+        result = {"available": True, "reason": "", "file": dict(metadata["decoded_file"][1]), "cloth": cloth_state}
     except ValueError as exc:
         result = {"available": False, "reason": str(exc)}
     metadata["decoded_cache"] = (skeleton, revision, part_key, result)

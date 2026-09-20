@@ -97,6 +97,32 @@ The core returns model-space positions; world placement, normal handling and
 guide cloth are subsequent stages. Its snapshot matrices are 4-by-4 row arrays,
 unlike the flat matrices of the Python reference object.
 
+`cdmw_mesh::cloth` supplies the next guide-cloth stage as a controlled native
+preview core. The optional `cloth` member of the owned `jiggle-rig.json` carries
+resolved neutral guide frames, source positions, fixed/alpha channels and the
+authored constraint rest geometry. The core revalidates bounds, rig, records and
+all selected guide indices, including zero-weight fetches. It retains the
+original byte39 when selecting four skeletal influences for an all-disabled
+comparison, avoiding reinterpretation of guide lanes as skeleton slots.
+
+The current profile advances gravity and the decoded normal damping, pair
+stretch and angle-bending kernels, optional vertex-alpha position blending and a
+preview floor. Dynamic inverse masses are explicitly one. Its Jacobi averaging,
+clock/iteration choices and force settings are controlled preview inputs; they
+do not reproduce game dispatch or establish an active material profile. Area
+constraints remain counted but inactive, and guide rotation correction and
+bone/layer/world contact integration remain pending. With rigid anchor motion
+and rotation correction disabled, the decoded full matrix blend reduces to a
+weighted guide translation delta. This preserves edited display positions and
+neutral scale without repeated matrix inversions or Python/file work per frame.
+Invalid/unstable steps preserve the last complete simulation and draw frame.
+
+Run `cargo test --locked -p cdmw_mesh cloth:: --lib` for the focused core tests.
+Python transport and source ownership use `tests/test_mesh_cloth_decoded_preview.py`
+and the existing decoded-jiggle transport tests. These are synthetic source
+checks. The viewport controller and user controls are not yet connected to this
+core, and no packaged, visible or game parity is claimed.
+
 The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
 synthetic vectors compare complete packed states and matrices with
 `cdmw/modding/pac_jiggle_bones.py`, feeding the native result into subsequent
