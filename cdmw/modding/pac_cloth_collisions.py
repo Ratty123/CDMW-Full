@@ -1,7 +1,8 @@
 """Decoded cloth collision references, build 1.0.0.2944.
 
-The guide input pass runs before integration; shape/contact helpers belong to
-the later constraint pass. Explicit snapshots and selected positions are required.
+Collider-update helpers produce animated records from selected transforms. The
+guide input pass runs before integration; shape/contact helpers belong to the
+later constraint pass. Explicit snapshots and selected positions are required.
 This is a mathematical reference, not a complete contact solver or GPU emulator.
 """
 
@@ -235,6 +236,162 @@ def _unit(value):
     if not math.isfinite(length) or length == 0:
         raise ValueError("Degenerate cloth contact direction has no supported finite shader result.")
     return tuple(x/length for x in value)
+
+
+def _collider_matrix_rows(record, size, offset=0):
+    _record(record, size)
+    return tuple(struct.unpack_from('<4f', record, offset + 16*i) for i in range(4))
+
+
+def _collider_row_product(values, rows):
+    # Only xyz is consumed. Matrix w lanes can carry unrelated packed metadata.
+    return _point(tuple(sum(value * row[axis] for value, row in zip(values, rows, strict=True))
+                        for axis in range(3)))
+
+
+def _write_collider_result(owner, radius, previous_a, current_a, previous_b, current_b):
+    values = (radius, *previous_a, *current_a, *previous_b, *current_b)
+    _finite(*values)
+    try:
+        return struct.pack('<I13f', owner, *values)
+    except (OverflowError, struct.error) as exc:
+        raise ValueError('Cloth collider output must fit a finite float32 record.') from exc
+
+
+def update_guide_cloth_collider_result(
+    collider_definition: bytes, previous_result: bytes, extra_collidable: bytes,
+    per_scene: bytes, global_parameters: bytes, character_transform: bytes, *,
+    use_bone_transform: bool, animation_matrix: bytes | None = None,
+    character_space_scale: Sequence[float] | None = None,
+) -> bytes:
+    """Produce one selected guide collider's 56-byte animated result.
+
+    ComputePbdUpdateBoneCollidables, SSA114..617. The caller must resolve the
+    admitted extra group, definition/result, character transform, bone mapping
+    and current LOD animation resources. use_bone_transform explicitly selects
+    the shader's mapped/unmapped branch; missing mapped resources are errors.
+    This does not infer dispatch, source availability or runtime activation.
+
+    Character translation is excluded; the scene-relative contact stage adds
+    it later. Local centers76/88 belong to the static branch, not this branch.
+    Operations model finite shader math, not bit-exact GPU FMad/rsqrt rounding.
+    """
+    for record, size in ((collider_definition, 104), (previous_result, 56),
+                         (extra_collidable, 56), (per_scene, 108), (global_parameters, 1216)):
+        _record(record, size)
+    _boolean(use_bone_transform)
+    world = _collider_matrix_rows(character_transform, 272)[:3]
+    local = _collider_matrix_rows(collider_definition, 104, 12)
+    if use_bone_transform:
+        if animation_matrix is None or character_space_scale is None:
+            raise ValueError('Mapped cloth colliders need the selected animation matrix and bone scale.')
+        animation = _collider_matrix_rows(animation_matrix, 64)
+        scale = _point(character_space_scale)
+        basis = [_collider_row_product(tuple(v*scale[i] for v in animation[i][:3]), world)
+                 for i in range(3)]
+        basis.append(_collider_row_product(animation[3][:3], world))
+        axis, radial, center = (_collider_row_product(local[i], basis) for i in (0, 2, 3))
+    else:
+        axis, radial, center = (_collider_row_product(local[i][:3], world) for i in (0, 2, 3))
+
+    original_type, radius, height = struct.unpack_from('<I2f', collider_definition)
+    definition_flags = struct.unpack_from('<I', collider_definition, 100)[0]
+    group = struct.unpack_from('<I', extra_collidable)[0]
+    count = group >> 16
+    scene_flags = struct.unpack_from('<I', per_scene, 64)[0]
+    _finite(radius, height)
+    if definition_flags & 2:
+        multiplier = struct.unpack_from('<e', per_scene, 84)[0]
+        _finite(multiplier)
+        radius *= multiplier
+    a = _point(tuple(c - height*.5*v for c, v in zip(center, axis)))
+    b = _point(tuple(c + height*.5*v for c, v in zip(center, axis)))
+    direction = _unit(_difference(b, a))
+    radial = _point(tuple(radius*v for v in radial))
+    radial_length = math.sqrt(_dot(radial, radial))
+    cosine = 0. if height < f32(.001) else _dot(direction, _unit(radial))
+    # No clamping or collapsed-axis fallback exists in this producer branch.
+    fixed_radius = math.sqrt(1. - cosine*cosine) * radial_length
+    extension = abs(cosine) * radial_length
+    a = _point(tuple(p - extension*v for p, v in zip(a, direction)))
+    b = _point(tuple(p + extension*v for p, v in zip(b, direction)))
+    old_radius = struct.unpack_from('<f', previous_result, 4)[0]
+    _finite(old_radius)
+    reset = (old_radius < f32(.0001) or bool(scene_flags & 2)
+             or ((scene_flags >> 6) & 1) != ((scene_flags >> 7) & 1))
+    # Reset history is captured BEFORE the following endpoint adjustments.
+    old_a = a if reset else _point(struct.unpack_from('<3f', previous_result, 20))
+    old_b = b if reset else _point(struct.unpack_from('<3f', previous_result, 44))
+
+    enlarge = bool(group & 2) and (bool(scene_flags & 0x8000) or (
+        bool(scene_flags & 4) and bool(struct.unpack_from('<I', global_parameters, 1180)[0])
+        and original_type >> 16 == 3 and count > 0))
+    if enlarge:
+        custom = (struct.unpack_from('<e', per_scene, 98)[0]
+                  if struct.unpack_from('<I', global_parameters, 1204)[0] else 0.)
+        _finite(custom)
+        if count > 2 and struct.unpack_from('<f', collider_definition, 4)[0] > f32(.42):
+            custom = -100.
+        shift = None
+        if custom > f32(-1.001) or scene_flags & 0x20000:
+            shift = custom if custom > f32(-1.001) else f32(.05 if count > 2 and fixed_radius < f32(.4) else .02)
+        elif count > 2 and fixed_radius < f32(.4):
+            shift = f32(.07)
+        if shift is not None:
+            shift_axis = _unit(_difference(a, b))
+            a = _point(tuple(p + shift*v for p, v in zip(a, shift_axis)))
+            b = _point(tuple(p + shift*v for p, v in zip(b, shift_axis)))
+        factor = (struct.unpack_from('<f', global_parameters, 1172)[0]
+                  if scene_flags & 0x8000 else 1.)
+        _finite(factor)
+        b = _point(tuple(second + (count-.5)*factor*(second-first) for first, second in zip(a, b)))
+    if not group & 3 and not scene_flags & 4:
+        fixed_radius = 0.
+    owner = struct.unpack_from('<I', extra_collidable, 28)[0]
+    return _write_collider_result(owner, fixed_radius, old_a, a, old_b, b)
+
+
+def update_static_cloth_collider_result(
+    collider_definition: bytes, previous_result: bytes, per_frame: bytes,
+    host_transform: bytes, *, attached_transform: bytes | None = None,
+) -> bytes:
+    """Produce one already-admitted static-list collider result (SSA707..888).
+
+    The caller selects instance records after dispatch/visibility/count/resource
+    gates. Frame0x200000 and a non-FFFF original index select the attached object.
+    Its translation is relative to the host, including signed packed X/Z tiles.
+    Otherwise only the host basis is used. Radius stays authored/unscaled; the
+    previous result's owner uint is preserved. This is not guide deformation.
+    """
+    for record, size in ((collider_definition, 104), (previous_result, 56), (per_frame, 100)):
+        _record(record, size)
+    host = _collider_matrix_rows(host_transform, 64)
+    flags = struct.unpack_from('<I', per_frame, 32)[0]
+    original = struct.unpack_from('<H', collider_definition)[0]
+    if flags & 0x200000 and original != 0xFFFF:
+        if attached_transform is None:
+            raise ValueError('Attached cloth colliders need the selected object transform.')
+        matrix = _collider_matrix_rows(attached_transform, 64)
+        host_z, host_x = struct.unpack_from('<2h', host_transform, 12)
+        child_z, child_x = struct.unpack_from('<2h', attached_transform, 12)
+        shift = ((child_x-host_x)*1000., 0., (child_z-host_z)*1000.)
+        translation = _point(tuple(c-h+s for c, h, s in zip(matrix[3][:3], host[3][:3], shift)))
+    else:
+        matrix, translation = host, (0., 0., 0.)
+    centers = []
+    for offset in (76, 88):
+        local = struct.unpack_from('<3f', collider_definition, offset)
+        rotated = _collider_row_product(local, matrix[:3])
+        centers.append(_point(tuple(p+t for p, t in zip(rotated, translation))))
+    a, b = centers
+    old_radius = struct.unpack_from('<f', previous_result, 4)[0]
+    _finite(old_radius)
+    reset = old_radius < f32(.0001) or bool(flags & 2)
+    old_a = a if reset else _point(struct.unpack_from('<3f', previous_result, 20))
+    old_b = b if reset else _point(struct.unpack_from('<3f', previous_result, 44))
+    radius = struct.unpack_from('<f', collider_definition, 4)[0]
+    owner = struct.unpack_from('<I', previous_result)[0]
+    return _write_collider_result(owner, radius, old_a, a, old_b, b)
 
 
 def cloth_collider_proximity_distance(

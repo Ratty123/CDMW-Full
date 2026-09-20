@@ -780,6 +780,47 @@ thresholds, mask/owner selection, ordered projections, source immutability and
 composition with fixed integration. Later collision/constraint passes, live
 resource production and native preview integration remain separate work.
 
+The same module's `update_guide_cloth_collider_result` and
+`update_static_cloth_collider_result` reproduce the selected-record geometry
+and history writes from `ComputePbdUpdateBoneCollidables` (captured PASC SHA-256
+`ddbce0a97004bc8fff0e6ad264e7eeac9b6680ced03b8965dfa5f82f095ad824`).
+They emit the complete 56-byte result consumed by the contact helpers below.
+The caller must first resolve dispatch, visibility, counts, buffers and mappings;
+these functions do not infer runtime activation or substitute missing resources.
+
+- Guide colliders use definition104's local matrix, radius and height. The
+  explicitly selected mapped branch scales animation basis rows by the original
+  bone's character-space scale, then combines them with the character world
+  basis. Animation translation participates; character world translation does
+  not. The unmapped branch uses only the world basis. Definition local centers
+  76/88 are not used here. Missing selected bone data fails.
+- Local matrix row0 supplies the axis, row2 the radial vector, and row3 the
+  center. Scale/shear can extend both endpoints while the radius loses its
+  component parallel to the axis. Definition flag `0x2` first multiplies radius
+  by scene half84. Consumed zero-normalization cases are rejected; no sphere
+  fallback or cosine clamp is invented for this producer.
+- Guide previous endpoints come from the old **current** fields. Old radius
+  strictly below float32(0.0001), scene `0x2`, or different scene bits `0x40` and
+  `0x80` resets history to the new endpoints **before** later adjustments.
+  Group `0x2` can enable endpoint shifting/enlargement via scene `0x8000`, or
+  scene `0x4` plus the global large-shield switch for type3. These consume the
+  group count, global float1172 and optional PAC custom scene half98, including
+  the decoded sentinel/radius branches. They change only current endpoints.
+  Radius becomes zero when group bits `0x3` and scene bit `0x4` are all clear.
+- Static-list colliders transform authored centers76/88 and retain the authored
+  radius without scaling. Frame `0x200000` with an original index other than
+  `0xFFFF` selects the attached object's basis and its translation relative to
+  the host, including signed 1000-unit X/Z tile differences. Otherwise only the
+  host basis participates. Frame `0x2` or the same old-radius threshold resets
+  history; the old result's owner uint is preserved.
+
+`tests/test_pac_cloth_collider_update.py` checks analytic transforms, shear,
+activation/history branches, custom endpoint shifts, signed tile coordinates
+and a generated-record handoff through moving capsule contact. These are finite
+reference calculations, not GPU rounding, native preview or game parity proof.
+Authoring collider definitions, resolving bone/LOD resources and connecting the
+native preview remain separate work.
+
 The same module also decodes shape and contact math from
 `ComputePbdProcessConstraints`. These helpers operate on explicitly selected
 positions and collider records, after the caller resolves iteration, movement
