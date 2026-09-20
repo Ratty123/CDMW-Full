@@ -55,6 +55,10 @@ The production shader compresses high-energy studio radiance into SDR before ton
 mapping instead of multiplying it by a fixed HDR exposure, so bright dye and metal
 retain their colour without flattening into white.
 
+Exact ordered PAC wrappers keep their own parameter tables when several parts
+reuse a detail-mask DDS or material name. Shared texture resources do not merge
+different wrappers' dyes and layers into each part's material graph.
+
 `src/main.cpp` is only the executable adapter. Ordered protocol, archive,
 geometry, material, package, report, rebuild, index, and command owners live in
 `src/owners/`. CMake compiles those owners in one named unity group because the

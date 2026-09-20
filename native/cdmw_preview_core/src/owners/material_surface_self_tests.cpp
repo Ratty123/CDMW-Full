@@ -585,9 +585,65 @@ static void run_cached_material_owner_contract_self_test() {
         "compact material keys changed byte filtering");
 }
 
+static void run_shared_mask_wrapper_owner_contract_self_test() {
+    NativeSubmesh left;
+    left.material = "shared_cloth_mg";
+    left.name = "left";
+    left.source_model_path = "character/model/shared_cloth.pac";
+    left.source_local_submesh_index = 0;
+    NativeSubmesh right = left;
+    right.name = "right";
+    right.source_local_submesh_index = 1;
+    const std::vector<NativeSubmesh> meshes{left, right};
+    TextureBinding mask;
+    mask.material_name = left.material;
+    mask.texture_name = "shared_cloth_mg.dds";
+    mask.source_path = mask.texture_name;
+    mask.archive_path = "character/texture/" + mask.texture_name;
+    mask.role = "detail";
+    mask.parameter_name = "_detailMaskTexture";
+    mask.source_authority = "exact_sidecar";
+    mask.sidecar_path = "character/modelproperty/shared_cloth.pac_xml";
+    mask.component_scope_id = material_component_scope_id_for_mesh(left);
+    mask.material_wrapper_order_authoritative = true;
+    mask.material_wrapper_index = 0;
+    mask.owner_wrapper_item_id = "left-wrapper";
+    mask.material_parameters = {authored_color("_dyeingColorMaskR", "#ff0000ff")};
+    for (size_t count : {size_t{2}, size_t{9}}) {
+        std::vector<TextureBinding> bindings(count, mask);
+        bindings.back().material_wrapper_index = 1;
+        bindings.back().owner_wrapper_item_id = "right-wrapper";
+        bindings.back().material_parameters = {
+            authored_color("_dyeingColorMaskR", "#0000ffff")};
+        std::unordered_map<const TextureBinding*, int> owners;
+        for (const TextureBinding& binding : bindings) {
+            const int owner = binding_owner_submesh_local_index(meshes, binding);
+            require_material_contract(owner == binding.material_wrapper_index,
+                "shared detail mask erased an exact PAC wrapper owner");
+            owners.emplace(&binding, owner);
+        }
+        for (const auto* cached : {
+                 static_cast<const std::unordered_map<const TextureBinding*, int>*>(nullptr),
+                 static_cast<const std::unordered_map<const TextureBinding*, int>*>(&owners)}) {
+            const auto right_inputs = relevant_bindings_for_mesh(
+                bindings, meshes, right, {&bindings.front()}, cached);
+            require_material_contract(
+                right_inputs.size() == 1 && right_inputs.front() == &bindings.back(),
+                "another wrapper's shared mask and dye table leaked into a batch");
+            const auto left_inputs = relevant_bindings_for_mesh(
+                bindings, meshes, left, {&bindings.back()}, cached);
+            require_material_contract(left_inputs.size() == count - 1
+                && std::none_of(left_inputs.begin(), left_inputs.end(),
+                    [&](const TextureBinding* binding) { return binding == &bindings.back(); }),
+                "shared DDS reuse changed exact wrapper parameter ownership");
+        }
+    }
+}
+
 static void run_material_contract_self_test() {
     run_pbd_profile_decoding_self_test();
     run_cached_material_owner_contract_self_test();
+    run_shared_mask_wrapper_owner_contract_self_test();
     run_embedded_mesh_owner_contract_self_test();
     run_bounded_material_dependencies_self_test();
 

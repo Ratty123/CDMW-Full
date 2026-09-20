@@ -643,6 +643,18 @@ static int binding_owner_submesh_local_index(
     const std::vector<NativeSubmesh>& submeshes,
     const TextureBinding& binding
 ) {
+    // Several PAC wrappers can reuse the same detail-mask DDS while declaring
+    // different dyes and layers. Their exact ordered wrapper remains the owner
+    // of the parameter table even when the mesh material names are identical.
+    if (binding.source_authority == "exact_sidecar"
+        && !binding.owner_wrapper_item_id.empty()
+        && binding.material_wrapper_order_authoritative) {
+        for (const NativeSubmesh& candidate : submeshes) {
+            if (material_wrapper_matches_mesh_local_index(binding, candidate)) {
+                return candidate.source_local_submesh_index;
+            }
+        }
+    }
     const std::string binding_material_key = normalized_material_key(binding.material_name);
     if (!binding_material_key.empty()) {
         int declared_material_consumers = 0;
@@ -695,7 +707,17 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
     std::vector<const TextureBinding*> result;
     std::set<const TextureBinding*> seen;
     auto add = [&](const TextureBinding* binding) {
-        if (binding != nullptr && seen.insert(binding).second) result.push_back(binding);
+        if (binding == nullptr) return;
+        if (binding->source_authority == "exact_sidecar"
+            && !binding->owner_wrapper_item_id.empty()
+            && binding->material_wrapper_order_authoritative) {
+            const int owner = owner_slots != nullptr
+                ? owner_slots->at(binding)
+                : binding_owner_submesh_local_index(submeshes, *binding);
+            if (owner >= 0 && mesh.source_local_submesh_index >= 0
+                && owner != mesh.source_local_submesh_index) return;
+        }
+        if (seen.insert(binding).second) result.push_back(binding);
     };
     for (const TextureBinding* binding : selected_slots) add(binding);
     if (bindings.size() <= 8) {
