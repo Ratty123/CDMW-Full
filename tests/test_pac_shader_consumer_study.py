@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import struct
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -176,12 +177,13 @@ def test_a_non_pasc_blob_is_rejected() -> None:
     assert study.parse_pasc(b"NOPE" + b"\x00" * 64) is None
 
 
-def _dxbc() -> bytes:
-    return b"DXBC" + bytes(16) + struct.pack("<IIII", 1, 48, 1, 36) + b"DXIL" + struct.pack("<I", 4) + bytes(4)
+def _dxbc(payload: bytes = bytes(4)) -> bytes:
+    return (b"DXBC" + bytes(16) + struct.pack("<IIII", 1, 44 + len(payload), 1, 36)
+            + b"DXIL" + struct.pack("<I", len(payload)) + payload)
 
 
-def _pasc_v8() -> bytes:
-    payload = _dxbc()
+def _pasc_v8(payload: bytes | None = None) -> bytes:
+    payload = _dxbc() if payload is None else payload
     return b"PASC" + struct.pack("<4I", 8, 36 + len(payload), 61, 36) + bytes(range(16)) + payload
 
 
@@ -201,6 +203,29 @@ def test_pasc_rejects_unknown_versions_and_invalid_container_ranges(offset, valu
 
 def test_pasc_rejects_truncated_dxbc_even_when_signature_is_present() -> None:
     assert study.parse_pasc(_pasc("shader/character.hlsl", b"DXBC" + bytes(8))) is None
+
+
+@pytest.mark.parametrize("alignment", range(8))
+def test_corpus_keeps_unaligned_record_names_with_provenance_and_deduplication(monkeypatch, tmp_path, alignment):
+    # Independent bit-by-bit fixture writer, including nonzero adjacent fields.
+    bits = [1] * alignment
+    for char in b"_normalizedPackedPosition":
+        bits.extend((char >> bit) & 1 for bit in range(8))
+    bits.extend([1] * (8 - len(bits) % 8))
+    packed = bytes(sum(bits[i + bit] << bit for bit in range(8)) for i in range(0, len(bits), 8))
+    payload = _pasc_v8(_dxbc(packed))
+    if alignment:
+        assert study.RECORD_MARKER not in payload  # The old prefilter lost it.
+    data = {"a.padxil": payload, "b.padxil": payload,
+            "unrelated.padxil": _pasc_v8(), "broken.padxil": b"PASC" + packed}
+    monkeypatch.setattr(study, "iter_shader_entries", lambda _: (SimpleNamespace(path=key) for key in data))
+    monkeypatch.setattr(study, "read_archive_entry_data", lambda entry: (data[entry.path], False, "fixture"))
+    containers, paths, sources, scanned, matched = study.collect_containers(tmp_path, limit_entries=0, progress_every=0)
+    assert scanned == 4 and matched == 2
+    assert len(containers) == 1
+    assert list(paths.values()) == [["a.padxil", "b.padxil"]]
+    assert sources == {"": 2}
+    assert next(iter(containers.values())).container == _dxbc(packed)
 
 
 # ── The decode transcribed from the shader ───────────────────────────

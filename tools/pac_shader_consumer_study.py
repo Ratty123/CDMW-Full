@@ -62,8 +62,17 @@ PLAN_PATH = "docs/plans/active/pac-vertex-channel-identification-v1.md"
 
 #: The PAC record stride this study is about.
 PROVEN_PAC_STRIDE = 40
-#: Cheap prefilter: the field name appears as a raw string in the container.
+#: Cheap candidate prefilter, confirmed later by DXC's record declaration/loads.
 RECORD_MARKER = b"_normalizedPackedPosition"
+# LLVM Fixed(8) string fields need not start on a byte boundary. Current PASC v8
+# shaders use these unaligned names. Discard the two boundary bytes so adjacent
+# fields cannot hide a match. False positives are rejected by analyse_disassembly.
+# https://llvm.org/docs/BitCodeFormat.html#fixed-width-integers
+_UNALIGNED_RECORD_MARKERS = tuple(
+    (int.from_bytes(RECORD_MARKER, "little") << shift)
+    .to_bytes(len(RECORD_MARKER) + 1, "little")[1:-1]
+    for shift in range(1, 8)
+)
 
 _DEFAULT_DXC_GLOBS = (
     r"C:\Program Files (x86)\Windows Kits\10\bin\*\x64\dxc.exe",
@@ -496,7 +505,7 @@ def collect_containers(
             data, _cached, _source = read_archive_entry_data(entry)
         except Exception:
             continue
-        if RECORD_MARKER not in data:
+        if RECORD_MARKER not in data and not any(marker in data for marker in _UNALIGNED_RECORD_MARKERS):
             continue
         parsed = parse_pasc(data)
         if parsed is None:

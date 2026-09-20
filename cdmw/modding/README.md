@@ -100,6 +100,13 @@ This supersedes the earlier assumption that the two modes were equally plausible
 for these meshes. It does not prove every other game path or version uses this mode.
 The CPU setup flag is not the similarly numbered PAC metadata flag.
 
+`tools/pac_shader_consumer_study.py` reads PASC v7/v8 shader containers. Its
+candidate filter checks the record field name at every bit alignment because
+current LLVM metadata strings are not necessarily byte-aligned. DXC reflection
+and actual stride-40 buffer loads still establish record usage; a name match
+alone is not proof. This is a bounded study of matching shaders, not an
+exhaustive LLVM bitcode reader or proof that unobserved lanes are unused.
+
 These are vertex blend weights, not spring constants or proof of live physics.
 Bone overrides can replace the vertex blend. The upper nibble's other consumers
 remain unresolved, so disabling must preserve it as well as all other record lanes.
