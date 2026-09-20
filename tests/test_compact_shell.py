@@ -268,15 +268,18 @@ def test_tool_log_adapter_reuses_the_existing_document() -> None:
     assert owner.archive_log_view.toPlainText() == ""
 
     new_item_tab = QWidget()
-    output_panel = QWidget(new_item_tab)
-    output_panel.log = QPlainTextEdit(output_panel)  # type: ignore[attr-defined]
-    output_panel.log.setPlainText("Existing New Item output")  # type: ignore[attr-defined]
-    new_item_tab.output_panel = output_panel  # type: ignore[attr-defined]
+    new_item_tab.log = QPlainTextEdit(new_item_tab)
+    new_item_tab.log.setPlainText("Reading archives for New Item...")
     owner._tool_widgets_by_key = {"new_item_studio": new_item_tab}
     new_item_adapter = tool_log_adapter_for(owner, "new_item_studio")
 
-    assert new_item_adapter.document is output_panel.log.document()  # type: ignore[attr-defined]
-    assert new_item_adapter.text() == "Existing New Item output"
+    assert new_item_adapter.document is new_item_tab.log.document()
+    assert new_item_adapter.text() == "Reading archives for New Item..."
+    output_panel = QWidget(new_item_tab)
+    output_panel.log = QPlainTextEdit(output_panel)
+    output_panel.log.setDocument(new_item_tab.log.document())
+    output_panel.log.appendPlainText("Export complete")
+    assert new_item_adapter.text().endswith("Export complete")
     new_item_adapter.clear()
     assert output_panel.log.toPlainText() == ""  # type: ignore[attr-defined]
 

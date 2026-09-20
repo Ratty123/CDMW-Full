@@ -7,7 +7,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtGui import QShowEvent
-from PySide6.QtWidgets import QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 
 class _LazyToolPrepareWorker(QObject):
@@ -70,6 +70,9 @@ class LazyToolTab(QWidget):
         self._loading_widget.setObjectName("LazyToolLoadingState")
         loading_layout = QVBoxLayout(self._loading_widget)
         loading_layout.addStretch(1)
+        self._loading_label = QLabel("Opening tool...", self._loading_widget)
+        self._loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        loading_layout.addWidget(self._loading_label)
         self._loading_progress = QProgressBar(self._loading_widget)
         self._loading_progress.setObjectName("LazyToolLoadingProgress")
         self._loading_progress.setRange(0, 0)

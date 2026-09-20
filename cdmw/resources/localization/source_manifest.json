@@ -10867,6 +10867,16 @@
       ]
     },
     {
+      "key": "Archive read failed: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 377,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Archive ready.",
       "origins": [
         {
@@ -19487,6 +19497,16 @@
       ]
     },
     {
+      "key": "Checking effect metadata cache...",
+      "origins": [
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 78,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Checking for unclassified DDS files before build...",
       "origins": [
         {
@@ -26237,6 +26257,16 @@
       ]
     },
     {
+      "key": "Create New Item opened. Read the archives to begin.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 206,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Create New Item reads the item, string, store, group and language tables once, then plans a new item against them.",
       "origins": [
         {
@@ -32576,27 +32606,42 @@
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 187,
+          "line": 166,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/effect_catalogue.py",
+          "line": 189,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 191,
+          "line": 193,
+          "sink": "RuntimeError"
+        },
+        {
+          "path": "cdmw/services/effect_catalogue_dependencies.py",
+          "line": 17,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/effect_catalogue_dependencies.py",
+          "line": 19,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 84,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 75,
+          "line": 109,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 88,
-          "sink": "RuntimeError"
-        },
-        {
-          "path": "cdmw/workers/effect_catalogue_worker.py",
-          "line": 90,
+          "line": 111,
           "sink": "RuntimeError"
         }
       ]
@@ -32622,12 +32667,32 @@
       ]
     },
     {
+      "key": "Effect indexing failed: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 245,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Effect metadata could not be indexed: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_workspace.py",
           "line": 612,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Effect metadata warning [{value_0}]: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 74,
+          "sink": "log"
         }
       ]
     },
@@ -32763,6 +32828,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 54,
           "sink": "python-return:_build_start_sections"
+        }
+      ]
+    },
+    {
+      "key": "Effects: {value_0}/{value_1} decoded; {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 100,
+          "sink": "log"
         }
       ]
     },
@@ -46857,11 +46932,11 @@
       ]
     },
     {
-      "key": "Indexed {value_0} effects; {value_1} did not decode.",
+      "key": "Indexed {value_0} effects; {value_1} have incomplete metadata.",
       "origins": [
         {
           "path": "cdmw/services/effect_catalogue.py",
-          "line": 210,
+          "line": 212,
           "sink": "on_log"
         },
         {
@@ -46983,6 +47058,16 @@
           "path": "cdmw/ui/character_finder/dialog.py",
           "line": 272,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Indexing effect metadata in the background...",
+      "origins": [
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 91,
+          "sink": "log"
         }
       ]
     },
@@ -62112,6 +62197,16 @@
       ]
     },
     {
+      "key": "New Item workspace ready.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 413,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "New Placement State",
       "origins": [
         {
@@ -62256,27 +62351,32 @@
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 437,
+          "line": 438,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 484,
+          "line": 485,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 498,
+          "line": 499,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 507,
+          "line": 508,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 526,
+          "line": 527,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 564,
           "sink": "raise_if_cancelled"
         },
         {
@@ -69122,6 +69222,16 @@
       ]
     },
     {
+      "key": "Opened New Item step {value_0} of {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 649,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Opened crash reports folder: {value_0}",
       "origins": [
         {
@@ -69362,6 +69472,26 @@
         {
           "path": "cdmw/ui/texture_workflow/workspace_ui.py",
           "line": 127,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Opening the archive catalogue for New Item...",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 111,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Opening tool...",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/lazy_tool_tab.py",
+          "line": 73,
           "sink": "QLabel"
         }
       ]
@@ -77302,6 +77432,16 @@
       ]
     },
     {
+      "key": "Preparing the New Item workspace...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 393,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Preparing the embedded Mesh Editor...",
       "origins": [
         {
@@ -80677,6 +80817,16 @@
       ]
     },
     {
+      "key": "Preview: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 249,
+          "sink": "_append_log"
+        }
+      ]
+    },
+    {
       "key": "Preview: {value_0}. Changes are sent live to the resident preview.",
       "origins": [
         {
@@ -82293,6 +82443,16 @@
           "path": "cdmw/workers/new_item_workers.py",
           "line": 68,
           "sink": "progress"
+        }
+      ]
+    },
+    {
+      "key": "Reading archives for New Item...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 330,
+          "sink": "emit"
         }
       ]
     },
@@ -97213,6 +97373,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 1264,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Selected template {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 242,
+          "sink": "_append_log"
         }
       ]
     },
@@ -121110,6 +121280,11 @@
           "sink": "appendPlainText"
         },
         {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 232,
+          "sink": "appendPlainText"
+        },
+        {
           "path": "cdmw/ui/shell/log_controller.py",
           "line": 43,
           "sink": "appendPlainText"
@@ -140988,6 +141163,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1932,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} more effects have incomplete metadata; see the Effects library for details.",
+      "origins": [
+        {
+          "path": "cdmw/workers/effect_catalogue_worker.py",
+          "line": 76,
+          "sink": "log"
         }
       ]
     },

@@ -10,6 +10,8 @@ confirmation). It never touches the archives.
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime
+import time
 from typing import Callable, Iterable, Optional
 
 from PySide6.QtCore import QEvent, Qt, Signal, QTimer
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -129,6 +132,8 @@ class NewItemStudioTab(QWidget):
         super().__init__(parent)
         self._applying_step_style = False
         self._window = window
+        self._opened_at = time.monotonic()
+        self._last_preview_message = ""
         self._get_entries = get_archive_entries or (lambda: getattr(getattr(window, "archive", None), "archive_entries", None) or ())
         self._get_package_root = get_package_root or (lambda: _window_package_root(window))
         self._effect_dirty_prompt = effect_dirty_prompt or self._prompt_for_staged_effect
@@ -189,6 +194,16 @@ class NewItemStudioTab(QWidget):
         self._read_failure = ArchiveReadFailurePanel(self)
         self._layout.insertWidget(0, self._read_failure)
         self.controller.log_message.connect(self._read_failure.capture_progress)
+        # The activity drawer needs a document before Output exists. Keep one
+        # bounded document for bootstrap, preview, indexing, and output messages.
+        self.log = QPlainTextEdit(self)
+        self.log.setReadOnly(True)
+        self.log.setMaximumBlockCount(1000)
+        self.log.hide()
+        self.controller.log_message.connect(self._append_log)
+        self.controller.template_changed.connect(self._log_template_selected)
+        self.controller.effect_catalogue_failed.connect(self._log_effect_failure)
+        self._append_log("Create New Item opened. Read the archives to begin.")
 
         self.controller.snapshot_ready.connect(self._snapshot_ready)
         self.controller.snapshot_failed.connect(self._snapshot_failed)
@@ -211,6 +226,28 @@ class NewItemStudioTab(QWidget):
             archive_settings_signal.connect(self.set_archive_performance_settings)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def _append_log(self, message: str) -> None:
+        message = str(message)
+        self.log.appendPlainText(f"[{datetime.now():%H:%M:%S}] {message}")
+        recorder = getattr(self._window, "_set_last_active_operation", None)
+        if callable(recorder):
+            recorder(
+                "new_item", message=message,
+                elapsed_seconds=round(time.monotonic() - self._opened_at, 3),
+                template_key=self.controller.draft.template_key,
+            )
+
+    def _log_template_selected(self, key) -> None:
+        self._append_log(f"Selected template {key}.")
+
+    def _log_effect_failure(self, message: str) -> None:
+        self._append_log(f"Effect indexing failed: {message}")
+
+    def _log_preview_status(self, message: str) -> None:
+        if message and message != self._last_preview_message:
+            self._append_log(f"Preview: {message}")
+        self._last_preview_message = message
 
     def changeEvent(self, event: QEvent) -> None:  # noqa: N802 - QWidget API
         super().changeEvent(event)
@@ -290,6 +327,7 @@ class NewItemStudioTab(QWidget):
         if self.controller.busy:
             return
         self._read_failure.begin()
+        self.controller.log_message.emit("Reading archives for New Item...")
         fresh_install = self._refresh_after_install
         entries = () if fresh_install else tuple(self._get_entries() or ())
         package_root: Optional[Path] = None
@@ -336,6 +374,7 @@ class NewItemStudioTab(QWidget):
                 self._progress.setVisible(False)
 
     def _snapshot_failed(self, message: str) -> None:
+        self._append_log(f"Archive read failed: {message}")
         update_note = self._snapshot_game_update_note(message)
         if update_note:
             message = f"{message}\n\n{update_note}"
@@ -351,6 +390,7 @@ class NewItemStudioTab(QWidget):
 
     def _snapshot_ready(self) -> None:
         self._read_failure.clear()
+        self._append_log("Preparing the New Item workspace...")
         self._record_snapshot_game_compatibility()
         if self._panels_built:
             self.template_panel._refresh_matches()
@@ -370,6 +410,7 @@ class NewItemStudioTab(QWidget):
         except (RuntimeError, TypeError):
             pass
         self._mount_panels()
+        self._append_log("New Item workspace ready.")
         self.controller.start_effect_index()
         if self._pending_template is not None:
             key, self._pending_template = self._pending_template, None
@@ -386,9 +427,6 @@ class NewItemStudioTab(QWidget):
         if self._panels_built:
             return
         self._panels_built = True
-        self._layout.removeWidget(self._bootstrap)
-        self._bootstrap.setParent(None)
-        self._bootstrap.deleteLater()
 
         controller = self.controller
         self.template_panel = TemplatePanel(controller)
@@ -400,8 +438,11 @@ class NewItemStudioTab(QWidget):
         )
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
+        self.model_panel.preview.status_changed.connect(self._log_preview_status)
         self.template_panel.mount_preview(self.model_panel.preview)
         self.output_panel = OutputPanel(controller)
+        controller.log_message.disconnect(self.output_panel.append_log)
+        self.output_panel.log.setDocument(self.log.document())
         controller.install_finished.connect(self._after_install_finished)
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
@@ -471,6 +512,9 @@ class NewItemStudioTab(QWidget):
         footer.addWidget(self.output_panel.actions)
         body_layout.addLayout(footer)
         self._layout.addWidget(body, 1)
+        self._layout.removeWidget(self._bootstrap)
+        self._bootstrap.hide()
+        self._bootstrap.deleteLater()
         controller.template_changed.connect(self._refresh_summary)
         controller.model_changed.connect(self._refresh_summary)
         controller.plan_ready.connect(self._refresh_summary)
@@ -601,6 +645,8 @@ class NewItemStudioTab(QWidget):
         )
         self.step_hint.setText(f"Step {row + 1} of {self.pages.count()}")
         self._refresh_summary()
+        if row != previous:
+            self._append_log(f"Opened New Item step {row + 1} of {self.pages.count()}.")
 
     def _prompt_for_staged_effect(self) -> str:
         prompt = QMessageBox(self)

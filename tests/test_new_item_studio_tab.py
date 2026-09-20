@@ -142,6 +142,25 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         tab.close()
         tab.deleteLater()
 
+    def test_startup_log_survives_panel_mount_and_records_preview_diagnostics(self) -> None:
+        recorded = []
+        window = SimpleNamespace(_set_last_active_operation=lambda operation, **fields: recorded.append((operation, fields)))
+        tab = self._tab(window=window)
+        document = tab.log.document()
+        self.assertIn("Read the archives", document.toPlainText())
+        self.assertFalse(hasattr(tab, "output_panel"))
+        tab.start_snapshot()
+        self.assertIs(document, tab.output_panel.log.document())
+        self.assertIn("Opening the archive catalogue", document.toPlainText())
+        tab.controller.log_message.emit("One operation message")
+        self.assertEqual(document.toPlainText().count("One operation message"), 1)
+        tab.model_panel.preview.status_changed.emit("Loading model textures…")
+        self.assertIn("Preview: Loading model textures", document.toPlainText())
+        self.assertEqual(recorded[-1][0], "new_item")
+        self.assertIn("Loading model textures", recorded[-1][1]["message"])
+        self.assertGreaterEqual(recorded[-1][1]["elapsed_seconds"], 0)
+        self.assertEqual(document.maximumBlockCount(), 1000)
+
     def test_translucency_controls_update_draft_and_resident_viewport(self) -> None:
         from PySide6.QtCore import Qt
         from unittest.mock import PropertyMock

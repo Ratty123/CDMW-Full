@@ -76,6 +76,8 @@ class LazyToolTabTests(unittest.TestCase):
         tabs.setCurrentWidget(lazy)
         self.app.processEvents()
         self.assertTrue(lazy.findChild(QProgressBar, "LazyToolLoadingProgress").isVisible())
+        self.assertTrue(lazy._loading_label.isVisible())
+        self.assertEqual(lazy._loading_label.text(), "Opening tool...")
         self.assertTrue(self._process_until(lambda: lazy.widget_if_created() is not None))
         self.assertEqual(1, len(builds))
         self.assertEqual("pong", lazy.ping())

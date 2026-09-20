@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, Mapping, Optional, Tuple
 
 from cdmw.core.effect_binary import EffectBinaryError, EffectDocument, decode_effect_binary
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.new_item_snapshot import EFFECT_DIR, NewItemSnapshot
 
 __all__ = [
@@ -157,11 +158,12 @@ def effect_facts_from_document(stem: str, document: EffectDocument) -> EffectFac
     )
 
 
-def catalogue_signature(snapshot: NewItemSnapshot) -> str:
+def catalogue_signature(snapshot: NewItemSnapshot, *, stop_event=None) -> str:
     """Definition paths, archive locations and sizes, including dependent presets."""
     from cdmw.services.effect_catalogue_dependencies import effect_binary_entries
     digest = hashlib.sha256()
-    for path, entry in effect_binary_entries(snapshot):
+    for path, entry in effect_binary_entries(snapshot, stop_event=stop_event):
+        raise_if_cancelled(stop_event, 'Effect indexing cancelled.')
         values = (path, *(str(getattr(entry, key, '')) for key in ('orig_size','comp_size','offset','paz_idx','pamt_path')))
         digest.update('\0'.join(values).encode('utf-8'))
         digest.update(b'\n')
@@ -179,7 +181,7 @@ def build_effect_catalogue(
     """Read and decode every effect the snapshot names (or `stems`) into a catalogue."""
 
     wanted = sorted(stems) if stems is not None else sorted(snapshot.effect_stems)
-    catalogue = EffectCatalogue(signature=catalogue_signature(snapshot))
+    catalogue = EffectCatalogue(signature=catalogue_signature(snapshot, stop_event=stop_event))
     total = len(wanted)
     from cdmw.services.effect_catalogue_dependencies import DependencyIndex
     def check_cancelled():
@@ -207,7 +209,7 @@ def build_effect_catalogue(
     if on_log is not None:
         indexed = len(catalogue.facts)
         broken = sum(1 for item in catalogue.facts.values() if item.walk_note)
-        on_log(f"Indexed {indexed} effects; {broken} did not decode.")
+        on_log(f"Indexed {indexed} effects; {broken} have incomplete metadata.")
     return catalogue
 
 

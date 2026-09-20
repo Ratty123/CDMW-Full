@@ -40,11 +40,11 @@ def build_effect_catalogue_in_subprocess(
     index, snapshot, and reader closure remain in their owning process.
     """
     raise_if_cancelled(stop_event)
-    signature = catalogue_signature(snapshot)
+    signature = catalogue_signature(snapshot, stop_event=stop_event)
     wanted = sorted(snapshot.effect_stems)
     effect_paths = {f'{EFFECT_DIR}{stem}.pae': stem for stem in wanted}
     definitions = [(path, snapshot.entry(path)) for path in effect_paths if snapshot.has_entry(path)]
-    definitions += [(path, entry) for path, entry in effect_binary_entries(snapshot) if path not in effect_paths and path.endswith(('.paem','.parg','.pasg'))]
+    definitions += [(path, entry) for path, entry in effect_binary_entries(snapshot, stop_event=stop_event) if path not in effect_paths and path.endswith(('.paem','.parg','.pasg'))]
     with TemporaryDirectory(prefix="cdmw_effect_catalogue_") as folder:
         root = Path(folder)
         rows = []
@@ -103,7 +103,7 @@ def build_effect_catalogue_in_subprocess(
         if catalogue is None or set(catalogue.facts) != {row["stem"] for row in rows if row['stem']}:
             raise RuntimeError("Effect indexing did not produce a complete metadata catalogue.")
         if on_log is not None:
-            on_log(f"Indexed {len(catalogue)} effects; {sum(bool(item.walk_note) for item in catalogue.facts.values())} did not decode.")
+            on_log(f"Indexed {len(catalogue)} effects; {sum(bool(item.walk_note) for item in catalogue.facts.values())} have incomplete metadata.")
         return catalogue
 
 

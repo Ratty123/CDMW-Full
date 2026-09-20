@@ -4,6 +4,21 @@ Owns the Create New Item tab: clone an equipment item into a brand-new one with
 its own identity, model, icon, stats, shop placement and item groups, then write
 it as a loose mod or install it.
 
+Current Tool Log is available as soon as the tab opens. The same bounded document
+keeps archive-read progress, template changes, preview status, effect indexing and
+Output messages, including messages emitted before the workspace is built. These
+stages also enter `diagnostics_current.jsonl` through the shell's persisted activity
+recorder, with elapsed time and the selected template key. Optional tool loading
+shows a loading label before construction; archive loading keeps its placeholder
+until the workspace has been constructed.
+
+Effects cache validation uses the snapshot's indexed effect-definition paths,
+including emitter and preset dependencies. It never materializes unrelated model
+or texture entries. Cancellation is checked while gathering and hashing definitions.
+Background indexing reports progress and a bounded sample of incomplete metadata
+with effect names and decoder reasons; incomplete metadata does not block template
+selection. The Effects library retains the individual details.
+
 Before planning, the worker checks the snapshot's archive/index revisions and
 refreshes changed sources, including overlays removed by a mod manager or Steam
 verification. The draft remains intact. Overlay output defaults to Auto; the

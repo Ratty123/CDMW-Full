@@ -122,6 +122,7 @@ class NewItemSnapshot:
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
     _index_maps: Optional[Tuple[Mapping[str, Sequence[ArchiveEntry]], Mapping[str, Sequence[ArchiveEntry]]]] = field(default=None, repr=False)
+    _effect_binary_paths: Optional[Tuple[str, ...]] = field(default=None, repr=False)
 
     # ------------------------------------------------------------------ lookups
 
@@ -545,14 +546,24 @@ def build_snapshot(
         for path in model_paths
         if path.startswith(MODEL_ROOT) and path.endswith(".pac")
     )
-    effect_candidates = entries_by_extension.get(".pae", ()) if entries_by_extension else (
-        entry for path, entry in by_path.items() if path.startswith(EFFECT_DIR) and path.endswith(".pae")
-    )
-    effect_paths = (
-        str(entry.path).replace("\\", "/").strip("/").lower()
-        for entry in effect_candidates
-        if sources.accepts(entry)
-    )
+    from cdmw.services.effect_catalogue_dependencies import EFFECT_BINARY_EXTENSIONS
+
+    if entries_by_extension:
+        effect_candidates = (
+            entry for extension in EFFECT_BINARY_EXTENSIONS
+            for entry in entries_by_extension.get(extension, ())
+        )
+        candidate_paths = (
+            str(entry.path).replace("\\", "/").strip("/").lower()
+            for entry in effect_candidates if sources.accepts(entry)
+        )
+    else:
+        candidate_paths = iter(by_path)
+    effect_paths = set()
+    for path in candidate_paths:
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
+        if path.startswith("effect/binary__/") and path.endswith(EFFECT_BINARY_EXTENSIONS):
+            effect_paths.add(path)
     effect_stems = frozenset(
         path[len(EFFECT_DIR):-4]
         for path in effect_paths
@@ -591,6 +602,7 @@ def build_snapshot(
         provenance=provenance,
         pathc=pathc,
         effect_stems=effect_stems,
+        _effect_binary_paths=tuple(sorted(effect_paths)),
         _item_display_names=item_display_names,
         _item_localized_names=item_localized_names,
         _index_maps=(entries_by_normalized_path, entries_by_basename)

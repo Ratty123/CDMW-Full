@@ -58,7 +58,7 @@ def test_real_child_preserves_facts_read_errors_and_progress(monkeypatch, tmp_pa
     assert actual == expected
     assert progress[0] == (0, 4, "good")
     assert progress[-1] == (3, 3, "unreadable")
-    assert logs == ["Indexed 3 effects; 2 did not decode."]
+    assert logs == ["Indexed 3 effects; 2 have incomplete metadata."]
     assert not tuple(tmp_path.iterdir())
 
 
@@ -89,6 +89,25 @@ def test_lane_does_not_report_process_cancellation_as_an_indexing_failure(monkey
     lane.completed.connect(lambda *args: completed.append(args))
     assert lane.start(_snapshot())
     assert not failures and not completed
+
+
+def test_cached_metadata_reports_decoder_reasons_without_reindexing(monkeypatch, tmp_path):
+    from cdmw.services.effect_catalogue import save_effect_catalogue
+    from cdmw.workers import effect_catalogue_worker
+
+    snapshot = _snapshot()
+    cache = tmp_path / "effects.json"
+    save_effect_catalogue(build_effect_catalogue(snapshot), cache)
+    monkeypatch.setattr(effect_catalogue_worker, "build_effect_catalogue", lambda *args, **kwargs: pytest.fail("Cache hit must not decode again"))
+    lane = effect_catalogue_worker.EffectCatalogueIndexLane(synchronous=True)
+    logs, completed = [], []
+    lane.log_message.connect(logs.append)
+    lane.completed.connect(lambda *args: completed.append(args))
+    assert lane.start(snapshot, cache_path=cache)
+    assert len(completed) == 1
+    assert logs[0] == "Checking effect metadata cache..."
+    assert any("[unreadable]: owned fixture read failed" in message for message in logs)
+    assert any("[malformed]:" in message for message in logs)
 
 
 def test_cancel_running_child_reaps_it_before_spool_cleanup(monkeypatch, tmp_path):

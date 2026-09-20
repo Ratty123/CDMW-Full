@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -67,7 +68,15 @@ class EffectCatalogueIndexLane(QObject):
         self._pending_request = None
 
         def task(log, stop_event: threading.Event):
-            signature = catalogue_signature(snapshot)
+            def report_issues(catalogue):
+                issues = [item for item in catalogue.facts.values() if item.walk_note]
+                for item in issues[:5]:
+                    log(f"Effect metadata warning [{item.stem}]: {item.walk_note[:400]}")
+                if len(issues) > 5:
+                    log(f"{len(issues) - 5} more effects have incomplete metadata; see the Effects library for details.")
+
+            log("Checking effect metadata cache...")
+            signature = catalogue_signature(snapshot, stop_event=stop_event)
             if cache_path is not None:
                 self.progress.emit(0, 0, "Loading cached effect metadata…")
                 catalogue = load_effect_catalogue(cache_path, signature=signature)
@@ -75,19 +84,32 @@ class EffectCatalogueIndexLane(QObject):
                     raise RuntimeError("Effect indexing cancelled.")
                 if catalogue is not None:
                     log(f"Loaded {len(catalogue)} effects from the metadata cache.")
+                    report_issues(catalogue)
                     return generation, snapshot, catalogue
 
             try:
+                log("Indexing effect metadata in the background...")
+                last_progress = 0.0
+
+                def report_progress(done, total, stem):
+                    nonlocal last_progress
+                    self.progress.emit(done, total, stem)
+                    now = time.monotonic()
+                    if now - last_progress >= 2.0 or done == total:
+                        last_progress = now
+                        log(f"Effects: {done}/{total} decoded; {stem}")
+
                 catalogue = build_effect_catalogue(
                     snapshot,
                     on_log=log,
-                    on_progress=lambda done, total, stem: self.progress.emit(done, total, stem),
+                    on_progress=report_progress,
                     stop_event=stop_event,
                 )
             except RunCancelled as exc:
                 raise RuntimeError("Effect indexing cancelled.") from exc
             if stop_event.is_set():
                 raise RuntimeError("Effect indexing cancelled.")
+            report_issues(catalogue)
             if cache_path is not None:
                 self.progress.emit(len(catalogue), len(catalogue), "Saving effect metadata cache…")
                 try:

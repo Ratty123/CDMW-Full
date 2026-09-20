@@ -3,11 +3,23 @@ from dataclasses import dataclass, replace
 
 from cdmw.core.effect_binary import EffectBinaryError, decode_effect_binary
 from cdmw.core.effect_edit import emitter_paths_of, preset_names_of, preset_path
+from cdmw.domain.cancellation import raise_if_cancelled
+
+EFFECT_BINARY_EXTENSIONS = ('.pae', '.paem', '.parg', '.pasg')
 
 
-def effect_binary_entries(snapshot):
-    return sorted((path, entry) for path, entry in snapshot.entries.items()
-                  if path.startswith('effect/binary__/') and path.endswith(('.pae', '.paem', '.parg', '.pasg')))
+def effect_binary_entries(snapshot, *, stop_event=None):
+    # A resident mapping decodes ArchiveEntry values on access. Iterating items()
+    # decoded millions of unrelated entries just to check an effects cache hit.
+    paths = getattr(snapshot, '_effect_binary_paths', None)
+    paths = snapshot.entries if paths is None else paths
+    found = []
+    raise_if_cancelled(stop_event, 'Effect indexing cancelled.')
+    for path in paths:
+        raise_if_cancelled(stop_event, 'Effect indexing cancelled.')
+        if path.startswith('effect/binary__/') and path.endswith(EFFECT_BINARY_EXTENSIONS):
+            found.append((path, snapshot.entries[path]))
+    return sorted(found)
 
 
 @dataclass(frozen=True)

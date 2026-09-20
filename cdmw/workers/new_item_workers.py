@@ -108,6 +108,7 @@ def snapshot_task(
 
         warmup = NewItemPreviewWarmup(native_preview_core_cache_root, warmup_settings, stop_event)
         try:
+            log("Opening the archive catalogue for New Item...")
             catalogue = resident_source.open(stop_event, package_root=package_root) if resident_source is not None else None
             listed = frozen
             stale_listing = bool(package_root and listed and any(
