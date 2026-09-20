@@ -32,6 +32,7 @@ class StudioLoadingMixin:
         self._mesh_requested = None
         self._model_loading = True
         baseline, needs_edits = self._baseline, self._edits is None
+        resident_source = self._resident_source
         self._weapon_box.setEnabled(False)
         self.statusBar().showMessage("Loading...")
 
@@ -40,11 +41,15 @@ class StudioLoadingMixin:
             selected = model or next(iter(models), "")
             if cancelled():
                 return None
-            session = PlacementSession.from_baseline(baseline, selected) if selected else None
+            prepared_baseline = baseline
+            if selected and resident_source is not None:
+                from .loading import prepare_model_baseline
+                prepared_baseline = prepare_model_baseline(baseline, selected, resident_source, cancelled)
+            session = PlacementSession.from_baseline(prepared_baseline, selected) if selected else None
             if cancelled():
                 return None
-            edits = session_from_baseline(baseline) if needs_edits else None
-            return models, session, edits
+            edits = session_from_baseline(prepared_baseline) if needs_edits else None
+            return models, session, edits, prepared_baseline
 
         self._model_task.submit(work)
 
@@ -56,7 +61,7 @@ class StudioLoadingMixin:
         if error or result is None:
             self.statusBar().showMessage(error)
             return
-        models, session, edits = result
+        models, session, edits, baseline = result
         if models:
             self._model_box.blockSignals(True)
             self._model_box.clear()
@@ -69,6 +74,7 @@ class StudioLoadingMixin:
         if self._session is not None and self._session.model != session.model:
             self._armour_choice = {}
         self._session = session
+        self._baseline = baseline
         if edits is not None:
             self._edits = edits
         self._populate_armour()
@@ -99,9 +105,10 @@ class StudioLoadingMixin:
             return False
         self._mesh_requested = key
         reuse = self._mesh_body_ready == body_key
-        context = (parsed, index, self._baseline)
-        if (len(self._mesh_cache_context) != len(context) or
-                any(a is not b for a, b in zip(context, self._mesh_cache_context))):
+        # Worker keys include source stamps and complete rig content. A character
+        # or catalogue object change must not discard reusable decoded geometry.
+        context = (str(self._baseline.root),)
+        if self._mesh_cache_context != context:
             self._mesh_part_cache.clear()
             self._mesh_cache_context = context
 
@@ -161,7 +168,7 @@ class StudioLoadingMixin:
 
         def size(value):
             _, mesh, proxy = value
-            arrays = sum(getattr(getattr(mesh, field, None), 'nbytes', 0)
+            arrays = getattr(mesh, 'nbytes', 0) + sum(getattr(getattr(mesh, field, None), 'nbytes', 0)
                          for field in ('rest', 'faces', 'bones', 'weights'))
             # Conservative allowance for the Python objects in an unskinned fallback.
             return arrays + (256 * (len(proxy.vertices) + len(proxy.triangles)) if proxy else 0)

@@ -7638,7 +7638,10 @@ class RustMeshAuthoringSession:
         *,
         stop_event: threading.Event | None = None,
     ) -> None:
-        mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=True)
+        # create() has not published this session yet. Its worker exclusively
+        # owns the shadow until the complete package is returned, so serializers
+        # can read that isolated document without another native clone/export.
+        mesh = self.shadow_service.working_mesh(self.shadow_session_id, clone=False)
         document = _atomic_write_payload(
             self.root,
             "document.json",

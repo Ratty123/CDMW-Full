@@ -44,9 +44,9 @@ class ItemDataSources:
         return (self.mount_priorities.get(source_package(entry), 0), *archive_entry_load_priority(entry))
 
 
-def resolve_item_data_sources(entries: Iterable[ArchiveEntry]) -> ItemDataSources:
+def resolve_item_data_sources(entries: Iterable[ArchiveEntry], *, pamt_paths: Iterable[Path] = ()) -> ItemDataSources:
     candidates: dict[str, list[ArchiveEntry]] = defaultdict(list)
-    pamt_paths = set()
+    pamt_paths = {str(path) for path in pamt_paths}
     for entry in entries:
         pamt_paths.add(str(entry.pamt_path))
         path = entry.path.replace("\\", "/").strip("/").lower()

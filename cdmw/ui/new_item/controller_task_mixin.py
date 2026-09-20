@@ -78,6 +78,7 @@ class NewItemTaskControllerMixin:
         entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         native_preview_core_cache_root: Optional[Path] = None,
         preview_render_settings: object = None,
+        resident_source=None,
     ) -> bool:
         """Read the tables from `entries`, or, with none, list the archives under
         `package_root` first (the shell's catalogue backend leaves the legacy list empty)."""
@@ -96,6 +97,7 @@ class NewItemTaskControllerMixin:
             entries_by_extension=entries_by_extension,
             native_preview_core_cache_root=native_preview_core_cache_root,
             preview_render_settings=preview_render_settings,
+            resident_source=resident_source,
         )
 
         def done(result: object) -> None:

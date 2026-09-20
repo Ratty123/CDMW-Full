@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -44,6 +45,7 @@ from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
 from cdmw.ui.new_item.read_failure import ArchiveReadFailurePanel
+from cdmw.ui.new_item.state import stats_summary
 from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, note, step_style, tinted
 from cdmw.ui.new_item.workflow_header import WorkflowHeader, WorkflowStepState
 
@@ -137,6 +139,9 @@ class NewItemStudioTab(QWidget):
         self._pending_template: Optional[int] = None
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
+        self._stats_panel = None
+        self._perks_panel = None
+        self._placement_panel = None
         preview_settings_provider = getattr(getattr(window, "archive", None), "_current_model_preview_render_settings", None)
         self._preview_render_settings: ModelPreviewRenderSettings = clamp_model_preview_render_settings(
             preview_settings_provider() if callable(preview_settings_provider) else None
@@ -309,6 +314,10 @@ class NewItemStudioTab(QWidget):
         entries_by_normalized_path = None if fresh_install else getattr(self._window, "archive_entries_by_normalized_path", None)
         entries_by_basename = None if fresh_install else getattr(self._window, "archive_entries_by_basename", None)
         entries_by_extension = None if fresh_install else getattr(self._window, "archive_entries_by_extension", None)
+        from cdmw.core.archive_resident_index import ResidentArchiveSource
+        catalogue_service = getattr(getattr(self._window, "archive", None), "archive_catalogue_service", None)
+        resident_source = (ResidentArchiveSource.capture(catalogue_service, package_root)
+                           if package_root is not None and not fresh_install else None)
         self._refresh_after_install = False
         if not self.controller.start_snapshot(
             entries,
@@ -320,6 +329,7 @@ class NewItemStudioTab(QWidget):
                 self._native_preview_core_cache_root() if self._preview_cache_mode != "off" else None
             ),
             preview_render_settings=self._preview_render_settings,
+            resident_source=resident_source,
         ):
             if not self._panels_built:
                 self._read_button.setEnabled(True)
@@ -344,9 +354,12 @@ class NewItemStudioTab(QWidget):
         self._record_snapshot_game_compatibility()
         if self._panels_built:
             self.template_panel._refresh_matches()
-            self.stats_panel.rebuild()
-            self.perks_panel._refresh_all()
-            self.placement_panel._refresh_stores()
+            if self._stats_panel is not None:
+                self._stats_panel.rebuild()
+            if self._perks_panel is not None:
+                self._perks_panel._refresh_all()
+            if self._placement_panel is not None:
+                self._placement_panel._refresh_stores()
             # The install changes group membership, not the catalogue; keep its Qt item wrappers.
             self.identity_panel.refresh_issues()
             self._refresh_summary()
@@ -388,16 +401,6 @@ class NewItemStudioTab(QWidget):
         self.model_panel.preview.set_render_settings(self._preview_render_settings)
         self.model_panel.preview.set_cache_mode(self._preview_cache_mode)
         self.template_panel.mount_preview(self.model_panel.preview)
-        self.stats_panel = StatsPanel(controller)
-        self.perks_panel = PerksPanel(controller)
-        self.placement_panel = PlacementPanel(controller)
-        self.placement_panel.set_copper_price_requested.connect(self.stats_panel.set_copper_price)
-        self.stats_panel.views.removeTab(self.stats_panel.views.indexOf(self.stats_panel.recipes))
-        self.stats_panel.views.tabBar().hide()
-        self.placement_panel.mount_recipes(self.stats_panel.recipes)
-        self.stats_panel.recipes_requested.connect(self._show_recipes)
-        self.placement_panel.recipes_requested.connect(self._show_recipes)
-        self.stats_panel.price_state_changed.connect(self.placement_panel.refresh_price_state)
         self.output_panel = OutputPanel(controller)
         controller.install_finished.connect(self._after_install_finished)
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
@@ -421,27 +424,13 @@ class NewItemStudioTab(QWidget):
         self.steps = WorkflowHeader()
         self.steps.setObjectName("new_item_steps")
         self.pages = QStackedWidget()
-        self._panels = (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel)
+        # Each page owns its scrolling/responsive splitters. A hidden page's
+        # narrow initial layout must not pin the whole window to that height.
+        self.pages.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
+        self._panels = [self.template_panel, self.identity_panel, self.model_panel,
+                        None, None, None, self.output_panel]
         for index, panel in enumerate(self._panels):
-            item = self.steps.item(index)
-            if item is not None:
-                item.setToolTip(panel.toolTip())
-            panel.setObjectName("new_item_step")
-            panel.setTitle("")
-            panel.setProperty("guidedPage", True)
-            if index in {1, 2, 4}:
-                panel.setProperty("guidedFullHeight", True)
-                # The visual workspaces own their local inspector scrollers.
-                # Wrapping either page here would make its resident viewport move when a
-                # side panel scrolls and can introduce a horizontal bar at 1280 px.
-                page = panel
-            else:
-                page = QScrollArea()
-                page.setWidgetResizable(True)
-                page.setFrameShape(QScrollArea.NoFrame)
-                page.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                page.setWidget(panel)
-            self.pages.addWidget(page)
+            self.pages.addWidget(self._page_for_panel(index, panel) if panel is not None else QWidget())
         self.steps.currentRowChanged.connect(self._show_step)
 
         # The old rail summary remains computed authority. It is hidden and projected
@@ -489,30 +478,93 @@ class NewItemStudioTab(QWidget):
         controller.plan_invalidated.connect(self._refresh_summary)
         self.identity_panel.internal_name.textChanged.connect(self._refresh_summary)
         self.identity_panel.display_name.textChanged.connect(self._refresh_summary)
-        for radio in (self.placement_panel.no_store, self.placement_panel.swap, self.placement_panel.insert):
-            radio.toggled.connect(self._refresh_summary)
-        self.placement_panel.store.currentIndexChanged.connect(self._refresh_summary)
-        self.placement_panel.old_item.currentIndexChanged.connect(self._refresh_summary)
-        self.perks_panel.use_effect.toggled.connect(self._refresh_summary)
-        self.perks_panel.effect.currentIndexChanged.connect(self._refresh_summary)
-        self.perks_panel.own_perks.toggled.connect(self._refresh_summary)
-        self.perks_panel.effects_workspace.staged_changed.connect(self._effect_staged_changed)
         # The stats tables are deliberately not wired here: every edit on that step
         # invalidates the plan, which refreshes the rail once, after the draft changed.
         # A table's itemChanged fires once per cell it is given, so listening to it ran
         # the summary, and two full validations, once per cell of every rebuild.
         self._show_step(0)
         self.template_panel._refresh_matches()
-        self.placement_panel._refresh_stores()
 
     # ------------------------------------------------------------------ steps
+
+    def _page_for_panel(self, index, panel):
+        item = self.steps.item(index)
+        if item is not None:
+            item.setToolTip(panel.toolTip())
+        panel.setObjectName("new_item_step")
+        panel.setTitle("")
+        panel.setProperty("guidedPage", True)
+        if index in {1, 2, 4}:
+            panel.setProperty("guidedFullHeight", True)
+            return panel
+        page = QScrollArea()
+        page.setWidgetResizable(True)
+        page.setFrameShape(QScrollArea.NoFrame)
+        page.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        page.setWidget(panel)
+        return page
+
+    @property
+    def stats_panel(self):
+        return self._ensure_step_panel(3)
+
+    @property
+    def perks_panel(self):
+        return self._ensure_step_panel(4)
+
+    @property
+    def placement_panel(self):
+        return self._ensure_step_panel(5)
+
+    def _ensure_step_panel(self, index):
+        panel = self._panels[index]
+        if panel is not None:
+            return panel
+        controller = self.controller
+        if index == 3:
+            panel = self._stats_panel = StatsPanel(controller)
+            panel.views.removeTab(panel.views.indexOf(panel.recipes))
+            panel.recipes.setParent(panel)
+            panel.recipes.hide()
+            panel.views.tabBar().hide()
+            panel.recipes_requested.connect(self._show_recipes)
+            panel.rebuild()
+        elif index == 4:
+            panel = self._perks_panel = PerksPanel(controller)
+            panel.use_effect.toggled.connect(self._refresh_summary)
+            panel.effect.currentIndexChanged.connect(self._refresh_summary)
+            panel.own_perks.toggled.connect(self._refresh_summary)
+            panel.effects_workspace.staged_changed.connect(self._effect_staged_changed)
+        elif index == 5:
+            stats = self.stats_panel
+            panel = self._placement_panel = PlacementPanel(controller)
+            panel.set_copper_price_requested.connect(stats.set_copper_price)
+            panel.mount_recipes(stats.recipes)
+            panel.recipes_requested.connect(self._show_recipes)
+            stats.price_state_changed.connect(panel.refresh_price_state)
+            for radio in (panel.no_store, panel.swap, panel.insert):
+                radio.toggled.connect(self._refresh_summary)
+            panel.store.currentIndexChanged.connect(self._refresh_summary)
+            panel.old_item.currentIndexChanged.connect(self._refresh_summary)
+            panel._refresh_stores()
+        else:
+            raise ValueError(f"No deferred page {index}")
+        self._panels[index] = panel
+        old = self.pages.widget(index)
+        self.pages.removeWidget(old)
+        self.pages.insertWidget(index, self._page_for_panel(index, panel))
+        old.deleteLater()
+        return panel
+
+    def _has_staged_effect_changes(self):
+        return self._perks_panel is not None and self._perks_panel.has_staged_effect_changes()
 
     def _show_step(self, row: int) -> None:
         if self._syncing_step or not 0 <= int(row) < self.pages.count():
             return
         row = int(row)
         previous = int(self._current_step)
-        if self._panels_built and previous == 4 and row != 4 and self.perks_panel.has_staged_effect_changes():
+        if self._panels_built and previous == 4 and row != 4 and self._has_staged_effect_changes():
             action = str(self._effect_dirty_prompt() or "stay").casefold()
             if action == "apply":
                 if not self.perks_panel.apply_staged_effect():
@@ -531,6 +583,7 @@ class NewItemStudioTab(QWidget):
         # is settling on it, and the steps after read the template
         if self._panels_built:
             self.template_panel.apply_pending_pick()
+        self._ensure_step_panel(row)
         self._current_step = row
         if row == 0:
             self.template_panel.mount_preview(self.model_panel.preview)
@@ -544,7 +597,7 @@ class NewItemStudioTab(QWidget):
         self.output_panel.actions.setVisible(row == 6)
         self.continue_button.setEnabled(
             row < self.pages.count() - 1
-            and not (row == 4 and self.perks_panel.has_staged_effect_changes())
+            and not (row == 4 and self._has_staged_effect_changes())
         )
         self.step_hint.setText(f"Step {row + 1} of {self.pages.count()}")
         self._refresh_summary()
@@ -627,12 +680,19 @@ class NewItemStudioTab(QWidget):
             lines.append(note(f"Model: {imported.label if imported is not None else 'imported'}, placed", EDIT))
         else:
             lines.append(note("Model: the template's", OK))
-        stats_text, stats_changed = self.stats_panel.summary_text()
+        stats_text, stats_changed = (self._stats_panel.summary_text() if self._stats_panel is not None
+                                     else stats_summary(draft, controller.stat_grid()))
         lines.append(note(stats_text, EDIT if stats_changed else OK))
-        perks_text, perks_changed = self.perks_panel.perks_summary()
+        selected = draft.socket_items
+        template_perks = tuple(controller.template_socket_items())
+        perks_changed = selected is not None and tuple(selected) != template_perks
+        perks_text = (f"Perks: {len(selected)} custom" if perks_changed
+                      else f"Perks: template list ({len(template_perks)})")
         lines.append(note(perks_text, EDIT if perks_changed else OK))
-        effect_text, effect_changed = self.perks_panel.effect_summary()
-        effect_tone = WARN if self.perks_panel.has_staged_effect_changes() else EDIT if effect_changed else OK
+        stem = str(draft.effect_stem or "")
+        effect_text, effect_changed = ((f"Visual effect: {stem} (visual only)", True)
+                                       if stem else ("Visual effect: none", False))
+        effect_tone = WARN if self._has_staged_effect_changes() else EDIT if effect_changed else OK
         lines.append(note(effect_text, effect_tone))
         if draft.placement_kind.value != "none" and draft.store_name:
             lines.append(note(f"Shop: {draft.store_name}", OK))
@@ -672,7 +732,7 @@ class NewItemStudioTab(QWidget):
             model_context,
             stats_text,
             f"{perks_text}; {effect_text}"
-            + ("; staged placement must be applied or discarded" if self.perks_panel.has_staged_effect_changes() else ""),
+            + ("; staged placement must be applied or discarded" if self._has_staged_effect_changes() else ""),
             distribution_context,
             output_context,
         )
@@ -702,7 +762,7 @@ class NewItemStudioTab(QWidget):
             mark_attention(1, WorkflowStepState.BLOCKED)
         if imported is not None and model_result is None:
             mark_attention(2, WorkflowStepState.BLOCKED)
-        if self.perks_panel.has_staged_effect_changes():
+        if self._has_staged_effect_changes():
             mark_attention(4, WorkflowStepState.WARNING)
         if controller.plan is None:
             mark_attention(6, WorkflowStepState.WARNING)
@@ -1017,14 +1077,16 @@ class NewItemStudioTab(QWidget):
         workers = list(self.controller.iter_shutdown_workers())
         if self._panels_built:
             workers.extend(self.model_panel.iter_shutdown_workers())
-            workers.extend(self.perks_panel.iter_shutdown_workers())
+            if self._perks_panel is not None:
+                workers.extend(self._perks_panel.iter_shutdown_workers())
         return tuple(workers)
 
     def request_shutdown(self) -> None:
         self.controller.request_shutdown()
         if self._panels_built:
             self.model_panel.request_shutdown_preview()
-            self.perks_panel.request_shutdown()
+            if self._perks_panel is not None:
+                self._perks_panel.request_shutdown()
 
     def shutdown(self) -> None:
         self.request_shutdown()

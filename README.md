@@ -327,6 +327,12 @@ ready; cancelled or superseded work cannot replace it.
 Playback reuses bone lookup, bind-transform and mesh-topology data and projects
 the skeleton in batches without reducing the displayed mesh detail.
 
+When Full's archive catalogue is available, Placement reuses it for baseline files,
+wearables and clips. First use prepares the selected character's geometry; other
+characters are prepared when selected. Geometry can be reused across character
+switches while source files and rig bindings remain valid, within the existing
+memory budget. Standalone use retains its existing catalogue caches.
+
 The replacement workspace keeps equipment, linked parts, destination, animation
 selection, comparison and checks together. Start with **Equipment**, **Placement**
 and **Animation** on the left, then use **Prepare preview** above the comparison.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.ui.mesh_editor.workspace_lazy_panels import defer_panel_update
+
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
@@ -105,6 +107,7 @@ from cdmw.ui.mesh_editor.workspace_views import (
 
 class WorkspaceStateMixin:
     def button_for_key(self, key: str) -> QToolButton | None:
+        self._ensure_legacy_panels()
         return self._buttons_by_key.get(str(key or ""))
 
     def set_action_visibility(self, visible_action_keys: object) -> None:
@@ -112,6 +115,7 @@ class WorkspaceStateMixin:
             visible = {str(key or "").strip() for key in visible_action_keys}
         except TypeError:
             visible = set()
+        self._visible_action_keys = visible
         for key, button in self._buttons_by_key.items():
             button.setVisible(key in visible)
         for key, button in self._uv_action_buttons.items():
@@ -139,6 +143,7 @@ class WorkspaceStateMixin:
         self.update()
 
     def sync_ui_font(self, font: QFont, data_font: QFont | None = None) -> None:
+        self._panel_fonts = (QFont(font), QFont(data_font or font))
         ui_font = QFont(font)
         dense_font = QFont(data_font or ui_font)
         self._set_widget_font(self, ui_font)
@@ -168,7 +173,7 @@ class WorkspaceStateMixin:
             "status_label",
             "part_status_label",
         ):
-            self._set_widget_font(getattr(self, name, None), ui_font)
+            self._set_widget_font(self.__dict__.get(name), ui_font)
         for button in self._buttons_by_key.values():
             self._set_widget_font(button, ui_font)
         for widget in self._ui_font_widgets:
@@ -191,7 +196,7 @@ class WorkspaceStateMixin:
             "compare_tree",
             "log_list",
         ):
-            widget = getattr(self, name, None)
+            widget = self.__dict__.get(name)
             self._set_widget_font(widget, dense_font)
             header = widget.header() if isinstance(widget, QTreeWidget) else None
             self._set_widget_font(header, dense_font)
@@ -216,6 +221,10 @@ class WorkspaceStateMixin:
         native_editor_available: bool = True,
         authoring_blockers: Mapping[str, str] | None = None,
     ) -> None:
+        self._last_action_state = dict(has_target=has_target, selection_empty=selection_empty,
+            mode=mode, active_selection_mode=active_selection_mode, undo_count=undo_count,
+            redo_count=redo_count, native_editor_available=native_editor_available,
+            authoring_blockers=dict(authoring_blockers or {}))
         self._has_editor_target = bool(has_target)
         self._native_editor_available = bool(native_editor_available)
         self.setEnabled(bool(has_target))
@@ -238,23 +247,23 @@ class WorkspaceStateMixin:
             blocker = str(blockers.get(action.key, "") or "").strip()
             if blocker:
                 enabled = False
-            for button in (self.button_for_key(action.key), self._uv_action_buttons.get(action.key)):
+            for button in (self._buttons_by_key.get(action.key), self._uv_action_buttons.get(action.key)):
                 if button is not None:
                     button.setEnabled(enabled)
                     button.setToolTip(blocker or _workspace_action_tooltip(action))
         for name in ("uv_select_all_button", "uv_clear_selection_button"):
-            button = getattr(self, name, None)
+            button = self.__dict__.get(name)
             if button is not None:
                 button.setEnabled(bool(has_target))
-        rebuild_button = getattr(self, "run_rebuild_report_button", None)
+        rebuild_button = self.__dict__.get("run_rebuild_report_button")
         if rebuild_button is not None:
             rebuild_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
-        export_mesh_file_button = getattr(self, "export_mesh_file_button", None)
+        export_mesh_file_button = self.__dict__.get("export_mesh_file_button")
         if export_mesh_file_button is not None:
             export_mesh_file_button.setEnabled(
                 bool(has_target) and self._export_validation_ok and not self._embedded_controls_only
             )
-        dotnet_button = getattr(self, "dotnet_editor_button", None)
+        dotnet_button = self.__dict__.get("dotnet_editor_button")
         if dotnet_button is not None:
             dotnet_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
         for name in (
@@ -262,31 +271,32 @@ class WorkspaceStateMixin:
             "import_edited_package_button",
             "open_editable_package_folder_button",
         ):
-            button = getattr(self, name, None)
+            button = self.__dict__.get(name)
             if button is not None:
                 button.setEnabled(bool(has_target) and not self._embedded_controls_only)
-        save_button = getattr(self, "save_rebuild_report_button", None)
+        save_button = self.__dict__.get("save_rebuild_report_button")
         if save_button is not None:
             save_button.setEnabled(bool(has_target) and self._has_rebuild_report and not self._embedded_controls_only)
         for name in ("build_mod_button", "install_overlay_button"):
-            button = getattr(self, name, None)
+            button = self.__dict__.get(name)
             if button is not None:
                 button.setEnabled(
                     bool(has_target) and self._export_validation_ok and not self._embedded_controls_only
                 )
-        copy_validation_button = getattr(self, "copy_validation_report_button", None)
+        copy_validation_button = self.__dict__.get("copy_validation_report_button")
         if copy_validation_button is not None:
             copy_validation_button.setEnabled(
                 bool(has_target) and self._has_export_validation_report and not self._embedded_controls_only
             )
-        run_validation_button = getattr(self, "run_validation_report_button", None)
+        run_validation_button = self.__dict__.get("run_validation_report_button")
         if run_validation_button is not None:
             run_validation_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
         self._sync_part_controls()
-        compare_combo = getattr(self, "compare_mode_combo", None)
+        compare_combo = self.__dict__.get("compare_mode_combo")
         if compare_combo is not None:
             compare_combo.setEnabled(bool(has_target))
 
+    @defer_panel_update
     def update_session_summary(self, view: MeshEditSessionView | None, *, mesh_label: str = "") -> None:
         if view is None:
             self.update_object_transform(MeshObjectTransformState())
@@ -348,6 +358,7 @@ class WorkspaceStateMixin:
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         tree.addTopLevelItem(item)
 
+    @defer_panel_update
     def update_workspace_panel_state(
         self,
         state: MeshPanelSnapshot[MeshWorkspaceSummary],
@@ -356,6 +367,7 @@ class WorkspaceStateMixin:
         self.update_workspace_summary(state.value)
         self._append_panel_status(self.outliner, state)
 
+    @defer_panel_update
     def update_workspace_summary(self, summary: MeshWorkspaceSummary | None) -> None:
         self._workspace_summary = summary
         if summary is None:
@@ -414,6 +426,7 @@ class WorkspaceStateMixin:
             self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skeleton", "")))
         self._sync_part_controls()
 
+    @defer_panel_update
     def update_workspace_selection(self, selection: MeshEditSelection) -> None:
         """Refresh selection markers without rescanning immutable mesh fields."""
         self._selection_state = selection
@@ -450,6 +463,7 @@ class WorkspaceStateMixin:
         else:
             self.update_workspace_summary(updated)
 
+    @defer_panel_update
     def update_uv_panel_state(
         self,
         state: MeshPanelSnapshot[MeshUvSummary],
@@ -458,6 +472,7 @@ class WorkspaceStateMixin:
         self.update_uv_summary(state.value)
         self._append_panel_status(self.uv_tree, state)
 
+    @defer_panel_update
     def update_uv_summary(self, summary: MeshUvSummary | None) -> None:
         self._uv_summary = summary
         self.uv_canvas.set_uv_summary(summary)
@@ -493,6 +508,7 @@ class WorkspaceStateMixin:
             item.setData(0, Qt.ItemDataRole.UserRole, (island.uv_min, island.uv_max))
             self.uv_tree.addTopLevelItem(item)
 
+    @defer_panel_update
     def update_uv_selection(self, selection: object) -> None:
         """Update cached UV-island selection without rebuilding UV topology."""
         summary = self._uv_summary

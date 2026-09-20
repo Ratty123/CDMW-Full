@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.ui.mesh_editor.workspace_lazy_panels import defer_panel_update
+
 import math
 from collections.abc import Iterable, Mapping, Sequence
 
@@ -101,6 +103,7 @@ from cdmw.ui.mesh_editor.workspace_views import (
 )
 
 class WorkspaceReportMixin:
+    @defer_panel_update
     def update_compare_panel_state(
         self,
         state: MeshPanelSnapshot[MeshCompareSummary],
@@ -116,6 +119,7 @@ class WorkspaceReportMixin:
         label.setText(str(message or "Part pick: unavailable"))
         label.setProperty("nativePartPickingAvailable", bool(available))
 
+    @defer_panel_update
     def set_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
         label = getattr(self, "native_performance_status_label", None)
         current_fps = self._native_performance_number(payload, "current_fps", "fps")
@@ -278,6 +282,7 @@ class WorkspaceReportMixin:
         layout.addWidget(self.compare_tree, 1)
         return frame
 
+    @defer_panel_update
     def update_compare_summary(self, summary: MeshCompareSummary | None) -> None:
         self.compare_tree.clear()
         if summary is None:

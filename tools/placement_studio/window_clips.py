@@ -215,7 +215,9 @@ class ClipBrowserMixin:
             task.progress.connect(self._clip_index_progress)
         # Existing replacement-workspace consumers use None to mean finished.
         self._clip_scan = True
-        task.submit(lambda cancelled, progress: prepare_clip_index(root, baseline, cancelled, progress))
+        source = getattr(self, "_resident_source", None)
+        task.submit(lambda cancelled, progress: prepare_clip_index(
+            root, baseline, cancelled, progress, **({"resident_source": source} if source is not None else {})))
 
     def _clip_index_progress(self, done, total):
         bar = getattr(self, "_clip_progress", None)

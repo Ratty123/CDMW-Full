@@ -19,6 +19,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Mesh Editor opens with its hidden compatibility panels deferred and avoids redundant geometry preparation. New Item and Placement reuse Full's archive catalogue; New Item defers unvisited pages, and Placement prepares other characters on selection and retains valid decoded geometry across switches.
 - PAC export accelerates nearest donor matching for generated hair and rebuilt meshes while preserving original-record mappings and deterministic selection.
 - Hair Creator supports compatible registered hairstyles without a `_player` filename suffix. Large barber catalogues now use searchable pages, bounded background checks, and their supplied thumbnails while retaining the selected hairstyle's 3D preview.
 

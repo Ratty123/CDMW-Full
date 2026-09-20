@@ -108,7 +108,11 @@ from cdmw.ui.mesh_editor.workspace_views import (
     _constraint_solver_readiness_text,
 )
 
+from cdmw.ui.mesh_editor.workspace_lazy_panels import LazyWorkspacePanelsMixin
+
+
 class MeshEditorWorkspace(
+    LazyWorkspacePanelsMixin,
     WorkspaceStateMixin,
     WorkspaceSkeletonStateMixin,
     WorkspaceShellBuilderMixin,
@@ -149,6 +153,7 @@ class MeshEditorWorkspace(
         theme_key: str = "graphite",
         actions: Sequence[MeshEditorAction] = MESH_EDITOR_SESSION_ACTIONS,
         embedded_controls_only: bool = False,
+        defer_legacy_panels: bool = False,
         object_name: str = "MeshEditorStandaloneWorkspace",
         parent: QWidget | None = None,
     ) -> None:
@@ -178,6 +183,8 @@ class MeshEditorWorkspace(
         self._has_rebuild_report = False
         self._has_rebuilt_asset_output = False
         self._embedded_controls_only = bool(embedded_controls_only)
+        self._legacy_panels_deferred = bool(defer_legacy_panels and not embedded_controls_only)
+        self._pending_panel_updates = {}
         self._last_slow_frame_log_key: tuple[object, ...] | None = None
 
         root = QVBoxLayout(self)

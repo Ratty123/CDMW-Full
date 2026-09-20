@@ -141,7 +141,7 @@ def index_armour(game_root, *, should_stop=None) -> ArmourIndex:
     return index
 
 
-def index_wearables(game_root, *, should_stop=None, cache: bool = True):
+def index_wearables(game_root, *, should_stop=None, cache: bool = True, resident_source=None):
     """One pass for armour, weapon socket files and weapon meshes.
 
     They come from the same package tables, so scanning three times would cost three times
@@ -160,7 +160,10 @@ def index_wearables(game_root, *, should_stop=None, cache: bool = True):
             if signature != _cache_signature(game_root):
                 raise ValueError('Installation changed while reading wearable index')
             return cached
-    result = _scan_wearables(game_root, should_stop=should_stop)
+    catalogue = resident_source.open(should_stop, package_root=game_root) if resident_source is not None else None
+    result = _scan_wearables(game_root, should_stop=should_stop, resident_catalogue=catalogue)
+    if catalogue is not None:
+        catalogue.validate_sources()
     if signature != _cache_signature(game_root):
         raise ValueError('Installation changed during wearable indexing')
     if cache and (should_stop is None or not should_stop()):
@@ -168,7 +171,7 @@ def index_wearables(game_root, *, should_stop=None, cache: bool = True):
     return result
 
 
-def _scan_wearables(game_root, *, should_stop=None):
+def _scan_wearables(game_root, *, should_stop=None, resident_catalogue=None):
     """The uncached scan: every package table, once."""
 
     from .corpus import _iter_archive_entries, normalize_game_path
@@ -176,7 +179,10 @@ def _scan_wearables(game_root, *, should_stop=None):
     pieces: List[ArmourPiece] = []
     sockets: Dict[str, object] = {}
     meshes: Dict[str, object] = {}
-    if (Path(game_root) / 'meta/0.papgt').exists():
+    if resident_catalogue is not None:
+        entries = ((entry.pamt_path.parent.name, entry) for entry in
+                   resident_catalogue.matching((".pac", ".xml", ".prefab", ".paac")))
+    elif (Path(game_root) / 'meta/0.papgt').exists():
         from .relationships import active_entries
         entries = active_entries(game_root, cancelled=should_stop or (lambda: False))
     else:

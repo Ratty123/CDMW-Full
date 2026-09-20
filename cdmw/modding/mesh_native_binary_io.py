@@ -6,6 +6,8 @@ from pathlib import Path
 import struct
 from typing import Iterable, Mapping
 
+import numpy as np
+
 from cdmw.modding.mesh_native_core_constants import Face, Vec2, Vec3
 from cdmw.modding.mesh_native_core_payload_helpers import _finite_float, _index, _valid_face_triplet
 
@@ -40,13 +42,9 @@ def _read_vec3_binary_payload(path: Path, *, expected_count: int, finite_checked
         return None
     if len(raw) != expected_count * 3 * 8:
         return None
-    result = list(struct.iter_unpack("=ddd", raw))
-    if finite_checked:
-        return result
-    for x, y, z in result:
-        if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
-            return None
-    return result
+    if not finite_checked and not np.isfinite(np.frombuffer(raw, dtype="=f8")).all():
+        return None
+    return list(struct.iter_unpack("=ddd", raw))
 
 
 def _read_vec3_binary_report_payload(value: object, *, expected_count: int) -> list[Vec3] | None:
@@ -75,13 +73,9 @@ def _read_vec2_binary_report_payload(value: object, *, expected_count: int) -> l
         return None
     if len(raw) != expected_count * 2 * 8:
         return None
-    result = list(struct.iter_unpack("=dd", raw))
-    if bool(value.get("finite_checked")):
-        return result
-    for u, v in result:
-        if not (math.isfinite(u) and math.isfinite(v)):
-            return None
-    return result
+    if not bool(value.get("finite_checked")) and not np.isfinite(np.frombuffer(raw, dtype="=f8")).all():
+        return None
+    return list(struct.iter_unpack("=dd", raw))
 
 
 def _native_binary_descriptor(value: object, *, expected_count: int, components: int, kind: str) -> dict[str, object] | None:
@@ -159,11 +153,10 @@ def _read_face_binary_report_payload(value: object, *, expected_count: int, vert
         return None
     if len(raw) != expected_count * 3 * 4:
         return None
-    faces = list(struct.iter_unpack("=iii", raw))
-    for x, y, z in faces:
-        if x < 0 or y < 0 or z < 0 or x >= vertex_count or y >= vertex_count or z >= vertex_count:
-            return None
-    return faces
+    indices = np.frombuffer(raw, dtype="=i4")
+    if indices.size and (indices.min() < 0 or indices.max() >= vertex_count):
+        return None
+    return list(struct.iter_unpack("=iii", raw))
 
 
 def _read_int_binary_report_payload(value: object, *, max_count: int) -> list[int] | None:

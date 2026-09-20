@@ -164,7 +164,7 @@ class MeshEditorTabShellMixin(
         )
         return page
     def _build_standalone_workspace(self) -> QWidget:
-        page = MeshEditorWorkspace(theme_key=self.theme_key, parent=self)
+        page = MeshEditorWorkspace(theme_key=self.theme_key, defer_legacy_panels=True, parent=self)
         page.action_requested.connect(self._handle_action_requested)
         page.native_preview_requested.connect(self._start_standalone_native_preview_requested)
         page.export_editable_package_requested.connect(self._start_standalone_export_editable_package_requested)

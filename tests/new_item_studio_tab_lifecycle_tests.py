@@ -39,6 +39,30 @@ from test_new_item_service import OTHER, TEMPLATE, _read, build_package, synthet
 
 
 class _TabLifecycleMixin:
+    def test_unvisited_pages_do_not_construct_or_own_workers(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        self.assertIsNone(tab._stats_panel)
+        self.assertIsNone(tab._perks_panel)
+        self.assertIsNone(tab._placement_panel)
+        tab._refresh_summary()
+        tab.iter_shutdown_workers()
+        self.assertIsNone(tab._perks_panel)
+        tab.show_step(3)
+        self.assertIsNotNone(tab._stats_panel._grid)
+        self.assertIsNone(tab._perks_panel)
+        self.assertIsNone(tab._placement_panel)
+        tab.stats_panel.table.item(0, 0).setText("20000")
+        draft = tab.controller.draft
+        tab.show_step(5)
+        self.assertIs(tab.controller.draft, draft)
+        self.assertEqual(draft.grid_values[(0, 0)], 20000)
+        self.assertGreaterEqual(tab.placement_panel.routes_view.indexOf(tab.stats_panel.recipes), 0)
+        self.assertIsNone(tab._perks_panel)
+        tab.show_step(4)
+        self.assertIsNotNone(tab._perks_panel)
+        self.assertIs(tab.pages.currentWidget(), tab.perks_panel)
+
     def test_an_install_reads_the_archives_again(self) -> None:
         """The installed item is only in the snapshot after a re-read, so the studio does
         one itself; without it the next item would be allocated the same key."""

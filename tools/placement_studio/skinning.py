@@ -254,7 +254,7 @@ def _bone_column(palette: tuple, primary, rest_array, skeleton):
     return np.asarray([mapping.get(slot, 0) for slot in primary], dtype=np.int32), False
 
 
-def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
+def load_skinned(data: bytes, path: str, skeleton, *, parsed_mesh=None) -> Optional[SkinnedMesh]:
     """Decode a `.pac` and bind its primary influences onto `skeleton`.
 
     Returns None when the file carries no skin data, or when the derived mapping cannot place
@@ -264,7 +264,7 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
     from cdmw.modding.mesh_parser import parse_mesh
 
     name = path.rsplit("/", 1)[-1]
-    parsed = parse_mesh(data, name)
+    parsed = parse_mesh(data, name) if parsed_mesh is None else parsed_mesh
     if not parsed.submeshes or not parsed.has_bones:
         return None
     # The current PAC parser resolves up to eight weighted influences. Use them

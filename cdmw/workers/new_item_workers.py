@@ -91,6 +91,7 @@ def snapshot_task(
     entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     native_preview_core_cache_root: Optional[Path] = None,
     preview_render_settings: object = None,
+    resident_source=None,
 ) -> Callable[[LogSink, threading.Event], NewItemSnapshot]:
     """Read every table a new item touches; seconds of work, once per archive scan.
 
@@ -107,12 +108,15 @@ def snapshot_task(
 
         warmup = NewItemPreviewWarmup(native_preview_core_cache_root, warmup_settings, stop_event)
         try:
+            catalogue = resident_source.open(stop_event, package_root=package_root) if resident_source is not None else None
             listed = frozen
             stale_listing = bool(package_root and listed and any(
                 not Path(path).is_file()
                 for path in {entry.pamt_path for entry in listed} | {entry.paz_file for entry in listed}
             ))
-            if not listed or stale_listing:
+            if catalogue is not None:
+                warmup.offer(catalogue.matching((".pac",)))
+            elif not listed or stale_listing:
                 if package_root is None:
                     raise ValueError("The archive list is empty and no package root was given.")
                 listed = list_archive_entries(Path(package_root), log, stop_event, preview_warmup=warmup)
@@ -126,6 +130,7 @@ def snapshot_task(
                 entries_by_normalized_path=None if stale_listing else entries_by_normalized_path,
                 entries_by_basename=None if stale_listing else entries_by_basename,
                 entries_by_extension=None if stale_listing else entries_by_extension,
+                resident_catalogue=catalogue,
             )
         finally:
             warmup.finish()

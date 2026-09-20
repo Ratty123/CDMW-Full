@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.ui.mesh_editor.workspace_lazy_panels import defer_panel_update
+
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
@@ -101,6 +103,7 @@ from cdmw.ui.mesh_editor.workspace_views import (
 )
 
 class WorkspaceSkeletonStateMixin:
+    @defer_panel_update
     def update_skeleton_panel_state(
         self,
         state: MeshPanelSnapshot[MeshSkeletonSummary],
@@ -109,6 +112,7 @@ class WorkspaceSkeletonStateMixin:
         self.update_skeleton_summary(state.value)
         self._append_panel_status(self.skeleton_tree, state)
 
+    @defer_panel_update
     def update_skeleton_summary(self, summary: MeshSkeletonSummary | None) -> None:
         self._skeleton_summary = summary
         self.skeleton_tree.clear()
@@ -143,6 +147,7 @@ class WorkspaceSkeletonStateMixin:
         self._append_skeleton_bones(summary)
         self._append_skeleton_parts(summary)
 
+    @defer_panel_update
     def update_skeleton_selection(self, selection: object) -> None:
         """Refresh cached rig part markers without rescanning skin weights."""
         summary = self._skeleton_summary

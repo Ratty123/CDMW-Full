@@ -26,12 +26,9 @@ def _valid_face_triplet(face: object, vertex_count: int) -> tuple[int, int, int]
     raw_b = face[1]
     raw_c = face[2]
     if (
-        isinstance(raw_a, int)
-        and not isinstance(raw_a, bool)
-        and isinstance(raw_b, int)
-        and not isinstance(raw_b, bool)
-        and isinstance(raw_c, int)
-        and not isinstance(raw_c, bool)
+        type(raw_a) is int
+        and type(raw_b) is int
+        and type(raw_c) is int
     ):
         a = raw_a
         b = raw_b
@@ -61,12 +58,9 @@ def _face_count_json(faces: object, vertex_count: int) -> int:
         raw_b = face[1]
         raw_c = face[2]
         if (
-            isinstance(raw_a, int)
-            and not isinstance(raw_a, bool)
-            and isinstance(raw_b, int)
-            and not isinstance(raw_b, bool)
-            and isinstance(raw_c, int)
-            and not isinstance(raw_c, bool)
+            type(raw_a) is int
+            and type(raw_b) is int
+            and type(raw_c) is int
         ):
             a = raw_a
             b = raw_b

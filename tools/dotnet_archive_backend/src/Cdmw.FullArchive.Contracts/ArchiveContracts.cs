@@ -13,7 +13,8 @@ public sealed record ArchiveSessionHandle(
     long EntryCount,
     int IndexVersion,
     bool CacheHit,
-    IReadOnlyList<string>? DiscoveryWarnings = null);
+    IReadOnlyList<string>? DiscoveryWarnings = null,
+    string IndexPath = "");
 
 public sealed record ArchiveEntryRef(
     string SessionId,

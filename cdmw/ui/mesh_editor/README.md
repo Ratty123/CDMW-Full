@@ -14,6 +14,13 @@ Replacement imports and reversible output inclusion extend that foundation in
 the existing Parts panel. General material assignment, recolour/glow authoring,
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
 
+The resident editor defers hidden Qt compatibility panels until an explicit widget
+or action lookup needs them. Output controls keep their identity, and the latest
+panel state and fonts are replayed when the panels are constructed. Embedded
+replacement controls retain their existing construction path. Initial authoring
+packages read the worker-owned shadow directly; authoritative, editable shadow
+and immutable base geometry remain separate.
+
 ## Collapsible panels and tool icons
 
 Use the arrow in each panel header to collapse it independently. **Tools** becomes

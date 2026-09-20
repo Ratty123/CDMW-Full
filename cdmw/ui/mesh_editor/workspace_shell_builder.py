@@ -187,9 +187,19 @@ class WorkspaceShellBuilderMixin:
     def _build_body(self, theme_key: str) -> QWidget:
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setObjectName("MeshEditorWorkspaceBody")
-        left_palette = self._build_left_palette()
+        self._body_splitter = splitter
+        left_palette = QFrame(self) if self._legacy_panels_deferred else self._build_left_palette()
         central_preview = self._build_preview_area(theme_key)
-        right_panels = self._build_right_panels()
+        if self._legacy_panels_deferred:
+            # The shell retains these output actions by identity. Reuse their
+            # panels if a legacy caller later requests the remaining controls.
+            self._validation_panel = self._build_validation_panel()
+            self._rebuild_report_panel = self._build_rebuild_panel()
+            for panel in (self._validation_panel, self._rebuild_report_panel):
+                panel.hide()
+            right_panels = QFrame(self)
+        else:
+            right_panels = self._build_right_panels()
         splitter.addWidget(left_palette)
         splitter.addWidget(central_preview)
         splitter.addWidget(right_panels)

@@ -17657,6 +17657,16 @@
       ]
     },
     {
+      "key": "Cannot extend a different baseline directory",
+      "origins": [
+        {
+          "path": "tools/placement_studio/corpus.py",
+          "line": 348,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Cannot read archive index {value_0}; New Item needs a complete source catalogue: {value_1}",
       "origins": [
         {
@@ -23105,9 +23115,9 @@
       "key": "Combat and prices: template values",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 847,
-          "sink": "python-return:summary_text"
+          "path": "cdmw/ui/new_item/state.py",
+          "line": 496,
+          "sink": "python-return:stats_summary"
         }
       ]
     },
@@ -23115,9 +23125,9 @@
       "key": "Combat and prices: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 861,
-          "sink": "python-return:summary_text"
+          "path": "cdmw/ui/new_item/state.py",
+          "line": 510,
+          "sink": "python-return:stats_summary"
         }
       ]
     },
@@ -62115,28 +62125,33 @@
       "key": "New item snapshot cancelled.",
       "origins": [
         {
-          "path": "cdmw/services/new_item_snapshot.py",
-          "line": 436,
+          "path": "cdmw/services/new_item_service.py",
+          "line": 111,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 474,
+          "line": 437,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 488,
+          "line": 484,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 497,
+          "line": 498,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 516,
+          "line": 507,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 526,
           "sink": "raise_if_cancelled"
         },
         {
@@ -63208,6 +63223,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 398,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "No deferred page {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 551,
+          "sink": "ValueError"
         }
       ]
     },
@@ -73840,9 +73865,9 @@
       "key": "Perks: template list ({value_0})",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 834,
-          "sink": "python-return:perks_summary"
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 691,
+          "sink": "note"
         }
       ]
     },
@@ -73850,9 +73875,9 @@
       "key": "Perks: {value_0} custom",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 835,
-          "sink": "python-return:perks_summary"
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 691,
+          "sink": "note"
         }
       ]
     },
@@ -90003,6 +90028,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_graph_view.py",
           "line": 250,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Reusing the parsed item tables from the current archive catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 113,
+          "sink": "on_log"
         }
       ]
     },
@@ -116905,9 +116940,9 @@
       "key": "Visual effect: none",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 840,
-          "sink": "python-return:effect_summary"
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 696,
+          "sink": "note"
         }
       ]
     },
@@ -116915,9 +116950,9 @@
       "key": "Visual effect: {value_0} (visual only)",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 841,
-          "sink": "python-return:effect_summary"
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 696,
+          "sink": "note"
         }
       ]
     },

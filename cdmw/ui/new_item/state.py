@@ -471,6 +471,45 @@ def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDr
     return copy
 
 
+def stats_summary(draft: NewItemDraft, grid: Optional[StatGrid]) -> tuple[str, bool]:
+    """Summarize the draft without constructing the combat page."""
+    stat_count = price_count = 0
+    if grid is not None:
+        for (level, column_index), value in draft.grid_values.items():
+            if value is None or column_index >= len(grid.columns):
+                continue
+            if level >= grid.level_count:
+                continue
+            template = grid.template_values[level][column_index] if level < grid.level_count else None
+            if value == template:
+                continue
+            if grid.columns[column_index].kind == STAT_KIND:
+                stat_count += 1
+            else:
+                price_count += 1
+    price_count += sum(
+        1 for key, _label, template in (grid.price_items if grid is not None else ())
+        if draft.price_values.get(key, template) != template
+    )
+    extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows)
+    if not (stat_count or price_count or extras):
+        return "Combat and prices: template values", False
+    parts = []
+    if stat_count:
+        parts.append(f"{stat_count} stat cell(s)")
+    if price_count:
+        parts.append(f"{price_count} price field(s)")
+    if draft.extra_levels:
+        parts.append(f"{draft.extra_levels} added level(s)")
+    if draft.extra_stat_keys:
+        parts.append(f"{len(draft.extra_stat_keys)} added stat(s)")
+    if draft.max_stack_count is not None:
+        parts.append("stack changed")
+    if draft.own_enhancement_rows:
+        parts.append("separate enhancement rows")
+    return f"Combat and prices: {', '.join(parts)}", True
+
+
 __all__ = [
     "EFFECT_KIND",
     "MANAGERS",
@@ -483,5 +522,6 @@ __all__ = [
     "spec_from_draft",
     "stat_edits_from_grid",
     "stat_grid_for",
+    "stats_summary",
     "with_template",
 ]

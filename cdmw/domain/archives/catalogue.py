@@ -110,6 +110,7 @@ class ArchiveSessionHandle:
     index_version: int
     cache_hit: bool
     discovery_warnings: tuple[str, ...] = ()
+    index_path: str = ""
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveSessionHandle":
@@ -122,6 +123,7 @@ class ArchiveSessionHandle:
             index_version=read_int(payload, "index_version"),
             cache_hit=read_bool(payload, "cache_hit"),
             discovery_warnings=read_string_tuple(payload, "discovery_warnings"),
+            index_path=read_string(payload, "index_path", default=""),
         )
 
 

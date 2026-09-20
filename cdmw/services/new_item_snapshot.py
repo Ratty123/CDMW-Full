@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_extraction import read_archive_entry_data
+from cdmw.core.archive_resident_index import ResidentArchiveIndex
 from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, discover_item_model_family
 from cdmw.core.itemgroupinfo_table import ItemGroupRow, groups_containing, parse_item_group_table
 from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
@@ -453,17 +454,26 @@ def build_snapshot(
     entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    resident_catalogue: ResidentArchiveIndex | None = None,
 ) -> NewItemSnapshot:
     """Read and parse every table a new item touches. Seconds of work; run it off the UI thread."""
 
     provenance = SourceTracker(read_entry or _default_reader)
     read = provenance.read
-    entries = tuple(entries)
+    entries = tuple(entries) if resident_catalogue is None else resident_catalogue
     try:
-        sources = resolve_item_data_sources(entries)
+        sources = resolve_item_data_sources(
+            resident_catalogue.item_metadata() if resident_catalogue is not None else entries,
+            pamt_paths=(path for path in resident_catalogue.source_paths if path.suffix.lower() == ".pamt")
+            if resident_catalogue is not None else (),
+        )
     except ValueError as exc:
         raise NewItemSnapshotError(str(exc)) from exc
-    by_path = _entries_by_path(entries, entries_by_normalized_path, sources)
+    by_path = (resident_catalogue.selected_paths(sources) if resident_catalogue is not None
+               else _entries_by_path(entries, entries_by_normalized_path, sources))
+    if resident_catalogue is not None:
+        entries_by_normalized_path, entries_by_basename = resident_catalogue.index_maps(sources)
+        entries_by_extension = resident_catalogue.by_extension
     if not by_path:
         raise NewItemSnapshotError("no archive entries were given")
     for entry in sources.tables.get("iteminfo", ())[:1]:
@@ -522,7 +532,9 @@ def build_snapshot(
     english = parse_paloc(bytes(read(english_entry)), name=english_entry.path)
     item_display_names, item_localized_names = _localized_item_names(rows, paloc_entries, english, read, stop_event)
 
-    model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else by_path.values()
+    model_candidates = entries_by_extension.get(".pac", ()) if entries_by_extension else (
+        entry for path, entry in by_path.items() if path.startswith(MODEL_ROOT) and path.endswith(".pac")
+    )
     model_paths = (
         str(entry.path).replace("\\", "/").strip("/").lower()
         for entry in model_candidates
@@ -533,7 +545,9 @@ def build_snapshot(
         for path in model_paths
         if path.startswith(MODEL_ROOT) and path.endswith(".pac")
     )
-    effect_candidates = entries_by_extension.get(".pae", ()) if entries_by_extension else by_path.values()
+    effect_candidates = entries_by_extension.get(".pae", ()) if entries_by_extension else (
+        entry for path, entry in by_path.items() if path.startswith(EFFECT_DIR) and path.endswith(".pae")
+    )
     effect_paths = (
         str(entry.path).replace("\\", "/").strip("/").lower()
         for entry in effect_candidates
@@ -580,7 +594,7 @@ def build_snapshot(
         _item_display_names=item_display_names,
         _item_localized_names=item_localized_names,
         _index_maps=(entries_by_normalized_path, entries_by_basename)
-        if entries_by_normalized_path and entries_by_basename and not sources.obsolete_packages
+        if entries_by_normalized_path and entries_by_basename and (resident_catalogue is not None or not sources.obsolete_packages)
         else None,
     )
     # Measure on the snapshot worker rather than the first time a stat is offered. Keep
@@ -588,11 +602,14 @@ def build_snapshot(
     # most of this otherwise small cold path on current Python builds.
     snapshot.status_value_ranges()
     snapshot._template_search_catalogue = build_template_search_catalogue(snapshot, stop_event=stop_event)
-    paths = {entry.pamt_path for entry in entries} | {entry.paz_file for entry in entries}
+    paths = (set(resident_catalogue.source_paths) if resident_catalogue is not None
+             else {entry.pamt_path for entry in entries} | {entry.paz_file for entry in entries})
     root = Path(iteminfo.payload_entry.pamt_path).parent.parent
     paths.update((root / "meta" / "0.papgt", pathc_path))
     for path in paths:
         provenance.pin_file(Path(path))
+    if resident_catalogue is not None:
+        resident_catalogue.validate_sources(stop_event)
     _log_progress(on_log, f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
     return snapshot
 

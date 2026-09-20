@@ -238,13 +238,15 @@ class Baseline:
         return cls(base, records)
 
 
-def archive_entry_sizes(suffix: str, *, contains: str = "") -> Dict[str, int]:
+def archive_entry_sizes(suffix: str, *, contains: str = "", resident_catalogue=None) -> Dict[str, int]:
     """path -> uncompressed size, read from the archive tables without extracting anything."""
 
     wanted = suffix.lower()
     needle = contains.lower()
     found: Dict[str, int] = {}
-    for _package, entry in _iter_archive_entries(game_root()):
+    entries = (((entry.pamt_path.parent.name, entry) for entry in resident_catalogue.matching((wanted,), contains=needle))
+               if resident_catalogue is not None else _iter_archive_entries(game_root()))
+    for _package, entry in entries:
         path = normalize_game_path(entry.path)
         if path.endswith(wanted) and (not needle or needle in path):
             found[path] = int(getattr(entry, "orig_size", 0) or 0)
@@ -332,6 +334,9 @@ def extract_baseline(
     *,
     out_root: Optional[Path] = None,
     on_log=None,
+    resident_catalogue=None,
+    existing: Optional[Baseline] = None,
+    should_stop=None,
 ) -> Baseline:
     """Extract exactly the requested game paths from the archives into a pinned baseline."""
 
@@ -339,14 +344,25 @@ def extract_baseline(
 
     log = on_log or (lambda _message: None)
     base = Path(out_root) if out_root is not None else baseline_root()
+    if existing is not None and existing.root != base:
+        raise ValueError("Cannot extend a different baseline directory")
     base.mkdir(parents=True, exist_ok=True)
 
     targets = {normalize_game_path(p) for p in wanted if str(p).strip()}
+    records = {path: existing.record(path) for path in existing.paths()} if existing is not None else {}
+    targets.difference_update(records)
+    def check_cancelled():
+        if should_stop is not None and should_stop():
+            raise InterruptedError("Placement preparation cancelled")
+    check_cancelled()
     log(f"Resolving {len(targets):,} path(s) across archive tables...")
 
     # Later packages patch earlier ones, so the highest package wins.
     located: Dict[str, tuple[str, object]] = {}
-    for package, entry in _iter_archive_entries(game_root()):
+    entries = (((entry.pamt_path.parent.name, entry) for key in sorted(targets)
+                if (entry := resident_catalogue.active_entry(key)) is not None)
+               if resident_catalogue is not None else _iter_archive_entries(game_root()))
+    for package, entry in entries:
         key = normalize_game_path(entry.path)
         if key not in targets:
             continue
@@ -355,11 +371,13 @@ def extract_baseline(
             located[key] = (package, entry)
 
     missing = sorted(targets - set(located))
+    if resident_catalogue is not None:
+        resident_catalogue.validate_sources()
     log(f"Resolved {len(located):,}; missing {len(missing):,}")
 
-    records: Dict[str, BaselineRecord] = {}
     failed: List[str] = []
     for index, (key, (package, entry)) in enumerate(sorted(located.items()), start=1):
+        check_cancelled()
         try:
             data, _decompressed, _note = read_archive_entry_data(entry)
         except Exception as exc:  # noqa: BLE001 - report, do not abort the sweep
@@ -367,14 +385,20 @@ def extract_baseline(
             continue
         out_path = base / key
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_bytes(data)
+        check_cancelled()
+        temporary = out_path.with_name(out_path.name + '.preparing')
+        try:
+            temporary.write_bytes(data)
+            temporary.replace(out_path)
+        finally:
+            temporary.unlink(missing_ok=True)
         records[key] = BaselineRecord(key, sha256_bytes(data), len(data), package)
         if index % 25 == 0:
             log(f"  extracted {index:,}/{len(located):,}")
 
     manifest = {
         "format": "cdmw_placement_studio_baseline_v1",
-        "game_root": str(game_root()),
+        "game_root": str(resident_catalogue.source.package_root if resident_catalogue is not None else game_root()),
         "requested": len(targets),
         "extracted": len(records),
         "missing": missing,
@@ -389,6 +413,15 @@ def extract_baseline(
             for record in sorted(records.values(), key=lambda r: r.game_path)
         ],
     }
-    (base / "baseline.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    check_cancelled()
+    if resident_catalogue is not None:
+        resident_catalogue.validate_sources()
+    temporary = base / 'baseline.json.preparing'
+    try:
+        temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        check_cancelled()
+        temporary.replace(base / 'baseline.json')
+    finally:
+        temporary.unlink(missing_ok=True)
     log(f"Baseline written: {len(records):,} file(s) at {base}")
     return Baseline(base, records)

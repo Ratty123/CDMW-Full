@@ -116,12 +116,13 @@ class PlacementStudioWindow(
     """Read-only inspector for one character's socket placement."""
 
     def __init__(self, baseline: Baseline, parent: Optional[QWidget] = None, *,
-                 background_loading: bool = False) -> None:
+                 background_loading: bool = False, resident_source=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Placement & Animation Studio")
         self.resize(1360, 860)
 
         self._baseline = baseline
+        self._resident_source = resident_source
         self._session: Optional[PlacementSession] = None
         self._bindings: List[PlacementBinding] = []
         self._edits: Optional[EditSession] = None

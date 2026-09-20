@@ -19,6 +19,16 @@ The archive snapshot reads StatusInfo and EquipTypeInfo from either their legacy
 A complete legacy pair takes precedence when both layouts exist; payloads and
 headers are never mixed between layouts. These two tables supply names only.
 
+With a matching Full archive session, snapshot workers open its generation-bound,
+read-only catalogue and materialize only relevant rows. Parsed tables are reused
+within the service while source metadata remains unchanged; each snapshot has
+separate planning caches, and planning/output still checks source provenance.
+Older workers and standalone entry lists retain the existing archive-read path.
+The shared preview, identity checks and output actions are available immediately;
+Combat, Perks & Effects and Distribution are built when first requested. Workflow
+summaries read the draft without constructing those pages. Optional preview warm-up
+still cancels and drains before snapshot publication; debug logs report its drain time.
+
 `state.py` is the editable draft and the pure helpers (stat grid, spec from
 draft). `controller.py` keeps the public controller, signals, draft and snapshot
 state; `controller_preview_mixin.py`, `controller_model_mixin.py` and

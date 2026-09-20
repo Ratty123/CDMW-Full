@@ -75,7 +75,7 @@ def combination_pairs(manager: str) -> List[Tuple[GoldenMod, GoldenMod, GoldenMo
     return pairs
 
 
-def discover_body_meshes(models: Sequence[str], *, per_slot: int = 1) -> List[str]:
+def discover_body_meshes(models: Sequence[str], *, per_slot: int = 1, resident_catalogue=None) -> List[str]:
     """Pick one body armour mesh per slot as a clipping proxy.
 
     The character has no single body mesh — it is composed of armour pieces — so the upper and
@@ -98,7 +98,9 @@ def discover_body_meshes(models: Sequence[str], *, per_slot: int = 1) -> List[st
     from tools.placement_studio.corpus import archive_entry_sizes
     from tools.placement_studio.meshes import BODY_SLOTS, is_base_armour_mesh
 
-    sizes = archive_entry_sizes(".pac", contains="/armor/")
+    sizes = archive_entry_sizes(".pac", contains="/armor/", **(
+        {"resident_catalogue": resident_catalogue} if resident_catalogue is not None else {}
+    ))
     wanted: List[str] = []
     for model in [m for m in models if m]:
         for slot in BODY_SLOTS:

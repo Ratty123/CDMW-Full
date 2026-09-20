@@ -74,7 +74,7 @@ class Mesh:
         )
 
 
-def load_mesh(data: bytes, name: str = "", *, source_path: str = "") -> Mesh:
+def load_mesh(data: bytes, name: str = "", *, source_path: str = "", parsed_mesh=None) -> Mesh:
     """Decode a `.pac`/`.pam` payload into one merged mesh.
 
     Submeshes are merged with re-based indices: for clipping and silhouette purposes the
@@ -91,7 +91,7 @@ def load_mesh(data: bytes, name: str = "", *, source_path: str = "") -> Mesh:
         raise MeshError("A filename is required to decode geometry (the parser needs the suffix)")
 
     try:
-        parsed = parse_mesh(data, filename)
+        parsed = parse_mesh(data, filename) if parsed_mesh is None else parsed_mesh
     except Exception as exc:  # noqa: BLE001 - report, never guess at geometry
         raise MeshError(f"{filename}: {exc}") from exc
     if not (getattr(parsed, "submeshes", None) or ()):

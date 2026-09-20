@@ -92,4 +92,6 @@ class NewItemPreviewWarmup:
         # is cancelled rather than delaying the template the user selected.
         self.stop_event.set()
         if self.thread is not None:
+            started = time.perf_counter()
             self.thread.join()
+            _LOGGER.debug("new_item_preview_warmup drain_ms=%.1f", (time.perf_counter() - started) * 1000)

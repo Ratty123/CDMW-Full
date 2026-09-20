@@ -102,7 +102,9 @@ class ArmourPickerMixin:
         from .background import LatestTask
         self._armour_task = LatestTask(self)
         self._armour_task.ready.connect(self._armour_result)
-        self._armour_task.submit(lambda cancelled, _progress: index_wearables(root, should_stop=cancelled))
+        source = getattr(self, "_resident_source", None)
+        self._armour_task.submit(lambda cancelled, _progress: index_wearables(
+            root, should_stop=cancelled, **({"resident_source": source} if source is not None else {})))
 
     def _armour_result(self, result, error):
         index, sockets, meshes = result if result is not None else (None,None,None)

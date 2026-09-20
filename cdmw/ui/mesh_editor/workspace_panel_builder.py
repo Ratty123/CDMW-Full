@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from cdmw.ui.mesh_editor.workspace_lazy_panels import defer_panel_update
+
 import math
 from collections.abc import Iterable, Mapping, Sequence
 
@@ -123,9 +125,9 @@ class WorkspacePanelBuilderMixin:
         uv_panel = self._build_uv_panel()
         material_panel = self._build_material_panel()
         compare_panel = self._build_compare_panel()
-        validation_panel = self._build_validation_panel()
-        rebuild_panel = self._build_rebuild_panel()
-        performance_panel = self._build_performance_panel()
+        validation_panel = self.__dict__.get('_validation_panel') or self._build_validation_panel()
+        rebuild_panel = self.__dict__.get('_rebuild_report_panel') or self._build_rebuild_panel()
+        performance_panel = self.__dict__.get('_performance_panel') or self._build_performance_panel()
         self.history_list = QListWidget(tabs)
         self.history_list.setObjectName("MeshEditorHistoryPanel")
         skeleton_panel = self._build_skeleton_panel()
@@ -276,6 +278,7 @@ class WorkspacePanelBuilderMixin:
             self._object_transform_control_update = False
         self.object_transform_requested.emit(self._object_transform_payload())
 
+    @defer_panel_update
     def update_object_transform(self, state: MeshObjectTransformState) -> None:
         self._object_transform_control_update = True
         try:
@@ -838,6 +841,7 @@ class WorkspacePanelBuilderMixin:
                 return int(part.index)
         return -1
 
+    @defer_panel_update
     def _sync_part_controls(self) -> None:
         summary = self._workspace_summary
         parts = tuple(summary.parts if summary is not None else ())

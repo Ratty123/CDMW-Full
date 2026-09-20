@@ -18,18 +18,30 @@ def _service_call(name: str, *args: object, **kwargs: object) -> object:
 
 
 def mesh_source_bounds_pivot(mesh: object) -> tuple[float, float, float]:
-    vertices = [
-        tuple(float(value) for value in vertex[:3])
-        for submesh in tuple(getattr(mesh, "submeshes", ()) or ())
-        for vertex in tuple(getattr(submesh, "vertices", ()) or ())
-        if len(vertex) >= 3 and all(math.isfinite(float(value)) for value in vertex[:3])
-    ]
-    if not vertices:
+    min_x = min_y = min_z = math.inf
+    max_x = max_y = max_z = -math.inf
+    for submesh in getattr(mesh, "submeshes", ()) or ():
+        for vertex in getattr(submesh, "vertices", ()) or ():
+            if len(vertex) < 3:
+                continue
+            x, y, z = float(vertex[0]), float(vertex[1]), float(vertex[2])
+            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
+                continue
+            if x < min_x:
+                min_x = x
+            if y < min_y:
+                min_y = y
+            if z < min_z:
+                min_z = z
+            if x > max_x:
+                max_x = x
+            if y > max_y:
+                max_y = y
+            if z > max_z:
+                max_z = z
+    if min_x == math.inf:
         return (0.0, 0.0, 0.0)
-    return tuple(
-        (min(vertex[axis] for vertex in vertices) + max(vertex[axis] for vertex in vertices)) * 0.5
-        for axis in range(3)
-    )  # type: ignore[return-value]
+    return ((min_x + max_x) * 0.5, (min_y + max_y) * 0.5, (min_z + max_z) * 0.5)
 
 
 def _mat3_multiply(left: Sequence[float], right: Sequence[float]) -> tuple[float, ...]:

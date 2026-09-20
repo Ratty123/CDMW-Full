@@ -15,7 +15,7 @@ import os
 import shutil
 import tempfile
 import threading
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
@@ -80,6 +80,8 @@ def game_is_running(image_name: str = GAME_EXECUTABLE) -> bool:
 @dataclass(slots=True)
 class NewItemService:
     settings: object | None = None
+    _snapshot_cache: tuple | None = field(default=None, init=False, repr=False)
+    _snapshot_cache_lock: object = field(default_factory=threading.RLock, init=False, repr=False)
 
     # ------------------------------------------------------------------ reading
 
@@ -93,8 +95,24 @@ class NewItemService:
         entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         entries_by_extension: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        resident_catalogue=None,
     ) -> NewItemSnapshot:
-        return build_snapshot(
+        # Parsed rows belong to a catalogue generation, not a wizard draft.
+        # Keep one generation per service and give each request fresh mutable
+        # planning caches. SourceTracker still validates actual dependencies.
+        cache_key = None
+        if resident_catalogue is not None:
+            resident_catalogue.validate_sources(stop_event)
+            source = resident_catalogue.source
+            cache_key = (1, source.index_path, source.fingerprint, read_entry)
+            with self._snapshot_cache_lock:
+                cached = self._snapshot_cache
+            if cached is not None and cached[0] == cache_key and not cached[1].source_files_changed():
+                raise_if_cancelled(stop_event, "New item snapshot cancelled.")
+                if on_log is not None:
+                    on_log("Reusing the parsed item tables from the current archive catalogue.")
+                return replace(cached[1], _contexts={}, _families={}, _payloads={}, _authoring_indexes={})
+        snapshot = build_snapshot(
             entries,
             read_entry=read_entry,
             on_log=on_log,
@@ -102,7 +120,14 @@ class NewItemService:
             entries_by_normalized_path=entries_by_normalized_path,
             entries_by_basename=entries_by_basename,
             entries_by_extension=entries_by_extension,
+            resident_catalogue=resident_catalogue,
         )
+        if cache_key is not None:
+            with self._snapshot_cache_lock:
+                self._snapshot_cache = (cache_key, replace(
+                    snapshot, _contexts={}, _families={}, _payloads={}, _authoring_indexes={},
+                ))
+        return snapshot
 
     def build_context(self, snapshot: NewItemSnapshot, template_key: int) -> NewItemContext:
         return build_context(snapshot, template_key)

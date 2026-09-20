@@ -206,7 +206,7 @@ _SLICE = 20_000
 
 
 def scan_archives(
-    game_root, *, should_stop: Optional[Callable[[], bool]] = None, cache: bool = True
+    game_root, *, should_stop: Optional[Callable[[], bool]] = None, cache: bool = True, resident_source=None
 ) -> Iterator[tuple[int, int, Optional["ClipIndex"]]]:
     """Build the index a slice at a time, yielding `(done, total, result)`.
 
@@ -244,7 +244,10 @@ def scan_archives(
     # afterwards would stamp a body built from the old packages with the new install's key
     # and every later launch would accept it.
     failures: List[Path] = []
-    if (root / "meta/0.papgt").exists():
+    catalogue = resident_source.open(should_stop, package_root=root) if resident_source is not None else None
+    if catalogue is not None:
+        iterator = ((entry.pamt_path.parent.name, entry) for entry in catalogue.matching((".paa",)))
+    elif (root / "meta/0.papgt").exists():
         from .relationships import active_entries
         iterator = active_entries(root, cancelled=should_stop or (lambda: False))
     else:
@@ -263,6 +266,8 @@ def scan_archives(
             since_yield = 0
             yield (done, total, None)
     index = ClipIndex(entries)
+    if catalogue is not None:
+        catalogue.validate_sources()
     if package_signature(root) != signature_before:
         raise RuntimeError("Installation changed while scanning clips; refresh required")
     if (

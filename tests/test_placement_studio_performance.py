@@ -124,7 +124,8 @@ def test_armour_change_reuses_unchanged_sources_and_rejects_rewritten_file(tmp_p
         (tmp_path / name).write_bytes(b'original')
     baseline = Baseline(tmp_path, {name: BaselineRecord(name, '', 8, '') for name in names})
     decoded = []
-    monkeypatch.setattr(skinning, 'load_skinned', lambda data, path, rig: decoded.append(path) or object())
+    monkeypatch.setattr('cdmw.modding.mesh_parser.parse_mesh', lambda *_: SimpleNamespace(submeshes=[]))
+    monkeypatch.setattr(skinning, 'load_skinned', lambda data, path, rig, **_: decoded.append(path) or object())
     first = MeshRequest(baseline, 'rig', SimpleNamespace(parsed=object()),
                         (('body.pac', None), ('head.pac', None)), (('coat_a.pac', None),), ('', None))
     a = prepare_meshes(first, lambda: False, lambda *_: None)
@@ -173,7 +174,8 @@ def test_archive_piece_cache_checks_package_files_and_entry_location(tmp_path, m
                             orig_size=4, flags=0, prepared_path=None, prepared_sha256=None)
     reads = []
     monkeypatch.setattr(armour, 'read_entry', lambda e: reads.append(e.offset) or b'mesh')
-    monkeypatch.setattr(skinning, 'load_skinned', lambda *_: object())
+    monkeypatch.setattr('cdmw.modding.mesh_parser.parse_mesh', lambda *_: SimpleNamespace(submeshes=[]))
+    monkeypatch.setattr(skinning, 'load_skinned', lambda *_, **__: object())
     request = MeshRequest(Baseline(tmp_path, {}), 'rig', SimpleNamespace(parsed=object()),
                           (('body.pac', entry),), (), ('', None))
     first = prepare_meshes(request, lambda: False, lambda *_: None)
@@ -208,7 +210,7 @@ def test_comparison_waits_for_both_visible_paints_and_pause_rejects_late_paint()
         widget.close()
 
 
-def test_mesh_cache_does_not_cross_rig_or_source_index(studio, monkeypatch):
+def test_character_and_index_switch_retain_worker_validated_geometry(studio, monkeypatch):
     from tools.placement_studio import window_loading
     requests = []
     monkeypatch.setattr(window_loading, 'prepare_meshes',
@@ -216,19 +218,45 @@ def test_mesh_cache_does_not_cross_rig_or_source_index(studio, monkeypatch):
     monkeypatch.setattr(studio, '_base_body_paths', lambda _: [])
     studio._session = SimpleNamespace(model='rig', weapon=None,
                                      hierarchy=SimpleNamespace(parsed=object()))
-    studio._mesh_cache_context = (studio._session.hierarchy.parsed, None, studio._baseline)
+    studio._mesh_cache_context = (str(studio._baseline.root),)
     studio._mesh_part_cache['old'] = ((), object(), None)
-    studio._armour_index = object()  # A refreshed archive index invalidates resident pieces.
+    studio._armour_index = object()  # The worker checks entry locations and source stamps.
     studio._ensure_meshes_prepared()
     until(lambda: requests)
-    assert requests[0].cached_parts == ()
+    assert requests[0].cached_parts == tuple(studio._mesh_part_cache.items())
     until(lambda: not studio._mesh_task.busy)
     studio._mesh_part_cache['old'] = ((), object(), None)
     studio._session.hierarchy.parsed = object()
     studio._ensure_meshes_prepared()
     until(lambda: len(requests) == 2)
-    assert requests[1].cached_parts == ()
+    assert requests[1].cached_parts == tuple(studio._mesh_part_cache.items())
     studio._session = None
+
+
+def test_geometry_survives_rig_switch_but_binding_uses_complete_rig(tmp_path, monkeypatch):
+    from tools.placement_studio import skinning
+    path = 'body.pac'
+    (tmp_path / path).write_bytes(b'geometry')
+    baseline = Baseline(tmp_path, {path: BaselineRecord(path, '', 8, '')})
+    decoded, bound = [], []
+    mesh = SimpleNamespace(submeshes=[])
+    monkeypatch.setattr('cdmw.modding.mesh_parser.parse_mesh', lambda *args: decoded.append(args) or mesh)
+    monkeypatch.setattr(skinning, 'load_skinned',
+                        lambda data, path, rig, **kwargs: bound.append((rig, kwargs['parsed_mesh'])) or object())
+    def rig(x):
+        return SimpleNamespace(bones=[SimpleNamespace(name='root', name_hash=1, parent_index=-1,
+            bind_matrix=(x,), inv_bind_matrix=(x,), scale=(1, 1, 1), rotation=(0, 0, 0, 1), position=(x, 0, 0))])
+    request = MeshRequest(baseline, 'a', SimpleNamespace(parsed=rig(0)), ((path, None),), (), ('', None))
+    first = prepare_meshes(request, lambda: False, lambda *_: None)
+    cache = dict(first.cached_parts)
+    second = prepare_meshes(replace(request, hierarchy=SimpleNamespace(parsed=rig(1)),
+                                   cached_parts=tuple(cache.items())), lambda: False, lambda *_: None)
+    cache.update(second.cached_parts)
+    third = prepare_meshes(replace(request, hierarchy=SimpleNamespace(parsed=rig(0)),
+                                  cached_parts=tuple(cache.items())), lambda: False, lambda *_: None)
+    assert len(decoded) == 1 and len(bound) == 2
+    assert bound[0][1] is bound[1][1] is mesh
+    assert first.skinned[0] is third.skinned[0] and first.skinned[0] is not second.skinned[0]
 
 
 def test_cached_rotation_keys_keep_replacement_and_fractional_sampling_independent():

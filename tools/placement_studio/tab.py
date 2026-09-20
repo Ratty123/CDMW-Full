@@ -37,10 +37,11 @@ class BaselineWorker(QObject):
     progress = Signal(str)
     done = Signal(object, str)  # (Baseline or None, error message)
 
-    def __init__(self, game_root: str, *, cancelled=lambda: False) -> None:
+    def __init__(self, game_root: str, *, cancelled=lambda: False, resident_source=None) -> None:
         super().__init__()
         self._game_root = str(game_root or "")
         self._cancelled = cancelled
+        self._resident_source = resident_source
 
     def run(self) -> None:
         try:
@@ -81,10 +82,19 @@ class BaselineWorker(QObject):
                         paths.add(weapon_mesh_path(weapon_id_of(path), model))
             if self._cancelled():
                 return
-            paths |= set(discover_body_meshes(models))
+            catalogue = self._resident_source.open(self._cancelled, package_root=self._game_root) if self._resident_source is not None else None
+            catalogue_args = {"resident_catalogue": catalogue} if catalogue is not None else {}
+            if catalogue is not None and models:
+                # Keep the small picker/editing metadata for every character, but
+                # only prepare geometry for the character selected on first open.
+                selected = models[0]
+                paths = {path for path in paths if not path.endswith((".pab", ".pac"))
+                         or f"/{selected}/" in path}
+                models = [selected]
+            paths |= set(discover_body_meshes(models, **catalogue_args))
 
             report(f"Extracting {len(paths):,} file(s) from the archives...")
-            baseline = extract_baseline(sorted(paths), on_log=report)
+            baseline = extract_baseline(sorted(paths), on_log=report, should_stop=self._cancelled, **catalogue_args)
             if not len(baseline):
                 self.done.emit(None, "The archives yielded no placement files.")
                 return
@@ -109,7 +119,7 @@ _DEFAULT_STUDIO_PATHS = (
 )
 
 
-def _prepare_startup(root, cancelled, progress):
+def _prepare_startup(root, cancelled, progress, *, resident_source=None):
     """Even cached baselines and first imports must not stall the shell's event loop."""
     from .corpus import Baseline, baseline_root
 
@@ -134,7 +144,9 @@ def _prepare_startup(root, cancelled, progress):
                 f"{root}\n\n"
                 "Fix it under Settings -> Archive Locations, then reopen this tab."
             )
-        worker = BaselineWorker(root, cancelled=cancelled)
+        worker = BaselineWorker(root, cancelled=cancelled, **(
+            {"resident_source": resident_source} if resident_source is not None else {}
+        ))
         result = []
         worker.done.connect(lambda value, error: result.append((value, error)), Qt.DirectConnection)
         worker.run()
@@ -244,7 +256,12 @@ class PlacementStudioTab(QWidget):
         self._progress.setVisible(True)
         self._status.setText("Loading...")
         root = self._game_root()  # Read settings/widgets only on the UI thread.
-        self._startup_task.submit(lambda cancelled, progress: _prepare_startup(root, cancelled, progress))
+        from cdmw.core.archive_resident_index import ResidentArchiveSource
+        service = getattr(getattr(self._window, "archive", None), "archive_catalogue_service", None)
+        self._resident_source = ResidentArchiveSource.capture(service, root)
+        source = self._resident_source
+        self._startup_task.submit(lambda cancelled, progress: _prepare_startup(
+            root, cancelled, progress, **({"resident_source": source} if source is not None else {})))
 
     def _finished(self, baseline, error: str) -> None:
         if self._closing:
@@ -273,7 +290,8 @@ class PlacementStudioTab(QWidget):
 
         # The studio is a QMainWindow; embedded as a child it keeps its own status bar and
         # layout without the tab having to re-implement either.
-        self._studio = PlacementStudioWindow(baseline, parent=self, background_loading=True)
+        self._studio = PlacementStudioWindow(baseline, parent=self, background_loading=True,
+                                             resident_source=getattr(self, "_resident_source", None))
         self._studio.setWindowFlags(Qt.Widget)
         self._layout.addWidget(self._studio, 1)
         self._studio.show()

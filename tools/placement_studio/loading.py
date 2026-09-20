@@ -5,6 +5,26 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class DecodedGeometry:
+    data: bytes
+    mesh: object
+    nbytes: int
+
+
+def _rig_key(skeleton):
+    """Bind results belong to bone content, not a newly allocated session object."""
+    if skeleton is None:
+        return None
+    bones = getattr(skeleton, 'bones', None)
+    if bones is None:
+        return skeleton  # Nonstandard callers retain identity-based isolation.
+    return tuple((getattr(bone, 'index', index), bone.name, bone.name_hash, bone.parent_index,
+                  tuple(bone.bind_matrix), tuple(bone.inv_bind_matrix),
+                  tuple(bone.scale), tuple(bone.rotation), tuple(bone.position))
+                 for index, bone in enumerate(bones))
+
+
+@dataclass(frozen=True)
 class MeshRequest:
     baseline: object
     model: str
@@ -54,7 +74,30 @@ def _source_stamp(baseline, path, entry):
         return None
 
 
+def prepare_model_baseline(baseline, model, source, cancelled):
+    """Complete a character's loose baseline only when that character is selected."""
+    from .cli_support import discover_body_meshes
+    from .corpus import extract_baseline
+    from .meshes import weapon_mesh_path
+    from .resolver import model_of, weapon_id_of
+    from .session import skeleton_paths_for
+
+    paths = baseline.paths()
+    prefix = f'/{model}/'
+    if (any(prefix in path and path.endswith('.pab') for path in paths)
+            and any(prefix in path and '/armor/' in path and path.endswith('.pac') for path in paths)):
+        return baseline
+    catalogue = source.open(cancelled)
+    sockets = [path for path in paths if path.endswith('.sockets.xml') and model_of(path) == model]
+    wanted = set(skeleton_paths_for(sockets))
+    wanted.update(discover_body_meshes([model], resident_catalogue=catalogue))
+    wanted.update(weapon_mesh_path(weapon_id_of(path), model) for path in sockets if '/weapon/' in path)
+    return extract_baseline(wanted, out_root=baseline.root, resident_catalogue=catalogue,
+                            existing=baseline, should_stop=cancelled)
+
+
 def prepare_meshes(request: MeshRequest, cancelled, progress) -> MeshResult | None:
+    from cdmw.modding.mesh_parser import parse_mesh
     from .armour import read_entry
     from .meshes import MIN_BODY_COVERAGE, body_coverage, load_mesh, merge
     from .skinning import load_skinned
@@ -63,6 +106,7 @@ def prepare_meshes(request: MeshRequest, cancelled, progress) -> MeshResult | No
         return request.baseline.read(path) if path in request.baseline else read_entry(entry)
 
     parsed = getattr(request.hierarchy, "parsed", None)
+    rig_key = _rig_key(parsed)
     skinned = list(request.skinned or ())
     body_count = request.body_count
     problems, proxies = [], []
@@ -73,25 +117,40 @@ def prepare_meshes(request: MeshRequest, cancelled, progress) -> MeshResult | No
             return None
         try:
             stamp = _source_stamp(request.baseline, path, entry)
-            previous = cached.get(path)
+            key = ('bound-v1', path, rig_key, number < len(request.body))
+            decoded_key = ('decoded-v1', path)
+            previous = cached.get(key)
             proxy = None
             if stamp is not None and previous is not None and previous[0] == stamp:
                 _, mesh, proxy = previous
             else:
-                data = read(path, entry)
+                decoded = cached.get(decoded_key)
+                if stamp is not None and decoded is not None and decoded[0] == stamp:
+                    geometry = decoded[1]
+                else:
+                    data = read(path, entry)
+                    if cancelled():
+                        return None
+                    mesh_data = parse_mesh(data, path.rsplit('/', 1)[-1])
+                    # Conservative Python row storage estimate, computed off Qt.
+                    size = len(data) + sum(2048 * len(part.vertices) + 160 * len(part.faces)
+                                           for part in mesh_data.submeshes)
+                    geometry = DecodedGeometry(data, mesh_data, size)
                 if cancelled():
                     return None
-                mesh = load_skinned(data, path, parsed) if parsed is not None else None
+                mesh = load_skinned(geometry.data, path, parsed, parsed_mesh=geometry.mesh) if parsed is not None else None
                 if mesh is None and number < len(request.body):
-                    proxy = load_mesh(data, source_path=path)
+                    proxy = load_mesh(geometry.data, source_path=path, parsed_mesh=geometry.mesh)
                 if stamp is not None and _source_stamp(request.baseline, path, entry) != stamp:
                     raise ValueError('Source files changed while preparing geometry; refresh and prepare again')
+                if stamp is not None:
+                    prepared.append((decoded_key, (stamp, geometry, None)))
             if mesh is not None:
                 skinned.append(mesh)
             elif proxy is not None and number < len(request.body):
                 proxies.append(proxy)
             if stamp is not None:
-                prepared.append((path, (stamp, mesh, proxy)))
+                prepared.append((key, (stamp, mesh, proxy)))
         except Exception as exc:
             problems.append(f"{path.rsplit('/', 1)[-1]}: {exc}")
         if number < len(request.body):
@@ -135,7 +194,7 @@ def prepare_charts(sources, cancelled, progress):
     return ChartIndex(charts), AnimationSetIndex(sets)
 
 
-def prepare_clip_index(root, baseline, cancelled, progress):
+def prepare_clip_index(root, baseline, cancelled, progress, *, resident_source=None):
     """Keep table I/O, cache decompression and fallback directory walks off Qt."""
     from pathlib import Path
     import time
@@ -144,7 +203,8 @@ def prepare_clip_index(root, baseline, cancelled, progress):
     try:
         if not Path(root).is_dir():
             raise ValueError(f"No game install at {root}")
-        for done, total, index in scan_archives(root, should_stop=cancelled):
+        for done, total, index in scan_archives(root, should_stop=cancelled, **(
+                {"resident_source": resident_source} if resident_source is not None else {})):
             if cancelled():
                 return None
             progress(done, total)

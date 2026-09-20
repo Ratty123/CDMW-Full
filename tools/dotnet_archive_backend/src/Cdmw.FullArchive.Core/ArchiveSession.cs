@@ -46,7 +46,8 @@ public sealed class ArchiveSession : IDisposable
         Index.EntryCount,
         ArchiveIndex.Version,
         CacheHit,
-        ArchiveDiscoveryWarnings.FromManifest(_generation.Manifest));
+        ArchiveDiscoveryWarnings.FromManifest(_generation.Manifest),
+        Index.Path);
 
     public ArchiveEntryDto ReadEntry(long entryId)
     {

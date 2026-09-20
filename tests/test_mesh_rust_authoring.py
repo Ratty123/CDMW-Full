@@ -262,6 +262,35 @@ class RustMeshAuthoringTests(unittest.TestCase):
         )
         return authoritative, session
 
+    def test_initial_package_reads_exclusively_owned_shadow_without_another_clone(self) -> None:
+        reads = []
+        original = MeshService.working_mesh
+
+        def read(service, session_id, *, clone=False):
+            reads.append((session_id, clone))
+            return original(service, session_id, clone=clone)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(MeshService, "working_mesh", read):
+                authoritative, session = self._create(Path(temporary) / "session")
+            try:
+                self.assertIn((session.shadow_session_id, False), reads)
+                self.assertNotIn((session.shadow_session_id, True), reads)
+                shadow = original(session.shadow_service, session.shadow_session_id)
+                authority = original(authoritative, session.authoritative_session_id)
+                self.assertIsNot(shadow.submeshes[0].vertices, authority.submeshes[0].vertices)
+                base = session.shadow_service._session(session.shadow_session_id).base_mesh
+                self.assertIsNot(shadow.submeshes[0].vertices, base.submeshes[0].vertices)
+                manifest = json.loads(session.manifest_path.read_text(encoding="utf-8"))
+                document = read_owned_payload_reference(session.root, manifest["document"])
+                self.assertEqual(
+                    document["lods"][0]["submeshes"][0]["positions"],
+                    [list(vertex) for vertex in shadow.submeshes[0].vertices],
+                )
+            finally:
+                session.cancel()
+                authoritative.close_edit_session(session.authoritative_session_id, force_without_saving=True)
+
     def test_package_contains_full_channel_and_owned_reference_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "session"
