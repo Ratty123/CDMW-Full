@@ -923,14 +923,55 @@ current working position/flags separately, plus actual scene/result snapshots.
   no contact, but their zero-distance query still qualifies for cache recording.
   Type 4's plane projection belongs to the attached-static path instead.
 
+`apply_static_cloth_animated_collisions` covers the corresponding direct-list
+branch for simulation ushort 216 other than `0xFFFF`. Definition/result starts
+are **uints 160/164**, resources are ushorts 232/234, and count is ushort 242.
+Resource values at least 65000, including `0xFFFF`, resolve to buffer 0; element
+addition wraps uint32. The raw definition source is skipped when it matches
+ushort 238/uint 180. The 96-bit mask always applies to indices 0..95, with none
+of the guide branch's scene/flags2 bypasses. Later indices bypass the mask.
+Definition ownership flags, guide groups and the animated cache are not used.
+
+- Original particle flags `0x3C00` suppress the animated list unless frame bit
+  `0x20000` is set. This still allows attached-static contacts, unlike the guide
+  branch's disabled state, which bypasses both lists.
+- Endpoint motion uses the same timing and reference rule as guide cloth, but
+  space translation is **only per-frame float3 0**. Scene origins and tiles do
+  not participate. Result radius 4 and fixed `float32(0.01)` thickness feed the
+  surface query; authored thickness 204 and half 286 are unused. Contacts use
+  plain projection without the optional 0.45 tangent correction.
+- Normals accumulate and the last contacting radius is retained. Contacts do
+  not set guide contact flags. Entry clears `0x8000`; on the **penultimate local
+  iteration**, it clears `0x308300` instead. This uses the same adjusted iteration
+  and local limit as timing, even when blend subdivision is disabled. Both
+  category histories remain the initial working position.
+
+`apply_cloth_bone_collisions` connects the outer gate, selected animated branch,
+attached-static loop and subsequent history blend. It returns `None` for a
+frame/clock/substep skip. Otherwise, frame `0x100` must be set and the original
+particle's `0x40` clear. Push uint 12 must be zero, unless frame float 24 is
+**at most -10**. Bypassing the collision stage returns `active=False`, unchanged
+position/cache and working flags with only `0x8000` cleared. Active results
+retain the contact metadata needed by later passes. Actual resource records
+and SceneConstantBuffer uint 36 (`frame_number_y`) remain explicit caller inputs.
+
+After attached-static contacts, flypapering replaces the general position with
+`bit1_position + weight*(bit0_position-bit1_position)`. The weight is 0.5 when
+original particle half 88 is strictly greater than `float32(0.3)`, otherwise
+`float32(0.1)`. Scene `0x4000` with flags2 `0x80` instead uses 0.5, independently
+of that half value. These conditions also apply to the static-mesh branch.
+This order can replace an attached-static correction while preserving contact,
+normals, radii, flags and cache state. It must not be followed by an invented
+second attached-static projection.
+
 Focused tests use analytic signed distances, finite-difference gradients,
 rotation/translation equivalence, cylinder edge/tie cases, capsule degeneracy,
 raw plane normals, ordered buffer selection, contact/friction composition,
 cache reuse/overflow, base-reset-to-rebuild transitions, moving guide contacts and
-their handoff into attached-static projection. They do not establish GPU rounding
-or gameplay parity. Outer collision gates, static-mesh animated collider handling,
-later position blending and layer/world contacts, final state writes and native
-preview wiring remain to be connected; this is not the complete cloth solver.
+the shared static/guide collision stage through the final history blend. They
+do not establish GPU rounding or gameplay parity. Layer/world contacts, final
+state writes and native preview wiring remain to be connected; this is not the
+complete cloth solver.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
