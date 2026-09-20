@@ -451,6 +451,18 @@ values. These are preview-only parameters, separate from byte 38. Rig reading an
 vertex preparation run on the existing background loader; cancellation and source
 changes reject late results, and a failed replacement keeps the previous frame paused.
 
+**Wind preview** is optional in Decoded bones. Enable it to adjust speed,
+horizontal direction (0 degrees = +X, 90 degrees = +Z), gust amount and cycle
+duration. These manual preview inputs drive the decoded wind sample generator;
+game weather is not loaded. Gusts vary speed/cycle and add a small yaw movement.
+The sample springs use the decoded normal initialization profile, independently
+of the character's Bone solver settings. Speed zero supplies no wind force.
+Reset wind disables it and clears its sample history on the next preview step;
+Reset preview starts the whole test again. Wind follows the retained jiggle
+contributions, so disabled vertices and All disabled bypass it. Water controls
+remain unavailable until their render consumer is verified. Wind settings are
+not written to the PAC, draft or Undo/Redo history.
+
 **Approximate vertices** remains available for meshes without a resolved rig,
 with its existing editor-only softness/damping controls. Both modes use a repeatable
 60 Hz procedural pose test, rather than game animation or a verified live profile.

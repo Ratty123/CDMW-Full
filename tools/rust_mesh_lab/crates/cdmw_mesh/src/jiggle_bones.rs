@@ -6,6 +6,8 @@
 //! Calculations use f64 with f32 storage/seed rounding, matching the Python
 //! reference in `cdmw/modding/pac_jiggle_bones.py`, not bit-exact GPU arithmetic.
 
+pub mod samples;
+
 type Vector = [f64; 3];
 type Basis = [Vector; 3];
 type Result<T> = std::result::Result<T, &'static str>;

@@ -62,6 +62,19 @@ It includes command addressing, frame/origin resets, seeded spring motion,
 linear and angular limits, Euler and axis-angle impulses, fading, expiration
 and bone-mask overrides. No fixed timestep or character profile is inferred.
 
+`cdmw_mesh::jiggle_bones::samples` ports the GPU wind/water sample generator.
+It accepts explicit 96-byte sample and 224-byte global records, retains the
+decoded cycle/RNG feedback, and preserves the second integration after spring
+clamping. CPU mode emits the supplied state without advancing it. This does not
+implement the separate CPU simulator, weather production or sample initialization.
+`cargo test --locked -p cdmw_mesh jiggle_bones::samples` compares 41 owned Python
+reference vectors, including consecutive frames using native packed feedback.
+Regenerate with `jiggle_bones/samples/generate_vectors.py` from the repo root.
+The native Jiggle preview uses the verified wind consumer with manual speed,
+direction and gust controls; it supplies zero initial sample state, the decoded
+normal profile and a fixed 60 Hz preview clock. Water is decoded in the core but
+is not exposed as a verified mesh effect. No game weather or live profile is inferred.
+
 `cdmw_mesh::jiggle_skinning` connects that output to ordinary inverse-bind
 skinning and the retained PAC vertex blend. It preserves the PAC-slot/original-
 bone/skinning-index distinction, four-versus-six influence selection, weighted

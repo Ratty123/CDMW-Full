@@ -271,8 +271,11 @@ production and the water-sample consumers remain unresolved.
 
 Focused synthetic tests cover cycles, retained state, separate settings, force
 ordering, CPU bypass and a generated wind matrix through the existing vertex
-blend. The sample generator is not yet connected to the native preview, and
-Python arithmetic does not establish GPU-exact or in-game playback parity.
+blend. `cdmw_mesh::jiggle_bones::samples` is the native counterpart, with 41
+synthetic reference vectors including native state feedback. The Jiggle pane
+uses its wind samples with manual preview inputs and zero initial state. Water
+remains a core/reference path until a render consumer is verified. Neither
+Python nor native arithmetic establishes GPU-exact or in-game playback parity.
 
 ### Bone-to-render handoff
 

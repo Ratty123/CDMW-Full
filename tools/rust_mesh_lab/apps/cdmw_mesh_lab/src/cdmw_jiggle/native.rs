@@ -1,16 +1,72 @@
 //! Prepared on the existing bounded loader; playback has no file/Python work.
 use super::*;
 use cdmw_archive::CancellationToken;
+use cdmw_mesh::jiggle_bones::samples;
 use cdmw_mesh::jiggle_rig::{FrameInput, FrameOutput, Rig, RigSnapshot, VertexBinding};
 use cdmw_mesh::jiggle_skinning::Matrix;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
 const STEP: f64 = 1.0 / 60.0; // Repeatable preview clock, not a decoded game rate.
+const NORMAL_SETTINGS: [f32; 8] = [680.0, 0.82, 3.0, 0.055, 400.0, 0.7, 200.0, 0.7];
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Settings {
     pub values: [f32; 8],
+    pub wind: Wind,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Wind {
+    pub enabled: bool,
+    pub speed: f32,
+    pub direction: f32,
+    pub cycle: f32,
+    pub gusts: f32,
+}
+
+impl Default for Wind {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            speed: 1.0,
+            direction: 0.0,
+            cycle: 2.0,
+            gusts: 0.5,
+        }
+    }
+}
+
+impl Wind {
+    fn valid(self) -> bool {
+        [self.speed, self.direction, self.cycle, self.gusts]
+            .iter()
+            .all(|v| v.is_finite())
+            && (0.0..=20.0).contains(&self.speed)
+            && (0.0..=360.0).contains(&self.direction)
+            && (0.05..=10.0).contains(&self.cycle)
+            && (0.0..=1.0).contains(&self.gusts)
+    }
+
+    fn global_data(self, frame: u32, dt: f64) -> [u8; 224] {
+        let mut data = [0; 224];
+        data[4..8].copy_from_slice(&256_u32.to_le_bytes());
+        let angle = self.direction.to_radians();
+        put_floats(&mut data, 16, &[angle.cos(), 0.0, angle.sin()]);
+        // Explicit repeatable tool inputs, not captured game weather. Gusts
+        // vary speed/cycle and apply a small alternating yaw perturbation.
+        put_floats(&mut data, 32, &[0.0, self.gusts * self.speed * 0.1, 0.0]);
+        put_floats(&mut data, 48, &[1.0, 1.0]);
+        put_floats(
+            &mut data,
+            60,
+            &[self.gusts * 0.25, 1.0, self.gusts, self.speed, self.cycle],
+        );
+        put_floats(&mut data, 84, &[dt as f32]);
+        data[136..140].copy_from_slice(&frame.to_le_bytes());
+        put_floats(&mut data, 160, &NORMAL_SETTINGS);
+        data
+    }
 }
 
 #[cfg(test)]
@@ -93,6 +149,75 @@ mod tests {
     }
 
     #[test]
+    fn decoded_jiggle_wind_controls_preserve_disabled_vertices_and_reset_cleanly() {
+        let bytes = vec![255, 240, 247];
+        let mut calm = simulation(true, bytes.clone());
+        let mut along_x = simulation(true, bytes.clone());
+        let mut along_z = simulation(true, bytes);
+        let mut disabled = simulation(false, vec![240; 3]);
+        let mut disabled_calm = simulation(false, vec![240; 3]);
+        let mut settings = Settings::default();
+        settings.wind.enabled = true;
+        settings.wind.speed = 2.0;
+        settings.wind.gusts = 0.0;
+        for _ in 0..20 {
+            calm.advance(STEP, jiggle::Motion::UpDown, Settings::default())
+                .unwrap();
+            along_x
+                .advance(STEP, jiggle::Motion::UpDown, settings)
+                .unwrap();
+            disabled
+                .advance(STEP, jiggle::Motion::UpDown, settings)
+                .unwrap();
+            disabled_calm
+                .advance(STEP, jiggle::Motion::UpDown, Settings::default())
+                .unwrap();
+            let mut z_settings = settings;
+            z_settings.wind.direction = 90.0;
+            along_z
+                .advance(STEP, jiggle::Motion::UpDown, z_settings)
+                .unwrap();
+        }
+        assert_eq!(along_x.positions[0], calm.positions[0]);
+        assert_eq!(along_z.positions[0], calm.positions[0]);
+        let full_x = along_x.positions[1][0] - calm.positions[1][0];
+        let full_z = along_z.positions[1][2] - calm.positions[1][2];
+        assert!(full_x > 1e-5 && full_z > 1e-5);
+        assert!((full_x - full_z).abs() < 1e-6);
+        assert!(
+            (along_x.positions[2][0] - calm.positions[2][0] - full_x * 8.0 / 15.0).abs() < 1e-6
+        );
+        assert_eq!(disabled.positions, disabled_calm.positions);
+        for s in [&mut calm, &mut along_x] {
+            s.advance(STEP, jiggle::Motion::UpDown, Settings::default())
+                .unwrap();
+        }
+        assert_eq!(along_x.positions, calm.positions);
+        assert!(along_x.wind_states.iter().all(|s| *s == [0; 96]));
+    }
+
+    #[test]
+    fn decoded_jiggle_wind_zero_speed_is_still_and_invalid_controls_do_not_advance() {
+        let mut calm = simulation(true, vec![240; 3]);
+        let mut windy = simulation(true, vec![240; 3]);
+        let mut settings = Settings::default();
+        settings.wind.enabled = true;
+        settings.wind.speed = 0.0;
+        for _ in 0..20 {
+            calm.advance(STEP, jiggle::Motion::Turn, Settings::default())
+                .unwrap();
+            windy.advance(STEP, jiggle::Motion::Turn, settings).unwrap();
+        }
+        assert_eq!(windy.positions, calm.positions);
+        let positions = windy.positions.clone();
+        let elapsed = windy.elapsed;
+        settings.wind.cycle = 0.0;
+        assert!(windy.advance(STEP, jiggle::Motion::Turn, settings).is_err());
+        assert_eq!(windy.positions, positions);
+        assert_eq!(windy.elapsed, elapsed);
+    }
+
+    #[test]
     fn decoded_jiggle_rejects_cancelled_and_incomplete_rigs() {
         let mut incomplete = snapshot();
         incomplete.neutral_local_matrices.clear();
@@ -149,7 +274,8 @@ impl Default for Settings {
     fn default() -> Self {
         // Decoded initialization profile. Live character selection is unknown.
         Self {
-            values: [680.0, 0.82, 3.0, 0.055, 400.0, 0.7, 200.0, 0.7],
+            values: NORMAL_SETTINGS,
+            wind: Wind::default(),
         }
     }
 }
@@ -299,6 +425,9 @@ pub(crate) struct Simulation {
     accumulator: f64,
     pub elapsed: f64,
     frame_index: u32,
+    wind_states: Vec<[u8; 96]>,
+    wind_matrices: Vec<Matrix>,
+    wind_active: bool,
     pub positions: Vec<[f32; 3]>,
     pub rotation: Quat,
 }
@@ -369,6 +498,16 @@ impl Simulation {
             accumulator: 0.0,
             elapsed: 0.0,
             frame_index: 0,
+            wind_states: vec![[0; 96]; 256],
+            wind_matrices: vec![
+                std::array::from_fn(|i| std::array::from_fn(|j| if i == j {
+                    1.0
+                } else {
+                    0.0
+                }));
+                1280
+            ],
+            wind_active: false,
             positions: rest.to_vec(),
             rotation: Quat::IDENTITY,
         };
@@ -385,6 +524,7 @@ impl Simulation {
         if !seconds.is_finite()
             || seconds < 0.0
             || settings.values.iter().any(|v| !v.is_finite() || *v < 0.0)
+            || !settings.wind.valid()
         {
             bail!("Invalid decoded jiggle settings or frame time.");
         }
@@ -471,6 +611,19 @@ impl Simulation {
                 },
             )
             .map_err(anyhow::Error::msg)?;
+        let wind_active = self.enabled && settings.wind.enabled;
+        if wind_active {
+            let global = settings.wind.global_data(self.frame_index, dt);
+            for (index, state) in self.wind_states.iter_mut().enumerate() {
+                let output =
+                    samples::step(state, &global, index as u32).map_err(anyhow::Error::msg)?;
+                *state = output.sample;
+                self.wind_matrices[output.matrix_index as usize] = output.matrix;
+            }
+        } else if self.wind_active {
+            self.wind_states.fill([0; 96]);
+        }
+        self.wind_active = wind_active;
         let positions = self
             .binding
             .positions(
@@ -478,8 +631,8 @@ impl Simulation {
                 &frame,
                 &self.contributions,
                 self.enabled,
-                0.0,
-                None,
+                if wind_active { 1.0 } else { 0.0 },
+                wind_active.then_some(self.wind_matrices.as_slice()),
             )
             .map_err(anyhow::Error::msg)?;
         let positions: Vec<_> = positions.into_iter().map(|p| p.map(|v| v as f32)).collect();

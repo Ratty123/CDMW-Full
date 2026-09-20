@@ -3854,6 +3854,25 @@ fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previou
     assert_eq!(original.positions[1], current.positions[1]);
     assert!(original.normals.iter().flatten().all(|v| v.is_finite()));
 
+    ui.click("Wind preview")?;
+    ui.click("Enable wind")?;
+    assert!(ui.label_rect("Wind direction").is_some());
+    ui.click("Reset preview")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let windy = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+    assert_ne!(windy.positions[1], original.positions[1]);
+    assert_eq!(windy.positions[2], original.positions[2]);
+    assert!(windy.normals.iter().flatten().all(|v| v.is_finite()));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    ui.click("Reset wind")?;
+    ui.click("Reset preview")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, original);
+
     // Invalid file delivery keeps the original frame paused; Play retries the
     // newly selected comparison, rather than resuming that obsolete simulation.
     std::fs::write(&path, vec![b' '; payload.len()])?;

@@ -387,7 +387,19 @@ impl LabApplication {
                 ] {
                     ui.add(egui::Slider::new(&mut preview.native_settings.values[index], 0.0..=max).text(label));
                 }
-                if ui.button("Reset bone settings").clicked() { preview.native_settings = native::Settings::default(); }
+                if ui.button("Reset bone settings").clicked() { preview.native_settings.values = native::Settings::default().values; }
+            });
+            ui.collapsing("Wind preview", |ui| {
+                let wind = &mut preview.native_settings.wind;
+                ui.checkbox(&mut wind.enabled, "Enable wind");
+                ui.add_enabled_ui(wind.enabled, |ui| {
+                    ui.add(egui::Slider::new(&mut wind.speed, 0.0..=20.0).text("Wind speed"));
+                    ui.add(egui::Slider::new(&mut wind.direction, 0.0..=360.0).text("Wind direction").suffix("°"));
+                    ui.add(egui::Slider::new(&mut wind.cycle, 0.05..=10.0).text("Gust cycle (seconds)"));
+                    ui.add(egui::Slider::new(&mut wind.gusts, 0.0..=1.0).text("Gust amount"));
+                });
+                if ui.button("Reset wind").clicked() { *wind = native::Wind::default(); }
+                ui.small("Preview wind is supplied manually; game weather is not loaded.");
             });
             ui.small("Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.");
         } else {
