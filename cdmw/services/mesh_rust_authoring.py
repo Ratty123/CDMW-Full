@@ -5776,6 +5776,9 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
         source = {**dict(source), **dict(canonical_override)}
     category, category_confidence, shader_family, normal_y_policy, alpha_mode = _rust_presentation_surface_policy(source, submeshes, material_index)
     factor_parameters, texture_tint, base_tint_strength, material_slot_index = _rust_presentation_parameters(source, submeshes, material_index)
+    if "translucency" not in factor_parameters:
+        from cdmw.domain.mesh.translucency import authored_translucency
+        factor_parameters = {**factor_parameters, "translucency": authored_translucency(submeshes[material_index])}
     skin_detail_scale, skin_detail_opacity = _rust_skin_detail_factors(
         submeshes[material_index]
     )
@@ -7967,6 +7970,8 @@ class RustMeshAuthoringSession:
             state["loaded_mesh"] += " (neutral appearance)"
         from cdmw.services.mesh_rust_replacement import replacement_ui_state
         state["replacement"] = replacement_ui_state(self)
+        from cdmw.services.mesh_translucency import translucency_ui_state
+        state["translucency"] = translucency_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_physics_profiles import physics_profiles_ui_state

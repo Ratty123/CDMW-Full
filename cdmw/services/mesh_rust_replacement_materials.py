@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 from contextlib import contextmanager
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -15,6 +15,10 @@ from cdmw.services.mesh_replacement_materials import _sidecar_text
 
 
 def replacement_material_key(mesh, state):
+    if any(part.translucency is not None for part in state.parts):
+        source = replace(state, parts=tuple(replace(part, translucency=None) for part in state.parts))
+        return hashlib.sha256(repr((replacement_material_key(mesh, source), bound_part_indices(mesh, state),
+                                   [(p.part_id, p.translucency) for p in state.parts])).encode()).hexdigest()[:32]
     if not any(part.material_choice == "imported" for part in state.parts):
         return "base"
     digest = hashlib.sha256(repr((bound_part_indices(mesh, state), [(p.part_id, p.material_choice) for p in state.parts])).encode())
@@ -197,6 +201,23 @@ def stage_replacement_materials(authoring, mesh, state, stop_event=None):
         _RustMaterialSynthesisState, _mesh_material_presentations,
     )
     key = replacement_material_key(mesh, state)
+    if key not in authoring.archive_refit_material_cache and any(part.translucency is not None for part in state.parts):
+        source = replace(state, parts=tuple(replace(part, translucency=None) for part in state.parts))
+        source_key = stage_replacement_materials(authoring, mesh, source, stop_event)
+        payload = copy.deepcopy(authoring.archive_refit_material_cache[source_key])
+        indices = bound_part_indices(mesh, state)
+        rules = {indices[part.part_id]: part.translucency for part in state.parts if part.translucency is not None}
+        presentations = {(row["lod_index"], row["material_index"]): row for row in payload["material_presentations"]}
+        names = {(mesh.submeshes[index].material or mesh.submeshes[index].name).casefold(): value
+                 for index, value in rules.items()}
+        for lod_index, level in enumerate(_mesh_lods(mesh)):
+            for index, part in enumerate(level):
+                value = rules.get(index) if lod_index == 0 else names.get((part.material or part.name).casefold())
+                if value is not None:
+                    row = presentations.setdefault((lod_index, index), {"lod_index": lod_index, "material_index": index})
+                    row["translucency"] = list(value)
+        payload.update(key=key, material_presentations=list(presentations.values()))
+        authoring.archive_refit_material_cache[key] = payload
     if key not in authoring.archive_refit_material_cache:
         indices = bound_part_indices(mesh, state)
         selected = [indices[part.part_id] for part in state.parts if part.material_choice == "imported"]

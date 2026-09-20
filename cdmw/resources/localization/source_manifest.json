@@ -8312,6 +8312,11 @@
       "manual": true
     },
     {
+      "key": "Apply translucency",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Apply {value_0} file changes",
       "origins": [
         {
@@ -8542,7 +8547,7 @@
       ]
     },
     {
-      "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Keep glowing details on separate parts.",
+      "key": "Approximate viewport preview; game refraction and lighting may differ. Uses Plain PBR materials. Glow maps and colours are kept; glow brightness may differ in game.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/translucency_editor.py",
@@ -32012,6 +32017,11 @@
       ]
     },
     {
+      "key": "Edit material translucency",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Edit note: {value_0}",
       "origins": [
         {
@@ -39237,6 +39247,16 @@
       ]
     },
     {
+      "key": "Finish the hair workflow before changing the material shader.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 83,
+          "sink": "python-return:translucency_ui_state"
+        }
+      ]
+    },
+    {
       "key": "Finish the hair workflow before editing cloth influence.",
       "origins": [
         {
@@ -44102,6 +44122,11 @@
       ]
     },
     {
+      "key": "Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview.",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Highest terrain-like group risk: {value_0}",
       "origins": [
         {
@@ -48562,6 +48587,16 @@
         {
           "path": "cdmw/services/mod_merge_service.py",
           "line": 201,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid translucency reset request.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 105,
           "sink": "ValueError"
         }
       ]
@@ -90082,6 +90117,16 @@
       ]
     },
     {
+      "key": "Restore material",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Restore material translucency",
+      "origins": [],
+      "manual": true
+    },
+    {
       "key": "Restore the backup named by the last Mesh Editor overlay receipt.",
       "origins": [
         {
@@ -96247,6 +96292,16 @@
       ]
     },
     {
+      "key": "Select all parts sharing this material and use the same translucency settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 19,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select all source HKX/HKT rows. Physics contracts can differ across one-hand, two-hand, ranged, and accessory assets, so test in game.",
       "origins": [
         {
@@ -96697,6 +96752,16 @@
       ]
     },
     {
+      "key": "Select at least one material part for translucency.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 102,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Select at least one package to preview.",
       "origins": [
         {
@@ -96945,6 +97010,11 @@
           "sink": "_set_status"
         }
       ]
+    },
+    {
+      "key": "Select one or more Parts above.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Select one or more mesh parts first.",
@@ -97560,6 +97630,11 @@
           "sink": "python-return:build_retrofit_update_plan_html"
         }
       ]
+    },
+    {
+      "key": "Selected parts have different translucency settings.",
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Selected parts share a material with an untouched part. Select all parts using that material.",
@@ -109412,6 +109487,26 @@
       ]
     },
     {
+      "key": "The matching PAC XML is missing. Open this item from the archive to edit translucency.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 33,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "The material has no editable parameter vector.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 64,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "The material preview ended without a package.",
       "origins": [
         {
@@ -112948,6 +113043,81 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 496,
           "sink": "python-return:_build_utility_sections"
+        }
+      ]
+    },
+    {
+      "key": "Translucency (experimental)",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Translucency draft has no absorption settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 167,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucency is unavailable for this mesh.",
+      "origins": [],
+      "manual": true
+    },
+    {
+      "key": "Translucency material bindings were not found: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 68,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucency material sidecar exceeds the supported size limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 36,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucency material sources are ambiguous.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 30,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucency requires a PAC and its material sidecar.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 25,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 83,
+          "sink": "python-return:translucency_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "Translucency settings require replacement draft version 8.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 128,
+          "sink": "ValueError"
         }
       ]
     },
@@ -143622,6 +143792,16 @@
         {
           "path": "cdmw/services/mod_merge_service.py",
           "line": 226,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: this material has no base colour texture. Convert it to Plain PBR before using translucency.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_translucency.py",
+          "line": 43,
           "sink": "ValueError"
         }
       ]

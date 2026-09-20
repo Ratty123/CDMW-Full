@@ -2135,6 +2135,7 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
     let ownership = vec![vec![0_u32]];
     let mut captures = Vec::new();
     let mut reference_luma = Vec::new();
+    let mut material_luma = Vec::new();
     for (name, translucency, alpha, gltf_opaque) in [
         ("opaque", None, 255_u8, false),
         ("clear", Some([0.5, 0.0]), 255, false),
@@ -2142,18 +2143,30 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
         ("dense", Some([0.5, 1.0]), 255, false),
         ("zero-alpha", Some([0.5, 1.0]), 0, false),
         ("gltf-opaque-alpha", Some([0.5, 1.0]), 0, true),
+        ("glowing-dense", Some([0.5, 1.0]), 255, false),
+        ("masked-glow", Some([0.5, 1.0]), 255, false),
     ] {
         let mut base = cdmw_texture::synthetic::rgba8_checker_dds();
         for pixel in base[148..].chunks_exact_mut(4) {
             pixel.copy_from_slice(&[180, 160, 140, alpha]);
         }
+        let mut emissive = cdmw_texture::synthetic::rgba8_checker_dds();
+        for pixel in emissive[148..].chunks_exact_mut(4) {
+            let mask = if name == "masked-glow" { 0 } else { 255 };
+            pixel.copy_from_slice(&[mask, mask, mask, 255]);
+        }
         let textures = [HeadlessMaterialTexture {
             bytes: &base, role: cdmw_texture::TextureRole::BaseColor,
+            material_indices_by_lod: &ownership,
+        }, HeadlessMaterialTexture {
+            bytes: &emissive, role: cdmw_texture::TextureRole::Emissive,
             material_indices_by_lod: &ownership,
         }];
         let factors = [HeadlessMaterialFactors {
             factors: MaterialPreviewFactors {
                 translucency, alpha_blend: Some(false), gltf_metallic_roughness: Some(gltf_opaque),
+                emissive_color: Some([0.1, 0.8, 0.3]),
+                emissive_intensity: Some(if matches!(name, "glowing-dense" | "masked-glow") { 4.0 } else { 0.0 }),
                 opacity: Some(if gltf_opaque { 0.0 } else { 1.0 }),
                 ..MaterialPreviewFactors::default()
             },
@@ -2171,6 +2184,8 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
         ))?;
         reference_luma.push(report.owner_coverage.iter().find(|owner| owner.material_index == 1)
             .ok_or("reference material missing")?.textured_mean_luma_255);
+        material_luma.push(report.owner_coverage.iter().find(|owner| owner.material_index == 0)
+            .ok_or("translucent material missing")?.textured_mean_luma_255);
         captures.push(std::fs::read(base_path)?);
     }
     let difference = |pixels: &[u8]| -> u64 {
@@ -2183,6 +2198,8 @@ fn offscreen_d3d12_translucency_responds_to_absorption_and_texture_alpha() -> Te
     assert!(opaque > dense && dense > thin && thin > 0, "opaque={opaque}, dense={dense}, thin={thin}");
     assert_eq!(difference(&captures[4]), 0, "zero texture alpha must transmit the background");
     assert_eq!(&captures[5][54..], &captures[3][54..], "glTF OPAQUE ignores texture and factor alpha, matching export");
+    assert!(material_luma[6] > material_luma[3] + 5.0, "emission disappeared from the translucent part: {material_luma:?}");
+    assert!((material_luma[7] - material_luma[3]).abs() < 1.0, "emissive texture mask was ignored: {material_luma:?}");
     assert!(reference_luma.iter().all(|value| *value == reference_luma[0]), "unselected reference appearance changed");
     println!("D3D12 translucency pixels: opaque={opaque}, dense={dense}, thin={thin}; captures={}", root.display());
     Ok(())

@@ -3710,6 +3710,7 @@ impl LabApplication {
         } else if !selected.is_empty() && selected.len() >= parts.len() {
             ui.small("Keep at least one part when deleting.");
         }
+        self.draw_cdmw_translucency(ui, actions);
     }
 
     fn cdmw_part_action_reason(&self, action: &str) -> Option<&'static str> {
@@ -4321,5 +4322,64 @@ mod tests {
         assert!(application.cdmw_textured_mode_available);
         assert_eq!(application.view_mode, ViewMode::TexturedSolid);
         assert!(application.cdmw_textured_mode_reason.is_empty());
+    }
+}
+
+
+impl LabApplication {
+    pub(super) fn draw_cdmw_translucency(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let Some(state) = self.cdmw_state.get("translucency") else { return };
+        egui::CollapsingHeader::new("Translucency (experimental)")
+            .id_salt("part_translucency").show(ui, |ui| {
+                let selected = self.selected_part_indices();
+                let rows = state["parts"].as_array().into_iter().flatten()
+                    .filter(|row| row["index"].as_u64().is_some_and(|index| selected.contains(&(index as u32))))
+                    .collect::<Vec<_>>();
+                let ids = rows.iter().map(|row| row["id"].clone()).collect::<Vec<_>>();
+                let available = state["available"].as_bool().unwrap_or(false);
+                if !available {
+                    ui.small(state["reason"].as_str().unwrap_or("Translucency is unavailable for this mesh."));
+                } else if ids.is_empty() {
+                    ui.small("Select one or more Parts above.");
+                }
+                let saved = rows.first().map(|row| &row["translucency"]);
+                let mixed = rows.iter().any(|row| Some(&row["translucency"]) != saved);
+                if mixed { ui.small("Selected parts have different translucency settings."); }
+                let key = egui::Id::new(("translucency_values", ids.iter().map(Value::to_string).collect::<Vec<_>>(),
+                                        rows.iter().map(|row| row["translucency"].to_string()).collect::<Vec<_>>()));
+                let mut values = ui.ctx().data_mut(|data| data.get_temp::<[f32; 2]>(key)).unwrap_or_else(|| {
+                    [saved.and_then(|v| v[0].as_f64()).unwrap_or(0.1) as f32,
+                     saved.and_then(|v| v[1].as_f64()).unwrap_or(0.3) as f32]
+                });
+                let editing = self.cdmw_state["authoring_enabled"].as_bool().unwrap_or(false)
+                    && self.cdmw_state["replacement"]["comparison"].as_str().unwrap_or("edit") == "edit";
+                ui.add_enabled_ui(available && !ids.is_empty() && !self.cdmw_busy() && editing, |ui| {
+                    for (name, value) in ["Thickness", "Extinction"].into_iter().zip(values.iter_mut()) {
+                        ui.horizontal(|ui| {
+                            ui.label(name);
+                            ui.add(egui::DragValue::new(value).range(0.0..=1.0).speed(0.005).fixed_decimals(3));
+                        });
+                    }
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button("Apply translucency").clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_translucency",
+                                arguments: json!({"part_ids": ids, "translucency": values}),
+                                label: "Edit material translucency",
+                            });
+                        }
+                        if ui.add_enabled(rows.iter().any(|row| !row["translucency"].is_null()),
+                                          egui::Button::new("Restore material")).clicked() {
+                            actions.push(UiAction::CdmwCommand {
+                                command: "replacement_translucency",
+                                arguments: json!({"part_ids": ids, "reset": true}),
+                                label: "Restore material translucency",
+                            });
+                        }
+                    });
+                });
+                ui.ctx().data_mut(|data| data.insert_temp(key, values));
+                ui.small("Higher values absorb more light. Glow maps and colours are kept. Game refraction and glow brightness may differ from the preview.");
+            });
     }
 }

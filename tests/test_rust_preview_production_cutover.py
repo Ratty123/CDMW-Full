@@ -403,10 +403,14 @@ def test_static_replacement_is_the_only_mesh_input_profile(tmp_path: Path) -> No
 
 
 def test_rust_cache_namespace_cannot_alias_the_retired_preview_cache(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch,
 ) -> None:
+    from cdmw.services import mesh_rust_preview_cache as cache
     root = rust_preview_package_cache_root(tmp_path)
-    assert RUST_PREVIEW_CACHE_SCHEMA == 7
+    assert RUST_PREVIEW_CACHE_SCHEMA == 8
+    upgraded = cache.rust_preview_package_cache_key("same-archive-identity")
+    monkeypatch.setattr(cache, "RUST_PREVIEW_CACHE_SCHEMA", 7)
+    assert cache.rust_preview_package_cache_key("same-archive-identity") != upgraded
     assert root == tmp_path / "rust_wgpu_v1"
     assert "dotnet" not in root.name.casefold()
     assert "vortice" not in root.name.casefold()

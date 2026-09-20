@@ -153,8 +153,10 @@ imported material when disabled. Effects previews carry the same settings.
 The viewport approximates the game's absorption with sorted alpha blending; it
 does not reproduce scene refraction, coloured background transmission, game
 lighting or shadow behaviour. Verify the result in-game. Glow and translucency
-currently require separate material parts; export reports a conflict instead of
-dropping emission. A mixed opaque/translucent atlas must be separated or all its
+can share a part: the shipped translucent parameter group declares an emissive
+map and colour. Export retains those inputs and the authored strength, but the
+translucent shader may ignore the separate strength parameter, so brightness
+needs in-game verification. A mixed opaque/translucent atlas must be separated or all its
 materials selected, and missing material selections block export.
 Moving to step 3 reparents that
 live viewport without rebuilding

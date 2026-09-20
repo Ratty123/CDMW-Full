@@ -7740,3 +7740,37 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
     );
     Ok(())
 }
+
+
+#[test]
+fn translucency_controls_send_selected_parts_and_restore_without_changing_geometry() -> TestResult {
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        two_part_application()?, egui::vec2(1440.0, 1100.0));
+    let before = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.application.cdmw_state["translucency"] = json!({
+        "available": true, "parts": [
+            {"index": 0, "id": "a", "translucency": null},
+            {"index": 1, "id": "b", "translucency": [0.25, 0.75]}
+        ]
+    });
+    ui.settle_layout();
+    ui.click("1: Part B")?;
+    ui.click("Translucency (experimental)")?;
+    ui.settle_layout();
+    let actions = ui.actions_from_click("Apply translucency")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "translucency": [0.25, 0.75]})
+    )));
+    ui.application.cdmw_pending_request = None;
+    let actions = ui.actions_from_click("Restore material")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_translucency", arguments, .. }
+        if arguments == &json!({"part_ids": ["b"], "reset": true})
+    )));
+    ui.application.cdmw_pending_request = None;
+    ui.click("None")?;
+    assert!(!has_host_command(&ui.actions_from_click("Apply translucency")?, "replacement_translucency"));
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), before);
+    Ok(())
+}

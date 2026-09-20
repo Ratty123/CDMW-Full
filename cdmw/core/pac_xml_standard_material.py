@@ -184,8 +184,6 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
     if material.translucency is not None:
         if len(material.translucency) != 2 or any(not 0 <= value <= 1 for value in material.translucency):
             raise PacXmlMaterialError("translucency needs thickness and extinction in 0..1")
-        if material.emissive_texture:
-            raise PacXmlMaterialError("Glow and translucency currently require separate material parts")
     known = [("_baseColorTexture", material.base)]
     if material.normal:
         known.append(("_normalTexture", material.normal))
@@ -226,6 +224,8 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
             )
             index += 1
     if material.emissive_texture:
+        # SkinnedMeshTranslucentParameterSet also declares this map and colour.
+        # Retain strength for round trips; its game interpretation may differ.
         lines.append(
             f'{p_indent}<MaterialParameterTexture StringItemID="_emissiveIntensityTexture" ItemID="{_EMISSIVE_TEXTURE_ID}" '
             f'_name="_emissiveIntensityTexture" Index="{index}">'

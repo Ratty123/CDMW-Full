@@ -793,9 +793,10 @@ def route_plain_pbr(
                 # the colour and the strength are theirs
                 color, intensity = glow_color, glow_intensity
         if matches and emissive:
-            raise NewItemPlanError(
-                f"{source_name}: Glow and translucency currently require separate material parts. "
-                "This material has emission; separate its glowing detail before enabling translucency."
+            warnings.append(
+                f"{source_name}: translucent emission keeps the emissive map, colour and strength. "
+                "The game shader exposes the map and colour but may ignore the separate strength; "
+                "check glow brightness in game."
             )
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,

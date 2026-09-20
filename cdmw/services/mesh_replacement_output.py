@@ -321,6 +321,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
     if not final_report.ok:
         raise ValueError("Rebuilt replacement is invalid: " + "; ".join(i.message for i in final_report.blockers))
     files = list(state.companion_files)
+    if any(part.translucency is not None for part in state.parts):
+        from cdmw.services.mesh_translucency import build_translucency_files
+        files = list(build_translucency_files(state, original, files))
     if any(part.physics_profiles for part in state.parts):
         from cdmw.services.mesh_physics_profile_output import build_physics_profile_files
         files = list(build_physics_profile_files(state, original, files))

@@ -38,6 +38,7 @@ class ReplacementPart:
     cloth: PacClothRule | None = None
     jiggle: PacJiggleRule | None = None
     physics_profiles: tuple[PacPhysicsProfileRule, ...] = ()
+    translucency: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)

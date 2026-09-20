@@ -13,6 +13,7 @@ from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementFile, 
 from cdmw.domain.mesh.cloth import PacClothRule
 from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
+from cdmw.domain.mesh.translucency import translucency_values
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -43,8 +44,10 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
 
     relative_jiggle = any(part.jiggle is not None and part.jiggle.retained for part in state.parts)
     physics_profiles = any(part.physics_profiles for part in state.parts)
+    translucent = any(part.translucency is not None for part in state.parts)
     return {
-        "version": (7 if physics_profiles else 6 if relative_jiggle else
+        "version": (8 if translucent else
+                    7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
                     3 if state.neutral_appearance is not None else 2),
@@ -60,8 +63,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                                       if part.import_normals is not None else None),
                    **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {}),
                    **({"physics_profiles": [rule.to_dict() for rule in part.physics_profiles]} if part.physics_profiles else {}),
+                   **({"translucency": list(part.translucency)} if part.translucency is not None else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
-                                  **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles else {})}}
+                                  **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles or translucent else {})}}
                       if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
@@ -80,7 +84,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7, 8}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -120,6 +124,9 @@ def _load_replacement_state(payload, project_root):
         cloth = PacClothRule.from_dict(value["cloth"]) if "cloth" in value else None
         if payload["version"] < 5 and "jiggle" in value:
             raise ValueError("Jiggle settings require replacement draft version 5.")
+        if payload["version"] < 8 and "translucency" in value:
+            raise ValueError("Translucency settings require replacement draft version 8.")
+        translucency = translucency_values(value["translucency"]) if "translucency" in value else None
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
         profiles = value.get("physics_profiles", [])
         if (not isinstance(profiles, list) or len(profiles) > 256
@@ -155,7 +162,9 @@ def _load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles, translucency))
+    if payload["version"] == 8 and not any(part.translucency is not None for part in parts):
+        raise ValueError("Translucency draft has no absorption settings.")
     if payload["version"] == 6 and not any(part.jiggle is not None and part.jiggle.retained for part in parts):
         raise ValueError("Relative jiggle draft has no retained contribution settings.")
     if payload["version"] == 7 and not any(part.physics_profiles for part in parts):

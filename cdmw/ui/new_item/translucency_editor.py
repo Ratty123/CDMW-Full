@@ -40,7 +40,7 @@ class TranslucencyEditor(QGroupBox):
         details.addLayout(form)
         hint = QLabel(
             "Approximate viewport preview; game refraction and lighting may differ. "
-            "Uses Plain PBR materials. Keep glowing details on separate parts."
+            "Uses Plain PBR materials. Glow maps and colours are kept; glow brightness may differ in game."
         )
         hint.setWordWrap(True)
         details.addWidget(hint)

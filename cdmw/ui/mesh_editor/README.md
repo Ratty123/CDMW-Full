@@ -10,9 +10,35 @@ it does not replace the active Mesh Editor session.
 The current product boundary is geometry authoring: selection, topology,
 transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
 history, original-vs-edited review, validation, and read-only textured display.
-Replacement imports and reversible output inclusion extend that foundation in
-the existing Parts panel. General material assignment, recolour/glow authoring,
+Replacement imports, reversible output inclusion and experimental translucency
+extend that foundation in the existing Parts panel. General material assignment, recolour/glow authoring,
 in-game swaps remain separate workflows. Hair Appearance has a scoped DDS handoff.
+
+### Translucency on parts
+
+Select one or more parts, expand **Translucency (experimental)**, set **Thickness**
+and **Extinction** (0–1), and click **Apply translucency**. This works on original
+PAC parts and imported replacements in an eligible item session at LOD0. There
+is no New Item requirement. **Restore material**, Undo and Redo recover the
+previous material; Finish and saved drafts retain the choices. Restoring an
+imported part keeps its imported materials. Drafts with captured dependencies
+can be edited without the archive mounted.
+
+The viewport reuses its prepared textures for absorption changes and keeps
+emission. Export changes the selected PAC XML material to `SkinnedMeshTranslucent`
+with the two absorption parameters, preserving other parameters and texture
+paths. Material-only edits keep the PAC bytes unchanged. Shared materials require
+the same settings on all their parts; missing sidecars, unmatched wrappers and
+materials without an explicit base colour texture report an error before applying.
+Free Edit meshes without the original PAC binding are outside this export route.
+Authored `SkinnedMeshTranslucent` sidecars also supply absorption on reopening.
+Existing renderer packages rebuild once to pick up this interpretation; source
+DDS caches remain reusable.
+
+This is an experimental approximation: the viewport does not reproduce game
+refraction or coloured background transmission. The shipped translucent shader
+declares emissive map and colour inputs; it may ignore the separate glow strength.
+Verify appearance and brightness in game.
 
 The resident editor defers hidden Qt compatibility panels until an explicit widget
 or action lookup needs them. Output controls keep their identity, and the latest

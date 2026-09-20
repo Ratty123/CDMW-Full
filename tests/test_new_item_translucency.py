@@ -61,13 +61,18 @@ def test_source_names_resolve_but_missing_names_and_mixed_atlases_do_not_silentl
     assert selected_translucency(TranslucencyChoice(("Blade", "Grip")), "part_0", atlas) == {"blade", "grip"}
 
 
-def test_emissive_selection_is_reported_without_discarding_emission():
+def test_emissive_selection_retains_map_colour_and_strength():
     files = builder_files()
     from cdmw.domain.new_item.spec import GlowChoice
     name = find_material_wrappers(files.side_files[XML].decode())[0].submesh_name
-    with pytest.raises(NewItemPlanError, match="separate material parts"):
-        route_plain_pbr(files, translucency=TranslucencyChoice((name,)),
-                        glow=GlowChoice((name,)), encode_glow=lambda: b"emissive map")
+    result = route_plain_pbr(files, translucency=TranslucencyChoice((name,)),
+                            glow=GlowChoice((name,)), encode_glow=lambda: b"emissive map").files
+    wrapper = next(row for row in find_material_wrappers(result.side_files[XML].decode()) if row.submesh_name == name)
+    assert wrapper.shader == "SkinnedMeshTranslucent"
+    assert result.side_files[wrapper.textures["_emissiveIntensityTexture"]] == b"emissive map"
+    assert wrapper.value("_emissiveColor") == "#FFFFFFFF"
+    assert float(wrapper.value("_emissiveIntensity")) == GlowChoice((name,)).intensity
+    assert any("may ignore" in warning for warning in result.warnings)
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.1, float("nan"), float("inf")])
