@@ -1,6 +1,6 @@
 """Decoded CPU cloth parameter updates from build 1.0.0.2944.
 
-These implement selected stages of 0x143CE26F0, after material/LOD resolution.
+These implement selected material-mask, LOD and frame-update stages.
 Supply actual runtime globals explicitly; initialization defaults do not prove
 live configuration. Python pow rounded to float32 is not bit-exact CRT powf.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import struct
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 
 from ._pbd_numeric import f32, round_pbd_half
 from .pac_cloth_base import _boolean, _record
@@ -47,6 +47,42 @@ def _update_half(record, offset, value):
         return False
     struct.pack_into('<e', record, offset, round_pbd_half(value))
     return True
+
+
+def build_cloth_material_collision_mask(
+    collider_bone_hashes: Sequence[int], *, inclusion_bone_hashes: Collection[int],
+    exclusion_bone_hashes: Collection[int],
+    temporary_fix_exclusion_bone_hashes: Collection[int],
+) -> tuple[int, int, int]:
+    """Build the three CPU mask words at owner+0x80 from 0x143CE1B20.
+
+    Supply collider hashes in the caller's concatenated group/element order,
+    not skeleton or PAC palette order. Material lists contain already-hashed
+    uint32 names. No inclusions starts with all 96 bits set; any inclusion entry
+    starts with zero, even if its hash is the skipped 0xFFFFFFFF sentinel.
+    Inclusion sets matching bits, then either exclusion list clears them.
+
+    Sentinel collider keys retain their initial bit and still consume a slot.
+    Repeated hashes retain separate slots; indices beyond 95 cannot change this
+    mask. CPU upload at 0x143CE2237 copies these words to simulation bytes64..75.
+    Other masks, live overrides and shader admission gates remain caller-owned.
+    """
+    for values in (collider_bone_hashes, inclusion_bone_hashes, exclusion_bone_hashes,
+                   temporary_fix_exclusion_bone_hashes):
+        for value in values:
+            _integer(value, 0, 0xFFFFFFFF)
+    inclusions = frozenset(inclusion_bone_hashes)
+    exclusions = frozenset(exclusion_bone_hashes) | frozenset(temporary_fix_exclusion_bone_hashes)
+    words = [0 if inclusion_bone_hashes else 0xFFFFFFFF] * 3
+    for index, bone_hash in enumerate(collider_bone_hashes[:96]):
+        if bone_hash == 0xFFFFFFFF:
+            continue
+        word, bit = index // 32, 1 << (index % 32)
+        if inclusion_bone_hashes and bone_hash in inclusions:
+            words[word] |= bit
+        if bone_hash in exclusions:
+            words[word] &= ~bit
+    return tuple(words)
 
 
 def update_cloth_frame_stiffness(

@@ -6,7 +6,52 @@ import struct
 import pytest
 
 from cdmw.modding.pac_cloth_constraints import cloth_stretch_corrections
-from cdmw.modding.pac_cloth_runtime import update_cloth_frame_stiffness, update_cloth_iteration_bits
+from cdmw.modding.pac_cloth_runtime import (
+    build_cloth_material_collision_mask, update_cloth_frame_stiffness, update_cloth_iteration_bits,
+)
+
+
+def collision_mask(keys=(), *, include=(), exclude=(), temporary=()):
+    return build_cloth_material_collision_mask(
+        keys, inclusion_bone_hashes=include, exclusion_bone_hashes=exclude,
+        temporary_fix_exclusion_bone_hashes=temporary,
+    )
+
+
+def test_collision_mask_without_inclusions_preserves_unused_slots_and_excludes_matches():
+    assert collision_mask() == (0xFFFFFFFF,) * 3
+    assert collision_mask((10, 20, 30), exclude=(20, 999), temporary=(30,)) == (
+        0xFFFFFFF9, 0xFFFFFFFF, 0xFFFFFFFF,
+    )
+
+
+def test_collision_exclusions_win_over_inclusions_and_repeated_hashes_keep_their_slots():
+    keys, include, exclude, temporary = [10, 20, 30, 10], [30, 10, 20, 10], [20], [30]
+    assert collision_mask(keys, include=include, exclude=exclude, temporary=temporary) == (9, 0, 0)
+    assert (keys, include, exclude, temporary) == ([10, 20, 30, 10], [30, 10, 20, 10], [20], [30])
+
+
+def test_collision_mask_word_boundaries_and_96_slot_limit():
+    keys = tuple(range(1000, 1100))
+    include = tuple(keys[index] for index in (0, 31, 32, 63, 64, 95, 96))
+    assert collision_mask(keys, include=include) == (0x80000001,) * 3
+    assert collision_mask(keys, include=include, exclude=(keys[64], keys[96])) == (
+        0x80000001, 0x80000001, 0x80000000,
+    )
+
+
+def test_collision_sentinel_skips_matching_but_consumes_a_slot_and_counts_as_an_inclusion():
+    keys = (0xFFFFFFFF, 10, 20, 10)
+    assert collision_mask(keys, include=(10,)) == (10, 0, 0)
+    assert collision_mask(keys, include=(0xFFFFFFFF,)) == (0, 0, 0)
+    assert collision_mask(keys, exclude=(0xFFFFFFFF, 10)) == (0xFFFFFFF5, 0xFFFFFFFF, 0xFFFFFFFF)
+
+
+@pytest.mark.parametrize('values', [(-1,), (0x100000000,), (True,), (1.5,)])
+@pytest.mark.parametrize('field', ['keys', 'include', 'exclude', 'temporary'])
+def test_collision_mask_rejects_non_uint32_hashes(values, field):
+    with pytest.raises(ValueError, match='storage range'):
+        collision_mask(**{field: values})
 
 
 def frame(*, stretch=0., bend=-1., area=0., restore=-1., underwater=-1., flags2=0):

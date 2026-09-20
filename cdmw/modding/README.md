@@ -1217,6 +1217,25 @@ state writes and native preview wiring remain to be connected; this is not the
 complete cloth solver.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
+Its `build_cloth_material_collision_mask` also follows `0x143CE1B20`: an empty
+`BoneCollidableInclusionBones` list initializes all 96 bits to one; a nonempty
+list initializes them to zero and sets matching collider slots. Either
+`BoneCollidableExclusionBones` or `BoneCollidableTemporaryFixExclusionBones`
+then clears matches, including bones also in the inclusion list. Material
+parser `0x1435F6CE0` hashes the names, and `0x1435F25B0` combines list membership
+with bits 1/2/4. These are separate from definition flags and the runtime
+volume-profile sets described above.
+
+The collider keys come from volume-record hashes copied at `0x143648EB0` and
+concatenated in caller `0x142DE25A0`; they are not skeleton or PAC palette
+indices. A `FFFFFFFF` key retains its initial bit while consuming a slot.
+An inclusion list containing only that sentinel still starts with zero bits.
+Repeated keys retain separate slots; indices above 95 cannot affect the mask.
+CPU upload `0x143CE2237` copies the three owner words at `+0x80` to simulation
+bytes 64..75. Synthetic tests compose these words with the existing guide input
+collision pass. Actual group selection, later mask changes, shader bypasses and
+native preview integration remain separate; this helper does not write a PAC.
+
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
 the existing frame record; they are not direct shader stiffness values. For a
 positive input, the rule is `min(1 - powf(1 - bounded_input, scale / denominator),

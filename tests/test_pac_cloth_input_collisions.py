@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from cdmw.modding.pac_cloth_collisions import apply_cloth_input_collisions
+from cdmw.modding.pac_cloth_runtime import build_cloth_material_collision_mask
 from cdmw.modding.pac_cloth_state import select_cloth_base_integration
 
 
@@ -240,6 +241,25 @@ def test_mask_overrides_allow_same_scene_colliders(override):
     else:
         struct.pack_into('<I', data['per_frame'], 36, 0x420000)
     assert run(data)['projected_colliders'] == 1
+
+
+@pytest.mark.parametrize('include,exclude,temporary,projected', [
+    ((), (), (), 1), ((123,), (), (), 1), ((456,), (), (), 0),
+    ((123,), (123,), (), 0), ((123,), (), (123,), 0),
+])
+def test_cpu_material_mask_upload_controls_same_scene_input_projection(include, exclude, temporary, projected):
+    data = fixture()
+    self_scene(data)
+    words = build_cloth_material_collision_mask(
+        (123,), inclusion_bone_hashes=include, exclusion_bone_hashes=exclude,
+        temporary_fix_exclusion_bone_hashes=temporary,
+    )
+    struct.pack_into('<3I', data['simulation_parameter'], 64, *words)
+    before = snapshot(data)
+    result = run(data)
+    assert result['projected_colliders'] == projected
+    assert position(result)[1] == pytest.approx(.125 if projected else -.2)
+    assert snapshot(data) == before
 
 
 def test_each_reference_restarts_the_mask_counter_and_sentinel_entries_are_skipped():
