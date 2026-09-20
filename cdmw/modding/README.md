@@ -203,6 +203,10 @@ by these inspected update bodies and are not exposed as proven solver controls.
 
 ### Bone-to-render handoff
 
+The native counterpart is `cdmw_mesh::jiggle_skinning`; its focused tests include
+the decoded Rust bone step through inverse-bind preparation to a render vertex.
+Both implementations require explicitly resolved runtime buffers and maps.
+
 `pac_jiggle_skinning.py` connects the bone reference to the retained render
 vertex and guide-cloth blend. It traces `ComputeSkinningMatrix2` (source SHA-256
 prefix `db7bcc0dd8b7`) and `CSMainSkinnedMeshStreamOutVertexData`
