@@ -94,9 +94,18 @@ Each 16-byte guide record contains three unsigned 15-bit coordinates, a fourth
 by 255; the decoder retains sums of 254 or 256 instead of silently normalizing.
 Coordinates use the guide bounds, not any visible part's bounds.
 
-The two per-guide byte arrays and count-prefixed constraint tables remain raw.
-Their storage is decoded, but they are not exposed as pin, mass or stiffness
-controls. This reader does not replace the approximate simulation preview.
+The reader also retains the two per-guide byte arrays, ordered index groups,
+layout-7 group tags, complete 10-byte constraint records, per-vertex constraint
+spans and edge indices. No unknown or apparently unused bytes are discarded.
+`inspect_guide_topology` reports whether these tables match the guide's edges,
+adjacent triangles and per-vertex references. The observed record classification
+uses the low byte of the final word; its high byte varies in stock files and is
+retained separately in the evidence summary and intact in the raw records.
+
+Alpha bits matching channel B's value 255 is a structural observation, not proof
+of runtime pinning. Group starts do not always match those alpha bits. Reports
+show these comparisons explicitly; no pin, mass or stiffness controls are
+inferred from them. This reader does not replace the approximate simulation preview.
 Unsupported layouts, mismatched descriptor counts, out-of-range triangles and
 truncated metadata report unavailable without reading into geometry sections.
 
@@ -107,7 +116,8 @@ Inspect loose decoded files with:
 ```
 
 The command reads its inputs and prints JSON with source hashes, decoded guide
-geometry, raw channels and field offsets. It returns a nonzero status if any
-input is unavailable. Keep reports and game-derived data outside the repository.
+geometry, complete stored tables, topology comparisons and field offsets. It
+returns a nonzero status if any input is unavailable. Keep reports and game-derived
+data outside the repository.
 
 Related tests: mesh, static replacement, material, and package entries under `tests/`.

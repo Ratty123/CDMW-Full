@@ -17,7 +17,7 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
+from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_topology
 
 
 def inspect_pac(data: bytes, *, path: str = "") -> dict:
@@ -33,6 +33,7 @@ def inspect_pac(data: bytes, *, path: str = "") -> dict:
     payload["channel_b"] = list(guides.channel_b)
     return {**result, "status": "decoded", "vertex_count": len(guides.vertices),
             "triangle_count": len(guides.triangles), "guides": payload,
+            "topology_evidence": inspect_guide_topology(guides),
             "limitations": "Raw byte channels, alpha bits and constraint tables are not physical-pin or solver settings. No runtime parity is implied."}
 
 

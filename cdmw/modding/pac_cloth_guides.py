@@ -7,6 +7,7 @@ No values here authorize changing the game's constraint or collision data.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 import math
 import struct
@@ -37,6 +38,13 @@ class PacClothGuides:
     channel_b: bytes
     alpha_words: tuple[int, ...]
     ranges: tuple[PacGuideRange, ...]
+    groups_a: tuple[tuple[int, ...], ...] = ()
+    group_a_tags: tuple[int, ...] = ()
+    constraint_records: tuple[tuple[int, int, int, int, int], ...] = ()
+    constraint_indices: tuple[int, ...] = ()
+    vertex_constraint_spans: tuple[tuple[int, int], ...] = ()
+    groups_b: tuple[tuple[int, ...], ...] = ()
+    edge_indices: tuple[int, ...] = ()
 
 
 def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
@@ -94,11 +102,13 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
     def array(name: str, stride: int) -> memoryview:
         return take(name, u16(name + "_count"), stride)
 
-    def groups(name: str, *, tagged: bool = False) -> None:
+    def groups(name: str, *, tagged: bool = False) -> tuple[tuple[tuple[int, ...], ...], tuple[int, ...]]:
+        values, tags = [], []
         for index in range(u16(name + "_count")):
-            array(f"{name}_{index}", 2)
+            values.append(tuple(v[0] for v in struct.iter_unpack("<H", array(f"{name}_{index}", 2))))
             if tagged:
-                take(f"{name}_{index}_tag", 1, 1)
+                tags.append(take(f"{name}_{index}_tag", 1, 1)[0])
+        return tuple(values), tuple(tags)
 
     count = u16("vertices_count")
     # The CPU loader accepts at most 1024 guide vertices, matching 10-bit indices.
@@ -111,14 +121,14 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
     if len(indices) % 3 or any(index >= count for index in indices):
         raise ValueError("PAC guide triangles contain invalid indices.")
     alpha_words = tuple(v[0] for v in struct.iter_unpack("<I", take("alpha_bits", (count + 31) // 32, 4)))
-    groups("groups_a", tagged=layout == 7)
-    # These lengths are proven by the CPU loader. Their solver semantics remain
-    # undecoded; skip by the stored counts instead of scanning for plausible floats.
-    array("records_10", 10)
-    array("indices_a", 2)
-    array("records_4", 4)
-    groups("groups_b")
-    array("indices_b", 2)
+    groups_a, group_a_tags = groups("groups_a", tagged=layout == 7)
+    # Preserve complete records, including unknown high bytes. Structural matches
+    # can be inspected separately without assuming solver or editable-pin meaning.
+    constraint_records = tuple(struct.iter_unpack("<5H", array("records_10", 10)))
+    constraint_indices = tuple(v[0] for v in struct.iter_unpack("<H", array("indices_a", 2)))
+    vertex_constraint_spans = tuple(struct.iter_unpack("<2H", array("records_4", 4)))
+    groups_b, _ = groups("groups_b")
+    edge_indices = tuple(v[0] for v in struct.iter_unpack("<H", array("indices_b", 2)))
     box = struct.unpack("<6f", take("guide_bbox", 2, 12))
     if any(not math.isfinite(v) for v in box) or any(v < 0 for v in box[3:]):
         raise ValueError("PAC guide bounding box is invalid.")
@@ -133,4 +143,92 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
         layout, tuple(box[:3]), tuple(box[3:]), tuple(vertices), tuple(bone_indices),
         tuple(bone_weight_bytes), tuple(zip(indices[::3], indices[1::3], indices[2::3])),
         channel_a, channel_b, alpha_words, tuple(ranges),
+        groups_a, group_a_tags, constraint_records, constraint_indices,
+        vertex_constraint_spans, groups_b, edge_indices,
     )
+
+
+def inspect_guide_topology(guides: PacClothGuides) -> dict:
+    """Report structural relationships, not runtime pin or solver semantics.
+
+    Stock samples have pair records, four-point hinges and triangle records.
+    Only the low byte of the fifth word participates in that observed pattern;
+    its high byte is retained, not discarded or assigned a meaning. Unrecognized
+    records remain available in the decoder and are counted explicitly here.
+    """
+    count = len(guides.vertices)
+    triangles = Counter(tuple(sorted(t)) for t in guides.triangles)
+    edge_faces: dict[tuple[int, int], list[int]] = {}
+    for a, b, c in guides.triangles:
+        for x, y, opposite in ((a, b, c), (b, c, a), (c, a, b)):
+            edge_faces.setdefault(tuple(sorted((x, y))), []).append(opposite)
+    edges = set(edge_faces)
+    classified = []
+    for a, b, c, d, tag in guides.constraint_records:
+        low = tag & 255
+        if low == 0 and c == d == 0:
+            kind, vertices = "pair", (a, b)
+        elif low == 0 and d == 65535:
+            kind, vertices = "triangle", (a, b, c)
+        elif low == 1:
+            kind, vertices = "hinge", (a, b, c, d)
+        else:
+            kind, vertices = "unrecognized", ()
+        if any(v >= count for v in vertices) or len(set(vertices)) != len(vertices):
+            kind, vertices = "unrecognized", ()
+        classified.append((kind, vertices))
+    kinds = Counter(kind for kind, _ in classified)
+    pairs = {tuple(sorted(v)) for kind, v in classified if kind == "pair"}
+    areas = Counter(tuple(sorted(v)) for kind, v in classified if kind == "triangle")
+    hinges = [v for kind, v in classified if kind == "hinge"]
+    alpha = {i for i in range(count) if guides.alpha_words[i // 32] >> (i % 32) & 1}
+    maximum_b = {i for i, value in enumerate(guides.channel_b) if value == 255}
+    stored_edges = guides.edge_indices
+    edge_table_matches = len(stored_edges) % 2 == 0 and Counter(
+        tuple(sorted(v)) for v in zip(stored_edges[::2], stored_edges[1::2])
+    ) == Counter({edge: 1 for edge in edges})
+
+    expected = [[] for _ in range(count)]
+    for record_index, (_, vertices) in enumerate(classified):
+        for vertex in vertices:
+            expected[vertex].append(record_index)
+    spans_match = len(guides.vertex_constraint_spans) == count and not kinds["unrecognized"]
+    groups_match = len(guides.groups_b) == len(guides.vertex_constraint_spans) == count
+    cursor = 0
+    for vertex, (offset, packed_counts) in enumerate(guides.vertex_constraint_spans):
+        first_count, second_count = packed_counts & 255, packed_counts >> 8
+        end = offset + first_count + second_count
+        refs = guides.constraint_indices[offset:end]
+        valid = offset == cursor and end <= len(guides.constraint_indices) and vertex < count
+        valid = valid and all(index < len(classified) for index in refs)
+        if valid:
+            valid = Counter(refs) == Counter(expected[vertex])
+            valid = valid and all(classified[i][0] in ("pair", "hinge") for i in refs[:first_count])
+            valid = valid and all(classified[i][0] == "triangle" for i in refs[first_count:])
+        spans_match = spans_match and valid
+        groups_match = (groups_match and end <= len(guides.constraint_indices)
+                        and vertex < len(guides.groups_b) and guides.groups_b[vertex] == refs[:first_count])
+        cursor = end
+    spans_match = spans_match and cursor == len(guides.constraint_indices)
+
+    return {
+        "record_counts": {kind: kinds[kind] for kind in ("pair", "hinge", "triangle", "unrecognized")},
+        "record_high_bytes": sorted({row[4] >> 8 for row in guides.constraint_records}),
+        "guide_edge_count": len(edges),
+        "edge_table_matches_triangles": edge_table_matches,
+        "triangle_records_match_triangles": areas == triangles,
+        "hinge_records_match_adjacent_triangles": all(
+            Counter(edge_faces.get(tuple(sorted((a, b))), ())) == Counter((c, d))
+            for a, b, c, d in hinges
+        ),
+        "pair_records_missing_edges": len(edges - pairs),
+        "pair_records_extra_edges": len(pairs - edges),
+        "missing_pair_records_match_alpha_edges": edges - pairs == {
+            edge for edge in edges if all(v in alpha for v in edge)
+        },
+        "alpha_vertex_count": len(alpha),
+        "alpha_bits_match_channel_b_255": alpha == maximum_b,
+        "group_starts_match_alpha_bits": {group[0] for group in guides.groups_a if group} == alpha,
+        "vertex_constraint_spans_match_records": spans_match,
+        "groups_b_match_first_span": groups_match,
+    }

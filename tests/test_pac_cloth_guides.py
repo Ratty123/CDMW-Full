@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 import json
 from pathlib import Path
 import struct
@@ -11,7 +12,7 @@ import sys
 
 import pytest
 
-from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
+from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_topology
 from tools.pac_cloth_guide_study import inspect_pac
 
 
@@ -96,6 +97,91 @@ def test_alpha_bitset_rounds_up_at_a_word_boundary():
     assert len(guides.vertices) == 33
     assert guides.alpha_words == (5, 5)
     assert guides.ranges[-1].offset == offsets["bbox"]
+
+
+def topology_fixture(layout):
+    data, offsets = guide_fixture(layout, count=4)
+    metadata = bytearray(data[80:offsets["triangle_count"]])
+    metadata += struct.pack("<7H", 6, 0, 1, 2, 1, 0, 3)
+    metadata += struct.pack("<I", 3)  # Alpha set on vertices 0 and 1.
+    metadata += struct.pack("<H", 2)
+    for group in ((0, 2), (1, 3)):
+        metadata += struct.pack("<3H", 2, *group)
+        if layout == 7:
+            metadata += b"\xa5"
+    records = ((1, 2, 0, 0, 0xE300), (2, 0, 0, 0, 0x100),
+               (0, 3, 0, 0, 0), (3, 1, 0, 0, 0), (0, 1, 2, 3, 1),
+               (0, 1, 2, 65535, 0x5C00), (1, 0, 3, 65535, 0))
+    metadata += struct.pack("<H", len(records))
+    metadata += b"".join(struct.pack("<5H", *row) for row in records)
+    per_vertex = ((1, 2, 4, 5, 6), (0, 3, 4, 5, 6), (0, 1, 4, 5), (2, 3, 4, 6))
+    metadata += struct.pack("<19H", 18, *(i for row in per_vertex for i in row))
+    metadata += struct.pack("<9H", 4, 0, 0x203, 5, 0x203, 10, 0x103, 14, 0x103)
+    metadata += struct.pack("<H", 4)
+    for row in per_vertex:
+        metadata += struct.pack("<4H", 3, *row[:3])
+    metadata += struct.pack("<11H", 10, 0, 1, 1, 2, 2, 0, 0, 3, 3, 1)
+    metadata += data[offsets["bbox"]:offsets["bbox"] + 24]
+    metadata[offsets["channel_b"] - 80:offsets["channel_b"] - 76] = bytes((255, 255, 128, 0))
+    return pack_pac(metadata)
+
+
+@pytest.mark.parametrize("layout", [3, 7])
+def test_constraint_storage_retains_high_bytes_and_matches_authored_topology(layout):
+    data = topology_fixture(layout)
+    guides = decode_pac_cloth_guides(data)
+    assert guides.groups_a == ((0, 2), (1, 3))
+    assert guides.group_a_tags == ((165, 165) if layout == 7 else ())
+    assert guides.constraint_records[0] == (1, 2, 0, 0, 0xE300)
+    assert guides.constraint_records[5] == (0, 1, 2, 65535, 0x5C00)
+    assert guides.vertex_constraint_spans == ((0, 0x203), (5, 0x203), (10, 0x103), (14, 0x103))
+    result = inspect_pac(data)
+    evidence = result["topology_evidence"]
+    assert evidence["record_counts"] == {"pair": 4, "hinge": 1, "triangle": 2, "unrecognized": 0}
+    assert evidence["record_high_bytes"] == [0, 1, 92, 227]
+    assert evidence["guide_edge_count"] == 5
+    assert evidence["pair_records_missing_edges"] == 1
+    assert evidence["pair_records_extra_edges"] == 0
+    assert evidence["alpha_vertex_count"] == 2
+    assert all(value for value in evidence.values() if isinstance(value, bool))
+    assert result["guides"]["constraint_records"][0][-1] == 0xE300
+
+
+@pytest.mark.parametrize("fault", ["unknown_kind", "hinge", "reference", "span", "empty_spans", "groups", "duplicate_edge", "alpha", "group_start"])
+def test_topology_evidence_reports_mismatches_without_guessing_solver_data(fault):
+    guides = decode_pac_cloth_guides(topology_fixture(3))
+    expected_false = "vertex_constraint_spans_match_records"
+    if fault == "unknown_kind":
+        records = ((1, 2, 0, 0, 0xE302),) + guides.constraint_records[1:]
+        guides = replace(guides, constraint_records=records)
+    elif fault == "hinge":
+        records = guides.constraint_records[:4] + ((0, 2, 1, 3, 1),) + guides.constraint_records[5:]
+        guides = replace(guides, constraint_records=records)
+        expected_false = "hinge_records_match_adjacent_triangles"
+    elif fault == "reference":
+        guides = replace(guides, constraint_indices=(65535,) + guides.constraint_indices[1:])
+    elif fault == "span":
+        guides = replace(guides, vertex_constraint_spans=((0, 65535),) + guides.vertex_constraint_spans[1:])
+    elif fault == "empty_spans":
+        guides = replace(guides, vertex_constraint_spans=())
+        expected_false = "groups_b_match_first_span"
+    elif fault == "groups":
+        guides = replace(guides, groups_b=((0, 2, 4),) + guides.groups_b[1:])
+        expected_false = "groups_b_match_first_span"
+    elif fault == "duplicate_edge":
+        guides = replace(guides, edge_indices=guides.edge_indices + (0, 1))
+        expected_false = "edge_table_matches_triangles"
+    elif fault == "alpha":
+        guides = replace(guides, alpha_words=(1,))
+        expected_false = "alpha_bits_match_channel_b_255"
+    else:
+        guides = replace(guides, groups_a=((2, 0), (1, 3)))
+        expected_false = "group_starts_match_alpha_bits"
+    evidence = inspect_guide_topology(guides)
+    assert evidence[expected_false] is False
+    if fault == "unknown_kind":
+        assert evidence["record_counts"]["unrecognized"] == 1
+        assert guides.constraint_records[0][-1] == 0xE302
 
 
 def test_absent_flag_does_not_misread_bone_palette_count_as_guides():

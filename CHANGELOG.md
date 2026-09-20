@@ -13,7 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
-- Added read-only PAC cloth-guide inspection for known layouts, including guide geometry, bone bindings, alpha bits and source offsets. Undecoded physical settings remain raw and are not exported as controls.
+- Added read-only PAC cloth-guide inspection for known layouts, including guide geometry, bone bindings, alpha bits, complete constraint tables and source offsets. Topology comparisons identify edges, adjacent triangles and per-vertex references while preserving unknown bytes. Undecoded physical settings remain raw and are not exported as controls.
 - Mesh Editor can retain a percentage of each original jiggle contribution on supported PACs, with per-vertex gradients, height selection, all stored LODs, Undo/Redo and drafts. The overlay and approximate motion preview now use decoded weights and expose both shader modes; runtime activation and bone overrides remain unresolved.
 - Mesh Editor's Jiggle page includes an optional region overlay: blue to orange for increasing decoded weight, gray for zero weight, and purple for unknown data. It covers visible body and clothing parts without changing mesh colors or exports.
 - Mesh Editor's experimental Jiggle controls have their own Mesh Data entry for compatible body and clothing PAC meshes. Motion preview defaults to up/down movement, with start/stop and turning tests, current/original/disabled comparisons, and preview-only softness and damping. Supported source PAC meshes deform without changing drafts or exports; the preview does not reproduce the game's physics or inter-part collisions.
