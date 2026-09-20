@@ -11,7 +11,9 @@ internal static class Program
                     ? PreparationAsync()
                     : args.Length == 1 && args[0] == "--character-catalogue"
                         ? CharacterAsync()
-                        : FullArchiveTestRunner.RunAsync(archiveQueryOnly: args.Length == 1 && args[0] == "--archive-query");
+                        : FullArchiveTestRunner.RunAsync(
+                            archiveQueryOnly: args.Length == 1 && args[0] == "--archive-query",
+                            itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue");
 
     private static async Task<int> PreparationAsync()
     {

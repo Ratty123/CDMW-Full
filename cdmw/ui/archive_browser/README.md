@@ -77,6 +77,12 @@ English is the display language; Item Finder and New Item search all discovered 
 missing English is not silently substituted from another language. New Item uses the
 same source selection and name lookup; its separate Item Name cell shows `-` when missing.
 
+Item Finder decodes both raw localization tables and version-0 compressed PALOC
+containers before indexing names. Invalid UTF-8 bytes in recovered text appear as
+replacement characters instead of preventing the entire catalogue from loading;
+valid Unicode names remain searchable. Unsupported or damaged containers report
+their localization payload and cause. Older item-name caches rebuild automatically.
+
 ## Body & Face Finder
 
 After scanning, open **Body & Face Finder** beside Item Finder. **Bodies** and

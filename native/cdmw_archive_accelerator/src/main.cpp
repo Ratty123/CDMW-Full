@@ -24,7 +24,36 @@ constexpr const char* kBackend = "cdmw_archive_accelerator_0.1";
 std::string json_escape(const std::string& value) {
     std::string out;
     out.reserve(value.size() + 8);
-    for (char ch : value) {
+    for (size_t index = 0; index < value.size();) {
+        const auto lead = static_cast<unsigned char>(value[index]);
+        if (lead >= 0x80) {
+            // Recovered binary text is not necessarily UTF-8. Never publish
+            // invalid JSON, but preserve every valid Unicode scalar verbatim.
+            const size_t length = lead >= 0xC2 && lead <= 0xDF ? 2
+                : lead >= 0xE0 && lead <= 0xEF ? 3
+                : lead >= 0xF0 && lead <= 0xF4 ? 4 : 0;
+            bool valid = length != 0 && length <= value.size() - index;
+            for (size_t offset = 1; valid && offset < length; ++offset) {
+                const auto byte = static_cast<unsigned char>(value[index + offset]);
+                valid = byte >= 0x80 && byte <= 0xBF;
+            }
+            if (valid) {
+                const auto second = static_cast<unsigned char>(value[index + 1]);
+                valid = (lead != 0xE0 || second >= 0xA0) // no overlong encoding
+                    && (lead != 0xED || second < 0xA0)   // no UTF-16 surrogate
+                    && (lead != 0xF0 || second >= 0x90)
+                    && (lead != 0xF4 || second <= 0x8F); // at most U+10FFFF
+            }
+            if (valid) {
+                out.append(value, index, length);
+                index += length;
+            } else {
+                out += "\\ufffd";
+                ++index;
+            }
+            continue;
+        }
+        const char ch = value[index++];
         switch (ch) {
         case '\\': out += "\\\\"; break;
         case '"': out += "\\\""; break;
@@ -976,6 +1005,60 @@ void add_unique(std::vector<std::string>& values, const std::string& value) {
     if (std::find(values.begin(), values.end(), value) == values.end()) values.push_back(value);
 }
 
+std::vector<char> decode_paloc_container(std::vector<char> data) {
+    if (data.size() < 5 || !std::equal(data.begin(), data.begin() + 5, "paloc")) return data;
+    constexpr size_t header_size = 512;
+    constexpr size_t maximum_payload = 256 * 1024 * 1024;
+    if (data.size() < header_size) throw std::runtime_error("PALOC container header is truncated");
+    if (read_u32(data, 5) != 0) throw std::runtime_error("unsupported PALOC container version");
+    if (read_u32(data, 9) != data.size() - header_size)
+        throw std::runtime_error("PALOC container compressed size does not match its bytes");
+    const size_t decoded_size = read_u32(data, 13);
+    if (decoded_size < 4 || decoded_size > maximum_payload)
+        throw std::runtime_error("PALOC container uncompressed size is out of bounds");
+
+    // PALOC's LZ4 block is independent of the outer PAZ compression flags.
+    std::vector<char> output(decoded_size);
+    size_t input_position = header_size;
+    size_t output_position = 0;
+    auto read_length = [&](size_t length) {
+        if (length == 15) {
+            unsigned char extension;
+            do {
+                if (input_position == data.size()) throw std::runtime_error("PALOC LZ4 length is truncated");
+                extension = static_cast<unsigned char>(data[input_position++]);
+                if (length > maximum_payload - extension) throw std::runtime_error("PALOC LZ4 length is out of bounds");
+                length += extension;
+            } while (extension == 255);
+        }
+        return length;
+    };
+    while (input_position < data.size()) {
+        const auto token = static_cast<unsigned char>(data[input_position++]);
+        const size_t literal_length = read_length(token >> 4);
+        if (literal_length > data.size() - input_position || literal_length > output.size() - output_position)
+            throw std::runtime_error("PALOC LZ4 literal run is outside its buffer");
+        std::copy_n(data.data() + input_position, literal_length, output.data() + output_position);
+        input_position += literal_length;
+        output_position += literal_length;
+        if (input_position == data.size()) break;
+        if (data.size() - input_position < 2) throw std::runtime_error("PALOC LZ4 match offset is truncated");
+        const size_t match_offset = static_cast<unsigned char>(data[input_position])
+            | (static_cast<size_t>(static_cast<unsigned char>(data[input_position + 1])) << 8);
+        input_position += 2;
+        if (match_offset == 0 || match_offset > output_position)
+            throw std::runtime_error("PALOC LZ4 match offset is invalid");
+        const size_t match_length = read_length(token & 0x0F) + 4;
+        if (match_length > output.size() - output_position)
+            throw std::runtime_error("PALOC LZ4 match run is outside its output buffer");
+        for (size_t index = 0; index < match_length; ++index)
+            output[output_position + index] = output[output_position - match_offset + index];
+        output_position += match_length;
+    }
+    if (output_position != output.size()) throw std::runtime_error("PALOC container decoded size does not match its payload");
+    return output;
+}
+
 std::map<std::string, std::string> parse_localization_bin(const std::vector<char>& data) {
     std::map<std::string, std::string> rows;
     size_t pos = 0;
@@ -1688,8 +1771,13 @@ int run_item_index_job(
         std::vector<Entry> entries = read_entries_tsv(entries_path);
         std::map<std::string, std::map<std::string, std::string>> loc_tables;
         for (const std::string& lang : {"kor","eng","jpn","rus","tur","spa-es","spa-mx","fre","ger","ita","pol","por-br","zho-tw","zho-cn","ara"}) {
-            std::vector<char> data = read_binary_if_exists(work_dir / ("loc_" + lang + ".bin"));
-            if (!data.empty()) loc_tables[lang] = parse_localization_bin(data);
+            const std::string filename = "loc_" + lang + ".bin";
+            try {
+                const auto data = decode_paloc_container(read_binary_if_exists(work_dir / filename));
+                if (!data.empty()) loc_tables[lang] = parse_localization_bin(data);
+            } catch (const std::exception& exc) {
+                throw std::runtime_error(filename + ": " + exc.what());
+            }
         }
         const auto icon_hashes = parse_stringinfo_hashes(read_binary_if_exists(work_dir / "stringinfo.bin"));
         const auto string_header = read_binary_if_exists(work_dir / "stringinfo_header.bin");

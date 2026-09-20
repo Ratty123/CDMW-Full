@@ -233,7 +233,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
-    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync()
+    public static async Task<SyntheticArchiveFixture> CreateCurrentItemNamesAsync(byte[]? currentEnglish = null)
     {
         var fixture = await CreateNameIndexAsync().ConfigureAwait(false);
         const string tableRoot = "gamedata/binarystaticinfo__/bin/";
@@ -294,7 +294,9 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         {
             await BuildPackageAsync(fixture.Root, package, tables.Concat(new[]
             {
-                (locRoot + "eng/item.paloc", BuildLocalization("12345678", name).Concat(BuildLocalization("12345679", "Blade")).ToArray()),
+                (locRoot + "eng/item.paloc", package == "0036" && currentEnglish is not null
+                    ? currentEnglish
+                    : BuildLocalization("12345678", name).Concat(BuildLocalization("12345679", "Blade")).ToArray()),
                 (locRoot + "ara/item.paloc", BuildLocalization("12345678", "سيف الاختبار")),
             }).ToArray()).ConfigureAwait(false);
         }

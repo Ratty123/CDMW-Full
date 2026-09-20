@@ -10,7 +10,7 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 5;
+    private const int CacheSchemaVersion = 6;
     private const int NativeCatalogSchemaVersion = 2;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
@@ -43,7 +43,7 @@ public sealed class ArchiveItemCatalogBuildService(
             var mountPath = Path.Combine(session.PackageRoot, "meta", "0.papgt");
             var mountSignature = File.Exists(mountPath)
                 ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(mountPath))) : "unmounted";
-            var cachePath = Path.Combine(session.GenerationPath, $"item-catalog-v5-{mountSignature}.json");
+            var cachePath = Path.Combine(session.GenerationPath, $"item-catalog-v{CacheSchemaVersion}-{mountSignature}.json");
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
             {

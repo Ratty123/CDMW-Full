@@ -10,7 +10,7 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync(bool archiveQueryOnly = false)
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
@@ -33,6 +33,9 @@ internal static class FullArchiveTestRunner
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
             ("current_item_names_and_mount_order", CurrentItemNamesAsync),
+            ("item_catalogue_text_encoding", ItemCatalogTextTests.EncodingAsync),
+            ("item_catalogue_compressed_localization", ItemCatalogTextTests.CompressedAsync),
+            ("item_catalogue_invalid_localization_container", ItemCatalogTextTests.InvalidContainerAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
             ("item_catalogue_lite_category_parity", ItemCatalogueLiteCategoryParityAsync),
             ("character_catalogue_resolution_and_names", CharacterCatalogTests.CatalogueAsync),
@@ -48,6 +51,11 @@ internal static class FullArchiveTestRunner
                 "query_lookup_search_prepare_export" or "query_sort_parity" or
                 "item_catalogue_paging_and_bounded_scope" or
                 "extension_index_query" or "extension_index_cancellation" or "extension_index_item_names").ToArray();
+        }
+        if (itemCatalogueOnly)
+        {
+            tests = tests.Where(static test => test.Name.StartsWith("item_catalogue_", StringComparison.Ordinal)
+                || test.Name == "current_item_names_and_mount_order").ToArray();
         }
         var failures = new List<string>();
         foreach (var test in tests)

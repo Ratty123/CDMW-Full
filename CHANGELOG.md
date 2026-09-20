@@ -30,6 +30,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Item Finder reads compressed PALOC name tables and tolerates malformed UTF-8 text without failing the whole catalogue. Valid Unicode names remain intact, and older item-name caches rebuild automatically.
 - Full's Neutral Studio preview preserves normal-map and height-map relief with stronger directional shading and readable shadows, improving flat-looking PAC surfaces such as the ancient giant's stone body.
 - Cloth motion preview uses smaller simulation steps to reduce excessive stretching on dense guide meshes while preserving the damping control's effect over time.
 - Mesh Editor keeps geometry layer names, hair section names, texture choices and movement selectors within the Inspector, so long labels and larger fonts do not block button clicks. The Inspector scrollbar also reserves its own space instead of covering button edges.

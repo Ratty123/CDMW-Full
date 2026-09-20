@@ -8,4 +8,11 @@ full application and the Python-free Archive Lite worker. Shared native
 diagnostics belong in `native/common/`; feature policy stays with the calling
 application.
 
-Related tests: runtime smoke and archive entries under `tests/`.
+Item indexing unwraps version-0 `paloc` containers and bounds their LZ4 expansion
+to 256 MiB before scanning the localization records. Container errors name the
+language payload. JSON output preserves valid UTF-8 and escapes each invalid byte
+as a Unicode replacement character, so recovered text cannot invalidate a report.
+
+The synthetic `--item-catalogue` check in `tools/dotnet_archive_backend/tests/`
+exercises the rebuilt helper through the real catalogue builder and JSON reader;
+see `docs/test-matrix.md`. Other archive tests live under `tests/`.
