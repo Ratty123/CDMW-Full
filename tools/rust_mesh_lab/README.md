@@ -438,7 +438,14 @@ three-quarter view, keeping the complete weapon centered and readable without
 changing the named camera-button directions or the standalone Lab camera.
 The swapchain prefers an sRGB target, the shader keeps texture and lighting
 math linear until presentation, and the studio key/fill follows the current
-camera. Canonically synthesized base-colour PNGs are explicitly treated as sRGB
+camera. Neutral Studio uses an oblique key and bounded fill, preserving normal-map
+and height-map relief instead of mixing a flat albedo contribution into shadows.
+This also applies to stone monsters whose material category is inferred as skin.
+Base Color, Showcase and Game Outdoor retain their existing presentation.
+The focused synthetic D3D12 relief regression in `docs/test-matrix.md` checks
+opposing normal slopes, readable shadows and identical unlit albedo; it does not
+establish game lighting or complete Lite parity.
+Canonically synthesized base-colour PNGs are explicitly treated as sRGB
 source bytes when CDMW encodes the owned BC7-sRGB session resource, preventing a
 second transfer curve from washing midtones toward white; direct DDS resources
 retain their existing path. Back-facing shells flip their lighting normal, and

@@ -12,6 +12,114 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::platform::windows::EventLoopBuilderExtWindows;
 use winit::window::{Window, WindowId};
 
+#[test]
+#[ignore = "requires a local Direct3D 12 adapter"]
+fn offscreen_neutral_studio_reveals_normal_relief_without_recolouring_albedo()
+-> Result<(), Box<dyn std::error::Error>> {
+    use cdmw_render_wgpu::{
+        HeadlessMaterialCaptureCamera, HeadlessMaterialCaptureOptions,
+        HeadlessMaterialCaptureOutput, HeadlessMaterialFactors, HeadlessMaterialTexture,
+        MaterialPreviewFactors, run_headless_material_capture,
+    };
+    use cdmw_texture::encode_rgba8_mipmapped_dds;
+
+    let document = decode_mesh(
+        &cdmw_formats::synthetic::triangle_pam("relief.dds"),
+        MeshFormat::Pam,
+    )?;
+    let mut snapshot = WorkingMesh::from_document(&document)?.draw_snapshot();
+    snapshot.positions = vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]];
+    snapshot.normals = vec![[0.0, 0.0, 1.0]; 3];
+    snapshot.uvs = vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]];
+    snapshot.indices = vec![0, 1, 2];
+    let root = tempfile::tempdir()?;
+    let owners = vec![vec![0]];
+    let base = encode_rgba8_mipmapped_dds(1, 1, &[160, 148, 132, 255], TextureRole::BaseColor)?;
+
+    // Monster materials can be classified as skin from their PAC names. Both
+    // categories must retain the directional response of the authored normals.
+    for category_code in [5, 9] {
+        let factors = [HeadlessMaterialFactors {
+            factors: MaterialPreviewFactors {
+                category_code: Some(category_code),
+                category_confidence: Some(0.95),
+                roughness: Some(0.8),
+                metalness: Some(0.0),
+                ..MaterialPreviewFactors::default()
+            },
+            material_indices_by_lod: &owners,
+        }];
+        let mut luminances = Vec::new();
+        let mut unlit = None;
+        for red in [45, 128, 211] {
+            let normal =
+                encode_rgba8_mipmapped_dds(1, 1, &[red, 128, 224, 255], TextureRole::Normal)?;
+            let textures = [
+                HeadlessMaterialTexture {
+                    bytes: &base,
+                    role: TextureRole::BaseColor,
+                    material_indices_by_lod: &owners,
+                },
+                HeadlessMaterialTexture {
+                    bytes: &normal,
+                    role: TextureRole::Normal,
+                    material_indices_by_lod: &owners,
+                },
+            ];
+            let base_path = root.path().join("base.bmp");
+            let report = pollster::block_on(run_headless_material_capture(
+                &snapshot,
+                &textures,
+                &factors,
+                HeadlessMaterialCaptureOptions {
+                    width: 96,
+                    height: 96,
+                    lod_index: 0,
+                    camera: Some(HeadlessMaterialCaptureCamera {
+                        yaw_degrees: 0.0,
+                        pitch_degrees: 0.0,
+                    }),
+                    isolated_material_index: None,
+                },
+                HeadlessMaterialCaptureOutput {
+                    textured_bmp: &root.path().join("lit.bmp"),
+                    base_color_bmp: &base_path,
+                    part_id_bmp: &root.path().join("parts.bmp"),
+                    normal_map: None,
+                    material_response: None,
+                    layer_mask: None,
+                },
+            ))?;
+            assert_eq!(report.adapter.backend, "Dx12");
+            assert!(report.textured.non_background_pixels > 0);
+            luminances.push(report.textured.p50_luma_255);
+            let pixels = std::fs::read(base_path)?;
+            if let Some(expected) = &unlit {
+                assert_eq!(
+                    &pixels, expected,
+                    "lighting must preserve the base-colour view"
+                );
+            } else {
+                unlit = Some(pixels);
+            }
+        }
+        assert!(
+            luminances[0] > luminances[2] + 12.0,
+            "normal relief was flattened for category {category_code}: {luminances:?}"
+        );
+        assert!(
+            luminances[1] > luminances[2],
+            "the away-facing slope must stay in shadow"
+        );
+        assert!(
+            luminances[2] > 60.0,
+            "studio fill must keep shadow detail readable"
+        );
+        println!("category {category_code}: toward/flat/away luminance {luminances:?}");
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 struct CaptureProbe {
     result: Option<Result<(), String>>,

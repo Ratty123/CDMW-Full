@@ -709,19 +709,22 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
 
     let game_outdoor = camera.view_mode == 9u;
     let showcase = camera.lighting_preset == 1u && !game_outdoor;
+    let neutral_studio = !showcase && !game_outdoor;
     let view_direction = safe_normalize(camera.view_direction.xyz, vec3<f32>(0.0, 0.0, -1.0));
     let camera_right = safe_normalize(camera.camera_right.xyz, vec3<f32>(1.0, 0.0, 0.0));
     let camera_up = safe_normalize(camera.camera_up.xyz, vec3<f32>(0.0, 1.0, 0.0));
     let key_direction = safe_normalize(
-        view_direction - camera_right * 0.18 + camera_up * 0.35,
+        view_direction - camera_right * select(0.18, 0.72, neutral_studio)
+            + camera_up * select(0.35, 0.72, neutral_studio),
         view_direction);
     let fill_direction = safe_normalize(
-        view_direction + camera_right * 0.35 + camera_up * 0.45,
+        view_direction + camera_right * select(0.35, 0.55, neutral_studio)
+            + camera_up * select(0.45, 0.20, neutral_studio),
         view_direction);
     let key_half_vector = safe_normalize(key_direction + view_direction, view_direction);
     let fill_half_vector = safe_normalize(fill_direction + view_direction, view_direction);
-    let key_light = wrapped_ndotl(surface_normal, key_direction, 0.58);
-    let fill_light = wrapped_ndotl(surface_normal, fill_direction, 0.82);
+    let key_light = wrapped_ndotl(surface_normal, key_direction, select(0.58, 0.15, neutral_studio));
+    let fill_light = wrapped_ndotl(surface_normal, fill_direction, select(0.82, 0.40, neutral_studio));
     let ndotv = clamp(dot(surface_normal, view_direction), 0.0, 1.0);
     let rim_light = pow(1.0 - ndotv, 2.0);
 
@@ -736,12 +739,15 @@ fn fs_solid(input: VertexOut, @builtin(front_facing) front_facing: bool) -> @loc
     if is_wood { ambient_floor = 0.49; depth_authority = 0.70; }
     if is_stone { ambient_floor = 0.48; depth_authority = 0.78; }
     if is_tooth { ambient_floor = 0.54; depth_authority = 0.58; }
-    if !showcase && !game_outdoor {
+    if neutral_studio {
+        // Oblique studio light reveals authored normal/height relief. Keep the
+        // fill bounded instead of mixing a flat albedo term back into shadows.
         ambient_floor *= 0.62;
-        depth_authority = min(1.0, depth_authority + 0.12);
+        depth_authority = 1.0;
     }
     let shaped_light = ambient_floor * 0.84
-        + 0.62 * (key_light * 0.72 + fill_light * 0.18 + rim_light * 0.10);
+        + select(0.62, 0.95, neutral_studio)
+            * (key_light * 0.72 + fill_light * 0.18 + rim_light * 0.10);
     let diffuse_depth = mix(1.0, shaped_light, depth_authority);
     // The Vortice path retains a small source-coloured body term beneath its
     // HDR studio reflections. Rust uses a bounded procedural environment, so a
