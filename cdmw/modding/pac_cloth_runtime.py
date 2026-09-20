@@ -49,6 +49,27 @@ def _update_half(record, offset, value):
     return True
 
 
+def build_cloth_collision_group_flags(
+    *, component_flags: int, critical_collidable: bool, same_pac_collidable: bool,
+) -> int:
+    """Build the extra-collidable ushort flags at 0x142DE29C6..29FD.
+
+    component_flags is the scene component's byte+0xB4; its mask0x20 supplies
+    group mask0x1. The instance's critical flag supplies mask0x2. One traced setter
+    enables it from EquipTypeInfo._isCriticalCollidable, not from a PAC vertex.
+    same_pac_collidable supplies mask0x4: instance+0x49 copies the volume producer's
+    OR of definition mask0x1 (PabvClothColliders.has_activation_flag).
+
+    These flags qualify different shader branches. Zero is not globally disabled;
+    group visibility, resources, references and per-definition gates are separate.
+    The caller writes this word at offset0 of the 56-byte group record.
+    """
+    _integer(component_flags, 0, 255)
+    _boolean(critical_collidable)
+    _boolean(same_pac_collidable)
+    return ((component_flags >> 5) & 1) | (int(critical_collidable) << 1) | (int(same_pac_collidable) << 2)
+
+
 def build_cloth_material_collision_mask(
     collider_bone_hashes: Sequence[int], *, inclusion_bone_hashes: Collection[int],
     exclusion_bone_hashes: Collection[int],

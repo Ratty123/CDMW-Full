@@ -10,6 +10,9 @@ from cdmw.modding.pac_cloth_collisions import (
     select_guide_cloth_collision_candidates, update_guide_cloth_collision_cache,
 )
 from cdmw.modding.pac_cloth_state import finalize_cloth_base_state
+from cdmw.modding.pac_cloth_runtime import build_cloth_collision_group_flags
+from cdmw.modding.pabv_parser import PabvVolume, PabvVolumes, prepare_pabv_cloth_colliders
+from cdmw.modding.skeleton_parser import Bone, Skeleton
 
 
 def group(*, count=3, flags=0, srv=8, offset=200, scene=0x20003, pac=99, uav=9, result_offset=300):
@@ -70,6 +73,48 @@ def test_full_selection_resolves_ordered_definition_result_and_scene_addresses_w
     assert ordinals(selection) == [(0, 0, i) for i in range(3)]
     assert selection['candidates'][2] == dict(ordinals=(0, 0, 2), group_index=11,
                                              definition_key=(8, 202), result_key=(9, 302), scene_key=(2, 3))
+    assert data == before
+
+
+@pytest.mark.parametrize('component_flags,selected', [(0, 0), (0xDF, 0), (0x20, 3), (0xFF, 3)])
+def test_cpu_component_flag_controls_working_particle_exemption(component_flags, selected):
+    data = snapshots()
+    bits = build_cloth_collision_group_flags(
+        component_flags=component_flags, critical_collidable=False, same_pac_collidable=False,
+    )
+    struct.pack_into('<H', data['extra_collidables'][11], 0, bits)
+    assert len(select(data, working_flags=0x10000)['candidates']) == selected
+
+
+@pytest.mark.parametrize('critical,selected', [(False, 3), (True, 0)])
+def test_ordinary_groups_remain_collidable_without_the_critical_flag(critical, selected):
+    data = snapshots()
+    bits = build_cloth_collision_group_flags(
+        component_flags=0, critical_collidable=critical, same_pac_collidable=False,
+    )
+    struct.pack_into('<H', data['extra_collidables'][11], 0, bits)
+    struct.pack_into('<I', data['per_frame'], 32, 0x20000010)
+    struct.pack_into('<e', data['particle'], 88, .25)
+    assert len(select(data)['candidates']) == selected
+
+
+@pytest.mark.parametrize('volume_flags,matching_pac,selected', [
+    (0, True, 0), (1, True, 1), (14, True, 0), (15, True, 1), (1, False, 0),
+])
+def test_volume_producer_flag_reopens_same_source_only_for_the_same_pac(volume_flags, matching_pac, selected):
+    identity = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
+    volumes = PabvVolumes(3, (PabvVolume(0, 0, 123, identity, 1, 5, (.25, 2.), (), (), volume_flags),))
+    skeleton = Skeleton(bones=[Bone(index=0, name='owned', name_hash=123)], bone_count=1)
+    prepared = prepare_pabv_cloth_colliders(volumes, skeleton, flag_bone_sets={2: (), 4: (), 8: ()})
+    bits = build_cloth_collision_group_flags(
+        component_flags=0, critical_collidable=False, same_pac_collidable=prepared.has_activation_flag,
+    )
+    data = snapshots(1)
+    data['extra_collidables'] = {11: group(count=1, flags=bits, srv=7, offset=100,
+                                         pac=99 if matching_pac else 100)}
+    data['collidables'] = {(7, 100): prepared.definitions[0]}
+    before = copy.deepcopy(data)
+    assert len(select(data)['candidates']) == selected
     assert data == before
 
 

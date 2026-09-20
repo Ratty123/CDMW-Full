@@ -482,8 +482,10 @@ uses an inclusive float32(0.001) tolerance for radius, height and all 16 matrix
 values. Bone identity does not participate. The first matching definition and
 its binding are retained; matches are checked against kept definitions in source
 order, without transitive grouping. Returned source ordinals preserve that
-provenance. The activation summary is only the producer's OR of flag bit `0x1`;
-it does not establish whether the game enables the collider group.
+provenance. `has_activation_flag` is the producer's OR of definition flag `0x1`.
+The instance initializer `0x143648EB0` copies that summary into byte `+0x49`;
+the group builder maps it to group bit `0x4`, the same-PAC exception described
+below. It does not establish whether the game enables the collider group.
 
 `default_pabv_cloth_flag_bone_sets` supplies the decoded initial profile from
 the PBD manager's successful configuration-load path in build `1.0.0.2944`:
@@ -1103,6 +1105,29 @@ working particle bits `0x30000` or scene bit `0x1`. Groups with bit `0x1` in the
 same scene are excluded when frame bit `0x20` and scene bit `0x200` are both set.
 Group bit `0x2` is additionally excluded for particle half 88 below float32(0.3)
 when frame bit `0x20000000` is set and scene bit `0x200` is clear.
+
+`pac_cloth_runtime.build_cloth_collision_group_flags` connects the CPU producer
+at `0x142DE29C6..29FD` to these consumers:
+
+| CPU input | Group mask | Meaning in the decoded consumer |
+| --- | --- | --- |
+| Scene component byte `+0xB4`, mask `0x20` | `0x1` | Changes scene/working-particle admission; its upstream state remains explicit |
+| Collider instance byte `+0x48` | `0x2` | Critical-collider branch, including the guide input-position prepass |
+| Collider instance byte `+0x49` | `0x4` | Allows same-source consideration for a matching PAC; individual definitions still apply their own rule |
+
+One traced critical-flag setter is `0x140470970`: after resolving the actor's
+equipment type, it enables the instance byte when
+`EquipTypeInfo._isCriticalCollidable` is nonzero. The table reader `0x1414FC990`
+places that boolean at CPU field `+0x38`; its serialized byte is 39 bytes after
+the end of the length-prefixed name payload. This is unrelated to PAC vertex byte 38.
+In the inspected build's 117-row `equiptypeinfo.staticinfobody`, only
+`OneHandShield`, `OneHandShieldRight` and `OneHandTowerShield` enable it.
+That is authored table evidence, not proof of a selected live item or all later
+writers. Ordinary groups remain eligible for the main collision pass without
+this flag. A zero group word must not be interpreted as globally disabled.
+Focused tests compose CPU flags with both shader selection and projection,
+including the volume producer's same-PAC exception. Native preview integration
+and full actor/resource/visibility selection remain separate.
 
 `update_guide_cloth_collision_cache` consumes all eligible response-plane queries
 in their evaluation order. The supplied distance is measured before correction

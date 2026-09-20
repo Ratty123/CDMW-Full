@@ -7,7 +7,8 @@ import pytest
 
 from cdmw.modding.pac_cloth_constraints import cloth_stretch_corrections
 from cdmw.modding.pac_cloth_runtime import (
-    build_cloth_material_collision_mask, update_cloth_frame_stiffness, update_cloth_iteration_bits,
+    build_cloth_collision_group_flags, build_cloth_material_collision_mask,
+    update_cloth_frame_stiffness, update_cloth_iteration_bits,
 )
 
 
@@ -52,6 +53,18 @@ def test_collision_sentinel_skips_matching_but_consumes_a_slot_and_counts_as_an_
 def test_collision_mask_rejects_non_uint32_hashes(values, field):
     with pytest.raises(ValueError, match='storage range'):
         collision_mask(**{field: values})
+
+
+@pytest.mark.parametrize('changes,message', [
+    ({'component_flags': 256}, 'storage range'),
+    ({'component_flags': -1}, 'storage range'),
+    ({'critical_collidable': 1}, 'explicit booleans'),
+    ({'same_pac_collidable': None}, 'explicit booleans'),
+])
+def test_collision_group_requires_resolved_byte_and_boolean_inputs(changes, message):
+    args = dict(component_flags=0, critical_collidable=False, same_pac_collidable=False)
+    with pytest.raises(ValueError, match=message):
+        build_cloth_collision_group_flags(**(args | changes))
 
 
 def frame(*, stretch=0., bend=-1., area=0., restore=-1., underwater=-1., flags2=0):

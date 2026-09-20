@@ -5,7 +5,9 @@ import struct
 import pytest
 
 from cdmw.modding.pac_cloth_collisions import apply_cloth_input_collisions
-from cdmw.modding.pac_cloth_runtime import build_cloth_material_collision_mask
+from cdmw.modding.pac_cloth_runtime import (
+    build_cloth_collision_group_flags, build_cloth_material_collision_mask,
+)
 from cdmw.modding.pac_cloth_state import select_cloth_base_integration
 
 
@@ -210,6 +212,17 @@ def self_scene(data):
     struct.pack_into('<I', data['extra_collidables'][11], 28, 0x10002)
     struct.pack_into('<I', data['per_scene'], 68, 0x10002)
     data['scene_objects'] = {(1, 2): data['per_scene']}
+
+
+@pytest.mark.parametrize('critical,projected', [(False, 0), (True, 1)])
+def test_cpu_critical_group_flag_controls_input_projection(critical, projected):
+    data = fixture()
+    self_scene(data)
+    bits = build_cloth_collision_group_flags(
+        component_flags=0, critical_collidable=critical, same_pac_collidable=False,
+    )
+    struct.pack_into('<H', data['extra_collidables'][11], 0, bits)
+    assert run(data)['projected_colliders'] == projected
 
 
 @pytest.mark.parametrize('prefix_count', [31, 32, 95, 96])

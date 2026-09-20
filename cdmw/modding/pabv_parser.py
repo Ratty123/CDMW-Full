@@ -426,8 +426,10 @@ def prepare_pabv_cloth_colliders(
     Bone identity is not part of that comparison. Returned bindings and source
     ordinals follow the first kept records, matching the mapped-output branch.
     This does not implement live resource discovery or the instance's later
-    mapper/LOD updates. has_activation_flag reports only the producer's OR of
-    definition flag bit 0, not whether the game enables a collider group.
+    mapper/LOD updates. has_activation_flag reports the producer's OR of
+    definition flag bit 0. Instance+0x49 retains it; the CPU group builder maps
+    it to group bit 0x4, permitting same-source consideration for the same PAC.
+    It is not a general collider-group enable switch.
     """
     if (set(flag_bone_sets) != {2, 4, 8}
             or any(type(bit) is not int for bit in flag_bone_sets)):
