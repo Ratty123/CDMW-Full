@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Mesh Editor's Cloth panel now previews compatible original PAC guide cloth with up/down, start/stop and turning motion, current/original/disabled comparisons, and adjustable preview settings. Saved influence rules are reflected without changing authored mesh data; full game collisions and runtime profiles remain unsupported.
 - Mesh Editor's decoded Jiggle preview includes optional wind with speed, direction, gust amount and cycle controls. Wind respects jiggle contributions and disabled comparisons, without changing mesh data or exports.
 - Added read-only PAC cloth-guide and material inspection for known layouts. Reports cover authored topology, rest constraints, initial masses and blends, both cloth attachment paths, prepared distance ratios and rotation neighbors, guide/render bindings at every stored LOD, and source offsets while preserving unknown bytes. An optional PBD profile supplies material context. Reference preparation supports conditional automatic weighting; reference skinning preserves guide rotation and the underwater blend. Runtime activation and game-equivalent motion are not inferred.
 - Mesh Editor can retain a percentage of each original jiggle contribution on supported PACs, with per-vertex gradients, height selection, all stored LODs, Undo/Redo and drafts. Edits preserve byte 38's upper bits and support every source byte. The overlay and motion previews use the game's confirmed low-nibble path; live runtime activation remains unresolved.

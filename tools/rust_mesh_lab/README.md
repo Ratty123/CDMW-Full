@@ -119,9 +119,18 @@ Invalid/unstable steps preserve the last complete simulation and draw frame.
 
 Run `cargo test --locked -p cdmw_mesh cloth:: --lib` for the focused core tests.
 Python transport and source ownership use `tests/test_mesh_cloth_decoded_preview.py`
-and the existing decoded-jiggle transport tests. These are synthetic source
-checks. The viewport controller and user controls are not yet connected to this
-core, and no packaged, visible or game parity is claimed.
+and the existing decoded-jiggle transport tests. **Mesh Data > Cloth** connects
+this core through `cdmw_cloth::preview` to the shared motion controller and bounded
+loader. It supplies up/down, start/stop and turning motion, pause/resume/reset,
+current/original/disabled weight comparisons, and preview-only solver settings.
+Current cloth bytes use the saved rule against original neutral source heights,
+matching PAC output after sculpting. The host exposes these verified bytes for
+cloth parts even when every jiggle flag is disabled. Preparation retains the
+previous usable frame until replacement succeeds and rejects cancelled/stale
+results through the existing generation and geometry-revision checks.
+`cargo test --locked -p cdmw_mesh_lab cloth_preview_tests` checks those actual
+headless controls and draw-only playback. These are synthetic nonvisual checks;
+no packaged, visible or game parity is claimed.
 
 The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
 synthetic vectors compare complete packed states and matrices with
@@ -141,7 +150,7 @@ motion; current/original/disabled comparisons change contribution, not authored
 geometry. The **Approximate vertices** choice retains `cdmw_mesh::jiggle::Simulation`.
 `cargo test --locked -p cdmw_mesh_lab jiggle` exercises the native controls, loader,
 comparisons, cancellation, retained-frame failures and unchanged authored mesh.
-Runtime activation, live profiles, wind/water generation and guide-cloth playback
+Runtime activation, live profiles, game weather and full guide-cloth collisions
 remain separate work. This is nonvisual source evidence, not packaged/game proof.
 
 ## Build

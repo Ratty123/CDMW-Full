@@ -114,8 +114,10 @@ def jiggle_ui_state(authoring, replacement):
             levels = pac_cloth_lods(data)
             displayed = appearance.to_neutral(levels[0]) if appearance is not None else levels[0]
             rows = []
+            source_heights = []
             for index, part in enumerate(levels[0].submeshes):
                 heights = [point[1] for point in displayed.submeshes[index].vertices]
+                source_heights.append(heights)
                 counts = [sum(data[offset + PAC_JIGGLE_OFFSET] & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK
                               for offset in level.submeshes[index].source_vertex_offsets) for level in levels]
                 rows.append({"lod_counts": counts,
@@ -125,6 +127,7 @@ def jiggle_ui_state(authoring, replacement):
             # Retain the parsed LOD0 privately: source record ownership is required
             # before supplying vertex flags to the renderer (counts are not proof).
             metadata["source_parts"] = levels[0].submeshes
+            metadata["source_heights"] = source_heights
         except ValueError as exc:
             metadata = {"parts": [], "lod_count": 0, "reason": str(exc)}
         authoring.jiggle_source_cache = (data, appearance, metadata)
@@ -156,9 +159,14 @@ def jiggle_ui_state(authoring, replacement):
                              else value for i, value in enumerate(original_bytes)]
             candidates = [i for i, value in enumerate(original_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             active = [i for i, value in enumerate(current_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
+            original_cloth = [data[offset + 39] & 63 for offset in original.source_vertex_offsets]
+            cloth_rule = binding.cloth if binding else None
+            current_cloth = [cloth_rule.blend(value, metadata["source_heights"][index][i]) if cloth_rule else value
+                             for i, value in enumerate(original_cloth)]
             preview = {"available": True, "vertex_count": len(current.vertices),
                        "original_vertices": candidates, "current_vertices": active,
-                       "original_bytes": original_bytes, "current_bytes": current_bytes}
+                       "original_bytes": original_bytes, "current_bytes": current_bytes,
+                       "original_cloth_bytes": original_cloth, "current_cloth_bytes": current_cloth}
             eligible.append((part["index"], original, current))
         overlay_parts.append({"index": part["index"], "preview": preview})
         if not any(source["lod_counts"]) and not (binding and binding.jiggle):

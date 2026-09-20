@@ -14,6 +14,8 @@ use std::collections::{HashMap, HashSet};
 use tempfile::tempdir;
 use winit::event::DeviceId;
 
+mod cloth_preview_tests;
+
 struct HeadlessUi {
     application: LabApplication,
     size: egui::Vec2,

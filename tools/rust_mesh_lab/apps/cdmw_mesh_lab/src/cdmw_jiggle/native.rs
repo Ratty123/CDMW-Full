@@ -260,6 +260,7 @@ mod tests {
             rest,
             vertices: vec![(0, 0, 0); 3],
             enabled: true,
+            cloth: false,
             geometry_revision: 0,
         };
         assert!(
@@ -286,13 +287,14 @@ pub(crate) struct Request {
     pub rest: DrawSnapshot,
     pub vertices: Vec<(u32, u32, u8)>,
     pub enabled: bool,
+    pub cloth: bool,
     pub geometry_revision: u64,
 }
 
 #[derive(Debug)]
 pub(crate) struct Prepared {
     pub rest: DrawSnapshot,
-    pub simulation: Simulation,
+    pub simulation: super::Simulation,
     pub rest_surface_normals: Vec<Vec3>,
     pub moving: usize,
     pub geometry_revision: u64,
@@ -303,6 +305,7 @@ struct Payload {
     version: u32,
     rig: RigSnapshot,
     parts: Vec<Part>,
+    cloth: Option<cdmw_mesh::cloth::Snapshot>,
 }
 
 #[derive(Deserialize)]
@@ -376,14 +379,15 @@ pub(crate) fn prepare(
             contributions.push(contribution);
         }
         cancellation.check()?;
-        let simulation = Simulation::new(
-            payload.rig,
-            &request.rest.positions,
-            &records,
-            contributions,
-            request.enabled,
-            cancellation,
-        )?;
+        let simulation = if request.cloth {
+            if !request.enabled { contributions.fill(63); }
+            super::Simulation::Cloth(Box::new(crate::cdmw_cloth::preview::Simulation::new(
+                payload.cloth.ok_or_else(|| anyhow::anyhow!("Cloth preview needs a decoded guide mesh."))?,
+                &payload.rig, &request.rest.positions, &records, &contributions, cancellation)?))
+        } else {
+            super::Simulation::Decoded(Box::new(Simulation::new(
+                payload.rig, &request.rest.positions, &records, contributions, request.enabled, cancellation)?))
+        };
         let mut rest_surface_normals = vec![Vec3::ZERO; request.rest.positions.len()];
         surface_normals(&request.rest, &mut rest_surface_normals);
         for normal in &mut rest_surface_normals {
@@ -394,7 +398,7 @@ pub(crate) fn prepare(
             request
                 .vertices
                 .iter()
-                .filter(|(_, _, b)| b & 15 != 15)
+                .filter(|(_, _, b)| if request.cloth { *b < 63 } else { b & 15 != 15 })
                 .count()
         } else {
             0

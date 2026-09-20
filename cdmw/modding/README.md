@@ -433,7 +433,12 @@ explicit gravity/damping/stiffness, a bounded Jacobi schedule, optional vertex
 alpha and a preview floor. These choices are not inferred active game settings.
 Area records remain counted but inactive; guide rotation correction, runtime
 dispatch/overrides and the full collision stages remain incomplete. The native
-core and transport are implemented; viewport playback/control wiring is pending.
+core is connected to Mesh Data > Cloth through the existing bounded loader and
+draw-only motion controller. Current/original/disabled comparisons use verified
+byte39 contributions; current rules evaluate original neutral source heights to
+match PAC output after sculpting. These arrays are also available on cloth parts
+without jiggle flags. Preview-only solver settings and controlled root motion do
+not modify PACs or establish game-equivalent playback.
 
 The cloth attachment report compares the two decoded mode-1 preparation paths:
 candidate pools per connected component, and one pool for the entire guide mesh.

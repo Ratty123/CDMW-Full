@@ -374,8 +374,7 @@ positions within the new quantization precision. Draft recovery uses the same
 exact record-map checks before accepting these edits.
 
 These controls edit render-vertex cloth influence, not simulation anchors,
-collision shapes or the shared physics profile. The existing cloth simulation
-preview remains approximate and does not visualize these saved influence edits.
+collision shapes or the shared physics profile.
 Cloth-only drafts use project/generation v6 and replacement payload v4 so older apps
 reject them before attempting recovery that could lose the settings. Drafts
 without cloth settings retain their existing formats unless jiggle settings are present.
@@ -386,6 +385,31 @@ only four packed slots are skeletal; the other four influences address cloth
 guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
+
+**Motion preview** in **Mesh Data > Cloth** now applies those saved influence
+edits to an experimental native guide simulation. Choose **Up / down**,
+**Start / stop** or **Turning**, then **Play preview**. **Current flags** uses
+the saved cloth amount/height/fade rule; **Original flags** uses retained source
+weights; **All disabled** shows rigid motion. Height rules use the original neutral
+display coordinates, matching PAC output even after sculpting. Jiggle flags are
+not required. **Pause preview**, **Resume preview** and **Reset preview** share
+the existing Jiggle controller; changing between Cloth and Jiggle resets playback.
+
+**Cloth preview settings** supplies gravity, stretch/bend response, damping,
+iteration count, optional authored vertex-alpha blending and a floor with an
+adjustable Y height. These settings affect only the preview. Saved cloth influence
+rules remain separate. Preparation runs on the bounded background loader; failed
+comparisons keep the last usable frame paused, and Reset/source changes reject
+late results. Preview frames never change authored geometry, drafts or exports.
+
+Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig,
+and verified original LOD0 render mappings within the existing 100,000-vertex /
+200,000-triangle preview limit. Unsupported inputs keep their saved cloth controls
+and explain why playback is unavailable. The controlled solver uses decoded
+stretch/bend kernels and authored fixed vertices with unit dynamic masses; it does
+not reproduce runtime profiles, body/layer/world collisions, area preservation or
+guide rotation correction. Headless controls and synthetic playback are tested;
+packaged, visible and real-game comparisons remain pending.
 
 ### Experimental jiggle contribution
 

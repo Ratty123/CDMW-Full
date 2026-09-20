@@ -1,4 +1,5 @@
 //! Edit existing cloth influence through the host's reversible PAC output path.
+pub(crate) mod preview;
 
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
@@ -137,5 +138,6 @@ impl LabApplication {
             }
         });
         ui.small("Saved with Build PAC and drafts. Preview simulation remains approximate.");
+        self.draw_cloth_preview_controls(ui, &parts);
     }
 }

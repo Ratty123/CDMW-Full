@@ -2,6 +2,7 @@
 
 import copy
 import struct
+from contextlib import ExitStack
 
 import pytest
 
@@ -10,6 +11,52 @@ from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
 from tests.test_mesh_jiggle_decoded_preview import rig_session, decoded
 from tests.test_mesh_jiggle import jiggle_session
 from tests.test_pac_cloth_guides import guide_fixture
+
+
+@pytest.mark.parametrize("neutral", [False, True])
+def test_cloth_preview_comparisons_follow_export_rules_and_original_neutral_heights(tmp_path, monkeypatch, neutral):
+    from cdmw.domain.mesh.cloth import PacClothRule
+    from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
+    from cdmw.modding.pac_cloth import pac_cloth_lods
+    from tests.test_mesh_cloth_influence import apply_rule, cloth_fixture, shadow_output
+    from tests.test_mesh_rust_authoring_exact_output import _open_exact_session
+    from tests.test_mesh_rust_replacement import command
+
+    source = bytearray(cloth_fixture())
+    for level in pac_cloth_lods(source):
+        for part in level.submeshes:
+            for offset in part.source_vertex_offsets:
+                source[offset + 38] = 255  # Cloth remains available without jiggle flags.
+    source = bytes(source)
+    monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
+    matrix = (1., 0., 0., 0., 0., 2., 0., 0., 0., 0., 1., 0., 0., 10., 0., 1.)
+    appearance = NeutralMeshAppearance("owned", tuple(range(8)), (matrix,) * 8) if neutral else None
+    with ExitStack() as stack:
+        _, service, host = _open_exact_session(tmp_path / "session", neutral_appearance=appearance)
+        stack.callback(service.close_edit_session, host.authoritative_session_id, force_without_saving=True)
+        stack.callback(lambda: host.cancel() if not host.closed else None)
+        state = host.state_payload()["jiggle"]
+        assert not state["available"] and state["parts"] == []
+        preview = state["overlay_parts"][0]["preview"]
+        assert preview["original_cloth_bytes"] == preview["current_cloth_bytes"] == [63, 0, 0, 0]
+        offsets = pac_cloth_lods(source)[0].submeshes[0].source_vertex_offsets
+        rule = PacClothRule(.5, 11. if neutral else .5, .5 if neutral else .25)
+        apply_rule(host, tmp_path, rule)
+        current = host.state_payload()["jiggle"]["overlay_parts"][0]["preview"]
+        exported = shadow_output(host)
+        assert current["current_cloth_bytes"] == [exported[offset + 39] & 63 for offset in offsets]
+        assert current["current_cloth_bytes"] == [63, 32, 63, 63]
+        assert current["original_cloth_bytes"] == preview["original_cloth_bytes"]
+        part = host.shadow_service._session(host.shadow_session_id).working_mesh.submeshes[0]
+        part.vertices = [(x, y + 50., z) for x, y, z in part.vertices]
+        assert host.state_payload()["jiggle"]["overlay_parts"][0]["preview"]["current_cloth_bytes"] == current["current_cloth_bytes"]
+        command(host, "undo")
+        assert host.state_payload()["jiggle"]["overlay_parts"][0]["preview"] == preview
+        apply_rule(host, tmp_path, PacClothRule(0))
+        assert host.state_payload()["jiggle"]["overlay_parts"][0]["preview"]["current_cloth_bytes"] == [63, 63, 63, 63]
+        apply_rule(host, tmp_path, PacClothRule(), reset=True)
+        assert host.state_payload()["jiggle"]["overlay_parts"][0]["preview"] == preview
+        assert host.shadow_service.capture_export_snapshot(host.shadow_session_id).original_data == source
 
 
 def source():
