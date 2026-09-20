@@ -18,7 +18,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cdmw.modding.pac_cloth_guides import (
-    decode_pac_cloth_guides, inspect_guide_constraint_geometry,
+    decode_pac_cloth_guides, inspect_guide_attachment_candidates, inspect_guide_constraint_geometry,
     inspect_guide_particle_initialization, inspect_guide_topology,
 )
 from cdmw.core.pbd_cloth import _parse_xml, parse_pbd_material_settings
@@ -46,6 +46,7 @@ def inspect_pac(data: bytes, *, path: str = "", material: PbdMaterialSettings | 
             "topology_evidence": inspect_guide_topology(guides),
             "particle_initialization": inspect_guide_particle_initialization(guides, **material_inputs),
             "constraint_geometry": inspect_guide_constraint_geometry(guides),
+            "cloth_attachment_candidates": inspect_guide_attachment_candidates(guides),
             "render_bindings": inspect_render_cloth_bindings(data, guides),
             "limitations": "Particle channels describe initialization, not final runtime motion. Inverse-mass factors require the material Mass; both vertex-alpha blend modes are shown because the active material is unresolved. Dynamic-fix groups require runtime activation. Constraint rest geometry uses CPU coordinates before skinning; active area/bending modes, collisions and runtime overrides are not simulated."}
     if material is not None:

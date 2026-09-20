@@ -150,6 +150,17 @@ resolve the active material. Channel A supplies the particle's group ID; only
 IDs 1 through 31 select dynamic-fix bits in the traced base-movement shader.
 Membership does not establish whether a runtime bit is active.
 
+The cloth attachment report compares the two decoded mode-1 preparation paths:
+candidate pools per connected component, and one pool for the entire guide mesh.
+Initially fixed vertices and dynamic-fix group IDs 1 through 31 are eligible.
+The selector retains up to four **distinct squared float32 distances**, keeping
+the first guide index at an equal distance. A fixed vertex can select itself;
+fractional channel B alone does not make a vertex an anchor. Reports include
+selected indices and lengths before half upload. Default positions are CPU
+coordinates before skinning; callers can supply initialized positions instead.
+The PAC does not establish which runtime path is active. Long-range ratios,
+automatic position blending and subsequent dynamic-fix activation remain separate.
+
 The shared Python PBD parser retains `Mass`, `UseVertexAlphaPositionBlending`,
 `UseRotationCorrection` and `UnderWaterGuideMeshVertexWeightCoefficient` for
 guide inspection. Decoded initialization defaults are mass 1, vertex-alpha
@@ -242,8 +253,8 @@ Inspect loose decoded files with:
 
 The command reads its inputs and prints JSON with source hashes, decoded guide
 geometry, complete stored tables, particle initialization, rest-constraint geometry,
-topology comparisons and field offsets. Optional material context applies to every
-input PAC and includes the profile's path and source hash. Malformed material XML
+attachment candidates, topology comparisons and field offsets. Optional material
+context applies to every input PAC and includes the profile's path and source hash. Malformed material XML
 is rejected instead of becoming a successful default calculation. The command
 returns a nonzero status if an input is unavailable. Keep reports and game-derived
 data outside the repository.

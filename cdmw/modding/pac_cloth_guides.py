@@ -300,6 +300,98 @@ def inspect_guide_constraint_geometry(
             "constraints": records}
 
 
+def inspect_guide_attachment_candidates(
+    guides: PacClothGuides, *, particle_positions: Sequence[Sequence[float]] | None = None,
+) -> dict:
+    """Compare the two traced mode-1 cloth attachment selection paths.
+
+    Build 1.0.0.2944 uses 0x143CCD480 with connected components, or
+    0x143CCDE90 with one candidate pool. Both call 0x143CCC580, which keeps
+    four distinct squared float32 distances, retaining the first equal-distance
+    candidate. Initial fixed particles and dynamic-fix group IDs 1..31 qualify;
+    group activation is separate. Candidate order follows guide index order.
+
+    The report stops before half upload, ratio/auto-weighting preparation and
+    runtime activation. Default positions precede skeletal transformation.
+    """
+    supplied = particle_positions is not None
+    positions = tuple(tuple(point) for point in (
+        particle_positions if supplied else guides.cpu_unskinned_vertices
+    ))
+    count = len(guides.vertices)
+    if (len(positions) != count or len(guides.channel_a) != count
+            or len(guides.channel_b) != count or any(
+                len(point) != 3 or any(not math.isfinite(v) for v in point) for point in positions
+            )):
+        raise ValueError("Cloth attachments require one finite 3D position and both channels per guide vertex.")
+    if any(len(t) != 3 or any(type(i) is not int or not 0 <= i < count for i in t)
+           for t in guides.triangles):
+        raise ValueError("Cloth attachments require valid guide triangle indices.")
+
+    def f32(value):
+        try:
+            rounded = struct.unpack("<f", struct.pack("<f", value))[0]
+        except OverflowError as exc:
+            raise ValueError("Cloth attachment geometry exceeds finite float32 range.") from exc
+        if not math.isfinite(rounded):
+            raise ValueError("Cloth attachment geometry exceeds finite float32 range.")
+        return rounded
+
+    positions = tuple(tuple(f32(v) for v in p) for p in positions)
+    parents = list(range(count))
+
+    def root(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    for a, b, c in guides.triangles:
+        parents[root(b)] = root(a)
+        parents[root(c)] = root(a)
+    labels = {}
+    components = []
+    for index in range(count):
+        owner = root(index)
+        components.append(labels.setdefault(owner, len(labels)))
+    eligible = [i for i in range(count)
+                if guides.channel_b[i] == 255 or 1 <= guides.channel_a[i] <= 31]
+    component_rows, whole_rows = [], []
+
+    def selected_rows(candidates):
+        first_at_distance = {}
+        for distance, index in candidates:
+            # The CPU's four empty entries use FLT_MAX and reject equal keys.
+            if distance < 3.4028234663852886e38:
+                first_at_distance.setdefault(distance, index)
+        selected = sorted(first_at_distance.items())[:4]
+        return {
+            "guide_indices": [index for _, index in selected],
+            "squared_distances": [distance for distance, _ in selected],
+            "rest_lengths_before_half_upload": [f32(math.sqrt(distance)) for distance, _ in selected],
+        }
+
+    for index, point in enumerate(positions):
+        candidates = []
+        for anchor in eligible:
+            dx, dy, dz = (f32(a - b) for a, b in zip(point, positions[anchor]))
+            distance = f32(f32(f32(dy * dy) + f32(dx * dx)) + f32(dz * dz))
+            candidates.append((distance, anchor))
+        whole_rows.append(selected_rows(candidates))
+        component_rows.append(selected_rows(
+            (distance, anchor) for distance, anchor in candidates if components[anchor] == components[index]
+        ))
+    return {
+        "position_basis": "caller_supplied" if supplied else "cpu_unskinned",
+        "eligible_guide_indices": eligible,
+        "component_ids": components,
+        "component_count": len(labels),
+        "by_connected_component": component_rows,
+        "whole_mesh": whole_rows,
+        "limitations": "Mode-1 cloth preparation scenarios, not active runtime attachments. Eligibility uses initial particle channels. Positions precede skinning unless supplied. Runtime selection, dynamic-fix activation, half upload, long-range ratios and automatic position blending are not inferred.",
+    }
+
+
 def inspect_guide_topology(guides: PacClothGuides) -> dict:
     """Report structural relationships, not runtime pin or solver semantics.
 
