@@ -273,7 +273,7 @@ fn missing_decoded_guides_disables_playback_but_keeps_saved_cloth_controls() -> 
 
 #[test]
 fn rotation_control_changes_surface_around_guides_and_disables_when_unsupported() -> TestResult {
-    let (_root, mut ui, _) = fixture()?;
+    let (root, mut ui, payload) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.click("Cloth preview settings")?;
     ui.click("Play preview")?;
@@ -304,6 +304,25 @@ fn rotation_control_changes_surface_around_guides_and_disables_when_unsupported(
     assert_ne!(rotated.positions[1], translated.positions[1]);
     assert_eq!(rotated.positions[0], translated.positions[0]);
     assert!(rotated.normals.iter().flatten().all(|v| v.is_finite()));
+    let rotated = rotated.clone();
+    ui.click("Reset preview")?;
+    ui.click("Single-edge rotation")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let single = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame;
+    assert_ne!(single.positions[1], translated.positions[1]);
+    assert_ne!(single.positions, rotated.positions);
+    assert_eq!(single.positions[0], translated.positions[0]);
+    assert!(single.normals.iter().flatten().all(|v| v.is_finite()));
+    assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     ui.click("Cloth preview settings")?;
     ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"] = json!(false);
     ui.frame(Vec::new());

@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Cloth motion preview offers the decoded single-edge rotation method alongside two-edge frame alignment. The choice is explicit and affects only the preview.
 - Cloth motion preview includes optional body collisions with adjustable clearance. It uses supported volumes embedded in the model, or explicit body/head PABV inputs or matched rig defaults when the model has none, and identifies the source. Preview inputs can be cleared without changing mesh data, drafts or exports. Undecoded or unsupported data leaves ordinary playback available; automatic outfit selection and in-game collision activation remain unverified.
 - Cloth motion preview can optionally rotate the surface with its guide particles when decoded orientation neighbors are available. This preserves edited positions and neutral scale without changing exports.
 - Mesh Editor's Cloth panel now previews compatible original PAC guide cloth with up/down, start/stop and turning motion, current/original/disabled comparisons, and adjustable preview settings. Saved influence rules are reflected without changing authored mesh data; full game collisions and runtime profiles remain unsupported.

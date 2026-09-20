@@ -2,7 +2,7 @@
 //!
 //! The host resolves the matching rig and CPU rest geometry. This preview uses
 //! explicit forces, a bounded Jacobi schedule and rigid anchor motion, not a
-//! recovered game dispatch/profile. Optional two-edge guide rotation uses decoded
+//! recovered game dispatch/profile. Optional single/two-edge rotation uses decoded
 //! neighbors. Optional authored body primitives follow the same rigid test motion.
 //! Area constraints remain inactive; layer/world contacts and runtime overrides
 //! remain separate work. Source and authored data are immutable.
@@ -51,6 +51,8 @@ pub struct Settings {
     pub speed_limit: f64,
     pub use_vertex_alpha: bool,
     pub rotate_guides: bool,
+    /// Select the decoded single-edge branch; ignored with rotation disabled.
+    pub single_edge_rotation: bool,
     pub ground_height: Option<f64>,
     pub body_collisions: bool,
     pub collision_margin: f64,
@@ -68,6 +70,7 @@ impl Default for Settings {
             speed_limit: 50.0,
             use_vertex_alpha: false,
             rotate_guides: false,
+            single_edge_rotation: false,
             ground_height: None,
             body_collisions: false,
             collision_margin: 0.01,
@@ -517,7 +520,12 @@ impl Simulation {
                 for i in 0..positions.len() {
                     let neighbors = self.snapshot.orientation_neighbors[i]
                         .ok_or("Guide rotation needs known orientation neighbors.")?;
-                    let correction = rotation::two_edge(i, neighbors, &animation, &positions)?;
+                    let correction = if settings.single_edge_rotation {
+                        // This controlled preview displays the current step directly.
+                        rotation::single_edge(i, neighbors, &animation, &positions, &positions)?
+                    } else {
+                        rotation::two_edge(i, neighbors, &animation, &positions)?
+                    };
                     let animated = motion * self.frames[i];
                     let mut simulated = glam::DMat4::from_cols(
                         (correction * animated.x_axis.truncate()).extend(0.0),
@@ -598,6 +606,61 @@ fn angle_corrections(p: [DVec3; 4], masses: [f64; 4], rest: f64, stiffness: f64)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn single_edge_rotation_handles_collinear_guides_and_preserves_render_contributions() {
+        const ID: Matrix = DMat4::IDENTITY.to_cols_array_2d();
+        let mut data = snapshot();
+        data.source_positions = vec![[0., 0., 0.], [1., 0., 0.], [2., 0., 0.]];
+        data.animation_frames = data
+            .source_positions
+            .iter()
+            .map(|point| DMat4::from_translation(DVec3::from(*point)).to_cols_array_2d())
+            .collect();
+        data.fixed = vec![false; 3];
+        data.alpha_blends = vec![0.; 3];
+        data.constraints.clear();
+        data.orientation_neighbors = vec![Some([1, 2]), Some([u16::MAX; 2]), Some([u16::MAX; 2])];
+        let mut record = [0_u8; 40];
+        record[28] = 255;
+        record[32] = 255;
+        let rest = [[0.25, 0.5, 0.]; 3];
+        let mut sim =
+            Simulation::new(data, &rig(), &rest, &[record; 3], &[0, 32, 63], &|| false).unwrap();
+        sim.positions = vec![
+            DVec3::new(0.2, 0.3, 0.),
+            DVec3::new(0.2, 1.3, 0.),
+            DVec3::new(0.2, 2.3, 0.),
+        ];
+        let mut settings = Settings {
+            gravity: 0.,
+            rotate_guides: true,
+            ..Default::default()
+        };
+        let guides = sim.guide_positions();
+        // Two collinear edges cannot define a frame; one edge still defines
+        // the decoded direction correction, without inventing another axis.
+        assert!(sim.step(1. / 60., ID, settings).is_err());
+        assert_eq!(sim.positions(), rest);
+        assert_eq!(sim.guide_positions(), guides);
+        settings.single_edge_rotation = true;
+        sim.step(1. / 60., ID, settings).unwrap();
+        let expected = DVec3::new(-0.3, 0.55, 0.);
+        close(sim.positions()[0], expected);
+        close(
+            sim.positions()[1],
+            DVec3::from(rest[1].map(f64::from)).lerp(expected, 31. / 63.),
+        );
+        assert_eq!(sim.positions()[2], rest[2]);
+        let output = sim.positions().to_vec();
+        sim.snapshot.orientation_neighbors[0] = None;
+        assert!(sim.step(1. / 60., ID, settings).is_err());
+        assert_eq!(sim.positions(), output);
+        settings.rotate_guides = false;
+        sim.step(1. / 60., ID, settings).unwrap();
+        close(sim.positions()[0], DVec3::new(0.45, 0.8, 0.));
+        assert_eq!(sim.positions()[2], rest[2]);
+    }
 
     #[test]
     fn guide_rotation_transforms_about_each_guide_and_preserves_disabled_vertices() {

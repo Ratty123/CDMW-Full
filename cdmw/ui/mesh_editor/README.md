@@ -411,7 +411,10 @@ the existing Jiggle controller; changing between Cloth and Jiggle resets playbac
 iteration count, optional authored vertex-alpha blending and a floor with an
 adjustable Y height. **Guide rotation correction** optionally turns the cloth
 surface with its guide particles, using decoded orientation neighbors. It is
-available only when those neighbors are known. These settings affect only the
+available only when those neighbors are known. **Single-edge rotation** selects
+the decoded alternative that follows one neighbor; leave it off for two-edge
+frame alignment. Short single edges preserve the animated orientation. The
+active game material is not selected automatically. These settings affect only the
 preview. Saved cloth influence
 rules remain separate. Smaller internal simulation steps reduce excessive stretch
 on dense guide meshes while retaining the damping control's effect over time.

@@ -482,6 +482,8 @@ impl LabApplication {
                 ui.add(egui::Slider::new(&mut settings.iterations, 1..=8).text("Solver iterations"));
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
                 ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
+                ui.add_enabled(rotation_available && settings.rotate_guides,
+                    egui::Checkbox::new(&mut settings.single_edge_rotation, "Single-edge rotation"));
                 if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
                 ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
                 if body_available {
