@@ -13,8 +13,8 @@ PAB format (PAR v5.1):
     [4B] parent_index (int32, -1 = root)
     [64B] bind_matrix (4x4 float32)
     [64B] inverse_bind_matrix (4x4 float32)
-    [64B] bind_matrix_copy
-    [64B] inverse_bind_copy
+    [64B] local_bind_matrix (relative to the parent)
+    [64B] inverse_local_bind_matrix
     [12B] scale (3 float32)
     [16B] rotation_quaternion (4 float32: x, y, z, w)
     [12B] position (3 float32)
@@ -53,6 +53,8 @@ class Bone:
     position: tuple = (0.0, 0.0, 0.0)
     file_offset: int = 0
     file_end: int = 0
+    local_bind_matrix: tuple = ()      # row-major local * parent_global = global
+    inv_local_bind_matrix: tuple = ()  # inverse of local_bind_matrix
 
 
 @dataclass
@@ -101,9 +103,10 @@ def _read_fixed_pab_bone(data: bytes, off: int, index: int) -> tuple[Bone, int]:
     off += 64
     bone.inv_bind_matrix = struct.unpack_from("<16f", data, off)
     off += 64
-    # The format stores two additional matrix copies that are not used by the
-    # current preview/export APIs, but they are part of the fixed record stride.
-    off += 128
+    bone.local_bind_matrix = struct.unpack_from("<16f", data, off)
+    off += 64
+    bone.inv_local_bind_matrix = struct.unpack_from("<16f", data, off)
+    off += 64
     bone.scale = struct.unpack_from("<fff", data, off)
     off += 12
     bone.rotation = struct.unpack_from("<ffff", data, off)
@@ -197,8 +200,11 @@ def _parse_pab_legacy_scan(data: bytes, filename: str = "", warning: str = "") -
             bone.inv_bind_matrix = struct.unpack_from('<16f', data, off)
             off += 64
 
-        # Skip 2 more matrices (copies)
+        # Preserve the local pair while retaining the legacy scan's bounds and
+        # parser_mode warning; scanned transforms are not fixed-layout proof.
         if off + 128 <= len(data):
+            bone.local_bind_matrix = struct.unpack_from('<16f', data, off)
+            bone.inv_local_bind_matrix = struct.unpack_from('<16f', data, off + 64)
             off += 128
 
         # Scale (3 floats)

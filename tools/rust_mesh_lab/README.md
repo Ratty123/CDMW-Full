@@ -264,6 +264,13 @@ label. Cleanup and layer creation explain that their topology-changing actions
 require Free Edit; **Copy Selection** followed by **Paste New Layer** creates an
 editable layer from the current mesh-element or Part selection.
 
+The fixed PAB decoder retains both global and local bind/inverse-bind pairs.
+Local matrices use the row-vector relation `local * parent_global = global`;
+they are distinct stored transforms and participate in the rig fingerprint.
+Older serialized skeletons may lack the local pair, represented by `None`.
+See [PAB bind transforms](../../cdmw/modding/README.md#pab-bind-transforms)
+for the source evidence and limits of the decoded layout.
+
 Integrated mode consumes CDMW's already-resolved base, normal, material,
 height, emissive, and typed material-input DDS files from the isolated session
 package. Every resource is copied beneath the owned session root with a bounded

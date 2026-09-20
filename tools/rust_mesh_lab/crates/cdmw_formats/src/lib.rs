@@ -140,6 +140,12 @@ pub struct SkeletonBone {
     pub rotation: [f32; 4],
     pub position: [f32; 3],
     pub source_range: SourceRange,
+    /// Stored row-vector local transform: local * parent_global = global.
+    /// Older serialized skeletons did not retain this matrix pair.
+    #[serde(default)]
+    pub local_bind_matrix: Option<[f32; 16]>,
+    #[serde(default)]
+    pub inverse_local_bind_matrix: Option<[f32; 16]>,
 }
 
 impl SkeletonBone {
@@ -322,9 +328,10 @@ pub fn decode_pab(bytes: &[u8]) -> Result<SkeletonDocument, FormatError> {
         offset = offset.saturating_add(64);
         let inverse_bind_matrix = read_f32_array::<16>(bytes, offset, "PAB inverse bind matrix")?;
         offset = offset.saturating_add(64);
-        let _ = read_f32_array::<16>(bytes, offset, "PAB bind matrix copy")?;
+        let local_bind_matrix = read_f32_array::<16>(bytes, offset, "PAB local bind matrix")?;
         offset = offset.saturating_add(64);
-        let _ = read_f32_array::<16>(bytes, offset, "PAB inverse bind matrix copy")?;
+        let inverse_local_bind_matrix =
+            read_f32_array::<16>(bytes, offset, "PAB inverse local bind matrix")?;
         offset = offset.saturating_add(64);
         let scale = read_f32_array::<3>(bytes, offset, "PAB scale")?;
         offset = offset.saturating_add(12);
@@ -349,6 +356,8 @@ pub fn decode_pab(bytes: &[u8]) -> Result<SkeletonDocument, FormatError> {
                 offset: u64::try_from(start).map_err(|_| FormatError::ResourceLimit)?,
                 length: u64::try_from(length).map_err(|_| FormatError::ResourceLimit)?,
             },
+            local_bind_matrix: Some(local_bind_matrix),
+            inverse_local_bind_matrix: Some(inverse_local_bind_matrix),
         });
     }
 
@@ -399,6 +408,8 @@ pub fn decode_pab(bytes: &[u8]) -> Result<SkeletonDocument, FormatError> {
             .bind_matrix
             .into_iter()
             .chain(bone.inverse_bind_matrix)
+            .chain(bone.local_bind_matrix.into_iter().flatten())
+            .chain(bone.inverse_local_bind_matrix.into_iter().flatten())
             .chain(bone.scale)
             .chain(bone.rotation)
             .chain(bone.position)
@@ -1948,6 +1959,35 @@ mod tests {
     }
 
     #[test]
+    fn fixed_pab_retains_distinct_local_transforms_in_the_structural_fingerprint() {
+        let mut bytes = synthetic::two_bone_pab();
+        let before = decode_pab(&bytes).expect("synthetic PAB");
+        let child_matrix_offset = PAB_HEADER_SIZE + 305 + "Root".len() + 9 + "Spine".len();
+        let local = [
+            0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 2.0, 3.0, 0.0, 1.0,
+        ];
+        let inverse = [
+            0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -3.0, 2.0, 0.0, 1.0,
+        ];
+        for (block, values) in [(2, local), (3, inverse)] {
+            for (element, value) in values.into_iter().enumerate() {
+                write_f32_at(
+                    &mut bytes,
+                    child_matrix_offset + block * 64 + element * 4,
+                    value,
+                );
+            }
+        }
+        let after = decode_pab(&bytes).expect("PAB with distinct local transforms");
+        assert_eq!(after.bones[1].local_bind_matrix, Some(local));
+        assert_eq!(after.bones[1].inverse_local_bind_matrix, Some(inverse));
+        assert_eq!(after.bones[1].bind_matrix, before.bones[1].bind_matrix);
+        assert_eq!(after.bones[1].position, before.bones[1].position);
+        assert_eq!(after.bones[1].source_range, before.bones[1].source_range);
+        assert_ne!(after.structural_fingerprint, before.structural_fingerprint);
+    }
+
+    #[test]
     fn fixed_pab_rejects_truncation_nonfinite_transforms_and_invalid_hierarchies() {
         let mut truncated = synthetic::two_bone_pab();
         let _ = truncated.pop();
@@ -1964,10 +2004,10 @@ mod tests {
             Err(FormatError::InvalidSkeleton(message)) if message.contains("non-finite")
         ));
 
-        let mut nonfinite_copy = synthetic::two_bone_pab();
-        write_f32_at(&mut nonfinite_copy, 163, f32::INFINITY);
+        let mut nonfinite_local = synthetic::two_bone_pab();
+        write_f32_at(&mut nonfinite_local, 163, f32::INFINITY);
         assert!(matches!(
-            decode_pab(&nonfinite_copy),
+            decode_pab(&nonfinite_local),
             Err(FormatError::InvalidSkeleton(message)) if message.contains("non-finite")
         ));
 

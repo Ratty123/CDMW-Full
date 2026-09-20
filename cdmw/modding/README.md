@@ -80,6 +80,23 @@ vanilla body as unweighted and capped authored bones at index 3.
 `tests/test_pac_skin_layout_regression.py` pins this against real bodies and
 skips when they are absent.
 
+## PAB bind transforms
+
+The fixed PAB skeleton reader retains four distinct row-major matrices per
+bone: global bind, inverse global bind, local bind and inverse local bind.
+The third/fourth blocks were previously discarded as copies. In the inspected
+448-bone `phw_01.pab`, `localBind * parentGlobalBind` reproduces global bind
+(maximum absolute float error `3.61e-6`), and the stored scale/quaternion/position
+reconstructs local bind. Root local and global transforms coincide. This is
+evidence for that fixed layout, not for the legacy scan's guessed records.
+
+Python exposes the local pair as `Bone.local_bind_matrix` and
+`Bone.inv_local_bind_matrix`; manually created bones default to empty tuples.
+Rust retains the same pair and includes it in the structural fingerprint.
+Older serialized Rust skeletons deserialize missing local matrices as absent,
+without substituting identity. These retained transforms enable hierarchy
+animation input; they do not establish jiggle activation or game animation timing.
+
 ## PAC vertex jiggle contribution
 
 `pac_jiggle.py` edits only byte 38's low nibble in validated 40-byte records.
