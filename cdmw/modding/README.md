@@ -418,12 +418,28 @@ order, without transitive grouping. Returned source ordinals preserve that
 provenance. The activation summary is only the producer's OR of flag bit `0x1`;
 it does not establish whether the game enables the collider group.
 
+`default_pabv_cloth_flag_bone_sets` supplies the decoded initial profile from
+the PBD manager's successful configuration-load path in build `1.0.0.2944`:
+flag `0x2` contains pelvis, both thighs, calves and feet; `0x4` contains both
+upper arms; `0x8` contains both thighs, calves and feet. The loader populates
+only empty sets, so this is a fresh-manager profile, not a claim about every
+live instance. Bone names are hashed case-sensitively without a NUL using the
+existing PA checksum algorithm (`length + 0xDEBA1DCD`). All 448 stored PHW rig
+hashes matched that calculation in the copied-input probe.
+
+The owner link is traced from the graphics manager's virtual getter at slot
+`0x568`, through character-resource initialization at `0x151009935`, to the
+PBD configuration loader `0x1435F5440`. The initial sets are populated at
+`0x1435F5F87..0x1435F6364`, independently of each material's inclusion,
+exclusion and temporary-fix lists. Callers must choose this initial profile
+explicitly; preparation does not silently replace supplied runtime sets.
+
 Active appearance metadata is required for resource selection. For example,
 the shipped Damiane `00` Nude prefab declares `SkeletonVolumeName`, while the
 `02` Nude prefab has no volume declaration. A replacement mesh's filename alone
 therefore cannot establish which collider file the game uses. Active resource
-selection, runtime set ownership and native preview integration remain separate
-work.
+selection, any later runtime set changes and native preview integration remain
+separate work.
 
 `tests/test_pabv_parser.py` covers both flag layouts, all decoded shape tags,
 source bounds, strict rig binding and a capsule passed through the existing

@@ -7,7 +7,8 @@ import struct
 import pytest
 
 from cdmw.modding.pabv_parser import (
-    decode_pabv, pabv_cloth_collider_definition, prepare_pabv_cloth_colliders,
+    decode_pabv, default_pabv_cloth_flag_bone_sets,
+    pabv_cloth_collider_definition, prepare_pabv_cloth_colliders,
     resolve_pabv_bones,
 )
 from cdmw.modding.pac_cloth_collisions import update_guide_cloth_collider_result
@@ -252,3 +253,27 @@ def test_large_finite_matrix_differences_do_not_overflow_deduplication():
 def test_preparation_requires_complete_valid_runtime_bone_sets(sets):
     with pytest.raises(ValueError, match='bone sets'):
         prepare_pabv_cloth_colliders(decode_pabv(container()), rig(), flag_bone_sets=sets)
+
+
+def test_initial_flag_sets_match_decoded_names_and_stored_bone_hashes():
+    # Expected hashes are stored in the fixed PHW PAB, independently of this
+    # helper's checksum calculation. The three sets come from the CPU loader.
+    legs = {0xBC1D1337, 0xD17D9109, 0x59314D02, 0xAB802677, 0xDD9C07F3, 0xF4A5787C}
+    expected = {2: frozenset({0x3C739A3A, *legs}),
+                4: frozenset({0x9B5DF434, 0x24D97B45}), 8: frozenset(legs)}
+    actual = default_pabv_cloth_flag_bone_sets()
+    assert actual == expected
+    assert all(isinstance(values, frozenset) for values in actual.values())
+    actual[2] = frozenset()
+    assert default_pabv_cloth_flag_bone_sets() == expected
+
+
+def test_explicit_initial_profile_drives_pelvis_leg_arm_and_unclassified_shapes():
+    hashes = (0x3C739A3A, 0xD17D9109, 0x9B5DF434, 0x12345678)
+    volumes = decode_pabv(container(*(record(key=key, flags=0x2E) for key in hashes), flags=3))
+    prepared = prepare_pabv_cloth_colliders(
+        volumes, rig(*hashes), flag_bone_sets=default_pabv_cloth_flag_bone_sets(),
+    )
+    assert [struct.unpack_from('<I', d, 100)[0] for d in prepared.definitions] == [0x22, 0x2A, 0x24, 0x20]
+    assert prepared.bone_indices == (0, 1, 2, 3)
+    assert not prepared.has_activation_flag  # The profile does not introduce bit 0.

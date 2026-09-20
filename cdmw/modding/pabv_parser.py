@@ -183,6 +183,32 @@ def pabv_cloth_collider_definition(volume: PabvVolume, *, resolved_flags: int) -
     )
 
 
+def default_pabv_cloth_flag_bone_sets() -> dict[int, frozenset[int]]:
+    """Return the fresh manager's collider flag sets in build 1.0.0.2944.
+
+    PbdConfig loading at 0x1435F5F87..0x1435F6364 populates each empty set
+    with these case-sensitive bone names. Existing nonempty runtime sets are
+    retained by the game; this helper represents only the initial profile.
+    Selection remains explicit in prepare_pabv_cloth_colliders. These sets
+    are separate from individual simulation materials' collision filters.
+    """
+    from cdmw.core.archive_format import calculate_pa_checksum
+
+    legs = (
+        "Bip01 R Thigh", "Bip01 L Thigh", "Bip01 R Calf", "Bip01 L Calf",
+        "Bip01 R Foot", "Bip01 L Foot",
+    )
+    names = {
+        2: ("Bip01 Pelvis", *legs),
+        4: ("Bip01 L UpperArm", "Bip01 R UpperArm"),
+        8: legs,
+    }
+    # 0x141364800 uses the same length + 0xDEBA1DCD lookup3 initialization
+    # and finalization as the existing PA checksum helper, without a NUL byte.
+    return {bit: frozenset(calculate_pa_checksum(name) for name in bones)
+            for bit, bones in names.items()}
+
+
 def prepare_pabv_cloth_colliders(
     volumes: PabvVolumes, skeleton: Skeleton, *,
     flag_bone_sets: Mapping[int, Collection[int]],
