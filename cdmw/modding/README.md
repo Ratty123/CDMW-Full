@@ -193,13 +193,46 @@ the ordinary path. These overrides can supersede the later byte-38 render blend.
 
 The Rust counterpart is `cdmw_mesh::jiggle_bones`; its focused native tests use
 owned synthetic vectors generated from this reference, including chained native
-state feedback. It is not yet connected to the visible preview. Wind/water
-samples, dispatch/resource activation, rig resolution and the production
-preview still need integration. The reference uses Python arithmetic
+state feedback. The decoded native core now drives the Jiggle pane through the
+rig/preview adapter described below. Wind/water samples, live dispatch/resource
+activation and character-profile ownership remain explicit inputs. The reference
+uses Python arithmetic
 except where float32 storage/seed bits matter; random feedback can amplify
 rounding differences over time. Synthetic math tests do not establish GPU,
 rendered or in-game parity. Reflected instance-frequency fields are not consumed
 by these inspected update bodies and are not exposed as proven solver controls.
+
+### CPU jiggle activation and shader handoff
+
+`pac_jiggle_runtime.py` provides pure reference stages for a supplied 0x220-byte
+CPU runtime record. This is runtime state, not a PAC record or a live-process
+reader. Constructor `0x15144F5D0`, update `0x142DB60D0`, resource refresh
+`0x142DE7D40` and upload `0x142DDFFA0` establish the field-to-shader chain in
+build `1.0.0.2944`:
+
+- `advance_jiggle_hit_window` updates the float32 timer at +0x10C, active byte at
+  +0x110 and flags at +0x154. Bit 0 follows the hit window; bit 1 follows the
+  nonempty mask count at +0x158. A positive timer remains active during the update
+  that reaches/passes zero, and is cleared on the following update. Consequently,
+  mode 3 uses per-bone instance weights; expiry restores mode 2's profile masks.
+- `refresh_jiggle_runtime_resources` preserves the old current state offset as
+  the previous offset and updates the shader/state/command slots. Changed slots
+  trigger settings lookup: the active hit window chooses resolved hit settings,
+  otherwise the resolved named/default profile. Eight runtime overrides replace
+  their corresponding values only when strictly positive. Unchanged slots skip
+  this copy, even if the timer state has changed.
+- `jiggle_runtime_shader_upload` returns the exact +0x114..+0x21C 264-byte slice
+  only when the shader slot is assigned. `jiggle_runtime_can_release` requires
+  no platform or active hit window, the caller's empty profile ID, and invalid
+  shader, command, current-state and previous-state slots.
+
+These helpers preserve unowned bytes. They do not allocate GPU resources, update
+platform transforms, resolve a character's description or establish call order.
+The global normal/water settings pair is separately consumed by
+`UpdateJiggleBoneSample`; this character-resource branch selects named/default
+versus hit settings. Source presence alone does not establish active game physics.
+Focused tests compose the CPU flags/upload with the existing bone-mask shader
+reference; this is synthetic nonvisual evidence, not captured game playback.
 
 ### Bone-to-render handoff
 
