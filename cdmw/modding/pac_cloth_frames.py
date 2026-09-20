@@ -91,8 +91,9 @@ def select_guide_result_positions(
 
     Supply remaining/fixed simulation delta time as interpolation_ratio, using
     the scaled clock when flags2 bit 0x8000 is set. animation_blend is the
-    decoded high half of per-frame offset 76 (`_p6`), NOT offset 96's named
-    smoothing field. Its CPU/material owner is not established here.
+    decoded half at per-frame offset 78 (high half of packed `_p6`). Native
+    16-bit shader reflection names it `_fadingRatio`, distinct from offset 96's
+    packed smoothing field. Its CPU/lifecycle owner is not established here.
     """
     flags = _flags(per_frame_flags2)
     count = len(animation_positions)

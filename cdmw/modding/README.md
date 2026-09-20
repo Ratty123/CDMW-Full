@@ -216,15 +216,59 @@ ordered initialization results. Rest measurements alone do not select an active
 solver. They are mathematical values before half-precision upload, not bit-exact
 CPU emulation.
 
+The native 16-bit variants of `ComputePbdProcessConstraints` retain descriptive
+reflection names where the packed variant exposes `_pN` words. Their byte sizes
+and offsets agree. Relevant runtime fields include:
+
+| Record | Byte offset | Half-float field |
+| --- | ---: | --- |
+| Per-frame (100 bytes) | 66 / 68 / 70 / 72 | Modified stretch / bend / area / restore-angle stiffness |
+| Per-frame | 76 / 78 | Elasticity / fading ratio |
+| Per-frame | 80 | Stretch constraint follow-the-leader ratio |
+| Particle extra (28 bytes) | 8 / 10 | Stretch / bend stiffness override |
+| Particle extra | 12 / 14 / 16 / 18 | Restore-angle / elasticity / gravity / damping override |
+| Simulation parameter (312 bytes) | 264 / 266 | Stretching scale / overstretch reference ratio |
+
+`pac_cloth_constraints.py` implements the decoded core stretch, angle-bending
+and coefficient-bending projections as mathematical references. They return
+per-particle position corrections from one input iteration, before contacts,
+flag propagation and dispatch. Stiffness is supplied per particle;
+`decode_guide_constraint_stiffness` selects the packed runtime fields above,
+where a negative override falls back and zero is an explicit override. These
+modified runtime values are not assumed to equal the material XML values.
+
+Stretch target length applies bone scale, then blends toward the animated edge
+using the low byte of `packedSmoothingRatios / 255`, then applies stretching
+scale. Correction uses the uploaded inverse sum of initial inverse masses;
+recomputing it from current masses changes the result. Follow-the-leader can
+replace the mass pair with `1-ratio` and `1+ratio` according to LRA ordering,
+subject to the decoded thresholds and each particle's underwater state. The
+short-edge stiffness reduction also retains its runtime and extra-data gates.
+
+Angle bending uses the authored same-edge normal convention (flat angle pi).
+Coefficient bending uses positions relative to the first endpoint, including
+when half rounding leaves a nonzero coefficient sum. Their different
+denominator/degeneracy thresholds are preserved. Type 2 alone does not select
+coefficient bending: guide mode, flags2 bit `0x400`, effective input-position
+blend below 0.5 and bend/iteration gates also participate. The blend is particle
+half 94 or its nonnegative extra-data half-6 override, not `_cr` at half 90.
+`select_guide_bending_projection` selects the formulation after eligibility is
+established; higher blends and other eligible cases use angle bending. All six
+inspected normal-step shader variants leave type-3 area
+records unprojected in this constraint loop. That does not establish global
+area support or behavior in other stages. These references do not implement a
+complete solver or change the approximate preview.
+
 `pac_cloth_frames.py` provides a mathematical reference for the guide branch of
 `ComputePbdUpdateResult`, using explicitly supplied runtime inputs. Particle
 offset 0 is the animation target `_ix`; offset 36 is the simulated position `_x`.
 `select_guide_result_positions` interpolates `_p[0]` at offset 12 toward `_x`
 unless per-frame flags2 bit `0x800` bypasses interpolation, then blends toward
 `_ix`. The interpolation ratio is remaining/fixed simulation delta time from the
-appropriate clock (`0x8000` selects the scaled clock). The second blend comes
-from the high half of per-frame offset 76 (`_p6`), whose CPU/material owner is
-unresolved; it is not offset 96's named smoothing field.
+appropriate clock (`0x8000` selects the scaled clock). The second blend is
+`_fadingRatio`, identified by native 16-bit reflection at offset 78 (the high
+half of packed `_p6`). Its CPU/lifecycle owner remains unresolved; it is not
+offset 96's packed smoothing field.
 
 `update_guide_result_frames` preserves the entire frame when per-frame bit
 `0x10000` suppresses this update. Otherwise it updates translation and runtime
