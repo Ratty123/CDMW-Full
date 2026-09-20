@@ -90,11 +90,20 @@ synthetic vectors compare complete packed states and matrices with
 frames. Regenerate them from the repository root with the project Python and
 `tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_bones/generate_vectors.py`.
 Calculations use f64 with f32 storage/seed rounding; these checks do not prove
-GPU arithmetic or rendered/game parity. Publishing/loading the rig snapshot and
-attaching these bindings to the live preview, runtime activation, profile
-selection, wind/water generation and the Jiggle controls remain separate work.
-The visible experiment still uses the approximate
-`cdmw_mesh::jiggle::Simulation`.
+GPU arithmetic or rendered/game parity. The integrated Jiggle pane now defaults to
+**Decoded bones**, which requires a valid rig snapshot from the host. Its existing bounded
+loader reads the owned, size/hash-checked `jiggle-rig.json` and prepares inverse-rest
+vertex bindings. Results carry a request generation and geometry revision; source
+changes/reset cancel preparation, and failures preserve the previous usable frame.
+Playback has no file or Python work. Eight preview-only solver parameters control
+linear/angular response, damping and limits, starting at decoded initialization
+values. A repeatable 60 Hz root-pose test supplies up/down, start/stop and turning
+motion; current/original/disabled comparisons change contribution, not authored
+geometry. The **Approximate vertices** choice retains `cdmw_mesh::jiggle::Simulation`.
+`cargo test --locked -p cdmw_mesh_lab jiggle` exercises the native controls, loader,
+comparisons, cancellation, retained-frame failures and unchanged authored mesh.
+Runtime activation, live profiles, wind/water generation and guide-cloth playback
+remain separate work. This is nonvisual source evidence, not packaged/game proof.
 
 ## Build
 

@@ -292,6 +292,17 @@ impl Rig {
         records: &[[u8; 40]],
         render_flags: u32,
     ) -> Result<VertexBinding> {
+        self.bind_vertices_cancellable(positions, records, render_flags, &|| false)
+    }
+
+    pub fn bind_vertices_cancellable(
+        &self,
+        positions: &[[f64; 3]],
+        records: &[[u8; 40]],
+        render_flags: u32,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<VertexBinding> {
+        if cancelled() { return Err("Jiggle preview preparation was cancelled."); }
         if positions.is_empty() || positions.len() > 100_000 || positions.len() != records.len() {
             return Err(
                 "Jiggle binding needs matching positions and PAC records within 100,000 vertices.",
@@ -313,7 +324,10 @@ impl Rig {
             );
         }
         let mut to_source = Vec::with_capacity(records.len());
-        for record in records {
+        for (index, record) in records.iter().enumerate() {
+            if index.is_multiple_of(256) && cancelled() {
+                return Err("Jiggle preview preparation was cancelled.");
+            }
             let blend = jiggle_skinning::blend_vertex(jiggle_skinning::RenderInput {
                 record,
                 render_flags,

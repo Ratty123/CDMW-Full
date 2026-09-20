@@ -1,4 +1,5 @@
 //! Preview state is deliberately separate from WorkingMesh and the host protocol.
+pub(crate) mod native;
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
 use cdmw_mesh::{Provenance, jiggle};
@@ -58,9 +59,19 @@ enum Comparison {
     Disabled,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum Solver {
+    #[default]
+    Decoded,
+    Approximate,
+}
+
 pub(super) struct Preview {
     pub playing: bool,
     pub scene: Option<Scene>,
+    pub pending: Option<u64>,
+    solver: Solver,
+    native_settings: native::Settings,
     motion: jiggle::Motion,
     comparison: Comparison,
     settings: jiggle::Settings,
@@ -74,6 +85,9 @@ impl Default for Preview {
         Self {
             playing: false,
             scene: None,
+            pending: None,
+            solver: Solver::default(),
+            native_settings: native::Settings::default(),
             motion: jiggle::Motion::default(),
             comparison: Comparison::default(),
             settings: jiggle::Settings::default(),
@@ -88,6 +102,7 @@ impl Preview {
     pub fn invalidate(&mut self) {
         self.playing = false;
         self.scene = None;
+        self.pending = None;
         self.feedback.clear();
         self.last_tick = Instant::now();
     }
@@ -96,11 +111,37 @@ impl Preview {
 pub(super) struct Scene {
     rest: DrawSnapshot,
     pub frame: DrawSnapshot,
-    simulation: jiggle::Simulation,
+    simulation: Simulation,
     normal_sums: Vec<Vec3>,
     rest_surface_normals: Vec<Vec3>,
     tick: u64,
     moving: usize,
+}
+
+enum Simulation {
+    Approximate(jiggle::Simulation),
+    Decoded(Box<native::Simulation>),
+}
+
+impl Simulation {
+    fn elapsed(&self) -> f64 {
+        match self { Self::Approximate(s) => s.elapsed, Self::Decoded(s) => s.elapsed }
+    }
+    fn advance(&mut self, seconds: f64, motion: jiggle::Motion, settings: jiggle::Settings, native: native::Settings) -> Result<()> {
+        match self {
+            Self::Approximate(s) => s.advance(seconds, motion, settings).map_err(anyhow::Error::msg),
+            Self::Decoded(s) => s.advance(seconds, motion, native),
+        }
+    }
+    fn copy_positions(&self, output: &mut [[f32; 3]]) {
+        match self {
+            Self::Approximate(s) => { for (out, value) in output.iter_mut().zip(s.positions()) { *out = value; } },
+            Self::Decoded(s) => output.copy_from_slice(&s.positions),
+        }
+    }
+    fn rotation(&self, motion: jiggle::Motion) -> Quat {
+        match self { Self::Approximate(s) => s.rotation(motion), Self::Decoded(s) => s.rotation }
+    }
 }
 
 fn surface_normals(snapshot: &DrawSnapshot, sums: &mut [Vec3]) {
@@ -120,7 +161,7 @@ impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         ui.small("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.");
         if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions").changed() {
-            if self.cdmw_jiggle.preview.scene.is_some() {
+            if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
                 self.refresh_jiggle_regions();
             } else {
                 self.publish_mesh_snapshot();
@@ -140,7 +181,7 @@ impl LabApplication {
         let jiggle = self.cdmw_state["jiggle"].clone();
         ui.small("Reductions preserve the source gradient. Final motion still needs in-game verification.");
         if !state_bool(&jiggle, "available") {
-            if self.cdmw_jiggle.preview.scene.is_some() { self.publish_mesh_snapshot(); }
+            if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() { self.publish_mesh_snapshot(); }
             ui.label(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable."));
             return;
         }
@@ -287,9 +328,17 @@ impl LabApplication {
             self.publish_mesh_snapshot();
             self.cdmw_jiggle.preview.parts = ids;
         }
-        let was_playing = self.cdmw_jiggle.preview.playing;
+        let was_playing = self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some();
         let mut changed = false;
         let preview = &mut self.cdmw_jiggle.preview;
+        ui.horizontal_wrapped(|ui| {
+            for (solver, label) in [(Solver::Decoded, "Decoded bones"), (Solver::Approximate, "Approximate vertices")] {
+                if ui.add(egui::Button::new(label).selected(preview.solver == solver)).clicked() && preview.solver != solver {
+                    preview.solver = solver;
+                    changed = true;
+                }
+            }
+        });
         ui.horizontal_wrapped(|ui| {
             changed |= ui
                 .selectable_value(&mut preview.motion, jiggle::Motion::UpDown, "Up / down")
@@ -328,18 +377,40 @@ impl LabApplication {
                 )
                 .changed();
         });
-        ui.add(
-            egui::Slider::new(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"),
-        );
-        ui.add(egui::Slider::new(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
+        if preview.solver == Solver::Decoded {
+            ui.collapsing("Bone solver settings", |ui| {
+                for (index, label, max) in [
+                    (0, "Linear response", 5000.0), (1, "Linear damping", 1.0),
+                    (2, "Linear speed limit", 20.0), (3, "Linear offset limit", 1.0),
+                    (4, "Angular response", 5000.0), (5, "Angular damping", 1.0),
+                    (6, "Angular speed limit", 500.0), (7, "Angular offset limit (radians)", std::f32::consts::PI),
+                ] {
+                    ui.add(egui::Slider::new(&mut preview.native_settings.values[index], 0.0..=max).text(label));
+                }
+                if ui.button("Reset bone settings").clicked() { preview.native_settings = native::Settings::default(); }
+            });
+            ui.small("Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.");
+        } else {
+            ui.add(egui::Slider::new(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));
+            ui.add(egui::Slider::new(&mut preview.settings.damping, 0.0..=1.0).text("Preview damping"));
+        }
         if changed {
-            self.publish_mesh_snapshot();
-            if was_playing && let Err(error) = self.start_jiggle_preview(parts) {
-                self.cdmw_jiggle.preview.feedback = error.to_string();
+            self.cancel_pending_jiggle();
+            if was_playing {
+                self.cdmw_jiggle.preview.playing = false;
+                if let Err(error) = self.start_jiggle_preview(parts) { self.cdmw_jiggle.preview.feedback = error.to_string(); }
+            } else {
+                self.publish_mesh_snapshot();
             }
         }
         let reason = if self.cdmw_busy() {
             "Wait for the current operation."
+        } else if self.cdmw_jiggle.preview.pending.is_some() {
+            "Preparing decoded motion."
+        } else if self.cdmw_jiggle.preview.solver == Solver::Decoded
+            && self.cdmw_state["jiggle"]["decoded"]["available"].as_bool() != Some(true) {
+            self.cdmw_state["jiggle"]["decoded"]["reason"].as_str()
+                .unwrap_or("Decoded motion needs a matching fixed-layout PAB skeleton.")
         } else if self.cdmw_state["replacement"]["comparison"]
             .as_str()
             .unwrap_or("edit")
@@ -353,11 +424,13 @@ impl LabApplication {
             "Preview requires unchanged source vertex ownership."
         } else {
             ""
-        };
+        }.to_owned();
         ui.horizontal_wrapped(|ui| {
-            let label = if self.cdmw_jiggle.preview.playing {
+            let label = if self.cdmw_jiggle.preview.pending.is_some() {
+                "Preparing preview"
+            } else if self.cdmw_jiggle.preview.playing {
                 "Pause preview"
-            } else if self.cdmw_jiggle.preview.scene.is_some() {
+            } else if self.cdmw_jiggle.preview.scene.is_some() && self.cdmw_jiggle.preview.feedback.is_empty() {
                 "Resume preview"
             } else {
                 "Play preview"
@@ -368,7 +441,7 @@ impl LabApplication {
             {
                 if self.cdmw_jiggle.preview.playing {
                     self.cdmw_jiggle.preview.playing = false;
-                } else if self.cdmw_jiggle.preview.scene.is_some() {
+                } else if self.cdmw_jiggle.preview.scene.is_some() && self.cdmw_jiggle.preview.feedback.is_empty() {
                     self.cdmw_jiggle.preview.playing = true;
                     self.cdmw_jiggle.preview.last_tick = Instant::now();
                 } else if let Err(error) = self.start_jiggle_preview(parts) {
@@ -377,7 +450,7 @@ impl LabApplication {
             }
             if ui
                 .add_enabled(
-                    self.cdmw_jiggle.preview.scene.is_some(),
+                    self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some(),
                     egui::Button::new("Reset preview"),
                 )
                 .clicked()
@@ -394,9 +467,9 @@ impl LabApplication {
         if !self.cdmw_jiggle.preview.feedback.is_empty() {
             ui.small(&self.cdmw_jiggle.preview.feedback);
         }
-        ui.small("Approximate motion. Inter-part collisions are not simulated.");
+        ui.small("Inter-part collisions and guide-cloth simulation are not included in this preview.");
         ui.small("Preview settings are not exported. Reset preview to edit the surface.");
-        if self.cdmw_jiggle.preview.playing {
+        if self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some() {
             ui.ctx().request_repaint();
         }
     }
@@ -451,6 +524,7 @@ impl LabApplication {
             bail!("Select a visible part with verified jiggle data.");
         }
         let mut active = Vec::new();
+        let mut native_vertices = Vec::new();
         for (handle, vertex) in mesh.vertices() {
             let rendered = elements
                 .as_ref()
@@ -473,6 +547,10 @@ impl LabApplication {
             };
             if rendered {
                 active.push(value);
+                let byte = parts.iter().find(|p| p["index"].as_u64() == Some(submesh as u64))
+                    .and_then(|p| p["preview"][if self.cdmw_jiggle.preview.comparison == Comparison::Original { "original_bytes" } else { "current_bytes" }].get(element as usize))
+                    .and_then(Value::as_u64).and_then(|v| u8::try_from(v).ok()).unwrap_or(255);
+                native_vertices.push((submesh, element, byte));
             }
         }
         if masks
@@ -486,6 +564,18 @@ impl LabApplication {
             |v| mesh.draw_snapshot_for_submeshes(v),
         );
         rest.selected_vertices.clear();
+        if self.cdmw_jiggle.preview.solver == Solver::Decoded {
+            let source = self.cdmw_bridge.as_ref().ok_or_else(|| anyhow::anyhow!("No active Mesh Editor session."))?
+                .jiggle_source(&self.cdmw_state)?;
+            let generation = self.loader.prepare_jiggle(native::Request {
+                source, rest, vertices: native_vertices,
+                enabled: self.cdmw_jiggle.preview.comparison != Comparison::Disabled,
+                geometry_revision: mesh.geometry_revision,
+            })?;
+            self.cdmw_jiggle.preview.pending = Some(generation);
+            self.cdmw_jiggle.preview.feedback.clear();
+            return Ok(());
+        }
         let moving = active.iter().filter(|v| **v > 0.0).count();
         let simulation = jiggle::Simulation::new(&rest.positions, &rest.indices, active)
             .map_err(anyhow::Error::msg)?;
@@ -499,7 +589,7 @@ impl LabApplication {
             frame: rest.clone(),
             normal_sums: vec![Vec3::ZERO; rest.positions.len()],
             rest,
-            simulation,
+            simulation: Simulation::Approximate(simulation),
             tick: 0,
             moving,
         };
@@ -515,25 +605,17 @@ impl LabApplication {
         let Some(scene) = &mut preview.scene else {
             return Ok(());
         };
-        let before = scene.simulation.elapsed;
+        let before = scene.simulation.elapsed();
         if preview.playing {
             scene
                 .simulation
-                .advance(seconds, preview.motion, preview.settings)
-                .map_err(anyhow::Error::msg)?;
+                .advance(seconds, preview.motion, preview.settings, preview.native_settings)?;
         }
         // Pausing/camera movement does not need a new geometry upload.
-        if scene.tick > 0 && scene.simulation.elapsed == before {
+        if scene.tick > 0 && scene.simulation.elapsed() == before {
             return Ok(());
         }
-        for (out, position) in scene
-            .frame
-            .positions
-            .iter_mut()
-            .zip(scene.simulation.positions())
-        {
-            *out = position;
-        }
+        scene.simulation.copy_positions(&mut scene.frame.positions);
         surface_normals(&scene.frame, &mut scene.normal_sums);
         let rotation = scene.simulation.rotation(preview.motion);
         for (i, normal) in scene.frame.normals.iter_mut().enumerate() {
@@ -581,6 +663,33 @@ impl LabApplication {
             && let Some(window) = &self.window
         {
             window.request_redraw();
+        }
+    }
+
+    pub(super) fn cancel_pending_jiggle(&mut self) {
+        if let Some(generation) = self.cdmw_jiggle.preview.pending.take() { self.loader.cancel_generation(generation); }
+    }
+
+    pub(super) fn accept_prepared_jiggle(&mut self, generation: u64, result: std::result::Result<native::Prepared, String>) {
+        if self.cdmw_jiggle.preview.pending != Some(generation) { return; }
+        self.cdmw_jiggle.preview.pending = None;
+        match result {
+            Ok(prepared) => {
+                if self.edit_gesture.is_some() || self.selection_gesture.is_some() || self.cdmw_busy()
+                    || self.mesh.as_ref().is_none_or(|mesh| mesh.geometry_revision != prepared.geometry_revision
+                        || mesh.topology_generation != prepared.rest.topology_generation) {
+                    self.cdmw_jiggle.preview.feedback = "The mesh changed while preparing decoded motion. Play again after the operation.".into();
+                    return;
+                }
+                let count = prepared.rest.positions.len();
+                self.cdmw_jiggle.preview.scene = Some(Scene { frame: prepared.rest.clone(), rest: prepared.rest,
+                    simulation: Simulation::Decoded(Box::new(prepared.simulation)), normal_sums: vec![Vec3::ZERO; count],
+                    rest_surface_normals: prepared.rest_surface_normals, tick: 0, moving: prepared.moving });
+                self.cdmw_jiggle.preview.playing = true;
+                self.cdmw_jiggle.preview.feedback.clear();
+                self.cdmw_jiggle.preview.last_tick = Instant::now();
+            }
+            Err(error) => self.cdmw_jiggle.preview.feedback = error,
         }
     }
 }

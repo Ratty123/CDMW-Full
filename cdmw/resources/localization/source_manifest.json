@@ -28102,6 +28102,56 @@
       ]
     },
     {
+      "key": "Decoded motion has invalid current skeletal weights.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 67,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Decoded motion needs a matching fixed-layout PAB skeleton.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 29,
+          "sink": "python-return:_decoded_preview_state"
+        }
+      ]
+    },
+    {
+      "key": "Decoded motion needs complete 40-byte PAC records.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 60,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Decoded motion needs complete retained skeletal weights.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 55,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Decoded motion needs retained PAC geometry within 100,000 vertices.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 37,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Decoded/context only",
       "origins": [
         {

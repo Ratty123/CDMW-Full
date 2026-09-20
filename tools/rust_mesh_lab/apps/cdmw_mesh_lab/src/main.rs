@@ -2928,7 +2928,7 @@ impl LabApplication {
         state: Value,
         document: Option<MeshDocument>,
     ) -> Result<()> {
-        if self.cdmw_jiggle.preview.scene.is_some() {
+        if self.cdmw_jiggle.preview.scene.is_some() || self.cdmw_jiggle.preview.pending.is_some() {
             self.publish_mesh_snapshot();
         }
         let hair = self
@@ -3224,6 +3224,10 @@ impl LabApplication {
         let mut changed = false;
         for event in events {
             match event {
+                LoadEvent::Jiggle { generation, result } => {
+                    self.accept_prepared_jiggle(generation, *result);
+                    changed = true;
+                }
                 LoadEvent::Progress {
                     generation,
                     progress,
@@ -5146,6 +5150,7 @@ impl LabApplication {
     }
 
     fn publish_mesh_snapshot(&mut self) {
+        self.cancel_pending_jiggle();
         self.cdmw_jiggle.preview.invalidate();
         self.hair.invalidate_scene();
         self.face_selection_overlay = None;

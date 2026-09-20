@@ -1740,6 +1740,7 @@ def _validate_owned_session_tree(
         "channels.json",
         "shadow-mesh-layers.json",
         "hair-state.json",
+        "jiggle-rig.json",
     }
     entry_count = 0
     total_bytes = 0

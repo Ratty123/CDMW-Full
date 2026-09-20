@@ -97,6 +97,10 @@ struct TextureLoadResult {
 
 #[derive(Debug)]
 pub enum LoadEvent {
+    Jiggle {
+        generation: u64,
+        result: Box<Result<crate::cdmw_jiggle::native::Prepared, String>>,
+    },
     Progress {
         generation: u64,
         progress: CatalogProgress,
@@ -129,6 +133,11 @@ pub enum LoaderError {
 }
 
 enum LoadRequest {
+    Jiggle {
+        generation: u64,
+        request: Box<crate::cdmw_jiggle::native::Request>,
+        cancellation: Arc<CancellationToken>,
+    },
     Mesh {
         generation: u64,
         path: PathBuf,
@@ -244,6 +253,19 @@ impl Loader {
         self.events.try_iter()
     }
 
+    pub fn prepare_jiggle(&mut self, request: crate::cdmw_jiggle::native::Request) -> Result<u64, LoaderError> {
+        self.submit(|generation, cancellation| LoadRequest::Jiggle {
+            generation, request: Box::new(request), cancellation,
+        })
+    }
+
+    pub fn cancel_generation(&mut self, generation: u64) {
+        if self.current_generation.load(Ordering::Acquire) == generation {
+            if let Some(token) = self.active_cancellation.take() { token.cancel(); }
+            self.current_generation.fetch_add(1, Ordering::AcqRel);
+        }
+    }
+
     fn submit(
         &mut self,
         request: impl FnOnce(u64, Arc<CancellationToken>) -> LoadRequest,
@@ -287,6 +309,12 @@ fn worker_loop(
     while let Ok(request) = requests.recv() {
         match request {
             LoadRequest::Shutdown => break,
+            LoadRequest::Jiggle { generation, request, cancellation } => {
+                let result = crate::cdmw_jiggle::native::prepare(*request, &cancellation);
+                if current_generation.load(Ordering::Acquire) == generation {
+                    let _ = events.send(LoadEvent::Jiggle { generation, result: Box::new(result) });
+                }
+            }
             LoadRequest::Mesh {
                 generation,
                 path,

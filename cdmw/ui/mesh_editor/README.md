@@ -443,22 +443,32 @@ Changing comparison or motion restarts a playing test for a repeatable compariso
 **Pause preview** retains the frame; **Reset preview** returns to the editable
 rest shape. Camera orbit and framing remain available during playback.
 
-Preview softness/damping are editor-only settings, separate from byte 38.
-The fixed-step spring and distance-constraint simulation preserves shape and
-bounds displacement; it is not the game's solver. It drives controlled motion
-of the whole model, not decoded game animation or bone-specific jiggle profiles,
-and does not simulate collisions between parts. Decoded per-vertex weights blend
-the simulated result with rigid motion, preserving the source gradient. Byte-255 vertices follow
-the controlled model motion without added deformation. Existing custom normals
-are rotated with the deforming surface.
+**Decoded bones** is the default and requires a matching fixed-layout PAB rig.
+It drives the recovered bone solver through the original hierarchy and retained
+PAC skinning records. **Bone solver settings** exposes linear/angular response,
+damping, speed limits and offset limits; Reset restores the decoded initialization
+values. These are preview-only parameters, separate from byte 38. Rig reading and
+vertex preparation run on the existing background loader; cancellation and source
+changes reject late results, and a failed replacement keeps the previous frame paused.
+
+**Approximate vertices** remains available for meshes without a resolved rig,
+with its existing editor-only softness/damping controls. Both modes use a repeatable
+60 Hz procedural pose test, rather than game animation or a verified live profile.
+They do not simulate inter-part collisions or guide cloth. Decoded per-vertex weights
+blend simulated and ordinary motion, preserving the source gradient. Byte-255
+vertices follow the controlled model motion without added deformation. Existing
+custom normals are rotated with the deforming surface.
 
 The initial preview supports LOD0 with verified, unchanged source vertex ownership
 and up to 100,000 visible vertices / 200,000 triangles. Imported replacements and
-topology-changed meshes remain editable but cannot use this preview. Preview frames
+topology-changed meshes remain editable but cannot use this preview. The decoded
+rig snapshot is also limited to 100,000 retained source vertices across its parts.
+Preview frames
 never modify mesh data, drafts, Undo/Redo or exported PACs. Surface picking waits
 for Reset; source edits, selection changes and host state updates discard playback.
-`cdmw_jiggle.rs` owns playback and viewport snapshots; `cdmw_mesh::jiggle` owns the
-pure simulation. Compatibility with game motion still needs reporter comparison.
+`cdmw_jiggle.rs` owns playback and viewport snapshots; its `native` module binds the
+decoded `cdmw_mesh::jiggle_rig` solver, while `cdmw_mesh::jiggle` owns the approximate
+mode. Compatibility with game motion still needs reporter comparison.
 
 Reporter test: retain the original PAC and export 50%, disabled and restored variants
 using **Build PAC**. On the same game build, compare walking, sprinting and

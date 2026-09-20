@@ -601,7 +601,35 @@ pub struct CdmwBridge {
     state_snapshot_accepted: bool,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct JiggleSource {
+    root: PathBuf,
+    reference: FileReference,
+}
+
+impl JiggleSource {
+    fn new(root: PathBuf, reference: FileReference) -> Result<Self, SessionError> {
+        if reference.path != "jiggle-rig.json" || reference.data_type != "jiggle_rig_json"
+            || reference.byte_length > 32 * 1024 * 1024 || reference.count == 0 || reference.count > 4096
+        {
+            return Err(SessionError::InvalidPayload("invalid decoded jiggle snapshot reference".into()));
+        }
+        Ok(Self { root, reference })
+    }
+
+    pub fn read(&self) -> Result<Vec<u8>, SessionError> {
+        read_json_reference(&self.root, &self.reference)
+    }
+}
+
 impl CdmwBridge {
+    /// Capture a reference only; the loader performs file I/O and decoding.
+    pub(super) fn jiggle_source(&self, state: &Value) -> Result<JiggleSource, SessionError> {
+        let reference = state["jiggle"]["decoded"].get("file")
+            .ok_or_else(|| SessionError::InvalidPayload("decoded jiggle snapshot is unavailable".into()))?;
+        JiggleSource::new(self.root.clone(), serde_json::from_value(reference.clone())?)
+    }
+
     pub fn open(manifest_path: &Path) -> Result<(Self, MeshDocument), SessionError> {
         let package = LoadedCdmwSessionPackage::load(manifest_path)?;
         let LoadedCdmwSessionPackage {
@@ -2573,6 +2601,11 @@ fn reject_unexpected_initial_files(
         let _: HairState = serde_json::from_slice(&read_json_reference(root, &reference)?)?;
         allowed.insert(reference.path);
     }
+    if let Some(reference) = manifest.state.get("jiggle").and_then(|j| j.get("decoded")).and_then(|d| d.get("file")) {
+        let source = JiggleSource::new(root.to_path_buf(), serde_json::from_value(reference.clone())?)?;
+        let _: IgnoredAny = serde_json::from_slice(&source.read()?)?;
+        allowed.insert(source.reference.path);
+    }
     if !manifest.replacement_material_states.is_empty() {
         let active_key = manifest.state["archive_refit_materials"]["key"]
             .as_str()
@@ -3857,6 +3890,31 @@ mod tests {
         assert!(
             reject_unexpected_initial_files(root.path(), bridge.manifest(), &document()).is_err()
         );
+    }
+
+    #[test]
+    fn jiggle_reference_is_bounded_owned_and_validated_at_initial_load() {
+        let root = tempdir().unwrap();
+        let manifest_path = write_loaded_package_fixture(root.path());
+        let bytes = b"{\"version\":1}";
+        fs::write(root.path().join("jiggle-rig.json"), bytes).unwrap();
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        let reference = json!({"path": "jiggle-rig.json", "data_type": "jiggle_rig_json",
+            "count": 1, "byte_length": bytes.len(), "sha256": sha256_upper(bytes), "content_type": "application/json"});
+        manifest["state"]["jiggle"] = json!({"decoded": {"available": true, "file": reference}});
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        LoadedCdmwSessionPackage::load(&manifest_path).expect("owned jiggle snapshot in initial package");
+        let bridge = CdmwBridge::for_test(root.path().to_path_buf(), "jiggle", 1, 0);
+        assert_eq!(bridge.jiggle_source(&manifest["state"]).unwrap().read().unwrap(), bytes);
+        for (key, bad) in [("path", json!("../jiggle-rig.json")), ("count", json!(4097)),
+            ("byte_length", json!(32 * 1024 * 1024 + 1)), ("data_type", json!("other_json"))] {
+            let mut state = manifest["state"].clone();
+            state["jiggle"]["decoded"]["file"][key] = bad;
+            assert!(bridge.jiggle_source(&state).is_err());
+        }
+        fs::write(root.path().join("jiggle-rig.json"), b"{\"version\":2}").unwrap();
+        assert!(bridge.jiggle_source(&manifest["state"]).unwrap().read().is_err());
+        assert!(LoadedCdmwSessionPackage::load(&manifest_path).is_err());
     }
 
     #[test]

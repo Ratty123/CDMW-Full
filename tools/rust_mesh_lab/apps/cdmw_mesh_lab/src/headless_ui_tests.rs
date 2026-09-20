@@ -3800,6 +3800,95 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
 }
 
 #[test]
+fn integrated_decoded_jiggle_prepares_compares_cancels_and_preserves_the_previous_scene() -> TestResult {
+    use sha2::{Digest, Sha256};
+    let root = tempdir()?;
+    let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
+        triangle_application()?, egui::vec2(1440.0, 1400.0));
+    ui.application.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "jiggle", 1, 0));
+    let identity = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+    let mut record = [0_u8; 40];
+    record[28] = 255;
+    record[39] = 63;
+    let hex = record.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let payload = serde_json::to_vec(&json!({"version": 1,
+        "rig": {"bone_palette": [0], "parents": [-1], "inverse_bind_matrices": [identity],
+            "neutral_global_matrices": [identity], "neutral_local_matrices": [identity]},
+        "parts": [{"index": 0, "records": [hex, hex, hex]}]}))?;
+    let path = root.path().join("jiggle-rig.json");
+    std::fs::write(&path, &payload)?;
+    ui.application.cdmw_state["jiggle"] = json!({"available": true, "lod_count": 4,
+        "decoded": {"available": true, "file": {"path": "jiggle-rig.json", "data_type": "jiggle_rig_json",
+            "count": 1, "byte_length": payload.len(), "sha256": format!("{:X}", Sha256::digest(&payload)),
+            "content_type": "application/json"}},
+        "parts": [{"index": 0, "id": "body:0", "included": true, "min_y": 0.0, "max_y": 1.0,
+            "preview": {"available": true, "vertex_count": 3,
+                "original_bytes": [240, 240, 255], "current_bytes": [255, 240, 255]}}]});
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let wait = |ui: &mut HeadlessUi| -> TestResult {
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        while ui.application.cdmw_jiggle.preview.pending.is_some() {
+            assert!(Instant::now() < deadline, "decoded jiggle loader timed out");
+            ui.application.poll_loader();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        ui.frame(Vec::new());
+        Ok(())
+    };
+    ui.click_tool_button("Jiggle")?;
+    ui.click("Selected parts")?;
+    ui.click("Play preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_some());
+    wait(&mut ui)?;
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let current = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    ui.click("Original flags")?;
+    // The previous usable frame stays visible until preparation succeeds.
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, current);
+    wait(&mut ui)?;
+    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let original = ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame.clone();
+    assert_ne!(original.positions, current.positions);
+    assert_eq!(original.positions[1], current.positions[1]);
+    assert!(original.normals.iter().flatten().all(|v| v.is_finite()));
+
+    // Invalid file delivery keeps the original frame paused; Play retries the
+    // newly selected comparison, rather than resuming that obsolete simulation.
+    std::fs::write(&path, vec![b' '; payload.len()])?;
+    ui.click("All disabled")?;
+    wait(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert_eq!(ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame, original);
+    std::fs::write(&path, &payload)?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    assert!(ui.application.cdmw_jiggle.preview.playing);
+    for _ in 0..20 { ui.application.advance_jiggle_preview(1.0 / 60.0)?; }
+    let disabled = &ui.application.cdmw_jiggle.preview.scene.as_ref().unwrap().frame;
+    assert_eq!(disabled.positions[0], current.positions[0]);
+    assert_ne!(disabled.positions[1], current.positions[1]);
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+
+    ui.click("Current flags")?;
+    let cancelled = ui.application.cdmw_jiggle.preview.pending.unwrap();
+    ui.click("Reset preview")?;
+    assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
+    ui.application.accept_prepared_jiggle(cancelled, Err("stale failure".into()));
+    ui.application.poll_loader();
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+
+    ui.click("Play preview")?;
+    ui.application.mesh.as_mut().unwrap().geometry_revision += 1;
+    wait(&mut ui)?;
+    assert!(!ui.application.cdmw_jiggle.preview.playing);
+    assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    Ok(())
+}
+
+#[test]
 fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?, egui::vec2(1440.0, 1400.0));
@@ -3814,6 +3903,7 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.click_tool_button("Jiggle")?;
     ui.click("Selected parts")?;
+    ui.click("Approximate vertices")?;
     ui.click("Play preview")?;
     assert!(ui.application.cdmw_jiggle.preview.playing);
     ui.click("Show jiggle regions")?;

@@ -287,7 +287,14 @@ preserve displayed sculpted positions. This is tested with different bone scales
 where blending inverse bone matrices gives the wrong result. State and bindings
 cannot be used with a different rig instance. An explicit jiggle-buffer bypass
 handles all-disabled comparisons independently of byte38 and bone overrides.
-Transporting this snapshot and binding to the live Jiggle pane remains pending.
+`mesh_rust_jiggle.py` publishes this rig and retained LOD0 records to the owned,
+hash-checked `jiggle-rig.json` payload. Unchanged records remain byte-identical;
+edited skin weights use the existing PAC encoder. Geometry-only and contribution
+edits reuse that payload. The native Jiggle pane prepares bindings on its bounded
+loader, then plays a procedural root-pose test using decoded initialization settings.
+Preview frames stay separate from authored mesh data. This integrates the decoded
+math, but does not establish runtime activation, live profile selection, wind/water
+generation, guide cloth or in-game parity.
 
 ## PAC cloth guides (read-only)
 
