@@ -181,6 +181,41 @@ rounding differences over time. Synthetic math tests do not establish GPU,
 rendered or in-game parity. Reflected instance-frequency fields are not consumed
 by these inspected update bodies and are not exposed as proven solver controls.
 
+### Bone-to-render handoff
+
+`pac_jiggle_skinning.py` connects the bone reference to the retained render
+vertex and guide-cloth blend. It traces `ComputeSkinningMatrix2` (source SHA-256
+prefix `db7bcc0dd8b7`) and `CSMainSkinnedMeshStreamOutVertexData`
+(`6a00cd165666`) in build `1.0.0.2944`.
+
+`prepare_jiggle_bone_skinning` implements the ordinary inverse-bind path,
+including LOD0, for one resolved bone. Both animation and jiggle basis rows are
+scaled in character space before `inverseBind * pose`; translation is not scaled.
+The solver's row0.w marker and row1.w override are removed from the simulated
+pose and written onto the **ordinary** skinning matrix after composition.
+Special cross-LOD inverse-variant corrections are not implemented.
+
+`blend_render_jiggle_matrix` resolves PAC slot to original bone through the
+supplied palette, then to the skinning buffer through the supplied index map.
+It normalizes all six skeletal byte weights, or four for guide-bound vertices
+and nonzero main-render flag modes `flags & 0xE00`. Every selected index must be
+valid even at zero weight. All-zero weights produce zero XYZ rows. A positive
+weighted row0.w selects the weighted row1.w instead of byte 38's contribution.
+Positive overrides above one extrapolate; nonpositive overrides bypass jiggle.
+Nonzero `0xE00` modes and a missing active jiggle buffer also bypass jiggle.
+
+Positive wind weight fetches samples at `1024 | (originalBone & 255)`, before
+the skinning-index remap. The normalized sample basis premultiplies the blended
+jiggle basis, including its fourth-column terms, while sample translation is
+added separately. Wind blending precedes the final ordinary/jiggle blend.
+The returned XYZ rows have a canonical affine fourth column for direct use by
+`blend_render_cloth_matrix`; the blend metadata has already been consumed.
+
+These functions require resolved buffers and explicit activation. They do not
+infer rig binding, generate wind samples, implement special LOD corrections,
+or establish production-preview, normal-packing or in-game parity. Synthetic
+coverage composes bone motion, inverse bind, byte-38 blending and guide cloth.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.
