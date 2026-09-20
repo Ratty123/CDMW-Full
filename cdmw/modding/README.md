@@ -216,6 +216,41 @@ ordered initialization results. Rest measurements alone do not select an active
 solver. They are mathematical values before half-precision upload, not bit-exact
 CPU emulation.
 
+`pac_cloth_frames.py` provides a mathematical reference for the guide branch of
+`ComputePbdUpdateResult`, using explicitly supplied runtime inputs. Particle
+offset 0 is the animation target `_ix`; offset 36 is the simulated position `_x`.
+`select_guide_result_positions` interpolates `_p[0]` at offset 12 toward `_x`
+unless per-frame flags2 bit `0x800` bypasses interpolation, then blends toward
+`_ix`. The interpolation ratio is remaining/fixed simulation delta time from the
+appropriate clock (`0x8000` selects the scaled clock). The second blend comes
+from the high half of per-frame offset 76 (`_p6`), whose CPU/material owner is
+unresolved; it is not offset 96's named smoothing field.
+
+`update_guide_result_frames` preserves the entire frame when per-frame bit
+`0x10000` suppresses this update. Otherwise it updates translation and runtime
+blend metadata; bit `0x4000` additionally enables rotation correction. Bit
+`0x80000` selects single-edge rotation, with the second neighbor preferred and
+fallback to the first only when the second index is out of range. This branch
+compares the animated edge with the selected current position minus the
+neighbor's raw `_x`. Edges no longer than 0.01 use identity; nearly opposite
+directions use negative identity as in the shader.
+
+With `0x80000` clear, two neighbors define input/output frames. Their simulation
+edges use raw `_x` at both ends. Output directions blend animation and simulation
+by `saturate(simulatedLength / (0.8 * animatedLength))`, reducing the rotation
+when edges compress. The correction maps the animated frame toward the simulated
+frame, not the reverse. Frame bases transform through world, correction and
+inverse-world bases. Translation is `(selectedPosition + pbdSpaceOffset)` times
+the inverse-world basis, without an inverse translation row. The fourth column
+remains metadata, with row0.w supplied by `guide_runtime_blend_factor` below.
+
+Known out-of-range orientation indices use the shader's defined branches;
+`None` from preparation means untouched/unknown memory and is rejected when
+rotation consumes it. Zero/collinear edges that make the two-edge math singular
+are reported unsupported, without inventing an identity result. These functions
+do not discover active flags, solve particle motion, emulate dispatch/resource
+selection or claim bit-exact GPU arithmetic. They are not wired into the preview.
+
 `pac_cloth_skinning.py` provides a mathematical reference for the decoded
 guide-to-render handoff. `prepare_guide_skinning_matrices` accepts externally
 supplied guide animation frames and subtracts each shader-decoded rest position
@@ -230,8 +265,9 @@ skeletal/jiggle matrix by `(byte39 & 63) / 63` multiplied by the weighted guide
 Every fetched guide index must be valid, even if its weight is zero. The result
 contains four XYZ rows for point transformation; normals require the inverse
 transpose of the blended basis. This reference requires valid guide indices
-and supplied runtime matrices; it neither generates those matrices nor emulates
-missing GPU resources or bit-exact float/half arithmetic.
+and supplied runtime matrices, which may be produced by the result-frame
+reference above. It does not emulate missing GPU resources or bit-exact
+float/half arithmetic.
 
 The runtime factor's traced material source is
 `UnderWaterGuideMeshVertexWeightCoefficient`. `guide_runtime_blend_factor`
