@@ -592,7 +592,7 @@ from the same base shader:
   fixed particles; all later stages must be skipped. Otherwise, fixed particles
   copy adjusted `_ix` into both `_p` histories while preserving velocity,
   working `_x`, contact data and the velocity-reference position. They still
-  require final flags/SBC/hold processing with zero non-gravity acceleration.
+  require final flags/pre-collision cache/hold processing with zero non-gravity acceleration.
   Dynamic particles continue through forces and prediction.
 - `predict_dynamic_cloth_state` consumes already-adjusted particle positions,
   prepared flags and velocity after forces/damping. Guide contact requires
@@ -601,7 +601,12 @@ from the same base shader:
   backward boost changes prediction only, retaining the pre-boost stored
   velocity. Skipping integration still applies ground projection to prepared
   `_p[0]`, and the velocity-reference position receives working `_x`.
-- `finalize_cloth_base_hold` advances the pinch timer after preceding flag/SBC
+- `finalize_cloth_base_state` evaluates the outward-force flag, independently
+  resets the two pre-collision cache blocks when requested, and invokes the hold
+  stage below. Fixed particles use zero acceleration; dynamic particles use
+  retained non-gravity acceleration, not stored velocity or full acceleration.
+  Frame flags `0xC00` bypass this stage entirely.
+- `finalize_cloth_base_hold` advances the pinch timer after preceding flag/cache
   stages. Flags `0x300` reset its base to 100000. Existing particle `0x80000000`,
   frame flags2 `0x10000`, overstretch ratio at least 99 and a non-gravity
   acceleration absolute-component sum strictly below float32(0.1) hold both
@@ -656,13 +661,30 @@ translation, frame translation and the **adjusted working position**. The shader
 subtracts the previous-view position when constructing the texture coordinates.
 Skinning records, reference records and unrelated particle fields are preserved.
 
+Final outward-force classification uses working `_x` and the negative scene
+gravity direction without normalizing that input. With `u = -gravity`, it forms
+`r = x - dot(x, u) * u`, normalizes `r + length(r) * u`, and projects retained
+non-gravity acceleration onto that direction. A result strictly above 30 sets
+particle `0x40000`; otherwise it clears the bit. A zero direction has no supported
+finite shader result and is rejected.
+
+The pre-collision cache is a ten-uint window addressed by simulation parameter
+uint32 at 148 plus `particle_index * 10`, in the resource selected by uint16 at
+226. It is **not** particle `sbc_offset` at 124. With a valid resource, frame
+`0x80000000` resets its first five words to `(0, FFFFFFFF, FFFFFFFF, FFFFFFFF, 0)`;
+frame `0x10` independently resets the last five to
+`(0, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF)` and clears particle `0x20000000`.
+The caller supplies the resolved window when either reset is active. These
+writes preserve the particle's contact normals and radius.
+
 Contact-cache writeback requires an explicit shader storage variant. Without
 frame flags2 `0x200`, the packed variant clears both complete contact vectors;
 the native-16-bit variant clears their xyz components and preserves each w.
 Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
 These stages preserve unrelated record bytes and reject missing consumed inputs.
-Water classification, input-position and later collider queries, outward-force
-flags, SBC buffer writes and full CPU dispatch selection remain separate.
+Water classification from supplied samples is covered below. Actual texture
+acquisition, input-position and later collider queries, and full CPU dispatch
+selection remain caller work.
 Animation preparation invokes fixed-state preparation internally; do not clear
 particle flags first. Clock, guide, force and prediction composition and static
 attachment/reference/fixed-state branches are covered by synthetic tests. These
@@ -752,8 +774,30 @@ scene warmup request, timer activation and external elasticity ratio still needs
 upstream tracing. Synthetic composition connects LOD reactivation to the uploaded
 fade and `select_guide_result_positions`; no visible or gameplay claim follows.
 
-`pac_cloth_environment.py` constructs the environmental acceleration consumed
-by the base integrator from explicit runtime records and scene samples. It uses
+`pac_cloth_environment.py` decodes water volume queries and constructs environmental
+acceleration from explicit runtime records and scene samples.
+`plan_cloth_water_samples` consumes the 768-byte water constant buffer and a
+position already relative to the previous view. Common UVs are
+`(0.5 + x * float8, 0.5 - z * float12)`. The detailed top texture is selected only
+when `abs(x) < float416 / 2` and `abs(z) < float424 / 2`, using UVs
+`(0.5 + x * float424, 0.5 - z * float428)`. The inspected shader reuses float424
+for the Z bound and X scale. Coarse top, bottom and both air-pocket samples use
+common UVs. Water samplers are bilinear clamp; air-pocket samplers are bilinear
+black-border, all at LOD zero. The helper returns unclamped coordinates and does
+not acquire textures or execute samplers.
+
+`classify_cloth_water` consumes four samples in selected-top, bottom, air-top,
+air-bottom order. Water constants float3 at 32 supply minimum, maximum and bias.
+For a sample below 1, height is
+`bias + current_view_y - minimum - sample * (maximum - minimum)`; otherwise
+height is the absolute sentinel -10000, without a view offset. Negative samples
+are not clamped. Against `relative_position.y + current_view_y`, the water top
+is exclusive and bottom inclusive; the complete inclusive air-pocket interval
+is excluded. The returned membership precedes frame flags2 `0x1000` gating.
+The caller retains the guide-before-adjustment versus static-after-adjustment
+query order described above. No missing scene samples are invented.
+
+`cloth_environment_acceleration` supplies the base integrator. It uses
 velocity **after** gravity and bone inertia. Air resistance remains active when
 wind is disabled; frame `0x40000000` additionally includes particle velocity in
 the air-relative motion. Parameter half 280 supplies quadratic air resistance.
@@ -780,7 +824,7 @@ Missing neighbors and degenerate edges retain their distinct shader branches.
 
 The reference requires voxel, sky, shallow-water and scalar noise samples only
 when their branches consume them. It does not generate the procedural noise,
-sample scene textures or determine water/force eligibility. Zero dry-turbulence
+sample scene textures or determine live force eligibility. Zero dry-turbulence
 normalization and purely vertical nonzero forces make the inspected math
 non-finite and are explicitly unsupported, without inventing recovery behavior.
 Tests cover the decoded branches and compose the result with base integration,

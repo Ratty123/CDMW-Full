@@ -430,6 +430,68 @@ def predict_dynamic_cloth_state(
             'prediction_velocity': predicted_velocity, 'ground_contact': prediction['ground_contact']}
 
 
+def finalize_cloth_base_state(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes, *,
+    non_gravity_acceleration: Sequence[float], delta_time: float,
+    pre_collision: bytes | None = None,
+) -> dict:
+    """Finish a fixed/dynamic base step: outward flag, pre-collision resets, hold.
+
+    Inputs are AFTER integration selection/forces/prediction. Early-return modes
+    must bypass this function. Fixed particles use the shader's zero acceleration;
+    dynamic particles use the retained non-gravity force, not velocity/gravity.
+
+    pre_collision is the ten-uint window at parameter148 + particle_index*10
+    in the selected uint buffer, NOT particle sbc_offset124. Supply it when the
+    valid resource and reset flags request a write; untouched data is preserved.
+    A degenerate outward direction has no supported finite shader result.
+    """
+    for record, size in ((particle, 152), (simulation_parameter, 312),
+                         (per_frame, 100), (per_scene, 108)):
+        _record(record, size)
+    frame_flags = struct.unpack_from('<I', per_frame, 32)[0]
+    if frame_flags & 0xC00:
+        raise ValueError("Early-return cloth modes bypass base finalization.")
+    flags = struct.unpack_from('<I', particle, 64)[0]
+    inverse_mass = struct.unpack_from('<f', particle, 60)[0]
+    _finite(inverse_mass)
+    acceleration = ((0., 0., 0.) if inverse_mass <= 0 or flags & 0x40 else
+                    tuple(_f32(v) for v in _point(non_gravity_acceleration)))
+    working = _point(struct.unpack_from('<3f', particle, 36))
+    upward = tuple(-v for v in _point(struct.unpack_from('<3e', per_scene, 100)))
+    projection = sum(x*u for x, u in zip(working, upward))
+    radial = tuple(x - projection*u for x, u in zip(working, upward))
+    radial_length = math.hypot(*radial)
+    direction = tuple(r + radial_length*u for r, u in zip(radial, upward))
+    direction_length = math.hypot(*direction)
+    if direction_length == 0:
+        raise ValueError("Cloth outward direction is degenerate with no finite shader result.")
+    measure = _f32(sum(a*d/direction_length for a, d in zip(acceleration, direction)))
+    outward = measure > 30
+    flags = flags | 0x40000 if outward else flags & ~0x40000
+    resource_valid = struct.unpack_from('<H', simulation_parameter, 226)[0] != 0xFFFF
+    reset_first = bool(resource_valid and frame_flags & 0x80000000)
+    reset_second = bool(resource_valid and frame_flags & 0x10)
+    cache = None
+    if pre_collision is not None:
+        _record(pre_collision, 40)
+        cache = bytearray(pre_collision)
+    if (reset_first or reset_second) and cache is None:
+        raise ValueError("Active pre-collision reset requires the resolved ten-uint window.")
+    if reset_first:
+        struct.pack_into('<5I', cache, 0, 0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0)
+    if reset_second:
+        struct.pack_into('<5I', cache, 20, 0, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)
+        flags &= ~0x20000000
+    result = bytearray(particle)
+    struct.pack_into('<I', result, 64, flags)
+    final = finalize_cloth_base_hold(bytes(result), simulation_parameter, per_frame,
+                                     non_gravity_acceleration=acceleration, delta_time=delta_time)
+    return {**final, 'outward_force': outward, 'outward_measure': measure,
+            'pre_collision': None if cache is None else bytes(cache),
+            'reset_pre_collision_halves': (reset_first, reset_second)}
+
+
 def finalize_cloth_base_hold(
     particle: bytes, simulation_parameter: bytes, per_frame: bytes, *,
     non_gravity_acceleration: Sequence[float], delta_time: float,

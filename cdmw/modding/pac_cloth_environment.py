@@ -1,8 +1,8 @@
-"""Decoded air/water force construction from explicitly supplied scene samples.
+"""Decoded water queries/classification and force construction from scene samples.
 
-This covers the normal base-step consumer, not texture lookup, procedural noise
-generation, underwater detection or runtime activation. It produces the resolved
-environmental acceleration expected by pac_cloth_base.integrate_cloth_forces.
+Texture acquisition, procedural noise and runtime activation remain caller-owned.
+The force reference produces the resolved environmental acceleration expected by
+pac_cloth_base.integrate_cloth_forces; the query helpers do not sample textures.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import math
 import struct
 from collections.abc import Sequence
 
+from ._pbd_numeric import f32
 from .pac_cloth_base import _boolean, _finite, _point, _record
 
 
@@ -28,6 +29,57 @@ def _sample_vector(value, name, count=3):
         raise ValueError(f"Active cloth environment branch requires a {count}-component {name} sample.")
     _finite(*value)
     return tuple(float(x) for x in value)
+
+
+def plan_cloth_water_samples(
+    position_relative_to_previous_view: Sequence[float], water_constants: bytes,
+) -> dict:
+    """Select water-top texture and UVs for the base shader's water query.
+
+    water_constants is the complete 768-byte WaterConstantBuffer. The returned
+    common UV serves bottom water and both air-pocket samples, and coarse top
+    when detail is unselected. Water uses bilinear clamp, air pockets bilinear
+    black-border, all at LOD0. UVs are not clamped here or sampled implicitly.
+    """
+    _record(water_constants, 768)
+    x, _, z = (f32(v) for v in _point(position_relative_to_previous_view))
+    sx, sz = struct.unpack_from('<2f', water_constants, 8)
+    dx = struct.unpack_from('<f', water_constants, 416)[0]
+    dz = struct.unpack_from('<f', water_constants, 424)[0]
+    _finite(sx, sz, dx, dz)
+    common_uv = (f32(f32(x*sx) + .5), f32(.5 - f32(z*sz)))
+    detail = abs(x) < f32(dx*.5) and abs(z) < f32(dz*.5)
+    top_uv = common_uv
+    if detail:
+        detail_z_scale = struct.unpack_from('<f', water_constants, 428)[0]
+        # The inspected shader uses component z for both the Z bound and X scale.
+        top_uv = (f32(f32(x*dz) + .5), f32(.5 - f32(z*detail_z_scale)))
+    return {'common_uv': common_uv, 'top_uv': top_uv, 'use_detail_top': detail}
+
+
+def classify_cloth_water(
+    position_relative_to_previous_view: Sequence[float], water_constants: bytes, *,
+    current_view_y: float, depth_samples: Sequence[float],
+) -> bool:
+    """Classify supplied top/bottom/air-top/air-bottom texture samples in that order.
+
+    Top must be the detail/coarse source selected by plan_cloth_water_samples.
+    This returns volume membership, before the caller's flags2 0x1000 gate. A
+    sample >=1 produces height -10000; smaller samples are not clamped. The
+    water top is exclusive, bottom inclusive; the complete air interval is dry.
+    """
+    _record(water_constants, 768)
+    position = _point(position_relative_to_previous_view)
+    view_y = f32(current_view_y)
+    samples = tuple(f32(v) for v in _sample_vector(depth_samples, 'water-depth', 4))
+    minimum, maximum, bias = struct.unpack_from('<3f', water_constants, 32)
+    extent = f32(maximum - minimum)
+    origin = f32(f32(bias + view_y) - minimum)
+    heights = tuple(f32(origin - f32(sample*extent)) if sample < 1 else -10000.
+                    for sample in samples)
+    y = f32(f32(position[1]) + view_y)
+    top, bottom, air_top, air_bottom = heights
+    return y < top and y >= bottom and (y > air_top or y < air_bottom)
 
 
 def cloth_environment_acceleration(
