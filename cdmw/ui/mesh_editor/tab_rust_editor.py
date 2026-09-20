@@ -526,6 +526,7 @@ class MeshEditorRustEditorMixin(MeshEditorRustProcessMixin):
                 unavailable_reason=self.standalone_rust_texture_unavailable_reason,
                 target_entry=target_entry,
                 entries_by_basename=basename_index,
+                physics_profile_context=getattr(self, "archive_physics_profile_context", None),
             )
         )
 

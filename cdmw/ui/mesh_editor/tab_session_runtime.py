@@ -371,6 +371,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
             return
         self.standalone_controller = _tab.MeshEditorController(mesh_service=result.service)
         self.standalone_source_skeleton = result.source_skeleton
+        self.archive_physics_profile_context = result.physics_profile_context
         self.standalone_archive_material_preview_model = self.archive_session_load_material_model
         result.service.set_skeleton_resolution_reason(
             result.view.session_id,
@@ -760,6 +761,7 @@ class MeshEditorSessionMixin(MeshEditorArchiveMaterialContextMixin):
         self.draft_banner.setVisible(False)
         self.mesh_editor_matching_drafts = ()
         self.standalone_archive_material_preview_model = None
+        self.archive_physics_profile_context = None
         self.archive_material_context_companion_entry = None
         self.archive_material_context_package_path = ""
         self.archive_material_context_verified_for_rust = False

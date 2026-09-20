@@ -40,6 +40,17 @@ Large command responses, including dense jiggle data returned after part selecti
 use an atomic session-owned file with verified size and SHA-256. The control pipe
 keeps its 256 KiB limit; referenced response state is bounded to 16 MiB.
 
+The archive session loader retains the exact PAC XML under `modelproperty`, the
+PBD catalogue and referenced profile documents with archive identities and content
+hashes. This also runs when archive textures are already prepared. Physics
+bindings keep their part names, variants and explicit empty assignments, including
+inherited empty assignments. The editing context owns these immutable sources;
+ordinary preview models and their serialized form stay unchanged. Cancellation,
+stale load results and closing the session release the context. Missing or
+ambiguous paths remain unresolved, and same-name files elsewhere are not used.
+This source handoff does not yet select the active game variant, apply profiles
+to the motion test or enable profile export.
+
 ## Collapsible panels and tool icons
 
 Use the arrow in each panel header to collapse it independently. **Tools** becomes

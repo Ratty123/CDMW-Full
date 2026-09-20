@@ -192,6 +192,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
         material_name: str = "",
         target_entry: ArchiveEntry | None = None,
         texture_entries_by_basename: dict[str, tuple[ArchiveEntry, ...]] | None = None,
+        physics_profile_context: object | None = None,
     ) -> tuple[MeshService, RustMeshAuthoringSession]:
         authoritative = MeshService(settings=_Settings(root.parent / "settings.ini"))
         source = _pac_fixture(skinned=skinned_source)
@@ -253,6 +254,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             unavailable_reason=material_unavailable_reason,
             target_entry=target_entry,
             entries_by_basename=texture_entries_by_basename,
+            physics_profile_context=physics_profile_context,
         )
         session = RustMeshAuthoringSession.create(
             controller,

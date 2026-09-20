@@ -53,7 +53,7 @@ from cdmw.modding.mesh_parser import (
     ParsedMesh,
     resolve_pac_bone_palette,
 )
-from cdmw.models import ArchiveEntry, PreviewMaterialParameterInput
+from cdmw.models import ArchiveEntry, PbdProfileContext, PreviewMaterialParameterInput
 from cdmw.rendering.crimson_shader_registry import normalize_shader_family
 from cdmw.rendering.material_category_contract import (
     MATERIAL_CATEGORY_UNCLASSIFIED,
@@ -679,6 +679,7 @@ class _RustMeshPreviewMaterialContext:
     unavailable_reason: str
     target_entry: ArchiveEntry | None = None
     texture_entries: tuple[ArchiveEntry, ...] = ()
+    physics_profile_context: PbdProfileContext | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1370,12 +1371,21 @@ def prime_rust_mesh_preview_context(
     unavailable_reason: str = "",
     target_entry: ArchiveEntry | None = None,
     entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+    physics_profile_context: PbdProfileContext | None = None,
 ) -> int:
     """Attach Archive Browser material evidence for the isolated shadow clone."""
 
     if authoritative_controller is None:
         raise RustMeshAuthoringError("CDMW has no controller for texture context")
     preview_model_snapshot = _snapshot_rust_preview_model(preview_model)
+    physics_profiles = physics_profile_context
+    if physics_profiles is not None:
+        if (not isinstance(physics_profiles, PbdProfileContext)
+                or not isinstance(target_entry, ArchiveEntry)
+                or physics_profiles.source_identity != target_entry.identity):
+            raise RustMeshAuthoringError(
+                "Physics profile context belongs to a different archive entry."
+            )
     binding_count = (
         count_dotnet_own_material_bindings(preview_model_snapshot)
         if preview_model_snapshot is not None
@@ -1416,6 +1426,7 @@ def prime_rust_mesh_preview_context(
             if isinstance(target_entry, ArchiveEntry)
             else None,
             texture_entries=texture_entries,
+            physics_profile_context=physics_profiles,
         ),
     )
     return binding_count
@@ -6994,6 +7005,7 @@ class RustMeshAuthoringSession:
     cloth_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     cloth_collision_inputs: dict[str, tuple[str, object]] = field(default_factory=dict, repr=False)
+    physics_profile_context: PbdProfileContext | None = field(default=None, repr=False)
     hair_skin_donor_mesh: ParsedMesh | None = None
     hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -7167,6 +7179,9 @@ class RustMeshAuthoringSession:
                 material_package_path=str(
                     getattr(preview_context, "material_package_path", "") or ""
                 ).strip(),
+                physics_profile_context=getattr(
+                    preview_context, "physics_profile_context", None,
+                ),
                 authoritative_morph_root=authoritative_morph_root,
                 neutral_appearance=neutral_appearance,
                 neutral_source_mesh=neutral_source_mesh,

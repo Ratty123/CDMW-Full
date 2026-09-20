@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
+from cdmw.models import ArchiveEntry, ArchiveEntryIdentity, PbdProfileContext
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.core.skeleton_resolver import resolve_skeleton_for_model
 from cdmw.modding.skeleton_parser import parse_pab
@@ -37,6 +37,7 @@ from cdmw.services.mesh_dotnet_reference_composite import (
     append_dotnet_native_reference_composite,
 )
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
+from cdmw.services.mesh_physics_profiles import resolve_mesh_physics_profiles
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
@@ -59,6 +60,7 @@ class MeshArchiveSessionLoadResult:
     skeleton_source_path: str = ""
     skeleton_resolution_reason: str = ""
     appearance_warning: str = ""
+    physics_profile_context: PbdProfileContext | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +261,9 @@ class MeshArchiveSessionLoadWorker(QObject):
                     skeleton_resolution_reason = (
                         f"Matching PAB skeleton could not be attached: {type(exc).__name__}: {exc}"
                     )
+            physics_profiles = resolve_mesh_physics_profiles(
+                self.entry, self.archive_entries_by_basename, stop_event=self.stop_event,
+            )
             if not self.stop_event.is_set():
                 if source_skeleton is None and self.entry.extension.lower() == ".pac" and mesh.has_bones:
                     appearance_warning = source_geometry_notice
@@ -277,6 +282,7 @@ class MeshArchiveSessionLoadWorker(QObject):
                         skeleton_source_path=skeleton_source_path,
                         skeleton_resolution_reason=skeleton_resolution_reason,
                         appearance_warning=appearance_warning,
+                        physics_profile_context=physics_profiles,
                     ),
                 )
                 transferred = True

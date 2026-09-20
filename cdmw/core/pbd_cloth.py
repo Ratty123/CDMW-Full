@@ -177,11 +177,12 @@ def _default_pbd_material_settings(
     return settings
 
 
-def parse_pbd_config_materials(text: str) -> Dict[str, PbdConfigMaterial]:
+def collect_pbd_config_materials(text: str) -> Tuple[PbdConfigMaterial, ...]:
+    """Retain catalogue declarations without collapsing conflicting names."""
     root = _parse_xml(text)
     if root is None:
-        return {}
-    materials: Dict[str, PbdConfigMaterial] = {}
+        return ()
+    materials: List[PbdConfigMaterial] = []
     for element in root.iter():
         attrs = {str(key): str(value or "").strip() for key, value in element.attrib.items()}
         name = attrs.get("Name") or attrs.get("_name") or attrs.get("name") or ""
@@ -194,18 +195,27 @@ def parse_pbd_config_materials(text: str) -> Dict[str, PbdConfigMaterial]:
             mode=attrs.get("Mode") or attrs.get("_mode") or attrs.get("mode") or "",
             pbd_part=attrs.get("PbdPart") or attrs.get("_pbdPart") or attrs.get("pbdPart") or "",
         )
-        materials[_normalize_key(name)] = material
-    return materials
+        materials.append(material)
+    return tuple(materials)
 
 
-def parse_pbd_sidecar_hints(sidecar_text: str, *, sidecar_path: str = "") -> Tuple[PbdSidecarHint, ...]:
+def parse_pbd_config_materials(text: str) -> Dict[str, PbdConfigMaterial]:
+    return {
+        _normalize_key(material.name): material
+        for material in collect_pbd_config_materials(text)
+    }
+
+
+def parse_pbd_sidecar_hints(
+    sidecar_text: str, *, sidecar_path: str = "", retain_empty_bindings: bool = False,
+) -> Tuple[PbdSidecarHint, ...]:
     root = _parse_xml(sidecar_text)
     if root is None:
         return ()
     hints: List[PbdSidecarHint] = []
     seen: set[Tuple[str, str, str, str, str]] = set()
 
-    def visit(element: ET.Element, inherited: str = "", variant: str = "") -> None:
+    def visit(element: ET.Element, inherited: str = "", variant: str = "", inherited_declared: bool = False) -> None:
         attrs = element.attrib
         if _local_name(element.tag) == "ModelProperty":
             variant = str(attrs.get("Index", "")).strip()
@@ -225,16 +235,17 @@ def parse_pbd_sidecar_hints(sidecar_text: str, *, sidecar_path: str = "") -> Tup
                     break
         kind = classify_pbd_simulation_kind(pbd_name, material_name, submesh_name, parameter_name, _local_name(element.tag))
         key = (
-            _normalize_key(pbd_name),
+            pbd_name.casefold() if retain_empty_bindings else _normalize_key(pbd_name),
             _normalize_name(material_name),
             _normalize_name(submesh_name),
             _normalize_name(parameter_name),
             variant,
         )
         owns_profile = "_pbdSimulationMaterialName" in attrs or "pbdSimulationMaterialName" in attrs
+        profile_declared = owns_profile or inherited_declared
         # Retain a named variant's empty profile too: absence in one variant
         # must not silently inherit another variant's simulation settings.
-        if (pbd_name or variant) and (submesh_name or (material_name and owns_profile)) and key not in seen:
+        if (pbd_name or variant or (retain_empty_bindings and profile_declared)) and (submesh_name or (material_name and owns_profile)) and key not in seen:
             seen.add(key)
             hints.append(PbdSidecarHint(
                 simulation_material_name=pbd_name,
@@ -246,7 +257,7 @@ def parse_pbd_sidecar_hints(sidecar_text: str, *, sidecar_path: str = "") -> Tup
                 variant_index=variant,
             ))
         for child in element:
-            visit(child, pbd_name, variant)
+            visit(child, pbd_name, variant, profile_declared)
 
     visit(root)
     return tuple(hints)
@@ -820,6 +831,7 @@ __all__ = [
     "build_cloth_preview_data",
     "build_cloth_preview_from_sidecars",
     "classify_pbd_simulation_kind",
+    "collect_pbd_config_materials",
     "collect_pbd_sidecar_hints",
     "parse_pbd_config_materials",
     "parse_pbd_material_settings",

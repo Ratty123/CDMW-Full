@@ -1183,6 +1183,36 @@ PREVIEW_MESH_IMAGE_FIELD_NAMES: Tuple[str, ...] = tuple(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class PbdProfileDocument:
+    path: str
+    identity: ArchiveEntryIdentity
+    data: bytes
+    sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class PbdProfileBinding:
+    profile_name: str
+    submesh_name: str
+    material_name: str
+    variant_index: str
+    profile_path: str = ""
+    problem: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PbdProfileContext:
+    """Exact archive inputs for physics editing, separate from preview defaults."""
+
+    source_identity: ArchiveEntryIdentity
+    sidecar: Optional[PbdProfileDocument] = None
+    catalogue: Optional[PbdProfileDocument] = None
+    profiles: Tuple[PbdProfileDocument, ...] = ()
+    bindings: Tuple[PbdProfileBinding, ...] = ()
+    problem: str = ""
+
+
 @dataclass(slots=True)
 class PbdMaterialSettings:
     material_name: str = ""

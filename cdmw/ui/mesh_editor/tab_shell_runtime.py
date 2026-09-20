@@ -67,6 +67,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_material_context_request_id = 0
         self.archive_material_context_request_identity: object | None = None
         self.archive_material_context_source_identity: object | None = None
+        self.archive_physics_profile_context: object | None = None
         self.archive_material_context_pending = False
         # Rust may only trust a material preview after the resolver has also
         # published the exact package (and lease) that owns its DDS paths.

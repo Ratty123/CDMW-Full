@@ -28242,6 +28242,16 @@
       ]
     },
     {
+      "key": "Decoded physics source exceeds the document size limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 61,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Decoded/context only",
       "origins": [
         {
@@ -34128,6 +34138,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_source_view.py",
           "line": 341,
           "sink": "setTabToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Exact physics source path is unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 45,
+          "sink": "ValueError"
         }
       ]
     },
@@ -74213,6 +74233,136 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 472,
           "sink": "_add_section"
+        }
+      ]
+    },
+    {
+      "key": "Physics catalogue contains too many profile declarations.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 134,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics context contains too many profiles.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 157,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics profile declares an invalid archive path.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 96,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics profile does not reference an XML document.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 99,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics profile name is ambiguous or absent from the catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 149,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics sidecar contains too many part bindings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 121,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source XML exceeds the structural limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 84,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source XML has an oversized attribute.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 86,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source XML is malformed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 77,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source contains an unsupported XML declaration.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 74,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source exceeds the document size limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 58,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source lookup exceeds its candidate limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 38,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics source path is ambiguous.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 45,
+          "sink": "ValueError"
         }
       ]
     },
@@ -123158,11 +123308,6 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
           "line": 520,
           "sink": "_send_dotnet_command_result"
-        },
-        {
-          "path": "cdmw/workers/mesh_rust_editor_workers.py",
-          "line": 287,
-          "sink": "emit"
         },
         {
           "path": "tools/translation_studio/ai_panel.py",

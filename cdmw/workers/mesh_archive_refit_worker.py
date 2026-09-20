@@ -220,6 +220,7 @@ def prepare_archive_refit_source(args, stop_event):
         prime_rust_mesh_preview_context(
             controller, context.preview_model, material_package_path=context.material_package_path,
             target_entry=entry, entries_by_basename=dependencies.entries_by_basename,
+            physics_profile_context=getattr(loaded, "physics_profile_context", None),
         )
         _count, reason = _prepare_shadow_mesh_materials(
             snapshot.mesh, getattr(controller, _RUST_PREVIEW_MATERIAL_CONTEXT_ATTR), "", stop_event,

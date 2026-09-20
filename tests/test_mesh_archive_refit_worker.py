@@ -20,7 +20,7 @@ def test_refit_preparation_recovers_exact_dds_from_captured_archive_dependencies
     service = MeshService()
     mesh = service.load_mesh_bytes(source, entry.path)
     view = service.open_edit_session(mesh, mode="edit")
-    loaded = SimpleNamespace(service=service, view=view)
+    loaded = SimpleNamespace(service=service, view=view, source_skeleton=None)
     model = ModelPreviewData(path=entry.path, meshes=[ModelPreviewMesh(
         source_submesh_index=0, texture_name=texture.path,
         preview_texture_dds_path=str(tmp_path / "missing" / "target.dds"),
