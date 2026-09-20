@@ -113,7 +113,7 @@ remain unresolved, so disabling must preserve it as well as all other record lan
 
 ### Bone jiggle reference
 
-`pac_jiggle_bones.py` implements the ordinary per-bone branch of
+`pac_jiggle_bones.py` implements the ordinary and timed instance branches of
 `UpdateJiggleEffect` in build `1.0.0.2944`. The two inspected shader variants have
 identical function bodies (source SHA-256 prefixes `25bbc446fe96` and
 `3033dabff732`). This reference requires resolved animation and runtime records;
@@ -136,17 +136,50 @@ not reconstruct velocity. The seed uses float32 products of the old position,
 velocity, rotation and angular velocity, plus original bone and frame indices;
 the GPU random sequence differs from the CPU solver's global generator.
 
+`prepare_jiggle_command` consumes a 48-byte `JiggleCommandShaderData` plus
+resolved skeleton/object/shader records. It returns the target `state_index`
+and cleared 116-byte command `bone`, populated with the instance payload and
+flags 3. Missing jiggle data or LOD above 1 skips the command. The address uses
+the original bone index and the skeleton's **LOD0** animation offset, including
+when the current LOD is 1. Resource lookup and collision between concurrent
+commands for the same bone remain caller responsibilities.
+
+The selected instance record's mode has these consumed masks:
+
+| Mask | Behavior |
+| --- | --- |
+| `0x4` | Enable linear effect motion |
+| `0x8` | Enable angular effect motion |
+| `0x2` | Use an axis-angle effect instead of Euler springs when angular motion is enabled |
+
+Pending effects add velocity once and reset elapsed time. A continuing effect
+uses its retained state without injecting the impulse again. Euler effects
+perturb their initial angles when the angular impulse is nonzero and perturb
+their animation target before fading. The axis-angle path evolves a perturbed
+axis toward X and applies its rotation before the animated rotation.
+
+Fade is `saturate((fadeRange - duration + elapsed) / fadeRange)` for a positive
+fade range; otherwise it is zero. Output weight is authored weight times
+`1 - fade`. Duration independently controls expiration, so zero fade range
+still ends the effect. Before fade reaches float32 `1e-4`, linear and axis-angle
+paths divide their stored velocity by damping **after** integrating and applying
+speed limits. Euler effects keep damping. A weight below float32 `1e-4` restores
+animation and clears motion before any bone-mask override, while retaining the
+updated runtime axis/angle and timer. A motion reset does not cancel or retrigger
+an existing effect. Undefined consumed divisions/normalizations are rejected.
+
 `jiggle_bone_blend_override` decodes the output metadata separately. Any nonzero
 low-two-bit shader mode sets row0.w to 1. Mode 2 scans up to 32 packed u16 bone
 indices and replaces row1.w with the last matching mask value. Values are not
 clamped. Unmatched bones retain the supplied instance weight, which is zero on
 the ordinary path. These overrides can supersede the later byte-38 render blend.
 
-Active hit/instance effects are rejected rather than replaced with the ordinary
-path. Effect commands, wind/water samples, dispatch/resource activation, rig
-resolution and the production preview still need integration. The reference
-uses Python arithmetic except where float32 storage/seed bits matter. Synthetic
-math tests do not establish GPU, rendered or in-game parity.
+Wind/water samples, dispatch/resource activation, rig resolution and the
+production preview still need integration. The reference uses Python arithmetic
+except where float32 storage/seed bits matter; random feedback can amplify
+rounding differences over time. Synthetic math tests do not establish GPU,
+rendered or in-game parity. Reflected instance-frequency fields are not consumed
+by these inspected update bodies and are not exposed as proven solver controls.
 
 ## PAC cloth guides (read-only)
 

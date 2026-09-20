@@ -263,11 +263,13 @@ def test_gimbal_branch_sets_yaw_zero_and_recovers_combined_roll(pitch, roll):
 
 
 def test_only_current_flags_with_both_low_bits_replace_previous_effect():
-    assert not run(state(flags=0x10), command_bone=state(flags=1))['reset']
-    with pytest.raises(ValueError, match='instance effects'):
-        run(state(), command_bone=state(flags=3))
-    with pytest.raises(ValueError, match='instance effects'):
-        run(state(flags=1), reset_requested=True)
+    result = run(state(flags=0x10), command_bone=state(flags=1))
+    assert not result['reset']
+    assert struct.unpack_from('<I', result['bone'], 108)[0] == 0x10
+    # A selected zero-duration command takes the effect path, advances elapsed
+    # time, and expires. Unselected current flags1 must not do any of these.
+    result = run(state(flags=0x10), command_bone=state(flags=3))
+    assert struct.unpack_from('<fI', result['bone'], 104) == (.25, 0)
 
 
 @pytest.mark.parametrize('changes,match', [
