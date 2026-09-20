@@ -278,6 +278,17 @@ their rest positions through the complete rig reference. This establishes
 read-only source math, not live profile selection, game animation, production
 preview integration, GPU arithmetic or in-game parity.
 
+The native `cdmw_mesh::jiggle_rig` consumes a snapshot of the prepared palette,
+parents and original-inverse/neutral-global/neutral-local matrices, stored as
+4-by-4 row arrays. It recomputes parent order and validates the snapshot before
+stepping all bones. Its preview binding inverts the **blended** neutral rest
+matrix once, then composes that inverse with each current render transform to
+preserve displayed sculpted positions. This is tested with different bone scales,
+where blending inverse bone matrices gives the wrong result. State and bindings
+cannot be used with a different rig instance. An explicit jiggle-buffer bypass
+handles all-disabled comparisons independently of byte38 and bone overrides.
+Transporting this snapshot and binding to the live Jiggle pane remains pending.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.

@@ -70,16 +70,30 @@ Its output is ready for the separate guide-cloth stage. The focused check is
 `cargo test --locked -p cdmw_mesh jiggle_skinning`, including a native bone step
 through inverse-bind composition to a guide-bound vertex.
 
+`cdmw_mesh::jiggle_rig` accepts a one-time snapshot of the host's validated
+PAB/PABC rig and resolved palette. It rechecks bounded matrix buffers, hierarchy
+and local/global consistency, composes local pose overrides, and advances all
+bones into original-ordinal-indexed render buffers. Frames and vertex bindings
+carry an instance identity and cannot be reused with a different rig. Bindings
+invert each vertex's blended neutral rest transform, preserving current sculpted
+positions without applying the neutral appearance twice. An explicit simulation
+bypass supports all-disabled comparisons even when bone masks override byte38.
+`cargo test --locked -p cdmw_mesh jiggle_rig` exercises this native pipeline,
+including differently scaled bones, continuing impulses and neutral edits.
+The core returns model-space positions; world placement, normal handling and
+guide cloth are subsequent stages. Its snapshot matrices are 4-by-4 row arrays,
+unlike the flat matrices of the Python reference object.
+
 The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
 synthetic vectors compare complete packed states and matrices with
 `cdmw/modding/pac_jiggle_bones.py`, feeding the native result into subsequent
 frames. Regenerate them from the repository root with the project Python and
 `tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_bones/generate_vectors.py`.
 Calculations use f64 with f32 storage/seed rounding; these checks do not prove
-GPU arithmetic or rendered/game parity. Loading the validated rig/maps and
-binding preview geometry, runtime activation, profile selection, wind/water
-generation and integration with the Jiggle pane remain separate work. The
-visible experiment still uses the approximate
+GPU arithmetic or rendered/game parity. Publishing/loading the rig snapshot and
+attaching these bindings to the live preview, runtime activation, profile
+selection, wind/water generation and the Jiggle controls remain separate work.
+The visible experiment still uses the approximate
 `cdmw_mesh::jiggle::Simulation`.
 
 ## Build
