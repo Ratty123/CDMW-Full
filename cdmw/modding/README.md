@@ -789,12 +789,43 @@ the kinetic coefficient times penetration, capped by the active static coefficie
 and by the remaining tangent length. These rules are separate from the moving
 collider's optional 0.45 correction.
 
+`apply_attached_static_cloth_collisions` connects that single-collider projection
+to the attached-static list in **both** the guide and static-mesh constraint
+branches. The caller supplies positions after preceding animated contacts, the
+already-selected reference position and the incoming contact aggregate. Outer
+constraint/collision eligibility remains the caller's responsibility.
+
+- Simulation ushort 214 is a complete-list `0xFFFF` sentinel; otherwise its low
+  11 bits are the absolute reference start and high 5 bits are the reference count.
+  Each reference uint is one complete group index, with `0xFFFFFFFF` skipped.
+  Indices increment without wrapping back into the 11-bit field. References are
+  not packed extra-group ranges, and repeated group indices are not deduplicated.
+- The 64-byte host instance comes from scene uint 48 plus **one if
+  `SceneConstantBuffer._frameNumber.y` (uint at byte 36) is nonzero**, with uint32
+  addition. The resulting resource index selects buffer 0 when >=65000. This is
+  not an even/odd test. Simulation uint 88 selects the element. A present list
+  requires this host record even when its decoded count is zero.
+- Host byte 12 packs signed tile Z in low16 and X in high16. Host float3 48 plus
+  frame float3 0 plus `(tileX*1000, 0, tileZ*1000)` places particles in collider
+  space. This loop consumes neither the host matrix basis nor the scene object's
+  own translation/tile fields.
+- Group ushort 2 is the collider count; uints 8/12 supply the definition SRV and
+  element start. Resource indices >=65000 select buffer 0; element addition wraps
+  uint32. Group bit flags do not gate this loop, and the guide input pass's
+  96-collider mask does not apply here. Empty groups skip definition access.
+- Guide particles (`simulation ushort 216 == 0xFFFF`) use float 204 as thickness;
+  static meshes use fixed `float32(0.01)`. Target corrections feed forward in
+  reference/group/element order while the reference position stays fixed. Contact
+  is ORed with the incoming aggregate, including a contact with no position change.
+  The function does not write normals, particle flags or caches.
+
 Focused tests use analytic signed distances, finite-difference gradients,
 rotation/translation equivalence, cylinder edge/tie cases, capsule degeneracy,
-raw plane normals and contact/friction composition. They do not establish GPU
-rounding or gameplay parity. Later-pass list selection, collider interpolation
-and motion compensation, contact/cache propagation and native preview wiring
-remain to be connected; these helpers do not constitute the full collision pass.
+raw plane normals, ordered buffer selection and contact/friction composition.
+They do not establish GPU rounding or gameplay parity. Animated collider list
+selection, interpolation and motion compensation, full contact/cache propagation
+and native preview wiring remain to be connected; these helpers do not constitute
+the full collision pass.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing

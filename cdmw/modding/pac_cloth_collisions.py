@@ -17,7 +17,7 @@ from .pac_cloth_base import _boolean, _finite, _point, _record
 
 def _entry(records, key, size, name):
     if records is None or key not in records:
-        raise ValueError(f"Cloth input collision requires the selected {name} record {key}.")
+        raise ValueError(f"Cloth collision requires the selected {name} record {key}.")
     result = records[key]
     _record(result, size)
     return result
@@ -423,3 +423,76 @@ def project_static_cloth_collider(
             amount = min(coefficient*penetration, length)/length
             projected = tuple(x - amount*t for x, t in zip(projected, tangent))
     return {'position': _point(projected), 'contact': True}
+
+
+def apply_attached_static_cloth_collisions(
+    position: Sequence[float], reference_position: Sequence[float],
+    simulation_parameter: bytes, per_frame: bytes, per_scene: bytes, *,
+    frame_number_y: int, previous_contact: bool,
+    static_instances: Mapping[tuple[int, int], bytes] | None = None,
+    reference_collidables: Mapping[int, int] | None = None,
+    collider_groups: Mapping[int, bytes] | None = None,
+    collidables: Mapping[tuple[int, int], bytes] | None = None,
+) -> dict:
+    """Apply the constraint pass's attached-static list after animated contacts.
+
+    Both guide and static-mesh branches use this loop. The caller must resolve
+    outer constraint/collision eligibility and supply the selected target,
+    unchanged reference position and previous contact aggregate. This function
+    does not write particle flags, normals, caches or other destination positions.
+
+    frame_number_y is the uint at SceneConstantBuffer byte36, not a frame parity
+    inferred here. Instance/definition maps use (buffer, element) keys and 64/104
+    byte records; reference and 16-byte group maps use absolute integer indices.
+    Missing consumed records are rejected, without inventing an empty resource.
+    Native SSA4930..5325 and5745..6142; packed SSA4941..5336 and5757..6154.
+    """
+    for record, size in ((simulation_parameter, 312), (per_frame, 100), (per_scene, 108)):
+        _record(record, size)
+    p, reference = _point(position), _point(reference_position)
+    _boolean(previous_contact)
+    if type(frame_number_y) is not int or not 0 <= frame_number_y <= 0xFFFFFFFF:
+        raise ValueError("Cloth frame-number y must be an unsigned 32-bit integer.")
+    contact = previous_contact
+    packed = struct.unpack_from('<H', simulation_parameter, 214)[0]
+    if packed == 0xFFFF:
+        return {'position': p, 'contact': contact}
+
+    resource = (struct.unpack_from('<I', per_scene, 48)[0] + (frame_number_y != 0)) & 0xFFFFFFFF
+    host_key = (resource if resource < 65000 else 0,
+                struct.unpack_from('<I', simulation_parameter, 88)[0])
+    host = _entry(static_instances, host_key, 64, 'static-instance')
+    start, count = packed & 2047, packed >> 11
+    # The shader loads the host even for count0, but does not use its coordinates.
+    translation, thickness = None, None
+    for reference_index in range(start, start + count):
+        if reference_collidables is None or reference_index not in reference_collidables:
+            raise ValueError(f"Cloth attached-static collision requires reference entry {reference_index}.")
+        group_index = reference_collidables[reference_index]
+        if type(group_index) is not int or not 0 <= group_index <= 0xFFFFFFFF:
+            raise ValueError("Cloth attached-static references must be unsigned 32-bit integers.")
+        if group_index == 0xFFFFFFFF:
+            continue
+        group = _entry(collider_groups, group_index, 16, 'attached-static group')
+        collider_count = struct.unpack_from('<H', group, 2)[0]
+        if not collider_count:
+            continue
+        if translation is None:
+            local = _point(struct.unpack_from('<3f', host, 48))
+            offset = _point(struct.unpack_from('<3f', per_frame, 0))
+            tile_z, tile_x = struct.unpack_from('<2h', host, 12)
+            translation = _point((local[0] + offset[0] + tile_x*1000.,
+                                  local[1] + offset[1],
+                                  local[2] + offset[2] + tile_z*1000.))
+            guide = struct.unpack_from('<H', simulation_parameter, 216)[0] == 0xFFFF
+            thickness = struct.unpack_from('<f', simulation_parameter, 204)[0] if guide else f32(.01)
+            _finite(thickness)
+        srv, element_start = struct.unpack_from('<2I', group, 8)
+        for index in range(collider_count):
+            key = (srv if srv < 65000 else 0, (element_start + index) & 0xFFFFFFFF)
+            definition = _entry(collidables, key, 104, 'collidable-definition')
+            result = project_static_cloth_collider(
+                p, reference, definition, group,
+                translation_to_collider_space=translation, collision_thickness=thickness)
+            p, contact = result['position'], contact or result['contact']
+    return {'position': p, 'contact': contact}
