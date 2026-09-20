@@ -402,43 +402,39 @@ impl LabApplication {
                 }
             }
         }); }
+        // Frame strokes count toward egui's layout size. Keep them present in
+        // every state so hovering a choice cannot make the row wrap and unwrap.
         ui.horizontal_wrapped(|ui| {
-            changed |= ui
-                .selectable_value(&mut preview.motion, jiggle::Motion::UpDown, "Up / down")
-                .changed();
-            changed |= ui
-                .selectable_value(
-                    &mut preview.motion,
-                    jiggle::Motion::StartStop,
-                    "Start / stop",
-                )
-                .changed();
-            changed |= ui
-                .selectable_value(&mut preview.motion, jiggle::Motion::Turn, "Turning")
-                .changed();
+            for (motion, label) in [
+                (jiggle::Motion::UpDown, "Up / down"),
+                (jiggle::Motion::StartStop, "Start / stop"),
+                (jiggle::Motion::Turn, "Turning"),
+            ] {
+                if ui
+                    .add(egui::Button::new(label).selected(preview.motion == motion))
+                    .clicked()
+                    && preview.motion != motion
+                {
+                    preview.motion = motion;
+                    changed = true;
+                }
+            }
         });
         ui.horizontal_wrapped(|ui| {
-            changed |= ui
-                .selectable_value(
-                    &mut preview.comparison,
-                    Comparison::Current,
-                    "Current flags",
-                )
-                .changed();
-            changed |= ui
-                .selectable_value(
-                    &mut preview.comparison,
-                    Comparison::Original,
-                    "Original flags",
-                )
-                .changed();
-            changed |= ui
-                .selectable_value(
-                    &mut preview.comparison,
-                    Comparison::Disabled,
-                    "All disabled",
-                )
-                .changed();
+            for (comparison, label) in [
+                (Comparison::Current, "Current flags"),
+                (Comparison::Original, "Original flags"),
+                (Comparison::Disabled, "All disabled"),
+            ] {
+                if ui
+                    .add(egui::Button::new(label).selected(preview.comparison == comparison))
+                    .clicked()
+                    && preview.comparison != comparison
+                {
+                    preview.comparison = comparison;
+                    changed = true;
+                }
+            }
         });
         if preview.solver == Solver::Decoded {
             ui.collapsing("Bone solver settings", |ui| {

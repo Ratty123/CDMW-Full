@@ -3956,6 +3956,65 @@ fn integrated_jiggle_unavailable_has_no_mutation_buttons() -> TestResult {
 }
 
 #[test]
+fn jiggle_preview_hover_keeps_wrapped_controls_stationary() -> TestResult {
+    let mut ui =
+        HeadlessUi::new_integrated_cdmw(triangle_application()?, egui::vec2(1024.0, 768.0));
+    for (font, density) in [(10.0, "compact"), (11.0, "normal"), (18.0, "comfortable")] {
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size": font, "density": density}));
+        for width in [240.0, 280.0, 320.0, 340.0] {
+            let draw = |ui: &mut HeadlessUi, events| {
+                let context = ui.application.egui_context.clone();
+                ui.output = context.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, ui.size)),
+                        events,
+                        ..Default::default()
+                    },
+                    |root| {
+                        egui::Panel::left("jiggle-preview-hover-test")
+                            .exact_size(width)
+                            .show(root, |panel| {
+                                ui.application.draw_jiggle_preview_controls(panel, &[]);
+                            });
+                    },
+                );
+                ui.output.textures_delta.clear();
+            };
+            for label in [
+                "All disabled",
+                "Original flags",
+                "Turning",
+                "Current flags",
+                "Start / stop",
+            ] {
+                draw(&mut ui, vec![Event::PointerGone]);
+                for _ in 0..3 {
+                    draw(&mut ui, Vec::new());
+                }
+                let before = ui.label_rect(label).ok_or("preview choice")?;
+                let play = ui.label_rect("Play preview").ok_or("play preview")?;
+                // Keep the pointer fixed so a wrap cannot be hidden by following the button.
+                for frame in 0..12 {
+                    draw(&mut ui, vec![Event::PointerMoved(before.center())]);
+                    assert_eq!(
+                        ui.label_rect(label),
+                        Some(before),
+                        "{density}, width {width}, {label}, hover frame {frame}"
+                    );
+                    assert_eq!(
+                        ui.label_rect("Play preview"),
+                        Some(play),
+                        "hovering {label} moved the following controls at width {width}"
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
 fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() -> TestResult {
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
         triangle_application()?, egui::vec2(1440.0, 1100.0));

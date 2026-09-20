@@ -11,6 +11,14 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+## [0.11.0-alpha.21] - 2026-09-20
+
+Local alpha checkpoint with expanded jiggle and cloth previews, retained-influence
+editing, and loading, material and hair fixes. Jiggle and cloth influence edits
+can be saved to PACs. Motion tests, region colours, solver tuning, wind and collision
+controls remain preview-only; new physics bindings and custom profile export are
+not yet supported. In-game physics parity remains unverified.
+
 ### Added
 
 - Cloth motion preview offers the decoded single-edge rotation method alongside two-edge frame alignment. The choice is explicit and affects only the preview.
@@ -47,6 +55,7 @@ The format is intentionally simple:
 - New Item loading errors include contextual guidance and a copyable report with the workbench version, exact cause, archive details and recent loading steps.
 - Localization read failures identify unsupported PALOC versions and malformed tables with their archive source, preserving the cause through encrypted archive reads.
 - New Item reads compressed `paloc` localization containers instead of reporting a decryption error for valid item-name tables. Exported names preserve the source table's container format.
+- Mesh Editor's motion preview buttons keep a stable size on hover, preventing "All disabled" from flickering between rows in narrow panels.
 - Hair Tools loads the game's `Hair` barber slot as well as older `hairShape` catalogues, restoring Create and Edit choices and preserving the original slot on export. Setup and loading errors stay compact; Edit expands when its gallery is ready.
 - Hair editing keeps root and rigid-attachment correction available after preparation. Converting hair to an ordinary mesh now completes its save acknowledgement so Undo and Finish can proceed.
 - Generated hairstyles no longer fail export when transferred skin weights exceed a cloth donor vertex's four-bone capacity. Existing compatible cloth bindings remain intact.

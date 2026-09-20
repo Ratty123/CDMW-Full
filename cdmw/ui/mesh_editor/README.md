@@ -516,6 +516,8 @@ the model along its displayed Y axis, making vertical lag and bounce easier to c
 **Current flags**, **Original flags** and **All disabled** compare the saved jiggle
 rule, the retained source weights, and rigid motion using the same geometry.
 Changing comparison or motion restarts a playing test for a repeatable comparison.
+Motion and comparison buttons keep the same size on hover and selection; narrow
+panels wrap the choices without moving them under the pointer.
 **Pause preview** retains the frame; **Reset preview** returns to the editable
 rest shape. Camera orbit and framing remain available during playback.
 
