@@ -338,6 +338,35 @@ fn model_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh()
     check_body_collision_source("pac_model")
 }
 
+#[test]
+fn appearance_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult {
+    check_body_collision_source("appearance")
+}
+
+#[test]
+fn collision_input_controls_choose_roles_clear_and_observe_model_precedence() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click("Collision sources")?;
+    for role in ["body", "head"] {
+        assert!(ui.actions_from_click(&format!("Choose {role} PABV…"))?.iter().any(
+            |action| matches!(action, UiAction::ChooseClothCollisionInput { role: selected } if *selected == role)
+        ));
+    }
+    ui.application.cdmw_state["jiggle"]["collision_inputs"] = json!({"body": "chosen.pabv"});
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("pac_model");
+    ui.frame(Vec::new());
+    assert!(ui.label_rect("Body volumes: chosen.pabv").is_some());
+    assert!(ui.actions_from_click("Choose body PABV…")?.is_empty());
+    let actions = ui.actions_from_click("Clear collision inputs")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "cloth_collision_input", arguments, .. } if arguments == &json!({"clear": true})
+    )));
+    assert!(ui.application.cdmw_pending_request.is_some());
+    assert_eq!(ui.application.mesh.as_ref().unwrap().draw_snapshot(), authored);
+    Ok(())
+}
+
 fn check_body_collision_source(source: &str) -> TestResult {
     let (root, mut ui, payload) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
@@ -359,8 +388,10 @@ fn check_body_collision_source(source: &str) -> TestResult {
     ui.click("Cloth preview settings")?;
     let source_label = if source == "pac_model" {
         "Uses this model's authored collision volumes."
+    } else if source == "appearance" {
+        "Uses the explicitly selected body/head collision inputs."
     } else {
-        "Uses the matched rig's default volumes. Outfit-specific overrides are not loaded."
+        "Uses the matched rig's default volumes."
     };
     assert!(ui.label_rect(source_label).is_some());
     ui.click("Play preview")?;

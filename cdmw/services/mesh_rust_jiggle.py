@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import math
+from pathlib import Path
 import struct
 
 from cdmw.domain.mesh.jiggle import PacJiggleRule
@@ -54,7 +55,8 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                 collider_reason = ""
                 collider_source = ""
                 try:
-                    volumes, collider_source = select_cloth_body_volumes(session.original_data, skeleton)
+                    inputs = {role: value[1] for role, value in authoring.cloth_collision_inputs.items()}
+                    volumes, collider_source = select_cloth_body_volumes(session.original_data, skeleton, **inputs)
                     cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload, volumes=volumes)
                 except (ValueError, OverflowError, struct.error) as exc:
                     cloth["body_colliders"] = []
@@ -190,7 +192,86 @@ def jiggle_ui_state(authoring, replacement):
     reason = metadata["reason"] or ("This PAC has zero vertex jiggle contribution on every vertex." if not parts else "")
     return {"available": not reason, "reason": reason, "parts": parts,
             "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"],
+            "collision_inputs": {role: value[0] for role, value in authoring.cloth_collision_inputs.items()},
             "decoded": _decoded_preview_state(authoring, session, metadata, appearance, eligible)}
+
+
+def set_cloth_collision_input(authoring, args, stop_event):
+    """Validate a bounded, explicit preview input before atomically publishing it.
+
+    Runs on the existing host command worker. Input snapshots are session-only;
+    source meshes, output rules and the mesh undo stack are never changed.
+    """
+    from cdmw.modding.pabv_parser import decode_pabv
+    from cdmw.modding.pac_cloth_preview import build_cloth_body_collider_snapshot, select_cloth_body_volumes
+    from cdmw.services.mesh_rust_authoring import _atomic_write_payload
+    from cdmw.services.mesh_rust_replacement import replacement_ui_state
+
+    clear = args == {"clear": True} and type(args["clear"]) is bool
+    if not clear and (set(args) != {"role", "path"} or args.get("role") not in ("body", "head")
+                      or not isinstance(args.get("path"), str) or not args["path"]):
+        raise ValueError("Choose a body or head PABV input, or clear the preview inputs.")
+    candidate = {} if clear else dict(authoring.cloth_collision_inputs)
+    session = authoring.shadow_service._session(authoring.shadow_session_id)
+    ui = jiggle_ui_state(authoring, replacement_ui_state(authoring))
+    decoded = ui.get("decoded", {})
+    cloth_state = decoded.get("cloth", {})
+    if not clear:
+        if not decoded.get("available") or not cloth_state.get("available"):
+            raise ValueError("Collision inputs need a decoded cloth preview and matching rig.")
+        if cloth_state.get("body_collider_source") == "pac_model":
+            raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
+        path = Path(args["path"])
+        if not path.is_absolute() or path.suffix.lower() != ".pabv":
+            raise ValueError("Choose an absolute path to a PABV file.")
+        authoring._raise_if_cancelled(stop_event)
+        with path.open("rb") as source:
+            data = source.read(8 * 1024 * 1024 + 1)
+        if len(data) > 8 * 1024 * 1024:
+            raise ValueError("Collision preview inputs must be at most 8 MiB.")
+        authoring._raise_if_cancelled(stop_event)
+        candidate[args["role"]] = (path.name, decode_pabv(data))
+    authoring._raise_if_cancelled(stop_event)
+    if candidate == authoring.cloth_collision_inputs:
+        return {"changed": False}
+    cached = authoring.jiggle_source_cache
+    updated = None
+    if decoded.get("available") and cloth_state.get("available"):
+        metadata = dict(cached[2])
+        rig = metadata["decoded_rig"][1]
+        source_name, reason = "", ""
+        try:
+            volumes, source_name = select_cloth_body_volumes(
+                session.original_data, session.skeleton, **{role: value[1] for role, value in candidate.items()})
+            if not clear and source_name == "pac_model":
+                raise ValueError("This model's embedded collision volumes take precedence over appearance inputs.")
+            colliders = build_cloth_body_collider_snapshot(session.skeleton, rig, volumes=volumes)
+        except (ValueError, OverflowError, struct.error) as exc:
+            if not clear:
+                raise
+            # Clearing also works when the default source has no supported contacts.
+            colliders, reason = [], str(exc)
+        cloth = {**metadata["decoded_cloth"][0], "body_colliders": colliders}
+        state = {**cloth_state, "body_collider_count": len(colliders),
+                 "body_collider_source": source_name, "body_collider_reason": reason}
+        payload = {**metadata["decoded_file"][0], "cloth": cloth}
+        authoring._raise_if_cancelled(stop_event)
+        reference = _atomic_write_payload(authoring.root, "jiggle-rig.json", payload,
+                                         data_type="jiggle_rig_json", element_count=len(payload["parts"]),
+                                         expected_root_identity=authoring.root_identity)
+        metadata["decoded_cloth"] = (cloth, state)
+        metadata["decoded_file"] = (payload, reference)
+        metadata["decoded_cache"] = (session.skeleton, session.revision + 1, metadata["decoded_cache"][2],
+                                     {**decoded, "file": dict(reference), "cloth": state})
+        updated = (cached[0], cached[1], metadata)
+    else:
+        authoring._raise_if_cancelled(stop_event)
+    # No cancellation points after the atomic file publication.
+    authoring.cloth_collision_inputs = candidate
+    authoring.jiggle_source_cache = updated
+    with session.export_lock:
+        session.revision += 1
+    return {"changed": True}
 
 
 def set_jiggle_rule(authoring, snapshot, args, *, entry, dependencies, stop_event):

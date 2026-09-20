@@ -6992,6 +6992,7 @@ class RustMeshAuthoringSession:
     hair_file_cache: tuple[bytes, dict[str, object]] | None = None
     cloth_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
+    cloth_collision_inputs: dict[str, tuple[str, object]] = field(default_factory=dict, repr=False)
     hair_skin_donor_mesh: ParsedMesh | None = None
     hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -8328,7 +8329,10 @@ class RustMeshAuthoringSession:
 
 
     def _execute_shadow_command(self, command, args, stop_event, before_revision, before_signature):
-        if command == "vertex_edit":
+        if command == "cloth_collision_input":
+            from cdmw.services.mesh_rust_jiggle import set_cloth_collision_input
+            result = set_cloth_collision_input(self, args, stop_event)
+        elif command == "vertex_edit":
             from cdmw.services.mesh_vertex_parameters import edit_vertices
             result = edit_vertices(self, args, lambda: self._raise_if_cancelled(stop_event))
         elif command == "hair_begin":
@@ -8552,7 +8556,10 @@ class RustMeshAuthoringSession:
         } or command.startswith("morph_") or command.startswith("refit_"):
             self._preflight_current_command_document(command)
         result = self._execute_shadow_command(command, args, stop_event, before_revision, before_signature)
-        self._raise_if_cancelled(stop_event)
+        # Preview inputs publish their prepared file and state together after
+        # the handler's final cancellation check. Do not interrupt that commit.
+        if command != "cloth_collision_input":
+            self._raise_if_cancelled(stop_event)
         after_revision = self._advance_shadow_protocol_revision(
             before_revision=before_revision,
             before_signature=before_signature,
@@ -8560,6 +8567,7 @@ class RustMeshAuthoringSession:
         # These commands change selection/presentation, not the resident mesh.
         # Protocol revisions still advance so stale requests remain rejected.
         state_only = command in {
+            "cloth_collision_input",
             "select",
             "rig_select_bone",
             "configure_output_policy",

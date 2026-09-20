@@ -335,6 +335,36 @@ impl LabApplication {
         self.draw_motion_preview_controls(ui, parts, false);
     }
 
+    pub(super) fn draw_cloth_collision_inputs(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
+        let jiggle = &self.cdmw_state["jiggle"];
+        let inputs = &jiggle["collision_inputs"];
+        let model_owned = jiggle["decoded"]["cloth"]["body_collider_source"] == "pac_model";
+        let available = !self.cdmw_busy()
+            && jiggle["decoded"]["cloth"]["available"].as_bool() == Some(true) && !model_owned;
+        ui.collapsing("Collision sources", |ui| {
+            ui.small("Choose body/head PABV files for this preview. Inputs are not saved to the model or draft.");
+            if model_owned { ui.small("This model's embedded volumes take precedence over appearance inputs."); }
+            for (role, label, default) in [("body", "Body volumes", "Rig defaults"), ("head", "Head volumes", "No head override")] {
+                ui.label(format!("{label}: {}", inputs[role].as_str().unwrap_or(default)));
+                if ui.add_enabled(available, egui::Button::new(format!("Choose {role} PABV…"))).clicked() {
+                    actions.push(UiAction::ChooseClothCollisionInput { role });
+                }
+            }
+            let has_inputs = inputs.as_object().is_some_and(|values| !values.is_empty());
+            if ui.add_enabled(!self.cdmw_busy() && has_inputs, egui::Button::new("Clear collision inputs")).clicked() {
+                actions.push(UiAction::CdmwCommand {
+                    command: "cloth_collision_input", arguments: json!({"clear": true}), label: "Clear collision inputs",
+                });
+            }
+        });
+    }
+
+    pub(super) fn choose_cloth_collision_input(&mut self, role: &'static str) {
+        if self.cdmw_busy() { return; }
+        let Some(path) = self.cdmw_file_dialog().add_filter("Skeleton volumes", &["pabv"]).pick_file() else { return; };
+        self.submit_cdmw_command("cloth_collision_input", json!({"role": role, "path": path.to_string_lossy()}), "Load collision input");
+    }
+
     pub(super) fn draw_cloth_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value]) {
         let verified = self.cdmw_state["jiggle"]["overlay_parts"].as_array();
         let parts = parts.iter().map(|part| {
@@ -441,7 +471,7 @@ impl LabApplication {
             let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
             let body_source = cloth_state["body_collider_source"].as_str();
             let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
-                && matches!(body_source, Some("pab_primary" | "pac_model"));
+                && matches!(body_source, Some("pab_primary" | "pac_model" | "appearance"));
             if !body_available { preview.cloth_settings.body_collisions = false; }
             ui.collapsing("Cloth preview settings", |ui| {
                 let settings = &mut preview.cloth_settings;
@@ -460,8 +490,10 @@ impl LabApplication {
                     }
                     if body_source == Some("pac_model") {
                         ui.small("Uses this model's authored collision volumes.");
+                    } else if body_source == Some("appearance") {
+                        ui.small("Uses the explicitly selected body/head collision inputs.");
                     } else {
-                        ui.small("Uses the matched rig's default volumes. Outfit-specific overrides are not loaded.");
+                        ui.small("Uses the matched rig's default volumes.");
                     }
                 } else {
                     ui.small("Body collisions need supported model or rig volumes.")

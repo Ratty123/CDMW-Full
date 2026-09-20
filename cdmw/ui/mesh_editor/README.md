@@ -429,7 +429,15 @@ margin** adds preview clearance. Fixed guides and zero-contribution render verti
 retain their existing behavior. Undecoded model metadata, missing or ambiguous
 bone bindings, and unsupported volumes disable this option while leaving ordinary
 cloth playback available. They do not silently substitute rig defaults.
-External outfit-specific PABV overrides and game collision activation are not selected.
+**Collision sources** accepts explicit body/head PABV inputs for the current
+preview. With an empty model set, the body input replaces rig defaults and the
+head input replaces the first matching head volume. Standalone inputs must use
+bone hashes; unsupported shapes or bindings are rejected. Model volumes retain
+precedence and disable these choosers. **Clear collision inputs** restores the
+defaults. Failed or cancelled loads preserve the previous inputs. Inputs are
+held for this session only and do not change mesh Undo, drafts or exported PACs.
+Outfit files are not selected automatically and game collision activation remains
+unverified.
 
 Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig,
 and verified original LOD0 render mappings within the existing 100,000-vertex /

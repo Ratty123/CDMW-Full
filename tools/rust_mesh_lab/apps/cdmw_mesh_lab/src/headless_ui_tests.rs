@@ -863,6 +863,7 @@ impl HeadlessUi {
                         UiAction::ChooseCdmwFreeEdit
                             | UiAction::ChooseCdmwMorphPreset { .. }
                             | UiAction::ChooseCdmwRefitMesh { .. }
+                            | UiAction::ChooseClothCollisionInput { .. }
                     )
                 })
                 .collect(),

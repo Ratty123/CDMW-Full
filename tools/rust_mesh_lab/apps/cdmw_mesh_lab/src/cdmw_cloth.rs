@@ -139,5 +139,6 @@ impl LabApplication {
         });
         ui.small("Saved with Build PAC and drafts. Preview simulation remains approximate.");
         self.draw_cloth_preview_controls(ui, &parts);
+        self.draw_cloth_collision_inputs(ui, actions);
     }
 }

@@ -435,13 +435,19 @@ sorted hash lookup `0x140466840`, and supplies that skeleton to definition
 preparation `0x142D3EE80`. PAC keys therefore enter this path as hashes,
 without the PAB loader's index conversion. `select_cloth_body_volumes` in
 `pac_cloth_preview.py` materializes nonempty PAC records as hash-keyed volumes;
-only a confirmed empty model set selects the PAB primary defaults. This is
-preview source selection, without external appearance overrides or runtime
-activation. `build_cloth_body_collider_snapshot` strictly binds the selected
+only a confirmed empty model set permits PAB primary defaults or explicit
+appearance inputs. An explicit body PABV replaces the defaults; an explicit
+head PABV replaces only the first matching `Bip01 Head` record using the decoded
+merge. Standalone preview inputs require bone hashes, since their own source
+rigs are not selected for legacy-index conversion. Appearance selection is
+manual and runtime activation is not reproduced.
+`build_cloth_body_collider_snapshot` strictly binds the selected
 set and projects its primitives into the matched neutral pose. Missing or
 ambiguous hashes and unsupported shapes make contacts unavailable instead of
-silently selecting rig geometry. The native control identifies model versus
-rig-default provenance; ordinary cloth playback remains available on failure.
+silently selecting rig geometry. The native control identifies model,
+appearance-input or rig-default provenance; ordinary cloth playback remains
+available on unsupported defaults. Failed or cancelled input loads retain
+the previous input snapshot and its owned preview file.
 
 Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
 serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule

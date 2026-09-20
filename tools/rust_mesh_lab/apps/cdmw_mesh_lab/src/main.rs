@@ -1465,6 +1465,9 @@ enum UiAction {
     ChooseCdmwRefitMesh {
         role: &'static str,
     },
+    ChooseClothCollisionInput {
+        role: &'static str,
+    },
     FinishCdmw,
     OrbitMode,
     OrbitYaw(f32),
@@ -4611,6 +4614,7 @@ impl LabApplication {
                 UiAction::ChooseCdmwFreeEdit => self.choose_cdmw_free_edit(),
                 UiAction::ChooseCdmwMorphPreset { save } => self.choose_cdmw_morph_preset(save),
                 UiAction::ChooseCdmwRefitMesh { role } => self.choose_cdmw_refit_mesh(role),
+                UiAction::ChooseClothCollisionInput { role } => self.choose_cloth_collision_input(role),
                 UiAction::FinishCdmw => self.submit_cdmw_finish(),
                 UiAction::OrbitMode => {
                     self.cdmw_orbit_mode = true;

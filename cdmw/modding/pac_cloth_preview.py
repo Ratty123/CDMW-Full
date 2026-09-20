@@ -14,29 +14,39 @@ from .pac_jiggle_skinning import prepare_jiggle_bone_skinning
 from .pac_cloth_preparation import prepare_guide_cloth_attachments
 
 
-def select_cloth_body_volumes(data: bytes, skeleton):
+def select_cloth_body_volumes(data: bytes, skeleton, *, body=None, head=None):
     """Prefer decoded model volumes; only an empty set permits rig defaults.
 
     The mapped producer (0x142D3F550/0x142D3EE80) looks raw model keys up in
     the skeleton's hash table via 0x140466840. Mark this materialized set as
     hash-keyed; never apply the PAB loader's index conversion to PAC records.
-    Binding remains strict when preparing the snapshot. This preview does not
-    select external appearance overrides or reproduce runtime activation.
+    Explicit appearance inputs replace the rig defaults only when the model
+    set is empty. Standalone inputs must have hash keys: there is no matching
+    source-rig provenance for converting their legacy indices here.
     """
-    from .pabv_parser import PabvVolumes, decode_pab_embedded_volumes, decode_pac_embedded_volumes
+    from .pabv_parser import (
+        PabvVolumes, decode_pab_embedded_volumes, decode_pac_embedded_volumes,
+        merge_pabv_body_head_volumes,
+    )
 
     model = decode_pac_embedded_volumes(data)
     if model.volumes:
         return PabvVolumes(3, model.volumes), "pac_model"
-    return decode_pab_embedded_volumes(skeleton).primary, "pab_primary"
+    for value in (body, head):
+        if value is not None and not value.uses_bone_hashes:
+            raise ValueError("Collision preview inputs need bone hashes; legacy indices need a matching source rig.")
+    primary = body if body is not None else decode_pab_embedded_volumes(skeleton).primary
+    if body is not None or head is not None:
+        return merge_pabv_body_head_volumes(primary, head).volumes, "appearance"
+    return primary, "pab_primary"
 
 
 def build_cloth_body_collider_snapshot(skeleton, rig: dict, *, volumes=None) -> list[dict]:
     """Place selected primary primitives in the preview's neutral pose.
 
     Uses the mapped collider producer with an explicit active preview group,
-    unit scene radius multiplier and the initial bone-flag profile. Appearance
-    overrides and live game activation are not selected. Spheres retain their
+    unit scene radius multiplier and the initial bone-flag profile. Live game
+    activation is not selected. Spheres retain their
     authored center/radial scale without the animated kernel's zero-axis query.
     Existing callers without a supplied volume set retain PAB rig defaults.
     """

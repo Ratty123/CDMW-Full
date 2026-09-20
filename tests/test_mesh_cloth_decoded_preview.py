@@ -322,3 +322,166 @@ def test_host_unknown_model_metadata_keeps_playback_without_claiming_rig_fallbac
     assert 'bone-group' in state['cloth']['body_collider_reason']
     assert read_owned_payload_reference(host.root, state['file'])['cloth']['body_colliders'] == []
     assert session.original_data == original
+
+
+@pytest.fixture
+def collision_session(rig_session, monkeypatch):
+    from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
+    from cdmw.modding.skeleton_parser import parse_pab
+    from tests.test_pab_embedded_volumes import fixture, section
+    from tests.test_pabv_parser import record
+
+    original, session, host = rig_session
+    session.skeleton = parse_pab(fixture(section(record(key=1))))
+    session.skeleton.bones[1].name_hash = 0xA23A288E
+    mock_model_volumes(monkeypatch, original)
+    guides = decode_pac_cloth_guides(source()[0])
+    monkeypatch.setattr('cdmw.modding.pac_cloth_preview.decode_pac_cloth_guides', lambda _: guides)
+    return original, session, host
+
+
+def test_collision_inputs_replace_body_merge_first_head_and_clear_without_mesh_or_output_edits(collision_session, tmp_path):
+    from cdmw.services.mesh_rust_authoring import RustMeshProtocolError
+    from tests.test_mesh_rust_replacement import command
+    from tests.test_mesh_jiggle import shadow_output
+    from tests.test_mesh_rust_authoring_exact_output import _request
+    from tests.test_pabv_parser import container, record
+
+    original, session, host = collision_session
+    before = decoded(host)
+    mesh = copy.deepcopy(session.working_mesh)
+    output = shadow_output(host)
+    history = (len(session.undo_stack), len(session.redo_stack))
+    stale = {**_request(host, 'command_request', 9), 'command': 'state'}
+    body = tmp_path / 'body.pabv'
+    head = tmp_path / 'head.pabv'
+    body_data = container(record(key=session.skeleton.bones[0].name_hash, parameters=(.5, 2.)),
+                          record(key=0xA23A288E))
+    head_data = container(record(key=0xA23A288E, parameters=(.75, 2.)),
+                          record(key=0xA23A288E, parameters=(.875, 2.)))
+    body.write_bytes(body_data)
+    head.write_bytes(head_data)
+    result = command(host, 'cloth_collision_input', {'role': 'body', 'path': str(body)})
+    assert result['result'] == {'changed': True}
+    assert result['state']['jiggle']['collision_inputs'] == {'body': 'body.pabv'}
+    assert 'document' not in result['state']
+    with pytest.raises(RustMeshProtocolError, match='revision'):
+        host.run_command(stale)
+    result = command(host, 'cloth_collision_input', {'role': 'head', 'path': str(head)})
+    state = result['state']['jiggle']['decoded']
+    payload = read_owned_payload_reference(host.root, state['file'])
+    assert state['cloth']['body_collider_source'] == 'appearance'
+    assert [(v['bone_index'], v['radius']) for v in payload['cloth']['body_colliders']] == [(0, .5), (1, .75)]
+    # Prepared input bytes stay immutable even if the chosen file later changes.
+    body.write_bytes(b'changed externally')
+    assert decoded(host) == state
+    revision = session.revision
+    command(host, 'cloth_collision_input', {'role': 'head', 'path': str(head)})
+    assert session.revision == revision
+    host.jiggle_source_cache = None
+    assert decoded(host) == state
+    result = command(host, 'cloth_collision_input', {'clear': True})
+    assert result['state']['jiggle']['collision_inputs'] == {}
+    assert result['state']['jiggle']['decoded'] == before
+    assert session.working_mesh == mesh and session.original_data == original
+    assert shadow_output(host) == output
+    assert (len(session.undo_stack), len(session.redo_stack)) == history
+    assert head.read_bytes() == head_data
+
+
+@pytest.mark.parametrize('failure', ['legacy', 'missing_hash', 'head_missing', 'unsupported', 'cancel', 'publish'])
+def test_collision_input_failure_preserves_last_valid_snapshot(collision_session, tmp_path, monkeypatch, failure):
+    import threading
+    from tests.test_mesh_rust_replacement import command
+    from tests.test_mesh_rust_authoring_exact_output import _request
+    from tests.test_pabv_parser import container, record
+    from cdmw.modding import pabv_parser
+    from cdmw.services import mesh_rust_authoring
+
+    original, session, host = collision_session
+    path = tmp_path / 'body.pabv'
+    path.write_bytes(container(record(key=0xA23A288E)))
+    command(host, 'cloth_collision_input', {'role': 'body', 'path': str(path)})
+    before = decoded(host)
+    contents = (host.root / 'jiggle-rig.json').read_bytes()
+    inputs, revision = dict(host.cloth_collision_inputs), session.revision
+    stop = threading.Event()
+    role = 'body'
+    if failure == 'legacy':
+        path.write_bytes(container(record(key=1), flags=0))
+    elif failure in ('missing_hash', 'head_missing'):
+        path.write_bytes(container(record(key=0xFFFFFFFF)))
+        if failure == 'head_missing':
+            role = 'head'
+    elif failure == 'unsupported':
+        path.write_bytes(container(record(0, (1., 2., 3.), key=0xA23A288E)))
+    else:
+        path.write_bytes(container(record(key=0xA23A288E, parameters=(.5, 2.))))
+    if failure == 'cancel':
+        decode = pabv_parser.decode_pabv
+        def cancel(data):
+            stop.set()
+            return decode(data)
+        monkeypatch.setattr(pabv_parser, 'decode_pabv', cancel)
+    if failure == 'publish':
+        def fail(*args, **kwargs):
+            raise OSError('owned payload write failed')
+        monkeypatch.setattr(mesh_rust_authoring, '_atomic_write_payload', fail)
+    request = {**_request(host, 'command_request', 3), 'command': 'cloth_collision_input',
+               'arguments': {'role': role, 'path': str(path)}}
+    with pytest.raises((ValueError, OSError, mesh_rust_authoring.RustMeshCancellationError)):
+        host.run_command(request, stop_event=stop)
+    assert host.cloth_collision_inputs == inputs and session.revision == revision
+    assert decoded(host) == before and (host.root / 'jiggle-rig.json').read_bytes() == contents
+    assert session.original_data == original
+
+
+def test_collision_input_cannot_override_embedded_model_or_unknown_model_metadata(collision_session, tmp_path, monkeypatch):
+    from dataclasses import replace
+    from cdmw.modding import pabv_parser
+    from tests.test_mesh_rust_replacement import command
+    from tests.test_pabv_parser import record, container
+
+    original, session, host = collision_session
+    path = tmp_path / 'override.pabv'
+    path.write_bytes(container(record(key=0xA23A288E)))
+    model = replace(pabv_parser.decode_pac_embedded_volumes(original),
+                    volumes=pabv_parser.decode_pabv(container(record(key=0xA23A288E))).volumes)
+    monkeypatch.setattr(pabv_parser, 'decode_pac_embedded_volumes', lambda _: model)
+    before = decoded(host)
+    with pytest.raises(ValueError, match='take precedence'):
+        command(host, 'cloth_collision_input', {'role': 'body', 'path': str(path)})
+    assert decoded(host) == before and not host.cloth_collision_inputs
+    def unknown(_):
+        raise ValueError('Unknown model metadata')
+    monkeypatch.setattr('cdmw.modding.pabv_parser.decode_pac_embedded_volumes', unknown)
+    host.jiggle_source_cache = None
+    before = decoded(host)
+    with pytest.raises(ValueError, match='Unknown model metadata'):
+        command(host, 'cloth_collision_input', {'role': 'body', 'path': str(path)})
+    assert decoded(host) == before and not host.cloth_collision_inputs
+
+
+def test_collision_input_finishes_atomic_publication_when_cancel_arrives_after_write(collision_session, tmp_path, monkeypatch):
+    import threading
+    from cdmw.services import mesh_rust_authoring
+    from tests.test_mesh_rust_authoring_exact_output import _request
+    from tests.test_pabv_parser import container, record
+
+    _, session, host = collision_session
+    decoded(host)
+    path = tmp_path / 'body.pabv'
+    path.write_bytes(container(record(key=0xA23A288E, parameters=(.5, 2.))))
+    stop = threading.Event()
+    atomic = mesh_rust_authoring._atomic_write_payload
+    def publish(*args, **kwargs):
+        reference = atomic(*args, **kwargs)
+        stop.set()
+        return reference
+    monkeypatch.setattr(mesh_rust_authoring, '_atomic_write_payload', publish)
+    result = host.run_command({**_request(host, 'command_request', 7), 'command': 'cloth_collision_input',
+                               'arguments': {'role': 'body', 'path': str(path)}}, stop_event=stop)
+    assert result['result']['changed'] and stop.is_set()
+    assert result['state']['jiggle']['collision_inputs'] == {'body': 'body.pabv'}
+    state = result['state']['jiggle']['decoded']
+    assert read_owned_payload_reference(host.root, state['file'])['cloth']['body_colliders'][0]['radius'] == .5
