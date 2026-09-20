@@ -430,6 +430,19 @@ This does not establish runtime activation or a cause for differing jiggle.
 `tests/test_pac_embedded_volumes.py` checks metadata boundaries, all three
 supported guide layouts, mandatory flags, truncation and immutable raw keys.
 
+The mapped producer `0x142D3F550` passes each raw record key to the skeleton's
+sorted hash lookup `0x140466840`, and supplies that skeleton to definition
+preparation `0x142D3EE80`. PAC keys therefore enter this path as hashes,
+without the PAB loader's index conversion. `select_cloth_body_volumes` in
+`pac_cloth_preview.py` materializes nonempty PAC records as hash-keyed volumes;
+only a confirmed empty model set selects the PAB primary defaults. This is
+preview source selection, without external appearance overrides or runtime
+activation. `build_cloth_body_collider_snapshot` strictly binds the selected
+set and projects its primitives into the matched neutral pose. Missing or
+ambiguous hashes and unsupported shapes make contacts unavailable instead of
+silently selecting rig geometry. The native control identifies model versus
+rig-default provenance; ordinary cloth playback remains available on failure.
+
 Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
 serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule
 types 2/3/4/1/5; tag 3 is rejected by the traced reader. Boxes store dimensions

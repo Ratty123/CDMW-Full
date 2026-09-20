@@ -14,13 +14,31 @@ from .pac_jiggle_skinning import prepare_jiggle_bone_skinning
 from .pac_cloth_preparation import prepare_guide_cloth_attachments
 
 
-def build_cloth_body_collider_snapshot(skeleton, rig: dict) -> list[dict]:
-    """Place the PAB's default primary primitives in the preview's neutral pose.
+def select_cloth_body_volumes(data: bytes, skeleton):
+    """Prefer decoded model volumes; only an empty set permits rig defaults.
+
+    The mapped producer (0x142D3F550/0x142D3EE80) looks raw model keys up in
+    the skeleton's hash table via 0x140466840. Mark this materialized set as
+    hash-keyed; never apply the PAB loader's index conversion to PAC records.
+    Binding remains strict when preparing the snapshot. This preview does not
+    select external appearance overrides or reproduce runtime activation.
+    """
+    from .pabv_parser import PabvVolumes, decode_pab_embedded_volumes, decode_pac_embedded_volumes
+
+    model = decode_pac_embedded_volumes(data)
+    if model.volumes:
+        return PabvVolumes(3, model.volumes), "pac_model"
+    return decode_pab_embedded_volumes(skeleton).primary, "pab_primary"
+
+
+def build_cloth_body_collider_snapshot(skeleton, rig: dict, *, volumes=None) -> list[dict]:
+    """Place selected primary primitives in the preview's neutral pose.
 
     Uses the mapped collider producer with an explicit active preview group,
     unit scene radius multiplier and the initial bone-flag profile. Appearance
     overrides and live game activation are not selected. Spheres retain their
     authored center/radial scale without the animated kernel's zero-axis query.
+    Existing callers without a supplied volume set retain PAB rig defaults.
     """
     from .pabv_parser import (
         decode_pab_embedded_volumes, default_pabv_cloth_flag_bone_sets,
@@ -28,9 +46,10 @@ def build_cloth_body_collider_snapshot(skeleton, rig: dict) -> list[dict]:
     )
     from .pac_cloth_collisions import update_guide_cloth_collider_result
 
-    volumes = decode_pab_embedded_volumes(skeleton).primary
+    if volumes is None:
+        volumes = decode_pab_embedded_volumes(skeleton).primary
     if not volumes.volumes or len(volumes.volumes) > 128:
-        raise ValueError("Body collision preview needs between 1 and 128 primary rig volumes.")
+        raise ValueError("Body collision preview needs between 1 and 128 primary volumes.")
     prepared = prepare_pabv_cloth_colliders(
         volumes, skeleton, flag_bone_sets=default_pabv_cloth_flag_bone_sets())
     poses = rig["neutral_global_matrices"]

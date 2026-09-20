@@ -419,13 +419,17 @@ Preparation runs on the bounded background loader; failed
 comparisons keep the last usable frame paused, and Reset/source changes reject
 late results. Preview frames never change authored geometry, drafts or exports.
 
-**Body collisions (rig defaults)** optionally projects moving cloth guides against
-the matched PAB rig's primary sphere, cylinder and capsule volumes. Colliders use
+**Body collisions** optionally projects moving cloth guides against authored
+sphere, cylinder and capsule volumes. A decoded, nonempty model PAC volume set
+takes precedence; a confirmed empty set uses the matched PAB rig's primary
+defaults. The panel identifies which source is used. Model volumes bind through
+stored bone hashes, independently of palette order. Colliders use
 the same neutral pose and up/down or turning motion as the model. **Collision
 margin** adds preview clearance. Fixed guides and zero-contribution render vertices
-retain their existing behavior. Missing or unsupported volumes disable this option
-while leaving ordinary cloth playback available. These are rig defaults;
-outfit-specific PABV overrides and game collision activation are not selected.
+retain their existing behavior. Undecoded model metadata, missing or ambiguous
+bone bindings, and unsupported volumes disable this option while leaving ordinary
+cloth playback available. They do not silently substitute rig defaults.
+External outfit-specific PABV overrides and game collision activation are not selected.
 
 Cloth playback requires decoded PAC guide data, a matching fixed-layout PAB rig,
 and verified original LOD0 render mappings within the existing 100,000-vertex /

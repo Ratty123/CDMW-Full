@@ -439,8 +439,9 @@ impl LabApplication {
             let rotation_available = self.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"].as_bool() == Some(true);
             if !rotation_available { preview.cloth_settings.rotate_guides = false; }
             let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
+            let body_source = cloth_state["body_collider_source"].as_str();
             let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
-                && cloth_state["body_collider_source"].as_str() == Some("pab_primary");
+                && matches!(body_source, Some("pab_primary" | "pac_model"));
             if !body_available { preview.cloth_settings.body_collisions = false; }
             ui.collapsing("Cloth preview settings", |ui| {
                 let settings = &mut preview.cloth_settings;
@@ -452,14 +453,18 @@ impl LabApplication {
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
                 ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
                 if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
-                ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions (rig defaults)"));
+                ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions"));
                 if body_available {
                     if settings.body_collisions {
                         ui.add(egui::Slider::new(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
                     }
-                    ui.small("Uses the matched rig's body volumes. Outfit-specific overrides are not loaded.");
+                    if body_source == Some("pac_model") {
+                        ui.small("Uses this model's authored collision volumes.");
+                    } else {
+                        ui.small("Uses the matched rig's default volumes. Outfit-specific overrides are not loaded.");
+                    }
                 } else {
-                    ui.small("Body collisions need supported volumes in the matched rig.")
+                    ui.small("Body collisions need supported model or rig volumes.")
                         .on_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("No authored body volumes available."));
                 }
                 let mut floor = settings.ground_height.is_some();

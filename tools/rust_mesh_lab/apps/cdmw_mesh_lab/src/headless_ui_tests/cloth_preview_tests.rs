@@ -330,6 +330,15 @@ fn rotation_control_changes_surface_around_guides_and_disables_when_unsupported(
 
 #[test]
 fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult {
+    check_body_collision_source("pab_primary")
+}
+
+#[test]
+fn model_body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult {
+    check_body_collision_source("pac_model")
+}
+
+fn check_body_collision_source(source: &str) -> TestResult {
     let (root, mut ui, payload) = fixture()?;
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     let mut payload: Value = serde_json::from_slice(&payload)?;
@@ -346,8 +355,14 @@ fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> Te
     state["file"]["byte_length"] = json!(payload.len());
     state["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&payload)));
     state["cloth"]["body_collider_count"] = json!(1);
-    state["cloth"]["body_collider_source"] = json!("pab_primary");
+    state["cloth"]["body_collider_source"] = json!(source);
     ui.click("Cloth preview settings")?;
+    let source_label = if source == "pac_model" {
+        "Uses this model's authored collision volumes."
+    } else {
+        "Uses the matched rig's default volumes. Outfit-specific overrides are not loaded."
+    };
+    assert!(ui.label_rect(source_label).is_some());
     ui.click("Play preview")?;
     wait(&mut ui)?;
     advance(&mut ui)?;
@@ -361,7 +376,7 @@ fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> Te
         .frame
         .clone();
     ui.click("Reset preview")?;
-    ui.click("Body collisions (rig defaults)")?;
+    ui.click("Body collisions")?;
     assert!(ui.label_rect("Collision margin").is_some());
     ui.click("Play preview")?;
     wait(&mut ui)?;
@@ -384,9 +399,10 @@ fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> Te
     );
     assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
     ui.click("Reset preview")?;
-    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_count"] = json!(0);
+    // A populated but unrecognized source must not enable contacts.
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!("unknown");
     ui.frame(Vec::new());
-    ui.click("Body collisions (rig defaults)")?;
+    ui.click("Body collisions")?;
     assert!(ui.label_rect("Collision margin").is_none());
     ui.click("Play preview")?;
     wait(&mut ui)?;
@@ -401,6 +417,12 @@ fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> Te
             .frame,
         without
     );
+    ui.click("Reset preview")?;
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_source"] = json!(source);
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_count"] = json!(0);
+    ui.frame(Vec::new());
+    ui.click("Body collisions")?;
+    assert!(ui.label_rect("Collision margin").is_none());
     Ok(())
 }
 
