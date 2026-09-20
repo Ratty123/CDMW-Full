@@ -373,6 +373,46 @@ Preview frames stay separate from authored mesh data. This integrates the decode
 math, but does not establish runtime activation, live profile selection, wind/water
 generation, guide cloth or in-game parity.
 
+## PABV skeleton volumes (read-only)
+
+`pabv_parser.decode_pabv` decodes the authored collider geometry in
+`character/binary/skeletonvolume/*.pabv`. The traced loader in build
+1.0.0.2944 is `SkeletonVolumeAsyncLoadingTask`, followed by the record reader
+at `0x1426A9170`. These volumes are separate from the PAB skeleton and PAC
+cloth guide mesh. The known PAR `0x36/1` header contains a flags word at byte
+16 and a ushort record count at byte 20.
+
+Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
+serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule
+types 2/3/4/1/5; tag 3 is rejected by the traced reader. Boxes store dimensions
+in z/x/y order, cylinders and capsules store radius/height, spheres store radius,
+and mesh shapes store ushort-counted float3 vertices and ushort indices. Header
+bit `0x2` appends a flags uint to every record; absent flags initialize to zero.
+Unknown header flag bits are retained, without assigning them behavior. Source
+offsets and immutable decoded values remain available for inspection.
+
+Header bit `0x1` identifies bone-name hashes; otherwise the authored keys are
+indices into the selected skeleton. `resolve_pabv_bones` requires an explicitly
+supplied fixed-layout PAB and rejects missing, ambiguous or out-of-range keys.
+It does not select a character variant, silently bind an unmatched shape to the
+root, or assume that a filename identifies the active skeleton volume.
+
+`pabv_cloth_collider_definition` connects sphere/cylinder/capsule geometry to
+the existing 104-byte definition consumed by `update_guide_cloth_collider_result`.
+The CPU producer at `0x142D3EE80` copies the local matrix, radius and height,
+and initializes the low type word and both local-center fields to zero. Its
+runtime bone sets replace flag bits `0x2`, `0x4` and `0x8`, so the helper requires
+explicitly resolved flags instead of treating the source word as final. Shape
+deduplication, active resource selection and native preview integration remain
+separate work. Box/mesh geometry can be inspected but is not substituted with
+approximate primitive contacts.
+
+`tests/test_pabv_parser.py` covers both flag layouts, all decoded shape tags,
+source bounds, strict rig binding and a capsule passed through the existing
+animated collider calculation. Shipped Damiane and standard body volumes have
+also been decoded from read-only copies; this is format evidence, not proof of
+visible collision behavior or game parity.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.

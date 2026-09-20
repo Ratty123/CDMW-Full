@@ -1,0 +1,173 @@
+"""Read-only PABV skeleton volumes, traced in game build 1.0.0.2944.
+
+The serialized shape tags differ from the CPU/GPU shape types. Bone keys are
+hashes when header bit 0 is set, and skeleton indices otherwise. This decoder
+does not select an active character variant or infer collision activation.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+import struct
+
+from .skeleton_parser import Skeleton
+
+
+_HEADER = b"PAR \x36\x01" + bytes(range(10))
+_SHAPE_TYPES = {0: 2, 1: 3, 2: 4, 4: 1, 5: 5}
+_PARAMETER_COUNTS = {0: 3, 1: 2, 4: 1, 5: 2}
+
+
+@dataclass(frozen=True, slots=True)
+class PabvVolume:
+    file_offset: int
+    file_end: int
+    bone_key: int
+    local_matrix: tuple[float, ...]
+    usage: int
+    serialized_shape: int
+    parameters: tuple[float, ...]
+    vertices: tuple[tuple[float, float, float], ...]
+    indices: tuple[int, ...]
+    flags: int
+
+    @property
+    def shape_type(self) -> int:
+        """Engine types: sphere 1, box 2, cylinder 3, mesh 4, capsule 5."""
+        return _SHAPE_TYPES[self.serialized_shape]
+
+
+@dataclass(frozen=True, slots=True)
+class PabvVolumes:
+    flags: int
+    volumes: tuple[PabvVolume, ...]
+
+    @property
+    def uses_bone_hashes(self) -> bool:
+        return bool(self.flags & 1)
+
+    @property
+    def has_volume_flags(self) -> bool:
+        return bool(self.flags & 2)
+
+
+def decode_pabv(data: bytes) -> PabvVolumes:
+    """Decode the known PAR 0x36/1 layout, rejecting incomplete geometry.
+
+    Parameters retain file order: box (z, x, y), cylinder/capsule (radius,
+    height), sphere (radius). Matrix rows retain their authored convention.
+    Mesh indices address the record's own float3 vertices. The usage byte and
+    flag words are retained without inventing activation rules. Missing optional
+    volume flags initialize to zero, as in the CPU loader.
+    """
+    if len(data) < 22 or data[:16] != _HEADER:
+        raise ValueError("PABV decoding requires the known PAR 0x36/1 header.")
+    flags, count = struct.unpack_from("<IH", data, 16)
+    cursor = 22
+    minimum_size = 74 + (4 if flags & 2 else 0)
+    if count > (len(data) - cursor) // minimum_size:
+        raise ValueError("PABV volume records are truncated.")
+
+    def take(size: int, name: str) -> memoryview:
+        nonlocal cursor
+        end = cursor + size
+        if end > len(data):
+            raise ValueError(f"PABV {name} is truncated at byte {cursor}.")
+        result = memoryview(data)[cursor:end]
+        cursor = end
+        return result
+
+    def floats(count: int, name: str) -> tuple[float, ...]:
+        values = struct.unpack(f"<{count}f", take(4 * count, name))
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError(f"PABV {name} must contain finite values.")
+        return values
+
+    volumes = []
+    for ordinal in range(count):
+        offset = cursor
+        bone_key, = struct.unpack("<I", take(4, "bone key"))
+        local_matrix = floats(16, "local matrix")
+        usage, shape = struct.unpack("<BB", take(2, "shape tags"))
+        if shape not in _SHAPE_TYPES:
+            raise ValueError(f"PABV volume {ordinal} shape tag {shape} is not decoded.")
+        vertices, indices, parameters = (), (), ()
+        if shape == 2:
+            vertex_count, = struct.unpack("<H", take(2, "mesh vertex count"))
+            xyz = floats(3 * vertex_count, "mesh vertices")
+            vertices = tuple(tuple(xyz[i:i + 3]) for i in range(0, len(xyz), 3))
+            index_count, = struct.unpack("<H", take(2, "mesh index count"))
+            indices = struct.unpack(f"<{index_count}H", take(2 * index_count, "mesh indices"))
+            if len(indices) % 3 or any(index >= vertex_count for index in indices):
+                raise ValueError("PABV mesh indices must contain complete, in-range triangles.")
+        else:
+            parameters = floats(_PARAMETER_COUNTS[shape], "shape parameters")
+            if any(value < 0 for value in parameters):
+                raise ValueError("PABV shape dimensions must be nonnegative.")
+        volume_flags = struct.unpack("<I", take(4, "volume flags"))[0] if flags & 2 else 0
+        volumes.append(PabvVolume(
+            offset, cursor, bone_key, local_matrix, usage, shape, parameters,
+            vertices, indices, volume_flags,
+        ))
+    if cursor != len(data):
+        raise ValueError(f"PABV has undecoded trailing data at byte {cursor}.")
+    return PabvVolumes(flags, tuple(volumes))
+
+
+def resolve_pabv_bones(volumes: PabvVolumes, skeleton: Skeleton) -> tuple[int, ...]:
+    """Resolve every authored key against an explicit fixed-layout PAB rig.
+
+    This is strict editor input validation. Missing/ambiguous keys fail instead
+    of silently attaching geometry to the root or guessing a related rig.
+    """
+    if (skeleton.parser_mode != "fixed" or skeleton.bone_count != len(skeleton.bones)
+            or any(bone.index != i for i, bone in enumerate(skeleton.bones))):
+        raise ValueError("PABV binding requires a complete fixed-layout PAB rig.")
+    by_hash: dict[int, list[int]] = {}
+    if volumes.uses_bone_hashes:
+        for bone in skeleton.bones:
+            by_hash.setdefault(bone.name_hash, []).append(bone.index)
+    result = []
+    for ordinal, volume in enumerate(volumes.volumes):
+        key = volume.bone_key
+        if volumes.uses_bone_hashes:
+            matches = by_hash.get(key, ())
+            if len(matches) != 1:
+                raise ValueError(f"PABV volume {ordinal} bone hash {key:#010x} is missing or ambiguous.")
+            index = matches[0]
+        else:
+            if not 0 <= key < len(skeleton.bones):
+                raise ValueError(f"PABV volume {ordinal} bone index {key} is out of range.")
+            index = key
+        result.append(index)
+    return tuple(result)
+
+
+def pabv_cloth_collider_definition(volume: PabvVolume, *, resolved_flags: int) -> bytes:
+    """Pack one supported character collider into the decoded 104-byte layout.
+
+    The caller must supply the final runtime flags. The CPU producer rewrites
+    source flag bits 1..3 from three bone sets; copying volume.flags alone does
+    not reproduce that selection. Group activation, shape deduplication, bone
+    mapping and resource dispatch remain caller work. Box/mesh volumes stay
+    available for inspection but cannot enter the decoded primitive contacts.
+    """
+    if isinstance(resolved_flags, bool) or not isinstance(resolved_flags, int) or not 0 <= resolved_flags <= 0xFFFFFFFF:
+        raise ValueError("PABV collider flags must be a resolved uint32.")
+    if volume.shape_type not in (1, 3, 5):
+        raise ValueError("PABV cloth contacts currently require a sphere, cylinder or capsule.")
+    expected = 1 if volume.shape_type == 1 else 2
+    if len(volume.parameters) != expected or len(volume.local_matrix) != 16:
+        raise ValueError("PABV collider geometry is incomplete.")
+    if (not all(math.isfinite(value) for value in (*volume.local_matrix, *volume.parameters))
+            or any(value < 0 for value in volume.parameters)):
+        raise ValueError("PABV collider geometry must be finite with nonnegative dimensions.")
+    radius = volume.parameters[0]
+    height = 0.0 if volume.shape_type == 1 else volume.parameters[1]
+    # The skeleton-volume producer sets the low type word and both local
+    # centers to zero. The guide update derives centers from this matrix.
+    return struct.pack(
+        "<I24fI", volume.shape_type << 16, radius, height,
+        *volume.local_matrix, *([0.0] * 6), resolved_flags,
+    )
