@@ -558,6 +558,38 @@ stretch constraints and final movement; a repeated-step test checks damped fall
 against an independent geometric-series solution. This is not a complete solver
 or evidence of visible/game parity, and does not change the preview.
 
+`pac_cloth_state.py` adds three explicit state stages from the same base shader:
+
+- `prepare_cloth_fixed_state` clears per-step flags and evaluates fixed groups
+  1 through 31 using their original bit indices. Existing particle `0x4000`
+  vetoes group fixing below overstretch ratio 99, before the guide branch clears
+  that flag. A valid shrink-mask resource requires its resolved uint32 sample;
+  zero fixes the particle and sets `0x800000`. Nonpositive inverse mass also
+  bypasses dynamic integration but does not itself set group-fixed bit `0x40`.
+- `predict_dynamic_cloth_state` consumes already-adjusted particle positions,
+  prepared flags and velocity after forces/damping. Guide contact requires
+  `cr > 0`; static contact requires particle `0x10000000`. An eligible contact
+  clears that flag even when outward velocity needs no response. The special
+  backward boost changes prediction only, retaining the pre-boost stored
+  velocity. Skipping integration still applies ground projection to prepared
+  `_p[0]`, and the velocity-reference position receives working `_x`.
+- `finalize_cloth_base_hold` advances the pinch timer after preceding flag/SBC
+  stages. Flags `0x300` reset its base to 100000. Existing particle `0x80000000`,
+  frame flags2 `0x10000`, overstretch ratio at least 99 and a non-gravity
+  acceleration absolute-component sum strictly below float32(0.1) hold both
+  position histories at working `_x`; stored velocity remains intact.
+
+Contact-cache writeback requires an explicit shader storage variant. Without
+frame flags2 `0x200`, the packed variant clears both complete contact vectors;
+the native-16-bit variant clears their xyz components and preserves each w.
+Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
+These stages preserve unrelated record bytes and reject missing consumed inputs.
+They do not resolve fixed/kinematic or early-return frame paths, animation/space
+adjustment, guide/water integration gates, collider queries, outward-force flags,
+SBC buffer writes or CPU dispatch selection. Synthetic branch and composition
+tests verify the reference; they do not establish bit-exact GPU execution or
+change the interactive preview.
+
 `pac_cloth_environment.py` constructs the environmental acceleration consumed
 by the base integrator from explicit runtime records and scene samples. It uses
 velocity **after** gravity and bone inertia. Air resistance remains active when
