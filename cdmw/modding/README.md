@@ -590,6 +590,52 @@ SBC buffer writes or CPU dispatch selection. Synthetic branch and composition
 tests verify the reference; they do not establish bit-exact GPU execution or
 change the interactive preview.
 
+`pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
+`update_cloth_frame_stiffness` converts raw authored coefficients before writing
+the existing frame record; they are not direct shader stiffness values. For a
+positive input, the rule is `min(1 - powf(1 - bounded_input, scale / denominator),
+limit)`. Mode 1 (cloth) bounds stretch/bend inputs at float32(0.4); other byte
+modes use float32(0.99). Area and restore angle use an input bound of 1.
+
+| Authored coefficient | CPU material offset | Frame half offset | Nonpositive input |
+| --- | --- | --- | --- |
+| StretchingStiffness | `0x08` | 66 | 0 |
+| BendingStiffness | `0x0C` | 68 | -1 |
+| AreaStiffness | `0x14` | 70 | 0 |
+| RestoreAngleStiffness | `0x10` | 72 | -1 |
+| UnderWaterRestoreAngleStiffness | `0x84` | 94 | Negative uses raw ordinary restore; zero produces -1 |
+
+Runtime globals supply the denominator, four scale factors, four output limits
+and a separate bend switch that selects denominator 1. Decoded initialization
+values are denominator 4, scales `(5, 1, 1, 1)`, limits `(0.6, 0.06, 0.6, 0.06)`
+in stretch/bend/area/restore order, and the bend switch enabled. These are not
+captured live settings and the reference requires callers to supply them.
+Underwater restore shares ordinary restore globals. Material `MaxStiffness`
+occupies a separate field at `0x104`; this traced conversion uses the runtime
+limits above. It does not establish that the material field is unused elsewhere.
+
+Half updates compare the old decoded value to the new float32 result using
+inclusive `+/- FLT_EPSILON`, **before** the decoded CPU half packer. A write can
+invalidate an upload even when the packed bytes stay identical. The reference
+returns that invalidation and the written offsets, preserving all other fields.
+Its Python power calculation does not claim bit-exact CRT `powf` results.
+
+`update_cloth_iteration_bits` uses an already-selected signed-byte simulation LOD.
+A negative material `OverIterationSkipLod` selects the global threshold. At or
+above that threshold, the selected limit is 2; otherwise it is the smaller of
+the material count's low uint16 and the global uint16 count. Only the low three
+bits are written into frame flags2, preserving the other flags. Invalidation
+compares the full selected count before masking. The CPU XML parser rounds odd
+`SolverIterationCount` values upward before this update; the function takes that
+already-parsed value. This stage does not establish the complete dispatch loop.
+
+The dynamic-fix mask has a different source: `0x143CE1F00` copies live owner
+`+0x158` to simulation parameter `+168`. PAC guide membership and a material
+name alone do not determine which groups are active. Controller assignment,
+collision/contact generation, fading-ratio production and preview integration
+remain separate work. Synthetic tests connect the new stiffness upload to the
+existing stretch projection without claiming visible or in-game parity.
+
 `pac_cloth_environment.py` constructs the environmental acceleration consumed
 by the base integrator from explicit runtime records and scene samples. It uses
 velocity **after** gravity and bone inertia. Air resistance remains active when
