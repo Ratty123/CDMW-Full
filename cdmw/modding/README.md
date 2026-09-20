@@ -558,7 +558,7 @@ stretch constraints and final movement; a repeated-step test checks damped fall
 against an independent geometric-series solution. This is not a complete solver
 or evidence of visible/game parity, and does not change the preview.
 
-`pac_cloth_state.py` connects timing, guide animation and explicit state stages
+`pac_cloth_state.py` connects timing, guide/static animation and explicit state stages
 from the same base shader:
 
 - `select_cloth_base_substep` reads the supplied 1216-byte global parameter
@@ -576,7 +576,11 @@ from the same base shader:
   then frame translation is subtracted. World translation is not added. The
   anchor interpolates from `prev_ix`; frame flags `0x400` uses the full anchor.
   Resource lookup and water/air-pocket sampling are explicit caller work.
-
+- `prepare_static_cloth_animation` resolves static anchors from supplied host,
+  attachment and particle records. It includes component transforms, reference
+  pairs and first-step adjustment, then returns the position for the later water
+  query. Static anchors do not use guide interpolation or subtract frame
+  translation. The caller supplies the correctly selected transform-buffer bank.
 - `prepare_cloth_fixed_state` clears per-step flags and evaluates fixed groups
   1 through 31 using their original bit indices. Existing particle `0x4000`
   vetoes group fixing below overstretch ratio 99, before the guide branch clears
@@ -619,17 +623,50 @@ and the velocity-reference position. Anchor lengths below float32(0.000001)
 use identity; cosine below float32(-0.9999) uses `-I`, including the third axis.
 Later substeps retain the skip decisions without repeating this adjustment.
 
+Static attachment requires frame flags `0x200000`, skinning record uint32 at 60
+below `FFFF`, and simulation parameter uint32 at 92 below `1FFFFFFF`.
+Frame `0x80000` with overstretch below 99 vetoes attachment unless extra flags
+bit `0x4` suppresses that veto. An active extra-data resource requires its actual
+28-byte record; missing resource indices do not consume a supplied override.
+
+The attachment path applies parameter half 302's scale, quaternion halves
+304 through 310, and translation halves 296 through 300 to the original local
+position. The quaternion is not normalized. Then it applies the attaching
+instance's basis and its translation relative to the host. Instance byte 12
+contains signed tile Z in the low half and tile X in the high half; tile offsets
+use 1000 units. Relative translation subtracts the small local translations
+before adding tile differences, retaining detail far from the origin. Ordinary
+static anchors use the host basis without adding its translation.
+
+When both extra-data `dynamicFix` indices at 22 and 24 are valid, the anchor
+instead follows their current particle positions. It aligns their original
+local edge, transformed by the selected basis, to the current edge. The length
+ratio divides by the **untransformed** original local edge length. This path
+uses the original local position, bypassing the earlier component offset and
+relative translation in the final anchor. A zero original edge has no supported
+finite shader result and is rejected. A collapsed current edge selects the
+first reference position. Group/mask-fixed reference followers snap both `_x`
+and `_p[0]` before first-step adjustment; zero inverse mass alone does not.
+
+Static first-step adjustment uses the same direction-alignment math and separate
+force/integration decisions described above, but original particle `0x4000`
+does not apply the guide override. Water classification happens afterwards and
+does not clear those decisions. Its query position includes the host world
+translation, frame translation and the **adjusted working position**. The shader
+subtracts the previous-view position when constructing the texture coordinates.
+Skinning records, reference records and unrelated particle fields are preserved.
+
 Contact-cache writeback requires an explicit shader storage variant. Without
 frame flags2 `0x200`, the packed variant clears both complete contact vectors;
 the native-16-bit variant clears their xyz components and preserves each w.
 Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
 These stages preserve unrelated record bytes and reject missing consumed inputs.
-Static-mesh animation/space adjustment, water classification, input-position and
-later collider queries, outward-force flags, SBC buffer writes and full CPU
-dispatch selection remain separate. Guide preparation must receive the original
-particle; do not clear its flags first. Clock, guide, force and prediction
-composition is covered by synthetic tests. These references do not establish
-bit-exact GPU execution or change the interactive preview.
+Water classification, input-position and later collider queries, outward-force
+flags, SBC buffer writes and full CPU dispatch selection remain separate.
+Animation preparation invokes fixed-state preparation internally; do not clear
+particle flags first. Clock, guide, force and prediction composition and static
+attachment/reference/fixed-state branches are covered by synthetic tests. These
+references do not establish bit-exact GPU execution or change the interactive preview.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing

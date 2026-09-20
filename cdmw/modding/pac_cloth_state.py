@@ -1,9 +1,9 @@
 """Selected ComputePbdProcessBaseMovement state stages, build 1.0.0.2944.
 
 These consume explicit runtime records around the existing force reference.
-Guide animation adjustment, substep timing and integration selection are included;
-resource resolution, static-mesh space adjustment, collision detection and full
-dispatch selection remain caller-owned. Preserve the decoded stage order and variant.
+Guide/static animation adjustment, substep timing and integration selection are
+included; resource resolution, collision detection and full dispatch selection
+remain caller-owned. Preserve the decoded stage order and variant.
 The arithmetic is a mathematical reference, not bit-exact GPU execution.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 import struct
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from .pac_cloth_base import (
     _boolean, _finite, _point, _record, cloth_contact_velocity_response,
@@ -161,6 +161,136 @@ def prepare_guide_cloth_animation(
     return {**prepared, 'particle': bytes(result), 'underwater': underwater,
             'skip_external_forces': skip_forces, 'integration_skipped': skip_integration,
             'space_adjusted': adjusted}
+
+
+def _static_vector(vector, transform):
+    rows = tuple(_point(struct.unpack_from('<3f', transform, offset)) for offset in (0, 16, 32))
+    return tuple(_f32(sum(vector[i] * rows[i][j] for i in range(3))) for j in range(3))
+
+
+def _static_translation(transform):
+    translation = _point(struct.unpack_from('<3f', transform, 48))
+    tile_z, tile_x = struct.unpack_from('<2h', transform, 12)
+    return translation, (tile_x, tile_z)
+
+
+def prepare_static_cloth_animation(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes,
+    skinning_data: bytes, host_transform: bytes, *, substep_index: int,
+    attaching_transform: bytes | None = None, particle_extra: bytes | None = None,
+    reference_particles: Mapping[int, bytes] | None = None,
+    reference_skinning: Mapping[int, bytes] | None = None, shrink_mask: int | None = None,
+) -> dict:
+    """Prepare static-mesh animation/attachment state, before water classification.
+
+    Transforms are already resolved from the shader's selected buffer bank.
+    Reference maps use the extra record's particle-relative uint16 indices and
+    contain the actual working positions/local positions read by this dispatch.
+    Missing active inputs are rejected; unselected attachment/extra data is ignored.
+
+    Static anchors do not use guide interpolation or subtract frame translation.
+    Water is sampled AFTER adjustment at the returned world position (the shader
+    subtracts previous-view position for sampling). Water does not clear the two
+    static skip decisions. Continue with select_cloth_base_integration afterwards.
+    """
+    for record, size in ((per_frame, 100), (per_scene, 108), (skinning_data, 64), (host_transform, 64)):
+        _record(record, size)
+    prepared = prepare_cloth_fixed_state(particle, simulation_parameter, shrink_mask=shrink_mask)
+    if struct.unpack_from('<H', simulation_parameter, 216)[0] == 0xFFFF:
+        raise ValueError("Static animation preparation requires a static-mesh particle.")
+    index = _substep_index(substep_index)
+    flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    has_extra = (struct.unpack_from('<H', simulation_parameter, 224)[0] != 0xFFFF
+                 and struct.unpack_from('<I', simulation_parameter, 144)[0] != 0xFFFFFFFF)
+    extra_flags, references = 0, (0xFFFF, 0xFFFF)
+    if has_extra:
+        if particle_extra is None:
+            raise ValueError("Active static particle-extra storage requires its resolved record.")
+        _record(particle_extra, 28)
+        extra_flags = struct.unpack_from('<H', particle_extra, 0)[0]
+        references = struct.unpack_from('<2H', particle_extra, 22)
+    ratio = struct.unpack_from('<e', simulation_parameter, 266)[0]
+    attaching_id = struct.unpack_from('<I', skinning_data, 60)[0]
+    attaching_offset = struct.unpack_from('<I', simulation_parameter, 92)[0]
+    veto = bool(flags & 0x80000 and not extra_flags & 4 and ratio < 99)
+    attached = bool(flags & 0x200000 and not veto and attaching_id < 0xFFFF
+                    and attaching_offset < 0x1FFFFFFF)
+    host_translation, host_tiles = _static_translation(host_transform)
+    host_world = (_f32(host_translation[0] + host_tiles[0]*1000), host_translation[1],
+                  _f32(host_translation[2] + host_tiles[1]*1000))
+    original_local = _point(struct.unpack_from('<3f', skinning_data, 0))
+    local = original_local
+    selected_transform, relative_translation = host_transform, (0., 0., 0.)
+    if attached:
+        if attaching_transform is None:
+            raise ValueError("Active static attachment requires its resolved attaching transform.")
+        _record(attaching_transform, 64)
+        tx, ty, tz, scale, qx, qy, qz, qw = struct.unpack_from('<8e', simulation_parameter, 296)
+        _finite(tx, ty, tz, scale, qx, qy, qz, qw)
+        vector = tuple(_f32(v * scale) for v in local)
+        # q * (vector, 0) * conjugate(q), without quaternion normalization.
+        projection = sum(v * q for v, q in zip(vector, (qx, qy, qz)))
+        factor = qw*qw - qx*qx - qy*qy - qz*qz
+        cross = (qy*vector[2] - qz*vector[1], qz*vector[0] - qx*vector[2],
+                 qx*vector[1] - qy*vector[0])
+        local = tuple(_f32(t + factor*v + 2*(q*projection + qw*c))
+                      for t, v, q, c in zip((tx, ty, tz), vector, (qx, qy, qz), cross))
+        translation, tiles = _static_translation(attaching_transform)
+        relative_translation = (
+            _f32(_f32(translation[0] - host_translation[0]) + (tiles[0] - host_tiles[0])*1000),
+            _f32(translation[1] - host_translation[1]),
+            _f32(_f32(translation[2] - host_translation[2]) + (tiles[1] - host_tiles[1])*1000))
+        selected_transform = attaching_transform
+    anchor = tuple(_f32(v + t) for v, t in zip(_static_vector(local, selected_transform), relative_translation))
+    paired = all(reference != 0xFFFF for reference in references)
+    if paired:
+        if (reference_particles is None or reference_skinning is None
+                or any(i not in reference_particles or i not in reference_skinning for i in references)):
+            raise ValueError("Static reference pair requires both indexed particle and skinning records.")
+        positions, locals_ = [], []
+        for i in references:
+            _record(reference_particles[i], 152)
+            _record(reference_skinning[i], 64)
+            positions.append(_point(struct.unpack_from('<3f', reference_particles[i], 36)))
+            locals_.append(_point(struct.unpack_from('<3f', reference_skinning[i], 0)))
+        local_edge = tuple(b - a for a, b in zip(*locals_))
+        simulated_edge = tuple(b - a for a, b in zip(*positions))
+        local_length = math.hypot(*local_edge)
+        if local_length == 0:
+            raise ValueError("Static reference pair has a zero local edge and no finite shader result.")
+        offset = _static_vector(tuple(v - a for v, a in zip(original_local, locals_[0])), selected_transform)
+        rotated = _rotate_with_guide_anchor(offset, _static_vector(local_edge, selected_transform), simulated_edge)
+        length_ratio = math.hypot(*simulated_edge) / local_length
+        anchor = tuple(_f32(a + v*length_ratio) for a, v in zip(positions[0], rotated))
+
+    scene_flags = struct.unpack_from('<I', per_scene, 64)[0]
+    special = False
+    if flags & 0x20000000 and scene_flags & 0x200:
+        lra = struct.unpack_from('<e', particle, 88)[0]
+        movement = struct.unpack_from('<e', per_frame, 62)[0]
+        _finite(lra, movement)
+        special = lra < 0.699999988079071 and -30 < movement < -10
+    skip_forces = bool(flags & 1 or special)
+    skip_integration = bool(flags2 & 0x100 or special)
+    result = bytearray(prepared['particle'])
+    if paired and prepared['fixed_by_group_or_mask']:
+        _put(result, 12, anchor)
+        _put(result, 36, anchor)
+    adjusted = skip_forces and index == 0
+    if adjusted:
+        position = _point(struct.unpack_from('<3f', result, 36))
+        previous = _point(struct.unpack_from('<3f', particle, 128))
+        _put(result, 12 if skip_integration else 36, _rotate_with_guide_anchor(position, previous, anchor))
+        _put(result, 140, (0., 0., 0.))
+    _put(result, 0, anchor)
+    working = _point(struct.unpack_from('<3f', result, 36))
+    frame_translation = _point(struct.unpack_from('<3f', per_frame, 0))
+    water_position = tuple(_f32(_f32(h + f) + x) for h, f, x in zip(host_world, frame_translation, working))
+    return {**prepared, 'particle': bytes(result), 'attachment_used': attached,
+            'reference_pair_used': paired, 'space_adjusted': adjusted,
+            'skip_external_forces': skip_forces, 'integration_skipped': skip_integration,
+            'host_world_translation': host_world, 'water_test_enabled': bool(flags2 & 0x1000),
+            'water_sample_world_position': water_position}
 
 
 def select_cloth_base_integration(particle: bytes, per_frame: bytes) -> dict:
