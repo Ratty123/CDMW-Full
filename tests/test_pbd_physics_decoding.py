@@ -96,6 +96,22 @@ def test_authored_collision_mode_overrides_legacy_boolean_and_defaults(mode, ena
     assert settings.collision_enabled is enabled
 
 
+@pytest.mark.parametrize("attached_first", [False, True])
+def test_attached_cloth_values_do_not_replace_parent_spline_settings(attached_first):
+    parent = ("<SimulationMode>spline</SimulationMode><Damping>0.8</Damping>"
+              "<StretchingStiffness>0.4</StretchingStiffness><Gravity>-1</Gravity>")
+    attached = ("<AttachedCloth><SimulationMode>cloth</SimulationMode><Damping>0.02</Damping>"
+                "<StretchingStiffness>0.1025</StretchingStiffness><Gravity>-10</Gravity></AttachedCloth>")
+    settings = parse_pbd_material_settings(
+        "<SimulationParameters>" + (attached + parent if attached_first else parent + attached)
+        + "</SimulationParameters>", material_name="BG_AttachedSpline",
+    )
+    assert settings.simulation_kind == "spline"
+    assert settings.damping == pytest.approx(0.8)
+    assert settings.stretching_stiffness == pytest.approx(0.4)
+    assert settings.gravity == -1
+
+
 def test_archive_attachment_passes_raw_gate_to_cloth_builder(monkeypatch):
     from cdmw.core import archive_model_texture_pbd as module
 

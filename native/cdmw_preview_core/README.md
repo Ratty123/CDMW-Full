@@ -30,7 +30,8 @@ UNC normalization, already-extended paths and Windows length-error classificatio
 
 PBD profiles accept authored XML element values and legacy attributes, including
 the four collision modes. Profile hints stay attached to their named parts and
-respect explicit empty overrides. Render-cloth approximations require a known
+respect explicit empty overrides. Nested `AttachedCloth` values do not overwrite
+the owning spline settings. Render-cloth approximations require a known
 40-byte PAC layout with a nonzero cloth contribution; a spline profile alone
 does not establish render-cloth bindings. The approximation still uses render
 triangles and inferred pins, without game collision or authored guide solving.

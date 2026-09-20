@@ -282,7 +282,14 @@ def collect_pbd_sidecar_hints(
 
 def _material_scalar_values(root: ET.Element) -> Dict[str, str]:
     values: Dict[str, str] = {}
-    for element in root.iter():
+    pending = [root]
+    while pending:
+        element = pending.pop()
+        # The game's profile reader gives AttachedCloth a separate settings
+        # block. Its child values must not replace the parent spline profile.
+        if _local_name(element.tag) == "AttachedCloth":
+            continue
+        pending.extend(reversed(element))
         attrs = {str(key): str(value or "").strip() for key, value in element.attrib.items()}
         name_attr = attrs.get("Name") or attrs.get("_name") or attrs.get("name") or ""
         value_attr = attrs.get("Value") or attrs.get("_value") or attrs.get("value") or ""

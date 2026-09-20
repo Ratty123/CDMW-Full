@@ -31,6 +31,21 @@ static void run_pbd_profile_decoding_self_test() {
         "<Profile><Float Name=\"Damping\" Value=\"0.27\"/></Profile>", config, "");
     require_material_contract(std::abs(legacy.damping - 0.27f) < 1e-6f,
         "attribute-based PBD profiles stopped decoding");
+    NativePbdConfigMaterial spline_config;
+    spline_config.name = "BG_AttachedSpline";
+    spline_config.mode = "Spline";
+    const std::string parent = "<SimulationMode>spline</SimulationMode><Damping>0.8</Damping>"
+        "<StretchingStiffness>0.4</StretchingStiffness><Gravity>-1</Gravity>";
+    const std::string attached = "<AttachedCloth><SimulationMode>cloth</SimulationMode><Damping>0.02</Damping>"
+        "<StretchingStiffness>0.1025</StretchingStiffness><Gravity>-10</Gravity></AttachedCloth>";
+    for (const auto& contents : {parent + attached, attached + parent}) {
+        const auto compound = parse_native_pbd_material_settings(
+            "<SimulationParameters>" + contents + "</SimulationParameters>", spline_config, "");
+        require_material_contract(compound.simulation_kind == "spline"
+            && std::abs(compound.damping - 0.8f) < 1e-6f
+            && std::abs(compound.stretching_stiffness - 0.4f) < 1e-6f && compound.gravity == -1.0f,
+            "AttachedCloth values replaced the parent spline settings");
+    }
 
     const std::string sidecar = "<SkinnedMeshPropertyCommon/><ModelPropertyList>"
         "<ModelProperty Index=\"0\"><SkinnedMeshProperty _pbdSimulationMaterialName=\"Lower_Fabric\">"

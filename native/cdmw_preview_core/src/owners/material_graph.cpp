@@ -104,7 +104,11 @@ static std::map<std::string, std::string> native_material_scalar_values(const st
     std::map<std::string, std::string> values;
     // Shipped PBD profiles primarily use <Damping>0.8</Damping>, not attributes.
     // Commented examples must never override authored settings.
-    const std::string document = std::regex_replace(text, std::regex("<!--[\\s\\S]*?-->"), "");
+    const std::string uncommented = std::regex_replace(text, std::regex("<!--[\\s\\S]*?-->"), "");
+    // AttachedCloth is a separate settings block in the game. Flattening it
+    // would replace the owning spline's mode, damping and stiffness.
+    const std::string document = std::regex_replace(uncommented,
+        std::regex(R"(<AttachedCloth(?:\s[^>]*)?>[\s\S]*?</AttachedCloth\s*>)"), "");
     for (const std::string& tag : collect_xml_open_tags(document)) {
         const auto attrs = xml_attribute_map(tag);
         const std::string name = xml_attr_value_from_map(attrs, {"Name", "_name", "name"});
