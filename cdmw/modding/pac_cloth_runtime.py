@@ -55,7 +55,9 @@ def build_cloth_collision_group_flags(
     """Build the extra-collidable ushort flags at 0x142DE29C6..29FD.
 
     component_flags is the scene component's byte+0xB4; its mask0x20 supplies
-    group mask0x1. The instance's critical flag supplies mask0x2. One traced setter
+    group mask0x1. CharacterScene setup sets that bit on its referenced component,
+    and teardown clears it. Supply the live byte, not a PAC-derived assumption.
+    The instance's critical flag supplies mask0x2. One traced setter
     enables it from EquipTypeInfo._isCriticalCollidable, not from a PAC vertex.
     same_pac_collidable supplies mask0x4: instance+0x49 copies the volume producer's
     OR of definition mask0x1 (PabvClothColliders.has_activation_flag).

@@ -1111,9 +1111,18 @@ at `0x142DE29C6..29FD` to these consumers:
 
 | CPU input | Group mask | Meaning in the decoded consumer |
 | --- | --- | --- |
-| Scene component byte `+0xB4`, mask `0x20` | `0x1` | Changes scene/working-particle admission; its upstream state remains explicit |
+| Scene component byte `+0xB4`, mask `0x20` | `0x1` | Changes scene/working-particle admission; set and cleared by the traced `CharacterScene` lifecycle |
 | Collider instance byte `+0x48` | `0x2` | Critical-collider branch, including the guide input-position prepass |
 | Collider instance byte `+0x49` | `0x4` | Allows same-source consideration for a matching PAC; individual definitions still apply their own rule |
+
+The `CharacterScene` setup at `0x142D0B540` stores its resolved component at
+owner `+0x98` and sets that component's byte `+0xB4` mask `0x20` at `0x142D0B665`.
+Teardown at `0x142D0BDA0` clears the same bit at `0x142D0BFF8` before releasing
+the component reference. The owner's type is established by its constructor's
+vtable and `0x1404667A0` reflection metadata for `pa::CharacterScene`.
+This is runtime ownership state, not a PAC vertex flag or an authored collision
+enable switch. The reference still requires the actual component byte; this
+trace does not establish every writer or replace the other admission gates.
 
 One traced critical-flag setter is `0x140470970`: after resolving the actor's
 equipment type, it enables the instance byte when
