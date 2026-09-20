@@ -6,7 +6,7 @@ from contextlib import ExitStack
 
 import pytest
 
-from cdmw.modding.pac_cloth_preview import build_cloth_preview_snapshot
+from cdmw.modding.pac_cloth_preview import build_cloth_body_collider_snapshot, build_cloth_preview_snapshot
 from cdmw.services.mesh_rust_authoring import read_owned_payload_reference
 from tests.test_mesh_jiggle_decoded_preview import rig_session, decoded
 from tests.test_mesh_jiggle import jiggle_session
@@ -133,9 +133,12 @@ def test_host_caches_guide_transport_with_the_rig_without_changing_pac_or_existi
     assert state['available'] and state['cloth'] == {
         'available': True, 'reason': '', 'guide_count': 3, 'fixed_count': 1, 'area_constraint_count': 0,
         'rotation_available': True,
+        'body_collider_count': 0, 'body_collider_source': 'pab_primary',
+        'body_collider_reason': 'Embedded volumes require a fixed-layout PAB with the known PAR 1/5 header.',
     }
     payload = read_owned_payload_reference(host.root, state['file'])
     assert payload['cloth']['fixed'] == [True, False, False]
+    assert payload['cloth']['body_colliders'] == []
     assert payload['cloth']['constraints'][0]['kind'] == 'pair'
     assert decoded(host) == state and calls == [1]
     assert session.original_data == original
@@ -149,3 +152,68 @@ def test_unavailable_guides_do_not_disable_decoded_jiggle(rig_session, monkeypat
     assert state['available'] and not state['cloth']['available']
     assert 'no decoded cloth guide' in state['cloth']['reason']
     assert 'cloth' not in read_owned_payload_reference(host.root, state['file'])
+
+
+@pytest.mark.parametrize('tag, parameters, kind, a, b, radius', [
+    (5, (.25, 2.), 5, [8., 20., 39.], [8., 24., 39.], .75),
+    (1, (.5, 4.), 3, [8., 18., 39.], [8., 26., 39.], 1.5),
+    (4, (.5,), 1, [8., 22., 39.], [8., 22., 39.], 1.5),
+])
+def test_primary_body_colliders_follow_neutral_rotation_scale_and_translation(tag, parameters, kind, a, b, radius):
+    from cdmw.modding.skeleton_parser import parse_pab
+    from tests.test_pab_embedded_volumes import fixture, section
+    from tests.test_pabv_parser import IDENTITY, record
+
+    local = (*IDENTITY[:12], 1., 2., 3., 1.)
+    volume = record(tag, parameters, key=1, matrix=local)
+    # Duplicate primary geometry is coalesced; rendering volumes are not used.
+    data = fixture(section(volume, volume), section(record(0, (1., 2., 3.), key=0)))
+    skeleton = parse_pab(data)
+    pose = [[0., 2., 0., 0.], [-1., 0., 0., 0.], [0., 0., 3., 0.], [10., 20., 30., 1.]]
+    result = build_cloth_body_collider_snapshot(skeleton, {'neutral_global_matrices': [pose, pose]})
+    assert result == [{'kind': kind, 'center1': a, 'center2': b, 'radius': radius,
+                       'bone_index': 1, 'source_ordinal': 0}]
+    assert skeleton.tail_data == data[skeleton.tail_offset:]
+
+
+@pytest.mark.parametrize('supported', [True, False])
+def test_host_body_volumes_are_optional_cached_and_never_change_source(rig_session, monkeypatch, supported):
+    from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
+    from cdmw.modding.skeleton_parser import parse_pab
+    from tests.test_pab_embedded_volumes import fixture, section
+    from tests.test_pabv_parser import record
+
+    original, session, host = rig_session
+    volume = record(key=1) if supported else record(0, (1., 2., 3.), key=1)
+    session.skeleton = parse_pab(fixture(section(volume)))
+    guides = decode_pac_cloth_guides(source()[0])
+    monkeypatch.setattr('cdmw.modding.pac_cloth_preview.decode_pac_cloth_guides', lambda _: guides)
+    state = decoded(host)
+    assert state['available'] and state['cloth']['available']
+    assert state['cloth']['body_collider_count'] == int(supported)
+    assert state['cloth']['body_collider_source'] == 'pab_primary'
+    assert bool(state['cloth']['body_collider_reason']) == (not supported)
+    payload = read_owned_payload_reference(host.root, state['file'])
+    assert len(payload['cloth']['body_colliders']) == int(supported)
+    if supported:
+        collider, = payload['cloth']['body_colliders']
+        assert collider['bone_index'] == 1
+        assert collider['center1'] == pytest.approx([10., 21., 0.])
+        assert collider['center2'] == pytest.approx([10., 23., 0.])
+    assert decoded(host) == state
+    assert session.original_data == original
+    offsets = session.working_mesh.submeshes[0].source_vertex_offsets
+    assert payload['parts'][0]['records'] == [original[o:o + 40].hex() for o in offsets]
+
+
+def test_body_collider_preview_rejects_empty_oversized_and_degenerate_sets():
+    from cdmw.modding.skeleton_parser import parse_pab
+    from tests.test_pab_embedded_volumes import fixture, section
+    from tests.test_pabv_parser import record
+
+    poses = {'neutral_global_matrices': rig()['neutral_global_matrices'] * 2}
+    for records, message in (([], 'between 1 and 128'),
+                             ([record(key=0)] * 129, 'between 1 and 128'),
+                             ([record(parameters=(.25, 0.), key=0)], 'Degenerate')):
+        with pytest.raises(ValueError, match=message):
+            build_cloth_body_collider_snapshot(parse_pab(fixture(section(*records))), poses)

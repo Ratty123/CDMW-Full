@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import struct
 
 from ._pbd_numeric import round_pbd_half
 from .pac_cloth_guides import (
@@ -11,6 +12,62 @@ from .pac_cloth_guides import (
 )
 from .pac_jiggle_skinning import prepare_jiggle_bone_skinning
 from .pac_cloth_preparation import prepare_guide_cloth_attachments
+
+
+def build_cloth_body_collider_snapshot(skeleton, rig: dict) -> list[dict]:
+    """Place the PAB's default primary primitives in the preview's neutral pose.
+
+    Uses the mapped collider producer with an explicit active preview group,
+    unit scene radius multiplier and the initial bone-flag profile. Appearance
+    overrides and live game activation are not selected. Spheres retain their
+    authored center/radial scale without the animated kernel's zero-axis query.
+    """
+    from .pabv_parser import (
+        decode_pab_embedded_volumes, default_pabv_cloth_flag_bone_sets,
+        prepare_pabv_cloth_colliders,
+    )
+    from .pac_cloth_collisions import update_guide_cloth_collider_result
+
+    volumes = decode_pab_embedded_volumes(skeleton).primary
+    if not volumes.volumes or len(volumes.volumes) > 128:
+        raise ValueError("Body collision preview needs between 1 and 128 primary rig volumes.")
+    prepared = prepare_pabv_cloth_colliders(
+        volumes, skeleton, flag_bone_sets=default_pabv_cloth_flag_bone_sets())
+    poses = rig["neutral_global_matrices"]
+    if len(poses) != len(skeleton.bones):
+        raise ValueError("Body colliders need the matching neutral rig pose.")
+    identity = tuple(float(i == j) for i in range(4) for j in range(4))
+    character = struct.pack('<16f', *identity) + bytes(208)
+    group, scene = bytearray(56), bytearray(108)
+    struct.pack_into('<I', group, 0, (1 << 16) | 1)
+    struct.pack_into('<e', scene, 84, 1.)
+    colliders = []
+    for definition, bone, source in zip(prepared.definitions, prepared.bone_indices,
+                                         prepared.source_ordinals, strict=True):
+        kind = struct.unpack_from('<I', definition)[0] >> 16
+        pose = poses[bone]
+        if len(pose) != 4 or any(len(row) != 4 for row in pose):
+            raise ValueError("Body colliders need complete neutral bone matrices.")
+        if kind == 1:
+            local = struct.unpack_from('<16f', definition, 12)
+            center = [sum(local[12 + i] * pose[i][j] for i in range(4)) for j in range(3)]
+            radial = [sum(local[8 + i] * pose[i][j] for i in range(4)) for j in range(3)]
+            radius = struct.unpack_from('<f', definition, 4)[0] * math.hypot(*radial)
+            a = b = center
+        else:
+            result = update_guide_cloth_collider_result(
+                definition, bytes(56), group, scene, bytes(1216), character,
+                use_bone_transform=True, animation_matrix=struct.pack('<16f', *(v for row in pose for v in row)),
+                character_space_scale=(1., 1., 1.))
+            radius = struct.unpack_from('<f', result, 4)[0]
+            a, b = (struct.unpack_from('<3f', result, offset) for offset in (20, 44))
+        if (not all(math.isfinite(v) and abs(v) <= 1e9 for v in (*a, *b))
+                or not math.isfinite(radius) or not 0 < radius <= 1e6
+                or (kind == 3 and math.dist(a, b) <= 1e-6)):
+            raise ValueError("Body collision preview needs finite, nondegenerate primitives.")
+        colliders.append({"kind": kind, "center1": list(a), "center2": list(b), "radius": radius,
+                          "bone_index": bone, "source_ordinal": source})
+    return colliders
 
 
 def build_cloth_preview_snapshot(data: bytes, rig: dict) -> dict:

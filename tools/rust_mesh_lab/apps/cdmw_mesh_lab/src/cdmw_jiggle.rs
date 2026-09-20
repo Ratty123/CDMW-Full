@@ -438,6 +438,10 @@ impl LabApplication {
         } else if cloth {
             let rotation_available = self.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"].as_bool() == Some(true);
             if !rotation_available { preview.cloth_settings.rotate_guides = false; }
+            let cloth_state = &self.cdmw_state["jiggle"]["decoded"]["cloth"];
+            let body_available = cloth_state["body_collider_count"].as_u64().is_some_and(|count| count > 0)
+                && cloth_state["body_collider_source"].as_str() == Some("pab_primary");
+            if !body_available { preview.cloth_settings.body_collisions = false; }
             ui.collapsing("Cloth preview settings", |ui| {
                 let settings = &mut preview.cloth_settings;
                 ui.add(egui::Slider::new(&mut settings.gravity, 0.0..=100.0).text("Gravity"));
@@ -448,6 +452,16 @@ impl LabApplication {
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
                 ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
                 if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
+                ui.add_enabled(body_available, egui::Checkbox::new(&mut settings.body_collisions, "Body collisions (rig defaults)"));
+                if body_available {
+                    if settings.body_collisions {
+                        ui.add(egui::Slider::new(&mut settings.collision_margin, 0.0..=0.1).text("Collision margin"));
+                    }
+                    ui.small("Uses the matched rig's body volumes. Outfit-specific overrides are not loaded.");
+                } else {
+                    ui.small("Body collisions need supported volumes in the matched rig.")
+                        .on_hover_text(cloth_state["body_collider_reason"].as_str().unwrap_or("No authored body volumes available."));
+                }
                 let mut floor = settings.ground_height.is_some();
                 if ui.checkbox(&mut floor, "Preview floor").changed() { settings.ground_height = floor.then_some(0.0); }
                 if let Some(height) = &mut settings.ground_height {
@@ -537,7 +551,7 @@ impl LabApplication {
             ui.small(&self.cdmw_jiggle.preview.feedback);
         }
         if cloth {
-            ui.small("Body collisions and runtime profile activation are not simulated.");
+            ui.small("Runtime profile activation and layer/world collisions are not simulated.");
         } else {
             ui.small("Inter-part collisions and guide-cloth simulation are not included in this preview.");
         }

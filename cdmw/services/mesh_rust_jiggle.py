@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import math
+import struct
 
 from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.modding.pac_cloth import pac_cloth_lods
@@ -21,7 +22,7 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
     """
     from cdmw.modding.mesh_parser import resolve_pac_bone_palette
     from cdmw.modding.mesh_skinning import pack_pac_skin_weights
-    from cdmw.modding.pac_cloth_preview import build_cloth_preview_snapshot
+    from cdmw.modding.pac_cloth_preview import build_cloth_body_collider_snapshot, build_cloth_preview_snapshot
     from cdmw.modding.pac_jiggle_rig import prepare_jiggle_rig
     from cdmw.services.mesh_rust_authoring import _atomic_write_payload
 
@@ -48,11 +49,20 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
             metadata["decoded_rig"] = (skeleton, rig_payload)
             try:
                 cloth = build_cloth_preview_snapshot(session.original_data, rig_payload)
+                collider_reason = ""
+                try:
+                    cloth["body_colliders"] = build_cloth_body_collider_snapshot(skeleton, rig_payload)
+                except (ValueError, OverflowError, struct.error) as exc:
+                    cloth["body_colliders"] = []
+                    collider_reason = str(exc)
                 metadata["decoded_cloth"] = (cloth, {
                     "available": True, "reason": "", "guide_count": len(cloth["fixed"]),
                     "fixed_count": sum(cloth["fixed"]),
                     "area_constraint_count": sum(row["kind"] == "triangle" for row in cloth["constraints"]),
                     "rotation_available": all(row is not None for row in cloth["orientation_neighbors"]),
+                    "body_collider_count": len(cloth["body_colliders"]),
+                    "body_collider_source": "pab_primary",
+                    "body_collider_reason": collider_reason,
                 })
             except ValueError as exc:
                 metadata["decoded_cloth"] = (None, {"available": False, "reason": str(exc)})

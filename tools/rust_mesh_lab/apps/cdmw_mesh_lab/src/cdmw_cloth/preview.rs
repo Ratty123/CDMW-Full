@@ -187,6 +187,7 @@ mod tests {
             fixed: (0..24).map(|i| i == 0).collect(),
             alpha_blends: vec![0.0; 24],
             orientation_neighbors: Vec::new(),
+            body_colliders: Vec::new(),
             constraints: (1..24)
                 .map(|i| cloth::Constraint::Pair {
                     indices: [i - 1, i],
@@ -264,6 +265,7 @@ mod tests {
             fixed: vec![false; 2],
             alpha_blends: vec![0.5, 1.0],
             orientation_neighbors: Vec::new(),
+            body_colliders: Vec::new(),
             constraints: vec![],
         };
         let rig = RigSnapshot {

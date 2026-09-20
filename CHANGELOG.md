@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Cloth motion preview includes optional body collisions from the matched rig's authored sphere, cylinder and capsule volumes, with adjustable clearance. Missing or unsupported volumes leave ordinary playback available; outfit overrides and in-game collision activation remain unverified.
 - Cloth motion preview can optionally rotate the surface with its guide particles when decoded orientation neighbors are available. This preserves edited positions and neutral scale without changing exports.
 - Mesh Editor's Cloth panel now previews compatible original PAC guide cloth with up/down, start/stop and turning motion, current/original/disabled comparisons, and adjustable preview settings. Saved influence rules are reflected without changing authored mesh data; full game collisions and runtime profiles remain unsupported.
 - Mesh Editor's decoded Jiggle preview includes optional wind with speed, direction, gust amount and cycle controls. Wind respects jiggle contributions and disabled comparisons, without changing mesh data or exports.

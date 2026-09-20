@@ -329,6 +329,82 @@ fn rotation_control_changes_surface_around_guides_and_disables_when_unsupported(
 }
 
 #[test]
+fn body_collision_control_uses_owned_volumes_and_preserves_authored_mesh() -> TestResult {
+    let (root, mut ui, payload) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    let mut payload: Value = serde_json::from_slice(&payload)?;
+    let guide = &payload["cloth"]["animation_frames"][1][3];
+    let x = guide[0].as_f64().unwrap() - 0.25;
+    let z = guide[2].as_f64().unwrap();
+    payload["cloth"]["body_colliders"] = json!([{
+        "kind": 5, "center1": [x, -10.0, z], "center2": [x, 10.0, z], "radius": 0.5,
+        "bone_index": 0, "source_ordinal": 0
+    }]);
+    let payload = serde_json::to_vec(&payload)?;
+    std::fs::write(root.path().join("jiggle-rig.json"), &payload)?;
+    let state = &mut ui.application.cdmw_state["jiggle"]["decoded"];
+    state["file"]["byte_length"] = json!(payload.len());
+    state["file"]["sha256"] = json!(format!("{:X}", Sha256::digest(&payload)));
+    state["cloth"]["body_collider_count"] = json!(1);
+    state["cloth"]["body_collider_source"] = json!("pab_primary");
+    ui.click("Cloth preview settings")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let without = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
+    ui.click("Reset preview")?;
+    ui.click("Body collisions (rig defaults)")?;
+    assert!(ui.label_rect("Collision margin").is_some());
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let with = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
+    assert_ne!(with.positions[1], without.positions[1]);
+    assert_eq!(with.positions[0], without.positions[0]);
+    assert!(with.normals.iter().flatten().all(|v| v.is_finite()));
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
+    assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
+    ui.click("Reset preview")?;
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["body_collider_count"] = json!(0);
+    ui.frame(Vec::new());
+    ui.click("Body collisions (rig defaults)")?;
+    assert!(ui.label_rect("Collision margin").is_none());
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        without
+    );
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires caller-owned PAC/PAB authoring packages and evidence output paths"]
 fn supplied_motion_packages_preserve_mesh_and_compare_decoded_playback() -> TestResult {
     let cases_path = PathBuf::from(std::env::var("CDMW_MOTION_PROBE_CASES")?);

@@ -3,8 +3,9 @@
 //! The host resolves the matching rig and CPU rest geometry. This preview uses
 //! explicit forces, a bounded Jacobi schedule and rigid anchor motion, not a
 //! recovered game dispatch/profile. Optional two-edge guide rotation uses decoded
-//! neighbors. Area constraints remain inactive; bone/layer/world contacts and
-//! runtime overrides remain separate work. Source and authored data are immutable.
+//! neighbors. Optional authored body primitives follow the same rigid test motion.
+//! Area constraints remain inactive; layer/world contacts and runtime overrides
+//! remain separate work. Source and authored data are immutable.
 
 use crate::jiggle_rig::{Rig, RigSnapshot};
 use crate::jiggle_skinning::{self, Matrix};
@@ -12,6 +13,7 @@ use glam::{DMat4, DVec3};
 use serde::{Deserialize, Serialize};
 
 mod rotation;
+pub use collision::BodyCollider;
 
 type Result<T> = std::result::Result<T, &'static str>;
 
@@ -25,6 +27,8 @@ pub struct Snapshot {
     #[serde(default)]
     pub orientation_neighbors: Vec<Option<[u16; 2]>>,
     pub constraints: Vec<Constraint>,
+    #[serde(default)]
+    pub body_colliders: Vec<BodyCollider>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -48,6 +52,8 @@ pub struct Settings {
     pub use_vertex_alpha: bool,
     pub rotate_guides: bool,
     pub ground_height: Option<f64>,
+    pub body_collisions: bool,
+    pub collision_margin: f64,
 }
 
 impl Default for Settings {
@@ -63,6 +69,8 @@ impl Default for Settings {
             use_vertex_alpha: false,
             rotate_guides: false,
             ground_height: None,
+            body_collisions: false,
+            collision_margin: 0.01,
         }
     }
 }
@@ -81,6 +89,8 @@ impl Settings {
             && self.speed_limit.is_finite()
             && (0.001..=1000.0).contains(&self.speed_limit)
             && self.ground_height.is_none_or(f64::is_finite)
+            && self.collision_margin.is_finite()
+            && (0.0..=0.1).contains(&self.collision_margin)
     }
 }
 
@@ -101,6 +111,7 @@ pub struct Simulation {
     positions: Vec<DVec3>,
     velocities: Vec<DVec3>,
     output: Vec<[f32; 3]>,
+    previous_motion: DMat4,
     pub inactive_area_constraints: usize,
 }
 
@@ -195,6 +206,18 @@ impl Simulation {
             return Err("Cloth snapshot has invalid or unbounded guide/render buffers.");
         }
         Rig::new(rig.clone())?;
+        if snapshot.body_colliders.len() > 128
+            || snapshot
+                .body_colliders
+                .iter()
+                .any(|c| !c.valid(rig.parents.len()))
+            || snapshot
+                .body_colliders
+                .windows(2)
+                .any(|rows| rows[0].source_ordinal >= rows[1].source_ordinal)
+        {
+            return Err("Cloth body colliders have invalid geometry or source bindings.");
+        }
         let mut areas = 0;
         for constraint in &snapshot.constraints {
             let (indices, value): (&[usize], f64) = match constraint {
@@ -305,6 +328,7 @@ impl Simulation {
             positions,
             velocities: vec![DVec3::ZERO; count],
             output: rest.to_vec(),
+            previous_motion: DMat4::IDENTITY,
             inactive_area_constraints: areas,
         })
     }
@@ -350,6 +374,20 @@ impl Simulation {
             .iter()
             .map(|f| motion.transform_point3(f.w_axis.truncate()))
             .collect::<Vec<_>>();
+        if settings.body_collisions && self.snapshot.body_colliders.is_empty() {
+            return Err("No authored body colliders are available for this preview.");
+        }
+        let colliders =
+            if settings.body_collisions && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
+                self.snapshot
+                    .body_colliders
+                    .iter()
+                    .map(|c| c.in_motion(motion))
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+        let to_previous_body = self.previous_motion * motion.inverse();
         let masses = self
             .snapshot
             .fixed
@@ -425,6 +463,18 @@ impl Simulation {
             if settings.use_vertex_alpha && !self.snapshot.fixed[i] {
                 positions[i] = positions[i].lerp(animation[i], self.snapshot.alpha_blends[i]);
             }
+            let mut contacts = Vec::new();
+            if !self.snapshot.fixed[i] {
+                for collider in &colliders {
+                    if let Some((point, normal)) =
+                        collider.project(positions[i], settings.collision_margin)?
+                    {
+                        positions[i] = point;
+                        let body_velocity = (point - to_previous_body.transform_point3(point)) / dt;
+                        contacts.push((normal, body_velocity));
+                    }
+                }
+            }
             let mut ground_contact = false;
             if !self.snapshot.fixed[i]
                 && let Some(height) = settings.ground_height
@@ -440,6 +490,11 @@ impl Simulation {
             if ground_contact {
                 velocity.y = 0.0;
             }
+            for (normal, body_velocity) in contacts {
+                let inward = (velocity - body_velocity).dot(normal).min(0.0);
+                velocity -= inward * normal;
+            }
+            velocity = velocity.clamp_length_max(settings.speed_limit);
             if !positions[i].is_finite() || !velocity.is_finite() {
                 return Err("Cloth preview projection became non-finite.");
             }
@@ -501,6 +556,7 @@ impl Simulation {
         self.positions = positions;
         self.velocities = velocities;
         self.output = output;
+        self.previous_motion = motion;
         Ok(())
     }
 }
@@ -670,6 +726,7 @@ mod tests {
             fixed: vec![true, false, false],
             alpha_blends: vec![1.0, 0.5, 0.0],
             orientation_neighbors: Vec::new(),
+            body_colliders: Vec::new(),
             constraints: vec![Constraint::Pair {
                 indices: [0, 1],
                 rest: 1.0,
@@ -733,6 +790,150 @@ mod tests {
         assert_eq!(current.positions()[2], original.positions()[2]);
         assert_eq!(disabled.positions(), rest);
         assert_eq!(current.guide_count(), 3);
+    }
+
+    #[test]
+    fn body_contacts_follow_motion_preserve_contributions_and_bound_velocity() {
+        let body = BodyCollider {
+            kind: 5,
+            center1: [-0.25, -1.0, 0.0],
+            center2: [-0.25, 2.0, 0.0],
+            radius: 0.5,
+            bone_index: 0,
+            source_ordinal: 0,
+        };
+        let make = |contributions| {
+            let mut sim = simulation(contributions);
+            sim.snapshot.body_colliders.push(body.clone());
+            sim
+        };
+        let mut current = make([63, 32, 0]);
+        let mut original = make([0; 3]);
+        let mut disabled = make([63; 3]);
+        let mut no_contacts = make([0; 3]);
+        let settings = Settings {
+            gravity: 0.0,
+            damping: 0.0,
+            stretch: 0.0,
+            bend: 0.0,
+            body_collisions: true,
+            collision_margin: 0.01,
+            speed_limit: 2.0,
+            ..Settings::default()
+        };
+        let identity = DMat4::IDENTITY.to_cols_array_2d();
+        for sim in [&mut current, &mut original, &mut disabled] {
+            sim.step(0.01, identity, settings).unwrap();
+        }
+        no_contacts
+            .step(
+                0.01,
+                identity,
+                Settings {
+                    body_collisions: false,
+                    ..settings
+                },
+            )
+            .unwrap();
+        close(original.positions()[1], DVec3::X * 0.26);
+        close(current.positions()[1], DVec3::X * (0.26 * 31.0 / 63.0));
+        close(no_contacts.positions()[1], DVec3::ZERO);
+        assert_eq!(disabled.positions(), no_contacts.positions());
+        assert_eq!(original.guide_positions()[0], [0.0, 1.0, 0.0]);
+        let motion = DMat4::from_translation(DVec3::X * 0.5) * DMat4::from_rotation_z(0.2);
+        original
+            .step(0.01, motion.to_cols_array_2d(), settings)
+            .unwrap();
+        let a = motion.transform_point3(DVec3::from(body.center1));
+        let b = motion.transform_point3(DVec3::from(body.center2));
+        let guide = DVec3::from(original.guide_positions()[1]);
+        let axis = (b - a).normalize();
+        let nearest = a + axis * (guide - a).dot(axis).clamp(0.0, (b - a).length());
+        assert!(guide.distance(nearest) >= body.radius + settings.collision_margin - 1e-10);
+        assert!(
+            original
+                .velocities
+                .iter()
+                .all(|v| v.length() <= settings.speed_limit + 1e-10)
+        );
+        close(original.positions()[0], motion.transform_point3(DVec3::Y));
+    }
+
+    #[test]
+    fn body_contacts_reject_invalid_payloads_and_failed_steps_are_transactional() {
+        let base = snapshot();
+        let rest = base
+            .source_positions
+            .iter()
+            .map(|p| p.map(|v| v as f32))
+            .collect::<Vec<_>>();
+        let body = BodyCollider {
+            kind: 5,
+            center1: [0.0, -1.0, 0.0],
+            center2: [0.0, 2.0, 0.0],
+            radius: 0.5,
+            bone_index: 0,
+            source_ordinal: 0,
+        };
+        let mut bad = vec![body.clone()];
+        bad[0].radius = -0.5;
+        let mut bad_bone = vec![body.clone()];
+        bad_bone[0].bone_index = 1;
+        for rows in [
+            bad,
+            bad_bone,
+            vec![body.clone(); 2],
+            vec![body.clone(); 129],
+        ] {
+            let mut snapshot = base.clone();
+            snapshot.body_colliders = rows;
+            assert!(
+                Simulation::new(snapshot, &rig(), &rest, &records(), &[0; 3], &|| false).is_err()
+            );
+        }
+        let mut sim = simulation([0; 3]);
+        let frame = sim.positions().to_vec();
+        let guides = sim.guide_positions();
+        let settings = Settings {
+            gravity: 0.0,
+            stretch: 0.0,
+            body_collisions: true,
+            ..Settings::default()
+        };
+        assert!(
+            sim.step(0.01, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .is_err()
+        );
+        sim.snapshot.body_colliders.push(body);
+        // Guide 1 lies exactly on the capsule axis, with no finite contact normal.
+        assert!(
+            sim.step(0.01, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .is_err()
+        );
+        assert!(
+            sim.step(
+                0.01,
+                DMat4::IDENTITY.to_cols_array_2d(),
+                Settings {
+                    collision_margin: f64::NAN,
+                    ..settings
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(sim.positions(), frame);
+        assert_eq!(sim.guide_positions(), guides);
+        assert_eq!(sim.previous_motion, DMat4::IDENTITY);
+        assert!(sim.velocities.iter().all(|v| *v == DVec3::ZERO));
+        sim.step(
+            0.01,
+            DMat4::IDENTITY.to_cols_array_2d(),
+            Settings {
+                body_collisions: false,
+                ..settings
+            },
+        )
+        .unwrap();
     }
 
     #[test]
@@ -967,5 +1168,174 @@ mod tests {
         let sim =
             Simulation::new(area_snapshot, &rig(), &rest, &records(), &[0; 3], &|| false).unwrap();
         assert_eq!(sim.inactive_area_constraints, 1);
+    }
+}
+
+mod collision {
+    //! Authored neutral body primitives for the controlled cloth preview.
+    //! Surface selection follows the decoded sphere/cylinder/capsule queries.
+    //! Candidate admission, rigid test motion and frictionless velocity response
+    //! are explicit preview choices, not the game's runtime collision profile.
+
+    use super::Result;
+    use glam::{DMat4, DVec3};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct BodyCollider {
+        pub kind: u8,
+        pub center1: [f64; 3],
+        pub center2: [f64; 3],
+        pub radius: f64,
+        pub bone_index: usize,
+        pub source_ordinal: u32,
+    }
+
+    impl BodyCollider {
+        pub(super) fn valid(&self, bones: usize) -> bool {
+            matches!(self.kind, 1 | 3 | 5)
+                && self.bone_index < bones
+                && self.radius.is_finite()
+                && self.radius > 0.0
+                && self.radius <= 1e6
+                && self
+                    .center1
+                    .iter()
+                    .chain(&self.center2)
+                    .all(|v| v.is_finite() && v.abs() <= 1e9)
+                && (self.kind != 1 || self.center1 == self.center2)
+                && (self.kind != 3
+                    || DVec3::from(self.center1).distance(DVec3::from(self.center2)) > 1e-6)
+        }
+
+        pub(super) fn in_motion(&self, motion: DMat4) -> PlacedCollider {
+            PlacedCollider {
+                kind: self.kind,
+                a: motion.transform_point3(DVec3::from(self.center1)),
+                b: motion.transform_point3(DVec3::from(self.center2)),
+                radius: self.radius,
+            }
+        }
+    }
+
+    pub(super) struct PlacedCollider {
+        kind: u8,
+        a: DVec3,
+        b: DVec3,
+        radius: f64,
+    }
+
+    fn unit(value: DVec3) -> Result<DVec3> {
+        value
+            .try_normalize()
+            .ok_or("Body collision normal is degenerate.")
+    }
+
+    impl PlacedCollider {
+        /// Only points inside the expanded primitive are admitted by this preview.
+        /// Fixed guides are excluded by the caller. A contact returns its projected
+        /// position and normal; the caller resolves velocity relative to the body.
+        pub(super) fn project(&self, point: DVec3, margin: f64) -> Result<Option<(DVec3, DVec3)>> {
+            let radius = self.radius + margin;
+            let edge = self.b - self.a;
+            let length = edge.length();
+            if self.kind == 1 || self.kind == 5 {
+                let center = if self.kind == 5 && length >= f64::from(0.000001_f32) {
+                    let axis = edge / length;
+                    self.a + axis * (point - self.a).dot(axis).clamp(0.0, length)
+                } else {
+                    self.a
+                };
+                let radial = point - center;
+                if radial.length_squared() >= radius * radius {
+                    return Ok(None);
+                }
+                let normal = unit(radial)?;
+                return Ok(Some((center + radius * normal, normal)));
+            }
+            let axis = unit(edge)?;
+            let a = self.a - margin * axis;
+            let half = length * 0.5 + margin;
+            let relative = point - a;
+            let along = relative.dot(axis);
+            let radial = relative - along * axis;
+            let radial_distance = radial.length() - radius;
+            let cap_distance = (along - half).abs() - half;
+            if radial_distance >= 0.0 || cap_distance >= 0.0 {
+                return Ok(None);
+            }
+            let cap_normal = if along > half { axis } else { -axis };
+            // The decoded query chooses the cap on equal cap/side distances.
+            let side = cap_distance < radial_distance;
+            let mut normal = if side { unit(radial)? } else { cap_normal };
+            let distance = if side { radial_distance } else { cap_distance };
+            let surface = point - distance * normal;
+            let band = half.min(radius) * 0.5;
+            if radial_distance.min(cap_distance) > -band {
+                normal = unit(
+                    (band + radial_distance) * unit(radial)? + (band + cap_distance) * cap_normal,
+                )?;
+            }
+            Ok(Some((surface, normal)))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn collider(kind: u8) -> PlacedCollider {
+            BodyCollider {
+                kind,
+                center1: [0.0; 3],
+                center2: [0.0, 2.0, 0.0],
+                radius: 1.0,
+                bone_index: 0,
+                source_ordinal: 0,
+            }
+            .in_motion(DMat4::IDENTITY)
+        }
+
+        #[test]
+        fn cloth_body_surfaces_preserve_capsule_ends_sphere_radius_and_cylinder_caps() {
+            let (point, normal) = collider(5)
+                .project(DVec3::new(0.5, 1.0, 0.0), 0.1)
+                .unwrap()
+                .unwrap();
+            assert!(point.distance(DVec3::new(1.1, 1.0, 0.0)) < 1e-12);
+            assert_eq!(normal, DVec3::X);
+            assert_eq!(
+                collider(5)
+                    .project(DVec3::new(0.0, 2.5, 0.0), 0.0)
+                    .unwrap()
+                    .unwrap()
+                    .0,
+                DVec3::new(0.0, 3.0, 0.0)
+            );
+            assert_eq!(
+                collider(1)
+                    .project(DVec3::new(0.0, 0.5, 0.0), 0.0)
+                    .unwrap()
+                    .unwrap()
+                    .0,
+                DVec3::Y
+            );
+            assert_eq!(
+                collider(3)
+                    .project(DVec3::new(0.5, 1.5, 0.0), 0.0)
+                    .unwrap()
+                    .unwrap(),
+                (DVec3::new(0.5, 2.0, 0.0), DVec3::Y)
+            );
+            assert_eq!(
+                collider(3).project(DVec3::new(0.5, 2.5, 0.0), 0.0).unwrap(),
+                None
+            );
+            assert_eq!(
+                collider(5).project(DVec3::new(2.0, 1.0, 0.0), 0.0).unwrap(),
+                None
+            );
+            assert!(collider(5).project(DVec3::Y, 0.0).is_err());
+        }
     }
 }
