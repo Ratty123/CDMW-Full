@@ -1578,3 +1578,40 @@ returns a nonzero status if an input is unavailable. Keep reports and game-deriv
 data outside the repository.
 
 Related tests: mesh, static replacement, material, and package entries under `tests/`.
+
+### Reversible physics profile package output
+
+`pbd_profile_edit.py` and `mesh_physics_profile_output.py` provide the export
+backend for raw PBD profile edits. `PacPhysicsProfileRule` records a variant,
+source profile/path/SHA-256 and explicit scalar changes; it never stores modified
+GPU stiffness coefficients. Supported raw fields are stretching/bending stiffness,
+damping, gravity, solver iteration count, vertex-alpha blending and guide rotation.
+The profile's mode, other fields and separate `AttachedCloth` settings are preserved.
+
+The writer clones a captured profile under a deterministic `CDMW_` name, appends
+its registration to the captured catalogue, and updates the existing assignment
+owner in the selected PAC sidecar variant. A shared owner requires matching rules
+for every affected original part. It does not invent per-part overrides: Damiane's
+body profile is owned by `SkinnedMeshProperty` and shared by three parts. An empty
+variant can receive a cloned profile through that existing owner. This assigns
+metadata only; it does not create guide geometry, bone bindings or a simulation
+activation path. In-game acceptance of generated profiles remains unverified.
+
+XML edits use parser-derived spans, preserving encoding/BOM, comments, unknown
+fields and bytes outside the edits. Ambiguous mappings, unsupported scalar
+representations, changed sources and generated-name collisions are rejected.
+The unmodified shared profile is never included as an override. Material sidecar
+edits compose before physics assignments. The package includes the catalogue, so
+other edits to that same catalogue need to be merged from the same source state.
+
+Replacement draft version 7 preserves profile rules and the existing captured
+dependency blobs. Earlier versions remain readable; removing the new rules or
+downgrading their schema fails. The normal replacement transaction, undo/redo,
+rebuild validation and `MeshDirectOutputWorker` loose-mod route carry the generated
+companions. A profile-only edit leaves the PAC byte-identical. Single-file PAC
+export is disabled when profile companions are needed. This backend does not yet
+expose profile authoring controls in the editor; the existing profile selector
+continues to load preview settings only.
+
+Focused coverage: `tests/test_mesh_physics_profile_output.py`, plus the existing
+replacement, cloth and jiggle draft compatibility tests.

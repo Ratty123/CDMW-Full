@@ -41637,6 +41637,16 @@
       ]
     },
     {
+      "key": "Generated physics profile name or path already exists.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 73,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Generated texture registry failed reparsing.",
       "origins": [
         {
@@ -48327,6 +48337,36 @@
         {
           "path": "cdmw/services/archive_overlay_manager.py",
           "line": 98,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Invalid physics profile settings.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 17,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 30,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 127,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 130,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 162,
           "sink": "ValueError"
         }
       ]
@@ -74257,6 +74297,21 @@
       ]
     },
     {
+      "key": "Physics profile assignment is ambiguous or does not match the PAC.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 23,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_replacement_draft.py",
+          "line": 133,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Physics profile declares an invalid archive path.",
       "origins": [
         {
@@ -74277,11 +74332,61 @@
       ]
     },
     {
+      "key": "Physics profile edit source is missing or has changed.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 40,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 46,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 58,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 63,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics profile edits exceed the supported size limit.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 82,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Physics profile name is ambiguous or absent from the catalogue.",
       "origins": [
         {
           "path": "cdmw/services/mesh_physics_profiles.py",
           "line": 149,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Physics profiles require their source sidecar and catalogue.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 34,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 43,
           "sink": "ValueError"
         }
       ]
@@ -96653,6 +96758,16 @@
           "path": "cdmw/ui/shell/path_controller.py",
           "line": 95,
           "sink": "_browse_file"
+        }
+      ]
+    },
+    {
+      "key": "Select every part sharing this physics profile assignment.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_physics_profile_output.py",
+          "line": 76,
+          "sink": "ValueError"
         }
       ]
     },

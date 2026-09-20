@@ -457,7 +457,7 @@ class MeshEditorReportsMixin(MeshEditorDirectOutputMixin):
             state = session.replacement_state
         except (KeyError, AttributeError):
             return False
-        return bool(state and (state.companion_files or (
+        return bool(state and (state.companion_files or any(part.physics_profiles for part in state.parts) or (
             state.target_path.lower().endswith(".pam") and any(file.path.lower().endswith(".pamlod") for file in state.dependencies)
         )))
     def _set_preview_rebuilt_asset_button_enabled(self, enabled: bool) -> None:

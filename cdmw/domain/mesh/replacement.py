@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from .cloth import PacClothRule
 from .jiggle import PacJiggleRule
+from .physics_profile import PacPhysicsProfileRule
 
 if TYPE_CHECKING:
     from cdmw.modding.mesh_neutral_appearance import NeutralMeshAppearance
@@ -36,6 +37,7 @@ class ReplacementPart:
     import_normals: tuple[tuple[float, float, float], ...] | None = None
     cloth: PacClothRule | None = None
     jiggle: PacJiggleRule | None = None
+    physics_profiles: tuple[PacPhysicsProfileRule, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

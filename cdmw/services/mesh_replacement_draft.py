@@ -12,6 +12,7 @@ from cdmw.core.common import raise_if_cancelled
 from cdmw.domain.mesh.replacement import MeshReplacementState, ReplacementFile, ReplacementPart
 from cdmw.domain.mesh.cloth import PacClothRule
 from cdmw.domain.mesh.jiggle import PacJiggleRule
+from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
 
 
 MAX_REPLACEMENT_BYTES = 512 * 1024 * 1024
@@ -41,8 +42,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
     relative_jiggle = any(part.jiggle is not None and part.jiggle.retained for part in state.parts)
+    physics_profiles = any(part.physics_profiles for part in state.parts)
     return {
-        "version": (6 if relative_jiggle else
+        "version": (7 if physics_profiles else 6 if relative_jiggle else
                     5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
                     3 if state.neutral_appearance is not None else 2),
@@ -57,8 +59,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    "import_normals": (blob(b"".join(struct.pack("<3d", *normal) for normal in part.import_normals))
                                       if part.import_normals is not None else None),
                    **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {}),
+                   **({"physics_profiles": [rule.to_dict() for rule in part.physics_profiles]} if part.physics_profiles else {}),
                    **({"jiggle": {**part.jiggle.to_dict(),
-                                  **({"retained": part.jiggle.retained} if relative_jiggle else {})}}
+                                  **({"retained": part.jiggle.retained} if relative_jiggle or physics_profiles else {})}}
                       if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
@@ -77,7 +80,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6, 7}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -108,6 +111,7 @@ def _load_replacement_state(payload, project_root):
         return ReplacementFile(str(value["path"]), blob(value["data"]), location(value.get("archive_location")))
 
     parts = []
+    physics_rule_count = 0
     if not isinstance(payload.get("parts"), list) or not 1 <= len(payload["parts"]) <= 4096:
         raise ValueError("Invalid replacement draft parts.")
     for value in payload["parts"]:
@@ -117,7 +121,17 @@ def _load_replacement_state(payload, project_root):
         if payload["version"] < 5 and "jiggle" in value:
             raise ValueError("Jiggle settings require replacement draft version 5.")
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
-        if payload["version"] == 6 and jiggle is not None and "retained" not in value["jiggle"]:
+        profiles = value.get("physics_profiles", [])
+        if (not isinstance(profiles, list) or len(profiles) > 256
+                or ("physics_profiles" in value and payload["version"] < 7)):
+            raise ValueError("Invalid physics profile settings.")
+        physics_rule_count += len(profiles)
+        if physics_rule_count > 4096:
+            raise ValueError("Invalid physics profile settings.")
+        profiles = tuple(PacPhysicsProfileRule.from_dict(rule) for rule in profiles)
+        if len({rule.variant for rule in profiles}) != len(profiles):
+            raise ValueError("Physics profile assignment is ambiguous or does not match the PAC.")
+        if payload["version"] >= 6 and jiggle is not None and "retained" not in value["jiggle"]:
             raise ValueError("Relative jiggle draft is missing the retained contribution.")
         if payload["version"] < 6 and jiggle is not None and jiggle.retained:
             raise ValueError("Relative jiggle settings require replacement draft version 6.")
@@ -141,9 +155,11 @@ def _load_replacement_state(payload, project_root):
             raise ValueError("Invalid replacement output intent.")
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
-            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle))
+            value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle, profiles))
     if payload["version"] == 6 and not any(part.jiggle is not None and part.jiggle.retained for part in parts):
         raise ValueError("Relative jiggle draft has no retained contribution settings.")
+    if payload["version"] == 7 and not any(part.physics_profiles for part in parts):
+        raise ValueError("Invalid physics profile settings.")
     if any(not part.part_id for part in parts) or len({part.part_id for part in parts}) != len(parts):
         raise ValueError("Replacement draft part identities are missing or duplicated.")
     if {part.target_index for part in parts} != set(range(len(parts))):

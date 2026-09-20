@@ -401,6 +401,15 @@ def test_replacement_build_button_and_companion_export_guard(editor, tmp_path, m
         tab._apply_mesh_editor_output_control_state(MeshEditorUiState(output_policy="replacement_game_asset"),
             has_standalone=True, has_archive_target=True, output_task_active=False)
         assert tab.standalone_export_mesh_file_button.isEnabled()
+        from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
+        rule = PacPhysicsProfileRule('0', 'Lower', 'character/descriptors/pbd/material/lower.xml',
+                                     '0' * 64, (('Damping', 1.),))
+        service._session(session_id).replacement_state = replace(state, companion_files=(),
+            parts=tuple(replace(part, physics_profiles=(rule,)) for part in state.parts))
+        tab._apply_mesh_editor_output_control_state(MeshEditorUiState(output_policy="replacement_game_asset"),
+            has_standalone=True, has_archive_target=True, output_task_active=False)
+        assert tab.standalone_build_mod_button.isEnabled()
+        assert not tab.standalone_export_mesh_file_button.isEnabled()
     finally:
         tab.standalone_controller = None
         tab.deleteLater()
