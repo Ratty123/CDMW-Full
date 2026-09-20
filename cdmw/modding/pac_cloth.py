@@ -15,10 +15,19 @@ from .mesh_parser import (
 
 
 def pac_cloth_binding(data: bytes, offset: int):
-    """Return (skeletal blend, guide indices, raw guide weights), or None.
+    """Return an editable binding or None; require both weight totals to be nonzero."""
+    binding = decode_pac_cloth_binding(data, offset)
+    if binding is not None and (not sum(binding[2]) or not sum(data[offset + 28:offset + 32])):
+        raise ValueError("Cloth editing requires both skeletal and guide weights.")
+    return binding
+
+
+def decode_pac_cloth_binding(data: bytes, offset: int):
+    """Read (skeletal blend, guide indices, raw guide weights), or None.
 
     Four guide indices are fetched even when their individual weight is zero.
     They deliberately never enter the decoded skeleton's bone-weight list.
+    Zero totals are retained for inspection; editing uses the stricter wrapper.
     """
     if offset < 0 or offset + 40 > len(data):
         raise ValueError("Cloth binding is outside its PAC vertex record.")
@@ -32,8 +41,6 @@ def pac_cloth_binding(data: bytes, offset: int):
     indices = ((group >> 10) & 1023, (group >> 20) & 1023,
                *(math.floor(v + 0.5) for v in extra))
     weights = tuple(data[offset + 32:offset + 36])
-    if not sum(weights) or not sum(data[offset + 28:offset + 32]):
-        raise ValueError("Cloth editing requires both skeletal and guide weights.")
     return blend, indices, weights
 
 

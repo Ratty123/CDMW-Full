@@ -21,6 +21,7 @@ from cdmw.modding.pac_cloth_guides import (
     decode_pac_cloth_guides, inspect_guide_constraint_geometry,
     inspect_guide_particle_initialization, inspect_guide_topology,
 )
+from cdmw.modding.pac_cloth_skinning import inspect_render_cloth_bindings
 
 
 def inspect_pac(data: bytes, *, path: str = "") -> dict:
@@ -39,6 +40,7 @@ def inspect_pac(data: bytes, *, path: str = "") -> dict:
             "topology_evidence": inspect_guide_topology(guides),
             "particle_initialization": inspect_guide_particle_initialization(guides),
             "constraint_geometry": inspect_guide_constraint_geometry(guides),
+            "render_bindings": inspect_render_cloth_bindings(data, guides),
             "limitations": "Particle channels describe initialization, not final runtime motion. Inverse-mass factors require the material Mass; both vertex-alpha blend modes are shown because the active material is unresolved. Dynamic-fix groups require runtime activation. Constraint rest geometry uses CPU coordinates before skinning; active area/bending modes, collisions and runtime overrides are not simulated."}
 
 

@@ -171,6 +171,36 @@ ordered initialization results. Rest measurements alone do not select an active
 solver. They are mathematical values before half-precision upload, not bit-exact
 CPU emulation.
 
+`pac_cloth_skinning.py` provides a mathematical reference for the decoded
+guide-to-render handoff. `prepare_guide_skinning_matrices` accepts externally
+supplied guide animation frames and subtracts each shader-decoded rest position
+through its frame. This preserves rotation about the guide, not just translation.
+The frame's fourth column is metadata, not conventional homogeneous coordinates.
+
+`blend_render_cloth_matrix` averages the four referenced guide matrices using
+normalized render-to-guide weights. These weights differ from the unnormalized
+guide-to-bone weights above. It then blends toward the caller-supplied ordinary
+skeletal/jiggle matrix by `(byte39 & 63) / 63` multiplied by the weighted guide
+`row0.w` runtime factor. A stored value of 63 bypasses guide access entirely.
+Every fetched guide index must be valid, even if its weight is zero. The result
+contains four XYZ rows for point transformation; normals require the inverse
+transpose of the blended basis. This reference requires valid guide indices
+and supplied runtime matrices; it neither generates those matrices nor emulates
+missing GPU resources or bit-exact float/half arithmetic.
+
+Raw decoding retains zero weight totals. With an active guide buffer, all-zero
+guide weights produce a zero matrix and a singular normal basis in the traced
+formula. This does not prove source corruption because the runtime can bypass
+the guide path. The existing editing wrapper still rejects zero skeletal or
+guide totals; read-only decoding does not relax that export guard.
+
+The read-only inspector also reports render bindings for each part at every
+stored LOD, including bypass counts, referenced guides, weight totals and authored
+skeletal blend values. Zero-total vertices are counted separately. Invalid guide
+indices are counted with bounded source-offset examples, independently of guide
+decoding. A static PAC cannot establish the
+active runtime guide buffer or the final cloth contribution.
+
 Initialization does not establish final motion: runtime overrides, active solver
 selection, collision behavior and skeletal transformation remain unresolved here.
 It does not replace the approximate simulation preview or enable pin editing;
