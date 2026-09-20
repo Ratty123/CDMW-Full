@@ -819,13 +819,67 @@ constraint/collision eligibility remains the caller's responsibility.
   is ORed with the incoming aggregate, including a contact with no position change.
   The function does not write normals, particle flags or caches.
 
+`select_guide_cloth_collision_candidates` decodes animated collider eligibility
+and cache selection for the guide constraint branch. It requires the **original**
+152-byte particle snapshot plus the current working flags after preceding
+constraints/prepasses. Outer constraint/collision gates must already have passed.
+The returned definition/result/scene addresses allow subsequent geometry work;
+this selector does not load result or scene records or project particle positions.
+
+- Scene ushort 72 is the reference start, with `0xFFFF` disabling this guide
+  collision branch, including its later attached-static contacts. Original
+  particle bits `0x3C00` also disable it unless frame bit `0x20000` is set.
+- Cache access requires frame bit `0x10` and simulation ushort 226 other than
+  `0xFFFF`. That ushort selects the uint buffer, with values >=65000 selecting
+  buffer 0. The caller supplies the ten-uint window at simulation uint 148 plus
+  `particle_index*10`. Word 5 holds the animated candidate count; words 6..9 hold
+  four tokens. This is separate from the first five words used by other stages.
+- Original particle bit `0x20000000` permits reuse only when the loaded count
+  is below 5. A zero count is a valid empty cache. A count of 5 or more selects
+  a full search without rebuilding while that original valid bit remains set.
+  With cache access enabled and the original valid bit clear, a full scan rebuilds.
+- Each token is `reference_ordinal + 1000*group_ordinal +
+  1000000*collider_ordinal`, with uint32 arithmetic. These are ordinals within
+  the nested reference/group/collider lists, not absolute resource addresses.
+  The consumer decodes by division/remainder and bounds-checks each list level.
+  A consumed `0xFFFFFFFF` token resolves to three zero ordinals in both captured
+  shader variants; it is not skipped. Decimal carry and uint32 wrap are retained.
+- Full scans apply the 96-collider active mask to matching raw scene identities;
+  its index resets per reference and advances across excluded groups. Different
+  scenes, scene bit `0x40000`, frame flags2 bit `0x400000`, and indices above 95
+  bypass that mask. Cached selection bypasses it entirely but rechecks the
+  group/source/PAC and definition eligibility below. Stale out-of-range cached
+  entries are skipped without forcing another full search.
+
+Matching definition source normally excludes a group; group bit `0x4` permits
+consideration only for a matching non-sentinel PAC ID in the same raw scene.
+Definition uint 100 bit `0x1` then requires that PAC match; with this bit clear,
+the definition must come from a different raw source. Buffer-0 substitution does
+not make different raw owners equal. Groups without bit `0x1` are excluded by
+working particle bits `0x30000` or scene bit `0x1`. Groups with bit `0x1` in the
+same scene are excluded when frame bit `0x20` and scene bit `0x200` are both set.
+Group bit `0x2` is additionally excluded for particle half 88 below float32(0.3)
+when frame bit `0x20000000` is set and scene bit `0x200` is clear.
+
+`update_guide_cloth_collision_cache` consumes all eligible response-plane queries
+in their evaluation order. The supplied distance is measured before correction
+against the selected animated response plane. Distances strictly below
+`float32(0.03)` qualify, including positive distances that produced no contact.
+It stores the first four tokens while counting **all** qualifying queries,
+writes word 5 and ORs `0x20000000` into the current working flags. Rebuilding an
+empty list still marks the cache valid. Other words and unused token slots are
+preserved. Modes other than rebuilding leave the cache and working flags intact.
+The existing base finalizer resets this cache half and clears its valid bit
+when frame bit `0x10` requests that earlier reset.
+
 Focused tests use analytic signed distances, finite-difference gradients,
 rotation/translation equivalence, cylinder edge/tie cases, capsule degeneracy,
-raw plane normals, ordered buffer selection and contact/friction composition.
-They do not establish GPU rounding or gameplay parity. Animated collider list
-selection, interpolation and motion compensation, full contact/cache propagation
-and native preview wiring remain to be connected; these helpers do not constitute
-the full collision pass.
+raw plane normals, ordered buffer selection, contact/friction composition,
+cache reuse/overflow and base-reset-to-rebuild transitions. They do not establish
+GPU rounding or gameplay parity. Animated collider interpolation and motion
+compensation, outer collision gates, static-mesh animated collider selection,
+full contact/normal/flag propagation and native preview wiring remain to be
+connected; these helpers do not constitute the full collision pass.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing

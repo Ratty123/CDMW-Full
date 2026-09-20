@@ -496,3 +496,184 @@ def apply_attached_static_cloth_collisions(
                 translation_to_collider_space=translation, collision_thickness=thickness)
             p, contact = result['position'], contact or result['contact']
     return {'position': p, 'contact': contact}
+
+
+def _guide_collision_cache_mode(particle, parameter, frame, scene, cache):
+    for record, size in ((particle, 152), (parameter, 312), (frame, 100), (scene, 108)):
+        _record(record, size)
+    if cache is not None:
+        _record(cache, 40)
+    if struct.unpack_from('<H', parameter, 216)[0] != 0xFFFF:
+        raise ValueError("This collision selection belongs to guide cloth, not static meshes.")
+    flags = struct.unpack_from('<I', particle, 64)[0]
+    frame_flags = struct.unpack_from('<I', frame, 32)[0]
+    if (struct.unpack_from('<H', scene, 72)[0] == 0xFFFF or
+            flags & 0x3C00 and not frame_flags & 0x20000):
+        return 'disabled'
+    cache_enabled = bool(frame_flags & 0x10 and struct.unpack_from('<H', parameter, 226)[0] != 0xFFFF)
+    if not cache_enabled:
+        return 'full'
+    if cache is None:
+        raise ValueError("Guide collision selection requires the resolved ten-uint pre-collision window.")
+    count = struct.unpack_from('<I', cache, 20)[0]
+    if not flags & 0x20000000:
+        return 'rebuild'
+    return 'cached' if count < 5 else 'full'
+
+
+def select_guide_cloth_collision_candidates(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes, *,
+    working_flags: int, pre_collision: bytes | None = None,
+    reference_collidables: Mapping[int, int] | None = None,
+    extra_collidables: Mapping[int, bytes] | None = None,
+    collidables: Mapping[tuple[int, int], bytes] | None = None,
+) -> dict:
+    """Resolve eligible guide colliders before ordered geometry evaluation.
+
+    The caller has passed outer constraint/collision gates. particle is the
+    ORIGINAL invocation snapshot; working_flags is the current flag value after
+    preceding constraints/prepasses. The shader uses these at different points.
+    'disabled' bypasses both animated and attached-static guide contacts; other
+    cache modes still allow the later attached-static loop, even with no candidates.
+
+    pre_collision is the 40-byte window at parameter uint148 + particle_index*10
+    in buffer parameter ushort226 (>=65000 selects0; FFFF disables it). Candidate
+    ordinals are (reference, group, collider); address pairs are (buffer, element).
+    Selection does not acquire result/scene records or perform their geometry.
+    """
+    mode = _guide_collision_cache_mode(particle, simulation_parameter, per_frame, per_scene, pre_collision)
+    if type(working_flags) is not int or not 0 <= working_flags <= 0xFFFFFFFF:
+        raise ValueError("Cloth working flags must be an unsigned 32-bit integer.")
+    candidates = []
+    if mode == 'disabled':
+        return {'cache_mode': mode, 'candidates': ()}
+    frame_flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    scene_flags = struct.unpack_from('<I', per_scene, 64)[0]
+    reference_start, reference_count = struct.unpack_from('<2H', per_scene, 72)
+    packed_scene = struct.unpack_from('<I', simulation_parameter, 60)[0]
+    own_offset, pac_id = struct.unpack_from('<2I', simulation_parameter, 180)
+    own_buffer = struct.unpack_from('<H', simulation_parameter, 238)[0]
+
+    def reference_at(ordinal):
+        key = reference_start + ordinal
+        if reference_collidables is None or key not in reference_collidables:
+            raise ValueError(f"Guide cloth collision requires reference entry {key}.")
+        value = reference_collidables[key]
+        if type(value) is not int or not 0 <= value <= 0xFFFFFFFF:
+            raise ValueError("Guide cloth references must be unsigned 32-bit integers.")
+        return value
+
+    def eligible_group(group):
+        bits, _, other_pac, srv = struct.unpack_from('<2H2I', group)
+        other_scene, offset = struct.unpack_from('<2I', group, 28)
+        same_scene = other_scene == packed_scene
+        same_pac = same_scene and pac_id != 0xFFFFFFFF and pac_id == other_pac
+        same_source = own_buffer == srv and own_offset == offset
+        if same_source and not (bits & 4 and same_pac):
+            return False
+        if not bits & 1 and (working_flags & 0x30000 or scene_flags & 1):
+            return False
+        if bits & 1 and same_scene and frame_flags & 0x20 and scene_flags & 0x200:
+            return False
+        if bits & 2 and frame_flags & 0x20000000 and not scene_flags & 0x200:
+            lra = struct.unpack_from('<e', particle, 88)[0]
+            _finite(lra)
+            if lra < f32(.3):
+                return False
+        return True
+
+    def emit(ref_ordinal, group_ordinal, collider_ordinal, group_index, group):
+        other_pac, srv, uav = struct.unpack_from('<3I', group, 4)
+        other_scene, srv_offset, uav_offset = struct.unpack_from('<3I', group, 28)
+        definition_key = (srv if srv < 65000 else 0, (srv_offset + collider_ordinal) & 0xFFFFFFFF)
+        definition = _entry(collidables, definition_key, 104, 'collidable-definition')
+        requires_same_pac = struct.unpack_from('<I', definition, 100)[0] & 1
+        same_source = own_buffer == srv and own_offset == srv_offset
+        same_pac = packed_scene == other_scene and pac_id != 0xFFFFFFFF and pac_id == other_pac
+        if (not same_pac if requires_same_pac else same_source):
+            return
+        candidates.append({
+            'ordinals': (ref_ordinal, group_ordinal, collider_ordinal), 'group_index': group_index,
+            'definition_key': definition_key,
+            'result_key': (uav if uav < 65000 else 0, (uav_offset + collider_ordinal) & 0xFFFFFFFF),
+            'scene_key': (other_scene >> 16 if other_scene < 65000 << 16 else 0, other_scene & 0xFFFF),
+        })
+
+    if mode == 'cached':
+        count = struct.unpack_from('<I', pre_collision, 20)[0]
+        for slot in range(count):
+            token = struct.unpack_from('<I', pre_collision, 24 + 4*slot)[0]
+            # A consumed FFFFFFFF token resolves to three zero ordinals in DXIL.
+            collider_ordinal, remainder = divmod(token, 1000000) if token != 0xFFFFFFFF else (0, 0)
+            group_ordinal, ref_ordinal = divmod(remainder, 1000)
+            if ref_ordinal >= reference_count:
+                continue
+            packed = reference_at(ref_ordinal)
+            if packed == 0xFFFFFFFF or group_ordinal >= packed >> 16:
+                continue
+            group_index = (packed & 0xFFFF) + group_ordinal
+            group = _entry(extra_collidables, group_index, 56, 'extra-collidable')
+            if collider_ordinal < struct.unpack_from('<H', group, 2)[0] and eligible_group(group):
+                emit(ref_ordinal, group_ordinal, collider_ordinal, group_index, group)
+    else:
+        for ref_ordinal in range(reference_count):
+            packed = reference_at(ref_ordinal)
+            if packed == 0xFFFFFFFF:
+                continue
+            start, count = packed & 0xFFFF, packed >> 16
+            mask_offset = 0  # SSA4180 resets per reference; skipped groups still advance it.
+            for group_ordinal in range(count):
+                group_index = start + group_ordinal
+                group = _entry(extra_collidables, group_index, 56, 'extra-collidable')
+                collider_count = struct.unpack_from('<H', group, 2)[0]
+                if eligible_group(group):
+                    same_scene = struct.unpack_from('<I', group, 28)[0] == packed_scene
+                    bypass_mask = not same_scene or bool(scene_flags & 0x40000 or flags2 & 0x400000)
+                    for collider_ordinal in range(collider_count):
+                        mask_index = mask_offset + collider_ordinal
+                        if not bypass_mask and mask_index <= 95:
+                            mask = struct.unpack_from('<I', simulation_parameter, 64 + 4*(mask_index//32))[0]
+                            if not mask & (1 << (mask_index % 32)):
+                                continue
+                        emit(ref_ordinal, group_ordinal, collider_ordinal, group_index, group)
+                mask_offset += collider_count
+    return {'cache_mode': mode, 'candidates': tuple(candidates)}
+
+
+def update_guide_cloth_collision_cache(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes, *,
+    working_flags: int, evaluated_colliders: Sequence[tuple[int, int, int, float]],
+    pre_collision: bytes | None = None,
+) -> dict:
+    """Record the eligible full scan's ordered response-plane queries.
+
+    Each item is (reference ordinal, group ordinal, collider ordinal, distance).
+    Distance is the float32 signed response-plane distance BEFORE projection,
+    from the selected target and animated surface, not a volume distance. All
+    eligible queries must be supplied, including noncontacts. Geometry and the
+    complete contact flag/normal propagation remain caller work.
+
+    Only an enabled cache with the ORIGINAL particle valid bit clear rebuilds.
+    Four tokens are stored, but all distances below float32(.03) are counted.
+    Unused slots and the other five words remain unchanged. Inputs are immutable.
+    """
+    mode = _guide_collision_cache_mode(particle, simulation_parameter, per_frame, per_scene, pre_collision)
+    if type(working_flags) is not int or not 0 <= working_flags <= 0xFFFFFFFF:
+        raise ValueError("Cloth working flags must be an unsigned 32-bit integer.")
+    cache = None if pre_collision is None else bytes(pre_collision)
+    if mode == 'rebuild':
+        cache = bytearray(pre_collision)
+        count = 0
+        for ref_ordinal, group_ordinal, collider_ordinal, distance in evaluated_colliders:
+            if any(type(v) is not int or not 0 <= v <= 0xFFFF
+                   for v in (ref_ordinal, group_ordinal, collider_ordinal)):
+                raise ValueError("Guide collider ordinals must be unsigned 16-bit integers.")
+            if f32(distance) < f32(.03):
+                if count < 4:
+                    token = (ref_ordinal + 1000*group_ordinal + 1000000*collider_ordinal) & 0xFFFFFFFF
+                    struct.pack_into('<I', cache, 24 + 4*count, token)
+                count = (count + 1) & 0xFFFFFFFF
+        struct.pack_into('<I', cache, 20, count)
+        working_flags |= 0x20000000
+        cache = bytes(cache)
+    return {'flags': working_flags, 'pre_collision': cache, 'cache_mode': mode}
