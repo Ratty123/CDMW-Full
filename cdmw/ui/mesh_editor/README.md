@@ -402,23 +402,23 @@ viewport display. It does not change vertex colors, materials, drafts, or export
 Only verified source PAC LOD0 vertex mappings are classified. Other formats,
 imported or unverified geometry, other LODs, and Original/Output comparison views
 show unknown instead of being treated as disabled. These colors identify the
-decoded vertex contribution, not confirmed in-game activation. **Weight preview**
-offers the shader's **4-bit mode** and **8-bit mode**; the actual runtime mode and
-bone overrides are unresolved. Changing this preview choice resets playback and
-does not affect saved edits.
+decoded vertex contribution, not confirmed in-game activation. The overlay and
+preview use byte 38's low four bits, matching the traced game's skinned-mesh
+setup. Runtime bone overrides remain unresolved and can change the final motion.
 
 **Retain original % > Apply contribution** scales each source vertex's contribution
-instead of replacing the authored gradient with one value. It supports source
-bytes F0-FF, for which both shader branches preserve the same relative reduction:
-`new = 255 - floor((255 - original) * retained + 0.5)`. For example, 249 becomes
-252 at 50%. Values are quantized; a weak source may have only one useful step.
+instead of replacing the authored gradient with one value. It supports every
+source byte while preserving its upper four bits:
+`new = (original & 0xF0) | (15 - floor((15 - (original & 15)) * retained + 0.5))`.
+For example, 249 becomes 252 at 50%, and `0x89` becomes `0x8C`.
+Values are quantized; a weak source may have only one useful step.
 100% retains the source and 0% removes the byte-derived contribution. This cannot
-create bindings, amplify motion, or override runtime bone masks. Other source
-encodings retain Disable / Restore only.
+create bindings, amplify motion, or override runtime bone masks.
 
-**Disable jiggle** writes only zero-based byte 38 (`0x26`) of the validated
-40-byte PAC records. Colours, the separate cloth gate at byte 39, skinning,
-geometry and other bytes are retained. **Restore original jiggle** removes the
+**Disable jiggle** sets only the low four bits of zero-based byte 38 (`0x26`)
+to 15 in validated 40-byte PAC records. The upper four bits, colours, the separate
+cloth gate at byte 39, skinning, geometry and other bytes are retained.
+**Restore original jiggle** removes the
 rule and restores the retained source values. Undo/Redo, Finish and saved drafts
 use the existing replacement output transaction. Restore cannot recover values
 lost before the source PAC was opened. Layouts without proven record ownership

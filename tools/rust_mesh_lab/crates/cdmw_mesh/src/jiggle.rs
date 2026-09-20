@@ -5,7 +5,8 @@ use std::collections::{BTreeSet, HashMap};
 const STEP: f64 = 1.0 / 120.0;
 
 /// Idealized byte-38 blends from the two shipped stream-out shader branches.
-/// The per-model runtime flag and bone overrides are not available to the tool.
+/// The traced skinned-mesh CPU setup always selects LowNibble. FullByte retains
+/// the alternate shader branch for research; bone overrides remain unresolved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WeightDecode {
     #[default]

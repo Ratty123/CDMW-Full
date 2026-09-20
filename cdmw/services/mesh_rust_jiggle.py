@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.modding.pac_cloth import pac_cloth_lods
-from cdmw.modding.pac_jiggle import PAC_JIGGLE_DISABLED, PAC_JIGGLE_OFFSET, reduce_pac_jiggle_byte
+from cdmw.modding.pac_jiggle import PAC_JIGGLE_MASK, PAC_JIGGLE_OFFSET, reduce_pac_jiggle_byte
 from cdmw.services.mesh_replacement_import import (
     commit_replacement, initial_replacement_state, mesh_with_part_ids,
 )
@@ -32,11 +32,10 @@ def jiggle_ui_state(authoring, replacement):
             rows = []
             for index, part in enumerate(levels[0].submeshes):
                 heights = [point[1] for point in displayed.submeshes[index].vertices]
-                counts = [sum(data[offset + PAC_JIGGLE_OFFSET] != PAC_JIGGLE_DISABLED
+                counts = [sum(data[offset + PAC_JIGGLE_OFFSET] & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK
                               for offset in level.submeshes[index].source_vertex_offsets) for level in levels]
                 rows.append({"lod_counts": counts,
-                             "relative_available": all(data[offset + PAC_JIGGLE_OFFSET] >= 0xF0
-                                 for level in levels for offset in level.submeshes[index].source_vertex_offsets),
+                             "relative_available": True,
                              "min_y": min(heights, default=0.0), "max_y": max(heights, default=0.0)})
             metadata = {"parts": rows, "lod_count": len(levels), "reason": ""}
             # Retain the parsed LOD0 privately: source record ownership is required
@@ -70,8 +69,8 @@ def jiggle_ui_state(authoring, replacement):
             current_bytes = [reduce_pac_jiggle_byte(value, rule.retained)
                              if rule and (rule.below_y is None or current.vertices[i][1] < rule.below_y)
                              else value for i, value in enumerate(original_bytes)]
-            candidates = [i for i, value in enumerate(original_bytes) if value != PAC_JIGGLE_DISABLED]
-            active = [i for i, value in enumerate(current_bytes) if value != PAC_JIGGLE_DISABLED]
+            candidates = [i for i, value in enumerate(original_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
+            active = [i for i, value in enumerate(current_bytes) if value & PAC_JIGGLE_MASK != PAC_JIGGLE_MASK]
             preview = {"available": True, "vertex_count": len(current.vertices),
                        "original_vertices": candidates, "current_vertices": active,
                        "original_bytes": original_bytes, "current_bytes": current_bytes}
@@ -79,7 +78,7 @@ def jiggle_ui_state(authoring, replacement):
         if not any(source["lod_counts"]) and not (binding and binding.jiggle):
             continue
         parts.append({**part, **source, "rule": rule.to_dict() if rule else None, "preview": preview})
-    reason = metadata["reason"] or ("This PAC already has jiggle byte 255 on every vertex." if not parts else "")
+    reason = metadata["reason"] or ("This PAC has zero vertex jiggle contribution on every vertex." if not parts else "")
     return {"available": not reason, "reason": reason, "parts": parts,
             "overlay_parts": overlay_parts, "lod_count": metadata["lod_count"]}
 

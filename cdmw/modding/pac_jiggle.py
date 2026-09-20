@@ -10,24 +10,18 @@ from .pac_cloth import pac_cloth_lods
 
 
 PAC_JIGGLE_OFFSET = 38
-PAC_JIGGLE_DISABLED = 255
+PAC_JIGGLE_MASK = 0x0F
 
 
 def reduce_pac_jiggle_byte(value: int, retained: float) -> int:
-    """Preserve the relative blend in both known shader branches for F0..FF.
+    """Reduce the low-nibble blend without changing the upper four bits.
 
-    Full-byte decoding gives (255-value)/255; the low-nibble branch gives
-    (15-(value&15))/15. In F0..FF both share the same numerator. Rounding is
-    nearest representable numerator, with half steps retaining more influence.
-    Other ranges can be disabled/restored but cannot safely use this scaling.
+    The skinned-mesh CPU setup selects the shader's low-nibble branch:
+    (15-(value&15))/15. Round to the nearest representable numerator, with
+    half steps retaining more influence. Zero source contribution stays zero.
     """
-    if retained == 0:
-        return PAC_JIGGLE_DISABLED
-    if retained == 1:
-        return value
-    if value < 0xF0:
-        raise ValueError("Relative jiggle reduction requires source bytes F0-FF; use Disable or Restore for this part.")
-    return 255 - math.floor((255 - value) * retained + 0.5)
+    numerator = PAC_JIGGLE_MASK - (value & PAC_JIGGLE_MASK)
+    return (value & 0xF0) | (PAC_JIGGLE_MASK - math.floor(numerator * retained + 0.5))
 
 
 def apply_pac_jiggle_rules(data: bytes, rules: Mapping[int, PacJiggleRule], *, appearance=None) -> bytes:

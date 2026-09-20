@@ -3755,7 +3755,7 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     ui.application.cdmw_state["jiggle"] = json!({
         "available": false, "reason": "No editable jiggle parts.", "parts": [],
         "overlay_parts": [{"index": 0, "preview": {
-            "available": true, "vertex_count": 3, "current_bytes": [255, 249, 255]}}]
+            "available": true, "vertex_count": 3, "current_bytes": [15, 9, 255]}}]
     });
     ui.click_tool_button("Jiggle")?;
     assert!(!ui.application.cdmw_jiggle.show_regions);
@@ -3770,10 +3770,10 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     assert!(ui.label_rect("Unknown").is_some());
     let disabled = colours[0];
     let low_nibble = colours[1];
-    ui.click("8-bit mode")?;
-    let full_byte = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1];
-    assert_ne!(low_nibble, full_byte);
-    ui.click("4-bit mode")?;
+    assert!(ui.label_rect("8-bit mode").is_none());
+    assert!(ui.label_rect("4-bit mode").is_none());
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] = json!([15, 249, 255]);
+    ui.application.publish_mesh_snapshot();
     assert_eq!(low_nibble, ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1]);
     ui.application.refresh_face_selection_overlay();
     assert!(ui.application.face_selection_overlay.is_none());

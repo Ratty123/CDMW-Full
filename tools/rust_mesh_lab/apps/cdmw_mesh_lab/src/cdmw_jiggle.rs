@@ -9,7 +9,7 @@ const REGION_HIGH: [f32; 4] = [1.00, 0.55, 0.05, 0.88];
 const REGION_DISABLED: [f32; 4] = [0.32, 0.34, 0.38, 0.88];
 const REGION_UNKNOWN: [f32; 4] = [0.55, 0.12, 0.85, 0.88];
 
-fn preview_weights(data: &Value, key: &str, limit: usize, decode: jiggle::WeightDecode) -> Result<Vec<f32>> {
+fn preview_weights(data: &Value, key: &str, limit: usize) -> Result<Vec<f32>> {
     if data["available"].as_bool() != Some(true) {
         bail!("Unverified source vertex ownership.");
     }
@@ -20,7 +20,7 @@ fn preview_weights(data: &Value, key: &str, limit: usize, decode: jiggle::Weight
     values.iter().map(|value| {
         let byte = value.as_u64().and_then(|v| u8::try_from(v).ok())
             .ok_or_else(|| anyhow::anyhow!("Invalid jiggle vertex byte."))?;
-        Ok(decode.decode(byte))
+        Ok(jiggle::WeightDecode::LowNibble.decode(byte))
     }).collect()
 }
 
@@ -31,7 +31,6 @@ pub(super) struct JiggleView {
     pub use_height: bool,
     pub height: f64,
     pub retained_percent: f64,
-    decode: jiggle::WeightDecode,
     key: Value,
     pub preview: Preview,
 }
@@ -45,7 +44,6 @@ impl Default for JiggleView {
             use_height: true,
             height: 0.0,
             retained_percent: 50.0,
-            decode: jiggle::WeightDecode::default(),
             key: Value::Null,
             preview: Preview::default(),
         }
@@ -121,20 +119,6 @@ fn surface_normals(snapshot: &DrawSnapshot, sums: &mut [Vec3]) {
 impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         ui.small("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.");
-        let mut decode_changed = false;
-        ui.horizontal_wrapped(|ui| {
-            ui.label("Weight preview");
-            for (decode, label) in [(jiggle::WeightDecode::LowNibble, "4-bit mode"),
-                                    (jiggle::WeightDecode::FullByte, "8-bit mode")] {
-                if ui.add(egui::Button::new(label).selected(self.cdmw_jiggle.decode == decode)).clicked()
-                    && self.cdmw_jiggle.decode != decode {
-                    self.cdmw_jiggle.decode = decode;
-                    decode_changed = true;
-                }
-            }
-        });
-        ui.small("Compare the two decoded weights. The active game mode and bone overrides are unresolved.");
-        if decode_changed { self.publish_mesh_snapshot(); }
         if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions").changed() {
             if self.cdmw_jiggle.preview.scene.is_some() {
                 self.refresh_jiggle_regions();
@@ -260,7 +244,7 @@ impl LabApplication {
             for part in self.cdmw_state["jiggle"]["overlay_parts"].as_array().into_iter().flatten() {
                 let Some(index) = part["index"].as_u64().and_then(|v| u32::try_from(v).ok()) else { continue; };
                 let data = &part["preview"];
-                let mask = preview_weights(data, "current_bytes", vertex_count, self.cdmw_jiggle.decode).ok();
+                let mask = preview_weights(data, "current_bytes", vertex_count).ok();
                 if let Some(mask) = mask {
                     if masks.insert(index, mask).is_some() { invalid.insert(index); }
                 } else {
@@ -454,7 +438,7 @@ impl LabApplication {
             } else {
                 "current_bytes"
             };
-            let mut mask = preview_weights(data, key, 100_000, self.cdmw_jiggle.decode)?;
+            let mut mask = preview_weights(data, key, 100_000)?;
             if self.cdmw_jiggle.preview.comparison == Comparison::Disabled {
                 mask.fill(0.0);
             }

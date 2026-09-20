@@ -110447,21 +110447,6 @@
       ]
     },
     {
-      "key": "This PAC already has jiggle byte 255 on every vertex.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_rust_jiggle.py",
-          "line": 24,
-          "sink": "python-return:jiggle_ui_state"
-        },
-        {
-          "path": "cdmw/services/mesh_rust_jiggle.py",
-          "line": 57,
-          "sink": "python-return:jiggle_ui_state"
-        }
-      ]
-    },
-    {
       "key": "This PAC has no existing cloth bindings.",
       "origins": [
         {
@@ -110473,6 +110458,21 @@
           "path": "cdmw/services/mesh_rust_cloth.py",
           "line": 57,
           "sink": "python-return:cloth_ui_state"
+        }
+      ]
+    },
+    {
+      "key": "This PAC has zero vertex jiggle contribution on every vertex.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 24,
+          "sink": "python-return:jiggle_ui_state"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 82,
+          "sink": "python-return:jiggle_ui_state"
         }
       ]
     },

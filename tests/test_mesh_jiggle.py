@@ -173,8 +173,14 @@ def test_preview_rejects_lost_vertex_ownership_without_blocking_saved_controls(j
     assert not ui["overlay_parts"][0]["preview"]["available"]
 
 
-def test_jiggle_overlay_retains_verified_parts_with_every_flag_disabled(tmp_path, monkeypatch):
-    source = apply_pac_jiggle_rules(jiggle_fixture(), {0: PacJiggleRule()})
+@pytest.mark.parametrize("disabled_byte", [0x0F, 0x8F, 0xFF])
+def test_jiggle_overlay_retains_verified_parts_with_every_flag_disabled(tmp_path, monkeypatch, disabled_byte):
+    source = bytearray(jiggle_fixture())
+    for level in pac_cloth_lods(source):
+        for part in level.submeshes:
+            for offset in part.source_vertex_offsets:
+                source[offset + 38] = disabled_byte
+    source = bytes(source)
     monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
     with ExitStack() as stack:
         _, service, host = _open_exact_session(tmp_path / "session")

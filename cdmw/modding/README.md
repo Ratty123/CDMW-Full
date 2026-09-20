@@ -80,6 +80,30 @@ vanilla body as unweighted and capped authored bones at index 3.
 `tests/test_pac_skin_layout_regression.py` pins this against real bodies and
 skips when they are absent.
 
+## PAC vertex jiggle contribution
+
+`pac_jiggle.py` edits only byte 38's low nibble in validated 40-byte records.
+For the traced skinned-mesh path, the vertex contribution is
+`(15 - (byte38 & 15)) / 15`. Reductions scale this numerator, round half steps
+toward retaining more influence, and preserve the upper nibble. Every `xF`
+value has zero vertex contribution, including `0x0F` and `0x8F`, not only 255.
+Repeated edits use the retained source; zero contribution is never amplified.
+
+This mode is selected by CPU setup in game build `1.0.0.2944`: routine
+`0x142DD3680` unconditionally sets flag bit 7 at `0x142DD376C`;
+`0x142DD3290` writes that result into offset 24 of the 72-byte
+`SkinnedMeshSubMeshShaderData`. `GenerateIndirectRenderParamterBuffer` copies it
+to offset 48 of the 168-byte `SkinnedMeshMainRenderParameter`.
+`CSMainSkinnedMeshStreamOutVertexData` tests bit 7 to select low-nibble decoding.
+The shader also contains a full-byte branch, but this CPU path does not select it.
+This supersedes the earlier assumption that the two modes were equally plausible
+for these meshes. It does not prove every other game path or version uses this mode.
+The CPU setup flag is not the similarly numbered PAC metadata flag.
+
+These are vertex blend weights, not spring constants or proof of live physics.
+Bone overrides can replace the vertex blend. The upper nibble's other consumers
+remain unresolved, so disabling must preserve it as well as all other record lanes.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.

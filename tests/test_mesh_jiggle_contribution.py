@@ -1,6 +1,7 @@
 """Relative byte-38 edits through PAC output, history and recovered drafts."""
 import copy
 from contextlib import ExitStack
+from dataclasses import replace
 import json
 
 import pytest
@@ -38,6 +39,22 @@ def test_known_half_contribution_and_rounding(value, half):
             full_ratio = ((255 - result) / 255) / ((255 - value) / 255)
             nibble_ratio = ((15 - (result & 15)) / 15) / ((15 - (value & 15)) / 15)
             assert full_ratio == pytest.approx(nibble_ratio)
+
+
+def test_reduction_preserves_upper_bits_and_monotonic_blend_for_every_byte():
+    for value in range(256):
+        assert reduce_pac_jiggle_byte(value, 1) == value
+        assert reduce_pac_jiggle_byte(value, 0) == value | 15
+        original = 15 - (value & 15)
+        weights = []
+        for retained in (0, .1, .25, .5, .75, 1):
+            result = reduce_pac_jiggle_byte(value, retained)
+            assert result & 0xF0 == value & 0xF0
+            weight = 15 - (result & 15)
+            assert 0 <= weight <= original
+            assert abs(weight - original * retained) <= .5
+            weights.append(weight)
+        assert weights == sorted(weights)
 
 
 def test_selected_reduction_preserves_every_other_channel_at_all_lods():
@@ -113,21 +130,40 @@ def test_relative_draft_rejects_missing_contribution_and_downgrade(jiggle_sessio
         load_replacement_state(payload, tmp_path)
 
 
-def test_unproven_source_encoding_rejects_reduction_before_history_changes(tmp_path, monkeypatch):
+def test_non_f0_source_reduces_at_all_lods_and_recovers_from_draft(tmp_path, monkeypatch):
     source = bytearray(jiggle_fixture())
-    source[pac_cloth_lods(source)[-1].submeshes[0].source_vertex_offsets[0] + 38] = 128
+    for level in pac_cloth_lods(source):
+        for i, offset in enumerate(level.submeshes[0].source_vertex_offsets):
+            source[offset + 38] = (0x80, 0x1F, 0x29)[i % 3]
     source = bytes(source)
     monkeypatch.setattr("tests.test_mesh_rust_authoring_exact_output._pac_fixture", lambda **kw: source)
     _, service, host = _open_exact_session(tmp_path / "session")
     try:
-        before = host.shadow_service.session_view(host.shadow_session_id)
-        assert not host.state_payload()["jiggle"]["parts"][0]["relative_available"]
-        with pytest.raises(ValueError, match="F0-FF"):
-            _retain(host, .5)
-        after = host.shadow_service.session_view(host.shadow_session_id)
-        assert (before.revision, before.undo_count) == (after.revision, after.undo_count)
+        part = host.state_payload()["jiggle"]["parts"][0]
+        assert part["relative_available"]
+        assert part["preview"]["original_vertices"] == [0, 2, 3]
+        _retain(host, .5)
+        expected = shadow_output(host)
+        for level in pac_cloth_lods(source):
+            offsets = level.submeshes[0].source_vertex_offsets
+            assert [expected[o + 38] for o in offsets] == [0x87, 0x1F, 0x2C, 0x87][:len(offsets)]
+        preview = host.state_payload()["jiggle"]["parts"][0]["preview"]
+        assert preview["current_bytes"] == [0x87, 0x1F, 0x2C, 0x87]
+        assert preview["current_vertices"] == [0, 2, 3]
+        command(host, "undo")
         assert shadow_output(host) == source
+        command(host, "redo")
+        assert shadow_output(host) == expected
+        snapshot = host.shadow_service.capture_export_snapshot(host.shadow_session_id)
+        payload = save_replacement_state(snapshot.replacement_state, tmp_path, tmp_path)
+        recovered = load_replacement_state(payload, tmp_path)
+        assert host.shadow_service.rebuild_result_from_snapshot(replace(snapshot, replacement_state=recovered))[0].data == expected
         set_jiggle(host)
+        disabled = shadow_output(host)
+        for level in pac_cloth_lods(source):
+            offsets = level.submeshes[0].source_vertex_offsets
+            assert [disabled[o + 38] for o in offsets] == [0x8F, 0x1F, 0x2F, 0x8F][:len(offsets)]
+        assert host.state_payload()["jiggle"]["parts"][0]["preview"]["current_vertices"] == []
         set_jiggle(host, reset=True)
         assert shadow_output(host) == source
     finally:
