@@ -52,6 +52,27 @@ existing validated package or overlay paths. Neither mode rewrites source PAC,
 PAM, PAMLOD, PAMT, or PAZ files in place. The executable does not upload data
 and contains no telemetry.
 
+## Decoded bone jiggle core
+
+`cdmw_mesh::jiggle_bones` implements the ordinary and timed instance paths of
+`UpdateJiggleEffect` from game build `1.0.0.2944`, alongside the existing tool-side
+vertex preview. It consumes resolved fixed-size animation/runtime records and
+returns packed bone state plus the pose matrix and downstream blend metadata.
+It includes command addressing, frame/origin resets, seeded spring motion,
+linear and angular limits, Euler and axis-angle impulses, fading, expiration
+and bone-mask overrides. No fixed timestep or character profile is inferred.
+
+The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
+synthetic vectors compare complete packed states and matrices with
+`cdmw/modding/pac_jiggle_bones.py`, feeding the native result into subsequent
+frames. Regenerate them from the repository root with the project Python and
+`tools/rust_mesh_lab/crates/cdmw_mesh/src/jiggle_bones/generate_vectors.py`.
+Calculations use f64 with f32 storage/seed rounding; these checks do not prove
+GPU arithmetic or rendered/game parity. Rig/vertex binding, runtime activation,
+profile selection, wind/water generation and integration with the Jiggle pane
+remain separate work. The visible experiment still uses the approximate
+`cdmw_mesh::jiggle::Simulation`.
+
 ## Build
 
 From the repository root:

@@ -191,8 +191,11 @@ indices and replaces row1.w with the last matching mask value. Values are not
 clamped. Unmatched bones retain the supplied instance weight, which is zero on
 the ordinary path. These overrides can supersede the later byte-38 render blend.
 
-Wind/water samples, dispatch/resource activation, rig resolution and the
-production preview still need integration. The reference uses Python arithmetic
+The Rust counterpart is `cdmw_mesh::jiggle_bones`; its focused native tests use
+owned synthetic vectors generated from this reference, including chained native
+state feedback. It is not yet connected to the visible preview. Wind/water
+samples, dispatch/resource activation, rig resolution and the production
+preview still need integration. The reference uses Python arithmetic
 except where float32 storage/seed bits matter; random feedback can amplify
 rounding differences over time. Synthetic math tests do not establish GPU,
 rendered or in-game parity. Reflected instance-frequency fields are not consumed

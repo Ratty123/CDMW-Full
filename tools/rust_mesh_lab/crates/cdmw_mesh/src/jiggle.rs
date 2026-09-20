@@ -6,7 +6,8 @@ const STEP: f64 = 1.0 / 120.0;
 
 /// Idealized byte-38 blends from the two shipped stream-out shader branches.
 /// The traced skinned-mesh CPU setup always selects LowNibble. FullByte retains
-/// the alternate shader branch for research; bone overrides remain unresolved.
+/// the alternate shader branch for research. This vertex preview does not yet
+/// apply the decoded bone overrides from `jiggle_bones`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WeightDecode {
     #[default]

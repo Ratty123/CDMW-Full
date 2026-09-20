@@ -2,6 +2,7 @@
 
 pub mod hair;
 pub mod jiggle;
+pub mod jiggle_bones;
 
 use cdmw_evidence::sha256_bytes;
 use cdmw_formats::{MeshDocument, Submesh};
