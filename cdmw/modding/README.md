@@ -745,6 +745,57 @@ thresholds, mask/owner selection, ordered projections, source immutability and
 composition with fixed integration. Later collision/constraint passes, live
 resource production and native preview integration remain separate work.
 
+The same module also decodes shape and contact math from
+`ComputePbdProcessConstraints`. These helpers operate on explicitly selected
+positions and collider records, after the caller resolves iteration, movement
+and resource choices:
+
+- `cloth_collider_proximity_distance` returns signed distance for type 1 spheres,
+  type 3 flat-capped cylinders and type 5 capsules. Its prepass uses the collider
+  **definition** radius. Unknown types return the shader's literal 1000 sentinel.
+  The capsule distance formula has no collapsed-axis fallback.
+- `cloth_collider_contact_surface` returns the later response's surface point
+  and normal from the selected reference position. The caller supplies the
+  animated-result or static-definition radius as appropriate. Thickness expands
+  sphere/capsule radius; cylinders also extend both axial endpoints. A capsule
+  axis strictly shorter than float32(0.000001) uses the first endpoint as a
+  sphere center. This fallback belongs to the surface query, not the proximity test.
+- `resolve_cloth_moving_contact` projects the selected target only when its
+  signed distance to that response plane is negative. Its explicitly selected
+  tangent-damping branch removes `float32(0.45)` times the tangent motion,
+  scaled by `min(penetration / abs(normal_motion), 1)`. Relative motion subtracts
+  the supplied collider displacement. Zero normal motion with positive penetration
+  selects scale 1, matching the shader's division followed by minimum.
+- `project_static_cloth_collider` consumes one 104-byte definition and 16-byte
+  attached-static group record, plus the selected scene/frame/tile translation.
+  Definition float3s at 76/88 supply centers. Type 4 instead interprets the second
+  vector as a plane normal, uses it without normalization and bypasses friction.
+  Other unhandled shape types use a zero surface/normal and produce no contact.
+
+Cylinder response chooses the side or cap according to their signed distances;
+ties choose the cap. Near the edge, a band of half the smaller expanded radius
+or half-height blends the radial and cap normals. This changes the normal while
+retaining the chosen surface point, which is not always the Euclidean closest
+point. An unused singular radial normal does not invalidate a finite cap branch;
+consumed zero normalization and collapsed cylinder axes are rejected.
+
+Attached-static friction reads the group's static/kinetic halves at 4/6. It uses
+the original target-minus-reference motion and subtracts friction from the
+projected point, with tangential length strictly above float32(0.000001).
+A coefficient must exceed float32(0.001) to be
+active. Static friction cancels the tangent when its length is at most the static
+coefficient times penetration. Otherwise kinetic friction reduces it by at most
+the kinetic coefficient times penetration, capped by the active static coefficient
+and by the remaining tangent length. These rules are separate from the moving
+collider's optional 0.45 correction.
+
+Focused tests use analytic signed distances, finite-difference gradients,
+rotation/translation equivalence, cylinder edge/tie cases, capsule degeneracy,
+raw plane normals and contact/friction composition. They do not establish GPU
+rounding or gameplay parity. Later-pass list selection, collider interpolation
+and motion compensation, contact/cache propagation and native preview wiring
+remain to be connected; these helpers do not constitute the full collision pass.
+
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
 the existing frame record; they are not direct shader stiffness values. For a
