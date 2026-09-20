@@ -839,7 +839,7 @@ fn hair_production_contact_regression() {
         .all(|v| v["max_card_penetration_m"].as_f64().unwrap() <= 0.002));
 }
 
-fn ready_hair_app() -> (LabApplication, egui::Rect) {
+pub(crate) fn ready_hair_app() -> (LabApplication, egui::Rect) {
     let (state, document) = fixture();
     let result = prepare(
         state,

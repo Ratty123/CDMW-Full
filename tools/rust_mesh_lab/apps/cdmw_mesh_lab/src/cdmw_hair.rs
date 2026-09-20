@@ -915,12 +915,14 @@ impl LabApplication {
                     self.hair.scene = None;
                 }
                 let selected = ids.iter().all(|id| self.hair.selected.contains(id));
+                let label = format!("{} · {} locks", group.name, ids.len());
                 if ui
                     .add_enabled(
                         shown,
-                        egui::Button::new(format!("{} · {} locks", group.name, ids.len()))
-                            .selected(selected),
+                        egui::Button::new(&label).selected(selected).truncate(),
                     )
+                    .on_hover_text(&label)
+                    .on_disabled_hover_text(&label)
                     .clicked()
                 {
                     self.hair.selected = ids.iter().copied().collect();
@@ -1065,9 +1067,11 @@ impl LabApplication {
                 let textures:Vec<_>=self.cdmw_state["hair"]["textures"].as_array().into_iter().flatten().filter_map(|v|v.as_str().map(String::from)).collect();
                 if !textures.is_empty() {
                     self.hair.texture_index=self.hair.texture_index.min(textures.len()-1);
-                    egui::ComboBox::from_label("Hair texture").selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
+                    let texture_label = ui.label("Hair texture");
+                    egui::ComboBox::from_id_salt("Hair texture").width(ui.available_width()).truncate()
+                        .selected_text(textures[self.hair.texture_index].rsplit('/').next().unwrap_or("DDS")).show_ui(ui,|ui| {
                         for (i,path) in textures.iter().enumerate(){ui.selectable_value(&mut self.hair.texture_index,i,path.rsplit('/').next().unwrap_or(path));}
-                    });
+                    }).response.labelled_by(texture_label.id).on_hover_text(&textures[self.hair.texture_index]);
                     for (title,command) in [("Open in Texture Editor","hair_texture_export"),("Apply edited DDS…","hair_texture")] {
                         if ui.button(title).clicked(){actions.push(UiAction::CdmwCommand{command,arguments:json!({"texture_path":textures[self.hair.texture_index]}),label:"Hair texture"});}
                     }
@@ -1104,13 +1108,18 @@ impl LabApplication {
             "Body sway",
             "Wind",
         ];
-        egui::ComboBox::from_label("Movement test")
+        let movement_label = ui.label("Movement test");
+        egui::ComboBox::from_id_salt("Movement test")
+            .width(ui.available_width())
+            .truncate()
             .selected_text(tests[self.hair.head_test.min(5) as usize])
             .show_ui(ui, |ui| {
                 for (i, label) in tests.iter().enumerate() {
                     ui.selectable_value(&mut self.hair.head_test, i as u32, *label);
                 }
-            });
+            })
+            .response
+            .labelled_by(movement_label.id);
         egui::CollapsingHeader::new("Advanced").show(ui, |ui| {
             ui.checkbox(&mut self.hair.show_reference, "Show character bust");
             ui.checkbox(&mut self.hair.show_guides, "Show guides and roots");

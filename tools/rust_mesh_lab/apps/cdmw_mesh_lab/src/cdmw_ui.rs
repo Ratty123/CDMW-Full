@@ -3429,6 +3429,8 @@ impl LabApplication {
                     ui.label(RichText::new("Inspector").heading().strong());
                 });
                 ui.separator();
+                // Keep the scrollbar out of the inspector controls' hitboxes.
+                ui.spacing_mut().scroll.floating = false;
                 ScrollArea::vertical().show(ui, |ui| {
                     self.draw_hair_controls(ui, actions);
                     if self.hair.active() {
@@ -3836,8 +3838,28 @@ impl LabApplication {
             let visible = state_bool(layer, "visible");
             let base = state_bool(layer, "base");
             ui.horizontal(|ui| {
+                let visibility_label = if visible { "Visible" } else { "Hidden" };
+                let visibility_width = ui
+                    .painter()
+                    .layout_no_wrap(
+                        visibility_label.into(),
+                        egui::TextStyle::Button.resolve(ui.style()),
+                        ui.visuals().text_color(),
+                    )
+                    .size()
+                    .x
+                    + 2.0 * ui.spacing().button_padding.x;
+                let name_width =
+                    (ui.available_width() - visibility_width - ui.spacing().item_spacing.x).max(0.0);
                 if ui
-                    .add_enabled(authoring, Button::new(name).selected(id == active_id))
+                    .add_enabled_ui(authoring, |ui| {
+                        ui.add_sized(
+                            [name_width, ui.spacing().interact_size.y],
+                            Button::new(name).selected(id == active_id).truncate(),
+                        )
+                    })
+                    .inner
+                    .on_hover_text(name)
                     .on_disabled_hover_text(
                         "Geometry layers cannot be activated in a read-only session",
                     )
@@ -3852,7 +3874,7 @@ impl LabApplication {
                 if ui
                     .add_enabled(
                         authoring && !base,
-                        Button::new(if visible { "Visible" } else { "Hidden" }),
+                        Button::new(visibility_label),
                     )
                     .on_disabled_hover_text(if base {
                         "Base mesh is always visible"

@@ -191,6 +191,9 @@ unchanged UVs, materials and skin records remain resident. Each completed action
 keeps its own Undo step. Pending Undo/Redo and Finish wait for ordered publication.
 Parts, action history, guides/roots and collision overlays remain available in
 collapsed panels; visibility never removes hair from the exported result.
+Hair section names and texture choices shorten to fit the Inspector, with full
+names on hover. Texture and movement selectors place their labels above the
+choice so larger fonts keep the surrounding controls clickable.
 Drawing and rebuilding populated sections preserve their **Include in Mod**
 setting. The first hair drawn into an empty section starts included.
 Incremental candidates reuse immutable references; acknowledgements preserve the
@@ -581,6 +584,9 @@ colour. Disabled labels stay readable; their fill, border, and interaction still
 distinguish unavailable controls.
 
 Parts use compact, single-line names with the full name and material on hover.
+Geometry Layer names also shorten to fit, reserving room for the visibility
+button; hover a shortened name to read it in full.
+The Inspector scrollbar has its own space, keeping button edges clickable.
 The checkboxes and Visibility menu hide/show parts in the viewport; hidden parts
 remain in the output, and a hidden Geometry Layer still controls its own parts.
 All and Invert operate on visible parts, and selection changes update the

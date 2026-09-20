@@ -1084,6 +1084,39 @@ impl HeadlessUi {
         Ok(std::mem::take(&mut self.last_actions))
     }
 
+    fn actions_from_button_edge(
+        &mut self,
+        label: &str,
+        right_edge: bool,
+    ) -> Result<Vec<UiAction>, Box<dyn std::error::Error>> {
+        self.settle_layout();
+        let text = self.reveal(label)?;
+        // Use the painted button, including its padding. A partially overlapping
+        // viewport can steal edge clicks while the label's center still works.
+        let button = self
+            .output
+            .shapes
+            .iter()
+            .filter_map(|clipped| {
+                let egui::Shape::Rect(shape) = &clipped.shape else {
+                    return None;
+                };
+                (shape.fill != Color32::TRANSPARENT && shape.rect.contains_rect(text))
+                    .then_some(shape.rect)
+            })
+            .min_by(|a, b| a.area().total_cmp(&b.area()))
+            .ok_or_else(|| format!("missing painted button {label:?}"))?;
+        let x = if right_edge {
+            button.right() - 2.0
+        } else {
+            button.left() + 2.0
+        };
+        self.last_actions.clear();
+        self.click_at(egui::pos2(x, button.center().y));
+        self.settle_layout();
+        Ok(std::mem::take(&mut self.last_actions))
+    }
+
     fn choose(&mut self, label: &str, current: &str, next: &str) -> TestResult {
         let row = self.reveal(label)?;
         let selected = self
@@ -3131,6 +3164,178 @@ fn integrated_geometry_layer_visibility_dispatches_the_typed_host_command() -> T
             label: "Hide geometry layer",
         } if arguments == &json!({"layer_id": "detail", "visible": false})
     )));
+    Ok(())
+}
+
+#[test]
+fn integrated_inspector_long_layer_names_keep_button_edges_clickable() -> TestResult {
+    let name = "CD_PHW_00_Head_Base_Youth_0010_Eyecover_Replacement_Layer";
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 980.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 720.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(two_part_application()?, size);
+        ui.application
+            .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
+        ui.application.cdmw_state["output_policy"] = json!("free_edit_rebuild");
+        ui.application.cdmw_layer_name = "Renamed layer".into();
+        ui.application.cdmw_state["geometry_layers"] = json!({
+            "active_layer_id":"copy", "clipboard_ready":true,
+            "layers":[
+                {"layer_id":"base","name":"Base","submesh_indices":[0],"visible":true,"base":true},
+                {"layer_id":"copy","name":name,"submesh_indices":[1],"visible":true,"base":false}
+            ]
+        });
+        ui.settle_layout();
+        for right_edge in [false, true] {
+            for (label, expected) in [
+                ("All", vec![0, 1]),
+                ("None", vec![]),
+                ("Invert", vec![0, 1]),
+            ] {
+                let actions = ui.actions_from_button_edge(label, right_edge)?;
+                assert!(
+                    actions.iter().any(|action| matches!(action,
+                        UiAction::SetPartSelection(indices) if indices == &expected
+                    )),
+                    "{label} edge ignored at {size:?}, {font}: {actions:?}"
+                );
+            }
+            for (label, command) in [
+                (name, "layer_activate"),
+                ("Visible", "layer_visibility"),
+                ("Paste New Layer", "layer_paste"),
+                ("Rename", "layer_rename"),
+            ] {
+                let actions = ui.actions_from_button_edge(label, right_edge)?;
+                assert!(
+                    has_host_command(&actions, command),
+                    "{label} edge ignored at {size:?}, {font}: {actions:?}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn integrated_hair_inspector(size: egui::Vec2, font: f64, density: &str) -> HeadlessUi {
+    let (application, _) = crate::cdmw_hair::tests::ready_hair_app();
+    let mut ui = HeadlessUi::new_integrated_cdmw(application, size);
+    ui.application.cdmw_state["hair"] =
+        json!({"available":true,"materials_ready":true,"textures":["hair.dds"]});
+    ui.application
+        .apply_cdmw_theme_payload(&json!({"font_point_size":font,"density":density}));
+    ui.settle_layout();
+    ui
+}
+
+#[test]
+fn integrated_inspector_long_hair_part_names_keep_button_edges_clickable() -> TestResult {
+    use crate::cdmw_hair::HairTool;
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 980.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 720.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = integrated_hair_inspector(size, font, density);
+        ui.application.hair.head_test = 0;
+        ui.click("Parts")?;
+        let state = ui.application.hair.state.as_mut().ok_or("hair state")?;
+        state.groups[0].name =
+            "CD_PHW_00_Hair_Base_Youth_0010_Long_Imported_Replacement_Section".into();
+        let ids: std::collections::HashSet<_> = state
+            .locks
+            .iter()
+            .filter(|lock| lock.part == state.groups[0].part)
+            .map(|lock| lock.id as usize)
+            .collect();
+        assert!(!ids.is_empty());
+        let label = format!("{} · {} locks", state.groups[0].name, ids.len());
+        ui.settle_layout();
+        for right_edge in [false, true] {
+            ui.application.hair.selected.clear();
+            ui.application.hair.tool = Some(HairTool::Move);
+            ui.actions_from_button_edge(&label, right_edge)?;
+            assert_eq!(
+                ui.application.hair.selected, ids,
+                "section edge ignored at {size:?}, {font}"
+            );
+            assert_eq!(ui.application.hair.tool, Some(HairTool::Select));
+            ui.actions_from_button_edge("Move", right_edge)?;
+            assert_eq!(ui.application.hair.tool, Some(HairTool::Move));
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_inspector_long_hair_textures_keep_button_edges_clickable() -> TestResult {
+    use crate::cdmw_hair::HairTool;
+    let texture = "cd_phw_00_hair_base_youth_0010_haircard_alpha_diffuse_original_texture.dds";
+    let path = format!("textures/{texture}");
+    for (size, font, density) in [
+        (egui::vec2(1440.0, 980.0), 11.0, "normal"),
+        (egui::vec2(1000.0, 720.0), 18.0, "comfortable"),
+    ] {
+        let mut ui = integrated_hair_inspector(size, font, density);
+        ui.application.hair.head_test = 0;
+        ui.click("Appearance")?;
+        ui.application.cdmw_state["hair"]["textures"] = json!([path, "hair.dds"]);
+        ui.settle_layout();
+        for right_edge in [false, true] {
+            ui.application.hair.tool = Some(HairTool::Move);
+            ui.actions_from_button_edge("Select", right_edge)?;
+            assert_eq!(
+                ui.application.hair.tool,
+                Some(HairTool::Select),
+                "Select edge ignored at {size:?}, {font}"
+            );
+            for (label, command) in [
+                ("Open in Texture Editor", "hair_texture_export"),
+                ("Apply edited DDS…", "hair_texture"),
+            ] {
+                let actions = ui.actions_from_button_edge(label, right_edge)?;
+                assert!(
+                    actions.iter().any(|action| matches!(action,
+                        UiAction::CdmwCommand { command: actual, arguments, .. }
+                            if *actual == command && arguments["texture_path"] == path
+                    )),
+                    "{label} edge ignored at {size:?}, {font}: {actions:?}"
+                );
+            }
+        }
+        ui.click(texture)?;
+        ui.click("hair.dds")?;
+        assert_eq!(ui.application.hair.texture_index, 1);
+    }
+    Ok(())
+}
+
+#[test]
+fn integrated_inspector_hair_movement_keeps_button_edges_clickable() -> TestResult {
+    use crate::cdmw_hair::{HairAction, HairTool};
+    let mut ui = integrated_hair_inspector(egui::vec2(1000.0, 720.0), 18.0, "comfortable");
+    assert_eq!(ui.application.hair.head_test, 3);
+    for right_edge in [false, true] {
+        ui.application.hair.tool = Some(HairTool::Move);
+        ui.actions_from_button_edge("Select", right_edge)?;
+        assert_eq!(
+            ui.application.hair.tool,
+            Some(HairTool::Select),
+            "Select edge ignored"
+        );
+        ui.actions_from_button_edge("Play", right_edge)?;
+        assert!(ui.application.hair.playing);
+        ui.actions_from_button_edge("Pause", right_edge)?;
+        assert!(!ui.application.hair.playing);
+        assert!(
+            ui.actions_from_button_edge("Reset", right_edge)?
+                .iter()
+                .any(|action| matches!(action, UiAction::Hair(HairAction::Reset)))
+        );
+    }
+    ui.click("Head and shoulders")?;
+    ui.click("Wind")?;
+    assert_eq!(ui.application.hair.head_test, 5);
     Ok(())
 }
 
