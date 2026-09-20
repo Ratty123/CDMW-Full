@@ -635,6 +635,16 @@ Assignments come from the exact captured PAC sidecar and profile catalogue,
 including explicit empty variants. The active in-game variant is not inferred.
 **Use profile in preview** loads supported settings after decoded stiffness
 conversion. Motion tests and preview sliders remain preview-only.
+Both the preview gravity control and raw profile gravity use negative values for
+downward acceleration and positive values for upward acceleration, from -100 to
+100. Loading a profile preserves that direction; restoring manual settings
+restores the previous gravity as well.
+
+The profile panel reports the source model's cloth-guide count and fixed guides.
+A model without guides is labelled explicitly; an unsupported or damaged guide
+layout is reported as unknown instead. Profile metadata remains editable where
+its source assignment is available, but editing it does not add cloth or bone
+jiggle to a model without those bindings.
 
 Expand **Edit profile for mod**, choose the shared assignment group if there is
 more than one, and choose a captured source profile. Each group lists every
@@ -658,8 +668,11 @@ export cannot contain the required companions.
 Original shared profiles, unknown XML, encoding and unrelated variants are
 preserved. Catalogue edits compose with existing entries, but packages that
 override the same catalogue must be merged. This does not create guide geometry
-or physics/bone bindings. In-game loading of generated profiles is unverified;
-the controlled preview does not establish game-equivalent motion.
+or physics/bone bindings. A generated profile changing Canta Plate Cloak's gravity
+from -10 to +20 was verified in game: the user observed upward cloth movement and
+supplied a screenshot, with the PAC unchanged. This verifies that assignment and
+gravity override on that cloak; it does not establish every setting, other
+models' activation or game-equivalent preview motion.
 
 ## Vertex Parameters
 

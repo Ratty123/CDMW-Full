@@ -17,6 +17,7 @@ from cdmw.domain.mesh.physics_profile import PacPhysicsProfileRule
 from cdmw.domain.mesh.replacement import ReplacementFile
 from cdmw.modding._pbd_numeric import f32, round_pbd_half
 from cdmw.modding.mesh_parser import parse_pac
+from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides
 from cdmw.modding.pac_cloth_runtime import update_cloth_frame_stiffness
 from cdmw.services.mesh_physics_profiles import _xml_text, _profile_path, resolve_saved_physics_profiles
 from cdmw.modding.pbd_profile_edit import ProfileXml
@@ -51,7 +52,7 @@ def _profile_preview(document):
         # The CPU material parser rounds odd XML counts upward. This preview
         # still uses its controlled loop, not the game's LOD/dispatch admission.
         iterations += iterations & 1
-        if not (-100 <= gravity <= 0 and 0 <= damping <= 10 and 1 <= iterations <= 8):
+        if not (-100 <= gravity <= 100 and 0 <= damping <= 10 and 1 <= iterations <= 8):
             result["reason"] = "Authored values exceed the supported cloth preview range."
             return result
         # Decoded material initialization: alpha enabled; mode processing resets
@@ -88,6 +89,18 @@ def _profile_preview(document):
     return result
 
 
+def _cloth_geometry(data):
+    """Report source guides independently of profile metadata or rig availability."""
+    try:
+        guides = decode_pac_cloth_guides(data)
+    except ValueError as exc:
+        return {"status": "unsupported", "reason": str(exc)}
+    if guides is None or not guides.vertices:
+        return {"status": "absent", "guide_count": 0}
+    return {"status": "available", "guide_count": len(guides.vertices),
+            "fixed_count": guides.channel_b.count(255)}
+
+
 def physics_profiles_ui_state(authoring, replacement):
     """Project retained sources using original PAC part names and target indices."""
     session = authoring.shadow_service._session(authoring.shadow_session_id)
@@ -122,6 +135,7 @@ def physics_profiles_ui_state(authoring, replacement):
             "sidecar_sha256": context.sidecar.sha256 if context.sidecar else "",
             "profiles": sources.copy(), "sources": sources, "groups": groups,
             "variants": list(dict.fromkeys(binding.variant_index for binding in context.bindings)),
+            "cloth_geometry": _cloth_geometry(data),
         }
         bindings = context.bindings
         if state and any(part.physics_profiles for part in state.parts) and not problem:

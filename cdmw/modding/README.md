@@ -1595,7 +1595,10 @@ for every affected original part. It does not invent per-part overrides: Damiane
 body profile is owned by `SkinnedMeshProperty` and shared by three parts. An empty
 variant can receive a cloned profile through that existing owner. This assigns
 metadata only; it does not create guide geometry, bone bindings or a simulation
-activation path. In-game acceptance of generated profiles remains unverified.
+activation path. The profile panel checks original PAC guide geometry separately
+from the assignment and rig: a missing guide section is distinct from an
+unsupported decoder layout. This diagnostic does not block metadata edits or
+claim that guide presence alone guarantees runtime activation.
 
 XML edits use parser-derived spans, preserving encoding/BOM, comments, unknown
 fields and bytes outside the edits. Ambiguous mappings, unsupported scalar
@@ -1614,12 +1617,47 @@ export is disabled when profile companions are needed. The Cloth panel's
 through `mesh_rust_physics_profiles.py` and the existing shadow replacement
 transaction. Variants and complete shared assignment groups are explicit.
 The raw authoring inputs are separate from converted preview coefficients.
+Raw and displayed preview gravity both use negative for down and positive for
+up, bounded to [-100, 100]. The preview boundary negates the half-rounded XML
+value for the solver's internal acceleration toward -Y; exported XML retains its
+authored sign. Fixed guides remain attached under either gravity direction.
 Guide-rotation overrides follow any SimulationMode reset in XML reader order.
 Captured dependencies retain complete archive locations and exact source bytes;
 saved drafts recover profile context without reading the original archives.
+
+The same build's statically traced profile selector (`0x142ce39d0`) checks two
+resource admission fields before resolving a material. An explicit `NoSimulation`
+name exits early. Otherwise, an existing
+`character/descriptors/pbd/<PAC basename without extension>.xml` takes precedence
+over the named catalogue lookup; an empty or unresolved name can reach a fallback
+for the resource's mode. These branches explain why a sidecar assignment alone
+does not establish activation. The editor reports captured assignments, not the
+live result of this selector. The producers of the admission fields and full
+runtime scheduling remain unresolved.
+
+Creating new guides would require a consistent guide section, bone-palette
+weights, constraint/attachment tables and render-to-guide bindings at every stored
+LOD, plus the resource admission metadata. Existing readers preserve undecoded
+constraint high bytes and layout tags; they do not define a validated constructor
+for those fields. Every referenced guide index must be valid even at zero weight,
+and zero-total bindings can produce singular transforms. New-guide and new-bone
+binding output therefore remain unsupported; profile editing does not manufacture
+those structures.
 
 Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
 `tests/test_mesh_physics_profile_output.py`, and Rust
 `headless_ui_tests::cloth_preview_tests::profiles` exercise commands, numeric
 handling, history, Finish, draft recovery and companion output. These are
 nonvisual checks and do not prove runtime activation in game.
+
+On game build 1.0.0.2944 (archive build 8Q), a generated profile assigned to Canta
+Plate Cloak changed only raw Gravity from -10 to +20. The PAC stayed byte-identical;
+the catalogue, sidecar and cloned profile were delivered through a temporary
+managed overlay. The user compared normal movement with the edited run and
+reported upward cloth movement, with a screenshot showing the raised cloak.
+The source has 265 guide vertices, 17 fixed. This establishes profile loading and
+that gravity response on this cloak, not every scalar, collision path, activation
+schedule or new guide/bone authoring. Both temporary test layers were removed;
+the original user overlays, archive bytes, mount list and texture registry were
+verified against their pre-test hashes. Machine-local evidence and captures stay
+outside the repository.

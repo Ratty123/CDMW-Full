@@ -503,7 +503,12 @@ impl LabApplication {
             if !body_available { preview.cloth_settings.body_collisions = false; }
             ui.collapsing("Cloth preview settings", |ui| {
                 let settings = &mut preview.cloth_settings;
-                ui.add(egui::Slider::new(&mut settings.gravity, 0.0..=100.0).text("Gravity"));
+                // Keep the displayed sign consistent with raw profile XML.
+                let mut gravity = -settings.gravity;
+                if ui.add(egui::Slider::new(&mut gravity, -100.0..=100.0).text("Gravity"))
+                    .on_hover_text("Negative pulls down; positive lifts up.").changed() {
+                    settings.gravity = -gravity;
+                }
                 ui.add(egui::Slider::new(&mut settings.stretch, 0.0..=1.0).text("Stretch response"));
                 ui.add(egui::Slider::new(&mut settings.bend, 0.0..=1.0).text("Bend response"));
                 ui.add(egui::Slider::new(&mut settings.damping, 0.0..=10.0).text("Preview damping"));

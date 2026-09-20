@@ -15,13 +15,14 @@ The format is intentionally simple:
 
 - Mesh Editor's Parts panel now offers experimental translucency for original PAC parts and imported replacements, with thickness/extinction controls, Restore, Undo/Redo, draft persistence and material sidecar export. Absorption edits reuse prepared viewport textures.
 - Translucency can share a material with emissive glow in New Item. Emissive maps, colours and strength are retained; the translucent game shader may interpret brightness differently from the preview.
-- Mesh Editor's Cloth panel can edit raw physics profiles for a mod. Choose a variant and shared assignment group, apply or restore overrides with Undo/Redo, and keep them through Finish and drafts. Build Mod includes a cloned profile, catalogue and sidecar assignments while profile-only edits keep the PAC unchanged. Generated profile loading in game remains unverified.
+- Mesh Editor's Cloth panel can edit raw physics profiles for a mod. Choose a variant and shared assignment group, apply or restore overrides with Undo/Redo, and keep them through Finish and drafts. Build Mod includes a cloned profile, catalogue and sidecar assignments while profile-only edits keep the PAC unchanged. A generated gravity override was verified in game on Canta Plate Cloak.
 - Cloth preview can load supported settings from exact authored physics profiles. Part assignments and variants are shown explicitly, including empty assignments; changing the selection restores manual settings. Profile XML and PAC output remain unchanged.
 - Jiggle and Cloth motion previews include Freehand: drag the whole model with the mouse and release to let physics settle. This does not change mesh positions, drafts or exports.
 - Jiggle region colours preserve surface shading and include a Region tint slider, making deformation easier to see while keeping the affected areas highlighted.
 
 ### Fixed
 
+- Cloth preview accepts upward gravity from authored profiles. Its gravity control now uses the XML sign: negative pulls down, positive lifts up. The profile panel distinguishes absent cloth guides from guide data it cannot decode; profile edits do not create new bindings.
 - Physics profile assignments match PAC and sidecar part names that differ in letter case, including clothing 0166; ambiguous duplicate names are still rejected.
 - Selecting parts on PACs with large jiggle data no longer closes Mesh Editor because the host response exceeds the control-message limit. Large responses use a bounded, size- and hash-verified session file.
 - Mesh Editor's Open Mesh can use prepared archive textures while Archive Browser is hidden, without waiting for that tab to be shown.

@@ -9,6 +9,7 @@ mod profiles {
     fn source_profiles(ui: &mut HeadlessUi) {
         ui.application.cdmw_state["physics_profiles"] = json!({
             "available": true, "source": "fixture.pac", "sidecar_sha256": "fixture-sidecar",
+            "cloth_geometry": {"status": "available", "guide_count": 3, "fixed_count": 1},
             "variants": ["0", "1"],
             "parts": [{"index": 0, "name": "Cloth", "source_name": "Cloth", "bindings": [
                 {"variant": "0", "profile": "Lower_Leather", "path": "lower.xml", "reason": ""},
@@ -53,6 +54,113 @@ mod profiles {
                 _ => None,
             })
             .expect("profile command from the actual control")
+    }
+
+    #[test]
+    fn upward_profile_and_manual_gravity_use_xml_sign_without_changing_raw_edits() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        ui.application.cdmw_state["physics_profiles"]["profiles"][0]["preview"]["gravity"] =
+            json!(-20.0);
+        ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["gravity"] =
+            json!("20");
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity = 3.0;
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Use profile in preview")?;
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            -20.0
+        );
+
+        ui.click("Cloth preview settings")?;
+        let gravity_label = ui.reveal("Gravity")?;
+        let value = ui
+            .output
+            .shapes
+            .iter()
+            .find_map(|clipped| {
+                let egui::Shape::Text(text) = &clipped.shape else {
+                    return None;
+                };
+                let rect = text.visual_bounding_rect();
+                (text.galley.job.text.parse::<f64>() == Ok(20.0)
+                    && (rect.center().y - gravity_label.center().y).abs() < 4.0
+                    && rect.right() < gravity_label.left())
+                .then_some(rect)
+            })
+            .ok_or("preview gravity should display positive 20 in the actual numeric control")?;
+        ui.click_at(value.center());
+        ui.frame(vec![
+            Event::Text("-15".into()),
+            key_event(egui::Key::Enter, true),
+        ]);
+        ui.frame(vec![key_event(egui::Key::Enter, false)]);
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            15.0
+        );
+        ui.click("Restore manual preview settings")?;
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            3.0
+        );
+
+        ui.click("Edit profile for mod")?;
+        ui.click("Override Gravity")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        assert_eq!(
+            profile_command(&actions)["rule"]["values"],
+            json!({"Gravity": 20.0})
+        );
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn profile_guide_diagnostics_do_not_confuse_missing_geometry_with_decode_limits() -> TestResult
+    {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        ui.click("Authored cloth profile")?;
+        assert!(
+            ui.label_rect("Authored cloth guides: 3 (1 fixed)")
+                .is_some()
+        );
+        let absent = "This model has no authored cloth guides. Profile edits do not add cloth or bone jiggle.";
+        let unsupported = "Cloth guide data could not be decoded; its availability is unknown.";
+        ui.application.cdmw_state["physics_profiles"]["cloth_geometry"] =
+            json!({"status": "absent", "guide_count": 0});
+        ui.frame(Vec::new());
+        assert!(ui.label_rect(absent).is_some());
+        assert!(ui.label_rect(unsupported).is_none());
+        // Metadata editing remains useful even when this source has no guides.
+        ui.click("Variant 0")?;
+        ui.click("Edit profile for mod")?;
+        ui.click("Override Damping")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        assert_eq!(
+            profile_command(&actions)["rule"]["values"],
+            json!({"Damping": 0.8})
+        );
+        ui.application.cdmw_pending_request = None;
+        ui.application.cdmw_state["physics_profiles"]["cloth_geometry"] =
+            json!({"status": "unsupported", "reason": "Unknown guide layout"});
+        ui.frame(Vec::new());
+        assert!(ui.label_rect(unsupported).is_some());
+        assert!(ui.label_rect(absent).is_none());
+        ui.application.cdmw_state["physics_profiles"]
+            .as_object_mut()
+            .unwrap()
+            .remove("cloth_geometry");
+        ui.frame(Vec::new());
+        assert!(ui.label_rect(unsupported).is_none());
+        assert!(ui.label_rect(absent).is_none());
+        Ok(())
     }
 
     #[test]

@@ -41,6 +41,7 @@ pub enum Constraint {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Settings {
+    /// Acceleration toward -Y; negate authored XML gravity at the preview boundary.
     pub gravity: f64,
     /// Decoded normal damping coefficient; each step multiplies v by 1-0.1*d.
     pub damping: f64,
@@ -81,7 +82,7 @@ impl Default for Settings {
 impl Settings {
     fn valid(self) -> bool {
         self.gravity.is_finite()
-            && (0.0..=100.0).contains(&self.gravity)
+            && (-100.0..=100.0).contains(&self.gravity)
             && self.damping.is_finite()
             && (0.0..=10.0).contains(&self.damping)
             && self.stretch.is_finite()
@@ -830,6 +831,47 @@ mod tests {
             DVec3::from(actual.map(f64::from)).distance(expected) < 1e-6,
             "{actual:?} != {expected:?}"
         );
+    }
+
+    #[test]
+    fn signed_gravity_moves_dynamic_guides_in_both_directions_and_keeps_pins_fixed() {
+        for gravity in [-100.0, -20.0, 0.0, 20.0, 100.0] {
+            let mut sim = simulation([0; 3]);
+            let rest = sim.positions().to_vec();
+            let settings = Settings {
+                gravity,
+                damping: 0.0,
+                stretch: 0.0,
+                bend: 0.0,
+                ..Settings::default()
+            };
+            sim.step(0.02, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .unwrap();
+            let displacement = -gravity * 0.02 * 0.02;
+            assert_eq!(sim.positions()[0], rest[0]);
+            close(sim.positions()[1], DVec3::Y * displacement);
+            close(sim.positions()[2], DVec3::X + DVec3::Y * displacement);
+        }
+    }
+
+    #[test]
+    fn signed_gravity_rejects_invalid_values_without_changing_the_frame() {
+        let mut sim = simulation([0; 3]);
+        let rest = sim.positions().to_vec();
+        let guides = sim.guide_positions();
+        for gravity in [-100.1, 100.1, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let settings = Settings {
+                gravity,
+                ..Settings::default()
+            };
+            assert!(
+                sim.step(0.02, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                    .is_err()
+            );
+            assert_eq!(sim.positions(), rest);
+            assert_eq!(sim.guide_positions(), guides);
+            assert!(sim.velocities.iter().all(|v| *v == DVec3::ZERO));
+        }
     }
 
     #[test]

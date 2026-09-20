@@ -38,7 +38,7 @@ pub(super) mod profiles {
     impl Preset {
         fn read(value: &Value) -> Option<Self> {
             let result: Self = serde_json::from_value(value.clone()).ok()?;
-            ((0.0..=100.0).contains(&result.gravity)
+            ((-100.0..=100.0).contains(&result.gravity)
                 && (0.0..=10.0).contains(&result.damping)
                 && (0.0..=1.0).contains(&result.stretch)
                 && (0.0..=1.0).contains(&result.bend)
@@ -265,7 +265,8 @@ pub(super) mod profiles {
                     arguments: json!({"group_id": group["id"], "reset": true}), label: "Restore physics profile" });
             }
             ui.small("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo.");
-            ui.small("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Existing physics bindings are required; in-game loading is unverified.");
+            ui.small("Gravity: negative pulls down; positive lifts up.");
+            ui.small("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Profile edits do not create cloth guides or physics/bone bindings.");
         });
     }
 
@@ -313,6 +314,20 @@ pub(super) mod profiles {
             }
             if let Some(reason) = state["reason"].as_str().filter(|reason| !reason.is_empty()) {
                 ui.small(reason);
+            }
+            let geometry = &state["cloth_geometry"];
+            match geometry["status"].as_str() {
+                Some("available") => {
+                    if let (Some(count), Some(fixed)) = (geometry["guide_count"].as_u64(), geometry["fixed_count"].as_u64()) {
+                        ui.small(format!("Authored cloth guides: {count} ({fixed} fixed)"));
+                    }
+                }
+                Some("absent") => { ui.small("This model has no authored cloth guides. Profile edits do not add cloth or bone jiggle."); }
+                Some("unsupported") => {
+                    ui.small("Cloth guide data could not be decoded; its availability is unknown.")
+                        .on_hover_text(geometry["reason"].as_str().unwrap_or_default());
+                }
+                _ => {}
             }
             ui.small("Profile variant (preview and mod edit)");
             ui.horizontal_wrapped(|ui| {
