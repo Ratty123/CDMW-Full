@@ -75,7 +75,7 @@ pub(super) struct Preview {
     pub pending: Option<u64>,
     solver: Solver,
     native_settings: native::Settings,
-    cloth_settings: cdmw_mesh::cloth::Settings,
+    pub(super) cloth_settings: cdmw_mesh::cloth::Settings,
     motion: jiggle::Motion,
     comparison: Comparison,
     settings: jiggle::Settings,
@@ -533,8 +533,14 @@ impl LabApplication {
                 if let Some(height) = &mut settings.ground_height {
                     ui.horizontal(|ui| { ui.label("Floor height (Y)"); ui.add(egui::DragValue::new(height).speed(0.01)); });
                 }
-                if ui.button("Reset cloth preview settings").clicked() { *settings = cdmw_mesh::cloth::Settings::default(); }
+                if ui.button("Reset cloth preview settings").clicked() {
+                    *settings = cdmw_mesh::cloth::Settings::default();
+                    self.cdmw_cloth.profiles.clear_loaded();
+                }
             });
+            changed |= crate::cdmw_cloth::profiles::draw(ui, &self.cdmw_state["physics_profiles"], parts,
+                &mut self.cdmw_cloth.profiles, &mut preview.cloth_settings,
+                cloth_state["available"].as_bool() == Some(true), rotation_available);
             ui.small("Experimental guide cloth with controlled motion and preview settings.");
         } else {
             ui.add(egui::Slider::new(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));

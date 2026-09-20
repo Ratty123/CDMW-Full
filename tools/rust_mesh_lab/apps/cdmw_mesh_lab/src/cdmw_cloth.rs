@@ -1,5 +1,238 @@
 //! Edit existing cloth influence through the host's reversible PAC output path.
 pub(crate) mod preview;
+pub(super) mod profiles {
+    //! Explicit source/variant selection for a preview preset, never authored edits.
+    use cdmw_mesh::cloth::Settings;
+    use serde::Deserialize;
+    use serde_json::{Value, json};
+
+    #[derive(Default)]
+    pub(crate) struct ProfileView {
+        variant: Option<String>,
+        source: Value,
+        loaded: Option<(Value, Settings)>,
+    }
+
+    impl ProfileView {
+        pub(crate) fn clear_loaded(&mut self) {
+            self.loaded = None;
+        }
+    }
+
+    #[derive(Clone, Copy, Deserialize)]
+    struct Preset {
+        gravity: f64,
+        damping: f64,
+        stretch: f64,
+        bend: f64,
+        iterations: u32,
+        use_vertex_alpha: bool,
+        rotate_guides: bool,
+    }
+
+    impl Preset {
+        fn read(value: &Value) -> Option<Self> {
+            let result: Self = serde_json::from_value(value.clone()).ok()?;
+            ((0.0..=100.0).contains(&result.gravity)
+                && (0.0..=10.0).contains(&result.damping)
+                && (0.0..=1.0).contains(&result.stretch)
+                && (0.0..=1.0).contains(&result.bend)
+                && (1..=8).contains(&result.iterations))
+            .then_some(result)
+        }
+
+        fn apply(self, settings: &mut Settings, rotation_available: bool) {
+            settings.gravity = self.gravity;
+            settings.damping = self.damping;
+            settings.stretch = self.stretch;
+            settings.bend = self.bend;
+            settings.iterations = self.iterations;
+            settings.use_vertex_alpha = self.use_vertex_alpha;
+            settings.rotate_guides = self.rotate_guides && rotation_available;
+        }
+    }
+
+    impl From<Settings> for Preset {
+        fn from(settings: Settings) -> Self {
+            Self {
+                gravity: settings.gravity,
+                damping: settings.damping,
+                stretch: settings.stretch,
+                bend: settings.bend,
+                iterations: settings.iterations,
+                use_vertex_alpha: settings.use_vertex_alpha,
+                rotate_guides: settings.rotate_guides,
+            }
+        }
+    }
+
+    fn assigned_profile<'a>(
+        state: &'a Value,
+        parts: &[Value],
+        variant: Option<&str>,
+    ) -> Result<&'a Value, &'static str> {
+        let variant =
+            variant.ok_or("Choose a preview variant. The active game variant is not known.")?;
+        let rows = state["parts"]
+            .as_array()
+            .ok_or("Profile part assignments are unavailable.")?;
+        let mut selected_path = None;
+        for part in parts {
+            let row = rows
+                .iter()
+                .find(|row| row["index"] == part["index"])
+                .ok_or("A selected part has no verified profile assignment.")?;
+            let bindings = row["bindings"]
+                .as_array()
+                .ok_or("Profile assignments are unavailable.")?;
+            let matches = bindings
+                .iter()
+                .filter(|binding| binding["variant"].as_str() == Some(variant))
+                .collect::<Vec<_>>();
+            if matches.is_empty() {
+                return Err("A selected part has no assignment in this variant.");
+            }
+            for binding in matches {
+                if binding["profile"].as_str() == Some("") {
+                    return Err("This variant explicitly leaves a selected part without a profile.");
+                }
+                if binding["reason"]
+                    .as_str()
+                    .is_none_or(|reason| !reason.is_empty())
+                {
+                    return Err("A selected profile could not be resolved from its exact source.");
+                }
+                let path = binding["path"]
+                    .as_str()
+                    .filter(|path| !path.is_empty())
+                    .ok_or("The exact profile source is unavailable.")?;
+                if selected_path.is_some_and(|previous| previous != path) {
+                    return Err(
+                        "Selected parts use different profiles. Preview one assignment at a time.",
+                    );
+                }
+                selected_path = Some(path);
+            }
+        }
+        let path = selected_path.ok_or("Select an included part to inspect its profile.")?;
+        state["profiles"]
+            .as_array()
+            .and_then(|profiles| {
+                profiles
+                    .iter()
+                    .find(|profile| profile["path"].as_str() == Some(path))
+            })
+            .ok_or("The exact profile source is unavailable.")
+    }
+
+    fn restore_manual(
+        view: &mut ProfileView,
+        settings: &mut Settings,
+        rotation_available: bool,
+    ) -> bool {
+        if let Some((_, manual)) = view.loaded.take() {
+            Preset::from(manual).apply(settings, rotation_available);
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn draw(
+        ui: &mut egui::Ui,
+        state: &Value,
+        parts: &[Value],
+        view: &mut ProfileView,
+        settings: &mut Settings,
+        can_apply: bool,
+        rotation_available: bool,
+    ) -> bool {
+        let source = json!([state["source"], state["sidecar_sha256"]]);
+        if view.source != source {
+            view.source = source;
+            view.variant = None;
+        }
+        let mut changed = false;
+        // Also run while collapsed: changing part/sources must not leave a preset
+        // from another assignment driving the newly selected preview.
+        let selection_key = |variant: &Option<String>| {
+            json!([
+                state,
+                parts.iter().map(|part| &part["index"]).collect::<Vec<_>>(),
+                variant
+            ])
+        };
+        if view
+            .loaded
+            .as_ref()
+            .is_some_and(|(key, _)| *key != selection_key(&view.variant))
+        {
+            changed |= restore_manual(view, settings, rotation_available);
+        }
+        ui.collapsing("Authored cloth profile", |ui| {
+            if state["available"].as_bool() != Some(true) {
+                ui.small(state["reason"].as_str().unwrap_or("Exact physics profiles are unavailable."));
+                return;
+            }
+            if let Some(reason) = state["reason"].as_str().filter(|reason| !reason.is_empty()) {
+                ui.small(reason);
+            }
+            ui.small("Preview variant");
+            ui.horizontal_wrapped(|ui| {
+                for variant in state["variants"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                    let label = if variant.is_empty() { "Default variant".to_owned() } else { format!("Variant {variant}") };
+                    if ui.add(egui::Button::new(label).selected(view.variant.as_deref() == Some(variant))).clicked()
+                        && view.variant.as_deref() != Some(variant) {
+                        changed |= restore_manual(view, settings, rotation_available);
+                        view.variant = Some(variant.to_owned());
+                    }
+                }
+            });
+            if let Some(variant) = view.variant.as_deref() {
+                for part in parts {
+                    let row = state["parts"].as_array().and_then(|rows| rows.iter().find(|row| row["index"] == part["index"]));
+                    let bindings = row.and_then(|row| row["bindings"].as_array());
+                    let assignments = bindings.into_iter().flatten()
+                        .filter(|binding| binding["variant"].as_str() == Some(variant))
+                        .map(|binding| binding["profile"].as_str().filter(|name| !name.is_empty()).unwrap_or("None (explicit empty)"))
+                        .collect::<Vec<_>>();
+                    let name = part["name"].as_str().unwrap_or("Part");
+                    ui.small(format!("{name}: {}", if assignments.is_empty() { "Unassigned".to_owned() } else { assignments.join(", ") }));
+                }
+            }
+            let profile = match assigned_profile(state, parts, view.variant.as_deref()) {
+                Ok(profile) => profile,
+                Err(reason) => { ui.small(reason); return; }
+            };
+            ui.small(profile["path"].as_str().unwrap_or_default())
+                .on_hover_text(format!("SHA-256: {}", profile["sha256"].as_str().unwrap_or_default()));
+            let Some(preset) = Preset::read(&profile["preview"]) else {
+                ui.small(profile["reason"].as_str().filter(|reason| !reason.is_empty()).unwrap_or("Profile values are unsupported by the cloth preview."));
+                return;
+            };
+            ui.small(format!("Stretch {} → {:.4} · bend {} → {:.4}",
+                profile["authored"]["stretchingstiffness"].as_str().unwrap_or("?"), preset.stretch,
+                profile["authored"]["bendingstiffness"].as_str().unwrap_or("?"), preset.bend));
+            if ui.add_enabled(can_apply, egui::Button::new("Use profile in preview")).clicked() {
+                let manual = view.loaded.as_ref().map(|(_, manual)| *manual).unwrap_or(*settings);
+                view.loaded = Some((selection_key(&view.variant), manual));
+                preset.apply(settings, rotation_available);
+                changed = true;
+            }
+            if view.loaded.is_some() {
+                ui.small("Profile starting values loaded. Preview sliders can adjust them.");
+                if ui.button("Restore manual preview settings").clicked() {
+                    changed |= restore_manual(view, settings, rotation_available);
+                }
+            }
+            if preset.rotate_guides && !rotation_available {
+                ui.small("Guide rotation cannot be applied without orientation neighbors.");
+            }
+            ui.small("Loads gravity, damping, stretch, bend, iterations, vertex alpha and supported guide rotation only.");
+            ui.small("Uses decoded initial stiffness conversion and a fixed preview clock. Other profile settings and live game activation are not reproduced. Changes are preview-only.");
+        });
+        changed
+    }
+}
 
 use super::*;
 use crate::cdmw_ui::{state_bool, state_str, state_u64};
@@ -10,6 +243,7 @@ pub(super) struct ClothView {
     pub use_height: bool,
     pub height: f64,
     pub fade: f64,
+    pub profiles: profiles::ProfileView,
     key: Value,
 }
 
@@ -21,6 +255,7 @@ impl Default for ClothView {
             use_height: false,
             height: 0.0,
             fade: 0.0,
+            profiles: profiles::ProfileView::default(),
             key: Value::Null,
         }
     }
@@ -32,6 +267,9 @@ impl LabApplication {
         ui.small("Fixed vertices follow the skeleton. Existing cloth bindings only.");
         if !state_bool(&cloth, "available") {
             ui.label(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable."));
+            let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
+            profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
+                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false);
             return;
         }
         ui.checkbox(&mut self.cdmw_cloth.selected_only, "Selected parts only");

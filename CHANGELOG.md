@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Added
 
+- Cloth preview can load supported settings from exact authored physics profiles. Part assignments and variants are shown explicitly, including empty assignments; changing the selection restores manual settings. Profile XML and PAC output remain unchanged.
 - Jiggle and Cloth motion previews include Freehand: drag the whole model with the mouse and release to let physics settle. This does not change mesh positions, drafts or exports.
 - Jiggle region colours preserve surface shading and include a Region tint slider, making deformation easier to see while keeping the affected areas highlighted.
 

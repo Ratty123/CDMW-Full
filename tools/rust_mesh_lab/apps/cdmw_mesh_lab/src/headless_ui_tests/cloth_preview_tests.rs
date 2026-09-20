@@ -3,6 +3,170 @@ use super::*;
 use sha2::{Digest, Sha256};
 
 mod strain;
+mod profiles {
+    use super::*;
+
+    fn source_profiles(ui: &mut HeadlessUi) {
+        ui.application.cdmw_state["physics_profiles"] = json!({
+            "available": true, "source": "fixture.pac", "sidecar_sha256": "fixture-sidecar",
+            "variants": ["0", "1"],
+            "parts": [{"index": 0, "name": "Cloth", "source_name": "Cloth", "bindings": [
+                {"variant": "0", "profile": "Lower_Leather", "path": "lower.xml", "reason": ""},
+                {"variant": "1", "profile": "", "path": "", "reason": ""}
+            ]}],
+            "profiles": [{"path": "lower.xml", "sha256": "fixture-profile", "reason": "",
+                "authored": {"stretchingstiffness": ".3", "bendingstiffness": ".1388"},
+                "preview": {"gravity": 10.0, "damping": 0.7998046875,
+                    "stretch": 0.359619140625, "bend": 0.05999755859375,
+                    "iterations": 4, "use_vertex_alpha": true, "rotate_guides": false}
+            }]
+        });
+        ui.frame(Vec::new());
+    }
+
+    #[test]
+    fn explicit_profile_selection_drives_preview_and_empty_variant_restores_manual() -> TestResult {
+        let (root, mut ui, payload) = fixture()?;
+        source_profiles(&mut ui);
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity = 2.0;
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .cloth_settings
+            .ground_height = Some(-10.0);
+        ui.click("Authored cloth profile")?;
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        ui.click("Variant 0")?;
+        ui.click("Use profile in preview")?;
+        let settings = ui.application.cdmw_jiggle.preview.cloth_settings;
+        assert_eq!(settings.gravity, 10.0);
+        assert_eq!(settings.stretch, 0.359619140625);
+        assert_eq!(settings.bend, 0.05999755859375);
+        assert_eq!(settings.damping, 0.7998046875);
+        assert!(settings.use_vertex_alpha);
+        assert_eq!(settings.ground_height, Some(-10.0));
+        ui.click("Play preview")?;
+        wait(&mut ui)?;
+        advance(&mut ui)?;
+        let profile_frame = ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame
+            .clone();
+        assert_ne!(profile_frame.positions, authored.positions);
+        ui.click("Variant 1")?;
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            2.0
+        );
+        assert!(
+            !ui.application
+                .cdmw_jiggle
+                .preview
+                .cloth_settings
+                .use_vertex_alpha
+        );
+        wait(&mut ui)?;
+        advance(&mut ui)?;
+        let manual_frame = &ui
+            .application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame;
+        assert_ne!(manual_frame.positions, profile_frame.positions);
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
+        assert_eq!(std::fs::read(root.path().join("jiggle-rig.json"))?, payload);
+        Ok(())
+    }
+
+    #[test]
+    fn changed_assignment_revokes_loaded_profile_even_when_section_is_collapsed() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        source_profiles(&mut ui);
+        ui.application.cdmw_jiggle.preview.cloth_settings.gravity = 3.0;
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Use profile in preview")?;
+        ui.click("Authored cloth profile")?;
+        ui.application.cdmw_state["physics_profiles"]["parts"][0]["bindings"][0]["profile"] = json!("");
+        ui.frame(Vec::new());
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            3.0
+        );
+        ui.click("Authored cloth profile")?;
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn models_without_cloth_bindings_can_inspect_profiles_without_applying_them() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        source_profiles(&mut ui);
+        ui.application.cdmw_state["replacement"]["parts"] =
+            ui.application.cdmw_state["cloth"]["parts"].clone();
+        ui.application.cdmw_state["cloth"]["available"] = json!(false);
+        ui.application.cdmw_state["cloth"]["reason"] = json!("No cloth bindings.");
+        ui.frame(Vec::new());
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        assert!(ui.label_rect("lower.xml").is_some());
+        ui.click("Use profile in preview")?; // The visible control is disabled.
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.gravity,
+            9.81
+        );
+        assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn spline_missing_and_mixed_assignments_never_supply_cloth_settings() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        source_profiles(&mut ui);
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.application.cdmw_state["physics_profiles"]["profiles"][0]["preview"] = Value::Null;
+        ui.application.cdmw_state["physics_profiles"]["profiles"][0]["reason"] =
+            json!("Spline profile");
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        assert!(ui.label_rect("Spline profile").is_some());
+        source_profiles(&mut ui);
+        let mut other = ui.application.cdmw_state["physics_profiles"]["parts"][0].clone();
+        other["index"] = json!(1);
+        other["bindings"][0]["path"] = json!("different.xml");
+        ui.application.cdmw_state["physics_profiles"]["parts"]
+            .as_array_mut()
+            .unwrap()
+            .push(other);
+        let mut part = ui.application.cdmw_state["cloth"]["parts"][0].clone();
+        part["index"] = json!(1);
+        part["id"] = json!("cloth:1");
+        ui.application.cdmw_state["cloth"]["parts"]
+            .as_array_mut()
+            .unwrap()
+            .push(part);
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        ui.application.cdmw_state["physics_profiles"]["parts"][1]["bindings"] = json!([]);
+        ui.frame(Vec::new());
+        assert!(ui.label_rect("Use profile in preview").is_none());
+        Ok(())
+    }
+}
 
 fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
     let root = tempdir()?;

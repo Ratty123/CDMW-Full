@@ -7006,6 +7006,7 @@ class RustMeshAuthoringSession:
     jiggle_source_cache: tuple[bytes, object, dict[str, object]] | None = field(default=None, repr=False)
     cloth_collision_inputs: dict[str, tuple[str, object]] = field(default_factory=dict, repr=False)
     physics_profile_context: PbdProfileContext | None = field(default=None, repr=False)
+    physics_profile_cache: tuple | None = field(default=None, repr=False)
     hair_skin_donor_mesh: ParsedMesh | None = None
     hair_start_mode: str = ""
     archive_refit_material_cache: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -7968,6 +7969,8 @@ class RustMeshAuthoringSession:
         state["replacement"] = replacement_ui_state(self)
         from cdmw.services.mesh_rust_cloth import cloth_ui_state
         state["cloth"] = cloth_ui_state(self, state["replacement"])
+        from cdmw.services.mesh_rust_physics_profiles import physics_profiles_ui_state
+        state["physics_profiles"] = physics_profiles_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_jiggle import jiggle_ui_state
         state["jiggle"] = jiggle_ui_state(self, state["replacement"])
         from cdmw.services.mesh_rust_hair import hair_ui_state

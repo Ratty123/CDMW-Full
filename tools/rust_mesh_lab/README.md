@@ -130,6 +130,30 @@ and the existing decoded-jiggle transport tests. **Mesh Data > Cloth** connects
 this core through `cdmw_cloth::preview` to the shared motion controller and bounded
 loader. It supplies up/down, start/stop and turning motion, pause/resume/reset,
 current/original/disabled weight comparisons, and preview-only solver settings.
+
+`Authored cloth profile` shows the exact archive-sidecar assignments for the
+original PAC parts, including explicit empty assignments, without using renamed
+display labels as source identities. Choose a preview variant explicitly, then
+use `Use profile in preview` to load supported values. All selected parts must
+resolve to the same profile file; missing, mixed, spline and unsupported profiles
+remain inspectable but do not supply cloth settings. Changing the part/variant
+or source restores the previous manual values, even with the section collapsed.
+
+The host projects raw gravity, damping, stretch/bend, iteration count, vertex
+alpha and guide rotation flags separately from their preview values. Stiffness
+uses the recovered float32 conversion, initialized global constants and CPU half
+packing; gravity/damping also pass through that packer. Odd authored iteration
+counts round upward. Unsupported gravity/damping/iteration ranges or missing
+values disable the preset instead of being clamped or inferred from the profile name. Rotation still requires
+verified orientation neighbors. The preset uses the existing controlled clock,
+substeps, unit masses and constraint schedule. Automatic weighting, other profile
+fields, runtime LOD/activation and the active game variant are not reproduced.
+This control does not modify profile XML, PAC output, drafts or mesh history.
+Exact source bytes and hashes remain on the host; compact `physics_profiles`
+state contains provenance, assignments and supported scalar values only.
+
+Focused coverage: `tests/test_mesh_physics_profile_preview.py` and
+`cargo test --locked -p cdmw_mesh_lab cloth_preview_tests::profiles`.
 Current cloth bytes use the saved rule against original neutral source heights,
 matching PAC output after sculpting. The host exposes these verified bytes for
 cloth parts even when every jiggle flag is disabled. Preparation retains the

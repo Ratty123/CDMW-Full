@@ -48,6 +48,16 @@ def _exact_entry(path: str, entries: Mapping[str, Sequence[ArchiveEntry]]) -> Ar
     return next(iter(matches.values()))
 
 
+def _xml_text(data: bytes) -> str:
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16")
+    if data.startswith(b"<\x00"):
+        return data.decode("utf-16-le")
+    if data.startswith(b"\x00<"):
+        return data.decode("utf-16-be")
+    return data.decode("utf-8-sig")
+
+
 def _read_document(entry: ArchiveEntry, budget: list[int], stop_event: threading.Event | None):
     raise_if_cancelled(stop_event)
     size = (
@@ -62,14 +72,7 @@ def _read_document(entry: ArchiveEntry, budget: list[int], stop_event: threading
     budget[0] -= len(data)
     # Decode strictly. The original bytes, including BOM and unknown settings,
     # remain the source for future export; no XML reserialization occurs here.
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        text = data.decode("utf-16")
-    elif data.startswith(b"<\x00"):
-        text = data.decode("utf-16-le")
-    elif data.startswith(b"\x00<"):
-        text = data.decode("utf-16-be")
-    else:
-        text = data.decode("utf-8-sig")
+    text = _xml_text(data)
     if re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", text, re.IGNORECASE):
         raise ValueError("Physics source contains an unsupported XML declaration.")
     root = _parse_xml(text)
