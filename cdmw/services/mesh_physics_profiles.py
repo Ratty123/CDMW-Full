@@ -67,6 +67,10 @@ def _read_document(entry: ArchiveEntry, budget: list[int], stop_event: threading
     if not 0 < size <= min(_MAX_DOCUMENT_BYTES, budget[0]):
         raise ValueError("Physics source exceeds the document size limit.")
     data, _, _ = read_archive_entry_data(entry, stop_event=stop_event)
+    return _capture_document(entry, data, budget, stop_event)
+
+
+def _capture_document(entry, data, budget, stop_event):
     if not 0 < len(data) <= min(_MAX_DOCUMENT_BYTES, budget[0]):
         raise ValueError("Decoded physics source exceeds the document size limit.")
     budget[0] -= len(data)
@@ -89,7 +93,9 @@ def _read_document(entry: ArchiveEntry, budget: list[int], stop_event: threading
             raise ValueError("Physics source XML has an oversized attribute.")
         pending.extend((child, depth + 1) for child in element)
     raise_if_cancelled(stop_event)
-    return PbdProfileDocument(entry.path, entry.identity, bytes(data), hashlib.sha256(data).hexdigest()), text
+    location = (str(entry.pamt_path), str(entry.paz_file), entry.offset, entry.comp_size,
+                entry.orig_size, entry.flags, entry.paz_index)
+    return PbdProfileDocument(entry.path, entry.identity, bytes(data), hashlib.sha256(data).hexdigest(), location), text
 
 
 def _profile_path(filename: str) -> str:
@@ -115,9 +121,31 @@ def resolve_mesh_physics_profiles(
     if source.extension != ".pac":
         return context
     budget = [_MAX_CONTEXT_BYTES]
+    def load_document(path):
+        return _read_document(_exact_entry(path, entries_by_basename), budget, stop_event)
+    return _resolve_documents(context, load_document, stop_event)
+
+
+def resolve_saved_physics_profiles(state):
+    """Recover the same exact context from a draft's checked dependency blobs."""
+    from cdmw.domain.mesh.replacement import ReplacementFile
+    from cdmw.services.mesh_replacement_import import archive_entry
+    target = archive_entry(ReplacementFile(state.target_path, b"", state.target_location))
+    if target is None or target.extension != ".pac":
+        return None
+    budget = [_MAX_CONTEXT_BYTES]
+    def load_document(path):
+        matches = [file for file in state.dependencies if file.path.casefold() == path.casefold()]
+        if len(matches) != 1 or (entry := archive_entry(matches[0])) is None:
+            raise ValueError("Physics profile edit source is missing or has changed.")
+        return _capture_document(entry, matches[0].data, budget, None)
+    return _resolve_documents(PbdProfileContext(target.identity), load_document, None)
+
+
+def _resolve_documents(context, load_document, stop_event):
     try:
-        sidecar_path = source.identity.normalized_path.replace("/model/", "/modelproperty/", 1) + "_xml"
-        sidecar, text = _read_document(_exact_entry(sidecar_path, entries_by_basename), budget, stop_event)
+        sidecar_path = context.source_identity.normalized_path.replace("/model/", "/modelproperty/", 1) + "_xml"
+        sidecar, text = load_document(sidecar_path)
         context = replace(context, sidecar=sidecar)
         hints = parse_pbd_sidecar_hints(text, sidecar_path=sidecar.path, retain_empty_bindings=True)
         if len(hints) > _MAX_BINDINGS:
@@ -128,9 +156,7 @@ def resolve_mesh_physics_profiles(
         context = replace(context, bindings=bindings)
         if not any(binding.profile_name for binding in bindings):
             return context
-        catalogue, text = _read_document(
-            _exact_entry(_PBD_ROOT + "pbdconfig.xml", entries_by_basename), budget, stop_event,
-        )
+        catalogue, text = load_document(_PBD_ROOT + "pbdconfig.xml")
         context = replace(context, catalogue=catalogue)
         materials = collect_pbd_config_materials(text)
         if len(materials) > _MAX_BINDINGS:
@@ -158,7 +184,7 @@ def resolve_mesh_physics_profiles(
                     try:
                         if len(profiles) + len(failures) >= _MAX_PROFILES:
                             raise ValueError("Physics context contains too many profiles.")
-                        document, _ = _read_document(_exact_entry(path, entries_by_basename), budget, stop_event)
+                        document, _ = load_document(path)
                         profiles[key] = document
                     except (OSError, ValueError) as exc:
                         failures[key] = str(exc)

@@ -1,7 +1,8 @@
 //! Edit existing cloth influence through the host's reversible PAC output path.
 pub(crate) mod preview;
 pub(super) mod profiles {
-    //! Explicit source/variant selection for a preview preset, never authored edits.
+    //! Separate raw profile authoring from converted preview presets.
+    use crate::UiAction;
     use cdmw_mesh::cloth::Settings;
     use serde::Deserialize;
     use serde_json::{Value, json};
@@ -11,6 +12,10 @@ pub(super) mod profiles {
         variant: Option<String>,
         source: Value,
         loaded: Option<(Value, Settings)>,
+        edit_group: Option<String>,
+        edit_source: Option<String>,
+        edit_key: Value,
+        edit_values: std::collections::BTreeMap<String, f64>,
     }
 
     impl ProfileView {
@@ -137,6 +142,133 @@ pub(super) mod profiles {
         false
     }
 
+    fn source_key(source: &Value) -> String {
+        json!([source["name"], source["path"], source["sha256"]]).to_string()
+    }
+
+    fn draw_authoring(
+        ui: &mut egui::Ui,
+        state: &Value,
+        view: &mut ProfileView,
+        actions: &mut Vec<UiAction>,
+        enabled: bool,
+    ) {
+        let Some(variant) = view.variant.clone() else {
+            return;
+        };
+        let groups = state["groups"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|group| group["variant"].as_str() == Some(variant.as_str()))
+            .collect::<Vec<_>>();
+        if groups.is_empty() {
+            return;
+        }
+        ui.collapsing("Edit profile for mod", |ui| {
+            if groups.len() == 1 {
+                view.edit_group = groups[0]["id"].as_str().map(str::to_owned);
+            }
+            if groups.len() > 1 {
+                ui.horizontal_wrapped(|ui| {
+                    for (index, group) in groups.iter().enumerate() {
+                        let id = group["id"].as_str().unwrap_or_default();
+                        if ui.add(egui::Button::new(format!("Profile group {}", index + 1))
+                            .selected(view.edit_group.as_deref() == Some(id))).clicked() {
+                            view.edit_group = Some(id.to_owned());
+                        }
+                    }
+                });
+            }
+            let Some(group) = groups.iter().find(|group| group["id"].as_str() == view.edit_group.as_deref()) else {
+                ui.small("Choose a profile group to edit."); return;
+            };
+            let names = group["names"].as_array().into_iter().flatten().filter_map(Value::as_str).collect::<Vec<_>>();
+            ui.label(format!("Applies to all {} parts sharing this assignment", names.len()));
+            ui.small(names.join(", "));
+            if let Some(reason) = group["reason"].as_str().filter(|reason| !reason.is_empty()) { ui.small(reason); }
+            let sources = state["sources"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+            let key = json!([state["sidecar_sha256"], group["id"], group["rule"], sources]);
+            if view.edit_key != key {
+                view.edit_key = key;
+                let saved = &group["rule"];
+                view.edit_source = sources.iter().find(|source| {
+                    if saved.is_object() {
+                        source["name"] == saved["source_profile"] && source["path"] == saved["source_path"]
+                            && source["sha256"] == saved["source_sha256"]
+                    } else { source["name"] == group["source_profile"] }
+                }).map(source_key);
+                view.edit_values = saved["values"].as_object().into_iter().flatten()
+                    .filter_map(|(key, value)| value.as_f64().map(|value| (key.clone(), value))).collect();
+            }
+            let previous = view.edit_source.clone();
+            let selected = sources.iter().find(|source| Some(source_key(source)) == view.edit_source)
+                .and_then(|source| source["name"].as_str()).unwrap_or("Choose source profile");
+            egui::ComboBox::from_id_salt("physics-profile-source").selected_text(selected).show_ui(ui, |ui| {
+                for source in sources {
+                    ui.selectable_value(&mut view.edit_source, Some(source_key(source)),
+                        source["name"].as_str().unwrap_or("Profile"));
+                }
+            });
+            if previous != view.edit_source { view.edit_values.clear(); }
+            let source = sources.iter().find(|source| Some(source_key(source)) == view.edit_source);
+            if let Some(source) = source {
+                for (key, label, low, high, integer) in [
+                    ("StretchingStiffness", "Stretch stiffness", 0.0, 1.0, false),
+                    ("BendingStiffness", "Bend stiffness", 0.0, 1.0, false),
+                    ("Damping", "Damping", 0.0, 10.0, false),
+                    ("Gravity", "Gravity", -100.0, 100.0, false),
+                    ("SolverIterationCount", "Iterations", 1.0, 64.0, true),
+                    ("UseVertexAlphaPositionBlending", "Vertex alpha", 0.0, 1.0, true),
+                    ("UseRotationCorrection", "Guide rotation", 0.0, 1.0, true),
+                ] {
+                    ui.horizontal(|ui| {
+                        let raw = source["authored"][key.to_ascii_lowercase()].as_str();
+                        let original = raw.and_then(|text| text.parse::<f64>().ok())
+                            .filter(|number| number.is_finite());
+                        let mut overridden = view.edit_values.contains_key(key);
+                        let mut value = view.edit_values.get(key).copied()
+                            .filter(|number| number.is_finite()).or(original).unwrap_or(low).clamp(low, high);
+                        ui.checkbox(&mut overridden, format!("Override {label}"));
+                        if overridden {
+                            let mut control = egui::DragValue::new(&mut value).range(low..=high).speed(if integer { 1.0 } else { 0.01 });
+                            if integer { control = control.max_decimals(0); }
+                            ui.add(control);
+                            // Invalid text entered into a numeric control must
+                            // never serialize as a null/nonfinite raw override.
+                            value = if value.is_finite() { value.clamp(low, high) } else { low };
+                            if integer { value = value.round(); }
+                            view.edit_values.insert(key.to_owned(), value);
+                        } else {
+                            view.edit_values.remove(key);
+                            ui.small(match (raw, original) {
+                                (Some(text), Some(_)) => text,
+                                (Some(_), None) => "Invalid source value",
+                                (None, _) => "Source default",
+                            });
+                        }
+                    });
+                }
+                if ui.add_enabled(enabled && group["available"].as_bool() == Some(true) && !view.edit_values.is_empty(),
+                    egui::Button::new("Apply profile edit")).clicked() {
+                    actions.push(UiAction::CdmwCommand {
+                        command: "replacement_physics_profile",
+                        arguments: json!({"group_id": group["id"], "rule": {
+                            "variant": variant, "source_profile": source["name"], "source_path": source["path"],
+                            "source_sha256": source["sha256"], "values": view.edit_values}}), label: "Edit physics profile",
+                    });
+                }
+            } else { ui.small("Choose a captured source profile before setting overrides."); }
+            if ui.add_enabled(enabled && group["available"].as_bool() == Some(true) && group["rule"].is_object(),
+                egui::Button::new("Restore profile assignment")).clicked() {
+                actions.push(UiAction::CdmwCommand { command: "replacement_physics_profile",
+                    arguments: json!({"group_id": group["id"], "reset": true}), label: "Restore physics profile" });
+            }
+            ui.small("Raw profile values. Saved with Build Mod and drafts; Apply and Restore support Undo.");
+            ui.small("Build Mod includes a cloned profile, the profile catalogue and this variant's assignment. Existing physics bindings are required; in-game loading is unverified.");
+        });
+    }
+
     pub(crate) fn draw(
         ui: &mut egui::Ui,
         state: &Value,
@@ -145,11 +277,17 @@ pub(super) mod profiles {
         settings: &mut Settings,
         can_apply: bool,
         rotation_available: bool,
+        actions: &mut Vec<UiAction>,
+        can_author: bool,
     ) -> bool {
         let source = json!([state["source"], state["sidecar_sha256"]]);
         if view.source != source {
             view.source = source;
             view.variant = None;
+            view.edit_group = None;
+            view.edit_source = None;
+            view.edit_key = Value::Null;
+            view.edit_values.clear();
         }
         let mut changed = false;
         // Also run while collapsed: changing part/sources must not leave a preset
@@ -176,7 +314,7 @@ pub(super) mod profiles {
             if let Some(reason) = state["reason"].as_str().filter(|reason| !reason.is_empty()) {
                 ui.small(reason);
             }
-            ui.small("Preview variant");
+            ui.small("Profile variant (preview and mod edit)");
             ui.horizontal_wrapped(|ui| {
                 for variant in state["variants"].as_array().into_iter().flatten().filter_map(Value::as_str) {
                     let label = if variant.is_empty() { "Default variant".to_owned() } else { format!("Variant {variant}") };
@@ -199,6 +337,7 @@ pub(super) mod profiles {
                     ui.small(format!("{name}: {}", if assignments.is_empty() { "Unassigned".to_owned() } else { assignments.join(", ") }));
                 }
             }
+            draw_authoring(ui, state, view, actions, can_author);
             let profile = match assigned_profile(state, parts, view.variant.as_deref()) {
                 Ok(profile) => profile,
                 Err(reason) => { ui.small(reason); return; }
@@ -268,8 +407,9 @@ impl LabApplication {
         if !state_bool(&cloth, "available") {
             ui.label(state_str(&cloth, "reason").unwrap_or("Cloth influence is unavailable."));
             let parts = self.cdmw_state["replacement"]["parts"].as_array().cloned().unwrap_or_default();
+            let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
             profiles::draw(ui, &self.cdmw_state["physics_profiles"], &parts,
-                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false);
+                &mut self.cdmw_cloth.profiles, &mut self.cdmw_jiggle.preview.cloth_settings, false, false, actions, can_author);
             return;
         }
         ui.checkbox(&mut self.cdmw_cloth.selected_only, "Selected parts only");
@@ -376,7 +516,7 @@ impl LabApplication {
             }
         });
         ui.small("Saved with Build PAC and drafts. Preview simulation remains approximate.");
-        self.draw_cloth_preview_controls(ui, &parts);
+        self.draw_cloth_preview_controls(ui, &parts, actions);
         self.draw_cloth_collision_inputs(ui, actions);
     }
 }

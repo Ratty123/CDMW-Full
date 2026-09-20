@@ -8,13 +8,20 @@ from cdmw.ui.shell.tab_registry import DetachedToolWindow
 
 def prepare_replacement_event(tab, session, event):
     args = dict(event.get("arguments") or {})
+    state = session.shadow_service._session(session.shadow_session_id).replacement_state
+    if event.get("command") == "replacement_physics_profile" and state is not None:
+        # Drafts retain the original target and exact profile dependencies. They
+        # remain editable with no mounted archive or live Archive Browser.
+        if tab.standalone_rust_authoring_session is not session or tab.standalone_rust_closing:
+            raise ValueError("The mesh session closed during replacement selection.")
+        return {**event, "arguments": args}
     target = tab._current_target_entry()
     if target is None:
         raise ValueError("Open an archive mesh before importing a replacement.")
     owner = tab.window()
     if isinstance(owner, DetachedToolWindow):
         owner = owner.owner
-    if session.shadow_service._session(session.shadow_session_id).replacement_state is None:
+    if state is None:
         args["_archive_entry"] = target
         args["_archive_dependencies"] = archive_workflow_dependency_context(owner, target)
     if event.get("command") == "replacement_choose":

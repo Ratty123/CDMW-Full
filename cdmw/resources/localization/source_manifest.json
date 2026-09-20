@@ -48368,6 +48368,11 @@
           "path": "cdmw/services/mesh_replacement_draft.py",
           "line": 162,
           "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 219,
+          "sink": "ValueError"
         }
       ]
     },
@@ -74308,6 +74313,11 @@
           "path": "cdmw/services/mesh_replacement_draft.py",
           "line": 133,
           "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 216,
+          "sink": "ValueError"
         }
       ]
     },
@@ -74352,6 +74362,41 @@
         {
           "path": "cdmw/services/mesh_physics_profile_output.py",
           "line": 63,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_physics_profiles.py",
+          "line": 140,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 224,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 229,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 243,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 249,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 252,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_physics_profiles.py",
+          "line": 255,
           "sink": "ValueError"
         }
       ]
@@ -109419,6 +109464,11 @@
     {
       "key": "The mesh session closed during replacement selection.",
       "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/replacement_flow.py",
+          "line": 27,
+          "sink": "ValueError"
+        },
         {
           "path": "cdmw/ui/mesh_editor/replacement_flow.py",
           "line": 27,

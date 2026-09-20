@@ -357,7 +357,7 @@ impl LabApplication {
     }
 
     pub(super) fn draw_jiggle_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value]) {
-        self.draw_motion_preview_controls(ui, parts, false);
+        self.draw_motion_preview_controls(ui, parts, false, &mut Vec::new());
     }
 
     pub(super) fn draw_cloth_collision_inputs(&self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
@@ -390,7 +390,7 @@ impl LabApplication {
         self.submit_cdmw_command("cloth_collision_input", json!({"role": role, "path": path.to_string_lossy()}), "Load collision input");
     }
 
-    pub(super) fn draw_cloth_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value]) {
+    pub(super) fn draw_cloth_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value], actions: &mut Vec<UiAction>) {
         let verified = self.cdmw_state["jiggle"]["overlay_parts"].as_array();
         let parts = parts.iter().map(|part| {
             let mut part = part.clone();
@@ -398,10 +398,10 @@ impl LabApplication {
                 .map(|row| row["preview"].clone()).unwrap_or(Value::Null);
             part
         }).collect::<Vec<_>>();
-        self.draw_motion_preview_controls(ui, &parts, true);
+        self.draw_motion_preview_controls(ui, &parts, true, actions);
     }
 
-    fn draw_motion_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value], cloth: bool) {
+    fn draw_motion_preview_controls(&mut self, ui: &mut egui::Ui, parts: &[Value], cloth: bool, actions: &mut Vec<UiAction>) {
         ui.separator();
         ui.label("Motion preview");
         if (self.cdmw_jiggle.preview.solver == Solver::Cloth) != cloth {
@@ -417,6 +417,7 @@ impl LabApplication {
             self.cdmw_jiggle.preview.parts = ids;
         }
         let was_playing = self.cdmw_jiggle.preview.playing || self.cdmw_jiggle.preview.pending.is_some();
+        let can_author = !self.cdmw_busy() && state_bool(&self.cdmw_state, "authoring_enabled");
         let mut changed = false;
         let preview = &mut self.cdmw_jiggle.preview;
         if !cloth { ui.horizontal_wrapped(|ui| {
@@ -540,7 +541,7 @@ impl LabApplication {
             });
             changed |= crate::cdmw_cloth::profiles::draw(ui, &self.cdmw_state["physics_profiles"], parts,
                 &mut self.cdmw_cloth.profiles, &mut preview.cloth_settings,
-                cloth_state["available"].as_bool() == Some(true), rotation_available);
+                cloth_state["available"].as_bool() == Some(true), rotation_available, actions, can_author);
             ui.small("Experimental guide cloth with controlled motion and preview settings.");
         } else {
             ui.add(egui::Slider::new(&mut preview.settings.softness, 0.0..=1.0).text("Preview softness"));

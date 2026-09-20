@@ -76,7 +76,7 @@ def run_replacement_command(authoring, command, args, stop_event):
     snapshot = service.capture_export_snapshot(session_id, stop_event=stop_event)
     entry = args.get("_archive_entry")
     dependencies = ()
-    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_cloth", "replacement_jiggle"}:
+    if snapshot.replacement_state is None and command in {"replacement_choose", "replacement_include", "replacement_cloth", "replacement_jiggle", "replacement_physics_profile"}:
         from cdmw.services.mesh_replacement_materials import capture_replacement_dependencies
         dependencies = capture_replacement_dependencies(entry, args.get("_archive_dependencies"), stop_event)
         if authoring.neutral_appearance is not None:
@@ -123,6 +123,10 @@ def run_replacement_command(authoring, command, args, stop_event):
         from cdmw.services.mesh_rust_jiggle import set_jiggle_rule
         result = set_jiggle_rule(authoring, snapshot, args, entry=entry,
                                 dependencies=dependencies, stop_event=stop_event)
+    elif command == "replacement_physics_profile":
+        from cdmw.services.mesh_rust_physics_profiles import set_physics_profile_rule
+        result = set_physics_profile_rule(authoring, snapshot, args, entry=entry,
+                                        dependencies=dependencies, stop_event=stop_event)
     elif command in {"replacement_fit", "replacement_reset"}:
         result = reset_or_fit_import(service, snapshot, fit=command == "replacement_fit", stop_event=stop_event)
     else:

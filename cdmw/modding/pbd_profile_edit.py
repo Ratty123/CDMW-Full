@@ -130,18 +130,20 @@ class ProfileXml:
         return None
 
     def assignment(self, variant, names):
+        keys = {name.casefold() for name in names}
         rows = [node for node in self.nodes if self.variant(node) == variant
-                and node.attributes.get("_subMeshName") in names]
-        if len(rows) != len(names) or {node.attributes["_subMeshName"] for node in rows} != set(names):
+                and node.attributes.get("_subMeshName", "").casefold() in keys]
+        if (len(keys) != len(names) or len(rows) != len(names)
+                or {node.attributes["_subMeshName"].casefold() for node in rows} != keys):
             raise ValueError("Physics profile assignment is ambiguous or does not match the PAC.")
         owners = {self.owner(node) for node in rows}
         for owner in owners:
             if self.variant(owner) != variant:
                 raise ValueError("Physics profile assignment is ambiguous or does not match the PAC.")
-            affected = {node.attributes["_subMeshName"] for node in self.nodes
+            affected = {node.attributes["_subMeshName"].casefold() for node in self.nodes
                         if "_subMeshName" in node.attributes and self.variant(node) == variant
                         and self.owner(node, required=False) is owner}
-            if not affected <= set(names):
+            if not affected <= keys:
                 raise ValueError("Select every part sharing this physics profile assignment.")
         return owners
 
@@ -157,6 +159,12 @@ def edit_profile_values(data, values):
     for key, value in sorted(values):
         scalar = format(value, ".9g").encode("ascii")
         matches = [node for node in root.children if node.tag == key]
+        # SimulationMode resets guide rotation when encountered by the CPU
+        # reader. A requested rotation override must come after that reset.
+        if key == "UseRotationCorrection" and matches and any(
+                node.tag == "SimulationMode" and node.start > matches[-1].start for node in root.children):
+            additions.append(b"\n\t<" + key.encode() + b">" + scalar + b"</" + key.encode() + b">")
+            continue
         if matches:
             node = matches[-1]  # The CPU reader processes duplicate scalars in order.
             content = document.text[node.open_end:node.close_start]

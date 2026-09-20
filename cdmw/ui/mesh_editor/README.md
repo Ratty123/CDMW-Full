@@ -403,8 +403,9 @@ records exactly. Moves outside those bounds expand them and re-encode lower LOD
 positions within the new quantization precision. Draft recovery uses the same
 exact record-map checks before accepting these edits.
 
-These controls edit render-vertex cloth influence, not simulation anchors,
-collision shapes or the shared physics profile.
+These influence controls edit render-vertex cloth influence. Profile authoring
+uses the separate **Edit profile for mod** section described below; simulation
+anchors and collision shapes remain source-owned.
 Cloth-only drafts use project/generation v6 and replacement payload v4 so older apps
 reject them before attempting recovery that could lose the settings. Drafts
 without cloth settings retain their existing formats unless jiggle settings are present.
@@ -600,6 +601,39 @@ output hashes, selected part and height with any regression report.
 `mesh_rust_jiggle.py` owns the command/state handoff, `domain/mesh/jiggle.py` the
 height rule, and `modding/pac_jiggle.py` the byte patch. The shared PAC LOD reader
 validates record ownership without requiring cloth bindings.
+
+### Authored physics profiles
+
+In **Mesh Data > Cloth**, expand **Authored cloth profile** and choose a variant.
+Assignments come from the exact captured PAC sidecar and profile catalogue,
+including explicit empty variants. The active in-game variant is not inferred.
+**Use profile in preview** loads supported settings after decoded stiffness
+conversion. Motion tests and preview sliders remain preview-only.
+
+Expand **Edit profile for mod**, choose the shared assignment group if there is
+more than one, and choose a captured source profile. Each group lists every
+affected part; a shared owner changes as one unit. Empty variants can receive
+an explicit assignment through their existing owner. Tick the raw XML values to
+override: stretching/bending stiffness, damping, gravity, iteration count,
+vertex-alpha blending or guide rotation. Unticked values retain the source.
+Models whose variants are all empty do not provide a captured source template;
+profile authoring remains unavailable for those models.
+Invalid source numbers are labelled; explicit overrides use finite bounded
+values. Preview stiffness coefficients are never copied into raw XML overrides.
+
+**Apply profile edit** and **Restore profile assignment** each use Undo/Redo in
+the isolated edit session. **Finish Edit Mesh** accepts the edits into the main
+session. Save/Open Draft retains exact source bytes, archive locations and
+rules, so profile editing can continue without the original archive context.
+**Build Mod** includes the cloned profile, catalogue and selected sidecar
+assignments. Profile-only edits keep the PAC byte-identical. Single-file PAC
+export cannot contain the required companions.
+
+Original shared profiles, unknown XML, encoding and unrelated variants are
+preserved. Catalogue edits compose with existing entries, but packages that
+override the same catalogue must be merged. This does not create guide geometry
+or physics/bone bindings. In-game loading of generated profiles is unverified;
+the controlled preview does not establish game-equivalent motion.
 
 ## Vertex Parameters
 

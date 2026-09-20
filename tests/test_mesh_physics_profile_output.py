@@ -54,6 +54,12 @@ def test_profile_scalar_changes_preserve_unknown_bytes_comments_and_attached_own
     assert inserted == source.replace('</SimulationParameters>', '\n\t<UseRotationCorrection>0</UseRotationCorrection></SimulationParameters>').encode(encoding)
 
 
+def test_rotation_override_follows_mode_reset_without_rewriting_existing_order():
+    data = b'<SimulationParameters><UseRotationCorrection>1</UseRotationCorrection><SimulationMode>cloth</SimulationMode></SimulationParameters>'
+    edited = edit_profile_values(data, (('UseRotationCorrection', 0),))
+    assert edited == data.replace(b'</SimulationParameters>', b'\n\t<UseRotationCorrection>0</UseRotationCorrection></SimulationParameters>')
+
+
 @pytest.mark.parametrize('data', [
     b'<!DOCTYPE X [<!ENTITY n "1">]><SimulationParameters><Damping>&n;</Damping></SimulationParameters>',
     b'<SimulationParameters><Damping><!-- preserve -->.8</Damping></SimulationParameters>',
@@ -115,19 +121,32 @@ def test_assignment_inherited_above_variants_cannot_be_changed_for_just_one_vari
         document.assignment('0', ['body'])
 
 
+def test_assignment_rejects_sidecar_names_differing_only_by_case():
+    document = ProfileXml(b'<Root _pbdSimulationMaterialName="Shared"><Part _subMeshName="body"/><Part _subMeshName="BODY"/></Root>')
+    with pytest.raises(ValueError, match='ambiguous'):
+        document.assignment('', ['body'])
+
+
 def test_profile_export_composes_with_material_changes_and_can_bind_an_empty_variant(editor):
     service, sid = editor
     snapshot = service.capture_export_snapshot(sid)
     state, sidecar, catalogue, _, rule = inputs(snapshot)
     current = replace(sidecar, data=_xml_text(sidecar.data).replace('original.dds', 'edited.dds').encode('utf-16'))
+    existing_entry = '<Material Name="OtherMod" Filename="material/other.xml" custom="preserve"/>'
+    composed_catalogue = replace(catalogue, data=_xml_text(catalogue.data).replace(
+        '</Config>', existing_entry + '</Config>').encode('utf-8-sig'))
     rule = replace(rule, variant='1')
-    state = replace(state, parts=tuple(replace(part, physics_profiles=(rule,)) for part in state.parts), companion_files=(current,))
+    state = replace(state, parts=tuple(replace(part, physics_profiles=(rule,)) for part in state.parts),
+                    companion_files=(current, composed_catalogue))
     candidate = mesh_with_part_ids(snapshot, state)
     output = prepare_replacement_output(replace(snapshot, mesh=candidate, replacement_state=state))
     text = _xml_text(next(file.data for file in output.companion_files if file.path == sidecar.path))
     assert text.count('edited.dds') == _xml_text(current.data).count('edited.dds')
     assert '<SkinnedMeshProperty _pbdSimulationMaterialName="Lower">' in text
     assert '<SkinnedMeshProperty _pbdSimulationMaterialName="CDMW_' in text
+    config = next(file.data for file in output.companion_files if file.path == catalogue.path)
+    assert existing_entry in _xml_text(config)
+    assert len(list(_parse_xml(_xml_text(config)).iter('Material'))) == 3
 
 
 def test_profile_edit_undo_redo_draft_reopen_and_loose_mod_keep_exact_sources(editor, tmp_path):

@@ -1189,6 +1189,7 @@ class PbdProfileDocument:
     identity: ArchiveEntryIdentity
     data: bytes
     sha256: str
+    archive_location: Tuple[str, str, int, int, int, int, int] | None = None
 
 
 @dataclass(frozen=True, slots=True)

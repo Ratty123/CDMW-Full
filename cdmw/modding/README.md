@@ -1609,9 +1609,17 @@ dependency blobs. Earlier versions remain readable; removing the new rules or
 downgrading their schema fails. The normal replacement transaction, undo/redo,
 rebuild validation and `MeshDirectOutputWorker` loose-mod route carry the generated
 companions. A profile-only edit leaves the PAC byte-identical. Single-file PAC
-export is disabled when profile companions are needed. This backend does not yet
-expose profile authoring controls in the editor; the existing profile selector
-continues to load preview settings only.
+export is disabled when profile companions are needed. The Cloth panel's
+**Authored cloth profile > Edit profile for mod** controls dispatch Apply/Restore
+through `mesh_rust_physics_profiles.py` and the existing shadow replacement
+transaction. Variants and complete shared assignment groups are explicit.
+The raw authoring inputs are separate from converted preview coefficients.
+Guide-rotation overrides follow any SimulationMode reset in XML reader order.
+Captured dependencies retain complete archive locations and exact source bytes;
+saved drafts recover profile context without reading the original archives.
 
-Focused coverage: `tests/test_mesh_physics_profile_output.py`, plus the existing
-replacement, cloth and jiggle draft compatibility tests.
+Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
+`tests/test_mesh_physics_profile_output.py`, and Rust
+`headless_ui_tests::cloth_preview_tests::profiles` exercise commands, numeric
+handling, history, Finish, draft recovery and companion output. These are
+nonvisual checks and do not prove runtime activation in game.

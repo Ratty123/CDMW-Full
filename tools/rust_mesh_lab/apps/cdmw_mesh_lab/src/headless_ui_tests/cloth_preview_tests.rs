@@ -24,6 +24,144 @@ mod profiles {
         ui.frame(Vec::new());
     }
 
+    fn editable_profiles(ui: &mut HeadlessUi) {
+        source_profiles(ui);
+        let state = &mut ui.application.cdmw_state["physics_profiles"];
+        let mut source = state["profiles"][0].clone();
+        source["name"] = json!("Lower_Leather");
+        source["authored"]["solveriterationcount"] = json!("3");
+        source["authored"]["damping"] = json!(".8");
+        state["sources"] = json!([source]);
+        state["groups"] = json!([
+            {"id": "shared:0", "variant": "0", "available": true, "reason": "",
+                "names": ["Cloth", "Belt", "Trim"], "source_profile": "Lower_Leather", "rule": null},
+            {"id": "shared:1", "variant": "1", "available": true, "reason": "",
+                "names": ["Cloth", "Belt", "Trim"], "source_profile": "", "rule": null}
+        ]);
+        ui.frame(Vec::new());
+    }
+
+    fn profile_command(actions: &[UiAction]) -> &Value {
+        actions
+            .iter()
+            .find_map(|action| match action {
+                UiAction::CdmwCommand {
+                    command: "replacement_physics_profile",
+                    arguments,
+                    ..
+                } => Some(arguments),
+                _ => None,
+            })
+            .expect("profile command from the actual control")
+    }
+
+    #[test]
+    fn profile_apply_and_restore_emit_raw_overrides_and_shared_owner_identity() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Use profile in preview")?;
+        assert_eq!(
+            ui.application.cdmw_jiggle.preview.cloth_settings.stretch,
+            0.359619140625
+        );
+        ui.click("Edit profile for mod")?;
+        assert!(
+            ui.label_rect("Applies to all 3 parts sharing this assignment")
+                .is_some()
+        );
+        ui.click("Override Stretch stiffness")?;
+        ui.click("Override Iterations")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        let args = profile_command(&actions);
+        assert_eq!(args["group_id"], "shared:0");
+        assert_eq!(args["rule"]["variant"], "0");
+        assert_eq!(
+            args["rule"]["values"],
+            json!({"StretchingStiffness": 0.3, "SolverIterationCount": 3.0})
+        );
+        ui.application.cdmw_pending_request = None; // Host acknowledgement.
+        ui.application.cdmw_state["physics_profiles"]["groups"][0]["rule"] = args["rule"].clone();
+        ui.frame(Vec::new());
+        let actions = ui.actions_from_click("Restore profile assignment")?;
+        assert_eq!(
+            profile_command(&actions),
+            &json!({"group_id": "shared:0", "reset": true})
+        );
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn profile_empty_variant_requires_explicit_source_and_multiple_groups_require_selection()
+    -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        let mut second = ui.application.cdmw_state["physics_profiles"]["groups"][0].clone();
+        second["id"] = json!("separate:0");
+        second["names"] = json!(["Other"]);
+        ui.application.cdmw_state["physics_profiles"]["groups"]
+            .as_array_mut()
+            .unwrap()
+            .push(second);
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Edit profile for mod")?;
+        assert!(ui.label_rect("Apply profile edit").is_none());
+        ui.click("Profile group 2")?;
+        ui.click("Override Damping")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        assert_eq!(profile_command(&actions)["group_id"], "separate:0");
+        ui.application.cdmw_pending_request = None;
+        ui.frame(Vec::new());
+        ui.click("Variant 1")?;
+        assert!(ui.label_rect("Apply profile edit").is_none());
+        ui.click("Choose source profile")?;
+        ui.click("Lower_Leather")?;
+        ui.click("Override Damping")?;
+        let actions = ui.actions_from_click("Apply profile edit")?;
+        let args = profile_command(&actions);
+        assert_eq!(args["group_id"], "shared:1");
+        assert_eq!(args["rule"]["variant"], "1");
+        assert_eq!(args["rule"]["values"], json!({"Damping": 0.8}));
+        Ok(())
+    }
+
+    #[test]
+    fn profile_nonfinite_sources_are_displayed_safely_and_never_sent_as_null() -> TestResult {
+        let (_root, mut ui, _) = fixture()?;
+        editable_profiles(&mut ui);
+        ui.click("Authored cloth profile")?;
+        ui.click("Variant 0")?;
+        ui.click("Edit profile for mod")?;
+        for raw in ["NaN", "inf", "-Infinity", "1e999", "invalid"] {
+            ui.application.cdmw_pending_request = None;
+            ui.application.cdmw_state["physics_profiles"]["sources"][0]["authored"]["damping"] =
+                json!(raw);
+            ui.frame(Vec::new());
+            assert!(ui.label_rect("Invalid source value").is_some(), "{raw}");
+            ui.click("Override Damping")?;
+            let actions = ui.actions_from_click("Apply profile edit")?;
+            let value = profile_command(&actions)["rule"]["values"]["Damping"]
+                .as_f64()
+                .unwrap();
+            assert!(value.is_finite() && (0.0..=10.0).contains(&value));
+        }
+        ui.application.cdmw_pending_request = None;
+        ui.application.cdmw_state["physics_profiles"]["groups"][0]["available"] = json!(false);
+        ui.frame(Vec::new());
+        assert!(!has_host_command(
+            &ui.actions_from_click("Apply profile edit")?,
+            "replacement_physics_profile"
+        ));
+        Ok(())
+    }
+
     #[test]
     fn explicit_profile_selection_drives_preview_and_empty_variant_restores_manual() -> TestResult {
         let (root, mut ui, payload) = fixture()?;

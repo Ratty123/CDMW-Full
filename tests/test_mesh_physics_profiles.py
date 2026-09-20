@@ -69,6 +69,8 @@ def test_exact_profile_sources_preserve_bytes_variants_and_empty_bindings(physic
     assert document.data == before[profile.prepared_path]
     assert document.sha256 == profile.prepared_sha256
     assert document.identity == profile.identity
+    assert document.archive_location == (str(profile.pamt_path), str(profile.paz_file), profile.offset,
+                                         profile.comp_size, profile.orig_size, profile.flags, profile.paz_index)
     assert b"8.125" in document.data  # Authored values are never clamped to preview limits.
     assert [(row.submesh_name, row.variant_index, row.profile_name, row.profile_path) for row in context.bindings] == [
         ("skirt", "0", "Lower_Leather", profile.path),
