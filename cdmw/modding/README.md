@@ -111,6 +111,43 @@ These are vertex blend weights, not spring constants or proof of live physics.
 Bone overrides can replace the vertex blend. The upper nibble's other consumers
 remain unresolved, so disabling must preserve it as well as all other record lanes.
 
+### Bone jiggle reference
+
+`pac_jiggle_bones.py` implements the ordinary per-bone branch of
+`UpdateJiggleEffect` in build `1.0.0.2944`. The two inspected shader variants have
+identical function bodies (source SHA-256 prefixes `25bbc446fe96` and
+`3033dabff732`). This reference requires resolved animation and runtime records;
+it does not infer that a PAC has an active solver from its vertex weights.
+
+`step_jiggle_bone` takes the previous 116-byte `JiggleBone`, the current command
+record, a 264-byte `SkinnedMeshJiggleShaderData`, a selected 64-byte animation
+matrix, and a 272-byte `CharacterTransformData`. The caller supplies the original
+bone index after LOD mapping, frame index, global jiggle delta time, view origins
+and object reset flag. The result contains the new packed `bone`, four row-major
+`matrix` rows and a `reset` indicator. No fixed timestep is invented.
+
+The reference covers frame continuity, origin-speed resets, platform translation,
+animation decomposition, seeded spring acceleration, damping, limits and matrix
+reconstruction. Linear velocity and displacement limits act on vector lengths
+and scale with the character parameter span, bounded to a multiplier of 1–5.
+Angular limits apply independently per Euler axis and are not scaled. Damping is
+a multiplier per update, including a zero-delta update. Position/angle clamps do
+not reconstruct velocity. The seed uses float32 products of the old position,
+velocity, rotation and angular velocity, plus original bone and frame indices;
+the GPU random sequence differs from the CPU solver's global generator.
+
+`jiggle_bone_blend_override` decodes the output metadata separately. Any nonzero
+low-two-bit shader mode sets row0.w to 1. Mode 2 scans up to 32 packed u16 bone
+indices and replaces row1.w with the last matching mask value. Values are not
+clamped. Unmatched bones retain the supplied instance weight, which is zero on
+the ordinary path. These overrides can supersede the later byte-38 render blend.
+
+Active hit/instance effects are rejected rather than replaced with the ordinary
+path. Effect commands, wind/water samples, dispatch/resource activation, rig
+resolution and the production preview still need integration. The reference
+uses Python arithmetic except where float32 storage/seed bits matter. Synthetic
+math tests do not establish GPU, rendered or in-game parity.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.
