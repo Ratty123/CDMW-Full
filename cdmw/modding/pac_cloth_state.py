@@ -1,8 +1,9 @@
 """Selected ComputePbdProcessBaseMovement state stages, build 1.0.0.2944.
 
 These consume explicit runtime records around the existing force reference.
-They do not perform skinning, scene queries, reset/space adjustment, collision
-detection or dispatch selection. Preserve the decoded stage order and variant.
+Guide animation adjustment, substep timing and integration selection are included;
+resource resolution, static-mesh space adjustment, collision detection and full
+dispatch selection remain caller-owned. Preserve the decoded stage order and variant.
 The arithmetic is a mathematical reference, not bit-exact GPU execution.
 """
 
@@ -29,6 +30,160 @@ def _f32(value):
 
 def _put(record, offset, values):
     struct.pack_into(f'<{len(values)}f', record, offset, *(_f32(v) for v in values))
+
+
+def _substep_index(value):
+    if type(value) is not int or not 0 <= value <= 0xFFFFFFFF:
+        raise ValueError("Cloth substep index must be an unsigned 32-bit integer.")
+    return value
+
+
+def select_cloth_base_substep(
+    per_frame: bytes, per_scene: bytes, global_parameters: bytes, *, substep_index: int,
+) -> dict | None:
+    """Resolve the base shader's clock gate, delta time and GUIDE animation blend.
+
+    None means the clock skips this invocation, before particle access. This
+    does not resolve visibility, resource validity or dispatch bounds. flags2
+    0x8000 selects the scaled clock; 0x800 selects one variable step at index0.
+    Scene half94 scales integration time, not animation interpolation.
+    """
+    for record, size in ((per_frame, 100), (per_scene, 108), (global_parameters, 1216)):
+        _record(record, size)
+    index = _substep_index(substep_index)
+    flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    offset = 896 if flags2 & 0x8000 else 864
+    fixed = struct.unpack_from('<f', global_parameters, offset)[0]
+    count = struct.unpack_from('<I', global_parameters, offset + 20)[0]
+    _finite(fixed)
+    variable = bool(flags2 & 0x800)
+    if (fixed < 0.00009999999747378752 and not (variable or flags & 0x400)
+            or variable and index != 0 or index >= count):
+        return None
+    selected = struct.unpack_from('<f', global_parameters, offset + 4)[0] if variable else fixed
+    scale = struct.unpack_from('<e', per_scene, 94)[0]
+    dt = _f32(selected * scale)
+    if dt < 0:
+        raise ValueError("Cloth substep delta time must be nonnegative.")
+    blend = 1.
+    if not variable:
+        interval = struct.unpack_from('<f', global_parameters, offset + 8)[0]
+        previous_remaining = struct.unpack_from('<f', global_parameters, offset + 16)[0]
+        duration = _f32(interval + previous_remaining)
+        if duration > 0.0000009999999974752427:
+            blend = max(0., min(1., _f32(_f32((index + 1) * fixed) / duration)))
+    return {'delta_time': dt, 'guide_animation_blend': blend}
+
+
+def _rotate_with_guide_anchor(position, previous, current):
+    lengths = math.hypot(*previous), math.hypot(*current)
+    if min(lengths) < 0.0000009999999974752427:
+        return position
+    a, b = (tuple(v / length for v in point)
+            for point, length in zip((previous, current), lengths))
+    cosine = sum(x * y for x, y in zip(a, b))
+    if cosine < -0.9998999834060669:
+        # The shader uses -I in this case, including the third axis.
+        return tuple(-v for v in position)
+    x, y, z = (a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2],
+               a[0]*b[1] - a[1]*b[0])
+    h = 1. / (1. + cosine)
+    basis = ((cosine + h*x*x, h*x*y + z, h*x*z - y),
+             (h*x*y - z, cosine + h*y*y, h*y*z + x),
+             (h*x*z + y, h*y*z - x, cosine + h*z*z))
+    return tuple(_f32(sum(position[i] * basis[i][j] for i in range(3))) for j in range(3))
+
+
+def prepare_guide_cloth_animation(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes,
+    guide_animation_matrix: bytes, character_transform: bytes, *, substep_index: int,
+    animation_blend: float, inside_water_volume: bool, shrink_mask: int | None = None,
+) -> dict:
+    """Prepare original flags and guide animation before input-position collision.
+
+    Consume the ORIGINAL particle, before prepare_cloth_fixed_state clears its
+    flags. The two matrix records are already resolved to the selected guide and
+    character. Only guide translation and the character's first three basis rows
+    produce the anchor; subtract frame translation without adding world translation.
+    inside_water_volume is an actual resolved water/air-pocket classification,
+    gated here by flags2 0x1000. No water texture sampling is invented.
+
+    Pass the selected substep's guide_animation_blend. First-step adjustment may
+    rotate x or p[0] and zero velocity; p[1], velocity reference and prev_ix remain.
+    Input-position collision can still alter ix/flags before integration selection.
+    """
+    for record, size in ((per_frame, 100), (per_scene, 108),
+                         (guide_animation_matrix, 64), (character_transform, 272)):
+        _record(record, size)
+    prepared = prepare_cloth_fixed_state(particle, simulation_parameter, shrink_mask=shrink_mask)
+    if struct.unpack_from('<H', simulation_parameter, 216)[0] != 0xFFFF:
+        raise ValueError("Guide animation preparation requires a guide-mesh particle.")
+    index = _substep_index(substep_index)
+    _boolean(inside_water_volume)
+    blend = _f32(animation_blend)
+    if not 0 <= blend <= 1:
+        raise ValueError("Guide animation blend must be the selected substep ratio in [0, 1].")
+    flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    scene_flags = struct.unpack_from('<I', per_scene, 64)[0]
+    old_flags = struct.unpack_from('<I', particle, 64)[0]
+    special = False
+    if flags & 0x20000000 and scene_flags & 0x200:
+        lra = struct.unpack_from('<e', particle, 88)[0]
+        movement = struct.unpack_from('<e', per_frame, 62)[0]
+        _finite(lra, movement)
+        special = lra < 0.699999988079071 and -30 < movement < -10
+    skip_forces = bool(flags & 1 or special)
+    skip_integration = bool(flags2 & 0x100 or special)
+    if old_flags & 0x4000:
+        skip_forces, skip_integration = True, False
+    underwater = bool(flags2 & 0x1000 and inside_water_volume)
+    if underwater:
+        skip_forces = skip_integration = False
+
+    bone = _point(struct.unpack_from('<3f', guide_animation_matrix, 48))
+    basis = tuple(_point(struct.unpack_from('<3f', character_transform, offset))
+                  for offset in (0, 16, 32))
+    offset = _point(struct.unpack_from('<3f', per_frame, 0))
+    current = tuple(_f32(_f32(sum(bone[i] * basis[i][j] for i in range(3))) - offset[j])
+                    for j in range(3))
+    previous = _point(struct.unpack_from('<3f', particle, 128))
+    anchor = current if flags & 0x400 else tuple(
+        _f32(old + blend * (new - old)) for old, new in zip(previous, current))
+    result = bytearray(prepared['particle'])
+    adjusted = skip_forces and index == 0
+    if adjusted:
+        position = _point(struct.unpack_from('<3f', particle, 36))
+        _put(result, 12 if skip_integration else 36,
+             _rotate_with_guide_anchor(position, previous, current))
+        _put(result, 140, (0., 0., 0.))
+        anchor = current
+    _put(result, 0, anchor)
+    return {**prepared, 'particle': bytes(result), 'underwater': underwater,
+            'skip_external_forces': skip_forces, 'integration_skipped': skip_integration,
+            'space_adjusted': adjusted}
+
+
+def select_cloth_base_integration(particle: bytes, per_frame: bytes) -> dict:
+    """Select early-return, fixed or dynamic after space/input-collision handling.
+
+    Early-return flags0xC00 take priority and bypass ALL later stages. Fixed
+    particles copy the adjusted ix to both position histories without clearing
+    velocity/contact data; they still need final flags/SBC/hold processing, using
+    zero non-gravity acceleration. Dynamic particles proceed to forces/prediction.
+    """
+    _record(particle, 152)
+    _record(per_frame, 100)
+    if struct.unpack_from('<I', per_frame, 32)[0] & 0xC00:
+        return {'particle': bytes(particle), 'branch': 'early_return'}
+    mass = struct.unpack_from('<f', particle, 60)[0]
+    _finite(mass)
+    fixed = mass <= 0 or struct.unpack_from('<I', particle, 64)[0] & 0x40
+    result = bytearray(particle)
+    if fixed:
+        anchor = _point(struct.unpack_from('<3f', particle, 0))
+        _put(result, 12, anchor)
+        _put(result, 24, anchor)
+    return {'particle': bytes(result), 'branch': 'fixed' if fixed else 'dynamic'}
 
 
 def prepare_cloth_fixed_state(

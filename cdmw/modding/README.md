@@ -558,7 +558,24 @@ stretch constraints and final movement; a repeated-step test checks damped fall
 against an independent geometric-series solution. This is not a complete solver
 or evidence of visible/game parity, and does not change the preview.
 
-`pac_cloth_state.py` adds three explicit state stages from the same base shader:
+`pac_cloth_state.py` connects timing, guide animation and explicit state stages
+from the same base shader:
+
+- `select_cloth_base_substep` reads the supplied 1216-byte global parameter
+  record and returns no step when its clock gates fail. Frame **flags2** `0x8000`
+  selects the scaled clock; flags2 `0x800` selects variable delta time and runs
+  only substep zero. Both modes still require the index below the selected step
+  count. Fixed time below float32(0.0001) skips the invocation unless variable
+  mode or frame **flags** `0x400` applies. Scene half 94 multiplies integration
+  time, not the guide animation ratio. In fixed mode that ratio is saturated
+  `(index + 1) * fixed_time / (execution_interval + previous_remaining_time)`;
+  a denominator at or below float32(0.000001) selects 1. Variable mode selects 1.
+- `prepare_guide_cloth_animation` consumes the original particle, invokes fixed
+  preparation below, and reads already-resolved guide and character matrices.
+  The guide translation is transformed by the character's three basis rows,
+  then frame translation is subtracted. World translation is not added. The
+  anchor interpolates from `prev_ix`; frame flags `0x400` uses the full anchor.
+  Resource lookup and water/air-pocket sampling are explicit caller work.
 
 - `prepare_cloth_fixed_state` clears per-step flags and evaluates fixed groups
   1 through 31 using their original bit indices. Existing particle `0x4000`
@@ -566,6 +583,13 @@ or evidence of visible/game parity, and does not change the preview.
   that flag. A valid shrink-mask resource requires its resolved uint32 sample;
   zero fixes the particle and sets `0x800000`. Nonpositive inverse mass also
   bypasses dynamic integration but does not itself set group-fixed bit `0x40`.
+- `select_cloth_base_integration` runs after animation/space adjustment and any
+  input-position collision. Frame flags `0xC00` return early before considering
+  fixed particles; all later stages must be skipped. Otherwise, fixed particles
+  copy adjusted `_ix` into both `_p` histories while preserving velocity,
+  working `_x`, contact data and the velocity-reference position. They still
+  require final flags/SBC/hold processing with zero non-gravity acceleration.
+  Dynamic particles continue through forces and prediction.
 - `predict_dynamic_cloth_state` consumes already-adjusted particle positions,
   prepared flags and velocity after forces/damping. Guide contact requires
   `cr > 0`; static contact requires particle `0x10000000`. An eligible contact
@@ -579,16 +603,33 @@ or evidence of visible/game parity, and does not change the preview.
   acceleration absolute-component sum strictly below float32(0.1) hold both
   position histories at working `_x`; stored velocity remains intact.
 
+Guide space adjustment has two separate decisions. Frame flags `0x1` skips
+external forces; flags2 `0x100` skips position integration. A special movement
+case enables both only with frame `0x20000000`, scene `0x200`, particle LRA ratio
+below float32(0.7) and bone-velocity w strictly between -30 and -10. This is a
+narrower window than prediction's later backward boost. Original guide particle
+`0x4000` forces the first decision on and the second off, before fixed preparation
+clears that bit. Water classification, gated by flags2 `0x1000`, clears both.
+
+When external forces are skipped on substep zero, the shader aligns the old
+anchor direction with the new one and applies that matrix to working `_x`.
+The result replaces `_p[0]` when integration is skipped, otherwise `_x`.
+It uses the full new anchor and clears velocity, retaining `_p[1]`, `prev_ix`
+and the velocity-reference position. Anchor lengths below float32(0.000001)
+use identity; cosine below float32(-0.9999) uses `-I`, including the third axis.
+Later substeps retain the skip decisions without repeating this adjustment.
+
 Contact-cache writeback requires an explicit shader storage variant. Without
 frame flags2 `0x200`, the packed variant clears both complete contact vectors;
 the native-16-bit variant clears their xyz components and preserves each w.
 Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
 These stages preserve unrelated record bytes and reject missing consumed inputs.
-They do not resolve fixed/kinematic or early-return frame paths, animation/space
-adjustment, guide/water integration gates, collider queries, outward-force flags,
-SBC buffer writes or CPU dispatch selection. Synthetic branch and composition
-tests verify the reference; they do not establish bit-exact GPU execution or
-change the interactive preview.
+Static-mesh animation/space adjustment, water classification, input-position and
+later collider queries, outward-force flags, SBC buffer writes and full CPU
+dispatch selection remain separate. Guide preparation must receive the original
+particle; do not clear its flags first. Clock, guide, force and prediction
+composition is covered by synthetic tests. These references do not establish
+bit-exact GPU execution or change the interactive preview.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
