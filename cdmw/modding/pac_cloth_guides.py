@@ -13,6 +13,7 @@ import math
 import struct
 from typing import Sequence
 
+from ._pbd_numeric import FLOAT32_MAX, f32
 from .mesh_parser import (
     _find_pac_descriptors, _parse_par_sections, _validated_pac_descriptor_prefix,
 )
@@ -328,15 +329,6 @@ def inspect_guide_attachment_candidates(
            for t in guides.triangles):
         raise ValueError("Cloth attachments require valid guide triangle indices.")
 
-    def f32(value):
-        try:
-            rounded = struct.unpack("<f", struct.pack("<f", value))[0]
-        except OverflowError as exc:
-            raise ValueError("Cloth attachment geometry exceeds finite float32 range.") from exc
-        if not math.isfinite(rounded):
-            raise ValueError("Cloth attachment geometry exceeds finite float32 range.")
-        return rounded
-
     positions = tuple(tuple(f32(v) for v in p) for p in positions)
     parents = list(range(count))
 
@@ -362,7 +354,7 @@ def inspect_guide_attachment_candidates(
         first_at_distance = {}
         for distance, index in candidates:
             # The CPU's four empty entries use FLT_MAX and reject equal keys.
-            if distance < 3.4028234663852886e38:
+            if distance < FLOAT32_MAX:
                 first_at_distance.setdefault(distance, index)
         selected = sorted(first_at_distance.items())[:4]
         return {

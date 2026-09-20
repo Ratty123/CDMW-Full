@@ -158,12 +158,28 @@ the first guide index at an equal distance. A fixed vertex can select itself;
 fractional channel B alone does not make a vertex an anchor. Reports include
 selected indices and lengths before half upload. Default positions are CPU
 coordinates before skinning; callers can supply initialized positions instead.
-The PAC does not establish which runtime path is active. Long-range ratios,
-automatic position blending and subsequent dynamic-fix activation remain separate.
+The PAC does not establish which runtime path is active.
+
+`prepare_guide_cloth_attachments` requires explicit choices for component
+separation, vertex-alpha blending and automatic weighting. It calculates anchor
+lengths, normalized attachment-distance ratios, position blends and orientation
+neighbor pairs. Ratios use mean distances before half upload. Equal-distance
+ranges use one minus the initial blend and skip automatic weighting. Otherwise,
+automatic weighting applies `clamp(base ** (10 * (ratio + shift)), 0, 1)` to
+dynamic particles: it multiplies the initial blend with vertex alpha enabled,
+or replaces it with vertex alpha disabled. Fixed vertices retain blend 1.
+
+Orientation selection compares the first neighbor's packed ratio for each
+triangle and retains the earliest triangle on a tie. Vertices absent from all
+triangles report unknown neighbors. Float32 and CPU half packing follow the
+traced operations; the reference uses Python's power function and does not
+claim bit-exact `powf`, live activation, solver or collision parity.
 
 The shared Python PBD parser retains `Mass`, `UseVertexAlphaPositionBlending`,
-`UseRotationCorrection` and `UnderWaterGuideMeshVertexWeightCoefficient` for
-guide inspection. Decoded initialization defaults are mass 1, vertex-alpha
+`UseRotationCorrection`, `UnderWaterGuideMeshVertexWeightCoefficient`,
+`AutoWeightingExponentialBase` and `AutoWeightingInputRatioShift` for guide
+inspection. The latter defaults are 0.4 and 0; they do not establish whether
+automatic weighting is enabled. Decoded initialization defaults are mass 1, vertex-alpha
 blending on, rotation correction off and underwater coefficient 1. A declared
 `SimulationMode` resets rotation correction to on for cloth or off for spline;
 later explicit options override it. Source order is retained, and `AttachedCloth`
@@ -173,7 +189,11 @@ the preview's approximate solver or heuristic pins.
 With an explicitly supplied material, the guide report calculates initial
 inverse masses and selects the corresponding half-precision position blends.
 These values precede long-range attachment preparation, which can modify blends
-again. Supplying a material does not prove it is the active in-game profile.
+again. The report additionally compares both cloth-mode preparation paths with
+automatic weighting explicitly disabled. These are calculation scenarios even
+when the supplied profile is intended for another mode; neither the mode nor
+the unresolved automatic-weighting switch is inferred from the profile name or
+XML option alone. Supplying a material does not prove it is active in game.
 
 The alpha bitmask and ordered group starts remain separate evidence. Neither
 is used to infer pinning; group starts do not always match fixed vertices.
@@ -254,8 +274,9 @@ Inspect loose decoded files with:
 The command reads its inputs and prints JSON with source hashes, decoded guide
 geometry, complete stored tables, particle initialization, rest-constraint geometry,
 attachment candidates, topology comparisons and field offsets. Optional material
-context applies to every input PAC and includes the profile's path and source hash. Malformed material XML
-is rejected instead of becoming a successful default calculation. The command
+context applies to every input PAC and includes the profile's path and source
+hash. Malformed material XML is rejected instead of becoming a successful
+default calculation. The command
 returns a nonzero status if an input is unavailable. Keep reports and game-derived
 data outside the repository.
 

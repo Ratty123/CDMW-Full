@@ -23,6 +23,7 @@ from cdmw.modding.pac_cloth_guides import (
 )
 from cdmw.core.pbd_cloth import _parse_xml, parse_pbd_material_settings
 from cdmw.models import PbdMaterialSettings
+from cdmw.modding.pac_cloth_preparation import prepare_guide_cloth_attachments
 from cdmw.modding.pac_cloth_skinning import guide_runtime_blend_factor, inspect_render_cloth_bindings
 
 
@@ -59,6 +60,15 @@ def inspect_pac(data: bytes, *, path: str = "", material: PbdMaterialSettings | 
                 underwater_coefficient=material.underwater_guide_mesh_vertex_weight_coefficient,
             ),
             "limitations": "The supplied profile is a calculation input, not proof of the active in-game material. The underwater factor requires a dynamic particle with flag 0x80 and without override 0x800000. Initial position blends precede long-range attachment preparation and runtime updates.",
+            "cloth_mode_preparation_without_auto_weighting": {
+                scope: prepare_guide_cloth_attachments(
+                    guides, separate_components=separate,
+                    use_vertex_alpha_position_blending=material.use_vertex_alpha_position_blending,
+                    auto_weighting_enabled=False,
+                    auto_weighting_exponential_base=material.auto_weighting_exponential_base,
+                    auto_weighting_input_ratio_shift=material.auto_weighting_input_ratio_shift,
+                ) for scope, separate in (("by_connected_component", True), ("whole_mesh", False))
+            },
         }
     return result
 

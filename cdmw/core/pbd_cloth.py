@@ -356,6 +356,10 @@ def parse_pbd_material_settings(
             settings.underwater_guide_mesh_vertex_weight_coefficient = _safe_float(
                 value, settings.underwater_guide_mesh_vertex_weight_coefficient,
             )
+        elif key == "autoweightingexponentialbase":
+            settings.auto_weighting_exponential_base = _safe_float(value, settings.auto_weighting_exponential_base)
+        elif key == "autoweightinginputratioshift":
+            settings.auto_weighting_input_ratio_shift = _safe_float(value, settings.auto_weighting_input_ratio_shift)
     settings.stretching_stiffness = max(
         0.0,
         min(1.0, _safe_float(_first_scalar(values, "StretchingStiffness", "StretchStiffness"), settings.stretching_stiffness)),

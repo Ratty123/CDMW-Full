@@ -22,6 +22,8 @@ def test_guide_material_defaults_are_not_inferred_from_a_clothing_filename():
     assert settings.use_vertex_alpha_position_blending is True
     assert settings.use_rotation_correction is False
     assert settings.underwater_guide_mesh_vertex_weight_coefficient == 1
+    assert settings.auto_weighting_exponential_base == .4
+    assert settings.auto_weighting_input_ratio_shift == 0
 
 
 @pytest.mark.parametrize('body, expected', [
@@ -41,17 +43,22 @@ def test_rotation_correction_obeys_mode_resets_and_document_order(body, expected
 def test_attached_cloth_does_not_overwrite_parent_guide_options(attached_first):
     parent = ('<SimulationMode>spline</SimulationMode><Mass>4</Mass>'
               '<UseVertexAlphaPositionBlending>0</UseVertexAlphaPositionBlending>'
-              '<UnderWaterGuideMeshVertexWeightCoefficient>0.3</UnderWaterGuideMeshVertexWeightCoefficient>')
+              '<UnderWaterGuideMeshVertexWeightCoefficient>0.3</UnderWaterGuideMeshVertexWeightCoefficient>'
+              '<AutoWeightingExponentialBase>0.7</AutoWeightingExponentialBase>'
+              '<AutoWeightingInputRatioShift>-0.25</AutoWeightingInputRatioShift>')
     child = ('<AttachedCloth><SimulationMode>cloth</SimulationMode><Mass>8</Mass>'
              '<UseVertexAlphaPositionBlending>1</UseVertexAlphaPositionBlending>'
              '<UnderWaterGuideMeshVertexWeightCoefficient>0.7</UnderWaterGuideMeshVertexWeightCoefficient>'
-             '</AttachedCloth>')
+             '<AutoWeightingExponentialBase>0</AutoWeightingExponentialBase>'
+             '<AutoWeightingInputRatioShift>1</AutoWeightingInputRatioShift></AttachedCloth>')
     settings = parse_pbd_material_settings('<SimulationParameters>' +
                                            (child + parent if attached_first else parent + child) + '</SimulationParameters>')
     assert settings.mass == 4
     assert settings.use_vertex_alpha_position_blending is False
     assert settings.use_rotation_correction is False
     assert settings.underwater_guide_mesh_vertex_weight_coefficient == .3
+    assert settings.auto_weighting_exponential_base == .7
+    assert settings.auto_weighting_input_ratio_shift == -.25
 
 
 @pytest.mark.parametrize('mass, inverse', [(4, .25), (0, 1.), (-5, 1.)])
@@ -137,6 +144,13 @@ def test_inspector_cli_uses_explicit_profile_and_records_its_hash(tmp_path, caps
     assert values['position_blends'] == [0, 0, 1]
     assert asset['supplied_material']['use_rotation_correction'] is True
     assert asset['supplied_material']['dynamic_underwater_guide_matrix_factor'] == .300048828125
+    scenarios = asset['supplied_material']['cloth_mode_preparation_without_auto_weighting']
+    assert set(scenarios) == {'by_connected_component', 'whole_mesh'}
+    for scenario in scenarios.values():
+        assert scenario['auto_weighting_enabled'] is False
+        assert scenario['use_vertex_alpha_position_blending'] is False
+        assert scenario['position_blends'] == [0, 0, 1]
+        assert scenario['long_range_ratios'] == [1, 1, 0]
     assert 'not proof of the active in-game material' in asset['supplied_material']['limitations']
     assert profile.read_bytes() == before and pac.read_bytes() == data
     assert 'supplied_material' not in inspect_pac(data)

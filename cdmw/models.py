@@ -1203,6 +1203,8 @@ class PbdMaterialSettings:
     use_vertex_alpha_position_blending: bool = True
     use_rotation_correction: bool = False
     underwater_guide_mesh_vertex_weight_coefficient: float = 1.0
+    auto_weighting_exponential_base: float = 0.4
+    auto_weighting_input_ratio_shift: float = 0.0
 
 
 @dataclass(slots=True)
