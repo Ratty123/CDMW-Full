@@ -381,7 +381,7 @@ generation, guide cloth or in-game parity.
 `pabv_parser.decode_pabv` decodes the authored collider geometry in
 `character/binary/skeletonvolume/*.pabv`. The traced loader in build
 1.0.0.2944 is `SkeletonVolumeAsyncLoadingTask`, followed by the record reader
-at `0x1426A9170`. Standalone PABV files and embedded PAB volume sets share the
+at `0x1426A9170`. Standalone PABV files and embedded PAB/PAC volume sets share the
 record reader; neither is the PAC cloth guide mesh. The known PAR `0x36/1`
 standalone header contains a flags word at byte
 16 and a ushort record count at byte 20.
@@ -405,6 +405,30 @@ stored at skeleton-resource offsets `0x110/0x118/0x120`. The copied 448-bone
 PHW rig contains 28 primary capsules, 16 rendering capsules and an empty physics
 set, consuming the full file. Every volume resolves to that rig. These defaults
 do not establish the final appearance override or runtime collision activation.
+
+`decode_pac_embedded_volumes` locates the model's own volume set in decompressed
+PAC `3/9` metadata with guide layouts 0, 3 or 7. After descriptors and any guide
+data, metadata bit `0x2000` adds 24 bytes of auxiliary bounds and two
+ushort-counted arrays with strides 16 and 24. The ushort-counted bone-hash
+palette and 24-byte model bounds follow; bit `0x4` adds another 24-byte bounds
+block. The volume count and shared records come next. Every PAC volume has a
+flags word, independently of bit `0x4`. Later metadata remains outside the set.
+The undecoded embedded bone-group branch (`0x20`) fails explicitly. Raw keys,
+geometry, flags and absolute offsets are retained; the decoder does not infer
+index conversion or expose these records as already bound to a skeleton.
+
+The PAC path is `CharacterMeshAsyncLoadingTask` (`0x142CD7030`), metadata reader
+`0x142C61960`, guide/palette reader `0x142C63CE0`, and bounds/volume reader
+`0x142C65090`. Manager slot `0x50` (`0x142CD0FD0`) enables the record flags
+byte before calling `0x1426A9530`. A ready model resource's volume set at
+`+0x110` takes precedence over PAB/body/head sources in `0x142D91540`; an empty
+serialized model set does not create that resource. Among five copied PHW
+samples, lower-body `0166` contains one capsule and upper-body `00_0001`
+contains two, with keys matching their PAC bone-hash palettes. The `0145`,
+upper-body `0002`, and Damiane nude samples have explicit empty model sets.
+This does not establish runtime activation or a cause for differing jiggle.
+`tests/test_pac_embedded_volumes.py` checks metadata boundaries, all three
+supported guide layouts, mandatory flags, truncation and immutable raw keys.
 
 Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
 serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule
@@ -464,7 +488,8 @@ the shipped Damiane `00` Nude prefab declares `SkeletonVolumeName`, while the
 therefore cannot establish which collider file the game uses. The selected
 Damiane `0111` Head prefab has no `SkeletonVolumeName` override.
 
-The cloth source follows body/head **`SkeletonVolumeName`**, separately from
+When a ready model-level set is absent, the cloth source follows body/head
+**`SkeletonVolumeName`**, separately from
 `RenderingSkeletonVolumeName` and `PhysicsSkeletonVolumeName`. The Nude parser
 stores these at property offsets `0x78/0x80/0x88`; appearance assembly copies
 them into compact resource fields `0x28/0x38/0x40`. The Head parser's volume
@@ -483,7 +508,7 @@ never implicitly borrows the body's index layout. The materialized result
 uses hash keys and per-record flags, and retains `(input, record)` provenance.
 These are decoded records, not an exported PABV or its original header.
 
-Active resource selection, compiled-resource overrides, load-failure handling,
+Automatic resource selection, compiled-resource overrides, load-failure handling,
 any later runtime set changes and native preview integration remain separate
 work. The merge helper reports missing head matches rather than silently
 choosing a different source; runtime resource fallback remains caller work.

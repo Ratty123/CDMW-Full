@@ -1,8 +1,8 @@
 """Read-only skeleton volumes, traced in game build 1.0.0.2944.
 
 The serialized shape tags differ from the CPU/GPU shape types. Standalone
-PABV headers distinguish hash and index keys; embedded PAB sets use the
-skeleton's own loader conventions. Decoding does not select an active
+PABV headers distinguish hash and index keys; embedded PAB/PAC sets use their
+own loader conventions. Decoding does not select an active
 character variant or infer collision activation.
 """
 
@@ -76,6 +76,17 @@ class PabEmbeddedVolumes:
     primary: PabvVolumes
     rendering: PabvVolumes | None
     physics: PabvVolumes | None
+
+
+@dataclass(frozen=True, slots=True)
+class PacEmbeddedVolumes:
+    metadata_flags: int
+    bone_palette: tuple[int, ...]
+    bounds: tuple[float, ...]
+    file_offset: int
+    file_end: int
+    # Raw authored keys: do not silently reinterpret them as PAB indices.
+    volumes: tuple[PabvVolume, ...]
 
 
 def decode_pabv(data: bytes) -> PabvVolumes:
@@ -194,6 +205,83 @@ def decode_pab_embedded_volumes(skeleton: Skeleton) -> PabEmbeddedVolumes:
     if cursor != len(data):
         raise ValueError(f"PAB has undecoded trailing data at byte {skeleton.tail_offset + cursor}.")
     return PabEmbeddedVolumes(flags, primary, rendering, physics)
+
+
+def decode_pac_embedded_volumes(data: bytes) -> PacEmbeddedVolumes:
+    """Read model volumes after known PAC 3/9 guide/auxiliary/palette data.
+
+    Build 1.0.0.2944's 0x142C65090 reads these after the model bounds. Manager
+    slot 0x50 (0x142CD0FD0) always enables per-record flags before invoking
+    the shared volume reader. Later metadata is not part of the volume set.
+
+    Retain raw bone keys and absolute offsets. This does not infer index/hash
+    conversion, bind the model to a rig, or select its runtime collision set.
+    The separate embedded bone-group branch (metadata bit 0x20) is not decoded.
+    """
+    from .mesh_parser import (
+        _find_pac_descriptors, _parse_par_sections, _validated_pac_descriptor_prefix,
+    )
+    from .pac_cloth_guides import decode_pac_cloth_guides
+
+    if len(data) < 80 or data[:6] != b"PAR \x03\x09":
+        raise ValueError("Embedded model volumes require the known PAC 3/9 header.")
+    sections = _parse_par_sections(data)
+    metadata = next((section for section in sections if section["index"] == 0), None)
+    if metadata is None or metadata["size"] < 5:
+        raise ValueError("Embedded model volumes require complete PAC metadata.")
+    stored, = struct.unpack_from("<I", data, 16)
+    if stored not in (0, metadata["size"]):
+        raise ValueError("Embedded model volumes require decompressed PAC metadata.")
+    start, end = metadata["offset"], metadata["offset"] + metadata["size"]
+    if end > len(data):
+        raise ValueError("PAC model metadata is truncated.")
+    flags, = struct.unpack_from("<I", data, start)
+    if flags & 0x20:
+        raise ValueError("PAC embedded bone-group metadata is not decoded.")
+    guides = decode_pac_cloth_guides(data)
+    if guides is not None:
+        last = guides.ranges[-1]
+        cursor = last.offset + last.count * last.stride
+    else:
+        lod_count = data[start + 4]
+        count_offset = start + 5 + 8 * lod_count
+        if not 2 <= lod_count <= 4 or count_offset + 2 > end:
+            raise ValueError("PAC model descriptor layout is not decoded.")
+        part_count, = struct.unpack_from("<H", data, count_offset)
+        descriptors = _validated_pac_descriptor_prefix(
+            _find_pac_descriptors(data, start, metadata["size"], lod_count), sections,
+        )
+        if not descriptors or len(descriptors) != part_count:
+            raise ValueError("PAC model volumes cannot be located after every descriptor.")
+        cursor = max(d.descriptor_offset + 40 + 6 * d.stored_lod_count for d in descriptors)
+
+    def take(size: int, name: str) -> memoryview:
+        nonlocal cursor
+        stop = cursor + size
+        if cursor < start or stop > end:
+            raise ValueError(f"PAC model {name} is truncated.")
+        value = memoryview(data)[cursor:stop]
+        cursor = stop
+        return value
+
+    def array(stride: int, name: str) -> memoryview:
+        count, = struct.unpack("<H", take(2, name + " count"))
+        return take(count * stride, name)
+
+    if flags & 0x2000:
+        take(24, "auxiliary bounds")
+        array(16, "auxiliary records A")
+        array(24, "auxiliary records B")
+    palette = tuple(row[0] for row in struct.iter_unpack("<I", array(4, "bone palette")))
+    bounds = struct.unpack("<6f", take(24, "bounds"))
+    if not all(math.isfinite(value) for value in bounds):
+        raise ValueError("PAC model bounds must contain finite values.")
+    if flags & 4:
+        take(24, "secondary bounds")
+    offset = cursor
+    # Bound the shared record reader to metadata, never the following geometry.
+    records, cursor = _decode_volume_records(data[:end], cursor, 2)
+    return PacEmbeddedVolumes(flags, palette, bounds, offset, cursor, records.volumes)
 
 
 def resolve_pabv_bones(volumes: PabvVolumes, skeleton: Skeleton) -> tuple[int, ...]:
