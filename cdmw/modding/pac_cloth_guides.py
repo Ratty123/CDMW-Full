@@ -1,7 +1,7 @@
 """Read-only PAC guide geometry, following the CPU loader and skinning shader.
 
-This is a separate mesh from the visible 40-byte render vertices. Its byte
-channels and alpha bitmask are retained without assigning physical-pin semantics.
+This is a separate mesh from the visible 40-byte render vertices. Raw tables
+are retained alongside the traced particle initialization and topology evidence.
 No values here authorize changing the game's constraint or collision data.
 """
 
@@ -146,6 +146,34 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
         groups_a, group_a_tags, constraint_records, constraint_indices,
         vertex_constraint_spans, groups_b, edge_indices,
     )
+
+
+def inspect_guide_particle_initialization(guides: PacClothGuides) -> dict:
+    """Decode authored particle channels without guessing the active material.
+
+    In build 1.0.0.2944, the view constructor at 0x153954980 connects PAC
+    channels A/B to the initializer at 0x143CCAAC0. B=255 writes zero inverse
+    mass; every other B uses the same material inverse mass (1/Mass when
+    positive, otherwise 1). Intermediate B values are not mass weights.
+
+    Position blend is stored as binary16. Both material-flag cases are reported
+    because the PAC alone does not select UseVertexAlphaPositionBlending.
+    Group IDs 1..31 can select dynamic-fix bits in the base-movement shader;
+    membership does not mean that bit is active. Runtime overrides, collisions
+    and further solver processing are outside this initialization report.
+    """
+    fixed = [index for index, value in enumerate(guides.channel_b) if value == 255]
+    return {
+        "fixed_vertex_indices": fixed,
+        "inverse_mass_factors": [0 if value == 255 else 1 for value in guides.channel_b],
+        "position_blend_with_vertex_alpha": [
+            struct.unpack("<e", struct.pack("<e", value / 255))[0]
+            for value in guides.channel_b
+        ],
+        "position_blend_without_vertex_alpha": [float(value == 255) for value in guides.channel_b],
+        "group_ids": list(guides.channel_a),
+        "dynamic_fix_group_ids": [value if 1 <= value <= 31 else None for value in guides.channel_a],
+    }
 
 
 def inspect_guide_topology(guides: PacClothGuides) -> dict:

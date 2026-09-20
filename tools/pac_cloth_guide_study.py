@@ -1,8 +1,8 @@
 """Inspect loose, decoded PAC guide meshes without modifying the input files.
 
 Run with one or more .pac paths. JSON on stdout includes source hashes, guide
-bounds, topology, packed skin bindings, raw channels and byte-range provenance.
-It does not assign pin, mass or stiffness meanings to undecoded fields.
+bounds, topology, packed skin bindings, particle initialization and raw channels
+with byte-range provenance. Active materials and runtime overrides are not assumed.
 """
 
 from __future__ import annotations
@@ -17,7 +17,9 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_topology
+from cdmw.modding.pac_cloth_guides import (
+    decode_pac_cloth_guides, inspect_guide_particle_initialization, inspect_guide_topology,
+)
 
 
 def inspect_pac(data: bytes, *, path: str = "") -> dict:
@@ -34,7 +36,8 @@ def inspect_pac(data: bytes, *, path: str = "") -> dict:
     return {**result, "status": "decoded", "vertex_count": len(guides.vertices),
             "triangle_count": len(guides.triangles), "guides": payload,
             "topology_evidence": inspect_guide_topology(guides),
-            "limitations": "Raw byte channels, alpha bits and constraint tables are not physical-pin or solver settings. No runtime parity is implied."}
+            "particle_initialization": inspect_guide_particle_initialization(guides),
+            "limitations": "Particle channels describe initialization, not final runtime motion. Inverse-mass factors require the material Mass; both vertex-alpha blend modes are shown because the active material is unresolved. Dynamic-fix groups require runtime activation. Constraint conversion, collisions and runtime overrides are not simulated."}
 
 
 def main(argv: list[str] | None = None) -> int:

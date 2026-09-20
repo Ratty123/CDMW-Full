@@ -133,10 +133,28 @@ adjacent triangles and per-vertex references. The observed record classification
 uses the low byte of the final word; its high byte varies in stock files and is
 retained separately in the evidence summary and intact in the raw records.
 
-Alpha bits matching channel B's value 255 is a structural observation, not proof
-of runtime pinning. Group starts do not always match those alpha bits. Reports
-show these comparisons explicitly; no pin, mass or stiffness controls are
-inferred from them. This reader does not replace the approximate simulation preview.
+`inspect_guide_particle_initialization` follows the PAC view constructor and CPU
+particle initializer in game build 1.0.0.2944. Channel B equal to 255 initializes
+zero inverse mass and position blend 1. Every other value uses the same inverse
+mass: `1 / Mass` when the material's Mass is positive, otherwise 1. Intermediate
+bytes do not scale mass. The report exposes the per-vertex 0/1 factors without
+assuming a material's Mass.
+
+When `UseVertexAlphaPositionBlending` is enabled, position blend is channel B
+divided by 255, rounded to binary16. With the flag disabled, every value below
+255 initializes blend 0. Reports show both cases because a PAC alone does not
+resolve the active material. Channel A supplies the particle's group ID; only
+IDs 1 through 31 select dynamic-fix bits in the traced base-movement shader.
+Membership does not establish whether a runtime bit is active.
+
+The alpha bitmask and ordered group starts remain separate evidence. Neither
+is used to infer pinning; group starts do not always match fixed vertices.
+CPU initialization uses full unsigned coordinate words and normalizes valid
+skin weights, unlike the shader geometry view decoded above. Initialization
+does not establish final motion: runtime overrides, constraint conversion,
+collision behavior and CPU/GPU skinning differences remain outside this reader.
+It does not replace the approximate simulation preview or enable pin editing;
+changing fixed vertices can also require rebuilding the authored constraints.
 Unsupported layouts, mismatched descriptor counts, out-of-range triangles and
 truncated metadata report unavailable without reading into geometry sections.
 
@@ -147,7 +165,7 @@ Inspect loose decoded files with:
 ```
 
 The command reads its inputs and prints JSON with source hashes, decoded guide
-geometry, complete stored tables, topology comparisons and field offsets. It
+geometry, complete stored tables, particle initialization, topology comparisons and field offsets. It
 returns a nonzero status if any input is unavailable. Keep reports and game-derived
 data outside the repository.
 

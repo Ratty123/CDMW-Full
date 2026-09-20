@@ -12,7 +12,9 @@ import sys
 
 import pytest
 
-from cdmw.modding.pac_cloth_guides import decode_pac_cloth_guides, inspect_guide_topology
+from cdmw.modding.pac_cloth_guides import (
+    decode_pac_cloth_guides, inspect_guide_particle_initialization, inspect_guide_topology,
+)
 from tools.pac_cloth_guide_study import inspect_pac
 
 
@@ -97,6 +99,42 @@ def test_alpha_bitset_rounds_up_at_a_word_boundary():
     assert len(guides.vertices) == 33
     assert guides.alpha_words == (5, 5)
     assert guides.ranges[-1].offset == offsets["bbox"]
+
+
+def test_particle_initialization_uses_channels_not_topology_or_alpha_bitset():
+    data, offsets = guide_fixture(count=6)
+    data = bytearray(data)
+    data[offsets["channel_a"]:offsets["channel_a"] + 6] = bytes((0, 1, 31, 32, 128, 255))
+    data[offsets["channel_b"]:offsets["channel_b"] + 6] = bytes((0, 1, 127, 128, 254, 255))
+    original = bytes(data)
+    guides = decode_pac_cloth_guides(original)
+    result = inspect_guide_particle_initialization(guides)
+    # The fixture's alpha bits and group starts deliberately select other vertices.
+    assert result["fixed_vertex_indices"] == [5]
+    assert result["inverse_mass_factors"] == [1, 1, 1, 1, 1, 0]
+    assert result["position_blend_without_vertex_alpha"] == [0, 0, 0, 0, 0, 1]
+    assert result["position_blend_with_vertex_alpha"] == [
+        0, 0.0039215087890625, 0.498046875, 0.501953125, 0.99609375, 1,
+    ]
+    assert result["group_ids"] == [0, 1, 31, 32, 128, 255]
+    assert result["dynamic_fix_group_ids"] == [None, 1, 31, None, None, None]
+    assert inspect_pac(original)["particle_initialization"] == result
+    assert bytes(data) == original
+    assert guides.channel_a == bytes((0, 1, 31, 32, 128, 255))
+    assert guides.channel_b == bytes((0, 1, 127, 128, 254, 255))
+
+
+def test_all_byte_values_keep_partial_blend_distinct_from_fixed_mass():
+    data, offsets = guide_fixture(count=256)
+    data = bytearray(data)
+    data[offsets["channel_b"]:offsets["channel_b"] + 256] = bytes(range(256))
+    result = inspect_pac(bytes(data))["particle_initialization"]
+    assert result["fixed_vertex_indices"] == [255]
+    assert result["inverse_mass_factors"] == [1] * 255 + [0]
+    blends = result["position_blend_with_vertex_alpha"]
+    assert blends[0] == 0 and blends[-1] == 1
+    assert all(a < b for a, b in zip(blends, blends[1:]))
+    assert sum(result["position_blend_without_vertex_alpha"]) == 1
 
 
 def topology_fixture(layout):
@@ -245,6 +283,7 @@ def test_read_only_study_cli_emits_decoded_and_unavailable_results(tmp_path):
     assert first["status"] == "decoded"
     assert first["vertex_count"] == 3 and first["triangle_count"] == 1
     assert first["guides"]["channel_a"] == [19, 19, 19]
-    assert "physical-pin" in first["limitations"]
+    assert first["particle_initialization"]["fixed_vertex_indices"] == [0, 1, 2]
+    assert "initialization, not final runtime motion" in first["limitations"]
     assert second["status"] == "unavailable"
     assert pac.read_bytes() == data
