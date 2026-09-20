@@ -259,6 +259,47 @@ records unprojected in this constraint loop. That does not establish global
 area support or behavior in other stages. These references do not implement a
 complete solver or change the approximate preview.
 
+`pac_cloth_movement.py` implements the decoded core of the normal final-movement
+pass, confirmed against both packed and native-16-bit variants of
+`ComputePbdProcessFinalMovement`. `cloth_attachment_correction` uses the selected
+solver output (`_p[iterationCount & 1]`) for the current particle, but always
+uses `_p[0]` for anchors. A candidate must currently have zero inverse mass or
+particle bit `0x40`; initial group membership alone does not activate it. The
+allowed radius is the uploaded rest distance times bone scale, optionally
+expanded to the animated distance by frame bit `0x800000`, then multiplied by
+stretching scale and `float32(1.1)`. Corrections share the original input point
+and average only violated radii. Frame bit `0x80` enables this pass, while
+current-particle bit `0x40` bypasses it.
+
+`guide_final_input_blend` selects particle half 94 or its nonnegative extra-data
+half-6 override and applies per-frame half 44 (`stiffnessScale`). This final
+pass discards the scaled blend unless it exceeds `float32(0.999)`; smaller
+weights can still affect other solver stages. The global switch, scene/frame
+gate, underwater fifth power, particle-state overrides and pinch-timer recovery
+remain explicit. These weights are not a generic jiggle-strength slider.
+
+`finalize_cloth_motion` applies attachment correction before the final animation
+blend. Frame flags2 bit `0x40` also shifts `currentPosForVelocity` by that
+correction, excluding its direct contribution from the next velocity. Velocity
+uses the selected substep clock (`0x800` selects variable rather than fixed)
+times scene half 94 (`timeScale`), floored by the minimum velocity delta time.
+The caller supplies the appropriate global clock family (`0x8000` selects
+scaled clocks). Per-frame half 54 limits speed, with particle bit 4 reducing
+that limit to one tenth. Velocity suppression precedes ground response:
+particle bit 2 applies parameter half 254 (`groundFriction`) to horizontal
+motion relative to per-frame half3 at 56 (`modifiedPbdBoneVelocity`), clears Y,
+and can apply the half-46 backward speed along scene half3 at 86. Consequently,
+the final velocity is not universally bounded by the earlier speed cap.
+
+The normal pass writes the final position to `_p[1]` and `_x`, preserving old
+`_x` as the next `_p[0]` history except for its decoded frame-state override.
+These references return mathematical values without mutating their input
+records. They exclude reset/hold paths, visibility/dispatch selection, contact
+bookkeeping, NaN recovery and GPU rounding; they are not a complete solver and
+are not wired into the preview. Tests compose authored anchor preparation,
+stretch correction, final movement and render-position interpolation on owned
+geometry; they do not establish game or rendered parity.
+
 `pac_cloth_frames.py` provides a mathematical reference for the guide branch of
 `ComputePbdUpdateResult`, using explicitly supplied runtime inputs. Particle
 offset 0 is the animation target `_ix`; offset 36 is the simulated position `_x`.
