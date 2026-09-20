@@ -92,6 +92,9 @@ evidence for that fixed layout, not for the legacy scan's guessed records.
 
 Python exposes the local pair as `Bone.local_bind_matrix` and
 `Bone.inv_local_bind_matrix`; manually created bones default to empty tuples.
+Fixed-layout skeletons also retain the original 22-byte `Skeleton.source_header`
+so separately decoded tail sections can use their actual format and flags.
+Manual and legacy-scanned skeletons have no retained fixed-layout header proof.
 Rust retains the same pair and includes it in the structural fingerprint.
 Older serialized Rust skeletons deserialize missing local matrices as absent,
 without substituting identity. These retained transforms enable hierarchy
@@ -378,9 +381,30 @@ generation, guide cloth or in-game parity.
 `pabv_parser.decode_pabv` decodes the authored collider geometry in
 `character/binary/skeletonvolume/*.pabv`. The traced loader in build
 1.0.0.2944 is `SkeletonVolumeAsyncLoadingTask`, followed by the record reader
-at `0x1426A9170`. These volumes are separate from the PAB skeleton and PAC
-cloth guide mesh. The known PAR `0x36/1` header contains a flags word at byte
+at `0x1426A9170`. Standalone PABV files and embedded PAB volume sets share the
+record reader; neither is the PAC cloth guide mesh. The known PAR `0x36/1`
+standalone header contains a flags word at byte
 16 and a ushort record count at byte 20.
+
+`decode_pab_embedded_volumes` reads the default volume sets retained in a
+fixed-layout PAB `1/5`. After its bone records, PAB flag `0x10` adds one uint
+per bone and `0x2` adds one byte per bone. The primary volume count follows;
+separate rendering and physics sets may follow in that order. EOF can omit
+either later set, while a serialized zero count remains an explicit empty set.
+PAB flag `0x4` adds per-volume flags. These bits differ from standalone PABV
+flags. The embedded loader converts keys below the bone count from indices to
+stored hashes and retains larger keys, independently of PAB flag `0x1`.
+The returned records use materialized hashes with original absolute PAB byte
+offsets; strict rig resolution still rejects unresolved or ambiguous hashes.
+
+This path is traced through `SkeletonAsyncLoadingTask` (`0x142CCEF80`), PAB
+loader `0x142D34A90`, and resource-manager slot `0x48` (`0x142CD0B20`). Bone
+tail sizes come from `0x1426A9D40` and `0x15022B1D0`; embedded index conversion
+comes from `0x151271F58`. The default primary/rendering/physics resources are
+stored at skeleton-resource offsets `0x110/0x118/0x120`. The copied 448-bone
+PHW rig contains 28 primary capsules, 16 rendering capsules and an empty physics
+set, consuming the full file. Every volume resolves to that rig. These defaults
+do not establish the final appearance override or runtime collision activation.
 
 Each record stores a bone key, a 4x4 local matrix, a retained usage byte and a
 serialized shape tag. Tags 0/1/2/4/5 become engine box/cylinder/mesh/sphere/capsule
@@ -434,7 +458,7 @@ PBD configuration loader `0x1435F5440`. The initial sets are populated at
 exclusion and temporary-fix lists. Callers must choose this initial profile
 explicitly; preparation does not silently replace supplied runtime sets.
 
-Active appearance metadata is required for resource selection. For example,
+Active appearance metadata is required to select overrides of the rig defaults. For example,
 the shipped Damiane `00` Nude prefab declares `SkeletonVolumeName`, while the
 `02` Nude prefab has no volume declaration. A replacement mesh's filename alone
 therefore cannot establish which collider file the game uses. The selected
@@ -466,7 +490,9 @@ choosing a different source; runtime resource fallback remains caller work.
 
 `tests/test_pabv_parser.py` covers both flag layouts, all decoded shape tags,
 source bounds, strict rig binding and a capsule passed through the existing
-animated collider calculation. Shipped Damiane and standard body volumes have
+animated collider calculation. `tests/test_pab_embedded_volumes.py` covers
+PAB tail flags, separate volume sets, absolute source offsets, index conversion,
+truncation and primary geometry preparation. Shipped Damiane and standard body volumes have
 also been decoded from read-only copies; this is format evidence, not proof of
 visible collision behavior or game parity.
 

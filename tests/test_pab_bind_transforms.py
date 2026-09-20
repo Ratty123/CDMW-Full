@@ -57,6 +57,7 @@ def test_pab_preserves_both_bind_pairs_and_following_fields(parser):
             assert bone.file_end - bone.file_offset == 305 + len(bone.name)
     assert skeleton.tail_offset == len(data)
     assert skeleton.tail_data == b'owned-tail'
+    assert skeleton.source_header == (data[:22] if skeleton.parser_mode == 'fixed' else b'')
     # Child local +X rotates into global +Y through its parent.
     child, parent = skeleton.bones[1], skeleton.bones[0]
     composed = tuple(sum(child.local_bind_matrix[row * 4 + k] * parent.bind_matrix[k * 4 + col]

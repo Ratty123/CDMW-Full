@@ -1,8 +1,9 @@
-"""Read-only PABV skeleton volumes, traced in game build 1.0.0.2944.
+"""Read-only skeleton volumes, traced in game build 1.0.0.2944.
 
-The serialized shape tags differ from the CPU/GPU shape types. Bone keys are
-hashes when header bit 0 is set, and skeleton indices otherwise. This decoder
-does not select an active character variant or infer collision activation.
+The serialized shape tags differ from the CPU/GPU shape types. Standalone
+PABV headers distinguish hash and index keys; embedded PAB sets use the
+skeleton's own loader conventions. Decoding does not select an active
+character variant or infer collision activation.
 """
 
 from __future__ import annotations
@@ -69,6 +70,14 @@ class PabvVolumeMerge:
     source_records: tuple[tuple[int, int], ...]
 
 
+@dataclass(frozen=True, slots=True)
+class PabEmbeddedVolumes:
+    header_flags: int
+    primary: PabvVolumes
+    rendering: PabvVolumes | None
+    physics: PabvVolumes | None
+
+
 def decode_pabv(data: bytes) -> PabvVolumes:
     """Decode the known PAR 0x36/1 layout, rejecting incomplete geometry.
 
@@ -80,8 +89,20 @@ def decode_pabv(data: bytes) -> PabvVolumes:
     """
     if len(data) < 22 or data[:16] != _HEADER:
         raise ValueError("PABV decoding requires the known PAR 0x36/1 header.")
-    flags, count = struct.unpack_from("<IH", data, 16)
-    cursor = 22
+    flags, = struct.unpack_from("<I", data, 16)
+    volumes, cursor = _decode_volume_records(data, 20, flags)
+    if cursor != len(data):
+        raise ValueError(f"PABV has undecoded trailing data at byte {cursor}.")
+    return volumes
+
+
+def _decode_volume_records(
+    data: bytes, cursor: int, flags: int, *, file_offset: int = 0,
+) -> tuple[PabvVolumes, int]:
+    if cursor + 2 > len(data):
+        raise ValueError("PABV volume count is truncated.")
+    count, = struct.unpack_from("<H", data, cursor)
+    cursor += 2
     minimum_size = 74 + (4 if flags & 2 else 0)
     if count > (len(data) - cursor) // minimum_size:
         raise ValueError("PABV volume records are truncated.")
@@ -90,7 +111,7 @@ def decode_pabv(data: bytes) -> PabvVolumes:
         nonlocal cursor
         end = cursor + size
         if end > len(data):
-            raise ValueError(f"PABV {name} is truncated at byte {cursor}.")
+            raise ValueError(f"PABV {name} is truncated at byte {file_offset + cursor}.")
         result = memoryview(data)[cursor:end]
         cursor = end
         return result
@@ -103,7 +124,7 @@ def decode_pabv(data: bytes) -> PabvVolumes:
 
     volumes = []
     for ordinal in range(count):
-        offset = cursor
+        offset = file_offset + cursor
         bone_key, = struct.unpack("<I", take(4, "bone key"))
         local_matrix = floats(16, "local matrix")
         usage, shape = struct.unpack("<BB", take(2, "shape tags"))
@@ -124,12 +145,55 @@ def decode_pabv(data: bytes) -> PabvVolumes:
                 raise ValueError("PABV shape dimensions must be nonnegative.")
         volume_flags = struct.unpack("<I", take(4, "volume flags"))[0] if flags & 2 else 0
         volumes.append(PabvVolume(
-            offset, cursor, bone_key, local_matrix, usage, shape, parameters,
+            offset, file_offset + cursor, bone_key, local_matrix, usage, shape, parameters,
             vertices, indices, volume_flags,
         ))
+    return PabvVolumes(flags, tuple(volumes)), cursor
+
+
+def decode_pab_embedded_volumes(skeleton: Skeleton) -> PabEmbeddedVolumes:
+    """Decode the three volume sets after known PAB 1/5 bone records.
+
+    This is the skeleton's default geometry, before appearance overrides. The
+    PAB header's bits 0x10 and 0x2 add four bytes and one byte per bone ahead of
+    the primary volume count. Bit 0x4 adds each volume's flags word. These are
+    PAB flags, not the standalone PABV flags. Rendering and physics sets can be
+    omitted at EOF; an explicitly serialized empty set remains distinguishable.
+
+    The embedded loader converts keys below the bone count from indices to
+    stored name hashes and retains larger keys. Return materialized hash keys,
+    preserving absolute record offsets into the original PAB. Callers still
+    use resolve_pabv_bones to reject unresolved/ambiguous hashes before binding.
+    No later active appearance or runtime collision profile is inferred here.
+    """
+    header = skeleton.source_header
+    if (skeleton.parser_mode != "fixed" or len(header) != 22
+            or header[:16] != b"PAR \x01\x05" + bytes(range(10))):
+        raise ValueError("Embedded volumes require a fixed-layout PAB with the known PAR 1/5 header.")
+    flags, count = struct.unpack_from("<IH", header, 16)
+    if (count != skeleton.bone_count or count != len(skeleton.bones)
+            or any(bone.index != i for i, bone in enumerate(skeleton.bones))
+            or skeleton.tail_offset != (skeleton.bones[-1].file_end if count else 22)):
+        raise ValueError("Embedded volumes require complete, ordered PAB bone records.")
+    cursor = (4 * count if flags & 0x10 else 0) + (count if flags & 0x2 else 0)
+    data = skeleton.tail_data
+    if cursor > len(data):
+        raise ValueError("PAB per-bone tail arrays are truncated.")
+    record_flags = 2 if flags & 0x4 else 0
+
+    def read_set() -> PabvVolumes:
+        nonlocal cursor
+        raw, cursor = _decode_volume_records(data, cursor, record_flags, file_offset=skeleton.tail_offset)
+        records = tuple(replace(volume, bone_key=skeleton.bones[volume.bone_key].name_hash)
+                        if volume.bone_key < count else volume for volume in raw.volumes)
+        return PabvVolumes(record_flags | 1, records)
+
+    primary = read_set()
+    rendering = read_set() if cursor < len(data) else None
+    physics = read_set() if cursor < len(data) else None
     if cursor != len(data):
-        raise ValueError(f"PABV has undecoded trailing data at byte {cursor}.")
-    return PabvVolumes(flags, tuple(volumes))
+        raise ValueError(f"PAB has undecoded trailing data at byte {skeleton.tail_offset + cursor}.")
+    return PabEmbeddedVolumes(flags, primary, rendering, physics)
 
 
 def resolve_pabv_bones(volumes: PabvVolumes, skeleton: Skeleton) -> tuple[int, ...]:

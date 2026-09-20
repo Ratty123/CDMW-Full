@@ -67,6 +67,7 @@ class Skeleton:
     tail_data: bytes = b""
     parser_mode: str = "fixed"
     parse_warning: str = ""
+    source_header: bytes = b""  # Retain version/flags for independently decoded tail sections.
 
     def get_bone_by_name(self, name: str) -> Optional[Bone]:
         for b in self.bones:
@@ -121,7 +122,7 @@ def _parse_pab_fixed(data: bytes, filename: str = "") -> Skeleton:
     if len(data) < PAB_HEADER_SIZE or data[:4] != PAR_MAGIC:
         raise ValueError(f"Not a valid PAB file: {data[:4]!r}")
 
-    skeleton = Skeleton(path=filename, parser_mode="fixed")
+    skeleton = Skeleton(path=filename, parser_mode="fixed", source_header=bytes(data[:PAB_HEADER_SIZE]))
     bone_count = struct.unpack_from("<H", data, 0x14)[0]
     skeleton.bone_count = bone_count
     if bone_count == 0:
