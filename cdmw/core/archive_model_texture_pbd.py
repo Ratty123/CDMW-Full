@@ -131,6 +131,7 @@ def _attach_pbd_cloth_preview_to_model_preview(
     model_preview: Optional[ModelPreviewData],
     parsed_mesh: Optional[object],
     *,
+    source_data: bytes | None = None,
     archive_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
     stop_event: Optional[threading.Event] = None,
 ) -> List[str]:
@@ -159,6 +160,7 @@ def _attach_pbd_cloth_preview_to_model_preview(
         sidecar_texts,
         pbd_config_text,
         resolve_material,
+        source_data=source_data,
     )
     if cloth_preview is None or not cloth_preview.batches:
         return [

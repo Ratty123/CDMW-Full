@@ -586,6 +586,7 @@ static void run_cached_material_owner_contract_self_test() {
 }
 
 static void run_material_contract_self_test() {
+    run_pbd_profile_decoding_self_test();
     run_cached_material_owner_contract_self_test();
     run_embedded_mesh_owner_contract_self_test();
     run_bounded_material_dependencies_self_test();

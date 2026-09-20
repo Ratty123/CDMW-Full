@@ -4,6 +4,64 @@ static void require_material_contract(bool condition, const char* message) {
     }
 }
 
+static void run_pbd_profile_decoding_self_test() {
+    NativePbdConfigMaterial config;
+    config.name = "Lower_Fabric";
+    config.mode = "Cloth";
+    require_material_contract(native_pbd_simulation_kind({"Lower_Fabric"}) == "cloth",
+        "the shipped Fabric profile naming convention was not recognized");
+    const auto settings = parse_native_pbd_material_settings(
+        "<SimulationParameters><SimulationMode>cloth</SimulationMode>"
+        "<StretchingStiffness>0.72</StretchingStiffness><BendingStiffness>0.41</BendingStiffness>"
+        "<Damping> 0.33 </Damping><Gravity>-8.5</Gravity><WindResponse>0.9</WindResponse>"
+        "<SolverIterationCount>4</SolverIterationCount><CollisionMode>NoCollision</CollisionMode>"
+        "<!-- <Damping>3.0</Damping><CollisionMode>Ultra</CollisionMode> -->"
+        "</SimulationParameters>", config, "owned.xml");
+    require_material_contract(std::abs(settings.stretching_stiffness - 0.72f) < 1e-6f
+        && std::abs(settings.bending_stiffness - 0.41f) < 1e-6f
+        && std::abs(settings.damping - 0.33f) < 1e-6f
+        && settings.gravity == -8.5f && settings.solver_iterations == 4
+        && !settings.collision_enabled && settings.collision_mode == "NoCollision",
+        "PBD element-text settings were replaced by defaults or commented examples");
+    const auto advanced = parse_native_pbd_material_settings(
+        "<Profile CollisionCheck=\"false\"><CollisionMode>Advanced</CollisionMode></Profile>", config, "");
+    require_material_contract(advanced.collision_enabled && advanced.collision_mode == "Advanced",
+        "PBD collision mode must take precedence over the old Boolean");
+    const auto legacy = parse_native_pbd_material_settings(
+        "<Profile><Float Name=\"Damping\" Value=\"0.27\"/></Profile>", config, "");
+    require_material_contract(std::abs(legacy.damping - 0.27f) < 1e-6f,
+        "attribute-based PBD profiles stopped decoding");
+
+    const std::string sidecar = "<SkinnedMeshPropertyCommon/><ModelPropertyList>"
+        "<ModelProperty Index=\"0\"><SkinnedMeshProperty _pbdSimulationMaterialName=\"Lower_Fabric\">"
+        "<SkinnedMeshMaterialWrapper _subMeshName=\"cloth_panel\"><Material _materialName=\"SharedShader\"/>"
+        "</SkinnedMeshMaterialWrapper>"
+        "<SkinnedMeshMaterialWrapper _subMeshName=\"disabled_panel\" _pbdSimulationMaterialName=\"\"/>"
+        "</SkinnedMeshProperty></ModelProperty></ModelPropertyList>";
+    const auto hints = extract_native_pbd_sidecar_hints(sidecar, "owned.pac_xml");
+    require_material_contract(hints.size() == 1 && hints.front().submesh_name == "cloth_panel",
+        "PBD inherited profile lost its part or ignored an explicit empty override");
+    require_material_contract(best_native_pbd_hint_for_binding(hints, "cloth_panel", "SharedShader", "") != nullptr
+        && best_native_pbd_hint_for_binding(hints, "unrelated_cloth", "SharedShader", "") == nullptr,
+        "PBD profile crossed part ownership through a shared shader material");
+
+    std::vector<char> records(120, 0);
+    records[39] = static_cast<char>(0xC0);
+    records[79] = static_cast<char>(0xDF);
+    records[119] = static_cast<char>(0xFF);
+    PacDescriptor descriptor;
+    descriptor.name = "cloth_panel";
+    descriptor.bbox_extent = Vec3{1.0f, 1.0f, 1.0f};
+    const ParSection section{4, 0, 120};
+    const auto mesh = decode_pac_submesh_vertices(records, section, descriptor, 0, 3, {0, 1, 2}, 0,
+        PacVertexLayout{"pac40_uv8_n16", 40, 8, 16});
+    require_material_contract(mesh.pac_cloth_blends == std::vector<std::uint8_t>({0, 31, 63}),
+        "native PAC cloth blend lost bit masking or vertex order");
+    const auto unknown = decode_pac_submesh_vertices(records, section, descriptor, 0, 3, {0, 1, 2}, 0,
+        PacVertexLayout{"pac36_uv8_n16", 36, 8, 16});
+    require_material_contract(unknown.pac_cloth_blends.empty(), "unknown layouts received invented cloth weights");
+}
+
 static MaterialParameterRecord authored_color(const char* name, const char* value) {
         MaterialParameterRecord parameter;
         parameter.kind = "color";

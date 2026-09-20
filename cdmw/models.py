@@ -1197,6 +1197,7 @@ class PbdMaterialSettings:
     solver_iterations: int = 30
     collision_enabled: bool = True
     is_cloak: bool = False
+    collision_mode: str = "Normal"
 
 
 @dataclass(slots=True)

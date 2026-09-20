@@ -273,6 +273,9 @@ static NativeSubmesh decode_pac_submesh_vertices(
             decode_pac_position(zu, desc.bbox_min.z, desc.bbox_extent.z),
         });
         mesh.source_vertex_indices.push_back(static_cast<std::int32_t>(vi));
+        if (layout.stride == 40 && layout.uv_offset == 8 && layout.normal_offset == 16) {
+            mesh.pac_cloth_blends.push_back(static_cast<unsigned char>(data[rec_off + 39]) & 63u);
+        }
         float u = 0.0f;
         float v = 0.0f;
         if (layout.uv_offset >= 0 && rec_off + static_cast<size_t>(layout.uv_offset) + 4 <= data.size()) {

@@ -8,7 +8,7 @@ from collections.abc import Mapping
 
 from cdmw.domain.mesh.cloth import PacClothRule
 from .mesh_parser import (
-    PAC_SKIN_EXTRA_INDEX_SENTINEL,
+    PAC_SKIN_EXTRA_INDEX_SENTINEL, SubMesh,
     _find_pac_descriptors, _parse_pac_geometry_section, _parse_par_sections,
     _validated_pac_descriptor_prefix,
 )
@@ -69,9 +69,22 @@ def pac_cloth_lods(data: bytes):
         if section is None:
             raise ValueError(f"Cloth editing cannot read PAC LOD {lod}.")
         mesh = _parse_pac_geometry_section(data, "cloth.pac", descriptors, section, lod)
-        if len(mesh.submeshes) != len(descriptors):
+        by_descriptor = {part.source_descriptor_offset: part for part in mesh.submeshes}
+        if len(by_descriptor) != len(mesh.submeshes):
             raise ValueError(f"Cloth editing cannot map every part in PAC LOD {lod}.")
-        for part, descriptor in zip(mesh.submeshes, descriptors, strict=True):
+        aligned = []
+        for descriptor in descriptors:
+            part = by_descriptor.pop(descriptor.descriptor_offset, None)
+            if (lod > 0 and descriptor.vertex_counts[lod] == 0
+                    and descriptor.index_counts[lod] == 0 and part is None):
+                # The general preview parser omits empty geometry. Keep its
+                # descriptor slot here so a disappearing part cannot shift a
+                # height/jiggle rule onto the following part at a lower LOD.
+                part = SubMesh(name=descriptor.name, material=descriptor.material,
+                               source_descriptor_offset=descriptor.descriptor_offset,
+                               source_vertex_stride=40, source_lod_count=count)
+            if part is None:
+                raise ValueError(f"Cloth editing cannot map every part in PAC LOD {lod}.")
             if (part.source_vertex_stride != 40 or len(part.vertices) != descriptor.vertex_counts[lod]
                     or len(part.source_vertex_offsets) != len(part.vertices)):
                 raise ValueError(f"Cloth editing cannot prove the vertex records in PAC LOD {lod}.")
@@ -79,6 +92,10 @@ def pac_cloth_lods(data: bytes):
             if len(offsets) != len(part.vertices) or offsets & seen_offsets:
                 raise ValueError("Cloth editing does not support shared PAC vertex records.")
             seen_offsets.update(offsets)
+            aligned.append(part)
+        if by_descriptor:
+            raise ValueError(f"Cloth editing cannot map every part in PAC LOD {lod}.")
+        mesh.submeshes = aligned
         levels.append(mesh)
     return tuple(levels)
 

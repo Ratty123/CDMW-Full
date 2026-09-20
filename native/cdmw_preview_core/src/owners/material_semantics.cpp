@@ -690,6 +690,7 @@ static std::string native_joined_lower(std::initializer_list<std::string> values
 static bool native_cloth_token_match(const std::string& value) {
     const std::string text = lower_copy(value);
     return text.find("cloth") != std::string::npos
+        || text.find("fabric") != std::string::npos
         || text.find("cloak") != std::string::npos
         || text.find("cape") != std::string::npos
         || text.find("skirt") != std::string::npos

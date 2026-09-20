@@ -40,8 +40,10 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
     def file_payload(file):
         return {"path": file.path, "data": blob(file.data), "archive_location": file.archive_location}
 
+    relative_jiggle = any(part.jiggle is not None and part.jiggle.retained for part in state.parts)
     return {
-        "version": (5 if any(part.jiggle is not None for part in state.parts) else
+        "version": (6 if relative_jiggle else
+                    5 if any(part.jiggle is not None for part in state.parts) else
                     4 if any(part.cloth is not None for part in state.parts) else
                     3 if state.neutral_appearance is not None else 2),
         **({"neutral_appearance": {"version": 1, **asdict(state.neutral_appearance)},
@@ -55,7 +57,9 @@ def save_replacement_state(state, project_root, generation_dir, stop_event=None)
                    "import_normals": (blob(b"".join(struct.pack("<3d", *normal) for normal in part.import_normals))
                                       if part.import_normals is not None else None),
                    **({"cloth": part.cloth.to_dict()} if part.cloth is not None else {}),
-                   **({"jiggle": part.jiggle.to_dict()} if part.jiggle is not None else {})}
+                   **({"jiggle": {**part.jiggle.to_dict(),
+                                  **({"retained": part.jiggle.retained} if relative_jiggle else {})}}
+                      if part.jiggle is not None else {})}
                   for part in state.parts],
         "dependencies": [file_payload(file) for file in state.dependencies],
         "companion_files": [file_payload(file) for file in state.companion_files],
@@ -73,7 +77,7 @@ def load_replacement_state(payload, project_root):
 def _load_replacement_state(payload, project_root):
     if payload is None:
         return None
-    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5}
+    if (not isinstance(payload, dict) or payload.get("version") not in {1, 2, 3, 4, 5, 6}
             or (payload["version"] < 3 and ("neutral_appearance" in payload or "neutral_coordinates" in payload))):
         raise ValueError("Unsupported replacement draft state.")
     root = Path(project_root).resolve()
@@ -113,6 +117,10 @@ def _load_replacement_state(payload, project_root):
         if payload["version"] < 5 and "jiggle" in value:
             raise ValueError("Jiggle settings require replacement draft version 5.")
         jiggle = PacJiggleRule.from_dict(value["jiggle"]) if "jiggle" in value else None
+        if payload["version"] == 6 and jiggle is not None and "retained" not in value["jiggle"]:
+            raise ValueError("Relative jiggle draft is missing the retained contribution.")
+        if payload["version"] < 6 and jiggle is not None and jiggle.retained:
+            raise ValueError("Relative jiggle settings require replacement draft version 6.")
         data = blob(value["import_positions"])
         if len(data) % 24:
             raise ValueError("Invalid replacement import placement data.")
@@ -134,6 +142,8 @@ def _load_replacement_state(payload, project_root):
         parts.append(ReplacementPart(str(value["part_id"]), int(value["target_index"]),
             tuple(str(v) for v in value["source_part_ids"]), value["included"],
             value["material_choice"], str(value["source_label"]), positions, normals, cloth, jiggle))
+    if payload["version"] == 6 and not any(part.jiggle is not None and part.jiggle.retained for part in parts):
+        raise ValueError("Relative jiggle draft has no retained contribution settings.")
     if any(not part.part_id for part in parts) or len({part.part_id for part in parts}) != len(parts):
         raise ValueError("Replacement draft part identities are missing or duplicated.")
     if {part.target_index for part in parts} != set(range(len(parts))):

@@ -3691,7 +3691,7 @@ fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -
         "reason": "This PAC has no existing cloth bindings.", "parts": []});
     ui.application.cdmw_state["jiggle"] = json!({
         "available": true, "reason": "", "lod_count": 4,
-        "parts": [{"index": 0, "id": "body:0", "included": true,
+        "parts": [{"index": 0, "id": "body:0", "included": true, "relative_available": true,
             "min_y": 0.0, "max_y": 2.0, "rule": null},
             {"index": 1, "id": "excluded:1", "included": false,
             "min_y": 0.0, "max_y": 2.0, "rule": null}]
@@ -3706,6 +3706,12 @@ fn integrated_jiggle_controls_limit_height_disable_and_restore_without_cloth() -
     ui.settle_layout();
     assert!(ui.application.cdmw_jiggle.use_height);
     ui.application.cdmw_jiggle.height = 1.2;
+    ui.application.cdmw_jiggle.retained_percent = 50.0;
+    let actions = ui.actions_from_click("Apply contribution")?;
+    assert!(actions.iter().any(|action| matches!(action,
+        UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
+        if arguments == &json!({"part_ids": ["body:0"], "rule": {"below_y": 1.2, "retained": 0.5}})
+    )));
     let actions = ui.actions_from_click("Disable jiggle")?;
     assert!(actions.iter().any(|action| matches!(action,
         UiAction::CdmwCommand { command: "replacement_jiggle", arguments, .. }
@@ -3749,7 +3755,7 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     ui.application.cdmw_state["jiggle"] = json!({
         "available": false, "reason": "No editable jiggle parts.", "parts": [],
         "overlay_parts": [{"index": 0, "preview": {
-            "available": true, "vertex_count": 3, "current_vertices": [1]}}]
+            "available": true, "vertex_count": 3, "current_bytes": [255, 249, 255]}}]
     });
     ui.click_tool_button("Jiggle")?;
     assert!(!ui.application.cdmw_jiggle.show_regions);
@@ -3757,15 +3763,21 @@ fn integrated_jiggle_regions_distinguish_disabled_and_unknown_without_edits() ->
     ui.click("Show jiggle regions")?;
     let colours = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap();
     assert_eq!(colours[0], colours[2]);
-    assert!(colours[1][1] > colours[1][0] && colours[1][1] > colours[1][2]);
     assert_ne!(colours[0], colours[1]);
-    assert!(ui.label_rect("Enabled").is_some());
-    assert!(ui.label_rect("Disabled").is_some());
+    assert!(ui.label_rect("Low weight").is_some());
+    assert!(ui.label_rect("High weight").is_some());
+    assert!(ui.label_rect("Zero weight").is_some());
     assert!(ui.label_rect("Unknown").is_some());
     let disabled = colours[0];
+    let low_nibble = colours[1];
+    ui.click("8-bit mode")?;
+    let full_byte = ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1];
+    assert_ne!(low_nibble, full_byte);
+    ui.click("4-bit mode")?;
+    assert_eq!(low_nibble, ui.application.cdmw_jiggle.region_colours.as_ref().unwrap()[1]);
     ui.application.refresh_face_selection_overlay();
     assert!(ui.application.face_selection_overlay.is_none());
-    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_vertices"] = json!([]);
+    ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["current_bytes"] = json!([255, 255, 255]);
     ui.application.publish_mesh_snapshot();
     assert_eq!(ui.application.cdmw_jiggle.region_colours.as_ref().unwrap(), &vec![disabled; 3]);
     ui.application.cdmw_state["jiggle"]["overlay_parts"][0]["preview"]["available"] = json!(false);
@@ -3797,7 +3809,7 @@ fn integrated_jiggle_preview_deforms_draw_frame_only_and_resets() -> TestResult 
         "parts": [{"index": 0, "id": "body:0", "included": true,
             "min_y": 0.0, "max_y": 1.0, "rule": null,
             "preview": {"available": true, "vertex_count": 3,
-                "original_vertices": [0, 1], "current_vertices": [1]}}]
+                "original_bytes": [240, 240, 255], "current_bytes": [255, 240, 255]}}]
     });
     let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
     ui.click_tool_button("Jiggle")?;

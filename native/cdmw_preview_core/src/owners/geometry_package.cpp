@@ -532,6 +532,11 @@ static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
     float scale
 ) {
     NativeClothRuntimeBatch runtime;
+    // A material profile can also describe bone/spline physics. It is not proof
+    // that these render vertices are bound to a cloth guide.
+    if (mesh.pac_cloth_blends.size() != mesh.positions.size()
+        || std::none_of(mesh.pac_cloth_blends.begin(), mesh.pac_cloth_blends.end(),
+                        [](std::uint8_t blend) { return blend < 63; })) return runtime;
     std::optional<NativePbdSidecarHint> hint = native_pbd_hint_for_mesh(mesh, batch_bindings);
     if (!hint.has_value()) return runtime;
     runtime.hint = *hint;

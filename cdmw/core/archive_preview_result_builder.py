@@ -1248,6 +1248,7 @@ def build_archive_preview_result(
                             entry,
                             model_preview,
                             parsed_mesh_for_references,
+                            source_data=data,
                             archive_entries_by_basename=texture_entries_by_basename,
                             stop_event=stop_event,
                         )

@@ -162,7 +162,7 @@ def _pasc(source: str, payload: bytes) -> bytes:
 
 
 def test_a_pasc_container_yields_its_source_name_and_the_dxil_inside() -> None:
-    parsed = study.parse_pasc(_pasc("shader/character.hlsl", b"junk" + b"DXBC" + b"\x00" * 8))
+    parsed = study.parse_pasc(_pasc("shader/character.hlsl", b"junk" + _dxbc()))
     assert parsed is not None
     assert parsed.source_hlsl == "shader/character.hlsl"
     assert parsed.container.startswith(b"DXBC")
@@ -174,6 +174,33 @@ def test_a_container_without_dxil_is_rejected() -> None:
 
 def test_a_non_pasc_blob_is_rejected() -> None:
     assert study.parse_pasc(b"NOPE" + b"\x00" * 64) is None
+
+
+def _dxbc() -> bytes:
+    return b"DXBC" + bytes(16) + struct.pack("<IIII", 1, 48, 1, 36) + b"DXIL" + struct.pack("<I", 4) + bytes(4)
+
+
+def _pasc_v8() -> bytes:
+    payload = _dxbc()
+    return b"PASC" + struct.pack("<4I", 8, 36 + len(payload), 61, 36) + bytes(range(16)) + payload
+
+
+def test_pasc_v8_has_a_bounded_container_without_a_source_name() -> None:
+    parsed = study.parse_pasc(_pasc_v8())
+    assert parsed is not None
+    assert parsed.source_hlsl == ""
+    assert parsed.container == _dxbc()
+
+
+@pytest.mark.parametrize("offset,value", [(4, 9), (8, 1), (16, 32), (60, 500), (64, 100), (68, 200), (76, 500)])
+def test_pasc_rejects_unknown_versions_and_invalid_container_ranges(offset, value) -> None:
+    data = bytearray(_pasc_v8())
+    struct.pack_into("<I", data, offset, value)
+    assert study.parse_pasc(bytes(data)) is None
+
+
+def test_pasc_rejects_truncated_dxbc_even_when_signature_is_present() -> None:
+    assert study.parse_pasc(_pasc("shader/character.hlsl", b"DXBC" + bytes(8))) is None
 
 
 # ── The decode transcribed from the shader ───────────────────────────

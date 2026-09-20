@@ -102,13 +102,34 @@ class PascContainer:
 def parse_pasc(data: bytes) -> PascContainer | None:
     if len(data) < 40 or data[:4] != b"PASC":
         return None
-    name_length = struct.unpack_from("<I", data, 32)[0]
-    if name_length > 512 or 36 + name_length > len(data):
+    version = struct.unpack_from("<I", data, 4)[0]
+    if version == 8:
+        # Current v8 entries omit the source name. The final 16 header bytes
+        # are a digest, not a length/string pair as in v7.
+        size, start = struct.unpack_from("<I", data, 8)[0], struct.unpack_from("<I", data, 16)[0]
+        if size != len(data) or start != 36:
+            return None
+        source = ""
+    elif version == 7:
+        name_length = struct.unpack_from("<I", data, 32)[0]
+        if name_length > 512 or 36 + name_length > len(data):
+            return None
+        source = data[36:36 + name_length].decode("utf-8", "replace")
+        start = data.find(b"DXBC", 36 + name_length)
+    else:
         return None
-    source = data[36:36 + name_length].decode("utf-8", "replace")
-    start = data.find(b"DXBC")
-    if start < 0:
+    if start < 0 or start + 32 > len(data) or data[start:start + 4] != b"DXBC":
         return None
+    container_size, chunks = struct.unpack_from("<II", data, start + 24)
+    if container_size != len(data) - start or chunks > (container_size - 32) // 4:
+        return None
+    for index in range(chunks):
+        offset = struct.unpack_from("<I", data, start + 32 + index * 4)[0]
+        if offset < 32 + chunks * 4 or offset + 8 > container_size:
+            return None
+        size = struct.unpack_from("<I", data, start + offset + 4)[0]
+        if offset + 8 + size > container_size:
+            return None
     return PascContainer(source_hlsl=source, container=data[start:])
 
 

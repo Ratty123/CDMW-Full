@@ -4,6 +4,24 @@ use std::collections::{BTreeSet, HashMap};
 
 const STEP: f64 = 1.0 / 120.0;
 
+/// Idealized byte-38 blends from the two shipped stream-out shader branches.
+/// The per-model runtime flag and bone overrides are not available to the tool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WeightDecode {
+    #[default]
+    LowNibble,
+    FullByte,
+}
+
+impl WeightDecode {
+    pub fn decode(self, value: u8) -> f32 {
+        match self {
+            Self::LowNibble => f32::from(15 - (value & 15)) / 15.0,
+            Self::FullByte => f32::from(255 - value) / 255.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Motion {
     #[default]
@@ -41,6 +59,7 @@ pub struct Simulation {
     targets: Vec<Vec3>,
     velocities: Vec<Vec3>,
     active: Vec<bool>,
+    weights: Vec<f32>,
     edges: Vec<Edge>,
     pivot: Vec3,
     scale: f32,
@@ -52,12 +71,13 @@ impl Simulation {
     pub fn new(
         rest: &[[f32; 3]],
         indices: &[u32],
-        active: Vec<bool>,
+        weights: Vec<f32>,
     ) -> Result<Self, &'static str> {
         if rest.is_empty()
             || rest.len() > 100_000
             || indices.len() > 600_000
-            || rest.len() != active.len()
+            || rest.len() != weights.len()
+            || weights.iter().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
             || !indices.len().is_multiple_of(3)
             || indices.iter().any(|i| *i as usize >= rest.len())
             || rest.iter().flatten().any(|v| !v.is_finite())
@@ -66,6 +86,7 @@ impl Simulation {
                 "Jiggle preview requires a finite mesh within 100,000 vertices and 200,000 triangles.",
             );
         }
+        let active: Vec<bool> = weights.iter().map(|v| *v > 0.0).collect();
         let rest: Vec<Vec3> = rest.iter().copied().map(Vec3::from).collect();
         let min = rest
             .iter()
@@ -120,6 +141,7 @@ impl Simulation {
             velocities: vec![Vec3::ZERO; rest.len()],
             rest,
             active,
+            weights,
             edges,
             accumulator: 0.0,
             elapsed: 0.0,
@@ -127,7 +149,9 @@ impl Simulation {
     }
 
     pub fn positions(&self) -> impl Iterator<Item = [f32; 3]> + '_ {
-        self.positions.iter().map(|p| p.to_array())
+        self.positions.iter().enumerate().map(|(i, p)| {
+            self.targets[i].lerp(*p, self.weights[i]).to_array()
+        })
     }
 
     pub fn rotation(&self, motion: Motion) -> Quat {
@@ -241,11 +265,34 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jiggle_decoded_weights_scale_the_final_blend_without_amplification() {
+        assert_eq!(WeightDecode::LowNibble.decode(249), 0.4);
+        assert_eq!(WeightDecode::FullByte.decode(249), 6.0 / 255.0);
+        assert_eq!(WeightDecode::LowNibble.decode(255), 0.0);
+        assert_eq!(WeightDecode::FullByte.decode(255), 0.0);
+        let positions = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+        let mut full = Simulation::new(&positions, &[0, 1, 2], vec![1.0; 3]).unwrap();
+        let mut half = Simulation::new(&positions, &[0, 1, 2], vec![0.5; 3]).unwrap();
+        for _ in 0..90 {
+            full.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            half.advance(STEP, Motion::UpDown, Settings::default()).unwrap();
+            for (i, (a, b)) in full.positions().zip(half.positions()).enumerate() {
+                let expected = full.targets[i] + (Vec3::from(a) - full.targets[i]) * 0.5;
+                assert!(Vec3::from(b).distance(expected) < 1e-6);
+            }
+        }
+        for bad in [f32::NAN, -0.01, 1.01] {
+            assert!(Simulation::new(&positions, &[0, 1, 2], vec![bad; 3]).is_err());
+        }
+    }
+
     fn fixture(active: Vec<bool>) -> Simulation {
         Simulation::new(
             &[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
             &[0, 1, 2],
-            active,
+            active.into_iter().map(|v| f32::from(u8::from(v))).collect(),
         )
         .unwrap()
     }
@@ -334,7 +381,7 @@ mod tests {
 
     #[test]
     fn jiggle_rejects_invalid_mesh_and_welds_seams() {
-        assert!(Simulation::new(&[[0.0; 3]], &[0, 1, 0], vec![true]).is_err());
+        assert!(Simulation::new(&[[0.0; 3]], &[0, 1, 0], vec![1.0]).is_err());
         let mut sim = Simulation::new(
             &[
                 [0.0, 0.0, 0.0],
@@ -343,7 +390,7 @@ mod tests {
                 [1.0, 0.0, 0.0],
             ],
             &[0, 1, 2, 0, 3, 2],
-            vec![false, true, false, true],
+            vec![0.0, 1.0, 0.0, 1.0],
         )
         .unwrap();
         for _ in 0..60 {

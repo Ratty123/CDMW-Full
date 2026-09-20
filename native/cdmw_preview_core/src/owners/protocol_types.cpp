@@ -26,6 +26,8 @@ struct NativeSubmesh {
     std::vector<Vec3> normals;
     std::vector<std::uint32_t> indices;
     std::vector<std::int32_t> source_vertex_indices;
+    // Present only for the verified 40-byte PAC layout; 63 is guide blend off.
+    std::vector<std::uint8_t> pac_cloth_blends;
     int source_submesh_index = -1;
     int source_local_submesh_index = -1;
     int source_component_index = 0;
@@ -78,6 +80,7 @@ struct NativePbdMaterialSettings {
     int solver_iterations = 30;
     bool collision_enabled = true;
     bool is_cloak = false;
+    std::string collision_mode = "Normal";
 };
 
 struct NativeClothConstraint {

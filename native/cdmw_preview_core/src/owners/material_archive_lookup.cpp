@@ -271,6 +271,7 @@ static NativePbdMaterialSettings default_native_pbd_material_settings(const Nati
         settings.wind_response = 0.75f;
         settings.solver_iterations = 24;
         settings.collision_enabled = false;
+        settings.collision_mode = "NoCollision";
     } else if (kind == "rope" || kind == "spline") {
         settings.stretching_stiffness = 0.82f;
         settings.bending_stiffness = 0.12f;

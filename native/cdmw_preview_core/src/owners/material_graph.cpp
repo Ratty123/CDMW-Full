@@ -12,7 +12,7 @@ static void add_native_pbd_hint(
     const std::string& parameter_name,
     const std::string& sidecar_path
 ) {
-    if (pbd_name.empty()) return;
+    if (pbd_name.empty() || (material_name.empty() && submesh_name.empty())) return;
     NativePbdSidecarHint hint;
     hint.simulation_material_name = pbd_name;
     hint.material_name = material_name;
@@ -72,7 +72,13 @@ static std::vector<NativePbdSidecarHint> extract_native_pbd_sidecar_hints(
                         break;
                     }
                 }
-                add_native_pbd_hint(hints, seen, pbd_name, material_name, submesh_name, "SkinnedMeshMaterialWrapper", sidecar_path);
+                const std::string* override_profile = nullptr;
+                for (const char* key : {"_pbdsimulationmaterialname", "pbdsimulationmaterialname"}) {
+                    auto found = wrapper_attrs.find(key);
+                    if (found != wrapper_attrs.end()) override_profile = &found->second;
+                }
+                add_native_pbd_hint(hints, seen, override_profile ? *override_profile : pbd_name,
+                    material_name, submesh_name, "SkinnedMeshMaterialWrapper", sidecar_path);
             }
         }
     }
@@ -96,7 +102,10 @@ static std::map<std::string, NativePbdConfigMaterial> parse_native_pbd_config_ma
 
 static std::map<std::string, std::string> native_material_scalar_values(const std::string& text) {
     std::map<std::string, std::string> values;
-    for (const std::string& tag : collect_xml_open_tags(text)) {
+    // Shipped PBD profiles primarily use <Damping>0.8</Damping>, not attributes.
+    // Commented examples must never override authored settings.
+    const std::string document = std::regex_replace(text, std::regex("<!--[\\s\\S]*?-->"), "");
+    for (const std::string& tag : collect_xml_open_tags(document)) {
         const auto attrs = xml_attribute_map(tag);
         const std::string name = xml_attr_value_from_map(attrs, {"Name", "_name", "name"});
         const std::string value = xml_attr_value_from_map(attrs, {"Value", "_value", "value", "DefaultValue"});
@@ -108,6 +117,15 @@ static std::map<std::string, std::string> native_material_scalar_values(const st
                 values[normalized_key(key)] = attr_value;
             }
         }
+    }
+    const std::regex leaf(R"(<([A-Za-z_][A-Za-z0-9_.:-]*)\s*>([^<>]{1,79})</\1\s*>)");
+    for (auto it = std::sregex_iterator(document.begin(), document.end(), leaf);
+         it != std::sregex_iterator(); ++it) {
+        std::string value = (*it)[2].str();
+        const auto start = value.find_first_not_of(" \r\n\t");
+        if (start == std::string::npos) continue;
+        value = value.substr(start, value.find_last_not_of(" \r\n\t") - start + 1);
+        values[normalized_key((*it)[1].str())] = value;
     }
     return values;
 }
@@ -196,6 +214,16 @@ static NativePbdMaterialSettings parse_native_pbd_material_settings(
     settings.wind_response = std::clamp(native_safe_float(native_first_scalar(values, {"WindResponse"}), settings.wind_response), 0.0f, 4.0f);
     settings.solver_iterations = std::clamp(native_safe_int(native_first_scalar(values, {"SolverIterationCount", "IterationCount"}), settings.solver_iterations), 1, 64);
     settings.collision_enabled = native_safe_bool(native_first_scalar(values, {"CollisionCheck", "CollisionEnabled"}), settings.collision_enabled);
+    const std::string collision_mode = normalized_key(native_first_scalar(values, {"CollisionMode"}));
+    if (collision_mode == "nocollision") {
+        settings.collision_enabled = false;
+        settings.collision_mode = "NoCollision";
+    } else if (collision_mode == "normal" || collision_mode == "advanced" || collision_mode == "ultra") {
+        settings.collision_enabled = true;
+        settings.collision_mode = collision_mode == "advanced" ? "Advanced" : collision_mode == "ultra" ? "Ultra" : "Normal";
+    } else {
+        settings.collision_mode = settings.collision_enabled ? "Normal" : "NoCollision";
+    }
     settings.is_cloak = native_safe_bool(native_first_scalar(values, {"IsCloak"}), settings.is_cloak);
     return settings;
 }

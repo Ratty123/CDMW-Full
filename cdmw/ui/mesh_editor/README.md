@@ -381,7 +381,7 @@ guides. Disabling cloth clears the guide fields that the ordinary six-bone
 shader branch would otherwise reinterpret. Original skeletal weights, mesh
 geometry, materials, physics sections and companion files are preserved.
 
-### Experimental jiggle disable
+### Experimental jiggle contribution
 
 Open **Mesh Data > Jiggle**, separately from Cloth. Compatible original body and
 clothing PAC meshes are supported; cloth bindings are not required. Select
@@ -389,11 +389,11 @@ the intended part, keep **Selected parts** enabled, and use
 **Only below height > Below Y** to limit the edit to the lower body. The boundary
 uses displayed model coordinates and applies strictly below that height at every
 stored LOD. Its initial midpoint is not an anatomical waist detector. Unchecking
-the height limit disables the whole selected part.
+the height limit applies the edit to the whole selected part.
 
-**Show jiggle regions** is an optional viewport overlay, off by default. Green
-marks enabled jiggle flags, gray marks disabled flags, and purple marks unknown
-data. It shows the current flags across all visible parts, independent of part
+**Show jiggle regions** is an optional viewport overlay, off by default. Blue to
+orange shows increasing vertex contribution, gray marks zero contribution, and
+purple marks unknown data. It covers all visible parts, independent of part
 selection and motion comparisons, and remains usable on an entirely disabled PAC.
 Disable/restore, Undo/Redo, and visibility changes refresh the colors. The toggle
 works during playback without restarting it; turning it off restores the normal
@@ -402,7 +402,19 @@ viewport display. It does not change vertex colors, materials, drafts, or export
 Only verified source PAC LOD0 vertex mappings are classified. Other formats,
 imported or unverified geometry, other LODs, and Original/Output comparison views
 show unknown instead of being treated as disabled. These colors identify the
-experimental byte flags, not decoded strength or confirmed in-game deformation.
+decoded vertex contribution, not confirmed in-game activation. **Weight preview**
+offers the shader's **4-bit mode** and **8-bit mode**; the actual runtime mode and
+bone overrides are unresolved. Changing this preview choice resets playback and
+does not affect saved edits.
+
+**Retain original % > Apply contribution** scales each source vertex's contribution
+instead of replacing the authored gradient with one value. It supports source
+bytes F0-FF, for which both shader branches preserve the same relative reduction:
+`new = 255 - floor((255 - original) * retained + 0.5)`. For example, 249 becomes
+252 at 50%. Values are quantized; a weak source may have only one useful step.
+100% retains the source and 0% removes the byte-derived contribution. This cannot
+create bindings, amplify motion, or override runtime bone masks. Other source
+encodings retain Disable / Restore only.
 
 **Disable jiggle** writes only zero-based byte 38 (`0x26`) of the validated
 40-byte PAC records. Colours, the separate cloth gate at byte 39, skinning,
@@ -411,28 +423,32 @@ rule and restores the retained source values. Undo/Redo, Finish and saved drafts
 use the existing replacement output transaction. Restore cannot recover values
 lost before the source PAC was opened. Layouts without proven record ownership
 at every LOD are rejected. Jiggle drafts use project/generation v7 and replacement
-payload v5; older draft formats remain readable.
+payload v5 for disable-only rules or v6 for relative contributions; older drafts
+remain readable. Repeated adjustments start from the source, not the last result.
 
 The disable value `255` is externally reported as tested on a modified Damiane
-body. This is not a decoded strength scale or a claim of in-game validation by
-CDMW. Values 249-254 remain unidentified. The source waist threshold `Y < 1.2`
-applies only to the reporter's model.
+body. The current shipped shader additionally decodes byte 38 as either
+`(255-byte)/255` or `(15-(byte&15))/15`. These are render-blend weights, not damping
+or stiffness, and bone overrides can supersede them. CDMW has not independently
+validated the result in-game. The source waist threshold `Y < 1.2` applies only to
+the reporter's model.
 
 **Motion preview** in the same section provides experimental inertial deformation
 of the rendered mesh. **Up / down** is the default: it repeatedly raises and lowers
 the model along its displayed Y axis, making vertical lag and bounce easier to compare.
 **Start / stop** and **Turning** remain available. Choose a motion, then **Play preview**.
 **Current flags**, **Original flags** and **All disabled** compare the saved jiggle
-rule, the retained source byte flags, and rigid motion using the same geometry.
+rule, the retained source weights, and rigid motion using the same geometry.
 Changing comparison or motion restarts a playing test for a repeatable comparison.
 **Pause preview** retains the frame; **Reset preview** returns to the editable
 rest shape. Camera orbit and framing remain available during playback.
 
-Preview softness/damping are editor-only settings, unrelated to values 249-254.
+Preview softness/damping are editor-only settings, separate from byte 38.
 The fixed-step spring and distance-constraint simulation preserves shape and
 bounds displacement; it is not the game's solver. It drives controlled motion
 of the whole model, not decoded game animation or bone-specific jiggle profiles,
-and does not simulate collisions between parts. Original byte-255 vertices follow
+and does not simulate collisions between parts. Decoded per-vertex weights blend
+the simulated result with rigid motion, preserving the source gradient. Byte-255 vertices follow
 the controlled model motion without added deformation. Existing custom normals
 are rotated with the deforming surface.
 
@@ -444,7 +460,7 @@ for Reset; source edits, selection changes and host state updates discard playba
 `cdmw_jiggle.rs` owns playback and viewport snapshots; `cdmw_mesh::jiggle` owns the
 pure simulation. Compatibility with game motion still needs reporter comparison.
 
-Reporter test: retain the original PAC and export disabled and restored variants
+Reporter test: retain the original PAC and export 50%, disabled and restored variants
 using **Build PAC**. On the same game build, compare walking, sprinting and
 stopping, then change camera distance to exercise LODs. Check that chest, hair,
 accessory and cloth movement and normal animation remain intact. Repeat with

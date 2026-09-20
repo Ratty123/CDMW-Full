@@ -28,6 +28,15 @@ synthetic PAC, short/279/440-character paths, Unicode, both CLI/service calls,
 and missing, denied, invalid and locked inputs. `self-test` additionally checks
 UNC normalization, already-extended paths and Windows length-error classification.
 
+PBD profiles accept authored XML element values and legacy attributes, including
+the four collision modes. Profile hints stay attached to their named parts and
+respect explicit empty overrides. Render-cloth approximations require a known
+40-byte PAC layout with a nonzero cloth contribution; a spline profile alone
+does not establish render-cloth bindings. The approximation still uses render
+triangles and inferred pins, without game collision or authored guide solving.
+`self-test-pbd` checks these profile and vertex-gate decoding contracts without
+the archive/path self-tests or game data.
+
 Cold PAMT scans classify entries before constructing archive paths, retain only
 the same preview-relevant records, and reuse each PAZ path within a table. XML
 classification still uses the complete directory path. These allocation savings
@@ -63,6 +72,7 @@ cmake --build native/cdmw_preview_core/build --config Release
 
 ```powershell
 cdmw-preview-core.exe self-test
+cdmw-preview-core.exe self-test-pbd
 cdmw-preview-core.exe preview-job job.json report.json
 cdmw-preview-core.exe --service
 cdmw-preview-core.exe mesh-audit-job input.bin report.json [filename]

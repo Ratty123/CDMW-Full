@@ -4,9 +4,25 @@ use crate::cdmw_ui::{state_bool, state_str, state_u64};
 use cdmw_mesh::{Provenance, jiggle};
 use std::collections::{HashMap, HashSet};
 
-const REGION_ENABLED: [f32; 4] = [0.06, 0.85, 0.18, 0.88];
+const REGION_LOW: [f32; 4] = [0.05, 0.30, 0.85, 0.88];
+const REGION_HIGH: [f32; 4] = [1.00, 0.55, 0.05, 0.88];
 const REGION_DISABLED: [f32; 4] = [0.32, 0.34, 0.38, 0.88];
 const REGION_UNKNOWN: [f32; 4] = [0.55, 0.12, 0.85, 0.88];
+
+fn preview_weights(data: &Value, key: &str, limit: usize, decode: jiggle::WeightDecode) -> Result<Vec<f32>> {
+    if data["available"].as_bool() != Some(true) {
+        bail!("Unverified source vertex ownership.");
+    }
+    let count = data["vertex_count"].as_u64().filter(|n| *n > 0 && *n <= limit as u64)
+        .ok_or_else(|| anyhow::anyhow!("Invalid preview vertex count."))? as usize;
+    let values = data[key].as_array().filter(|v| v.len() == count)
+        .ok_or_else(|| anyhow::anyhow!("Missing or incomplete jiggle vertex bytes."))?;
+    values.iter().map(|value| {
+        let byte = value.as_u64().and_then(|v| u8::try_from(v).ok())
+            .ok_or_else(|| anyhow::anyhow!("Invalid jiggle vertex byte."))?;
+        Ok(decode.decode(byte))
+    }).collect()
+}
 
 pub(super) struct JiggleView {
     pub show_regions: bool,
@@ -14,6 +30,8 @@ pub(super) struct JiggleView {
     pub selected_only: bool,
     pub use_height: bool,
     pub height: f64,
+    pub retained_percent: f64,
+    decode: jiggle::WeightDecode,
     key: Value,
     pub preview: Preview,
 }
@@ -26,6 +44,8 @@ impl Default for JiggleView {
             selected_only: true,
             use_height: true,
             height: 0.0,
+            retained_percent: 50.0,
+            decode: jiggle::WeightDecode::default(),
             key: Value::Null,
             preview: Preview::default(),
         }
@@ -101,6 +121,20 @@ fn surface_normals(snapshot: &DrawSnapshot, sums: &mut [Vec3]) {
 impl LabApplication {
     pub(super) fn draw_cdmw_jiggle_page(&mut self, ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         ui.small("Experimental jiggle for body and clothing PAC meshes. Cloth bindings are not required.");
+        let mut decode_changed = false;
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Weight preview");
+            for (decode, label) in [(jiggle::WeightDecode::LowNibble, "4-bit mode"),
+                                    (jiggle::WeightDecode::FullByte, "8-bit mode")] {
+                if ui.add(egui::Button::new(label).selected(self.cdmw_jiggle.decode == decode)).clicked()
+                    && self.cdmw_jiggle.decode != decode {
+                    self.cdmw_jiggle.decode = decode;
+                    decode_changed = true;
+                }
+            }
+        });
+        ui.small("Compare the two decoded weights. The active game mode and bone overrides are unresolved.");
+        if decode_changed { self.publish_mesh_snapshot(); }
         if ui.checkbox(&mut self.cdmw_jiggle.show_regions, "Show jiggle regions").changed() {
             if self.cdmw_jiggle.preview.scene.is_some() {
                 self.refresh_jiggle_regions();
@@ -110,16 +144,17 @@ impl LabApplication {
         }
         if self.cdmw_jiggle.show_regions {
             ui.horizontal_wrapped(|ui| {
-                ui.colored_label(egui::Color32::from_rgb(55, 230, 95), "Enabled");
-                ui.colored_label(egui::Color32::GRAY, "Disabled");
+                ui.colored_label(egui::Color32::from_rgb(15, 80, 220), "Low weight");
+                ui.colored_label(egui::Color32::from_rgb(255, 140, 15), "High weight");
+                ui.colored_label(egui::Color32::GRAY, "Zero weight");
                 ui.colored_label(egui::Color32::from_rgb(195, 90, 240), "Unknown");
             });
-            ui.small("Current jiggle flags on all visible parts. Motion comparisons do not change these colours.");
-            ui.small("Unknown: no verified PAC LOD0 flags for this geometry or comparison view.");
+            ui.small("Current vertex contribution on visible parts. Colours do not prove live physics activation.");
+            ui.small("Unknown: no verified PAC LOD0 bytes for this geometry or comparison view.");
         }
         ui.separator();
         let jiggle = self.cdmw_state["jiggle"].clone();
-        ui.small("Reported on Damiane. Verify other models in-game. Strength is not decoded.");
+        ui.small("Reductions preserve the source gradient. Final motion still needs in-game verification.");
         if !state_bool(&jiggle, "available") {
             if self.cdmw_jiggle.preview.scene.is_some() { self.publish_mesh_snapshot(); }
             ui.label(state_str(&jiggle, "reason").unwrap_or("Jiggle editing is unavailable."));
@@ -153,10 +188,12 @@ impl LabApplication {
             let rule = if mixed { &Value::Null } else { &parts[0]["rule"] };
             self.cdmw_jiggle.use_height = rule.is_null() || rule["below_y"].as_f64().is_some();
             self.cdmw_jiggle.height = rule["below_y"].as_f64().unwrap_or((min_y + max_y) * 0.5);
+            self.cdmw_jiggle.retained_percent = if rule.is_null() { 50.0 }
+                else { rule["retained"].as_f64().unwrap_or(0.0) * 100.0 };
         }
         ui.small(format!("{} parts · applies to all {} LODs", parts.len(), state_u64(&jiggle, "lod_count")));
         if mixed {
-            ui.small("Mixed saved settings. Disable replaces them for these parts.");
+            ui.small("Mixed saved settings. Applying a change replaces them for these parts.");
         }
         ui.checkbox(&mut self.cdmw_jiggle.use_height, "Only below height");
         if self.cdmw_jiggle.use_height {
@@ -167,7 +204,24 @@ impl LabApplication {
             ui.small(format!("Source height range: {min_y:.3} to {max_y:.3}"));
             ui.small("Uses displayed model coordinates. Choose the waist height for this model.");
         }
+        let relative_available = parts.iter().all(|part| state_bool(part, "relative_available"));
+        ui.add_enabled(relative_available, egui::Slider::new(&mut self.cdmw_jiggle.retained_percent, 0.0..=100.0)
+            .text("Retain original %"));
+        ui.small("Rounded to available byte steps. 100% keeps the source; 0% removes the vertex contribution.");
+        if !relative_available {
+            ui.small("This source encoding supports Disable / Restore only.");
+        }
         ui.horizontal_wrapped(|ui| {
+            if ui.add_enabled(relative_available, egui::Button::new("Apply contribution")).clicked() {
+                actions.push(UiAction::CdmwCommand {
+                    command: "replacement_jiggle",
+                    arguments: json!({"part_ids": ids, "rule": {
+                        "below_y": self.cdmw_jiggle.use_height.then_some(self.cdmw_jiggle.height),
+                        "retained": self.cdmw_jiggle.retained_percent / 100.0
+                    }}),
+                    label: "Set jiggle contribution",
+                });
+            }
             if ui.button("Disable jiggle").clicked() {
                 actions.push(UiAction::CdmwCommand {
                     command: "replacement_jiggle",
@@ -185,7 +239,7 @@ impl LabApplication {
                 });
             }
         });
-        ui.small("Disable / Restore is saved with Build PAC and drafts.");
+        ui.small("Contribution edits are saved with Build PAC and drafts.");
         self.draw_jiggle_preview_controls(ui, &parts);
     }
 
@@ -206,17 +260,7 @@ impl LabApplication {
             for part in self.cdmw_state["jiggle"]["overlay_parts"].as_array().into_iter().flatten() {
                 let Some(index) = part["index"].as_u64().and_then(|v| u32::try_from(v).ok()) else { continue; };
                 let data = &part["preview"];
-                let mask = (|| {
-                    if data["available"].as_bool() != Some(true) { return None; }
-                    let count = data["vertex_count"].as_u64().filter(|n| *n > 0 && *n <= vertex_count as u64)? as usize;
-                    let mut mask = vec![false; count];
-                    for vertex in data["current_vertices"].as_array()? {
-                        let vertex = vertex.as_u64().filter(|i| *i < count as u64)? as usize;
-                        if mask[vertex] { return None; }
-                        mask[vertex] = true;
-                    }
-                    Some(mask)
-                })();
+                let mask = preview_weights(data, "current_bytes", vertex_count, self.cdmw_jiggle.decode).ok();
                 if let Some(mask) = mask {
                     if masks.insert(index, mask).is_some() { invalid.insert(index); }
                 } else {
@@ -239,8 +283,9 @@ impl LabApplication {
             .map(|(_, vertex)| {
                 let Provenance::Source { submesh, element } = vertex.provenance else { return REGION_UNKNOWN; };
                 match masks.get(&submesh).and_then(|mask| mask.get(element as usize)) {
-                    Some(true) => REGION_ENABLED,
-                    Some(false) => REGION_DISABLED,
+                    Some(weight) if *weight > 0.0 => std::array::from_fn(|i|
+                        REGION_LOW[i] + (REGION_HIGH[i] - REGION_LOW[i]) * weight),
+                    Some(_) => REGION_DISABLED,
                     None => REGION_UNKNOWN,
                 }
             }).collect();
@@ -404,36 +449,14 @@ impl LabApplication {
                 continue;
             }
             let data = &part["preview"];
-            if data["available"].as_bool() != Some(true) {
-                bail!("Unverified source vertex ownership.");
-            }
-            let count = data["vertex_count"]
-                .as_u64()
-                .filter(|n| *n > 0 && *n <= 100_000)
-                .ok_or_else(|| anyhow::anyhow!("Invalid preview vertex count."))?
-                as usize;
             let key = if self.cdmw_jiggle.preview.comparison == Comparison::Original {
-                "original_vertices"
+                "original_bytes"
             } else {
-                "current_vertices"
+                "current_bytes"
             };
-            let values = data[key]
-                .as_array()
-                .ok_or_else(|| anyhow::anyhow!("Missing jiggle vertex flags."))?;
-            let mut mask = vec![false; count];
-            for value in values {
-                let vertex = value
-                    .as_u64()
-                    .filter(|v| *v < count as u64)
-                    .ok_or_else(|| anyhow::anyhow!("Invalid jiggle vertex flag."))?
-                    as usize;
-                if mask[vertex] {
-                    bail!("Duplicate jiggle vertex flag.");
-                }
-                mask[vertex] = true;
-            }
+            let mut mask = preview_weights(data, key, 100_000, self.cdmw_jiggle.decode)?;
             if self.cdmw_jiggle.preview.comparison == Comparison::Disabled {
-                mask.fill(false);
+                mask.fill(0.0);
             }
             if masks.insert(index, mask).is_some() {
                 bail!("Duplicate jiggle part.");
@@ -462,7 +485,7 @@ impl LabApplication {
                     .get(element as usize)
                     .ok_or_else(|| anyhow::anyhow!("Jiggle vertex ownership changed."))?
             } else {
-                false
+                0.0
             };
             if rendered {
                 active.push(value);
@@ -479,7 +502,7 @@ impl LabApplication {
             |v| mesh.draw_snapshot_for_submeshes(v),
         );
         rest.selected_vertices.clear();
-        let moving = active.iter().filter(|v| **v).count();
+        let moving = active.iter().filter(|v| **v > 0.0).count();
         let simulation = jiggle::Simulation::new(&rest.positions, &rest.indices, active)
             .map_err(anyhow::Error::msg)?;
         let mut rest_surface_normals = vec![Vec3::ZERO; rest.positions.len()];

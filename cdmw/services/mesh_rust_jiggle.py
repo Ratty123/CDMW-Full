@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from cdmw.domain.mesh.jiggle import PacJiggleRule
 from cdmw.modding.pac_cloth import pac_cloth_lods
-from cdmw.modding.pac_jiggle import PAC_JIGGLE_DISABLED, PAC_JIGGLE_OFFSET
+from cdmw.modding.pac_jiggle import PAC_JIGGLE_DISABLED, PAC_JIGGLE_OFFSET, reduce_pac_jiggle_byte
 from cdmw.services.mesh_replacement_import import (
     commit_replacement, initial_replacement_state, mesh_with_part_ids,
 )
@@ -35,6 +35,8 @@ def jiggle_ui_state(authoring, replacement):
                 counts = [sum(data[offset + PAC_JIGGLE_OFFSET] != PAC_JIGGLE_DISABLED
                               for offset in level.submeshes[index].source_vertex_offsets) for level in levels]
                 rows.append({"lod_counts": counts,
+                             "relative_available": all(data[offset + PAC_JIGGLE_OFFSET] >= 0xF0
+                                 for level in levels for offset in level.submeshes[index].source_vertex_offsets),
                              "min_y": min(heights, default=0.0), "max_y": max(heights, default=0.0)})
             metadata = {"parts": rows, "lod_count": len(levels), "reason": ""}
             # Retain the parsed LOD0 privately: source record ownership is required
@@ -64,12 +66,15 @@ def jiggle_ui_state(authoring, replacement):
                 and current.source_vertex_map == list(range(len(original.vertices)))
                 and current.source_vertex_offsets == original.source_vertex_offsets
                 and current.faces == original.faces):
-            candidates = [i for i, offset in enumerate(original.source_vertex_offsets)
-                          if data[offset + PAC_JIGGLE_OFFSET] != PAC_JIGGLE_DISABLED]
-            active = [i for i in candidates if rule is None or
-                      (rule.below_y is not None and current.vertices[i][1] >= rule.below_y)]
+            original_bytes = [data[offset + PAC_JIGGLE_OFFSET] for offset in original.source_vertex_offsets]
+            current_bytes = [reduce_pac_jiggle_byte(value, rule.retained)
+                             if rule and (rule.below_y is None or current.vertices[i][1] < rule.below_y)
+                             else value for i, value in enumerate(original_bytes)]
+            candidates = [i for i, value in enumerate(original_bytes) if value != PAC_JIGGLE_DISABLED]
+            active = [i for i, value in enumerate(current_bytes) if value != PAC_JIGGLE_DISABLED]
             preview = {"available": True, "vertex_count": len(current.vertices),
-                       "original_vertices": candidates, "current_vertices": active}
+                       "original_vertices": candidates, "current_vertices": active,
+                       "original_bytes": original_bytes, "current_bytes": current_bytes}
         overlay_parts.append({"index": part["index"], "preview": preview})
         if not any(source["lod_counts"]) and not (binding and binding.jiggle):
             continue
@@ -102,5 +107,5 @@ def set_jiggle_rule(authoring, snapshot, args, *, entry, dependencies, stop_even
     state = replace(state, parts=parts, revision=state.revision + 1)
     mesh = mesh_with_part_ids(snapshot, state)
     return commit_replacement(authoring.shadow_service, snapshot, mesh, state,
-                              label="Restore original jiggle" if reset else "Disable jiggle",
+                              label="Restore original jiggle" if reset else "Set jiggle contribution",
                               stop_event=stop_event)

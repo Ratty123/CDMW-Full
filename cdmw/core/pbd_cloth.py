@@ -51,6 +51,7 @@ class PbdSidecarHint:
     parameter_name: str = ""
     sidecar_path: str = ""
     simulation_kind: str = "unknown"
+    variant_index: str = ""
 
 
 def _local_name(value: object) -> str:
@@ -98,13 +99,20 @@ def _safe_bool(value: object, fallback: bool = False) -> bool:
 
 
 def _parse_xml(text: str) -> Optional[ET.Element]:
-    raw = str(text or "").strip()
+    raw = str(text or "").lstrip("\ufeff").strip()
     if not raw:
         return None
     try:
         return ET.fromstring(raw)
     except ET.ParseError:
-        return None
+        # PAC XML stores Common and ModelPropertyList as sibling roots.
+        # Strip only the leading declaration before wrapping those fragments;
+        # malformed/truncated XML still fails, rather than becoming defaults.
+        fragments = re.sub(r"^<\?xml\s[^?]*\?>", "", raw, count=1).strip()
+        try:
+            return ET.fromstring(f"<PbdDocument>{fragments}</PbdDocument>")
+        except ET.ParseError:
+            return None
 
 
 def classify_pbd_simulation_kind(*values: object) -> str:
@@ -152,6 +160,7 @@ def _default_pbd_material_settings(
         settings.wind_response = 0.75
         settings.solver_iterations = 24
         settings.collision_enabled = False
+        settings.collision_mode = "NoCollision"
     elif kind in {"rope", "spline"}:
         settings.stretching_stiffness = 0.82
         settings.bending_stiffness = 0.12
@@ -194,35 +203,52 @@ def parse_pbd_sidecar_hints(sidecar_text: str, *, sidecar_path: str = "") -> Tup
     if root is None:
         return ()
     hints: List[PbdSidecarHint] = []
-    seen: set[Tuple[str, str, str, str]] = set()
-    for element in root.iter():
+    seen: set[Tuple[str, str, str, str, str]] = set()
+
+    def visit(element: ET.Element, inherited: str = "", variant: str = "") -> None:
         attrs = element.attrib
-        pbd_name = str(attrs.get("_pbdSimulationMaterialName") or attrs.get("pbdSimulationMaterialName") or "").strip()
-        if not pbd_name:
-            continue
+        if _local_name(element.tag) == "ModelProperty":
+            variant = str(attrs.get("Index", "")).strip()
+        pbd_name = str(attrs.get("_pbdSimulationMaterialName", attrs.get("pbdSimulationMaterialName", inherited))).strip()
         material_name = str(attrs.get("_materialName") or attrs.get("materialName") or attrs.get("MaterialName") or "").strip()
         submesh_name = str(attrs.get("_subMeshName") or attrs.get("subMeshName") or attrs.get("SubMeshName") or "").strip()
         parameter_name = str(attrs.get("_name") or attrs.get("Name") or _local_name(element.tag)).strip()
+        # Model-wide PBD settings are inherited by named parts within that
+        # variant. Do not attach an unqualified profile to unrelated geometry.
+        if submesh_name and not material_name:
+            for material in element:
+                if _local_name(material.tag) == "Material":
+                    material_name = str(material.get("_materialName", "")).strip()
+                    for parameter in material:
+                        if parameter.get("property") == "_materialName":
+                            material_name = str(parameter.get("name", material_name)).strip()
+                    break
         kind = classify_pbd_simulation_kind(pbd_name, material_name, submesh_name, parameter_name, _local_name(element.tag))
         key = (
             _normalize_key(pbd_name),
             _normalize_name(material_name),
             _normalize_name(submesh_name),
             _normalize_name(parameter_name),
+            variant,
         )
-        if key in seen:
-            continue
-        seen.add(key)
-        hints.append(
-            PbdSidecarHint(
+        owns_profile = "_pbdSimulationMaterialName" in attrs or "pbdSimulationMaterialName" in attrs
+        # Retain a named variant's empty profile too: absence in one variant
+        # must not silently inherit another variant's simulation settings.
+        if (pbd_name or variant) and (submesh_name or (material_name and owns_profile)) and key not in seen:
+            seen.add(key)
+            hints.append(PbdSidecarHint(
                 simulation_material_name=pbd_name,
                 material_name=material_name,
                 submesh_name=submesh_name,
                 parameter_name=parameter_name,
                 sidecar_path=str(sidecar_path or ""),
                 simulation_kind=kind,
-            )
-        )
+                variant_index=variant,
+            ))
+        for child in element:
+            visit(child, pbd_name, variant)
+
+    visit(root)
     return tuple(hints)
 
 
@@ -230,7 +256,7 @@ def collect_pbd_sidecar_hints(
     sidecar_texts: Sequence[Tuple[str, str] | str],
 ) -> Tuple[PbdSidecarHint, ...]:
     hints: List[PbdSidecarHint] = []
-    seen: set[Tuple[str, str, str, str, str]] = set()
+    seen: set[Tuple[str, str, str, str, str, str]] = set()
     for item in sidecar_texts:
         if isinstance(item, tuple):
             sidecar_path = str(item[0] or "")
@@ -245,6 +271,7 @@ def collect_pbd_sidecar_hints(
                 _normalize_name(hint.submesh_name),
                 _normalize_name(hint.parameter_name),
                 _normalize_name(hint.sidecar_path),
+                hint.variant_index,
             )
             if key in seen:
                 continue
@@ -325,6 +352,13 @@ def parse_pbd_material_settings(
         _first_scalar(values, "CollisionCheck", "CollisionEnabled"),
         settings.collision_enabled,
     )
+    collision_modes = {"nocollision": "NoCollision", "normal": "Normal", "advanced": "Advanced", "ultra": "Ultra"}
+    collision_mode = collision_modes.get(_normalize_key(_first_scalar(values, "CollisionMode")))
+    if collision_mode is not None:
+        settings.collision_mode = collision_mode
+        settings.collision_enabled = collision_mode != "NoCollision"
+    else:
+        settings.collision_mode = "Normal" if settings.collision_enabled else "NoCollision"
     settings.is_cloak = _safe_bool(_first_scalar(values, "IsCloak"), _contains_any_token(settings.material_name, ("cloak",)))
     return settings
 
@@ -519,6 +553,8 @@ def _match_hint_score(
     mesh: ModelPreviewMesh,
     submesh: object,
 ) -> int:
+    if hint.submesh_name and _normalize_name(hint.submesh_name) != _normalize_name(getattr(submesh, "name", "")):
+        return 0
     label = " ".join(
         str(value or "")
         for value in (
@@ -600,10 +636,13 @@ def build_cloth_preview_data(
     parsed_mesh: object,
     sidecar_hints: Sequence[PbdSidecarHint],
     material_settings_by_name: Mapping[str, PbdMaterialSettings],
+    *,
+    source_data: bytes | None = None,
 ) -> Optional[ClothPreviewData]:
     if not isinstance(model_preview, ModelPreviewData) or not model_preview.meshes:
         return None
-    hints = tuple(hint for hint in sidecar_hints if str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower() in _SOFT_PBD_KINDS)
+    hints = tuple(hint for hint in sidecar_hints if hint.simulation_material_name
+                  and str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower() in _SOFT_PBD_KINDS)
     if not hints:
         return None
     submeshes = list(getattr(parsed_mesh, "submeshes", ()) or [])
@@ -623,6 +662,24 @@ def build_cloth_preview_data(
         if not scored or scored[0][0] < 40:
             continue
         hint = scored[0][1]
+        if hint.submesh_name and len({
+            _normalize_key(candidate.simulation_material_name) for candidate in sidecar_hints
+            if _normalize_name(candidate.submesh_name) == _normalize_name(hint.submesh_name)
+        }) > 1:
+            continue
+        if len({_normalize_key(candidate.simulation_material_name) for score, candidate in scored
+                if score == scored[0][0]}) > 1:
+            # The preview has no selected model-variant identity. Conflicting
+            # equally authoritative profiles must not be resolved by XML order.
+            continue
+        source_offsets = tuple(getattr(submesh, "source_vertex_offsets", ()) or ())
+        if source_data is not None and (
+            getattr(submesh, "source_vertex_stride", 0) != 40
+            or not source_offsets
+            or any(offset < 0 or offset + 40 > len(source_data) for offset in source_offsets)
+            or not any((source_data[offset + 39] & 63) != 63 for offset in source_offsets)
+        ):
+            continue
         hint_kind = str(getattr(hint, "simulation_kind", "") or "unknown").strip().lower()
         settings = material_settings_by_name.get(_normalize_key(hint.simulation_material_name)) or _default_pbd_material_settings(
             material_name=hint.simulation_material_name,
@@ -693,6 +750,8 @@ def build_cloth_preview_from_sidecars(
     sidecar_texts: Sequence[Tuple[str, str] | str],
     pbd_config_text: str,
     material_text_resolver: Callable[[PbdConfigMaterial], Tuple[str, str]],
+    *,
+    source_data: bytes | None = None,
 ) -> Optional[ClothPreviewData]:
     hints = collect_pbd_sidecar_hints(sidecar_texts)
     if not hints:
@@ -700,6 +759,8 @@ def build_cloth_preview_from_sidecars(
     config_materials = parse_pbd_config_materials(pbd_config_text)
     material_settings_by_name: Dict[str, PbdMaterialSettings] = {}
     for hint in hints:
+        if not hint.simulation_material_name:
+            continue
         config_material = config_materials.get(_normalize_key(hint.simulation_material_name))
         if config_material is None:
             material_settings_by_name[_normalize_key(hint.simulation_material_name)] = _default_pbd_material_settings(
@@ -714,7 +775,8 @@ def build_cloth_preview_from_sidecars(
             material_path=material_path or config_material.filename,
             config_material=config_material,
         )
-    return build_cloth_preview_data(model_preview, parsed_mesh, hints, material_settings_by_name)
+    return build_cloth_preview_data(model_preview, parsed_mesh, hints, material_settings_by_name,
+                                   source_data=source_data)
 
 
 __all__ = [

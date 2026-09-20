@@ -2,6 +2,11 @@ int run_cli(int argc, char** argv) {
     CommonArgs common_args = parse_common_args(argc, argv);
     cdmw_native_diag::init("cdmw-preview-core", common_args.crash_dir, common_args.diagnostic_log);
     try {
+        if (argc == 2 && std::string(argv[1]) == "self-test-pbd") {
+            run_pbd_profile_decoding_self_test();
+            std::cout << "{\"event\":\"self_test_pbd\",\"ok\":true}\n";
+            return 0;
+        }
         if (argc >= 2 && std::string(argv[1]) == "self-test") {
             run_path_io_self_test();
             run_archive_path_io_self_test();

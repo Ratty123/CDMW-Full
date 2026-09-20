@@ -1,4 +1,4 @@
-"""Disable reported PAC jiggle on explicit parts/regions without changing skinning."""
+"""Reduce PAC vertex jiggle contributions without changing other record lanes."""
 
 from __future__ import annotations
 
@@ -13,11 +13,28 @@ PAC_JIGGLE_OFFSET = 38
 PAC_JIGGLE_DISABLED = 255
 
 
+def reduce_pac_jiggle_byte(value: int, retained: float) -> int:
+    """Preserve the relative blend in both known shader branches for F0..FF.
+
+    Full-byte decoding gives (255-value)/255; the low-nibble branch gives
+    (15-(value&15))/15. In F0..FF both share the same numerator. Rounding is
+    nearest representable numerator, with half steps retaining more influence.
+    Other ranges can be disabled/restored but cannot safely use this scaling.
+    """
+    if retained == 0:
+        return PAC_JIGGLE_DISABLED
+    if retained == 1:
+        return value
+    if value < 0xF0:
+        raise ValueError("Relative jiggle reduction requires source bytes F0-FF; use Disable or Restore for this part.")
+    return 255 - math.floor((255 - value) * retained + 0.5)
+
+
 def apply_pac_jiggle_rules(data: bytes, rules: Mapping[int, PacJiggleRule], *, appearance=None) -> bytes:
     """Set only byte 38 in validated records at every LOD of the output baseline.
 
-    As with cloth, reset/undo rebuild from the retained source. Never manufacture
-    an enable value: non-255 values and their encoding have not been established.
+    Reset/undo and repeated edits rebuild from the retained source. Do not
+    manufacture an enable value or amplify an already disabled source record.
     The shared LOD reader validates record ownership without requiring cloth.
     """
     if not rules:
@@ -36,5 +53,7 @@ def apply_pac_jiggle_rules(data: bytes, rules: Mapping[int, PacJiggleRule], *, a
                 if not math.isfinite(position[1]):
                     raise ValueError("Jiggle selection requires finite vertex heights.")
                 if rule.below_y is None or position[1] < rule.below_y:
-                    result[offset + PAC_JIGGLE_OFFSET] = PAC_JIGGLE_DISABLED
+                    result[offset + PAC_JIGGLE_OFFSET] = reduce_pac_jiggle_byte(
+                        data[offset + PAC_JIGGLE_OFFSET], rule.retained,
+                    )
     return bytes(result)

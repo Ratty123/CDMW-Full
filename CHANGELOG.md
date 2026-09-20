@@ -13,7 +13,8 @@ The format is intentionally simple:
 
 ### Added
 
-- Mesh Editor's Jiggle page includes an optional region overlay: green for enabled flags, gray for disabled flags, and purple for unknown data. It covers visible body and clothing parts without changing mesh colors or exports.
+- Mesh Editor can retain a percentage of each original jiggle contribution on supported PACs, with per-vertex gradients, height selection, all stored LODs, Undo/Redo and drafts. The overlay and approximate motion preview now use decoded weights and expose both shader modes; runtime activation and bone overrides remain unresolved.
+- Mesh Editor's Jiggle page includes an optional region overlay: blue to orange for increasing decoded weight, gray for zero weight, and purple for unknown data. It covers visible body and clothing parts without changing mesh colors or exports.
 - Mesh Editor's experimental Jiggle controls have their own Mesh Data entry for compatible body and clothing PAC meshes. Motion preview defaults to up/down movement, with start/stop and turning tests, current/original/disabled comparisons, and preview-only softness and damping. Supported source PAC meshes deform without changing drafts or exports; the preview does not reproduce the game's physics or inter-part collisions.
 - New Item's Appearance controls include experimental per-material translucency with live thickness and extinction adjustments. Selected parts export as `SkinnedMeshTranslucent`; the viewport approximates absorption without game refraction. Choices follow model variants, and disabling the option restores the imported preview materials.
 
@@ -25,6 +26,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Fixed jiggle/cloth editing on PACs with valid empty lower-LOD parts. PBD readers preserve profile-to-part ownership, honor collision modes, and the native preview reads authored XML element values instead of substituting defaults. Render-cloth approximations require verified vertex bindings.
 - New Item loading errors include contextual guidance and a copyable report with the workbench version, exact cause, archive details and recent loading steps.
 - Localization read failures identify unsupported PALOC versions and malformed tables with their archive source, preserving the cause through encrypted archive reads.
 - New Item reads compressed `paloc` localization containers instead of reporting a decryption error for valid item-name tables. Exported names preserve the source table's container format.

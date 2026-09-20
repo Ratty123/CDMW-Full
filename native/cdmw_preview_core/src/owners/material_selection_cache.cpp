@@ -103,6 +103,7 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
         const std::string hint_material_key = normalized_material_key(hint.material_name);
         const std::string hint_submesh_key = normalized_material_key(hint.submesh_name);
         const std::string hint_pbd_key = normalized_material_key(hint.simulation_material_name);
+        if (!hint_submesh_key.empty() && hint_submesh_key != material_key && hint_submesh_key != ref_material_key) continue;
         if (!hint_material_key.empty() && (hint_material_key == material_key || hint_material_key == ref_material_key)) score += 100;
         if (!hint_submesh_key.empty() && (hint_submesh_key == material_key || hint_submesh_key == ref_material_key)) score += 90;
         if (!hint_pbd_key.empty() && (material_key.find(hint_pbd_key) != std::string::npos || ref_material_key.find(hint_pbd_key) != std::string::npos)) score += 40;
