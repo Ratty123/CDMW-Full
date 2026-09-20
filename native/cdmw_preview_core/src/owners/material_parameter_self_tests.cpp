@@ -4,7 +4,84 @@ static void require_material_contract(bool condition, const char* message) {
     }
 }
 
+static void run_pbd_cloak_profile_self_test() {
+    const auto parent = fs::absolute(fs::temp_directory_path()).lexically_normal();
+    const auto temporary = parent / ("cdmw-pbd-cloak-test-"
+        + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    require_material_contract(fs::equivalent(temporary.parent_path(), parent)
+        && fs::create_directory(native_file_path(temporary)), "could not reserve cloak fixture directory");
+    auto cleanup = [&]() {
+        std::error_code ignored;
+        fs::remove_all(native_file_path(temporary), ignored);
+    };
+    try {
+        EntryJob job;
+        job.archive_dependency_entries_complete = true;
+        const PamtIndex index;
+        NativeSubmesh mesh;
+        mesh.name = "cape_panel";
+        mesh.material = "Cloth";
+        mesh.positions = {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.75f, 0.0f}};
+        mesh.indices = {0, 1, 2};
+        mesh.pac_cloth_blends = {0, 0, 0};
+        TextureBinding binding;
+        binding.pbd_simulation_material_name = "Upper_Cloak";
+        binding.pbd_simulation_kind = "cloth";
+        binding.pbd_submesh_name = mesh.name;
+        auto verify = [&](bool is_cloak, const char* message) {
+            const auto runtime = build_native_cloth_runtime_batch(
+                job, index, {mesh}, 0, mesh, {&binding}, temporary, temporary, "panel", Vec3{}, 1.0f);
+            require_material_contract(runtime.active && runtime.settings.is_cloak == is_cloak, message);
+            const auto pins = read_binary_file(runtime.pin_path);
+            // At Y=.75 the ordinary .12/.28 pin bands yield .1875; cloak .16/.36 yields .55.
+            const float expected = is_cloak ? 0.55f : 0.1875f;
+            require_material_contract(pins.size() == 3 * sizeof(float)
+                && std::abs(read_f32(pins, 2 * sizeof(float)) - expected) < 1e-5f, message);
+        };
+        verify(false, "profile or mesh names enabled cloak pins without a material");
+
+        ArchiveEntryRef config;
+        config.path = "character/descriptors/pbd/pbdconfig.xml";
+        config.basename = "pbdconfig.xml";
+        config.extension = ".xml";
+        config.prepared_path = temporary / "pbdconfig.xml";
+        const std::string config_text = "<Config><Material Name=\"Upper_Cloak\" Mode=\"cloth\" "
+            "Filename=\"Material/Upper_Cloak.xml\"/></Config>";
+        write_text(config.prepared_path, config_text);
+        config.comp_size = config.orig_size = config_text.size();
+        config.prepared_size = static_cast<std::int64_t>(config_text.size());
+        job.archive_dependency_entries = {config};
+        verify(false, "missing cloak-named profile enabled cloak pins");
+
+        ArchiveEntryRef profile;
+        profile.path = "character/descriptors/pbd/Material/Upper_Cloak.xml";
+        profile.basename = "Upper_Cloak.xml";
+        profile.extension = ".xml";
+        profile.prepared_path = temporary / "Upper_Cloak.xml";
+        const std::vector<std::pair<std::string, bool>> cases{
+            {"<Profile/>", false},
+            {"<Profile><IsCloak>0</IsCloak></Profile>", false},
+            {"<Profile><IsCloak>1</IsCloak></Profile>", true},
+            {"<Profile IsCloak=\"false\"/>", false},
+            {"<Profile IsCloak=\"true\"/>", true},
+            {"<Profile><AttachedCloth><IsCloak>1</IsCloak></AttachedCloth></Profile>", false},
+        };
+        for (const auto& [contents, is_cloak] : cases) {
+            write_text(profile.prepared_path, contents);
+            profile.comp_size = profile.orig_size = contents.size();
+            profile.prepared_size = static_cast<std::int64_t>(contents.size());
+            job.archive_dependency_entries = {config, profile};
+            verify(is_cloak, "authored cloak setting did not reach native preview pins");
+        }
+    } catch (...) {
+        cleanup();
+        throw;
+    }
+    cleanup();
+}
+
 static void run_pbd_profile_decoding_self_test() {
+    run_pbd_cloak_profile_self_test();
     NativePbdConfigMaterial config;
     config.name = "Lower_Fabric";
     config.mode = "Cloth";

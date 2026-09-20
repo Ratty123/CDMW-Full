@@ -556,7 +556,7 @@ static NativeClothRuntimeBatch build_native_cloth_runtime_batch(
     const std::vector<float> pins = build_native_cloth_pin_weights(
         normalized_positions,
         mesh.indices,
-        runtime.settings.is_cloak || native_cloth_token_match(runtime.hint.simulation_material_name + " " + mesh.material + " " + mesh.name),
+        runtime.settings.is_cloak,
         runtime.settings.simulation_kind,
         attachment_anchors.empty() ? nullptr : &attachment_anchors
     );

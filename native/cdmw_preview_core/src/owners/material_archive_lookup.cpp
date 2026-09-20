@@ -286,9 +286,6 @@ static NativePbdMaterialSettings default_native_pbd_material_settings(const Nati
         settings.wind_response = 0.10f;
         settings.solver_iterations = 20;
     }
-    settings.is_cloak = native_cloth_token_match(
-        hint.simulation_material_name + " " + hint.material_name + " " + hint.submesh_name
-    );
     return settings;
 }
 
@@ -335,7 +332,6 @@ static NativePbdMaterialSettings resolve_native_pbd_material_settings(
             fallback.material_path = config_material.filename;
             fallback.material_name = config_material.name.empty() ? fallback.material_name : config_material.name;
             fallback.simulation_kind = native_pbd_simulation_kind({fallback.material_name, fallback.material_path, config_material.mode, config_material.pbd_part});
-            fallback.is_cloak = fallback.is_cloak || native_cloth_token_match(fallback.material_name + " " + fallback.material_path);
             return fallback;
         }
         std::vector<char> material_bytes;
@@ -350,7 +346,6 @@ static NativePbdMaterialSettings resolve_native_pbd_material_settings(
         NativePbdMaterialSettings settings = parse_native_pbd_material_settings(material_text, config_material, material_ref->path);
         if (settings.material_name.empty()) settings.material_name = hint.simulation_material_name;
         if (settings.simulation_kind.empty()) settings.simulation_kind = hint.simulation_kind.empty() ? "cloth" : hint.simulation_kind;
-        settings.is_cloak = settings.is_cloak || fallback.is_cloak;
         return settings;
     }
     return fallback;

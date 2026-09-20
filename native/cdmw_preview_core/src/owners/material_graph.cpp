@@ -175,7 +175,6 @@ static NativePbdMaterialSettings parse_native_pbd_material_settings(
     settings.material_name = config_material.name;
     settings.material_path = material_path.empty() ? config_material.filename : material_path;
     settings.simulation_kind = native_pbd_simulation_kind({settings.material_name, settings.material_path, config_material.mode, config_material.pbd_part});
-    settings.is_cloak = native_cloth_token_match(settings.material_name + " " + settings.material_path);
     const std::map<std::string, std::string> values = native_material_scalar_values(text);
     const std::string mode = native_first_scalar(values, {"SimulationMode", "Mode"});
     if (!mode.empty()) {
