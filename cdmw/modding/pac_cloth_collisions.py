@@ -677,3 +677,193 @@ def update_guide_cloth_collision_cache(
         working_flags |= 0x20000000
         cache = bytes(cache)
     return {'flags': working_flags, 'pre_collision': cache, 'cache_mode': mode}
+
+
+def select_cloth_collider_blends(per_frame: bytes, global_parameters: bytes, push_constants: bytes) -> dict | None:
+    """Resolve constraint collider timing, before outer collision eligibility.
+
+    Push constants are the 44-byte GlobalPushConstants record, not the scene
+    constant buffer. None means the constraint invocation's clock/frame gate
+    skips it. This uses substep-count fractions, unlike base animation timing.
+    The optional solver-iteration subdivision is enabled by global uint1124==1.
+    """
+    for record, size in ((per_frame, 100), (global_parameters, 1216), (push_constants, 44)):
+        _record(record, size)
+    flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    if flags & 0xC00:
+        return None
+    clock = 896 if flags2 & 0x8000 else 864
+    fixed = struct.unpack_from('<f', global_parameters, clock)[0]
+    _finite(fixed)
+    count = struct.unpack_from('<I', global_parameters, clock + 20)[0]
+    substep = struct.unpack_from('<I', push_constants, 40)[0]
+    variable = bool(flags2 & 0x800)
+    if fixed < f32(.0001) and not variable or variable and substep != 0 or substep >= count:
+        return None
+    reciprocal = f32(1./f32(count))
+    previous = 0. if variable else min(1., f32(f32(substep)*reciprocal))
+    current = 1. if variable else min(1., f32(f32(substep + 1)*reciprocal))
+    if struct.unpack_from('<I', global_parameters, 1124)[0] == 1:
+        iteration, maximum = struct.unpack_from('<2I', push_constants)
+        iterations = min(flags2 & 7, maximum)
+        if not iterations:
+            raise ValueError("Collider iteration subdivision has no finite result with zero iterations.")
+        if struct.unpack_from('<I', global_parameters, 1148)[0]:
+            iteration = (iteration + iterations - maximum) & 0xFFFFFFFF
+        before = f32((iteration - 1) & 0xFFFFFFFF)
+        previous_fraction = f32(before/f32(iterations))
+        current_fraction = f32(f32(before + 1.)/f32(iterations))
+        interval = f32(current - previous)
+        current = f32(previous + f32(current_fraction*interval))
+        previous = f32(previous + f32(previous_fraction*interval))
+    return {'previous': previous, 'current': current, 'sample': current if flags & 2 else previous}
+
+
+def sample_cloth_collider_motion(
+    reference_position: Sequence[float], collider_result: bytes, *,
+    translation_to_collider_space: Sequence[float], sample_blend: float, current_blend: float,
+) -> dict:
+    """Advect a guide reference by the decoded two-endpoint collider movement.
+
+    Result56 supplies previous/current endpoints at8/20 and32/44. The reference
+    is projected onto the average sampled/current axis WITHOUT segment clamping.
+    That axial coordinate determines the movement from sample to current time.
+    Returned current centers are in particle space. A collapsed average axis
+    has no supported finite result, including for a later sphere surface query.
+    """
+    _record(collider_result, 56)
+    reference, translation = _point(reference_position), _point(translation_to_collider_space)
+    _finite(sample_blend, current_blend)
+    old_a, new_a, old_b, new_b = (_point(struct.unpack_from('<3f', collider_result, offset))
+                                 for offset in (8, 20, 32, 44))
+
+    def interpolate(old, new, ratio):
+        return _point(tuple(a + (b - a)*ratio - t for a, b, t in zip(old, new, translation)))
+
+    sample_a = interpolate(old_a, new_a, sample_blend)
+    sample_b = interpolate(old_b, new_b, sample_blend)
+    current_a = interpolate(old_a, new_a, current_blend)
+    current_b = interpolate(old_b, new_b, current_blend)
+    midpoint_a = tuple((a + b)*.5 for a, b in zip(sample_a, current_a))
+    average_axis = tuple((b + d - a - c)*.5 for a, b, c, d in zip(sample_a, sample_b, current_a, current_b))
+    length_squared = _dot(average_axis, average_axis)
+    if not math.isfinite(length_squared) or length_squared == 0:
+        raise ValueError("Degenerate average collider axis has no supported finite motion result.")
+    axial = _dot(_difference(reference, midpoint_a), average_axis)/length_squared
+    _finite(axial)
+    displacement = _point(tuple(c - a + axial*((d - c) - (b - a))
+                                for a, b, c, d in zip(sample_a, sample_b, current_a, current_b)))
+    return {'center1': current_a, 'center2': current_b, 'axial_coordinate': axial,
+            'displacement': displacement,
+            'reference_position': _point(tuple(r + m for r, m in zip(reference, displacement)))}
+
+
+def apply_guide_cloth_animated_collisions(
+    particle: bytes, simulation_parameter: bytes, per_frame: bytes, per_scene: bytes,
+    global_parameters: bytes, push_constants: bytes, *,
+    working_position: Sequence[float], working_flags: int, pre_collision: bytes | None = None,
+    reference_collidables: Mapping[int, int] | None = None,
+    extra_collidables: Mapping[int, bytes] | None = None,
+    collidables: Mapping[tuple[int, int], bytes] | None = None,
+    collidable_results: Mapping[tuple[int, int], bytes] | None = None,
+    scene_objects: Mapping[tuple[int, int], bytes] | None = None,
+) -> dict:
+    """Run guide animated contacts up to the attached-static loop's entry.
+
+    Outer collision eligibility and preceding constraint/prepass work are caller
+    responsibilities. particle is the ORIGINAL invocation snapshot; working
+    position/flags are the current values. Clocks that skip must bypass this call.
+    Selection, endpoint motion, shape response, cache writes and contact flags
+    compose here. Group-bit1/bit0 histories, unnormalized normal sum and last
+    radii are returned separately for the later attached-static/position merge.
+    This does not write the particle buffer or execute later layer/world contacts.
+    """
+    blends = select_cloth_collider_blends(per_frame, global_parameters, push_constants)
+    if blends is None:
+        raise ValueError("The skipped constraint invocation must bypass animated collisions.")
+    selection = select_guide_cloth_collision_candidates(
+        particle, simulation_parameter, per_frame, per_scene, working_flags=working_flags,
+        pre_collision=pre_collision, reference_collidables=reference_collidables,
+        extra_collidables=extra_collidables, collidables=collidables)
+    position = bit1_position = bit0_position = _point(working_position)
+    flags = working_flags & ~0x8000
+    normal_sum = (0., 0., 0.)
+    last_radius = last_bit1_radius = 0.
+    contact = bit1_contact = bit0_contact = False
+    cache = None if pre_collision is None else bytes(pre_collision)
+    if selection['cache_mode'] != 'disabled':
+        frame_flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+        scene_flags = struct.unpack_from('<I', per_scene, 64)[0]
+        original_flags = struct.unpack_from('<I', particle, 64)[0]
+        parameter_flags = struct.unpack_from('<H', simulation_parameter, 212)[0]
+        use_working_reference = bool(frame_flags & 0x20 and scene_flags & 0x200)
+        reference = position if use_working_reference else _point(struct.unpack_from('<3f', particle, 36))
+        flypapering = bool(struct.unpack_from('<I', global_parameters, 1140)[0] and parameter_flags & 8
+                          and frame_flags & 0x20000000 and original_flags & 0x4000000
+                          and not scene_flags & 0x4000)
+        split_targets = flypapering or bool(flags2 & 0x80 and scene_flags & 0x4000)
+        queries = []
+        for candidate in selection['candidates']:
+            group = _entry(extra_collidables, candidate['group_index'], 56, 'extra-collidable')
+            definition = _entry(collidables, candidate['definition_key'], 104, 'collidable-definition')
+            result = _entry(collidable_results, candidate['result_key'], 56, 'collidable-result')
+            other_scene = _entry(scene_objects, candidate['scene_key'], 108, 'scene-object')
+            group_flags = struct.unpack_from('<H', group)[0]
+            bit1 = bool(group_flags & 1)
+            kind = struct.unpack_from('<H', definition, 2)[0]
+            if kind not in (1, 3, 5):
+                # Unhandled animated shapes return a zero surface/normal: distance0.
+                queries.append((*candidate['ordinals'], 0.))
+                continue
+            host, offset, other = (_point(struct.unpack_from('<3f', data))
+                                   for data in (per_scene, per_frame, other_scene))
+            host_x, host_z = struct.unpack_from('<2h', per_scene, 12)
+            other_x, other_z = struct.unpack_from('<2h', other_scene, 12)
+            translation = (host[0] + offset[0] - other[0] + (host_x - other_x)*1000.,
+                           host[1] + offset[1] - other[1],
+                           host[2] + offset[2] - other[2] + (host_z - other_z)*1000.)
+            motion = sample_cloth_collider_motion(
+                reference, result, translation_to_collider_space=translation,
+                sample_blend=blends['sample'], current_blend=blends['current'])
+            thickness = struct.unpack_from('<f', simulation_parameter, 204)[0] if bit1 else f32(.01)
+            if group_flags & 2:
+                thickness += struct.unpack_from('<e', simulation_parameter, 286)[0]
+            radius = struct.unpack_from('<f', result, 4)[0]
+            surface, normal = cloth_collider_contact_surface(
+                motion['reference_position'], collider_type=kind, center1=motion['center1'],
+                center2=motion['center2'], radius=radius, thickness=thickness)
+            target = (bit1_position if bit1 else bit0_position) if split_targets else position
+            distance = _dot(_difference(target, surface), normal)
+            _finite(distance)
+            queries.append((*candidate['ordinals'], distance))
+            damping = use_working_reference or bool(frame_flags & 0x20000000 and not bit1 and scene_flags & 0x4000)
+            response = resolve_cloth_moving_contact(
+                target, reference, surface_position=surface, surface_normal=normal,
+                collider_displacement=motion['displacement'], apply_tangential_damping=damping)
+            if response['contact']:
+                position, contact, last_radius = response['position'], True, radius
+                if split_targets:
+                    if bit1:
+                        bit1_position = position
+                    else:
+                        bit0_position = position
+                bit1_contact |= bit1
+                bit0_contact |= not bit1
+                if not flypapering or bit1:
+                    normal_sum = _point(tuple(a + b for a, b in zip(normal_sum, normal)))
+                if bit1:
+                    flags |= 0x8000
+                    last_bit1_radius = radius
+                else:
+                    flags &= ~0x8000
+        recorded = update_guide_cloth_collision_cache(
+            particle, simulation_parameter, per_frame, per_scene, working_flags=flags,
+            evaluated_colliders=queries, pre_collision=cache)
+        flags, cache = recorded['flags'], recorded['pre_collision']
+        if bit1_contact and bit0_contact:
+            flags |= 0x10000
+        if frame_flags & 0x20000000 or not bit0_contact:
+            flags &= ~0x30000
+    return {'position': position, 'bit1_position': bit1_position, 'bit0_position': bit0_position,
+            'normal_sum': normal_sum, 'last_radius': last_radius, 'last_bit1_radius': last_bit1_radius,
+            'contact': contact, 'flags': flags, 'pre_collision': cache, 'cache_mode': selection['cache_mode']}

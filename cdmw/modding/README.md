@@ -872,14 +872,65 @@ preserved. Modes other than rebuilding leave the cache and working flags intact.
 The existing base finalizer resets this cache half and clears its valid bit
 when frame bit `0x10` requests that earlier reset.
 
+`select_cloth_collider_blends` resolves the constraint shader's timing from
+per-frame parameters, the 1216-byte PBD globals and the 44-byte push constants.
+It returns `None` for the decoded frame/clock/substep skips. Frame flags2 bit
+`0x8000` selects the scaled clock at global byte 896 instead of 864. Fixed-step
+blends are `substep/count` and `(substep+1)/count`; variable mode (`flags2 & 0x800`)
+uses 0/1 and only substep 0. These differ from base animation's interval timing.
+Global uint 1124 must equal **1** to subdivide that interval by solver iteration.
+The local limit is `min(flags2 & 7, push_uint4)`; global uint 1148 enables the
+unsigned adjustment `push_uint0 + local_limit - push_uint4`. The previous
+iteration is one less than that result. The helper preserves the shader's uint
+and float32 conversions; a zero divisor is rejected. Frame bit `0x2` selects
+current-time sampling, otherwise previous-time sampling is used.
+
+`sample_cloth_collider_motion` consumes a 56-byte animated result with
+previous/current endpoint pairs at 8/20 and 32/44. After interpolation and space
+translation, it projects the reference onto the axis averaged between sampled
+and current endpoints. Its axial coordinate is **not clamped** to the segment.
+Movement is `(currentA - sampleA) + u*((currentB - currentA) - (sampleB - sampleA))`;
+adding this to the reference gives the position used for the current-time surface
+query. This captures endpoint-dependent movement rather than just translating by
+the first endpoint. A collapsed averaged axis has no supported finite result.
+
+`apply_guide_cloth_animated_collisions` composes timing, candidate selection,
+endpoint movement, surface response, flags and cache recording. It starts after
+the caller's outer collision gates and preceding constraints/prepasses, and ends
+at the entry to the attached-static loop. It requires the original particle and
+current working position/flags separately, plus actual scene/result snapshots.
+
+- The reference is the working position when frame bit `0x20` and scene bit
+  `0x200` are both set; otherwise it is original particle float3 36. Surfaces use
+  the advected reference, current interpolated centers and **result** radius 4.
+- Groups with flag `0x1` use simulation float 204 as thickness; other groups use
+  `float32(0.01)`. Group flag `0x2` adds simulation half 286. The optional 0.45
+  tangent correction is enabled by the working-reference condition, or by
+  frame `0x20000000` with scene `0x4000` for a group without flag `0x1`.
+- Separate histories are used for scene `0x4000` with flags2 `0x80`, or the
+  flypapering branch: global uint 1140 nonzero, parameter flag `0x8`, frame
+  `0x20000000`, original particle `0x04000000`, and scene `0x4000` clear.
+  `bit1_position` means group flag `0x1` set; `bit0_position` means it is clear.
+  Each matching history receives its own ordered projections. The general
+  position retains the most recent corrected target; later blending is separate.
+- Contact normals accumulate without normalization. Flypapering excludes normals
+  from groups without flag `0x1`. `last_radius` and `last_bit1_radius` retain the
+  most recent matching contact radius, not maxima. Flag `0x8000` is cleared on
+  entry and then follows the most recent contacting group's flag `0x1`.
+  Contact with both group categories sets `0x10000`; frame `0x20000000` or no
+  contact with the flag-clear category subsequently clears `0x30000`.
+- Unhandled animated types, including type 4, return a zero response plane and
+  no contact, but their zero-distance query still qualifies for cache recording.
+  Type 4's plane projection belongs to the attached-static path instead.
+
 Focused tests use analytic signed distances, finite-difference gradients,
 rotation/translation equivalence, cylinder edge/tie cases, capsule degeneracy,
 raw plane normals, ordered buffer selection, contact/friction composition,
-cache reuse/overflow and base-reset-to-rebuild transitions. They do not establish
-GPU rounding or gameplay parity. Animated collider interpolation and motion
-compensation, outer collision gates, static-mesh animated collider selection,
-full contact/normal/flag propagation and native preview wiring remain to be
-connected; these helpers do not constitute the full collision pass.
+cache reuse/overflow, base-reset-to-rebuild transitions, moving guide contacts and
+their handoff into attached-static projection. They do not establish GPU rounding
+or gameplay parity. Outer collision gates, static-mesh animated collider handling,
+later position blending and layer/world contacts, final state writes and native
+preview wiring remain to be connected; this is not the complete cloth solver.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
