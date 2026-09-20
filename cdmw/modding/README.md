@@ -296,6 +296,40 @@ stretch constraints and final movement; a repeated-step test checks damped fall
 against an independent geometric-series solution. This is not a complete solver
 or evidence of visible/game parity, and does not change the preview.
 
+`pac_cloth_environment.py` constructs the environmental acceleration consumed
+by the base integrator from explicit runtime records and scene samples. It uses
+velocity **after** gravity and bone inertia. Air resistance remains active when
+wind is disabled; frame `0x40000000` additionally includes particle velocity in
+the air-relative motion. Parameter half 280 supplies quadratic air resistance.
+Flags2 `0x8` enables voxel/frame wind, with parameter half 268 scaling the voxel
+sample before its speed-dependent force calculation. Extra-data half 20 is a
+direct wind multiplier, defaulting to 1 when absent, not an override sentinel.
+
+Guide frame wind has separate sky-visibility thresholds near 0.1 and 0.8;
+static frame wind does not use those thresholds. The global sky-on-voxel switch
+controls voxel attenuation independently. Flags2 `0x10` additionally removes
+inward horizontal wind near the model center and attenuates the remaining wind
+using the decoded radius and smooth transition. This mask does not also mask
+the separately computed air-resistance term.
+
+Underwater relative motion combines bone/particle velocity, half the scene water
+velocity and eligible shallow-water flow. A squared-speed dead zone precedes
+turbulence. Parameter halves 290/292 supply linear viscosity and quadratic drag;
+the special speed cap affects the quadratic term only. Both air and water forces
+then receive the global acceleration cap, surface response and horizontal wave.
+Orientation uses particle `_p[1]` and neighbor u16s at 112/114, not the adjusted
+working position. Frame `0x80000` selects the first-edge response unless extra
+flag `0x4` disables it; otherwise two valid neighbors define a triangle normal.
+Missing neighbors and degenerate edges retain their distinct shader branches.
+
+The reference requires voxel, sky, shallow-water and scalar noise samples only
+when their branches consume them. It does not generate the procedural noise,
+sample scene textures or determine water/force eligibility. Zero dry-turbulence
+normalization and purely vertical nonzero forces make the inspected math
+non-finite and are explicitly unsupported, without inventing recovery behavior.
+Tests cover the decoded branches and compose the result with base integration,
+prediction and final movement; they do not prove GPU or game equivalence.
+
 `pac_cloth_movement.py` implements the decoded core of the normal final-movement
 pass, confirmed against both packed and native-16-bit variants of
 `ComputePbdProcessFinalMovement`. `cloth_attachment_correction` uses the selected
