@@ -649,7 +649,10 @@ automatic weighting is enabled. Decoded initialization defaults are mass 1, vert
 blending on, rotation correction off and underwater coefficient 1. A declared
 `SimulationMode` resets rotation correction to on for cloth or off for spline;
 later explicit options override it. Source order is retained, and `AttachedCloth`
-options remain separate from the parent material. These fields do not replace
+options remain separate from the parent material. `IsCloak`,
+`ShrinkWhenShieldIsInSocket` and `UseInputPositionCollision` are retained in
+source order and default to false. A cloak-like filename does not enable
+`IsCloak`; the engine's material reset clears that byte. These fields do not replace
 the preview's approximate solver or heuristic pins.
 
 With an explicitly supplied material, the guide report calculates initial
@@ -1269,6 +1272,28 @@ CPU upload `0x143CE2237` copies the three owner words at `+0x80` to simulation
 bytes 64..75. Synthetic tests compose these words with the existing guide input
 collision pass. Actual group selection, later mask changes, shader bypasses and
 native preview integration remain separate; this helper does not write a PAC.
+
+`update_cloth_material_frame_flags` connects four selected material controls to
+the frame's existing flag words. It sets or clears only the listed bits,
+preserves other frame state, and invalidates upload only when a word changes:
+
+| Material field | Additional runtime gate | Frame word / mask |
+| --- | --- | --- |
+| `UseRotationCorrection` (`+0x180`) | Global byte `0x146D10998` | 32 / `0x4000` |
+| `IsCloak` (`+0x187`) | Global byte `0x146D2BC48` | 32 / `0x20000000` |
+| `ShrinkWhenShieldIsInSocket` (`+0x194`) | None in this producer | 32 / `0x20` |
+| `UseInputPositionCollision` (`+0x19E`) | None in this producer | 36 / `0x20000` |
+
+Flag builder `0x1435FF2F0` sets rotation and shield-shrink bits directly.
+Caller `0x143600750` resolves `IsCloak` at `0x143600E3C..0E55`, passes it to
+the builder, and uploads the returned word at `0x1436017DC`. The caller sets
+the input-position bit at `0x1436018E3..18F7` and uploads flags2 at `0x1436019C2`.
+The cloak bit is distinct from the `EnlargeCriticalCollidable` preset and the
+equipment-derived critical-collider group bit. Authored XML, explicit runtime
+switches, and these CPU flags are composed with decoded guide rotation,
+critical input projection, and same-scene collider admission in focused tests.
+Live global values, remaining frame flags, scene state and native preview
+integration remain explicit requirements; these references do not export a profile.
 
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
 the existing frame record; they are not direct shader stiffness values. For a

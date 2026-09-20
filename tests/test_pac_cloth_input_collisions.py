@@ -49,6 +49,31 @@ def run(data):
     return apply_cloth_input_collisions(**data)
 
 
+@pytest.mark.parametrize('xml,cloak_runtime,projects', [
+    ('<IsCloak>1</IsCloak><UseInputPositionCollision>1</UseInputPositionCollision>', True, True),
+    ('<IsCloak>1</IsCloak><UseInputPositionCollision>1</UseInputPositionCollision>', False, False),
+    ('<IsCloak>0</IsCloak><UseInputPositionCollision>1</UseInputPositionCollision>', True, False),
+    ('<IsCloak>1</IsCloak><UseInputPositionCollision>0</UseInputPositionCollision>', True, False),
+    ('<EnlargeCriticalCollidable>1</EnlargeCriticalCollidable><UseInputPositionCollision>1</UseInputPositionCollision>', True, False),
+])
+def test_authored_cloak_and_input_flags_select_critical_anchor_projection(xml, cloak_runtime, projects):
+    from cdmw.core.pbd_cloth import parse_pbd_material_settings
+    from cdmw.modding.pac_cloth_runtime import update_cloth_material_frame_flags
+
+    material = parse_pbd_material_settings('<SimulationParameters>' + xml + '</SimulationParameters>',
+                                           material_name='Armor_Cloak')
+    data = fixture()
+    data['per_frame'] = update_cloth_material_frame_flags(
+        data['per_frame'], use_rotation_correction=material.use_rotation_correction,
+        is_cloak=material.is_cloak, shrink_when_shield_is_in_socket=material.shrink_when_shield_is_in_socket,
+        use_input_position_collision=material.use_input_position_collision,
+        rotation_correction_enabled=False, cloak_enabled=cloak_runtime,
+    )['per_frame']
+    result = run(data)
+    assert result['projected_colliders'] == int(projects)
+    assert position(result) == pytest.approx((.05, .125 if projects else -.2, 0.))
+
+
 def position(result):
     return struct.unpack_from('<3f', result['particle'])
 

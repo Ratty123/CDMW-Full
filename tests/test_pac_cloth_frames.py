@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import math
+import struct
 
 import pytest
 
@@ -79,6 +80,31 @@ def test_two_edge_rotation_maps_animation_toward_simulation_not_the_reverse():
                     result=[(100, 200, 300), (-100, 0, 0), (0, 100, 0)])
     assert_basis(result[0], Z90)
     assert result[0][3][:3] == (100, 200, 300)
+
+
+@pytest.mark.parametrize('xml,runtime,rotated', [
+    ('<SimulationMode>cloth</SimulationMode>', True, True),
+    ('<SimulationMode>cloth</SimulationMode>', False, False),
+    ('<SimulationMode>cloth</SimulationMode><UseRotationCorrection>0</UseRotationCorrection>', True, False),
+    ('<SimulationMode>spline</SimulationMode><UseRotationCorrection>1</UseRotationCorrection>', True, True),
+])
+def test_authored_rotation_and_cpu_runtime_gate_select_actual_frame_basis(xml, runtime, rotated):
+    from cdmw.core.pbd_cloth import parse_pbd_material_settings
+    from cdmw.modding.pac_cloth_runtime import update_cloth_material_frame_flags
+
+    material = parse_pbd_material_settings('<SimulationParameters>' + xml + '</SimulationParameters>')
+    data = bytearray(100)
+    struct.pack_into('<I', data, 32, ROTATE)  # An old enabled frame must not keep rotation on.
+    flags = update_cloth_material_frame_flags(
+        data, use_rotation_correction=material.use_rotation_correction, is_cloak=material.is_cloak,
+        shrink_when_shield_is_in_socket=material.shrink_when_shield_is_in_socket,
+        use_input_position_collision=material.use_input_position_collision,
+        rotation_correction_enabled=runtime, cloak_enabled=False,
+    )
+    result = update([(0, 0, 0), (0, 1, 0), (1, 0, 0)],
+                    [(0, 0, 0), (-1, 0, 0), (0, 1, 0)], [(1, 2), INVALID, INVALID],
+                    flags=struct.unpack_from('<I', flags['per_frame'], 32)[0])
+    assert_basis(result[0], Z90 if rotated else BASIS)
 
 
 def test_two_edge_compression_reduces_rotation_before_frame_construction():

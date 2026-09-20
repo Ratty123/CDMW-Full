@@ -108,6 +108,45 @@ def build_cloth_material_collision_mask(
     return tuple(words)
 
 
+def update_cloth_material_frame_flags(
+    per_frame: bytes, *, use_rotation_correction: bool, is_cloak: bool,
+    shrink_when_shield_is_in_socket: bool, use_input_position_collision: bool,
+    rotation_correction_enabled: bool, cloak_enabled: bool,
+) -> dict:
+    """Set four decoded material-owned bits, preserving other frame state.
+
+    In 0x1435FF2F0, material+0x180 and runtime byte0x146D10998 jointly
+    select flags0x4000. Material+0x194 selects flags0x20. The caller at
+    0x143600E3C combines IsCloak (material+0x187) with byte0x146D2BC48;
+    the callee sets flags0x20000000 from that argument. It is not the
+    EnlargeCriticalCollidable preset. The caller uploads flags at frame+32.
+    Its later material+0x19E branch sets flags2 mask0x20000 at frame+36.
+
+    Supply selected material values and live global switches explicitly.
+    Neither a material filename nor the presence of colliders enables these
+    branches. This is a partial flag update, not the complete frame producer.
+    Changed words invalidate upload; unchanged flags leave the record intact.
+    """
+    _record(per_frame, 100)
+    for value in (use_rotation_correction, is_cloak, shrink_when_shield_is_in_socket,
+                  use_input_position_collision, rotation_correction_enabled, cloak_enabled):
+        _boolean(value)
+    flags, flags2 = struct.unpack_from('<2I', per_frame, 32)
+    selected = ((0x4000 if use_rotation_correction and rotation_correction_enabled else 0)
+                | (0x20000000 if is_cloak and cloak_enabled else 0)
+                | (0x20 if shrink_when_shield_is_in_socket else 0))
+    words = ((flags & ~0x20004020) | selected,
+             (flags2 & ~0x20000) | (0x20000 if use_input_position_collision else 0))
+    result = bytearray(per_frame)
+    offsets = []
+    for offset, old, new in zip((32, 36), (flags, flags2), words, strict=True):
+        if old != new:
+            struct.pack_into('<I', result, offset, new)
+            offsets.append(offset)
+    return {'per_frame': bytes(result), 'updated_offsets': tuple(offsets),
+            'upload_invalidated': bool(offsets)}
+
+
 def update_cloth_frame_stiffness(
     per_frame: bytes, *, simulation_mode: int, stretching_stiffness: float,
     bending_stiffness: float, area_stiffness: float, restore_angle_stiffness: float,

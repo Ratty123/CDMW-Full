@@ -8,7 +8,7 @@ import pytest
 from cdmw.modding.pac_cloth_constraints import cloth_stretch_corrections
 from cdmw.modding.pac_cloth_runtime import (
     build_cloth_collision_group_flags, build_cloth_material_collision_mask,
-    update_cloth_frame_stiffness, update_cloth_iteration_bits,
+    update_cloth_frame_stiffness, update_cloth_iteration_bits, update_cloth_material_frame_flags,
 )
 
 
@@ -17,6 +17,52 @@ def collision_mask(keys=(), *, include=(), exclude=(), temporary=()):
         keys, inclusion_bone_hashes=include, exclusion_bone_hashes=exclude,
         temporary_fix_exclusion_bone_hashes=temporary,
     )
+
+
+def material_flags(data=None, **changes):
+    args = dict(use_rotation_correction=False, is_cloak=False,
+                shrink_when_shield_is_in_socket=False, use_input_position_collision=False,
+                rotation_correction_enabled=False, cloak_enabled=False)
+    return update_cloth_material_frame_flags(bytes(100) if data is None else data, **(args | changes))
+
+
+@pytest.mark.parametrize('material_switch,runtime_switch,mask', [
+    ('use_rotation_correction', 'rotation_correction_enabled', 0x4000),
+    ('is_cloak', 'cloak_enabled', 0x20000000),
+])
+@pytest.mark.parametrize('material,runtime', [(False, False), (False, True), (True, False), (True, True)])
+def test_material_frame_branches_require_both_authored_and_runtime_enables(
+    material_switch, runtime_switch, mask, material, runtime,
+):
+    result = material_flags(**{material_switch: material, runtime_switch: runtime})
+    assert struct.unpack_from('<I', result['per_frame'], 32)[0] == (mask if material and runtime else 0)
+
+
+def test_material_flags_clear_stale_bits_preserve_unrelated_state_and_only_invalidate_changes():
+    data = bytearray(range(100))
+    struct.pack_into('<2I', data, 32, 0xFFFFFFFF, 0xFFFFFFFF)
+    before = bytes(data)
+    cleared = material_flags(data)
+    assert struct.unpack_from('<2I', cleared['per_frame'], 32) == (0xDFFFBFDF, 0xFFFDFFFF)
+    assert cleared['updated_offsets'] == (32, 36) and cleared['upload_invalidated']
+    assert cleared['per_frame'][:32] == before[:32] and cleared['per_frame'][40:] == before[40:]
+    assert bytes(data) == before
+    unchanged = material_flags(cleared['per_frame'])
+    assert unchanged['per_frame'] == cleared['per_frame']
+    assert unchanged['updated_offsets'] == () and not unchanged['upload_invalidated']
+    enabled = material_flags(cleared['per_frame'], use_rotation_correction=True, is_cloak=True,
+                             shrink_when_shield_is_in_socket=True, use_input_position_collision=True,
+                             rotation_correction_enabled=True, cloak_enabled=True)
+    assert enabled['per_frame'] == before
+
+
+@pytest.mark.parametrize('field', [
+    'use_rotation_correction', 'is_cloak', 'shrink_when_shield_is_in_socket',
+    'use_input_position_collision', 'rotation_correction_enabled', 'cloak_enabled',
+])
+def test_material_frame_flags_reject_implicit_boolean_inputs(field):
+    with pytest.raises(ValueError, match='explicit booleans'):
+        material_flags(**{field: 1})
 
 
 def test_collision_mask_without_inclusions_preserves_unused_slots_and_excludes_matches():

@@ -352,6 +352,12 @@ def parse_pbd_material_settings(
             settings.use_vertex_alpha_position_blending = _safe_bool(value, settings.use_vertex_alpha_position_blending)
         elif key == "userotationcorrection":
             settings.use_rotation_correction = _safe_bool(value, settings.use_rotation_correction)
+        elif key == "iscloak":
+            settings.is_cloak = _safe_bool(value, settings.is_cloak)
+        elif key == "shrinkwhenshieldisinsocket":
+            settings.shrink_when_shield_is_in_socket = _safe_bool(value, settings.shrink_when_shield_is_in_socket)
+        elif key == "useinputpositioncollision":
+            settings.use_input_position_collision = _safe_bool(value, settings.use_input_position_collision)
         elif key == "underwaterguidemeshvertexweightcoefficient":
             settings.underwater_guide_mesh_vertex_weight_coefficient = _safe_float(
                 value, settings.underwater_guide_mesh_vertex_weight_coefficient,
@@ -387,7 +393,6 @@ def parse_pbd_material_settings(
         settings.collision_enabled = collision_mode != "NoCollision"
     else:
         settings.collision_mode = "Normal" if settings.collision_enabled else "NoCollision"
-    settings.is_cloak = _safe_bool(_first_scalar(values, "IsCloak"), _contains_any_token(settings.material_name, ("cloak",)))
     return settings
 
 

@@ -48,6 +48,27 @@ def select(data, **changes):
     return select_guide_cloth_collision_candidates(**(data | changes))
 
 
+@pytest.mark.parametrize('shrink,scene_flags,count', [(True, 0x200, 0), (False, 0x200, 3), (True, 0, 3)])
+def test_material_shield_shrink_flag_filters_same_scene_character_colliders(shrink, scene_flags, count):
+    from cdmw.core.pbd_cloth import parse_pbd_material_settings
+    from cdmw.modding.pac_cloth_runtime import update_cloth_material_frame_flags
+
+    material = parse_pbd_material_settings(
+        f'<SimulationParameters><ShrinkWhenShieldIsInSocket>{int(shrink)}</ShrinkWhenShieldIsInSocket>'
+        '</SimulationParameters>')
+    data = snapshots()
+    struct.pack_into('<H', data['extra_collidables'][11], 0,
+                     build_cloth_collision_group_flags(component_flags=0x20,
+                                                       critical_collidable=False, same_pac_collidable=False))
+    struct.pack_into('<I', data['per_scene'], 64, scene_flags)
+    data['per_frame'] = update_cloth_material_frame_flags(
+        data['per_frame'], use_rotation_correction=False, is_cloak=False,
+        shrink_when_shield_is_in_socket=material.shrink_when_shield_is_in_socket,
+        use_input_position_collision=False, rotation_correction_enabled=False, cloak_enabled=False,
+    )['per_frame']
+    assert len(select(data)['candidates']) == count
+
+
 def update(data, queries, **changes):
     args = {k: v for k, v in data.items() if k not in ('reference_collidables', 'extra_collidables', 'collidables')}
     return update_guide_cloth_collision_cache(**(args | changes), evaluated_colliders=queries)

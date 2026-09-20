@@ -1205,6 +1205,8 @@ class PbdMaterialSettings:
     underwater_guide_mesh_vertex_weight_coefficient: float = 1.0
     auto_weighting_exponential_base: float = 0.4
     auto_weighting_input_ratio_shift: float = 0.0
+    shrink_when_shield_is_in_socket: bool = False
+    use_input_position_collision: bool = False
 
 
 @dataclass(slots=True)

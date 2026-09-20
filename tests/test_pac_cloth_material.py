@@ -24,6 +24,28 @@ def test_guide_material_defaults_are_not_inferred_from_a_clothing_filename():
     assert settings.underwater_guide_mesh_vertex_weight_coefficient == 1
     assert settings.auto_weighting_exponential_base == .4
     assert settings.auto_weighting_input_ratio_shift == 0
+    assert settings.is_cloak is False
+    assert settings.shrink_when_shield_is_in_socket is False
+    assert settings.use_input_position_collision is False
+
+
+def test_cloak_name_does_not_enable_an_unauthored_runtime_flag():
+    settings = parse_pbd_material_settings('<SimulationParameters/>', material_name='Armor_Cloak')
+    assert settings.is_cloak is False
+
+
+@pytest.mark.parametrize('field,tag', [
+    ('is_cloak', 'IsCloak'),
+    ('shrink_when_shield_is_in_socket', 'ShrinkWhenShieldIsInSocket'),
+    ('use_input_position_collision', 'UseInputPositionCollision'),
+])
+def test_material_collision_switches_keep_document_order_and_separate_attached_cloth(field, tag):
+    for first, last in ((0, 1), (1, 0)):
+        xml = (f'<SimulationParameters><{tag}>{first}</{tag}>'
+               f'<{tag}>{last}</{tag}><AttachedCloth><{tag}>{1-last}</{tag}>'
+               '</AttachedCloth></SimulationParameters>')
+        settings = parse_pbd_material_settings(xml)
+        assert getattr(settings, field) is bool(last)
 
 
 @pytest.mark.parametrize('body, expected', [
