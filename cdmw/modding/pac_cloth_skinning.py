@@ -8,10 +8,52 @@ Calculations use Python floats, not bit-exact GPU float/half arithmetic.
 from __future__ import annotations
 
 import math
+import struct
 from collections.abc import Sequence
 
 from .pac_cloth import decode_pac_cloth_binding, pac_cloth_lods
 from .pac_cloth_guides import PacClothGuides
+
+
+def guide_runtime_blend_factor(
+    *, inverse_mass: float, particle_flags: int, underwater_coefficient: float,
+) -> float:
+    """Reproduce the row0.w selection in ComputePbdUpdateResult.
+
+    The coefficient is material UnderWaterGuideMeshVertexWeightCoefficient,
+    uploaded as half at simulation-parameter offset 276. The caller supplies
+    actual particle flags; this function does not infer water contact or the
+    runtime override flag from a PAC. Bit 0x80 selects the underwater
+    branch for dynamic particles; bit 0x800000 overrides that branch to 1.
+    """
+    if (not math.isfinite(inverse_mass) or inverse_mass < 0
+            or not math.isfinite(underwater_coefficient)
+            or type(particle_flags) is not int or not 0 <= particle_flags <= 0xFFFFFFFF):
+        raise ValueError("Guide blending requires finite mass/coefficient and unsigned 32-bit particle flags.")
+    if inverse_mass == 0 or not particle_flags & 0x80 or particle_flags & 0x800000:
+        return 1.0
+    # Material upload calls 0x140E18CB0. Its subnormal shift drops low bits before
+    # round-to-even, and its overflow encoding is 0x7fff, not IEEE infinity.
+    # Python's direct half packing is therefore not equivalent at the edges.
+    try:
+        bits = struct.unpack("<I", struct.pack("<f", underwater_coefficient))[0]
+    except OverflowError as exc:
+        raise ValueError("The underwater coefficient exceeds the finite float32 input range.") from exc
+    sign = (bits >> 16) & 0x8000
+    magnitude = bits & 0x7FFFFFFF
+    if magnitude > 0x47FFEFFF:
+        packed = sign | 0x7FFF
+    else:
+        if magnitude < 0x38800000:
+            shift = 113 - (magnitude >> 23)
+            magnitude = 0 if shift > 31 else ((magnitude & 0x7FFFFF) | 0x800000) >> shift
+        else:
+            magnitude = (magnitude + 0xC8000000) & 0xFFFFFFFF
+        packed = sign | (((magnitude + 0xFFF + ((magnitude >> 13) & 1)) >> 13) & 0x7FFF)
+    coefficient = struct.unpack("<e", struct.pack("<H", packed))[0]
+    if not math.isfinite(coefficient):
+        raise ValueError("The underwater coefficient packs to a non-finite half; its shader blend is not established.")
+    return max(0.0, min(1.0, coefficient))
 
 
 def _matrix4(value: Sequence[Sequence[float]]) -> tuple[tuple[float, ...], ...]:

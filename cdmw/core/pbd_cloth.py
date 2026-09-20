@@ -280,8 +280,8 @@ def collect_pbd_sidecar_hints(
     return tuple(hints)
 
 
-def _material_scalar_values(root: ET.Element) -> Dict[str, str]:
-    values: Dict[str, str] = {}
+def _material_scalar_items(root: ET.Element) -> List[Tuple[str, str]]:
+    values: List[Tuple[str, str]] = []
     pending = [root]
     while pending:
         element = pending.pop()
@@ -294,13 +294,13 @@ def _material_scalar_values(root: ET.Element) -> Dict[str, str]:
         name_attr = attrs.get("Name") or attrs.get("_name") or attrs.get("name") or ""
         value_attr = attrs.get("Value") or attrs.get("_value") or attrs.get("value") or ""
         if name_attr and value_attr:
-            values[_normalize_key(name_attr)] = value_attr
+            values.append((_normalize_key(name_attr), value_attr))
         for key, value in attrs.items():
             if value:
-                values[_normalize_key(key)] = value
+                values.append((_normalize_key(key), value))
         text = str(element.text or "").strip()
         if text and len(text) < 80:
-            values[_normalize_key(_local_name(element.tag))] = text
+            values.append((_normalize_key(_local_name(element.tag)), text))
     return values
 
 
@@ -328,7 +328,8 @@ def parse_pbd_material_settings(
         getattr(config_material, "pbd_part", ""),
     )
     root = _parse_xml(text)
-    values = _material_scalar_values(root) if root is not None else {}
+    items = _material_scalar_items(root) if root is not None else []
+    values = dict(items)
     mode = _first_scalar(values, "SimulationMode", "Mode")
     if mode:
         simulation_kind = classify_pbd_simulation_kind(mode, resolved_name, resolved_path)
@@ -339,6 +340,22 @@ def parse_pbd_material_settings(
     )
     if root is None:
         return settings
+    # The engine processes these in source order. SimulationMode resets rotation
+    # correction (cloth=on, spline=off); a later explicit option can override it.
+    # AttachedCloth has already been excluded as a separate settings owner.
+    for key, value in items:
+        if key == "mass":
+            settings.mass = _safe_float(value, settings.mass)
+        elif key == "simulationmode" and value.lower() in ("cloth", "spline"):
+            settings.use_rotation_correction = value.lower() == "cloth"
+        elif key == "usevertexalphapositionblending":
+            settings.use_vertex_alpha_position_blending = _safe_bool(value, settings.use_vertex_alpha_position_blending)
+        elif key == "userotationcorrection":
+            settings.use_rotation_correction = _safe_bool(value, settings.use_rotation_correction)
+        elif key == "underwaterguidemeshvertexweightcoefficient":
+            settings.underwater_guide_mesh_vertex_weight_coefficient = _safe_float(
+                value, settings.underwater_guide_mesh_vertex_weight_coefficient,
+            )
     settings.stretching_stiffness = max(
         0.0,
         min(1.0, _safe_float(_first_scalar(values, "StretchingStiffness", "StretchStiffness"), settings.stretching_stiffness)),

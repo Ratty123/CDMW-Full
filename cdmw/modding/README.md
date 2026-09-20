@@ -150,6 +150,20 @@ resolve the active material. Channel A supplies the particle's group ID; only
 IDs 1 through 31 select dynamic-fix bits in the traced base-movement shader.
 Membership does not establish whether a runtime bit is active.
 
+The shared Python PBD parser retains `Mass`, `UseVertexAlphaPositionBlending`,
+`UseRotationCorrection` and `UnderWaterGuideMeshVertexWeightCoefficient` for
+guide inspection. Decoded initialization defaults are mass 1, vertex-alpha
+blending on, rotation correction off and underwater coefficient 1. A declared
+`SimulationMode` resets rotation correction to on for cloth or off for spline;
+later explicit options override it. Source order is retained, and `AttachedCloth`
+options remain separate from the parent material. These fields do not replace
+the preview's approximate solver or heuristic pins.
+
+With an explicitly supplied material, the guide report calculates initial
+inverse masses and selects the corresponding half-precision position blends.
+These values precede long-range attachment preparation, which can modify blends
+again. Supplying a material does not prove it is the active in-game profile.
+
 The alpha bitmask and ordered group starts remain separate evidence. Neither
 is used to infer pinning; group starts do not always match fixed vertices.
 The traced ordered-group consumer prepares spline attachment data; cloth mode
@@ -188,6 +202,17 @@ transpose of the blended basis. This reference requires valid guide indices
 and supplied runtime matrices; it neither generates those matrices nor emulates
 missing GPU resources or bit-exact float/half arithmetic.
 
+The runtime factor's traced material source is
+`UnderWaterGuideMeshVertexWeightCoefficient`. `guide_runtime_blend_factor`
+follows the CPU uploader's float32/half packing, including its subnormal rounding,
+then the shader's saturation. Non-finite packed results are reported as unsupported.
+The coefficient applies only to dynamic particles with underwater flag `0x80`; fixed particles,
+dry particles and the `0x800000` override return 1. The override restores the
+authored skeletal fraction rather than forcing full skeletal skinning. Lowering
+this coefficient increases guide influence in that underwater branch; it does
+not reduce spring stiffness. Water contact, override activation and material
+selection require runtime inputs and are not inferred from a PAC.
+
 Raw decoding retains zero weight totals. With an active guide buffer, all-zero
 guide weights produce a zero matrix and a singular normal basis in the traced
 formula. This does not prove source corruption because the runtime can bypass
@@ -198,8 +223,8 @@ The read-only inspector also reports render bindings for each part at every
 stored LOD, including bypass counts, referenced guides, weight totals and authored
 skeletal blend values. Zero-total vertices are counted separately. Invalid guide
 indices are counted with bounded source-offset examples, independently of guide
-decoding. A static PAC cannot establish the
-active runtime guide buffer or the final cloth contribution.
+decoding. A static PAC cannot establish the active runtime guide buffer or the
+final cloth contribution.
 
 Initialization does not establish final motion: runtime overrides, active solver
 selection, collision behavior and skeletal transformation remain unresolved here.
@@ -212,12 +237,15 @@ Inspect loose decoded files with:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\pac_cloth_guide_study.py 'C:\path\model.pac'
+.\.venv\Scripts\python.exe tools\pac_cloth_guide_study.py 'C:\path\model.pac' --material 'C:\path\profile.xml'
 ```
 
 The command reads its inputs and prints JSON with source hashes, decoded guide
 geometry, complete stored tables, particle initialization, rest-constraint geometry,
-topology comparisons and field offsets. It
-returns a nonzero status if any input is unavailable. Keep reports and game-derived
+topology comparisons and field offsets. Optional material context applies to every
+input PAC and includes the profile's path and source hash. Malformed material XML
+is rejected instead of becoming a successful default calculation. The command
+returns a nonzero status if an input is unavailable. Keep reports and game-derived
 data outside the repository.
 
 Related tests: mesh, static replacement, material, and package entries under `tests/`.

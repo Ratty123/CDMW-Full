@@ -1198,6 +1198,11 @@ class PbdMaterialSettings:
     collision_enabled: bool = True
     is_cloak: bool = False
     collision_mode: str = "Normal"
+    # Decoded guide defaults in build 1.0.0.2944, separate from preview heuristics.
+    mass: float = 1.0
+    use_vertex_alpha_position_blending: bool = True
+    use_rotation_correction: bool = False
+    underwater_guide_mesh_vertex_weight_coefficient: float = 1.0
 
 
 @dataclass(slots=True)

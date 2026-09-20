@@ -154,7 +154,10 @@ def decode_pac_cloth_guides(data: bytes) -> PacClothGuides | None:
     )
 
 
-def inspect_guide_particle_initialization(guides: PacClothGuides) -> dict:
+def inspect_guide_particle_initialization(
+    guides: PacClothGuides, *, material_mass: float | None = None,
+    use_vertex_alpha_position_blending: bool | None = None,
+) -> dict:
     """Decode authored particle channels without guessing the active material.
 
     In build 1.0.0.2944, the view constructor at 0x153954980 connects PAC
@@ -167,9 +170,11 @@ def inspect_guide_particle_initialization(guides: PacClothGuides) -> dict:
     Group IDs 1..31 can select dynamic-fix bits in the base-movement shader;
     membership does not mean that bit is active. Runtime overrides, collisions
     and further solver processing are outside this initialization report.
+    Supplying both material inputs also calculates their initial values, before
+    long-range attachment preparation can further modify position blends.
     """
     fixed = [index for index, value in enumerate(guides.channel_b) if value == 255]
-    return {
+    result = {
         "fixed_vertex_indices": fixed,
         "inverse_mass_factors": [0 if value == 255 else 1 for value in guides.channel_b],
         "position_blend_with_vertex_alpha": [
@@ -180,6 +185,21 @@ def inspect_guide_particle_initialization(guides: PacClothGuides) -> dict:
         "group_ids": list(guides.channel_a),
         "dynamic_fix_group_ids": [value if 1 <= value <= 31 else None for value in guides.channel_a],
     }
+    if material_mass is not None or use_vertex_alpha_position_blending is not None:
+        if (material_mass is None or not math.isfinite(material_mass)
+                or type(use_vertex_alpha_position_blending) is not bool):
+            raise ValueError("Guide initialization requires finite Mass and an explicit vertex-alpha flag together.")
+        inverse_mass = 1 / material_mass if material_mass > 0 else 1.0
+        if not math.isfinite(inverse_mass):
+            raise ValueError("Material Mass produces an unrepresentable initial inverse mass.")
+        blend_key = "position_blend_with_vertex_alpha" if use_vertex_alpha_position_blending else "position_blend_without_vertex_alpha"
+        result["supplied_material_initialization"] = {
+            "mass": material_mass,
+            "use_vertex_alpha_position_blending": use_vertex_alpha_position_blending,
+            "inverse_masses": [inverse_mass * factor for factor in result["inverse_mass_factors"]],
+            "position_blends": list(result[blend_key]),
+        }
+    return result
 
 
 def _classify_guide_constraints(guides: PacClothGuides) -> list[tuple[str, tuple[int, ...]]]:
