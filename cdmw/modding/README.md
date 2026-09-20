@@ -682,13 +682,68 @@ frame flags2 `0x200`, the packed variant clears both complete contact vectors;
 the native-16-bit variant clears their xyz components and preserves each w.
 Both clear `cr` and preserve `lra_ratio`. With that flag, both retain the cache.
 These stages preserve unrelated record bytes and reject missing consumed inputs.
-Water classification from supplied samples is covered below. Actual texture
-acquisition, input-position and later collider queries, and full CPU dispatch
-selection remain caller work.
+Water classification from supplied samples and guide input-position collisions
+from supplied collider snapshots are covered below. Actual texture/resource
+acquisition, later collider queries and full CPU dispatch remain caller work.
 Animation preparation invokes fixed-state preparation internally; do not clear
 particle flags first. Clock, guide, force and prediction composition and static
 attachment/reference/fixed-state branches are covered by synthetic tests. These
 references do not establish bit-exact GPU execution or change the interactive preview.
+
+`pac_cloth_collisions.apply_cloth_input_collisions` implements the guide-only
+input-position pass from the same packed and native-16-bit base shaders. It runs
+after guide animation preparation and **before** early-return/fixed/dynamic
+integration selection. Static particles bypass it. Both global uint32 at 1200
+and frame flags2 `0x20000` must enable it. The pass changes only `_ix` and flags;
+working/predicted positions, velocity and contact normals remain unchanged.
+
+The caller supplies actual reference, extra-collidable, scene-object, collider
+definition and collider-result snapshots. Each reference uint packs extra-group
+start/count in low/high 16 bits; `FFFFFFFF` and zero-count entries are skipped.
+The three active-mask words at simulation bytes 64..75 cover 96 colliders. Their
+counter includes skipped groups and restarts for each reference. Different
+scene owners, indices above 95, scene `0x40000` or flags2 `0x400000` bypass this
+mask. A group's matching collider source is normally excluded; group bit `0x4`
+reenables it only for the same scene and matching non-sentinel PAC ID. Selected
+resource indices at least 65000 resolve to buffer zero, while identity checks
+retain the original indices. Missing consumed snapshots are rejected.
+
+Projection additionally requires group bit `0x2`, the collider scene's parent
+equal to the current packed scene ID, frame `0x20000000`, scene `0x200` and
+bone-velocity w strictly above -20. Parameter bit `0x10` blocks projection
+unless bone speed is strictly above 4. The shape definition must have type 3.
+Current collider centers define an oriented axis; previous centers are unused.
+Frame translation, both scene translations and signed X/Z tile differences
+(1000 units per tile) place the animation anchor in that collider's space.
+Corrections feed into the next collider in reference/group/element order.
+A zero axis has no supported finite shader result and is rejected.
+
+Global uint32 at 1204 selects the PAC custom mode/thickness at parameter bytes
+196/200; disabling it selects mode zero and thickness zero. Modes 0..23 change
+the plane thickness, effective radius and flag policy, not spring stiffness.
+The decoded comparisons use float32 constants. Key differences include:
+
+- Modes 0/1 add 0.03 thickness for groups larger than two; modes 6/7 use -0.05
+  for those groups. Signed unknown modes below two also use the additive rule.
+- Modes 7..13 and 16 include group-size or movement-dependent thickness rules.
+  Their movement condition is speed above 4 or **frame ground height** below -10,
+  distinct from the bone-velocity-w gate. Mode 13 with one collider scales its
+  radius by 0.7 and selects thickness 0.08.
+- Modes 17/18 promote radii strictly below 0.2 to 0.3. Modes 19 and multi-collider
+  mode 20 project without setting the contact bit. Modes 21..23 require strict
+  radial inclusion to project; other accepted modes can project outside the radius.
+- Modes 0/2 and modes above 5 require one collider or effective radius below 0.4.
+  Modes 1/3 instead accept the first collider or radius below 0.4. Mode 5 also
+  requires particle LRA ratio strictly above 0.1. Mode 4 has no such count/radius gate.
+
+Contact uses strict radial inclusion and sets particle `0x1000000`. Before the
+loop, that bit is cleared when scene `0x200` differs from the presence of scene
+`0xC00`, when scene `0x10000` is set, or when speed exceeds 4. After the loop its
+value is ORed into particle `0x40000000`, preserving an existing companion bit.
+This bookkeeping also runs with zero references. Tests cover all 24 modes,
+thresholds, mask/owner selection, ordered projections, source immutability and
+composition with fixed integration. Later collision/constraint passes, live
+resource production and native preview integration remain separate work.
 
 `pac_cloth_runtime.py` traces the CPU material-to-frame update at `0x143CE26F0`.
 `update_cloth_frame_stiffness` converts raw authored coefficients before writing
