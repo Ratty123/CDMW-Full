@@ -2,6 +2,8 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
+mod strain;
+
 fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::error::Error>> {
     let root = tempdir()?;
     let mut ui = HeadlessUi::new_integrated_cdmw_for_controls(
@@ -264,5 +266,181 @@ fn missing_decoded_guides_disables_playback_but_keeps_saved_cloth_controls() -> 
     ui.click("Play preview")?;
     assert!(ui.application.cdmw_jiggle.preview.pending.is_none());
     assert!(ui.application.cdmw_jiggle.preview.scene.is_none());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires caller-owned PAC/PAB authoring packages and evidence output paths"]
+fn supplied_motion_packages_preserve_mesh_and_compare_decoded_playback() -> TestResult {
+    let cases_path = PathBuf::from(std::env::var("CDMW_MOTION_PROBE_CASES")?);
+    let report_path = PathBuf::from(std::env::var("CDMW_MOTION_PROBE_REPORT")?);
+    let cases: Vec<Value> = serde_json::from_slice(&std::fs::read(&cases_path)?)?;
+    assert!(!cases.is_empty() && cases.len() <= 16);
+    let mut reports = Vec::new();
+    for case in cases {
+        let manifest_path = PathBuf::from(case["manifest"].as_str().ok_or("manifest path")?);
+        let manifest_before = std::fs::read(&manifest_path)?;
+        let package = crate::cdmw_session::LoadedCdmwSessionPackage::load(&manifest_path)?;
+        let state = package.manifest().state.clone();
+        let cloth = state["cloth"]["available"].as_bool() == Some(true);
+        let jiggle = state["jiggle"]["available"].as_bool() == Some(true);
+        let mut application = LabApplication::new(None, None);
+        application.mesh = Some(WorkingMesh::from_document(package.document())?);
+        application.document = Some(package.document().clone());
+        let mut ui =
+            HeadlessUi::new_integrated_cdmw_for_controls(application, egui::vec2(1440.0, 1800.0));
+        ui.application.cdmw_bridge = Some(CdmwBridge::for_test(
+            package.root().to_path_buf(),
+            "motion-probe",
+            1,
+            0,
+        ));
+        ui.application.cdmw_state = state;
+        let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+        let inactive = ui
+            .application
+            .mesh
+            .as_ref()
+            .unwrap()
+            .vertices()
+            .enumerate()
+            .filter_map(|(i, (_, vertex))| {
+                let cdmw_mesh::Provenance::Source { submesh, element } = vertex.provenance else {
+                    return None;
+                };
+                let rows = ui.application.cdmw_state["jiggle"]["overlay_parts"].as_array()?;
+                let data = &rows
+                    .iter()
+                    .find(|row| row["index"].as_u64() == Some(u64::from(submesh)))?["preview"];
+                let key = if cloth {
+                    "current_cloth_bytes"
+                } else {
+                    "current_bytes"
+                };
+                let byte = data[key][element as usize].as_u64()?;
+                let mask = if cloth { 63 } else { 15 };
+                (byte & mask == mask).then_some(i)
+            })
+            .collect::<Vec<_>>();
+        let mut row = json!({"name": case["name"], "manifest": manifest_path,
+            "vertices": authored.positions.len(), "cloth": cloth, "jiggle": jiggle,
+            "source_sha256": case["sha256"], "rendered": false});
+        ui.click_tool_button(if cloth { "Cloth" } else { "Jiggle" })?;
+        if !cloth && !jiggle {
+            assert!(ui.label_rect("Play preview").is_none());
+            row["no_vertex_contribution"] = json!(true);
+        } else {
+            if !cloth {
+                ui.click("Selected parts")?;
+            }
+            let source = ui
+                .application
+                .cdmw_bridge
+                .as_ref()
+                .unwrap()
+                .jiggle_source(&ui.application.cdmw_state)?;
+            let payload_before = source.read()?;
+            let mut motion_reports = Vec::new();
+            for motion in ["Up / down", "Turning"] {
+                ui.click(motion)?;
+                let mut frames = Vec::new();
+                let mut step_millis = Vec::new();
+                for comparison in ["Current flags", "All disabled"] {
+                    ui.click(comparison)?;
+                    ui.click("Play preview")?;
+                    wait(&mut ui)?;
+                    assert!(
+                        ui.application.cdmw_jiggle.preview.playing,
+                        "{} failed to start {} / {}",
+                        case["name"], motion, comparison
+                    );
+                    let started = Instant::now();
+                    for _ in 0..120 {
+                        ui.application.advance_jiggle_preview(1.0 / 60.0)?;
+                    }
+                    step_millis.push(started.elapsed().as_secs_f64() * 1000.0 / 120.0);
+                    let frame = ui
+                        .application
+                        .cdmw_jiggle
+                        .preview
+                        .scene
+                        .as_ref()
+                        .unwrap()
+                        .frame
+                        .clone();
+                    assert!(
+                        frame
+                            .positions
+                            .iter()
+                            .flatten()
+                            .chain(frame.normals.iter().flatten())
+                            .all(|v| v.is_finite())
+                    );
+                    frames.push(frame);
+                    ui.click("Reset preview")?;
+                }
+                let delta = frames[0]
+                    .positions
+                    .iter()
+                    .zip(&frames[1].positions)
+                    .map(|(a, b)| (Vec3::from(*a) - Vec3::from(*b)).length())
+                    .collect::<Vec<_>>();
+                let max_delta = delta.iter().copied().fold(0.0_f32, f32::max);
+                let inactive_error = inactive.iter().map(|i| delta[*i]).fold(0.0_f32, f32::max);
+                assert!(
+                    inactive_error < 1e-5,
+                    "zero-contribution vertices deformed: {inactive_error}"
+                );
+                let rigid_error = frames[1]
+                    .positions
+                    .iter()
+                    .zip(&authored.positions)
+                    .map(|(p, rest)| {
+                        ((Vec3::from(*p) - Vec3::from(frames[1].positions[0])).length()
+                            - (Vec3::from(*rest) - Vec3::from(authored.positions[0])).length())
+                        .abs()
+                    })
+                    .fold(0.0_f32, f32::max);
+                assert!(
+                    rigid_error < 1e-5,
+                    "all-disabled comparison distorted the mesh: {rigid_error}"
+                );
+                if let Some(limit) = case["max_displacement"].as_f64() {
+                    assert!(
+                        f64::from(max_delta) <= limit,
+                        "{} exceeded its supplied displacement limit: {max_delta}",
+                        case["name"]
+                    );
+                }
+                assert!(
+                    max_delta > 1e-6,
+                    "{} had no simulated deformation in {}",
+                    case["name"],
+                    motion
+                );
+                assert_eq!(
+                    ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+                    authored
+                );
+                motion_reports.push(json!({"motion": motion, "frames": 120,
+                    "maximum_simulated_displacement": max_delta,
+                    "zero_contribution_error": inactive_error, "all_disabled_rigid_error": rigid_error,
+                    "deformed_vertices": delta.iter().filter(|d| **d > 1e-6).count(),
+                    "mean_cpu_step_ms_current_disabled": step_millis}));
+            }
+            assert_eq!(source.read()?, payload_before);
+            row["motion"] = json!(motion_reports);
+            row["rig_payload_unchanged"] = json!(true);
+        }
+        assert_eq!(
+            ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+            authored
+        );
+        assert_eq!(std::fs::read(&manifest_path)?, manifest_before);
+        row["authored_mesh_unchanged"] = json!(true);
+        println!("{row}");
+        reports.push(row);
+        std::fs::write(&report_path, serde_json::to_vec_pretty(&reports)?)?;
+    }
     Ok(())
 }

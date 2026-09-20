@@ -29,6 +29,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Cloth motion preview uses smaller simulation steps to reduce excessive stretching on dense guide meshes while preserving the damping control's effect over time.
 - Mesh Editor keeps geometry layer names, hair section names, texture choices and movement selectors within the Inspector, so long labels and larger fonts do not block button clicks. The Inspector scrollbar also reserves its own space instead of covering button edges.
 - Mesh Editor replacement imports keep long part names within the Inspector, preventing the viewport from intercepting clicks on material choices, part selection and Apply Replacement.
 - Fixed jiggle/cloth editing on PACs with valid empty lower-LOD parts. PBD readers preserve profile-to-part ownership, prevent attached-cloth settings from overriding their parent spline, honor collision modes, and the native preview reads authored XML element values instead of substituting defaults. Render-cloth approximations require verified vertex bindings.

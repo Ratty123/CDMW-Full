@@ -398,7 +398,9 @@ the existing Jiggle controller; changing between Cloth and Jiggle resets playbac
 **Cloth preview settings** supplies gravity, stretch/bend response, damping,
 iteration count, optional authored vertex-alpha blending and a floor with an
 adjustable Y height. These settings affect only the preview. Saved cloth influence
-rules remain separate. Preparation runs on the bounded background loader; failed
+rules remain separate. Smaller internal simulation steps reduce excessive stretch
+on dense guide meshes while retaining the damping control's effect over time.
+Preparation runs on the bounded background loader; failed
 comparisons keep the last usable frame paused, and Reset/source changes reject
 late results. Preview frames never change authored geometry, drafts or exports.
 

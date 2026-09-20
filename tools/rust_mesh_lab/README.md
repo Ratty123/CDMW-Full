@@ -128,9 +128,29 @@ matching PAC output after sculpting. The host exposes these verified bytes for
 cloth parts even when every jiggle flag is disabled. Preparation retains the
 previous usable frame until replacement succeeds and rejects cancelled/stale
 results through the existing generation and geometry-revision checks.
+Cloth integrates eight substeps per 60 Hz movement frame, with at most eight
+frames of catch-up. This bounded preview schedule keeps dense guide meshes from
+stretching excessively under gravity. Damping and optional authored alpha are
+converted to preserve their decay/blend over one movement frame. This is a controlled numerical choice,
+not a recovered game dispatch rate.
 `cargo test --locked -p cdmw_mesh_lab cloth_preview_tests` checks those actual
 headless controls and draw-only playback. These are synthetic nonvisual checks;
 no packaged, visible or game parity is claimed.
+
+For explicitly authorized local-asset checks, `CDMW_MOTION_PROBE_CASES` names a
+JSON array of caller-owned authoring packages (`name`, `manifest`, `sha256`,
+`cloth_available`; optional `max_displacement` and `max_pair_ratio` limits).
+`CDMW_MOTION_PROBE_REPORT` names the report output. Run the ignored
+`headless_ui_tests::cloth_preview_tests::supplied_motion_packages_preserve_mesh_and_compare_decoded_playback`
+test with `--exact --ignored --nocapture` to check actual package admission,
+controls, native preparation and up/down/turning comparisons. It checks finite
+output, zero-contribution vertices, rigid disabled motion and unchanged authored
+geometry/payloads, and records CPU step time. `--release` measures optimized test
+code, not a packaged helper or GPU frame rate. The separate ignored
+`headless_ui_tests::cloth_preview_tests::strain::supplied_guides_measure_constraint_strain`
+test uses the same cases and `CDMW_CLOTH_STRAIN_REPORT` to compare one coarse step
+against the current substep schedule on the supplied guide graph. Asset packages,
+source hashes and generated reports remain outside Git.
 
 The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
 synthetic vectors compare complete packed states and matrices with
