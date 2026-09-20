@@ -233,6 +233,44 @@ infer rig binding, generate wind samples, implement special LOD corrections,
 or establish production-preview, normal-packing or in-game parity. Synthetic
 coverage composes bone motion, inverse bind, byte-38 blending and guide cloth.
 
+### Whole-rig pose and frame reference
+
+`pac_jiggle_rig.py` assembles a fixed PAB and an already resolved PAC palette
+into an immutable `JiggleRig`. It validates original bone ordinals, parents,
+cycles, finite affine matrices, both inverse pairs and the stored local/global
+relationship. Missing transforms and legacy-scan rigs are rejected. The bound
+is 4096 bones; a partially usable rig is not published.
+
+An optional existing `NeutralMeshAppearance` must carry the same palette and
+one skin matrix per bone. Its neutral global pose is `originalBind * skinMatrix`;
+neutral locals are derived relative to those neutral parents. Original inverse
+binds remain unchanged. This uses the editor's established PABC interpretation,
+including its axis reconciliation, rather than applying raw PABC frames again.
+
+`compose_jiggle_pose` takes optional **absolute local matrices** keyed by original
+bone ordinal. It composes changed branches in parent order, including forward
+parent references, while retaining untouched global matrices exactly. Jiggle
+output is not fed into child animation targets. Root/world motion is supplied
+separately through the character-transform record.
+
+`step_jiggle_rig` advances all bones through `step_jiggle_bone` and
+`prepare_jiggle_bone_skinning`. Runtime settings, character motion, scales,
+reset/frame/time and optional pending command records are explicit inputs.
+Its result contains `bone_states` for the next step, `skeletal_matrices`,
+`jiggle_matrices` and `reset_bones`. Buffers use original ordinals, so a caller
+uses an identity skinning-index map for this assembled reference; the game's
+actual buffer allocation and LOD map are not inferred.
+
+The resulting matrices act on original PAC coordinates. Already-neutral editor
+geometry must first pass back through the inverse of its **blended** appearance
+transform, as in `NeutralMeshAppearance.to_source`. Substituting neutral inverse
+binds or applying skinning again to displayed positions changes the result.
+Focused coverage includes this composition, hierarchy edits, continuing effects
+and mask-index ownership. The retained Damiane body and 0145 mesh also reproduce
+their rest positions through the complete rig reference. This establishes
+read-only source math, not live profile selection, game animation, production
+preview integration, GPU arithmetic or in-game parity.
+
 ## PAC cloth guides (read-only)
 
 `pac_cloth_guides.py` decodes the known PAC 3/9 header's guide layouts 3 and 7.
