@@ -159,6 +159,11 @@ code, not a packaged helper or GPU frame rate. The separate ignored
 test uses the same cases and `CDMW_CLOTH_STRAIN_REPORT` to compare one coarse step
 against the current substep schedule on the supplied guide graph. Asset packages,
 source hashes and generated reports remain outside Git.
+The ignored `headless_ui_tests::cloth_preview_tests::strain::supplied_guides_measure_body_contact_response`
+test uses the same cases and `CDMW_CLOTH_CONTACT_REPORT` to compare contacts off/on
+with stationary anchors and up/down motion over 240 frames. It records peak guide
+displacement and upward movement relative to the animated pose, without rendering
+or modifying the source payloads.
 
 The focused check is `cargo test --locked -p cdmw_mesh jiggle_bones`. Its owned
 synthetic vectors compare complete packed states and matrices with

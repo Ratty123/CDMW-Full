@@ -446,10 +446,13 @@ and explain why playback is unavailable. The controlled solver uses decoded
 stretch/bend kernels and authored fixed vertices with unit dynamic masses; it does
 not reproduce runtime profiles or layer/world collisions. Body contacts use an
 explicit preview admission rule and frictionless response. Area records are
-retained but inactive in the decoded normal-step path. Optional guide rotation
-uses its two-edge branch; this does not establish which branch the game selects.
-Headless controls and synthetic playback are tested;
-packaged, visible and real-game comparisons remain pending.
+retained but inactive in the decoded normal-step path. Initial overlap is corrected
+without adding launch velocity; moving bodies still transfer normal contact speed.
+Optional guide rotation uses its two-edge branch; this does not establish which
+branch the game selects.
+Headless controls and synthetic playback are tested. Packaged visual checks have
+exercised a Damiane body and two garments; game behavior and complete material
+fidelity remain unverified.
 
 ### Experimental jiggle contribution
 

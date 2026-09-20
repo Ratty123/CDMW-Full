@@ -463,6 +463,14 @@ impl Simulation {
             if settings.use_vertex_alpha && !self.snapshot.fixed[i] {
                 positions[i] = positions[i].lerp(animation[i], self.snapshot.alpha_blends[i]);
             }
+            // Recover integration/constraint velocity before positional contact
+            // correction. Initial penetration is not an outgoing impulse;
+            // moving bodies transfer normal velocity explicitly below.
+            let mut velocity = if self.snapshot.fixed[i] {
+                DVec3::ZERO
+            } else {
+                ((positions[i] - self.positions[i]) / dt).clamp_length_max(settings.speed_limit)
+            };
             let mut contacts = Vec::new();
             if !self.snapshot.fixed[i] {
                 for collider in &colliders {
@@ -482,11 +490,6 @@ impl Simulation {
                 ground_contact = positions[i].y < height;
                 positions[i].y = positions[i].y.max(height);
             }
-            let mut velocity = if self.snapshot.fixed[i] {
-                DVec3::ZERO
-            } else {
-                ((positions[i] - self.positions[i]) / dt).clamp_length_max(settings.speed_limit)
-            };
             if ground_contact {
                 velocity.y = 0.0;
             }
@@ -790,6 +793,70 @@ mod tests {
         assert_eq!(current.positions()[2], original.positions()[2]);
         assert_eq!(disabled.positions(), rest);
         assert_eq!(current.guide_count(), 3);
+    }
+
+    #[test]
+    fn body_depenetration_does_not_launch_resting_guides() {
+        for dt in [1.0 / 60.0, 1.0 / 480.0] {
+            let mut sim = simulation([0; 3]);
+            sim.snapshot.body_colliders.push(BodyCollider {
+                kind: 5,
+                center1: [-0.25, -1.0, 0.0],
+                center2: [-0.25, 2.0, 0.0],
+                radius: 0.5,
+                bone_index: 0,
+                source_ordinal: 0,
+            });
+            let settings = Settings {
+                gravity: 0.0,
+                damping: 0.0,
+                stretch: 0.0,
+                bend: 0.0,
+                body_collisions: true,
+                ..Settings::default()
+            };
+            for _ in 0..16 {
+                sim.step(dt, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                    .unwrap();
+                close(sim.positions()[1], DVec3::X * 0.26);
+                assert!(sim.velocities[1].length() < 1e-10);
+                assert_eq!(sim.positions()[0], [0.0, 1.0, 0.0]);
+            }
+        }
+    }
+
+    #[test]
+    fn body_contacts_preserve_tangent_outward_and_moving_body_velocity() {
+        let dt = 1.0 / 480.0;
+        for incoming in [-1.0, 1.0] {
+            let mut sim = simulation([0; 3]);
+            sim.snapshot.body_colliders.push(BodyCollider {
+                kind: 5,
+                center1: [-0.25, -1.0, 0.0],
+                center2: [-0.25, 2.0, 0.0],
+                radius: 0.5,
+                bone_index: 0,
+                source_ordinal: 0,
+            });
+            let settings = Settings {
+                gravity: 0.0,
+                damping: 0.0,
+                stretch: 0.0,
+                bend: 0.0,
+                body_collisions: true,
+                ..Settings::default()
+            };
+            sim.velocities[1] = DVec3::new(incoming, 0.7, 0.0);
+            sim.step(dt, DMat4::IDENTITY.to_cols_array_2d(), settings)
+                .unwrap();
+            let expected = DVec3::new(incoming.max(0.0), 0.7, 0.0);
+            assert!(sim.velocities[1].distance(expected) < 1e-10);
+            // The body moves faster than the outgoing guide. Contact transfers
+            // its normal speed while preserving frictionless tangential motion.
+            let motion = DMat4::from_translation(DVec3::X * (2.0 * dt));
+            sim.step(dt, motion.to_cols_array_2d(), settings).unwrap();
+            assert!(sim.velocities[1].distance(DVec3::new(2.0, 0.7, 0.0)) < 1e-10);
+        }
     }
 
     #[test]
