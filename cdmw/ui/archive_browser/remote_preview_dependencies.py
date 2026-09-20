@@ -305,7 +305,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
                 return
             if pending.truncated:
                 self._fail_pending(
-                    "Archive preview dependency lookup exceeded the 4,096-entry safety bound."
+                    "This choice has incomplete or ambiguous dependencies."
                 )
                 return
             self._prioritize_model_property_prefabs(pending)

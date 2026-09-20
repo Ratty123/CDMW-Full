@@ -10,7 +10,7 @@ namespace Cdmw.FullArchive.Tests;
 
 internal static class FullArchiveTestRunner
 {
-    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false)
+    public static async Task<int> RunAsync(bool archiveQueryOnly = false, bool itemCatalogueOnly = false, bool previewDependenciesOnly = false)
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
@@ -24,6 +24,7 @@ internal static class FullArchiveTestRunner
             ("preview_preparation_wait_cancellation", PreviewPreparationTests.CancellationAsync),
             ("preview_material_dependency_closure", PreviewMaterialDependencyClosureAsync),
             ("preview_material_dependency_bounds", PreviewMaterialDependencyBoundsAsync),
+            ("preview_pbd_material_dependencies", PreviewPbdMaterialDependenciesAsync),
             ("query_sort_parity", QuerySortParityAsync),
             ("extension_index_query", ArchiveQueryTests.ExtensionSearchAsync),
             ("extension_index_cancellation", ArchiveQueryTests.CancellationAsync),
@@ -56,6 +57,12 @@ internal static class FullArchiveTestRunner
         {
             tests = tests.Where(static test => test.Name.StartsWith("item_catalogue_", StringComparison.Ordinal)
                 || test.Name == "current_item_names_and_mount_order").ToArray();
+        }
+        if (previewDependenciesOnly)
+        {
+            tests = tests.Where(static test => test.Name is "preview_association_and_prepare_batch"
+                or "preview_material_dependency_closure" or "preview_material_dependency_bounds"
+                or "preview_pbd_material_dependencies").ToArray();
         }
         var failures = new List<string>();
         foreach (var test in tests)
@@ -1114,6 +1121,57 @@ internal static class FullArchiveTestRunner
         finally
         {
             DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task PreviewPbdMaterialDependenciesAsync()
+    {
+        foreach (var (malformed, excessive) in new[] { (false, false), (true, false), (false, true) })
+        {
+            await using var fixture = await SyntheticArchiveFixture.CreatePbdMaterialsAsync(malformed, excessive).ConfigureAwait(false);
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(fixture.OutputRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var session = sessions.GetRequired(handle.SessionId);
+            var selected = session.Index.FindEntriesByPath("character/model/dress.pac", 1).Single();
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            var request = new ArchiveAssociationRequest(handle.SessionId, selected.EntryId, 128, ArchiveAssociationPurpose.Preview);
+            var scanned = new List<string>();
+            var association = await lookup.FindAssociationCandidatesAsync(request, CancellationToken.None, update =>
+            {
+                if (update.Phase == "preview_association_scan" && update.CurrentItem is { } path) scanned.Add(path);
+                return Task.CompletedTask;
+            }).ConfigureAwait(false);
+            var paths = association.Candidates.Select(static entry => entry.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Require(paths.SetEquals([
+                "character/modelproperty/dress.pac_xml", "character/descriptors/pbd/pbdconfig.xml",
+                "character/descriptors/pbd/Material/Armor/Lower_Physics.xml",
+                "character/descriptors/pbd/support/shared.xml", "character/descriptors/pbd/Material/Extra.xml",
+            ]), "symbolic PBD references did not resolve exactly through the catalogue across packages");
+            Require(association.Truncated == (malformed || excessive), "malformed or oversized PBD references were reported as complete");
+            Require(scanned.Count == 6 && scanned.Distinct().Count() == 6,
+                "PBD catalogue was scanned repeatedly or unrelated profiles were traversed");
+            Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")), "PBD lookup rebuilt general lookup maps");
+            var preparation = new ArchiveEntryPreparationService(sessions, native);
+            var prepared = await preparation.PrepareManyAsync(new PrepareEntriesRequest(
+                handle.SessionId, association.Candidates.Select(static entry => entry.EntryId).ToArray()), CancellationToken.None).ConfigureAwait(false);
+            var profile = prepared.Items.Single(item => item.Entry.DisplayPath.EndsWith("/Lower_Physics.xml", StringComparison.Ordinal));
+            Require(prepared.Prepared == 5 && (await File.ReadAllTextAsync(profile.PreparedPath)).Contains("<Gravity>-3.5</Gravity>"),
+                "resolved PBD profile did not reach the prepared source snapshot");
+            if (malformed || excessive) continue;
+            using var cancellation = new CancellationTokenSource();
+            var cancelled = false;
+            try
+            {
+                await lookup.FindAssociationCandidatesAsync(request, cancellation.Token, update =>
+                {
+                    if (update.CurrentItem == "character/descriptors/pbd/pbdconfig.xml") cancellation.Cancel();
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { cancelled = true; }
+            Require(cancelled, "PBD catalogue discovery ignored cancellation");
         }
     }
 

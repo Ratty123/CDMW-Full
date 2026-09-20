@@ -13,7 +13,8 @@ internal static class Program
                         ? CharacterAsync()
                         : FullArchiveTestRunner.RunAsync(
                             archiveQueryOnly: args.Length == 1 && args[0] == "--archive-query",
-                            itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue");
+                            itemCatalogueOnly: args.Length == 1 && args[0] == "--item-catalogue",
+                            previewDependenciesOnly: args.Length == 1 && args[0] == "--preview-dependencies");
 
     private static async Task<int> PreparationAsync()
     {

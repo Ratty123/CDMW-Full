@@ -54,6 +54,11 @@ scans PAMI and supported XML/material companions, following newly resolved
 material documents once so cross-package DDS references reach the prepared
 snapshot. Cycles are deduplicated, texture payloads remain leaves, and the
 existing candidate, scan-count, byte, and cancellation bounds remain enforced.
+Symbolic PBD material names in model properties resolve through the exact
+`character/descriptors/pbd/pbdconfig.xml` catalogue and its declared profile
+paths, including profiles stored in other packages. Only referenced profiles
+are prepared; unrelated catalogue entries and same-basename files are excluded.
+Malformed XML or a reached traversal limit leaves the dependency set incomplete.
 It resolves only requested names without reconstructing the general
 `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.
@@ -102,6 +107,13 @@ For focused query regression checks, including compilation:
 
 ```powershell
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --archive-query
+```
+
+For focused preview dependency checks, including symbolic PBD profiles, prepared
+source delivery, reference cycles, bounds and cancellation:
+
+```powershell
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests -c Release -- --preview-dependencies
 ```
 
 The Python probe is synthetic and headless. It exercises the frozen catalogue

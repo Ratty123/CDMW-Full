@@ -32,6 +32,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive preview follows symbolic cloth-physics material references through the PBD catalogue, so referenced profiles reach the preview even when stored in another package. It excludes unrelated profiles and reports incomplete discovery when XML or traversal limits prevent a full result.
 - Cloth material parsing, including native Archive Preview, preserves authored cloak settings instead of enabling cloak behavior from material or mesh names.
 - Archive Preview preserves complete PAC garments when trailing metadata resembles extra mesh descriptors, preventing missing or disconnected triangles.
 - Layered PAC garments keep each part's material parameters when detail-mask textures are shared, preventing unrelated dye and layer bindings from causing grey Mesh Editor fallbacks.

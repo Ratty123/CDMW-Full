@@ -173,6 +173,47 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreatePbdMaterialsAsync(bool malformed = false, bool excessive = false)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-pbd-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        await BuildPackageAsync(root, "0009",
+        [
+            ("character/model/dress.pac", "PAR synthetic geometry"u8.ToArray()),
+            ("character/modelproperty/dress.pac_xml", Encoding.Unicode.GetBytes(
+                "<SkinnedMeshPropertyCommon/><ModelPropertyList><ModelProperty Index=\"0\">"
+                + "<SkinnedMeshProperty _pbdSimulationMaterialName=\"Lower_Leather\"/>"
+                + "<!-- <SkinnedMeshProperty _pbdSimulationMaterialName=\"Unrelated\"/> -->"
+                + (malformed ? "<" : "</ModelProperty></ModelPropertyList>"))),
+            ("unrelated/Lower_Physics.xml", "<WrongProfile/>"u8.ToArray()),
+            ("unrelated/pbdconfig.xml", "<WrongConfig/>"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        await BuildPackageAsync(root, "0010",
+        [
+            ("character/descriptors/pbd/pbdconfig.xml", Encoding.UTF8.GetBytes(
+                "<PbdConfig><Material Name=\"Lower_Leather\" Filename=\"Material/Armor/Lower_Physics.xml\"/>"
+                + "<Material Name=\"Attached_Test\" Filename=\"Material/Extra.xml\"/>"
+                + "<Material Name=\"Unrelated\" Filename=\"Material/Unrelated.xml\"/>"
+                + "<!-- <Material Name=\"Lower_Leather\" Filename=\"Material/Comment.xml\"/> -->"
+                + (excessive ? string.Concat(Enumerable.Range(0, 4096).Select(index =>
+                    $"<Material Name=\"Other{index}\" Filename=\"Material/Other{index}.xml\"/>")) : "")
+                + "</PbdConfig>")),
+        ]).ConfigureAwait(false);
+        await BuildPackageAsync(root, "0011",
+        [
+            ("character/descriptors/pbd/Material/Armor/Lower_Physics.xml", Encoding.UTF8.GetBytes(
+                "<SimulationParameters><Gravity>-3.5</Gravity><IsCloak>0</IsCloak>"
+                + "<Include Path=\"character/descriptors/pbd/support/shared.xml\"/></SimulationParameters>")),
+            ("character/descriptors/pbd/support/shared.xml", Encoding.UTF8.GetBytes(
+                "<Property _pbdSimulationMaterialName=\"Attached_Test\"/>")),
+            ("character/descriptors/pbd/Material/Extra.xml", "<SimulationParameters/>"u8.ToArray()),
+            ("character/descriptors/pbd/Material/Unrelated.xml", "<SimulationParameters/>"u8.ToArray()),
+            ("character/descriptors/pbd/Material/Comment.xml", "<SimulationParameters/>"u8.ToArray()),
+        ]).ConfigureAwait(false);
+        return fixture;
+    }
+
     public static async Task<SyntheticArchiveFixture> CreateMaterialChainAsync(int length)
     {
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-material-chain-{Guid.NewGuid():N}");

@@ -10732,21 +10732,6 @@
       ]
     },
     {
-      "key": "Archive preview dependency lookup exceeded the 4,096-entry safety bound.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
-          "line": 307,
-          "sink": "_fail_pending"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 582,
-          "sink": "_handle_archive_remote_preview_dependencies_failed"
-        }
-      ]
-    },
-    {
       "key": "Archive preview dependency set has no selected entry.",
       "origins": [
         {
@@ -110734,6 +110719,16 @@
     {
       "key": "This choice has incomplete or ambiguous dependencies.",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/remote_preview_dependencies.py",
+          "line": 307,
+          "sink": "_fail_pending"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/workers.py",
+          "line": 582,
+          "sink": "_handle_archive_remote_preview_dependencies_failed"
+        },
         {
           "path": "cdmw/ui/mesh_editor/hair_reference_picker.py",
           "line": 380,

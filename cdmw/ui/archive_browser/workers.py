@@ -581,7 +581,7 @@ class ArchivePreviewWorkerMixin:
         if payload.truncated:
             self._handle_archive_remote_preview_dependencies_failed(
                 request_id,
-                "Archive preview dependency lookup exceeded the 4,096-entry safety bound.",
+                "This choice has incomplete or ambiguous dependencies.",
             )
             return
         scheduled = self.scheduled_archive_preview_request

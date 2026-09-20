@@ -232,6 +232,12 @@ public sealed class ArchiveLookupService(
 
         var scanIds = new List<long>();
         var queuedIds = new HashSet<long>();
+        var pbdNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pbdConfigIds = new HashSet<long>();
+        var pbdMaterials = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var pbdPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pbdMaterialCount = 0;
+        var pbdConfigRequested = false;
         void QueueReferenceScan(long candidateId)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -269,21 +275,64 @@ public sealed class ArchiveLookupService(
                     entry.Path)).ConfigureAwait(false);
             }
             var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-            var includeMaterialBasenameHints = entry.EntryId == selected.EntryId
-                && entry.Extension is ".pac" or ".pam" or ".pamlod";
-            var extracted = ArchivePreviewReferenceScanner.Extract(
-                decoded.Bytes,
-                cancellationToken,
-                includeMaterialBasenameHints);
-            incomplete |= extracted.Truncated;
-            foreach (var token in extracted.Tokens)
+            if (pbdConfigIds.Contains(entry.EntryId))
             {
-                if (ids.Count >= MaximumPreviewLookupResults)
+                // The shared catalogue names every profile. Only profiles used
+                // by this dependency graph belong in the prepared snapshot.
+                var extracted = ArchivePbdMaterialReferences.Materials(decoded.Bytes, cancellationToken);
+                incomplete |= extracted.Incomplete;
+                foreach (var (name, paths) in extracted.Materials)
                 {
-                    incomplete = true;
-                    break;
+                    if (pbdMaterialCount >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                    if (!pbdMaterials.TryGetValue(name, out var known)) pbdMaterials[name] = known = new(StringComparer.OrdinalIgnoreCase);
+                    foreach (var path in paths)
+                    {
+                        if (pbdMaterialCount >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                        if (known.Add(path)) pbdMaterialCount++;
+                    }
                 }
-                incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
+            }
+            else
+            {
+                var includeMaterialBasenameHints = entry.EntryId == selected.EntryId
+                    && entry.Extension is ".pac" or ".pam" or ".pamlod";
+                var extracted = ArchivePreviewReferenceScanner.Extract(decoded.Bytes, cancellationToken, includeMaterialBasenameHints);
+                incomplete |= extracted.Truncated;
+                foreach (var token in extracted.Tokens)
+                {
+                    if (ids.Count >= MaximumPreviewLookupResults)
+                    {
+                        incomplete = true;
+                        break;
+                    }
+                    incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
+                }
+                if (entry.Extension is ".xml" or ".pac_xml" or ".prefabdata_xml" or ".material")
+                {
+                    var references = ArchivePbdMaterialReferences.Names(decoded.Bytes, cancellationToken);
+                    incomplete |= references.Incomplete;
+                    foreach (var name in references.Names)
+                    {
+                        if (pbdNames.Count >= MaximumPreviewLookupResults && !pbdNames.Contains(name)) { incomplete = true; break; }
+                        pbdNames.Add(name);
+                    }
+                }
+            }
+            if (pbdNames.Count > 0 && !pbdConfigRequested)
+            {
+                pbdConfigRequested = true;
+                incomplete |= AddExactPathMatches(session.Index, ArchivePbdMaterialReferences.ConfigPath, pbdConfigIds, cancellationToken);
+                incomplete |= AddDependencyMatches(new ArchiveDependencyLookupResult(pbdConfigIds.ToArray(), false), ids, cancellationToken);
+            }
+            foreach (var name in pbdNames)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!pbdMaterials.TryGetValue(name, out var paths)) continue;
+                foreach (var path in paths)
+                {
+                    if (ids.Count >= MaximumPreviewLookupResults) { incomplete = true; break; }
+                    if (pbdPaths.Add(path)) incomplete |= AddExactPathMatches(session.Index, path, ids, cancellationToken);
+                }
             }
             // Material documents can name other material documents. Follow those
             // references once, within the same limits, before calling the set complete.

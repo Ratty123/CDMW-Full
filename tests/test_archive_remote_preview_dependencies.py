@@ -86,6 +86,23 @@ def _prepared(dto: ArchiveEntryDto) -> PrepareEntryResult:
     )
 
 
+def test_remote_preview_rejects_incomplete_discovery_below_the_candidate_limit() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    failures, ready = [], []
+    provider.failed.connect(lambda request_id, message: failures.append((request_id, message)))
+    provider.ready.connect(lambda *_: ready.append(True))
+    selected = _dto(7, "character/dress.pac")
+    assert provider.request(selected, ui_request_id=74)
+    service.result_ready.emit(
+        "association-1", "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (_dto(8, "character/dress.pac_xml"),), 1, True),
+    )
+    assert failures == [(74, "This choice has incomplete or ambiguous dependencies.")]
+    assert not ready and len(service.requests) == 1  # No partial preparation/publication.
+    assert provider.pending_ui_request_id is None
+
+
 def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> None:
     service = _CatalogueService()
     provider = ArchiveRemotePreviewDependencyProvider(service)
