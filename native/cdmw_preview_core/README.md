@@ -38,6 +38,11 @@ triangles and inferred pins, without game collision or authored guide solving.
 `self-test-pbd` checks these profile and vertex-gate decoding contracts without
 the archive/path self-tests or game data.
 
+PAC preview rejects trailing descriptor-like metadata only when the retained
+40-byte vertex descriptors exactly fill every present LOD section, matching the
+authoring parser. `tests/test_native_preview_pac_geometry.py` exercises the real
+helper with false matches and genuine parts, including parts unique to one LOD.
+
 Cold PAMT scans classify entries before constructing archive paths, retain only
 the same preview-relevant records, and reuse each PAZ path within a table. XML
 classification still uses the complete directory path. These allocation savings

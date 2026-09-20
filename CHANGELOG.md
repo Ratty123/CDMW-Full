@@ -31,6 +31,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Archive Preview preserves complete PAC garments when trailing metadata resembles extra mesh descriptors, preventing missing or disconnected triangles.
 - Layered PAC garments keep each part's material parameters when detail-mask textures are shared, preventing unrelated dye and layer bindings from causing grey Mesh Editor fallbacks.
 - Mesh Editor opens PACs with large layered material graphs without rejecting duplicated parameter tables or losing material bindings on omitted preview parts. Loading reports its preparation stages, surfaces failures with Retry, stops cancelled skeleton scans, and cleans up late or failed sessions. Switching files waits for the previous workers and keeps the latest request. Material preparation avoids redundant data copies and inactive normal-mask work without reducing texture quality.
 - Item Finder reads compressed PALOC name tables and tolerates malformed UTF-8 text without failing the whole catalogue. Valid Unicode names remain intact, and older item-name caches rebuild automatically.

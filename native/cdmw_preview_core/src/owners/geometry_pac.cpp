@@ -439,6 +439,45 @@ static void collect_pac_geometry_candidates(
     }
 }
 
+static std::vector<PacDescriptor> validated_pac_descriptor_prefix(
+    std::vector<PacDescriptor> descriptors,
+    const std::vector<ParSection>& sections
+) {
+    if (descriptors.size() < 2) return descriptors;
+    std::array<std::uint64_t, 4> required_bytes{};
+    for (const PacDescriptor& descriptor : descriptors) {
+        for (size_t lod = 0; lod < required_bytes.size(); ++lod) {
+            required_bytes[lod] += static_cast<std::uint64_t>(descriptor.vertex_counts[lod]) * 40u
+                + static_cast<std::uint64_t>(descriptor.index_counts[lod]) * 2u;
+        }
+    }
+    // Section 0 can contain descriptor-like bytes after the real table. As in
+    // the authoring parser, discard them only when a prefix exactly fills every
+    // present geometry section; unmatched/alternate layouts retain all matches.
+    for (size_t count = descriptors.size(); count > 0; --count) {
+        bool has_geometry = false;
+        bool exact = true;
+        for (const ParSection& section : sections) {
+            if (section.index < 1 || section.index > 4 || section.size == 0) continue;
+            has_geometry = true;
+            if (required_bytes[static_cast<size_t>(4 - section.index)] != section.size) {
+                exact = false;
+                break;
+            }
+        }
+        if (has_geometry && exact) {
+            descriptors.resize(count);
+            return descriptors;
+        }
+        const PacDescriptor& trailing = descriptors[count - 1];
+        for (size_t lod = 0; lod < required_bytes.size(); ++lod) {
+            required_bytes[lod] -= static_cast<std::uint64_t>(trailing.vertex_counts[lod]) * 40u
+                + static_cast<std::uint64_t>(trailing.index_counts[lod]) * 2u;
+        }
+    }
+    return descriptors;
+}
+
 static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& data) {
     if (data.size() < 0x50 || std::string(data.data(), data.data() + 4) != "PAR ") {
         throw std::runtime_error("selected PAC is missing a PAR header");
@@ -457,7 +496,8 @@ static std::vector<NativeSubmesh> parse_pac_submeshes(const std::vector<char>& d
     if (static_cast<size_t>(sec0.offset) + 5 > parse_data.size()) throw std::runtime_error("PAC section 0 is truncated");
     const int n_lods = static_cast<unsigned char>(parse_data[sec0.offset + 4]);
     if (n_lods <= 0 || n_lods > 10) throw std::runtime_error("PAC LOD count is unsupported");
-    const std::vector<PacDescriptor> descriptors = find_pac_descriptors(parse_data, sec0, n_lods);
+    const std::vector<PacDescriptor> descriptors = validated_pac_descriptor_prefix(
+        find_pac_descriptors(parse_data, sec0, n_lods), sections);
     if (descriptors.empty()) throw std::runtime_error("native PAC parser found no submesh descriptors");
 
     std::vector<PacGeometryCandidate> candidates;
