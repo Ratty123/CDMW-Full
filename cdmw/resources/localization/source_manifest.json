@@ -20327,6 +20327,16 @@
       ]
     },
     {
+      "key": "Choose a body or head PABV input, or clear the preview inputs.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 213,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Choose a character",
       "origins": [
         {
@@ -20757,6 +20767,16 @@
         {
           "path": "cdmw/services/mesh_replacement_import.py",
           "line": 146,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Choose an absolute path to a PABV file.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 226,
           "sink": "ValueError"
         }
       ]
@@ -22902,12 +22922,32 @@
       ]
     },
     {
+      "key": "Collision inputs need a decoded cloth preview and matching rig.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 221,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Collision plane component.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 134,
           "sink": "_add_collision_value_item"
+        }
+      ]
+    },
+    {
+      "key": "Collision preview inputs must be at most 8 MiB.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 231,
+          "sink": "ValueError"
         }
       ]
     },
@@ -110952,6 +110992,21 @@
         {
           "path": "cdmw/services/new_item_mod_base.py",
           "line": 213,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "This model's embedded collision volumes take precedence over appearance inputs.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 223,
+          "sink": "ValueError"
+        },
+        {
+          "path": "cdmw/services/mesh_rust_jiggle.py",
+          "line": 247,
           "sink": "ValueError"
         }
       ]
