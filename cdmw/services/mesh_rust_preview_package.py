@@ -143,8 +143,8 @@ def semantic_initial_view(
     """Describe a stable broadside view without baking camera angles into Qt.
 
     The thinnest/template-normal axis faces the camera and the longest remaining
-    axis is kept upright. Keeping this semantic lets the renderer frame the same
-    authored side at every DPI and aspect ratio.
+    axis is kept upright. Horizontal grids are viewed from above; X/Z normals keep
+    their conventional side/front view at every DPI and aspect ratio.
     """
 
     low, high = bounds
@@ -155,7 +155,9 @@ def semantic_initial_view(
     upright = max((index for index in range(3) if index != axis), key=extents.__getitem__)
     view_direction = [0.0, 0.0, 0.0]
     screen_up_direction = [0.0, 0.0, 0.0]
-    view_direction[axis] = 1.0
+    # This vector points from the eye to the model. Looking down from +Y
+    # therefore needs -Y, otherwise the placement grid opens from underneath.
+    view_direction[axis] = -1.0 if axis == 1 else 1.0
     screen_up_direction[upright] = 1.0
     return {
         "view_direction": view_direction,

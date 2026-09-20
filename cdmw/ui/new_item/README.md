@@ -95,7 +95,9 @@ not change texture dimensions, formats, colour policy or mipmap contents.
 Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
 current camera's depth order. Imported previews open flat against their broad
-plane with a matching grid; cache reuse preserves that framing choice.
+plane with a matching grid. Horizontal placement grids open from above, looking
+down at the model; Frame restores that view. Older cached previews rebuild once
+to replace their underneath view.
 Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
 New Item disables the Builder's automatic brightness balancing so exported colour

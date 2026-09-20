@@ -373,6 +373,53 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertNotEqual(first, revised, "a changed archive revision must not reuse the old package")
             self.assertTrue(second.is_dir())
 
+    def test_horizontal_placement_rebuilds_cached_bottom_view(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.services import mesh_rust_preview_cache as cache_service
+        from cdmw.services import mesh_rust_preview_package as package_service
+        from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_package
+
+        mesh = ParsedMesh(
+            path="horizontal_sword.pac",
+            format="pac",
+            submeshes=[SubMesh(
+                name="sword",
+                vertices=[(-1.0, 0.0, -3.0), (1.0, 0.0, -3.0), (0.0, 0.0, 3.0)],
+                faces=[(0, 2, 1)],
+            )],
+        )
+        scene = PlacementScene(template=mesh, model=mesh)
+        bottom_view = {
+            "view_direction": [0.0, 1.0, 0.0],
+            "screen_up_direction": [0.0, 0.0, 1.0],
+            "fit_bounds": [[-1.0, 0.0, -3.0], [1.0, 0.0, 3.0]],
+        }
+        with tempfile.TemporaryDirectory(prefix="cdmw_placement_camera_") as temporary:
+            def build(materials=True):
+                return build_item_preview_package(
+                    scene, token="horizontal-sword", output_root=Path(temporary),
+                    stop_event=threading.Event(), include_material_resources=materials,
+                    cache_mode="balanced",
+                )
+
+            # Seed the previous cache format through the real placement caller.
+            with patch.dict(cache_service._PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST, schema_version=6), patch.object(
+                package_service, "semantic_initial_view", return_value=bottom_view,
+            ):
+                previous = build()
+
+            materials = build()
+            self.assertNotEqual(previous, materials, "the old underneath view must be rebuilt")
+            self.assertEqual(materials, build(), "the corrected package is reusable")
+            geometry = build(materials=False)
+            for package in (geometry, materials):
+                manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+                preview_scene = manifest["state"]["preview_scene"]
+                self.assertEqual(preview_scene["grid"]["normal_axis"], "y")
+                self.assertEqual(preview_scene["framing"]["initial_view"], {
+                    **bottom_view, "view_direction": [0.0, -1.0, 0.0],
+                })
+
 
 class PlacementConventionTests(unittest.TestCase):
     def test_the_host_matrix_is_the_pipeline_transform_and_the_pivot_follows(self) -> None:

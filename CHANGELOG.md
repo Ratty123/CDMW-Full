@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+
+- Model & Placement views horizontal models from above the grid instead of underneath. Frame restores the corrected view, and older preview caches rebuild automatically.
+
 ## [0.11.0-alpha.21] - 2026-09-20
 
 Local alpha checkpoint with expanded jiggle and cloth previews, retained-influence
