@@ -8,7 +8,7 @@ does not select an active character variant or infer collision activation.
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
 import struct
 
@@ -60,6 +60,13 @@ class PabvClothColliders:
     bone_indices: tuple[int, ...]
     source_ordinals: tuple[int, ...]
     has_activation_flag: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PabvVolumeMerge:
+    volumes: PabvVolumes
+    # (input index, original record ordinal): body is 0 and head is 1.
+    source_records: tuple[tuple[int, int], ...]
 
 
 def decode_pabv(data: bytes) -> PabvVolumes:
@@ -152,6 +159,47 @@ def resolve_pabv_bones(volumes: PabvVolumes, skeleton: Skeleton) -> tuple[int, .
             index = key
         result.append(index)
     return tuple(result)
+
+
+def merge_pabv_body_head_volumes(
+    body: PabvVolumes, head: PabvVolumes | None = None, *,
+    body_skeleton: Skeleton | None = None, head_skeleton: Skeleton | None = None,
+) -> PabvVolumeMerge:
+    """Merge explicitly selected body/head sources as in 0x142D3EB50.
+
+    The game copies the body records, then replaces only the first Bip01 Head
+    record with the head source's first matching record. Other head records
+    are not appended. A missing match fails the merge. The caller owns active
+    prefab/resource selection and any resource-load failure fallback.
+
+    The engine merges after legacy indices become name hashes. Each legacy
+    source therefore needs its own explicit matching rig; a head index is
+    never interpreted through an implicitly reused body rig. The returned
+    flags=3 describes materialized hash keys and per-record flags, not an
+    original file header. Record offsets refer to the identified input file.
+    """
+    def normalized(source, skeleton, label):
+        if source.uses_bone_hashes or not source.volumes:
+            return source.volumes
+        if skeleton is None:
+            raise ValueError(f"PABV {label} merge source needs its matching skeleton for legacy indices.")
+        indices = resolve_pabv_bones(source, skeleton)
+        return tuple(replace(volume, bone_key=skeleton.bones[index].name_hash)
+                     for volume, index in zip(source.volumes, indices, strict=True))
+
+    records = list(normalized(body, body_skeleton, "body"))
+    origins = [(0, index) for index in range(len(records))]
+    if head is not None:
+        head_records = normalized(head, head_skeleton, "head")
+        # The interned key at 0x146D034E4 is "Bip01 Head" (PA checksum).
+        key = 0xA23A288E
+        body_index = next((i for i, volume in enumerate(records) if volume.bone_key == key), None)
+        head_index = next((i for i, volume in enumerate(head_records) if volume.bone_key == key), None)
+        if body_index is None or head_index is None:
+            raise ValueError("PABV body/head merge requires Bip01 Head in both sources.")
+        records[body_index] = head_records[head_index]
+        origins[body_index] = (1, head_index)
+    return PabvVolumeMerge(PabvVolumes(3, tuple(records)), tuple(origins))
 
 
 def pabv_cloth_collider_definition(volume: PabvVolume, *, resolved_flags: int) -> bytes:

@@ -8,7 +8,7 @@ import pytest
 
 from cdmw.modding.pabv_parser import (
     decode_pabv, default_pabv_cloth_flag_bone_sets,
-    pabv_cloth_collider_definition, prepare_pabv_cloth_colliders,
+    merge_pabv_body_head_volumes, pabv_cloth_collider_definition, prepare_pabv_cloth_colliders,
     resolve_pabv_bones,
 )
 from cdmw.modding.pac_cloth_collisions import update_guide_cloth_collider_result
@@ -277,3 +277,75 @@ def test_explicit_initial_profile_drives_pelvis_leg_arm_and_unclassified_shapes(
     assert [struct.unpack_from('<I', d, 100)[0] for d in prepared.definitions] == [0x22, 0x2A, 0x24, 0x20]
     assert prepared.bone_indices == (0, 1, 2, 3)
     assert not prepared.has_activation_flag  # The profile does not introduce bit 0.
+
+
+def test_body_head_merge_replaces_first_head_only_and_preserves_complete_source_records():
+    key = 0xA23A288E
+    body = decode_pabv(container(record(key=11), record(key=key), record(key=key, parameters=(.5, 3.))))
+    head = decode_pabv(container(
+        record(key=22, flags=0),
+        record(2, key=key, flags=0x80000001, usage=2,
+               vertices=((0., 0., 0.), (1., 0., 0.), (0., 1., 0.)), indices=(2, 1, 0)),
+        record(key=key, flags=4), flags=3,
+    ))
+    merged = merge_pabv_body_head_volumes(body, head)
+    assert merged.volumes.volumes == (body.volumes[0], head.volumes[1], body.volumes[2])
+    assert merged.volumes.volumes[1] is head.volumes[1]
+    assert merged.source_records == ((0, 0), (1, 1), (0, 2))
+    assert merged.volumes.flags == 3 and body.flags == 1
+    assert body.volumes[1].serialized_shape == 5  # The input is unchanged.
+
+
+def test_body_without_head_keeps_every_record_and_source_ordinal():
+    body = decode_pabv(container(record(key=11), record(key=22), flags=0x80000001))
+    merged = merge_pabv_body_head_volumes(body)
+    assert merged.volumes.volumes == body.volumes
+    assert merged.source_records == ((0, 0), (0, 1))
+    assert merged.volumes.flags == 3  # A materialized record set, not a file header.
+    assert body.flags == 0x80000001
+    assert merge_pabv_body_head_volumes(decode_pabv(container(flags=0))).source_records == ()
+
+
+@pytest.mark.parametrize('body_key,head_key', [(11, 0xA23A288E), (0xA23A288E, 11), (11, 22)])
+def test_body_head_merge_rejects_missing_head_match_without_appending_or_guessing(body_key, head_key):
+    body = decode_pabv(container(record(key=body_key)))
+    head = decode_pabv(container(record(key=head_key)))
+    with pytest.raises(ValueError, match='Bip01 Head in both'):
+        merge_pabv_body_head_volumes(body, head)
+
+
+def test_body_head_merge_normalizes_legacy_indices_through_each_explicit_source_rig():
+    body = decode_pabv(container(record(key=1), record(key=0), flags=0))
+    head = decode_pabv(container(record(4, (.75,), key=0, flags=1), flags=2))
+    merged = merge_pabv_body_head_volumes(
+        body, head, body_skeleton=rig(11, 0xA23A288E), head_skeleton=rig(0xA23A288E, 22),
+    )
+    assert [volume.bone_key for volume in merged.volumes.volumes] == [0xA23A288E, 11]
+    assert merged.source_records == ((1, 0), (0, 1))
+    assert merged.volumes.volumes[0].parameters == (.75,)
+    assert merged.volumes.volumes[0].flags == 1
+    assert body.volumes[0].bone_key == 1 and head.volumes[0].bone_key == 0
+
+
+def test_legacy_head_never_implicitly_uses_the_body_rig():
+    legacy = decode_pabv(container(record(key=0), flags=0))
+    hashed = decode_pabv(container(record(key=0xA23A288E)))
+    with pytest.raises(ValueError, match='body merge source needs'):
+        merge_pabv_body_head_volumes(legacy)
+    with pytest.raises(ValueError, match='head merge source needs'):
+        merge_pabv_body_head_volumes(hashed, legacy, body_skeleton=rig(0xA23A288E))
+
+
+def test_merged_records_prepare_colliders_with_the_replaced_geometry_and_provenance():
+    body = decode_pabv(container(record(key=0xA23A288E), record(key=0x3C739A3A)))
+    head = decode_pabv(container(record(4, (.75,), key=0xA23A288E)))
+    merged = merge_pabv_body_head_volumes(body, head)
+    prepared = prepare_pabv_cloth_colliders(
+        merged.volumes, rig(0xA23A288E, 0x3C739A3A),
+        flag_bone_sets=default_pabv_cloth_flag_bone_sets(),
+    )
+    assert [struct.unpack_from('<Iff', row) for row in prepared.definitions] == [
+        (1 << 16, .75, 0.), (5 << 16, .25, 2.),
+    ]
+    assert [struct.unpack_from('<I', row, 100)[0] for row in prepared.definitions] == [0, 2]
+    assert tuple(merged.source_records[i] for i in prepared.source_ordinals) == ((1, 0), (0, 1))

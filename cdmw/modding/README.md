@@ -437,9 +437,32 @@ explicitly; preparation does not silently replace supplied runtime sets.
 Active appearance metadata is required for resource selection. For example,
 the shipped Damiane `00` Nude prefab declares `SkeletonVolumeName`, while the
 `02` Nude prefab has no volume declaration. A replacement mesh's filename alone
-therefore cannot establish which collider file the game uses. Active resource
-selection, any later runtime set changes and native preview integration remain
-separate work.
+therefore cannot establish which collider file the game uses. The selected
+Damiane `0111` Head prefab has no `SkeletonVolumeName` override.
+
+The cloth source follows body/head **`SkeletonVolumeName`**, separately from
+`RenderingSkeletonVolumeName` and `PhysicsSkeletonVolumeName`. The Nude parser
+stores these at property offsets `0x78/0x80/0x88`; appearance assembly copies
+them into compact resource fields `0x28/0x38/0x40`. The Head parser's volume
+at `0x68` becomes compact field `0x30`. The primary body/head result reaches
+the collider source's `+0x30` at `0x142D94CFF`, then `0x143648EB0`. These offsets
+belong to different structures. An earlier rendering-volume interpretation was
+too broad; a rendering override must not replace the cloth source by name alone.
+
+`merge_pabv_body_head_volumes` implements the ready-source merge at
+`0x142D3EB50`, called through resource-manager slot `0xA0` (`0x142CD4990`). It
+copies every body record in order, then replaces only the first `Bip01 Head`
+record with the head source's first match. It does not append the remaining
+head records. Both matches are required when a head source is supplied. Legacy
+indices require each source's explicit matching rig before merging; the head
+never implicitly borrows the body's index layout. The materialized result
+uses hash keys and per-record flags, and retains `(input, record)` provenance.
+These are decoded records, not an exported PABV or its original header.
+
+Active resource selection, compiled-resource overrides, load-failure handling,
+any later runtime set changes and native preview integration remain separate
+work. The merge helper reports missing head matches rather than silently
+choosing a different source; runtime resource fallback remains caller work.
 
 `tests/test_pabv_parser.py` covers both flag layouts, all decoded shape tags,
 source bounds, strict rig binding and a capsule passed through the existing
