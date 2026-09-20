@@ -10,6 +10,7 @@ from .pac_cloth_guides import (
     inspect_guide_particle_initialization,
 )
 from .pac_jiggle_skinning import prepare_jiggle_bone_skinning
+from .pac_cloth_preparation import prepare_guide_cloth_attachments
 
 
 def build_cloth_preview_snapshot(data: bytes, rig: dict) -> dict:
@@ -55,9 +56,15 @@ def build_cloth_preview_snapshot(data: bytes, rig: dict) -> dict:
             raise ValueError("This PAC contains an undecoded cloth constraint record.")
         constraints.append({"kind": kind, "indices": list(row["vertices"]), "rest": round_pbd_half(row[field])})
     initial = inspect_guide_particle_initialization(guides)
+    # Explicit preview preparation: component-local anchors, authored alpha and
+    # no automatic weighting. This does not identify the active game material.
+    prepared = prepare_guide_cloth_attachments(
+        guides, separate_components=True, use_vertex_alpha_position_blending=True,
+        auto_weighting_enabled=False, particle_positions=cpu_positions)
     return {
         "version": 1, "source_positions": [list(v) for v in guides.vertices],
         "animation_frames": frames, "fixed": [b == 255 for b in guides.channel_b],
         "alpha_blends": initial["position_blend_with_vertex_alpha"],
+        "orientation_neighbors": prepared["orientation_neighbor_indices"],
         "constraints": constraints,
     }

@@ -436,6 +436,8 @@ impl LabApplication {
             });
             ui.small("Decoded solver with a procedural pose test and model bounds. Live game activation is not reproduced.");
         } else if cloth {
+            let rotation_available = self.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"].as_bool() == Some(true);
+            if !rotation_available { preview.cloth_settings.rotate_guides = false; }
             ui.collapsing("Cloth preview settings", |ui| {
                 let settings = &mut preview.cloth_settings;
                 ui.add(egui::Slider::new(&mut settings.gravity, 0.0..=100.0).text("Gravity"));
@@ -444,6 +446,8 @@ impl LabApplication {
                 ui.add(egui::Slider::new(&mut settings.damping, 0.0..=10.0).text("Preview damping"));
                 ui.add(egui::Slider::new(&mut settings.iterations, 1..=8).text("Solver iterations"));
                 ui.checkbox(&mut settings.use_vertex_alpha, "Use authored vertex alpha");
+                ui.add_enabled(rotation_available, egui::Checkbox::new(&mut settings.rotate_guides, "Guide rotation correction"));
+                if !rotation_available { ui.small("Guide rotation needs known orientation neighbors."); }
                 let mut floor = settings.ground_height.is_some();
                 if ui.checkbox(&mut floor, "Preview floor").changed() { settings.ground_height = floor.then_some(0.0); }
                 if let Some(height) = &mut settings.ground_height {
@@ -533,7 +537,7 @@ impl LabApplication {
             ui.small(&self.cdmw_jiggle.preview.feedback);
         }
         if cloth {
-            ui.small("Body collisions, area preservation and guide rotation correction are not simulated.");
+            ui.small("Body collisions and runtime profile activation are not simulated.");
         } else {
             ui.small("Inter-part collisions and guide-cloth simulation are not included in this preview.");
         }

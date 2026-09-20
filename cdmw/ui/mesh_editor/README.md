@@ -397,7 +397,10 @@ the existing Jiggle controller; changing between Cloth and Jiggle resets playbac
 
 **Cloth preview settings** supplies gravity, stretch/bend response, damping,
 iteration count, optional authored vertex-alpha blending and a floor with an
-adjustable Y height. These settings affect only the preview. Saved cloth influence
+adjustable Y height. **Guide rotation correction** optionally turns the cloth
+surface with its guide particles, using decoded orientation neighbors. It is
+available only when those neighbors are known. These settings affect only the
+preview. Saved cloth influence
 rules remain separate. Smaller internal simulation steps reduce excessive stretch
 on dense guide meshes while retaining the damping control's effect over time.
 Preparation runs on the bounded background loader; failed
@@ -409,8 +412,10 @@ and verified original LOD0 render mappings within the existing 100,000-vertex /
 200,000-triangle preview limit. Unsupported inputs keep their saved cloth controls
 and explain why playback is unavailable. The controlled solver uses decoded
 stretch/bend kernels and authored fixed vertices with unit dynamic masses; it does
-not reproduce runtime profiles, body/layer/world collisions, area preservation or
-guide rotation correction. Headless controls and synthetic playback are tested;
+not reproduce runtime profiles or body/layer/world collisions. Area records are
+retained but inactive in the decoded normal-step path. Optional guide rotation
+uses its two-edge branch; this does not establish which branch the game selects.
+Headless controls and synthetic playback are tested;
 packaged, visible and real-game comparisons remain pending.
 
 ### Experimental jiggle contribution

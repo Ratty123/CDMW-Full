@@ -86,6 +86,7 @@ def test_snapshot_uses_real_guides_neutral_pose_fixed_channel_and_half_blends():
     assert [frame[3][:3] for frame in result['animation_frames']] == [[8., 26., 35.], [12., 26., 35.], [8., 42., 35.]]
     assert result['animation_frames'][0][1] == [0., 2., 0., 0.]
     assert result['alpha_blends'] == [1., 0., struct.unpack('<e', struct.pack('<e', 128/255))[0]]
+    assert result['orientation_neighbors'] == [(1, 2), (2, 0), (0, 1)]
     assert result['constraints'] == [{'kind': 'pair', 'indices': [0, 1], 'rest': 4.}]
 
 
@@ -131,6 +132,7 @@ def test_host_caches_guide_transport_with_the_rig_without_changing_pac_or_existi
     state = decoded(host)
     assert state['available'] and state['cloth'] == {
         'available': True, 'reason': '', 'guide_count': 3, 'fixed_count': 1, 'area_constraint_count': 0,
+        'rotation_available': True,
     }
     payload = read_owned_payload_reference(host.root, state['file'])
     assert payload['cloth']['fixed'] == [True, False, False]

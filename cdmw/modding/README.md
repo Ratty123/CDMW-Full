@@ -422,7 +422,11 @@ retained separately. Undecoded constraints, zero guide-bone weights and invalid
 palette references make this capability unavailable instead of inventing pins.
 
 The existing owned `jiggle-rig.json` can carry an optional `cloth` snapshot;
-`jiggle.decoded.cloth` reports its availability and guide/fixed/area counts.
+`jiggle.decoded.cloth` reports its availability, guide/fixed/area counts and
+`rotation_available`. Orientation neighbors use explicit per-component,
+vertex-alpha preparation with automatic weighting disabled; this does not infer
+the active runtime material. Older snapshots without neighbors still support
+translation-only playback.
 It is cached with the source and rig, uses the existing atomic payload writer,
 and preserves all retained render record lanes. A missing or unsupported guide
 mesh leaves decoded jiggle available. This additive transport does not change
@@ -431,7 +435,10 @@ The native `cdmw_mesh::cloth` core consumes this snapshot with retained render
 records. Its controlled preview profile uses unit dynamic inverse masses,
 explicit gravity/damping/stiffness, a bounded Jacobi schedule, optional vertex
 alpha and a preview floor. These choices are not inferred active game settings.
-Area records remain counted but inactive; guide rotation correction, runtime
+Optional two-edge guide rotation uses the decoded frame correction and binds
+edited positions through the full neutral guide/skeletal matrix blend. Unknown
+neighbors disable that option; degenerate frames stop playback without publishing
+an invalid frame. Area records remain counted but inactive; runtime
 dispatch/overrides and the full collision stages remain incomplete. The native
 core is connected to Mesh Data > Cloth through the existing bounded loader and
 draw-only motion controller. Current/original/disabled comparisons use verified

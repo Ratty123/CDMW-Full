@@ -99,8 +99,9 @@ unlike the flat matrices of the Python reference object.
 
 `cdmw_mesh::cloth` supplies the next guide-cloth stage as a controlled native
 preview core. The optional `cloth` member of the owned `jiggle-rig.json` carries
-resolved neutral guide frames, source positions, fixed/alpha channels and the
-authored constraint rest geometry. The core revalidates bounds, rig, records and
+resolved neutral guide frames, source positions, fixed/alpha channels, orientation
+neighbors and the authored constraint rest geometry. Missing neighbors preserve
+older snapshots' translation-only playback. The core revalidates bounds, rig, records and
 all selected guide indices, including zero-weight fetches. It retains the
 original byte39 when selecting four skeletal influences for an all-disabled
 comparison, avoiding reinterpretation of guide lanes as skeleton slots.
@@ -110,8 +111,14 @@ stretch and angle-bending kernels, optional vertex-alpha position blending and a
 preview floor. Dynamic inverse masses are explicitly one. Its Jacobi averaging,
 clock/iteration choices and force settings are controlled preview inputs; they
 do not reproduce game dispatch or establish an active material profile. Area
-constraints remain counted but inactive, and guide rotation correction and
-bone/layer/world contact integration remain pending. With rigid anchor motion
+constraints remain counted but inactive, and bone/layer/world contact integration
+remains pending. Optional guide rotation implements the decoded two-edge frame
+correction with explicitly prepared neighbors. It recovers each edited vertex
+through the inverse neutral skeletal/guide blend before applying the guide matrix
+difference. This preserves nonuniform neutral scale and sculpt edits. Unknown
+neighbors disable the control; degenerate frames fail without replacing the last
+complete result. The single-edge branch and runtime branch selection are not
+inferred. With rigid anchor motion
 and rotation correction disabled, the decoded full matrix blend reduces to a
 weighted guide translation delta. This preserves edited display positions and
 neutral scale without repeated matrix inversions or Python/file work per frame.
@@ -139,7 +146,8 @@ no packaged, visible or game parity is claimed.
 
 For explicitly authorized local-asset checks, `CDMW_MOTION_PROBE_CASES` names a
 JSON array of caller-owned authoring packages (`name`, `manifest`, `sha256`,
-`cloth_available`; optional `max_displacement` and `max_pair_ratio` limits).
+`cloth_available`; optional `rotate_guides`, `max_displacement` and `max_pair_ratio`).
+`rotate_guides: true` enables the actual guide-rotation checkbox before playback.
 `CDMW_MOTION_PROBE_REPORT` names the report output. Run the ignored
 `headless_ui_tests::cloth_preview_tests::supplied_motion_packages_preserve_mesh_and_compare_decoded_playback`
 test with `--exact --ignored --nocapture` to check actual package admission,

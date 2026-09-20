@@ -35,6 +35,7 @@ fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::er
             let mut frame = identity;
             frame[0][3] = 1.0; // Packed animation-frame metadata, not an affine lane.
             frame[3][..3].copy_from_slice(&position.map(f64::from));
+            frame[3][0] -= 0.2; // Render vertices sit away from their guide pivots.
             frame
         })
         .collect::<Vec<_>>();
@@ -57,11 +58,12 @@ fn fixture() -> Result<(tempfile::TempDir, HeadlessUi, Vec<u8>), Box<dyn std::er
             "neutral_global_matrices": [identity], "neutral_local_matrices": [identity]},
         "cloth": {"version": 1, "source_positions": rest, "animation_frames": frames,
             "fixed": [true, false, false], "alpha_blends": [1.0, 0.0, 1.0],
+            "orientation_neighbors": [[1, 2], [2, 0], [0, 1]],
             "constraints": [{"kind": "pair", "indices": [0, 1], "rest": distance}]},
         "parts": [{"index": 0, "records": records}]}))?;
     std::fs::write(root.path().join("jiggle-rig.json"), &payload)?;
     ui.application.cdmw_state["jiggle"] = json!({"available": false, "parts": [],
-        "decoded": {"available": true, "cloth": {"available": true},
+        "decoded": {"available": true, "cloth": {"available": true, "rotation_available": true},
             "file": {"path": "jiggle-rig.json", "data_type": "jiggle_rig_json", "count": 1,
                 "byte_length": payload.len(), "sha256": format!("{:X}", Sha256::digest(&payload)),
                 "content_type": "application/json"}},
@@ -270,6 +272,63 @@ fn missing_decoded_guides_disables_playback_but_keeps_saved_cloth_controls() -> 
 }
 
 #[test]
+fn rotation_control_changes_surface_around_guides_and_disables_when_unsupported() -> TestResult {
+    let (_root, mut ui, _) = fixture()?;
+    let authored = ui.application.mesh.as_ref().unwrap().draw_snapshot();
+    ui.click("Cloth preview settings")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let translated = ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame
+        .clone();
+    ui.click("Reset preview")?;
+    ui.click("Guide rotation correction")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    let rotated = &ui
+        .application
+        .cdmw_jiggle
+        .preview
+        .scene
+        .as_ref()
+        .unwrap()
+        .frame;
+    assert_ne!(rotated.positions[1], translated.positions[1]);
+    assert_eq!(rotated.positions[0], translated.positions[0]);
+    assert!(rotated.normals.iter().flatten().all(|v| v.is_finite()));
+    ui.click("Cloth preview settings")?;
+    ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"] = json!(false);
+    ui.frame(Vec::new());
+    ui.click("Reset preview")?;
+    ui.click("Play preview")?;
+    wait(&mut ui)?;
+    advance(&mut ui)?;
+    assert_eq!(
+        ui.application
+            .cdmw_jiggle
+            .preview
+            .scene
+            .as_ref()
+            .unwrap()
+            .frame,
+        translated
+    );
+    assert_eq!(
+        ui.application.mesh.as_ref().unwrap().draw_snapshot(),
+        authored
+    );
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires caller-owned PAC/PAB authoring packages and evidence output paths"]
 fn supplied_motion_packages_preserve_mesh_and_compare_decoded_playback() -> TestResult {
     let cases_path = PathBuf::from(std::env::var("CDMW_MOTION_PROBE_CASES")?);
@@ -326,6 +385,16 @@ fn supplied_motion_packages_preserve_mesh_and_compare_decoded_playback() -> Test
             "vertices": authored.positions.len(), "cloth": cloth, "jiggle": jiggle,
             "source_sha256": case["sha256"], "rendered": false});
         ui.click_tool_button(if cloth { "Cloth" } else { "Jiggle" })?;
+        if case["rotate_guides"].as_bool() == Some(true) {
+            assert!(cloth);
+            assert_eq!(
+                ui.application.cdmw_state["jiggle"]["decoded"]["cloth"]["rotation_available"],
+                true
+            );
+            ui.click("Cloth preview settings")?;
+            ui.click("Guide rotation correction")?;
+            row["guide_rotation"] = json!(true);
+        }
         if !cloth && !jiggle {
             assert!(ui.label_rect("Play preview").is_none());
             row["no_vertex_contribution"] = json!(true);

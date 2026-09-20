@@ -52,6 +52,7 @@ def _decoded_preview_state(authoring, session, metadata, appearance, eligible):
                     "available": True, "reason": "", "guide_count": len(cloth["fixed"]),
                     "fixed_count": sum(cloth["fixed"]),
                     "area_constraint_count": sum(row["kind"] == "triangle" for row in cloth["constraints"]),
+                    "rotation_available": all(row is not None for row in cloth["orientation_neighbors"]),
                 })
             except ValueError as exc:
                 metadata["decoded_cloth"] = (None, {"available": False, "reason": str(exc)})

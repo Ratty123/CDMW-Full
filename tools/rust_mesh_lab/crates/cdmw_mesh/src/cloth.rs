@@ -2,14 +2,16 @@
 //!
 //! The host resolves the matching rig and CPU rest geometry. This preview uses
 //! explicit forces, a bounded Jacobi schedule and rigid anchor motion, not a
-//! recovered game dispatch/profile. Area constraints are retained but inactive;
-//! guide rotation correction, bone/layer/world contacts and runtime overrides
-//! remain separate work. Source records and authored mesh positions are immutable.
+//! recovered game dispatch/profile. Optional two-edge guide rotation uses decoded
+//! neighbors. Area constraints remain inactive; bone/layer/world contacts and
+//! runtime overrides remain separate work. Source and authored data are immutable.
 
 use crate::jiggle_rig::{Rig, RigSnapshot};
 use crate::jiggle_skinning::{self, Matrix};
 use glam::{DMat4, DVec3};
 use serde::{Deserialize, Serialize};
+
+mod rotation;
 
 type Result<T> = std::result::Result<T, &'static str>;
 
@@ -20,6 +22,8 @@ pub struct Snapshot {
     pub animation_frames: Vec<Matrix>,
     pub fixed: Vec<bool>,
     pub alpha_blends: Vec<f64>,
+    #[serde(default)]
+    pub orientation_neighbors: Vec<Option<[u16; 2]>>,
     pub constraints: Vec<Constraint>,
 }
 
@@ -42,6 +46,7 @@ pub struct Settings {
     pub iterations: u32,
     pub speed_limit: f64,
     pub use_vertex_alpha: bool,
+    pub rotate_guides: bool,
     pub ground_height: Option<f64>,
 }
 
@@ -56,6 +61,7 @@ impl Default for Settings {
             iterations: 4,
             speed_limit: 50.0,
             use_vertex_alpha: false,
+            rotate_guides: false,
             ground_height: None,
         }
     }
@@ -81,6 +87,7 @@ impl Settings {
 #[derive(Debug)]
 struct Binding {
     rest: DVec3,
+    source_rest: DVec3,
     indices: [usize; 4],
     weights: [f64; 4],
     skeletal_blend: f64,
@@ -166,6 +173,8 @@ impl Simulation {
             || snapshot.source_positions.len() != count
             || snapshot.animation_frames.len() != count
             || snapshot.alpha_blends.len() != count
+            || (!snapshot.orientation_neighbors.is_empty()
+                && snapshot.orientation_neighbors.len() != count)
             || snapshot.constraints.len() > 65535
             || rest.is_empty()
             || rest.len() > 100_000
@@ -251,6 +260,7 @@ impl Simulation {
             )?)?;
             let mut binding = Binding {
                 rest: DVec3::from(position.map(f64::from)),
+                source_rest: DVec3::ZERO,
                 indices: [0; 4],
                 weights: [0.0; 4],
                 skeletal_blend: f64::from(*contribution) / 63.0,
@@ -282,10 +292,9 @@ impl Simulation {
                 let cloth = weighted_guides(&guides, binding.indices, binding.weights);
                 cloth * (1.0 - binding.skeletal_blend) + skeletal * binding.skeletal_blend
             };
-            // Validate the actual blended neutral transform. With rigid anchor
-            // motion and rotation correction off, its inverse cancels during
-            // playback, leaving the weighted translation delta below.
-            inverse(neutral)?;
+            // Bind displayed positions through the complete neutral blend so
+            // guide rotation preserves neutral scale and existing sculpt edits.
+            binding.source_rest = inverse(neutral)?.transform_point3(binding.rest);
             bindings.push(binding);
         }
         let positions = frames.iter().map(|m| m.w_axis.truncate()).collect();
@@ -441,15 +450,45 @@ impl Simulation {
             .zip(&animation)
             .map(|(p, a)| *p - *a)
             .collect::<Vec<_>>();
+        let rotated =
+            if settings.rotate_guides && self.bindings.iter().any(|b| b.skeletal_blend < 1.0) {
+                if self.snapshot.orientation_neighbors.len() != positions.len() {
+                    return Err("Guide rotation needs known orientation neighbors.");
+                }
+                let mut deltas = Vec::with_capacity(positions.len());
+                for i in 0..positions.len() {
+                    let neighbors = self.snapshot.orientation_neighbors[i]
+                        .ok_or("Guide rotation needs known orientation neighbors.")?;
+                    let correction = rotation::two_edge(i, neighbors, &animation, &positions)?;
+                    let animated = motion * self.frames[i];
+                    let mut simulated = glam::DMat4::from_cols(
+                        (correction * animated.x_axis.truncate()).extend(0.0),
+                        (correction * animated.y_axis.truncate()).extend(0.0),
+                        (correction * animated.z_axis.truncate()).extend(0.0),
+                        positions[i].extend(1.0),
+                    );
+                    let source = self.snapshot.source_positions[i];
+                    simulated = guide_matrix(simulated, source);
+                    let animated = motion * guide_matrix(self.frames[i], source);
+                    deltas.push(simulated - animated);
+                }
+                Some(deltas)
+            } else {
+                None
+            };
         let mut output = Vec::with_capacity(self.bindings.len());
         for binding in &self.bindings {
-            // This is the decoded matrix blend's rigid-motion, no-rotation-
-            // correction specialization. It preserves edited display positions
-            // and nonuniform neutral appearance without a second skin transform.
+            // Start with rigid motion, then apply the guide matrix difference.
+            // With correction off, that difference reduces to translation.
             let mut point = motion.transform_point3(binding.rest);
             if binding.skeletal_blend != 1.0 {
                 let delta = (0..4).fold(DVec3::ZERO, |sum, i| {
-                    sum + displacement[binding.indices[i]] * binding.weights[i]
+                    let delta = if let Some(matrices) = &rotated {
+                        (matrices[binding.indices[i]] * binding.source_rest.extend(1.0)).truncate()
+                    } else {
+                        displacement[binding.indices[i]]
+                    };
+                    sum + delta * binding.weights[i]
                 });
                 point += delta * (1.0 - binding.skeletal_blend);
             }
@@ -500,6 +539,112 @@ fn angle_corrections(p: [DVec3; 4], masses: [f64; 4], rest: f64, stiffness: f64)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guide_rotation_transforms_about_each_guide_and_preserves_disabled_vertices() {
+        const ID: Matrix = [
+            [1., 0., 0., 0.],
+            [0., 1., 0., 0.],
+            [0., 0., 1., 0.],
+            [0., 0., 0., 1.],
+        ];
+        let mut data = snapshot();
+        data.source_positions = vec![[0., 0., 0.], [0., 1., 0.], [1., 0., 0.]];
+        data.animation_frames = data
+            .source_positions
+            .iter()
+            .map(|point| {
+                let mut frame = ID;
+                frame[3][..3].copy_from_slice(point);
+                frame
+            })
+            .collect();
+        data.fixed = vec![false; 3];
+        data.alpha_blends = vec![0.; 3];
+        data.constraints.clear();
+        data.orientation_neighbors = vec![Some([1, 2]), Some([2, 0]), Some([0, 1])];
+        let mut record = [0_u8; 40];
+        record[28] = 255;
+        record[32] = 255;
+        let rest = [[0.25, 0.5, 0.], [0.25, 0.5, 0.], [0.25, 0.5, 0.]];
+        let mut sim = Simulation::new(
+            data.clone(),
+            &rig(),
+            &rest,
+            &[record; 3],
+            &[0, 32, 63],
+            &|| false,
+        )
+        .unwrap();
+        sim.positions = vec![
+            DVec3::new(0.2, 0.3, 0.),
+            DVec3::new(-0.8, 0.3, 0.),
+            DVec3::new(0.2, 1.3, 0.),
+        ];
+        let settings = Settings {
+            gravity: 0.,
+            rotate_guides: true,
+            ..Default::default()
+        };
+        sim.step(1. / 60., ID, settings).unwrap();
+        let expected = DVec3::new(-0.3, 0.55, 0.);
+        assert!(DVec3::from(sim.positions()[0].map(f64::from)).abs_diff_eq(expected, 1e-7));
+        let expected = DVec3::from(rest[1].map(f64::from)).lerp(expected, 31. / 63.);
+        assert!(DVec3::from(sim.positions()[1].map(f64::from)).abs_diff_eq(expected, 1e-7));
+        assert_eq!(sim.positions()[2], rest[2]);
+        let before = sim.positions().to_vec();
+        let guide_before = sim.guide_positions();
+        sim.snapshot.orientation_neighbors[0] = None;
+        assert!(sim.step(1. / 60., ID, settings).is_err());
+        assert_eq!(sim.positions(), before);
+        assert_eq!(sim.guide_positions(), guide_before);
+
+        // Nonuniform guide and skeletal scales give a different inverse neutral
+        // blend at each contribution. Edited display positions are still the
+        // authoritative rest pose, not positions reconstructed from the record.
+        let mut scaled = data.clone();
+        for frame in &mut scaled.animation_frames {
+            frame[0][0] = 2.;
+            frame[1][1] = 3.;
+            frame[2][2] = 4.;
+        }
+        let mut scaled_rig = rig();
+        scaled_rig.neutral_global_matrices[0][0][0] = 4.;
+        scaled_rig.neutral_global_matrices[0][1][1] = 5.;
+        scaled_rig.neutral_global_matrices[0][2][2] = 6.;
+        scaled_rig.neutral_local_matrices = scaled_rig.neutral_global_matrices.clone();
+        let edited = [[0.25, 0.5, 0.75]; 3];
+        let mut scaled = Simulation::new(
+            scaled,
+            &scaled_rig,
+            &edited,
+            &[record; 3],
+            &[0, 32, 63],
+            &|| false,
+        )
+        .unwrap();
+        scaled.positions = guide_before.iter().copied().map(DVec3::from).collect();
+        scaled.step(1. / 60., ID, settings).unwrap();
+        close(scaled.positions()[0], DVec3::new(-0.3, 0.55, 0.75));
+        let fraction = 32. / 63.;
+        let source_x = 0.25 / (2. + 2. * fraction);
+        let source_y = 0.5 / (3. + 2. * fraction);
+        close(
+            scaled.positions()[1],
+            DVec3::new(
+                0.25 + (1. - fraction) * (0.2 - 3. * source_y - 2. * source_x),
+                0.5 + (1. - fraction) * (0.3 + 2. * source_x - 3. * source_y),
+                0.75,
+            ),
+        );
+        assert_eq!(scaled.positions()[2], edited[2]);
+        let mut old = data;
+        old.orientation_neighbors.clear();
+        let mut sim =
+            Simulation::new(old, &rig(), &rest, &[record; 3], &[0, 32, 63], &|| false).unwrap();
+        assert!(sim.step(1. / 60., ID, settings).is_err());
+        assert!(sim.step(1. / 60., ID, Settings::default()).is_ok());
+    }
     use glam::DQuat;
 
     fn rig() -> RigSnapshot {
@@ -524,6 +669,7 @@ mod tests {
             source_positions: positions,
             fixed: vec![true, false, false],
             alpha_blends: vec![1.0, 0.5, 0.0],
+            orientation_neighbors: Vec::new(),
             constraints: vec![Constraint::Pair {
                 indices: [0, 1],
                 rest: 1.0,
