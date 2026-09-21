@@ -690,7 +690,8 @@ impl LabApplication {
             .show(root_ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("Mesh Editor").heading().strong());
-                    if busy {
+                    if self.cdmw_pending_request.as_ref().is_some_and(|pending|
+                        pending.origin != Some(CdmwRequestOrigin::Selection)) || self.hair.saving() {
                         ui.add(Spinner::new());
                     }
                     if wide {

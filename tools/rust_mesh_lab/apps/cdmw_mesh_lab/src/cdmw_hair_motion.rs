@@ -205,16 +205,22 @@ impl LabApplication {
             snapshot.indices = indices;
             snapshot.triangle_materials = materials;
         }
-        // A drawn lock has its own tiny generated buffer until release. Existing
-        // hair, reference geometry and DDS resources remain resident.
-        if let Some(stroke) = self
-            .hair
-            .stroke
-            .as_ref()
-            .filter(|_| !self.hair.drawing.is_empty())
-        {
-            if let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
-                &scene.scalp_picking, &scene.scalp_indices, Some(&self.hair.drawing)) {
+        // Keep both the active stroke and completed Draws visible while the
+        // serial worker prepares them. Completed geometry already owns vertices
+        // in the resident base and must not be drawn twice.
+        let stroke = self.hair.stroke.as_ref().unwrap_or(state);
+        let drawing: Vec<_> = stroke.locks.iter()
+            .filter(|lock| lock.kind == LockKind::Generated && lock.vertices.is_empty())
+            .map(|lock| lock.id).collect();
+        self.hair.drawn_previews.retain(|id, _| drawing.contains(id));
+        for id in &drawing {
+            if !self.hair.drawn_previews.contains_key(id) {
+                if let Ok(generated) = hair::generate_cached(stroke, &AtomicBool::new(false),
+                    &scene.scalp_picking, &scene.scalp_indices, Some(&[*id])) {
+                    self.hair.drawn_previews.insert(*id, generated);
+                }
+            }
+            if let Some(generated) = self.hair.drawn_previews.get(id) {
                 for geometry in generated {
                     let first = snapshot.positions.len() as u32;
                     snapshot.positions.extend(
@@ -229,7 +235,7 @@ impl LabApplication {
                             .iter()
                             .map(|n| (pose.head * Vec3::from(*n)).to_array()),
                     );
-                    snapshot.uvs.extend(geometry.uvs);
+                    snapshot.uvs.extend_from_slice(&geometry.uvs);
                     snapshot
                         .indices
                         .extend(geometry.indices.iter().map(|i| first + i));
@@ -237,15 +243,10 @@ impl LabApplication {
                         geometry.part,
                         geometry.indices.len() / 3,
                     ));
-                    let mut owners = vec![None; geometry.positions.len()];
-                    for b in geometry.bindings {
-                        owners[b.vertex as usize] = stroke
-                            .locks
-                            .iter()
-                            .find(|l| l.guide == Some(b.guide))
-                            .map(|l| l.id);
-                    }
-                    scene.vertex_locks.extend(owners);
+                    // Each cached buffer was generated for exactly this lock.
+                    scene.vertex_locks.extend(std::iter::repeat_n(
+                        Some(*id), geometry.positions.len(),
+                    ));
                 }
             }
         }

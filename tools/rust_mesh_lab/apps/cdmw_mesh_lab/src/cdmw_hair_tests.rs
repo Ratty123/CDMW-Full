@@ -2568,6 +2568,192 @@ fn hair_acknowledgement_does_not_reset_selection_camera_or_newer_edits() {
     assert_eq!(app.hair.acknowledged, Some((before, document)));
 }
 
+fn rapid_draw_app() -> (LabApplication, egui::Rect) {
+    let (state, document) = fixture();
+    let empty = prepare(state, document, "Empty".into(), Preparation::Empty, &AtomicBool::new(false)).unwrap();
+    let mut app = LabApplication::new(None, None);
+    app.document = Some(empty.document);
+    app.cdmw_state = json!({"hair":{"available":true,"materials_ready":true},"replacement":{"comparison":"edit"}});
+    app.hydrate_hair(Some(empty.state));
+    app.hair.pending_preset = false;
+    app.hair.tool = Some(HairTool::Guide);
+    app.hair.draw_shape = DrawShape::Circle;
+    app.hair.draw_follow_scalp = false;
+    let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(960.0, 720.0));
+    app.viewport_rect = Some(rect);
+    app.camera.set_standard_view(crate::camera::StandardView::Top);
+    app.camera.frame_positions_in_viewport(
+        app.hair.state.as_ref().unwrap().scalp.positions.iter().copied().map(Vec3::from), rect);
+    app.render_hair();
+    (app, rect)
+}
+
+fn rapid_draw_stroke(app: &mut LabApplication, rect: egui::Rect, index: usize, release: bool) -> Vec2 {
+    let root = Vec3::new(-0.10 + (index % 8) as f32 * 0.025, 0.2, -0.06 + (index / 8) as f32 * 0.025);
+    let start = app.camera.project(root, rect).unwrap().screen;
+    let end = start + Vec2::new(38.0, 24.0);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryPressed(start), rect, false, false, false);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryMoved(end), rect, false, false, false);
+    if release {
+        app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+    }
+    app.render_hair();
+    end
+}
+
+#[test]
+fn hair_rapid_draw_preserves_every_stroke_until_ordered_acknowledgements_and_clears_busy() {
+    let (mut app, rect) = rapid_draw_app();
+    let root = tempfile::tempdir().unwrap();
+    app.cdmw_bridge = Some(CdmwBridge::for_test(root.path().to_path_buf(), "rapid-hair", 1, 0));
+    let mut expected = vec![];
+    // Deliberately withhold worker polling and host replies during the burst.
+    for i in 0..MAX_PENDING_HAIR_EDITS {
+        assert!(app.hair_draw_input_ready(), "stroke {i}: {}", app.hair.feedback);
+        rapid_draw_stroke(&mut app, rect, i, true);
+        let state = app.hair.state.as_ref().unwrap();
+        assert_eq!(state.guides.len(), i + 1);
+        expected.push(state.guides.clone());
+        let owners: HashSet<_> = app.hair.scene.as_ref().unwrap().vertex_locks.iter().flatten().copied().collect();
+        assert_eq!(owners.len(), i + 1, "completed strokes must remain visible while queued");
+    }
+    assert!(!app.hair_draw_input_ready(), "backlog must remain bounded");
+    rapid_draw_stroke(&mut app, rect, 0, true);
+    assert_eq!(app.hair.state.as_ref().unwrap().guides.len(), expected.len());
+    let deadline = Instant::now() + std::time::Duration::from_secs(20);
+    let mut accepted = 0;
+    while app.hair.preparing() || app.cdmw_busy() {
+        assert!(Instant::now() < deadline, "{} / {}", app.status, app.hair.feedback);
+        app.poll_hair();
+        app.render_hair();
+        if let Some(prepared) = &app.hair.inflight {
+            assert_eq!(prepared.state.guides, expected[accepted]);
+            let hair_revision = prepared.state.revision;
+            let request_id = app.cdmw_pending_request.as_ref().unwrap().request_id;
+            accepted += 1;
+            let revision = accepted as u64;
+            app.handle_cdmw_result("transaction_result", request_id, revision, true,
+                json!({"session_id":"rapid-hair", "base_revision":revision, "hair_ack":hair_revision,
+                    "undo_count":accepted, "redo_count":0, "history_cursor":accepted}), "");
+            assert!(!app.cdmw_exit_requested, "{}", app.status);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(accepted, expected.len());
+    assert_eq!(app.hair.state.as_ref().unwrap().guides, *expected.last().unwrap());
+    assert_eq!(app.cdmw_state["undo_count"], expected.len());
+    assert!(app.hair_draw_input_ready());
+    assert!(!app.hair.saving() && !app.hair.preparing() && !app.cdmw_busy());
+}
+
+#[test]
+fn hair_rapid_draw_worker_completion_keeps_the_next_active_stroke_and_vertex_ownership() {
+    let (mut app, rect) = rapid_draw_app();
+    rapid_draw_stroke(&mut app, rect, 0, true);
+    let end = rapid_draw_stroke(&mut app, rect, 1, false);
+    let guides = app.hair.stroke.as_ref().unwrap().guides.clone();
+    await_hair(&mut app);
+    assert_eq!(app.hair.stroke.as_ref().unwrap().guides, guides);
+    assert!(!app.hair.stroke.as_ref().unwrap().locks[0].vertices.is_empty());
+    assert!(app.hair.stroke.as_ref().unwrap().locks[1].vertices.is_empty());
+    let owners: HashSet<_> = app.hair.scene.as_ref().unwrap().vertex_locks.iter().flatten().copied().collect();
+    assert_eq!(owners.len(), 2);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+    await_hair(&mut app);
+    assert_eq!(app.hair.state.as_ref().unwrap().guides, guides);
+    assert!(app.hair.state.as_ref().unwrap().locks.iter().all(|l| !l.vertices.is_empty()));
+    assert!(!app.hair.preparing());
+}
+
+#[test]
+fn hair_rapid_draw_lost_release_cancels_local_stroke_without_showing_save_progress() {
+    let (mut app, rect) = rapid_draw_app();
+    let before = app.hair.state.clone();
+    rapid_draw_stroke(&mut app, rect, 0, false);
+    assert!(app.hair.preparing());
+    assert!(!app.hair.saving(), "a local drag is not a background save");
+    app.raw_primary_captured = true;
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+        app.handle_hair_input(ui, rect);
+    });
+    assert!(!app.hair.preparing());
+    assert_eq!(app.hair.state, before);
+    assert!(app.hair.stroke_start.is_none());
+    assert!(!app.raw_primary_captured);
+}
+
+#[test]
+fn hair_rapid_draw_switching_to_select_clears_an_abandoned_stroke_on_release() {
+    let (mut app, rect) = rapid_draw_app();
+    let before = app.hair.state.clone();
+    let end = rapid_draw_stroke(&mut app, rect, 0, false);
+    app.hair.tool = Some(HairTool::Select);
+    app.dispatch_hair_pointer(ViewportPointerEvent::PrimaryReleased(end), rect, false, false, false);
+    assert!(app.hair.stroke_start.is_none());
+    let ctx = egui::Context::default();
+    let _ = ctx.run_ui(egui::RawInput { screen_rect: Some(rect), ..Default::default() }, |ui| {
+        app.handle_hair_input(ui, rect);
+    });
+    assert!(!app.hair.preparing());
+    assert_eq!(app.hair.state, before);
+}
+
+#[test]
+fn hair_rapid_draw_resumes_motion_after_consecutive_strokes() {
+    let (mut app, rect) = rapid_draw_app();
+    // This models a paused procedural pose carried into a burst of Draws.
+    app.hair.playing = true;
+    rapid_draw_stroke(&mut app, rect, 0, true);
+    assert!(app.hair.restart_after_stroke);
+    rapid_draw_stroke(&mut app, rect, 1, true);
+    assert!(app.hair.restart_after_stroke);
+    await_hair(&mut app);
+    assert!(app.hair.playing, "{}", app.hair.feedback);
+    assert!(!app.hair.restart_after_stroke);
+}
+
+#[test]
+fn hair_rapid_draw_respects_memory_history_and_finish_barriers() {
+    let (mut app, rect) = rapid_draw_app();
+    rapid_draw_stroke(&mut app, rect, 0, true);
+    assert!(app.hair_draw_input_ready());
+    let bytes = app.hair.job.as_ref().unwrap().retained_bytes;
+    app.hair.job.as_mut().unwrap().retained_bytes = MAX_PENDING_HAIR_BYTES;
+    assert!(!app.hair_draw_input_ready(), "large pending snapshots must bound memory");
+    app.hair.job.as_mut().unwrap().retained_bytes = bytes;
+    app.hair.pending_finish = true;
+    assert!(!app.hair_draw_input_ready());
+    app.hair.pending_finish = false;
+    assert!(app.defer_hair_history(false));
+    assert!(!app.hair_draw_input_ready());
+    await_hair(&mut app);
+    assert!(app.hair_draw_input_ready());
+    assert!(!app.hair.preparing());
+}
+
+#[test]
+fn hair_rapid_draw_failed_preparation_cancels_newer_stroke_and_restores_acknowledged_scene() {
+    let (mut app, rect) = rapid_draw_app();
+    let before = app.hair.state.clone();
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    let handle = std::thread::spawn(move || {
+        sender.send(Err("Owned preparation failure".into())).unwrap();
+    });
+    app.hair.job = Some(HairJob {
+        revision: app.hair.generation, drawing: true, retained_bytes: 0,
+        cancel: Arc::new(AtomicBool::new(false)), receiver, handle,
+    });
+    app.hair.topology_busy = true;
+    rapid_draw_stroke(&mut app, rect, 0, false);
+    assert!(app.hair.stroke.is_some());
+    await_hair(&mut app);
+    assert_eq!(app.hair.state, before);
+    assert!(!app.hair.preparing());
+    assert!(app.hair.stroke_start.is_none());
+    assert_eq!(app.hair.feedback, "Owned preparation failure");
+}
+
 #[test]
 fn hair_legacy_generated_cards_refine_on_groom_while_imported_topology_stays_intact() {
     let (mut state, document) = fixture();

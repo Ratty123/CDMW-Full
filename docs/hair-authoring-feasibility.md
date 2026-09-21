@@ -142,7 +142,15 @@ Changed unprepared sections remain blocked. Generated geometry still requires
 guide coverage; draft versions and the original skin-weight layout stay unchanged.
 
 Each completed action uses the ordered publication queue and receives the normal
-host acknowledgement. Conversion's full-state reply also completes its matching
+host acknowledgement. Draw can start another stroke while previous Draws prepare
+and save; pending locks stay visible, and each completed stroke retains its own
+history step. The queue accepts up to 32 pending edits within an estimated 256 MiB
+snapshot budget and pauses new input if saving falls too far behind. Pending Draw
+previews are cached between pointer updates. Undo and Finish wait for the accepted
+strokes to drain. The Mesh Editor
+spinner tracks background preparation and saving, rather than the active mouse
+gesture; losing pointer capture cancels the unfinished stroke.
+Conversion's full-state reply also completes its matching
 publication when it equals the locally prepared state, releasing Undo and Finish.
 Incremental edits retain unchanged channels and references;
 new topology uses complete output validation. An immutable original PAC skin donor

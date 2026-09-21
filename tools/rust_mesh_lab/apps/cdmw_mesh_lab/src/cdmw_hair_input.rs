@@ -267,6 +267,14 @@ impl LabApplication {
             }
             self.dispatch_hair_pointer(*event, rect, modifiers.ctrl, modifiers.alt, modifiers.shift);
         }
+        // A release can be lost when the embedded window loses pointer capture.
+        // Do not leave an abandoned local stroke holding Finish/history busy.
+        if (self.hair.stroke_start.is_some() || self.hair.stroke.is_some())
+            && !ui.input(|i| i.pointer.primary_down())
+        {
+            self.cancel_hair_stroke();
+            self.raw_primary_captured = false;
+        }
         if ui.rect_contains_pointer(rect) {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll.abs() > 0.0 {
@@ -306,7 +314,8 @@ impl LabApplication {
             return;
         }
         match event {
-            ViewportPointerEvent::PrimaryPressed(point) if self.hair_input_ready() => {
+            ViewportPointerEvent::PrimaryPressed(point)
+                if self.hair_input_ready() || self.hair_draw_input_ready() => {
                 let hit = self.lock_at(point, rect);
                 self.hair.stroke_primary = hit.map(|h| h.0);
                 self.hair.move_anchor = hit.and_then(|(id, segment, t)| {
@@ -354,11 +363,11 @@ impl LabApplication {
                 }
                 if self.hair.tool == Some(HairTool::Cut) {
                     self.hair.cut_preview = hit;
-                    self.hair.restart_after_stroke = self.hair.playing;
+                    self.hair.restart_after_stroke |= self.hair.playing;
                     self.hair.playing = false;
                     return;
                 }
-                self.hair.restart_after_stroke = self.hair.playing;
+                self.hair.restart_after_stroke |= self.hair.playing;
                 self.hair.playing = false;
                 self.hair.stroke = self.hair.state.clone();
                 self.hair.drawing_samples.clear();
@@ -417,7 +426,7 @@ impl LabApplication {
                             state.revision += 1;
                             let operation = match self.hair.tool {
                                 Some(HairTool::Physics) => Preparation::Metadata,
-                                Some(HairTool::Guide | HairTool::Paint) => Preparation::Generate,
+                                Some(HairTool::Guide | HairTool::Paint) => Preparation::Draw,
                                 Some(HairTool::Erase) => Preparation::Delete(
                                     self.hair.selected.iter().map(|i| *i as u64).collect(),
                                 ),
@@ -450,10 +459,13 @@ impl LabApplication {
 
     pub(crate) fn cancel_hair_stroke(&mut self) -> bool {
         if self.hair.stroke_start.is_none() && self.hair.stroke.is_none() { return false; }
-        let editing = self.hair.tool != Some(HairTool::Select);
+        let editing = self.hair.stroke.is_some() || self.hair.tool != Some(HairTool::Select);
         self.hair.stroke = None;
         self.hair.stroke_start = None;
         self.hair.stroke_changed = false;
+        for id in &self.hair.drawing {
+            self.hair.drawn_previews.remove(id);
+        }
         self.hair.drawing.clear();
         self.hair.drawing_samples.clear();
         self.hair.last_pointer = None;
@@ -1053,6 +1065,9 @@ impl LabApplication {
         })();
         if let Err(error) = result {
             self.hair.feedback = error;
+        }
+        for id in &self.hair.drawing {
+            self.hair.drawn_previews.remove(id);
         }
         self.hair.stroke = Some(state);
         if let Some(scene) = &mut self.hair.scene {

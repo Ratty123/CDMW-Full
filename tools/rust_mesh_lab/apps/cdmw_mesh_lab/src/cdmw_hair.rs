@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread;
 
+const MAX_PENDING_HAIR_EDITS: usize = 32;
+const MAX_PENDING_HAIR_BYTES: usize = 256 * 1024 * 1024;
+
 #[cfg(test)]
 use cdmw_mesh::hair::{HairGroup, Preset};
 
@@ -49,6 +52,7 @@ enum Preparation {
     Delete(Vec<u64>),
     Cut(u64, u32, f32, bool),
     Empty,
+    Draw,
     Generate,
     Metadata,
     Bind(u32),
@@ -73,6 +77,8 @@ struct HairScene {
 }
 struct HairJob {
     revision: u64,
+    drawing: bool,
+    retained_bytes: usize,
     cancel: Arc<AtomicBool>,
     receiver: Receiver<Result<PreparedHair, String>>,
     handle: thread::JoinHandle<()>,
@@ -101,6 +107,7 @@ pub(super) struct HairEditor {
     pub select_through: bool,
     stroke_start: Option<Vec2>,
     drawing: Vec<u64>,
+    drawn_previews: HashMap<u64, Vec<hair::HairGeometry>>,
     pub style_name: String,
     pub pending_preset: bool,
     pub requested_preset: Option<String>,
@@ -164,6 +171,7 @@ impl Default for HairEditor {
             select_through: false,
             stroke_start: None,
             drawing: vec![],
+            drawn_previews: HashMap::new(),
             style_name: "My hairstyle".into(),
             pending_preset: false,
             requested_preset: None,
@@ -310,6 +318,7 @@ impl LabApplication {
         }
         self.hair.queued.clear();
         self.hair.publications.clear();
+        self.hair.drawn_previews.clear();
         self.hair.stroke = None;
         self.hair.preview = None;
         self.hair.scene = None;
@@ -390,7 +399,7 @@ impl LabApplication {
         let Some(document) = self.hair.preview.as_ref().or(self.document.as_ref()) else {
             return;
         };
-        if self.hair.queued.len() + self.hair.publications.len() >= 8 {
+        if !self.hair_queue_has_capacity(&state, document) {
             self.hair.feedback =
                 "Saving previous edits. Please wait for the pending actions.".into();
             return;
@@ -416,11 +425,15 @@ impl LabApplication {
         let cancel = Arc::new(AtomicBool::new(false));
         let stop = cancel.clone();
         let revision = self.hair.generation;
+        let drawing = matches!(operation, Preparation::Draw);
+        let retained_bytes = hair_snapshot_bytes(&state, &document);
         let handle = thread::spawn(move || {
             let _ = sender.send(prepare(state, document, label, operation, &stop));
         });
         self.hair.job = Some(HairJob {
             revision,
+            drawing,
+            retained_bytes,
             cancel,
             receiver,
             handle,
@@ -443,9 +456,45 @@ impl LabApplication {
 
     pub(super) fn hair_input_ready(&self) -> bool {
         self.hair.pending_history.is_empty()
+            && !self.hair.pending_finish
             && !self.hair.topology_busy
-            && self.hair.queued.len() + self.hair.publications.len() < 8
+            && self.hair_has_edit_capacity()
             && (!self.cdmw_busy() || self.hair.inflight.is_some())
+    }
+
+    pub(super) fn hair_draw_input_ready(&self) -> bool {
+        matches!(self.hair.tool, Some(HairTool::Guide | HairTool::Paint))
+            && self.hair.state.as_ref().is_some_and(|state| {
+                !state.converted && state.groups.iter().all(|g| g.mode == GroupMode::Generated)
+            })
+            && self.hair.pending_history.is_empty()
+            && !self.hair.pending_finish
+            && self.hair_has_edit_capacity()
+            && self.hair.job.as_ref().is_none_or(|job| job.drawing)
+            && self.hair.queued.iter().all(|(_, _, _, op)| matches!(op, Preparation::Draw))
+            && (!self.cdmw_busy() || self.hair.inflight.is_some())
+    }
+
+    fn hair_has_edit_capacity(&self) -> bool {
+        match (&self.hair.state, self.hair.preview.as_ref().or(self.document.as_ref())) {
+            (Some(state), Some(document)) => self.hair_queue_has_capacity(state, document),
+            _ => true,
+        }
+    }
+
+    fn hair_queue_has_capacity(&self, state: &HairState, document: &MeshDocument) -> bool {
+        let count = self.hair.pending_edits();
+        if count == 0 {
+            return true;
+        }
+        if count >= MAX_PENDING_HAIR_EDITS {
+            return false;
+        }
+        let pending_bytes = self.hair.job.as_ref().map_or(0, |job| job.retained_bytes)
+            + self.hair.queued.iter().map(|(state, document, _, _)| hair_snapshot_bytes(state, document)).sum::<usize>()
+            + self.hair.publications.iter().chain(self.hair.inflight.iter())
+                .map(|prepared| hair_snapshot_bytes(&prepared.state, &prepared.document)).sum::<usize>();
+        pending_bytes + hair_snapshot_bytes(state, document) <= MAX_PENDING_HAIR_BYTES
     }
 
     pub(super) fn defer_hair_history(&mut self, redo: bool) -> bool {
@@ -539,8 +588,15 @@ impl LabApplication {
                                 (max.y - min.y).max(0.01),
                             )
                             .ok();
+                        } else if let Some(state) = &mut self.hair.state {
+                            adopt_prepared_hair_geometry(state, &prepared.state);
                         }
-                        if self.hair.restart_after_stroke && self.hair.queued.is_empty() {
+                        if let Some(stroke) = &mut self.hair.stroke {
+                            adopt_prepared_hair_geometry(stroke, &prepared.state);
+                        }
+                        if self.hair.restart_after_stroke && self.hair.queued.is_empty()
+                            && self.hair.stroke.is_none()
+                        {
                             self.hair.playing = true;
                             self.hair.restart_after_stroke = false;
                         }
@@ -549,6 +605,7 @@ impl LabApplication {
                         self.hair.publications.push_back(prepared);
                     }
                     Err(error) => {
+                        self.cancel_hair_stroke();
                         self.hair.feedback = error;
                         self.hair.playing = false;
                         self.hair.pending_finish = false;
@@ -595,6 +652,7 @@ impl LabApplication {
                         )
                     } {
                         Ok(request_id) => {
+                            self.status = "Saving completed actions in order…".into();
                             self.cdmw_pending_request = Some(CdmwPendingRequest {
                                 request_id,
                                 event: "transaction_result",
@@ -604,6 +662,7 @@ impl LabApplication {
                             self.hair.inflight = Some(prepared);
                         }
                         Err(error) => {
+                            self.cancel_hair_stroke();
                             self.hair.feedback =
                                 format!("{} could not be saved: {error}", prepared.label);
                             self.hair.generation += 1;
@@ -643,6 +702,9 @@ impl LabApplication {
         if self.hair.pending_finish && !self.cdmw_busy() && !self.hair.preparing() {
             self.hair.pending_finish = false;
             self.submit_cdmw_finish();
+        }
+        if self.hair.saving() && !self.cdmw_busy() {
+            self.status = "Saving completed actions in order…".into();
         }
         if self.hair.job.is_some() || self.hair.playing || !self.hair.publications.is_empty() {
             self.egui_context.request_repaint();
@@ -909,7 +971,7 @@ impl LabApplication {
             ui.weak("Converted to ordinary mesh. Undo restores Hair editing.");
             return;
         }
-        let ready = self.hair_input_ready();
+        let ready = self.hair_input_ready() || self.hair_draw_input_ready();
         let state = self.hair.state.as_ref().unwrap();
         let generated = state.groups.iter().all(|g| g.mode == GroupMode::Generated);
         let unresolved = state
@@ -1126,7 +1188,7 @@ impl LabApplication {
             ui.spinner();
             ui.label("Preparing hair…");
         }
-        if self.hair.preparing() {
+        if self.hair.saving() {
             ui.weak("Saving completed actions in order…");
         }
         if !self.hair.feedback.is_empty() {
@@ -1142,14 +1204,57 @@ impl HairEditor {
     pub(super) fn invalidate_scene(&mut self) {
         self.scene = None;
     }
-    pub(super) fn preparing(&self) -> bool {
+    fn pending_edits(&self) -> usize {
+        usize::from(self.job.is_some()) + self.queued.len() + self.publications.len()
+            + usize::from(self.inflight.is_some())
+    }
+    pub(super) fn saving(&self) -> bool {
         self.job.is_some()
             || !self.queued.is_empty()
             || !self.publications.is_empty()
             || self.inflight.is_some()
-            || self.stroke.is_some()
             || !self.pending_history.is_empty()
     }
+    pub(super) fn preparing(&self) -> bool {
+        self.saving() || self.stroke.is_some()
+    }
+}
+
+fn adopt_prepared_hair_geometry(state: &mut HairState, prepared: &HairState) {
+    // A later Draw owns its guide points and IDs already, but its rendered base
+    // must use the bindings and vertex ownership of the completed document.
+    state.bindings.clone_from(&prepared.bindings);
+    state.vertex_sources.clone_from(&prepared.vertex_sources);
+    state.prepared_parts.clone_from(&prepared.prepared_parts);
+    let vertices: HashMap<_, _> = prepared.locks.iter().map(|lock| (lock.id, &lock.vertices)).collect();
+    for lock in &mut state.locks {
+        if let Some(old) = vertices.get(&lock.id) {
+            lock.vertices.clone_from(old);
+        }
+    }
+}
+
+fn hair_snapshot_bytes(state: &HairState, document: &MeshDocument) -> usize {
+    // Reserve for the generated result too: queued Draws do not have their new
+    // card arrays yet. Large hairstyles reach the memory budget before the
+    // small-edit burst limit. A single otherwise valid edit is still allowed.
+    let references = std::iter::once(&state.scalp).chain(&state.references)
+        .map(|s| 12 * (s.positions.len() + s.triangles.len())).sum::<usize>();
+    let document_bytes = document.lods.iter().flat_map(|lod| &lod.submeshes)
+        .map(|part| part.positions.len() * 12 + part.normals.len() * 12
+            + part.uvs.len() * 8 + part.indices.len() * 4 + part.source_vertex_indices.len() * 4)
+        .sum::<usize>();
+    let max_cards = state.locks.iter().map(|lock| lock.cards).max().unwrap_or(0);
+    let generated_vertices = state.guides.iter().filter_map(|guide| {
+        let group = state.groups.iter().find(|g| g.id == guide.group && g.mode == GroupMode::Generated)?;
+        let cards = group.cards_per_guide.max(max_cards) as usize;
+        Some((guide.points.len().saturating_sub(1) * 3 + 1) * 2 * cards)
+    }).sum::<usize>().min(hair::MAX_HAIR_VERTICES);
+    references + document_bytes.max(generated_vertices * 64)
+        + (state.bindings.len() * std::mem::size_of::<hair::VertexBinding>()).max(generated_vertices * 52)
+        + state.locks.iter().map(|l| 4 * l.vertices.len() + 128).sum::<usize>()
+        + state.guides.iter().map(|g| 12 * g.points.len() + g.pinned.len() + 128).sum::<usize>()
+        + 64 * 1024
 }
 
 fn build_scene(

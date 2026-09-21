@@ -34,6 +34,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Hair Tools accepts consecutive Draw strokes while earlier additions prepare and save, keeps pending locks visible, and preserves a separate Undo step for each stroke. Interrupted drags release the busy state, and the Mesh Editor spinner tracks background work instead of the active gesture.
 - Facial shape exports preserve case-distinct game targets such as `JawOpen` and `jawOpen`, including their different transforms.
 - Effect editing supports the installed nine-byte field masks and inherited collection lookup tables. Unchanged metadata round-trips exactly; unsupported structural edits remain blocked, and old effect catalogue results rebuild.
 - Body/Face Finder recovers malformed comments in shipped wrinkle XML without changing archive bytes, and refreshes its cached dependency results.
