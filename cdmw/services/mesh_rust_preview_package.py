@@ -268,7 +268,11 @@ def _encode_non_dds_preview_textures(
 
     from cdmw.services.mesh_rust_authoring import (
         _RustMaterialSynthesisState,
+        _RUST_SYNTHESIZED_SCALAR_ROLES,
         _encode_rust_preview_dds_batch,
+        _material_input_dds_path,
+        _material_input_is_renderer_role_eligible,
+        _material_input_texture_role,
         _mesh_lods,
     )
 
@@ -277,6 +281,7 @@ def _encode_non_dds_preview_textures(
     bindings: list[tuple[object, str, int, int, str, Path]] = []
     for lod_index, submeshes in enumerate(_mesh_lods(mesh)):
         for submesh_index, submesh in enumerate(submeshes):
+            direct_roles: set[str] = set()
             for role, dds_attribute, image_attributes in _PREVIEW_IMAGE_TEXTURES:
                 declared_dds = str(getattr(submesh, dds_attribute, "") or "").strip()
                 if declared_dds:
@@ -285,6 +290,7 @@ def _encode_non_dds_preview_textures(
                     except (OSError, RuntimeError):
                         dds_path = None
                     if dds_path is not None and dds_path.is_file():
+                        direct_roles.add(role)
                         continue
                 image_path = _existing_preview_image(submesh, image_attributes)
                 if image_path is None:
@@ -299,6 +305,40 @@ def _encode_non_dds_preview_textures(
                 bindings.append(
                     (submesh, dds_attribute, lod_index, submesh_index, role, target)
                 )
+                direct_roles.add(role)
+
+            # Separate PBR maps live in material inputs, not the legacy top-level
+            # texture attributes. Publish them through the same DDS handoff as
+            # packed metallic/roughness images instead of silently losing them.
+            material_inputs = tuple(
+                getattr(submesh, "preview_material_texture_inputs", ()) or ()
+            )
+            for role in sorted(_RUST_SYNTHESIZED_SCALAR_ROLES):
+                if role in {"roughness", "metalness"} and "material" in direct_roles:
+                    continue  # The packed map already owns its G/B channels.
+                candidates = tuple(
+                    item for item in material_inputs
+                    if _material_input_texture_role(item) == role
+                    and _material_input_is_renderer_role_eligible(submesh, item, role)
+                    and len(tuple(getattr(item, "packed_channels", ()) or ())) <= 1
+                )
+                if any(_material_input_dds_path(item) is not None for item in candidates):
+                    continue  # Existing source DDS remains authoritative.
+                image_paths = {
+                    path for item in candidates
+                    if (path := _existing_preview_image(
+                        item, ("preview_texture_path", "source_texture_path")
+                    )) is not None
+                }
+                if len(image_paths) != 1:
+                    continue
+                image_path = next(iter(image_paths))
+                source_key = (image_path, role)
+                target = encoded_sources.get(source_key)
+                if target is None:
+                    target = staging_root / f"texture-{len(encoded_sources):04d}-{role}.dds"
+                    encoded_sources[source_key] = target
+                bindings.append((submesh, "", lod_index, submesh_index, role, target))
 
     _encode_rust_preview_dds_batch(
         tuple(
@@ -309,7 +349,8 @@ def _encode_non_dds_preview_textures(
         synthesis,
     )
     for submesh, dds_attribute, lod_index, submesh_index, role, target in bindings:
-        setattr(submesh, dds_attribute, str(target))
+        if dds_attribute:
+            setattr(submesh, dds_attribute, str(target))
         overrides[
             (lod_index, submesh_index, "base_color" if role == "base" else role)
         ] = target

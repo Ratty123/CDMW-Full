@@ -580,6 +580,10 @@ loose colour, roughness or metallic map replaces that channel's legacy conversio
 factor with an identity multiplier. Explicitly linked channels and untextured
 materials retain their source factors, including gem colours, opacity and glow.
 The corrected factors follow the imported mesh into preview and output preparation.
+The shared Rust preview package encodes separate roughness, metallic, occlusion and
+specular images from material inputs as well as the top-level colour, normal and
+packed maps. It retains source DDS priority, packed-channel ownership and image
+deduplication. Imported preview caches rebuild when this material handoff changes.
 A textureless exported material still keeps its authored
 `TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
 synthesis is deduplicated across identical submesh inputs.

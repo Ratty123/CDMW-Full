@@ -53,7 +53,8 @@ from cdmw.services.mesh_rust_preview_package import (
 _PYTHON_MODEL_PREVIEW_SOURCE_MANIFEST = {
     # Schema 8 replaces cached vertical framing of horizontal placement grids.
     "schema_version": 8,
-    "material_semantics_version": 1,
+    # Rebuild imported previews that omitted separate non-DDS PBR maps.
+    "material_semantics_version": 2,
     "material_graph_version": 1,
 }
 
