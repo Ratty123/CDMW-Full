@@ -151,12 +151,14 @@ waits for owned process teardown before temporary images are removed. Scheduling
 not change texture dimensions, formats, colour policy or mipmap contents.
 Imported glTF materials preserve their declared alpha mode and opacity, use
 metallic/roughness factors as map multipliers, and draw blended surfaces in the
-current camera's depth order. Imported previews open flat against their broad
-plane with a matching grid. Horizontal placement grids open from above with the
-model's longest axis across the viewport; Frame restores that view. A new model
+current camera's depth order. New Item previews use a horizontal Y-up ground grid
+for every equipment shape. The camera selects the model's broadside independently:
+standing models keep Y upright and open slightly from above; horizontal models
+open from above with their longest axis across the viewport. Frame restores that
+view without changing model placement, grip/socket alignment or wearable fitting. A new model
 resets the camera even when its textured package arrives without a geometry preview.
 Texture upgrades for the same model preserve the user's orbit, pan and zoom. Older
-cached previews rebuild once to replace their underneath or vertically framed view.
+cached New Item previews rebuild once to replace sideways grids.
 Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
 After Mesh Editor deletes, reorders or separates parts, material bindings follow
@@ -560,7 +562,7 @@ and the same cancellable worker reads the template geometry, retains its bounds 
 centroid for later re-fit, and prepares the fitted mesh before publishing the import.
 The first UI read of the fitted bounds reuses that mesh. Weapon-family paths use the grip/heavy-end fit; armour,
 accessories and other families keep a centred axis fit instead of being interpreted as
-weapons. Import and **Fit to template** level held models against the placement grid,
+weapons. Import and **Fit to template** level held models against the template's broad plane,
 retaining their heading and grip anchor. Wearables retain the template's authored
 body orientation and centre, so a garment already aligned to the body stays aligned.
 Shapes without a clear axis or plane retain the bounding-box fit. The template stays

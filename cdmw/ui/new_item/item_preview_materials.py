@@ -182,7 +182,6 @@ def upgrade_item_preview_package_materials(
         else None
     )
     semantic_bounds = mesh_bounds(template if template is not None else model)
-    grid_normal_axis = flat_preview_normal_axis(semantic_bounds)
     reference = placement_reference_mesh(template, character)
     target = root / f"package_{time.time_ns()}_materials"
     package = build_rust_preview_package(
@@ -193,10 +192,10 @@ def upgrade_item_preview_package_materials(
         interaction_profile="static_replacement",
         interaction_mode="placement",
         reference_draw="wire",
-        grid_normal_axis=grid_normal_axis,
+        grid_normal_axis="y",
         scene_transform=item.placement.build_transform(origin=item.model_origin),
         cancelled=stop_event.is_set,
         include_material_resources=True,
-        initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
+        initial_view=semantic_initial_view(semantic_bounds, "grounded"),
     )
     return Path(package.package_dir)

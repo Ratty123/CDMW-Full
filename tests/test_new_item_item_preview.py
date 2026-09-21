@@ -266,7 +266,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(kwargs["comparison_mode"], "overlay")
             self.assertEqual(kwargs["interaction_mode"], "placement")
             self.assertEqual(kwargs["reference_draw"], "wire")
-            self.assertEqual(kwargs["grid_normal_axis"], "z")
+            self.assertEqual(kwargs["grid_normal_axis"], "y")
             transform = kwargs["scene_transform"]
             self.assertEqual(transform.alignment_mode, "manual")
             self.assertEqual(transform.offset_xyz, (0.0, 0.0, -0.3))
@@ -332,6 +332,11 @@ class ItemPreviewPackageTests(unittest.TestCase):
         token = ("template", 17, "template.pac", "0.pamt", "0.paz", 12, 34)
         with tempfile.TemporaryDirectory(prefix="cdmw_item_preview_cache_") as temporary:
             root = Path(temporary)
+            previous = package_service.build_or_lookup_rust_preview_package_from_model(
+                model, cache_root=root, archive_identity=f"new_item_preview:v2:{token!r}",
+                cache_mode="balanced", max_bytes=64 * 1024 * 1024,
+                target_bytes=32 * 1024 * 1024, semantic_view_axis="auto",
+            )
             source_calls = 0
 
             def source(_stop_event):
@@ -370,8 +375,44 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertEqual(build.call_count, 2)
             self.assertEqual(source_calls, 2)
             self.assertEqual(first, second)
+            self.assertNotEqual(previous.package_dir, first, "a cached vertical grid must be replaced")
+            scene = json.loads((first / "manifest.json").read_text(encoding="utf-8"))["state"]["preview_scene"]
+            self.assertEqual(scene["grid"]["normal_axis"], "y")
             self.assertNotEqual(first, revised, "a changed archive revision must not reuse the old package")
             self.assertTrue(second.is_dir())
+
+    def test_placement_replaces_cached_sideways_grid(self) -> None:
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.services.mesh_rust_preview_cache import build_or_lookup_rust_preview_package_with_builder
+        from cdmw.services.mesh_rust_preview_package import build_rust_preview_package
+        from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_package
+
+        mesh = ParsedMesh(path="helmet.pac", format="pac", submeshes=[SubMesh(
+            name="helmet", vertices=[(-0.4, 2.0, -0.3), (0.4, 2.0, 0.3), (0.0, 3.2, 0.0)],
+            faces=[(0, 1, 2)],
+        )])
+        scene = PlacementScene(template=mesh, model=mesh)
+        with tempfile.TemporaryDirectory(prefix="cdmw_grounded_cache_") as temporary:
+            root = Path(temporary)
+            previous = build_or_lookup_rust_preview_package_with_builder(
+                cache_root=root,
+                archive_identity=(f"new_item_preview:v2:'helmet':placement:full:materials=True:"
+                                  f"placement={scene.placement!r}:origin=None"),
+                cache_mode="balanced", max_bytes=64 * 1024 * 1024,
+                target_bytes=32 * 1024 * 1024,
+                builder=lambda target: build_rust_preview_package(
+                    mesh, reference_mesh=mesh, output_package_dir=target, grid_normal_axis="z",
+                ),
+            )
+            current = build_item_preview_package(
+                scene, token="helmet", output_root=root, stop_event=threading.Event(), cache_mode="balanced",
+            )
+            self.assertNotEqual(previous.package_dir, current)
+            payload = json.loads((current / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["state"]["preview_scene"]["grid"]["normal_axis"], "y")
+            self.assertEqual(current, build_item_preview_package(
+                scene, token="helmet", output_root=root, stop_event=threading.Event(), cache_mode="balanced",
+            ))
 
     def test_horizontal_placement_rebuilds_cached_camera_orientation(self) -> None:
         from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -424,6 +465,61 @@ class ItemPreviewPackageTests(unittest.TestCase):
                     "view_direction": [0.0, -1.0, 0.0],
                     "screen_up_direction": [1.0, 0.0, 0.0],
                 })
+
+    def test_equipment_shapes_keep_a_horizontal_grid_across_package_routes(self) -> None:
+        from cdmw.core.archive_modding import parsed_mesh_to_preview_model
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_package
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        # Synthetic dimensions cover every possible thinnest axis, bulky and
+        # symmetric items, and wide wearables whose longest axis must not become up.
+        shapes = {
+            "weapon": (6.0, 0.1, 0.6),
+            "helmet": (0.8, 1.2, 0.6),
+            "armour": (1.0, 1.5, 0.4),
+            "legs": (0.8, 1.8, 0.5),
+            "shoulders": (1.8, 0.5, 0.8),
+            "boots": (0.3, 0.6, 0.8),
+            "hands": (0.2, 0.5, 0.4),
+            "shield": (1.5, 2.0, 0.1),
+            "symmetric": (1.0, 1.0, 1.0),
+        }
+        with tempfile.TemporaryDirectory(prefix="cdmw_equipment_grid_") as temporary:
+            for name, (width, height, depth) in shapes.items():
+                vertices = [(x, y, z) for x in (0.0, width)
+                            for y in (2.0, 2.0 + height) for z in (0.0, depth)]
+                mesh = ParsedMesh(path=f"{name}.pac", format="pac", submeshes=[SubMesh(
+                    name=name, vertices=vertices, faces=[(0, 1, 2), (5, 6, 7)],
+                )])
+                sources = {
+                    "mesh": mesh,
+                    "preview_model": parsed_mesh_to_preview_model(mesh),
+                    "placement": PlacementScene(
+                        template=mesh, model=mesh,
+                        placement=ModelPlacement(offset=(0.0, 3.0, 0.0)),
+                    ),
+                }
+                for route, source in sources.items():
+                    for materials in (False, True):
+                        with self.subTest(shape=name, route=route, materials=materials):
+                            package = build_item_preview_package(
+                                source, token=(name, route), output_root=Path(temporary),
+                                stop_event=threading.Event(), include_material_resources=materials,
+                            )
+                            manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+                            scene = manifest["state"]["preview_scene"]
+                            self.assertEqual(scene["grid"]["normal_axis"], "y")
+                            self.assertEqual(scene["ground_plane"]["normal"], [0.0, 1.0, 0.0])
+                            self.assertAlmostEqual(scene["grid"]["origin"][1], 2.0)
+                            view = scene["framing"]["initial_view"]
+                            self.assertLess(view["view_direction"][1], 0.0, "see the grid from above")
+                            if min(width, depth) <= height:
+                                self.assertEqual(view["screen_up_direction"], [0.0, 1.0, 0.0])
+                            if route == "placement":
+                                self.assertEqual(scene["placement"]["translation"], [0.0, 3.0, 0.0])
+                                self.assertAlmostEqual(scene["editable_world_bounds"]["min"][1], 5.0)
+                            self.assertEqual(mesh.submeshes[0].vertices, vertices)
 
 
 class PlacementConventionTests(unittest.TestCase):
@@ -1622,7 +1718,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
             self.assertEqual(preview_scene["interaction_mode"], "placement")
             self.assertEqual(preview_scene["comparison_mode"], "overlay")
             self.assertEqual(preview_scene["reference_draw"], "wire")
-            self.assertEqual(preview_scene["grid"]["normal_axis"], "z")
+            self.assertEqual(preview_scene["grid"]["normal_axis"], "y")
             self.assertGreater(preview_scene["editable_submesh_count"], 0)
             self.assertGreater(preview_scene["reference_submesh_count"], 0)
             self.assertTrue(preview_scene["grid"]["visible"])

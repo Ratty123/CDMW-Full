@@ -145,24 +145,31 @@ def semantic_initial_view(
     The thinnest/template-normal axis faces the camera. Horizontal grids are viewed
     from above with the longest remaining axis across the screen; X/Z normals keep
     their conventional upright side/front view at every DPI and aspect ratio.
+    ``grounded`` selects the broadside automatically, keeps world Y upright for
+    standing models, and looks slightly down so a horizontal floor stays visible.
     """
 
     low, high = bounds
     minimum = [float(low[index]) for index in range(3)]
     maximum = [float(high[index]) for index in range(3)]
     extents = [abs(maximum[index] - minimum[index]) for index in range(3)]
-    axis = {"x": 0, "y": 1, "z": 2}.get(str(normal_axis or "y").casefold(), 1)
+    mode = str(normal_axis or "y").casefold()
+    grounded = mode == "grounded"
+    axis = (min((2, 0, 1), key=extents.__getitem__) if grounded
+            else {"x": 0, "y": 1, "z": 2}.get(mode, 1))
     plane_axes = [index for index in range(3) if index != axis]
     upright = (
         min(plane_axes, key=extents.__getitem__)
         if axis == 1
-        else max(plane_axes, key=extents.__getitem__)
+        else 1 if grounded else max(plane_axes, key=extents.__getitem__)
     )
     view_direction = [0.0, 0.0, 0.0]
     screen_up_direction = [0.0, 0.0, 0.0]
     # This vector points from the eye to the model. Looking down from +Y
     # therefore needs -Y, otherwise the placement grid opens from underneath.
     view_direction[axis] = -1.0 if axis == 1 else 1.0
+    if grounded and axis != 1:
+        view_direction[1] = -0.35
     screen_up_direction[upright] = 1.0
     return {
         "view_direction": view_direction,

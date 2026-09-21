@@ -33,7 +33,6 @@ from cdmw.ui.new_item.model_import import ModelPlacement, mesh_bounds
 from cdmw.ui.new_item.item_preview_materials import (
     PlacementScene,
     as_parsed_mesh as _as_parsed_mesh,
-    flat_preview_normal_axis as _flat_preview_normal_axis,
     placement_reference_mesh as _placement_reference_mesh,
     prepare_preview_model as _prepare_preview_model,
     upgrade_item_preview_package_materials,
@@ -151,8 +150,8 @@ class _PreviewPackageTask:
 
         cached = lookup_rust_preview_package_from_model_identity(
             cache_root=self.output_root,
-            archive_identity=f"new_item_preview:v2:{token!r}",
-            semantic_view_axis="auto",
+            archive_identity=f"new_item_preview:v3:{token!r}",
+            semantic_view_axis="grounded",
             cancelled=stop_event.is_set,
         )
         if cached is None:
@@ -364,7 +363,6 @@ def _build_item_source_package(
         template_mesh = _as_parsed_mesh(reference) if reference is not None else None
         character_mesh = _as_parsed_mesh(character) if character is not None else None
         semantic_bounds = mesh_bounds(template_mesh if template_mesh is not None else model_mesh)
-        grid_normal_axis = _flat_preview_normal_axis(semantic_bounds)
         reference_mesh = _placement_reference_mesh(template_mesh, character_mesh)
         def build_placement_quality(quality: str):
             def publish(target: Optional[Path] = None):
@@ -377,12 +375,12 @@ def _build_item_source_package(
                     interaction_profile="static_replacement",
                     interaction_mode="placement",
                     reference_draw="wire",
-                    grid_normal_axis=grid_normal_axis,
+                    grid_normal_axis="y",
                     cancelled=stop_event.is_set,
                     scene_transform=item.placement.build_transform(origin=item.model_origin),
                     include_material_resources=bool(include_material_resources),
                     material_quality=quality,
-                    initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
+                    initial_view=semantic_initial_view(semantic_bounds, "grounded"),
                 )
 
             if normalized_cache_mode not in {"balanced", "aggressive"}:
@@ -437,7 +435,7 @@ def _build_item_source_package(
             target_bytes=cache_target_bytes,
             cancelled=stop_event.is_set,
             metadata={"surface": "new_item_studio", "source_token": repr(token)},
-            semantic_view_axis="auto",
+            semantic_view_axis="grounded",
             fast_package_ready=fast_package_ready,
         )
     else:
@@ -448,7 +446,6 @@ def _build_item_source_package(
         from cdmw.services.mesh_rust_authoring import rust_preview_mesh_needs_material_synthesis
 
         semantic_bounds = mesh_bounds(item)
-        grid_normal_axis = _flat_preview_normal_axis(semantic_bounds)
         package = progressive_material_package(
             lambda quality: build_rust_preview_package(
                 item,
@@ -456,11 +453,11 @@ def _build_item_source_package(
                 reference_mesh=None,
                 comparison_mode="replacement_only",
                 interaction_profile="static_replacement",
-                grid_normal_axis=grid_normal_axis,
+                grid_normal_axis="y",
                 cancelled=stop_event.is_set,
                 include_material_resources=bool(include_material_resources),
                 material_quality=quality,
-                initial_view=semantic_initial_view(semantic_bounds, grid_normal_axis),
+                initial_view=semantic_initial_view(semantic_bounds, "grounded"),
             ),
             needs_full_material_tier=rust_preview_mesh_needs_material_synthesis(item),
         )
@@ -483,7 +480,7 @@ def build_item_preview_package(
     resolved: it goes the Model Library's route and comes out textured), a bare
     `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
 
-    archive_identity = f"new_item_preview:v2:{token!r}"
+    archive_identity = f"new_item_preview:v3:{token!r}"
     normalized_cache_mode = str(cache_mode or "off").strip().lower()
     cacheable_template = (
         bool(include_material_resources)
@@ -499,7 +496,7 @@ def build_item_preview_package(
         cached_package = lookup_dotnet_preview_package_from_model_identity(
             cache_root=output_root,
             archive_identity=archive_identity,
-            semantic_view_axis="auto",
+            semantic_view_axis="grounded",
             cancelled=stop_event.is_set,
         )
         if cached_package is not None:
@@ -805,7 +802,7 @@ class ItemPreviewFrame(QWidget):
     ) -> None:
         """Show a `PlacementScene` (or a callable producing one) with the model at
         `placement` (`model_bounds`: the model's own-space bounds, for the host's
-        placement fallback; `grid_bounds`: the template's authoritative bounds), the
+        placement fallback; `grid_bounds`: retained for caller compatibility), the
         gizmo on when `gizmo_enabled`. The same token already showing only takes the new
         placement and gizmo state."""
 
@@ -816,9 +813,7 @@ class ItemPreviewFrame(QWidget):
         self._placement = placement
         self._gizmo_enabled = bool(gizmo_enabled)
         self._model_bounds = model_bounds
-        self._placement_grid_normal_axis = _flat_preview_normal_axis(
-            grid_bounds if grid_bounds is not None else model_bounds
-        )
+        self._placement_grid_normal_axis = "y"
         if same:
             if self.is_ready and self.host is not None:
                 if previous_model_bounds != model_bounds and model_bounds is not None:

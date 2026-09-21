@@ -864,7 +864,7 @@ class _ModelPreviewPackageRequest:
                 extents = tuple(abs(bounds[1][index] - bounds[0][index]) for index in range(3))
                 view_axis = ("x", "y", "z")[min((2, 0, 1), key=extents.__getitem__)]
             initial_view = semantic_initial_view(bounds, view_axis)
-            grid_normal_axis = view_axis
+            grid_normal_axis = "y" if view_axis == "grounded" else view_axis
         return build_rust_preview_package(
             mesh,
             output_package_dir=output_package_dir,

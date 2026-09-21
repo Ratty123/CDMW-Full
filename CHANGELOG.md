@@ -35,6 +35,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item keeps the placement grid horizontal for helmets, armour, weapons and other model shapes. Camera framing adjusts independently without changing mesh placement or attachment alignment; cached previews refresh automatically.
 - Create New Item can prepare translucency for cloth, fur and other template materials with usable colour inputs across weapons, armour and shields. Materials with placeholder base maps use their authored layers, and converted base colours retain alpha in BC7 textures.
 - Hair Tools accepts consecutive Draw strokes while earlier additions prepare and save, keeps pending locks visible, and preserves a separate Undo step for each stroke. Interrupted drags release the busy state, and the Mesh Editor spinner tracks background work instead of the active gesture.
 - Facial shape exports preserve case-distinct game targets such as `JawOpen` and `jawOpen`, including their different transforms.
