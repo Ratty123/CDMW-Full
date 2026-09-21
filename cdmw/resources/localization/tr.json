@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "Yarı saydam malzeme kaynakları belirsiz.",
     "Translucency requires a PAC and its material sidecar.": "Yarı saydamlık için bir PAC ve malzemenin eşlik eden dosyası gerekir.",
     "Translucency settings require replacement draft version 8.": "Yarı saydamlık ayarları, değiştirme taslağının 8. sürümünü gerektirir.",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "Yarı saydamlık: {value_0} (kalınlık {value_1}, sönüm {value_2})",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "Arşiv yaması ve kurulum işlemlerini bilinçli yazma işlemleri olarak değerlendirin: hedefi, onayı, yedeği ve çıkış modunu gözden geçirin. Normal önizleme, çıkarma ve gevşek paket oluşturma işlemleri arşivlere yama uygulamaz.",
     "Tree": "Ağaç",
     "Tree View": "Ağaç Görünümü",

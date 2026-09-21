@@ -1,6 +1,7 @@
 """Selected-part export, reversible preview and draft coverage for translucency."""
 
 import os
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
@@ -20,6 +21,72 @@ from cdmw.services.new_item_planning import NewItemPlanError
 from cdmw.services.new_item_translucency import selected_translucency, source_translucency, translucency_preview_mesh
 from cdmw.ui.new_item.state import NewItemDraft, spec_from_draft
 from tests.test_new_item_materials import XML, builder_files
+
+
+def prebuilt_glass_files():
+    from cdmw.core.pac_xml_standard_material import PlainMaterial, rewrite_materials
+    from tests.test_new_item_materials import GEM_BASE, GEM_EMI, GEM_MASK
+
+    files = builder_files()
+    original = files.side_files[XML].decode()
+    gem = find_material_wrappers(original)[1].submesh_name
+    text = rewrite_materials(original, {gem: PlainMaterial(
+        base=GEM_BASE, material=GEM_MASK, emissive_texture=GEM_EMI,
+        emissive_color="#FF0000FF", emissive_intensity=10, translucency=(0.1, 0.3),
+    )}).text
+    return replace(files, side_files={**files.side_files, XML: text.encode()})
+
+
+@pytest.mark.parametrize("current", [False, True])
+@pytest.mark.parametrize("selected_index", [0, 1])
+def test_prebuilt_plans_change_only_selected_absorption_and_keep_glass_glow_and_textures(tmp_path, current, selected_index):
+    from tests.test_new_item_provenance import setup_game, spec
+
+    service, snapshot, _ = setup_game(tmp_path, current=current)
+    files = prebuilt_glass_files()
+    original = files.side_files[XML].decode()
+    before = find_material_wrappers(original)
+    choice = TranslucencyChoice((before[selected_index].submesh_name,), 0.25, 0.6)
+    request = replace(spec(), model_source=ModelSource.IMPORTED, material_route=MaterialRoute.PLAIN_PBR,
+                      translucency=choice)
+    # Stop after real service/variant material preparation, before unrelated
+    # table composition and geometry rig validation on these owned fixture bytes.
+    with patch("cdmw.services.new_item_service.build_plan", side_effect=lambda *_args, **kwargs: kwargs), \
+         patch("cdmw.services.new_item_variants.validate_variant_rig"):
+        prepared = service.plan(request, snapshot, model=files)
+    output = next(iter(prepared["variant_models"].values())) if current else prepared["model"]
+    text = output.side_files[XML].decode()
+    after = find_material_wrappers(text)
+    assert output.pac_data == files.pac_data
+    assert {path: data for path, data in output.side_files.items() if path != XML} == {
+        path: data for path, data in files.side_files.items() if path != XML
+    }
+    for index, (old, new) in enumerate(zip(before, after)):
+        if index == selected_index:
+            assert new.shader == "SkinnedMeshTranslucent"
+            assert float(new.value("_thickness")) == 0.25
+            assert float(new.value("_extinctionCoefficient")) == 0.6
+            retained = lambda row: tuple(parameter for parameter in row.parameters
+                                         if parameter.name not in {"_thickness", "_extinctionCoefficient"})
+            assert retained(new) == retained(old)
+        else:
+            assert text[new.start:new.end] == original[old.start:old.end]
+    assert after[1].shader == "SkinnedMeshTranslucent"
+    assert after[1].value("_emissiveColor") == "#FF0000FF"
+    assert float(after[1].value("_emissiveIntensity")) == 10
+    assert files.side_files[XML].decode() == original
+
+
+def test_prebuilt_override_is_reversible_and_missing_selections_fail_without_mutation():
+    from cdmw.services.new_item_translucency import apply_prebuilt_translucency
+
+    files = prebuilt_glass_files()
+    assert apply_prebuilt_translucency(files, MaterialRoute.PLAIN_PBR, None) is files
+    with pytest.raises(NewItemPlanError, match="not found"):
+        apply_prebuilt_translucency(files, MaterialRoute.PLAIN_PBR, TranslucencyChoice(("missing",)))
+    with pytest.raises(NewItemPlanError, match="Plain PBR"):
+        apply_prebuilt_translucency(files, MaterialRoute.BUILDER, TranslucencyChoice(("missing",)))
+    assert files == prebuilt_glass_files()
 
 
 def test_export_changes_only_selected_material_and_preserves_texture_bytes():

@@ -82,10 +82,9 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
         if model is None:
             raise ValueError(f"Apply the imported model for {appearance.model_path} before planning.")
         if isinstance(model, ModelFiles):
-            files = model
-            if appearance.translucency is not None:
-                files = route_model_files(files, MaterialRoute(appearance.material_route),
-                                          translucency=appearance.translucency, on_log=on_log)
+            from cdmw.services.new_item_translucency import apply_prebuilt_translucency
+            files = apply_prebuilt_translucency(model, MaterialRoute(appearance.material_route),
+                                               appearance.translucency, on_log=on_log)
         else:
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,

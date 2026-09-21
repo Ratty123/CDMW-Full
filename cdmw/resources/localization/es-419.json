@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "Las fuentes del material translúcido son ambiguas.",
     "Translucency requires a PAC and its material sidecar.": "La translucidez requiere un PAC y su archivo complementario de material.",
     "Translucency settings require replacement draft version 8.": "Los ajustes de translucidez requieren la versión 8 del borrador de reemplazo.",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "Translucidez: {value_0} (grosor {value_1}, extinción {value_2})",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "Trata las acciones de parcheo e instalación de archivos como escrituras deliberadas: revisa el destino, la confirmación, la copia de seguridad y el modo de salida. La vista previa, la extracción y la creación normal de paquetes sueltos no parchean archivos.",
     "Tree": "Árbol",
     "Tree View": "Vista de árbol",

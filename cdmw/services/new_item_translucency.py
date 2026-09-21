@@ -2,9 +2,40 @@
 
 import copy
 import math
+from dataclasses import replace
 
+from cdmw.domain.new_item.spec import MaterialRoute
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.services.new_item_planning import NewItemPlanError
+
+
+def apply_prebuilt_translucency(files, route: MaterialRoute, choice: TranslucencyChoice | None, *, on_log=None):
+    """Prebuilt materials already own their textures and glow; patch only the selection."""
+    if choice is None:
+        return files
+    if route is not MaterialRoute.PLAIN_PBR:
+        raise NewItemPlanError("Enable Plain PBR materials to export translucency.")
+    choice.validate()
+    from cdmw.core.pac_xml_standard_material import PacXmlMaterialError, rewrite_translucency
+
+    xml_keys = [key for key in files.side_files if key.lower().endswith(".pac_xml")]
+    if len(xml_keys) != 1:
+        raise NewItemPlanError(f"the import carries {len(xml_keys)} .pac_xml sidecar(s), not one")
+    key = xml_keys[0]
+    try:
+        text = files.side_files[key].decode("utf-8")
+        text = rewrite_translucency(text, {name: (choice.thickness, choice.extinction) for name in choice.parts})
+    except (UnicodeDecodeError, PacXmlMaterialError) as exc:
+        raise NewItemPlanError(str(exc)) from exc
+    note = "Translucency: " + ", ".join(choice.parts) + f" (thickness {choice.thickness:g}, extinction {choice.extinction:g})"
+    if on_log is not None:
+        on_log(note)
+    return replace(
+        files, side_files={**files.side_files, key: text.encode("utf-8")}, material_route=route.value,
+        notes=(*files.notes, note), warnings=(*files.warnings,
+            "Experimental SkinnedMeshTranslucent: thickness and extinction control absorption. "
+            "Viewport transmission is approximate; game refraction and lighting may differ."),
+    )
 
 
 def source_translucency(source) -> tuple[float, float] | None:

@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "Источники полупрозрачного материала неоднозначны.",
     "Translucency requires a PAC and its material sidecar.": "Для полупрозрачности нужны PAC и сопутствующий файл материала.",
     "Translucency settings require replacement draft version 8.": "Настройки полупрозрачности требуют версии 8 черновика замены.",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "Полупрозрачность: {value_0} (толщина {value_1}, затухание {value_2})",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "Считайте действия по исправлению и установке архивов намеренными операциями записи: проверьте цель, подтверждение, резервную копию и режим вывода. Обычный предварительный просмотр, извлечение и создание свободных пакетов не изменяют архивы.",
     "Tree": "Дерево",
     "Tree View": "Вид на дерево",

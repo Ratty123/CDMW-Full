@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "반투명 재질 소스가 모호합니다.",
     "Translucency requires a PAC and its material sidecar.": "반투명도에는 PAC와 해당 재질 보조 파일이 필요합니다.",
     "Translucency settings require replacement draft version 8.": "반투명도 설정에는 교체 초안 버전 8이 필요합니다.",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "반투명: {value_0} (두께 {value_1}, 소광 {value_2})",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "아카이브 패치와 설치 작업은 의도적인 쓰기 작업으로 취급하세요. 대상, 확인, 백업, 출력 모드를 검토하세요. 일반적인 미리 보기, 추출, 느슨한 패키지 생성은 아카이브를 패치하지 않습니다.",
     "Tree": "나무",
     "Tree View": "트리뷰",

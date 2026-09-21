@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "半透明材质来源不明确。",
     "Translucency requires a PAC and its material sidecar.": "半透明需要 PAC 及其材质附属文件。",
     "Translucency settings require replacement draft version 8.": "半透明设置需要替换草稿版本 8。",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "半透明：{value_0}（厚度 {value_1}，消光 {value_2}）",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "将归档补丁和安装操作视为有意的写入：检查目标、确认、备份和输出模式。普通预览、提取和松散包创建不会修改归档。",
     "Tree": "树木",
     "Tree View": "树视图",

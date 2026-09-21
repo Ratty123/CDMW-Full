@@ -962,6 +962,20 @@ def prepare_model_import_mesh_edit(
     _name_separated_parts_uniquely(mesh)
     edited_scene = copy.copy(scene)
     setattr(edited_scene, "mesh", mesh)
+    # The editor can delete, reorder or split parts. Bindings from the imported
+    # scene must follow material identity, never the previous submesh offsets.
+    if getattr(scene, "material_bindings", ()):
+        by_material = {}
+        for binding in scene.material_bindings:
+            by_material.setdefault(binding.material_name.casefold(), []).append(binding)
+        rebound = []
+        for index, part in enumerate(mesh.submeshes):
+            candidates = by_material.get(str(part.material or "").casefold(), ())
+            if not candidates:
+                continue
+            binding = next((value for value in candidates if value.submesh_name == part.name), candidates[0])
+            rebound.append(replace(binding, submesh_index=index, submesh_name=part.name))
+        edited_scene.material_bindings = tuple(rebound)
     preview_model = parsed_mesh_to_preview_model(mesh)
     raise_if_cancelled(stop_event)
     texture_count = int(attach_scene_preview_textures(preview_model, edited_scene, Path(model_path)) or 0)

@@ -39,8 +39,9 @@ def write_gltf(root, materials, images):
     return path
 
 
-def export_materials(path, root, *, socket_attached=False, atlas=False, glow=None, translucency=None):
-    scene = import_scene_mesh_with_report(path)
+def export_materials(path, root, *, socket_attached=False, atlas=False, glow=None, translucency=None, scene=None):
+    if scene is None:
+        scene = import_scene_mesh_with_report(path)
     if socket_attached:
         from dataclasses import replace
 
@@ -178,6 +179,50 @@ def test_source_transmission_is_independent_of_alpha_mode(tmp_path, transmission
                   "extensions": {"KHR_materials_transmission": {"transmissionFactor": transmission}}}]
     _, _, wrappers = export_materials(write_gltf(tmp_path, materials, []), tmp_path)
     assert wrappers["Glass"].shader == shader
+
+
+@pytest.mark.parametrize("edit", ["delete", "reorder"])
+def test_mesh_edit_rebinds_glass_and_emission_to_the_surviving_materials(tmp_path, edit):
+    from cdmw.modding.mesh_edit_ops import _delete_submeshes
+    from cdmw.services.new_item_translucency import translucency_preview_parameter_groups
+    from cdmw.ui.new_item.model_import import prepare_model_import_mesh_edit
+
+    Image.new("RGB", (16, 16), "white").save(tmp_path / "glass.png")
+    path = write_gltf(tmp_path, [
+        {"name": "Opaque", "pbrMetallicRoughness": {"baseColorFactor": [0.2, 0.2, 0.2, 1]}},
+        {"name": "Glass", "alphaMode": "BLEND", "doubleSided": True,
+         "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [1, 0, 0, 0.5]},
+         "extensions": {"KHR_materials_transmission": {"transmissionFactor": 0.5}}},
+        {"name": "Glow", "emissiveFactor": [1, 0, 0],
+         "pbrMetallicRoughness": {"baseColorFactor": [0, 1, 0.7911, 1]},
+         "extensions": {"KHR_materials_emissive_strength": {"emissiveStrength": 10}}},
+    ], ["glass.png"])
+    scene = import_scene_mesh_with_report(path)
+    original_bindings = deepcopy(scene.material_bindings)
+    mesh = deepcopy(scene.mesh)
+    if edit == "delete":
+        _delete_submeshes(mesh, [0])
+    else:
+        mesh.submeshes.reverse()
+    edited_scene, _, _, _ = prepare_model_import_mesh_edit(mesh, scene=scene, model_path=path)
+    assert scene.material_bindings == original_bindings
+    for binding in edited_scene.material_bindings:
+        part = mesh.submeshes[binding.submesh_index]
+        assert binding.material_name == part.material
+        assert binding.submesh_name == part.name
+        original = next(row for row in original_bindings if row.material_name == part.material)
+        assert binding.texture_slots == original.texture_slots
+    assert {binding.material_name for binding in edited_scene.material_bindings} == {part.material for part in mesh.submeshes}
+    _, files, wrappers = export_materials(path, tmp_path, scene=edited_scene, socket_attached=True)
+    assert wrappers["Glass"].shader == "SkinnedMeshTranslucent"
+    assert pixels(files, wrappers["Glass"])[0, 0].tolist() == [255, 0, 0, 128]
+    assert wrappers["Glow"].shader == "SkinnedMeshEmissive"
+    assert wrappers["Glow"].value("_emissiveColor") == "#FF0000FF"
+    assert float(wrappers["Glow"].value("_emissiveIntensity")) == 10
+    preview = translucency_preview_parameter_groups(mesh)
+    assert [group["translucency"] for group in preview] == [
+        [0.1, 0.3] if part.material == "Glass" else None for part in mesh.submeshes
+    ]
 
 
 def test_shared_images_and_factor_only_materials_keep_their_own_colour(tmp_path):

@@ -90,6 +90,11 @@ MANUAL_SOURCE_KEYS = frozenset(
         "The imported skin weights reference bones outside the target palette.",
         "Armour weight donor: {value_0}",
         "Armour weights were transferred from the character body. Check fit and deformation; cloth simulation is not rebuilt.",
+        # Shared core material errors surface through New Item and Mesh Editor.
+        "The material has no editable parameter vector.",
+        "Translucency material bindings were not found: {value_0}",
+        "Translucency material sidecar exceeds the supported size limit.",
+        "{value_0}: this material has no base colour texture. Convert it to Plain PBR before using translucency.",
         # Pure overlay composition errors reach the installed-overlay dialog.
         "Overlay conflict in {value_0}; both installs change the same record.",
         "Unsupported table directory layout.",

@@ -9638,6 +9638,7 @@
     "Translucency material sources are ambiguous.": "Translucency material sources are ambiguous.",
     "Translucency requires a PAC and its material sidecar.": "Translucency requires a PAC and its material sidecar.",
     "Translucency settings require replacement draft version 8.": "Translucency settings require replacement draft version 8.",
+    "Translucency: {value_0} (thickness {value_1}, extinction {value_2})": "Translucency: {value_0} (thickness {value_1}, extinction {value_2})",
     "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.": "Treat archive patch and install actions as deliberate writes: review the target, confirmation, backup, and output mode. Ordinary preview, extraction, and loose-package creation do not patch archives.",
     "Tree": "Tree",
     "Tree View": "Tree View",

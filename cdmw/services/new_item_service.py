@@ -235,7 +235,8 @@ class NewItemService:
         A Builder result's materials are written the way `spec.material_route` says;
         the plain-PBR route reads the source's own textures through `scene` (the
         scene import result the Builder ran from) when it is given, and falls back
-        to the Builder's textures when it is not. `ModelFiles` are taken as they are.
+        to the Builder's textures when it is not. `ModelFiles` retain their authored
+        materials; an explicit translucency choice edits only its selected wrappers.
 
         A generated icon comes either pre-built (`icon`) or from `icon_source_path`,
         which this builds through the icon generator first.
@@ -273,9 +274,8 @@ class NewItemService:
             # Running the legacy conversion here would apply the primary rig twice.
             pass
         elif isinstance(model, ModelFiles):
-            files = model
-            if allocated.translucency is not None:
-                files = route_model_files(files, allocated.material_route, translucency=allocated.translucency, on_log=on_log)
+            from cdmw.services.new_item_translucency import apply_prebuilt_translucency
+            files = apply_prebuilt_translucency(model, allocated.material_route, allocated.translucency, on_log=on_log)
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")

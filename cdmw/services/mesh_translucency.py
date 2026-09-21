@@ -1,9 +1,8 @@
 """Reversible per-part translucency, built from captured material sidecars."""
 
 from dataclasses import replace
-import re
 
-from cdmw.core.pac_xml_standard_material import find_material_wrappers, TRANSLUCENT_SHADER
+from cdmw.core.pac_xml_standard_material import rewrite_translucency
 from cdmw.domain.mesh.translucency import translucency_values
 from cdmw.services.mesh_replacement_materials import _sidecar_text
 
@@ -31,43 +30,7 @@ def build_translucency_files(state, original, companion_files):
     source = files.get(path, sources.get(path))
     if source is None:
         raise ValueError("The matching PAC XML is missing. Open this item from the archive to edit translucency.")
-    text = _sidecar_text(source.data)
-    if len(text) > 16 * 1024 * 1024:
-        raise ValueError("Translucency material sidecar exceeds the supported size limit.")
-    edits, found = [], set()
-    for wrapper in find_material_wrappers(text):
-        name = wrapper.submesh_name.casefold()
-        if name not in settings:
-            continue
-        if not wrapper.textures.get("_baseColorTexture"):
-            raise ValueError(
-                f"{wrapper.submesh_name}: this material has no base colour texture. "
-                "Convert it to Plain PBR before using translucency."
-            )
-        found.add(name)
-        block = text[wrapper.start:wrapper.end]
-        block = block.replace(f'_materialName="{wrapper.shader}"', f'_materialName="{TRANSLUCENT_SHADER}"', 1)
-        newline = "\r\n" if "\r\n" in block else "\n"
-        for parameter, item_id, value in (
-            ("_thickness", "3214133184954366", settings[name][0]),
-            ("_extinctionCoefficient", "3161969463918590", settings[name][1]),
-        ):
-            # Remove only these two overrides, leaving emission, permutations,
-            # texture paths and unfamiliar game parameters intact.
-            block = re.sub(r'<MaterialParameterFloat\b[^>]*\bStringItemID="' + parameter
-                           + r'"[^>]*/>', "", block)
-            used = [int(index) for index in re.findall(r'\bIndex="(\d+)"', block)]
-            row = (f'<MaterialParameterFloat StringItemID="{parameter}" ItemID="{item_id}" '
-                   f'_name="{parameter}" _value="{value:.6f}" Index="{max(used, default=-1) + 1}"/>')
-            position = block.rfind("</Vector>")
-            if position < 0:
-                raise ValueError("The material has no editable parameter vector.")
-            block = block[:position] + row + newline + wrapper.indent + "\t" + block[position:]
-        edits.append((wrapper.start, wrapper.end, block))
-    if settings.keys() - found:
-        raise ValueError("Translucency material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))
-    for start, end, block in reversed(edits):
-        text = text[:start] + block + text[end:]
+    text = rewrite_translucency(_sidecar_text(source.data), settings)
     files[path] = replace(source, data=text.encode("utf-8"))
     return tuple(files.values())
 

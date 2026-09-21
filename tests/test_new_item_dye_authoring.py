@@ -224,6 +224,59 @@ def test_template_dye_preview_ignores_retained_inactive_import(tmp_path):
     controller.shutdown()
 
 
+@pytest.mark.parametrize("prebuilt", [False, True])
+def test_dye_preview_keeps_the_same_translucency_as_export(tmp_path, prebuilt):
+    import threading
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+    from cdmw.domain.new_item.authoring import VariantAppearance
+    from cdmw.domain.new_item.spec import MaterialRoute
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.services.new_item_materials import route_model_files
+    from cdmw.services.new_item_translucency import apply_prebuilt_translucency
+    from cdmw.ui.new_item.dye_preview import variant_dye_preview_source
+    from tests.test_new_item_materials import XML, builder_files
+    from tests.test_new_item_translucency import prebuilt_glass_files
+
+    files = prebuilt_glass_files() if prebuilt else builder_files()
+    name = find_material_wrappers(files.side_files[XML].decode())[0].submesh_name
+    model_path = XML.replace("/modelproperty/", "/model/").removesuffix("_xml")
+    choice = VariantAppearance("fixture.prefab", model_path, custom_model=True,
+                               translucency=TranslucencyChoice((name,), 0.25, 0.6))
+    result = files if prebuilt else SimpleNamespace()
+    state = SimpleNamespace(appearance=choice, result=result, source=None, scene=None)
+    snapshot = SimpleNamespace(entry=lambda path: SimpleNamespace(path=path), family=lambda _key: SimpleNamespace(),
+                               payload=lambda _path: files.side_files[XML])
+    controller = SimpleNamespace(current_variant_identity=lambda: choice.identity, snapshot=snapshot,
+        _sync_variant_state=lambda: None, _variant_states={choice.identity: state}, draft=SimpleNamespace(template_key=1))
+    captured = []
+
+    class CapturedMaterial(Exception):
+        pass
+
+    def capture(_row, material, *_args, **_kwargs):
+        captured.append(material)
+        raise CapturedMaterial()
+
+    with patch("cdmw.ui.new_item.dye_preview.variant_family", return_value=SimpleNamespace()), \
+         patch("cdmw.services.new_item_planning.model_files_from_import", return_value=files), \
+         patch("cdmw.ui.new_item.dye_preview.load_dye_index", return_value=SimpleNamespace(rows={model_path.casefold(): object()})), \
+         patch("cdmw.ui.new_item.dye_preview.prepare_dye_assignments", side_effect=capture):
+        _token, preview = variant_dye_preview_source(controller)
+        with pytest.raises(CapturedMaterial):
+            preview.materials(threading.Event(), output_root=tmp_path, native_preview_core_cache_root=tmp_path)
+    expected = (apply_prebuilt_translucency(files, MaterialRoute.PLAIN_PBR, choice.translucency) if prebuilt else
+                route_model_files(files, MaterialRoute.PLAIN_PBR, result=result, translucency=choice.translucency))
+    assert captured == [expected.side_files[XML]]
+    selected = find_material_wrappers(captured[0].decode())[0]
+    assert selected.shader == "SkinnedMeshTranslucent"
+    assert float(selected.value("_thickness")) == 0.25
+    assert float(selected.value("_extinctionCoefficient")) == 0.6
+    if prebuilt:
+        gem = find_material_wrappers(captured[0].decode())[1]
+        assert gem.shader == "SkinnedMeshTranslucent"
+        assert gem.value("_emissiveColor") == "#FF0000FF"
+
+
 def test_dye_mask_revisions_reject_stale_requests_and_invalidate_export(tmp_path):
     from cdmw.services.new_item_dyes import dye_mask_revision, read_dye_mask
     from cdmw.services.new_item_provenance import SourceTracker, StaleNewItemSource

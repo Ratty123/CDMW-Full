@@ -109498,13 +109498,8 @@
     },
     {
       "key": "The material has no editable parameter vector.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_translucency.py",
-          "line": 64,
-          "sink": "ValueError"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "The material preview ended without a package.",
@@ -113068,23 +113063,13 @@
     },
     {
       "key": "Translucency material bindings were not found: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_translucency.py",
-          "line": 68,
-          "sink": "ValueError"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Translucency material sidecar exceeds the supported size limit.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_translucency.py",
-          "line": 36,
-          "sink": "ValueError"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Translucency material sources are ambiguous.",
@@ -113118,6 +113103,16 @@
           "path": "cdmw/services/mesh_replacement_draft.py",
           "line": 128,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translucency: {value_0} (thickness {value_1}, extinction {value_2})",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_translucency.py",
+          "line": 32,
+          "sink": "on_log"
         }
       ]
     },
@@ -143798,13 +143793,8 @@
     },
     {
       "key": "{value_0}: this material has no base colour texture. Convert it to Plain PBR before using translucency.",
-      "origins": [
-        {
-          "path": "cdmw/services/mesh_translucency.py",
-          "line": 43,
-          "sink": "ValueError"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "{value_0}: unknown",

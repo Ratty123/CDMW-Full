@@ -37,9 +37,11 @@ def variant_dye_preview_source(controller):
         if result is None:
             return ModelFiles(snapshot.payload(choice.model_path),{material_path:snapshot.payload(material_path)})
         if isinstance(result,ModelFiles):
-            return result
+            from cdmw.services.new_item_translucency import apply_prebuilt_translucency
+            return apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency)
         files = model_files_from_import(result,family=variant_family(snapshot.family(template_key),choice))
-        return route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,glow=choice.glow_choice())
+        return route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
+                                 glow=choice.glow_choice(),translucency=choice.translucency)
 
     def geometry(stop_event):
         from cdmw.services.mesh_workflow_service import parse_pac

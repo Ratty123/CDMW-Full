@@ -115,6 +115,8 @@ down at the model; Frame restores that view. Older cached previews rebuild once
 to replace their underneath view.
 Plain-PBR exports keep each source material's roughness/metalness and emissive
 outputs separate even when the Builder shares a colour texture between parts.
+After Mesh Editor deletes, reorders or separates parts, material bindings follow
+the surviving materials so glass, glow and texture ownership stay with each part.
 New Item disables the Builder's automatic brightness balancing so exported colour
 textures retain the authored dark detail and highlights shown in the import preview.
 Generated texture reuse includes the material's factors, normal scale and colour
@@ -160,6 +162,9 @@ their source glass or ordinary Plain PBR route. Settings follow each model varia
 The resident Rust viewport updates without rebuilding geometry and restores the
 source defaults when the manual override is disabled. Effects previews carry the
 same settings. Switching to Builder clears the automatic glass preview.
+Dye previews use the same translucency choices as export. For prebuilt imports,
+manual translucency changes only the selected shaders and absorption values;
+existing glow, texture bindings, other parameters and unselected materials are kept.
 The viewport approximates the game's absorption with sorted alpha blending; it
 does not reproduce scene refraction, coloured background transmission, game
 lighting or shadow behaviour. The glass shader can change apparent brightness and

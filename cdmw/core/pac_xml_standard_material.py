@@ -248,6 +248,49 @@ def plain_material_xml(material: PlainMaterial, *, indent: str = "", newline: st
     return newline.join(lines)
 
 
+def rewrite_translucency(text: str, settings: Mapping[str, Tuple[float, float]]) -> str:
+    """Edit only selected shaders and absorption, retaining every other parameter."""
+    if len(text) > 16 * 1024 * 1024:
+        raise PacXmlMaterialError("Translucency material sidecar exceeds the supported size limit.")
+    settings = {name.casefold(): values for name, values in settings.items()}
+    for values in settings.values():
+        if len(values) != 2 or any(not 0 <= value <= 1 for value in values):
+            raise PacXmlMaterialError("translucency needs thickness and extinction in 0..1")
+    edits, found = [], set()
+    for wrapper in find_material_wrappers(text):
+        name = wrapper.submesh_name.casefold()
+        if name not in settings:
+            continue
+        if not wrapper.textures.get("_baseColorTexture"):
+            raise PacXmlMaterialError(
+                f"{wrapper.submesh_name}: this material has no base colour texture. "
+                "Convert it to Plain PBR before using translucency."
+            )
+        found.add(name)
+        block = text[wrapper.start:wrapper.end]
+        block = block.replace(f'_materialName="{wrapper.shader}"', f'_materialName="{TRANSLUCENT_SHADER}"', 1)
+        newline = _newline_of(block)
+        for parameter, item_id, value in (
+            ("_thickness", "3214133184954366", settings[name][0]),
+            ("_extinctionCoefficient", "3161969463918590", settings[name][1]),
+        ):
+            block = re.sub(r'<MaterialParameterFloat\b[^>]*\bStringItemID="' + parameter
+                           + r'"[^>]*/>', "", block)
+            used = [int(index) for index in re.findall(r'\bIndex="(\d+)"', block)]
+            row = (f'<MaterialParameterFloat StringItemID="{parameter}" ItemID="{item_id}" '
+                   f'_name="{parameter}" _value="{value:.6f}" Index="{max(used, default=-1) + 1}"/>')
+            position = block.rfind("</Vector>")
+            if position < 0:
+                raise PacXmlMaterialError("The material has no editable parameter vector.")
+            block = block[:position] + row + newline + wrapper.indent + "\t" + block[position:]
+        edits.append((wrapper.start, wrapper.end, block))
+    if settings.keys() - found:
+        raise PacXmlMaterialError("Translucency material bindings were not found: " + ", ".join(sorted(settings.keys() - found)))
+    for start, end, block in reversed(edits):
+        text = text[:start] + block + text[end:]
+    return text
+
+
 def rewrite_materials(text: str, replacements: Mapping[str, PlainMaterial]) -> RewriteResult:
     """Replace the `<Material>` of each named wrapper (by `_subMeshName`, case-insensitive)
     with the plain material given for it. Wrappers not named are left byte for byte."""
@@ -286,4 +329,5 @@ __all__ = [
     "find_material_wrappers",
     "plain_material_xml",
     "rewrite_materials",
+    "rewrite_translucency",
 ]
