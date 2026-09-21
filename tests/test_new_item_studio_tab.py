@@ -126,8 +126,10 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         from cdmw.ui.new_item.tab import NewItemStudioTab
 
         if window is not None:
-            window.archive = window
-            window.shell = window
+            if not hasattr(window, "archive"):
+                window.archive = window
+            if not hasattr(window, "shell"):
+                window.shell = window
         controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
         tab = NewItemStudioTab(window=window, controller=controller, get_archive_entries=lambda: self.entries, **kwargs)
         self._tabs.append(tab)
@@ -524,10 +526,12 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
         initial_performance = ArchivePerformanceSettings(native_preview_cache_mode="aggressive")
         archive_cache_root = self.root / "archive-cache"
         window = SimpleNamespace(
-            archive_cache_root=archive_cache_root,
-            settings_tab=settings_tab,
-            _current_model_preview_render_settings=lambda: initial,
-            _current_archive_performance_settings=lambda: initial_performance,
+            archive=SimpleNamespace(
+                archive_cache_root=archive_cache_root,
+                _current_model_preview_render_settings=lambda: initial,
+            ),
+            shell=SimpleNamespace(settings_tab=settings_tab,
+                                  _current_archive_performance_settings=lambda: initial_performance),
         )
         tab = self._tab(window=window)
         tab._mount_panels()
@@ -540,6 +544,14 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
             archive_cache_root / "preview" / "native",
         )
         self.assertEqual(tab.controller._template_preview_context["render_settings"], initial)
+        self.assertEqual(tab.controller._template_preview_context["native_preview_core_cache_root"],
+                         archive_cache_root / "preview" / "native")
+        template_build = object()
+        with patch.object(tab.controller, "_template_preview_build", return_value=("template", template_build)):
+            source = tab.controller.item_effect_preview_source()
+        self.assertIs(source.template_build, template_build)
+        self.assertEqual(source.preview_context["native_preview_core_cache_root"],
+                         archive_cache_root / "preview" / "native")
         effects_tuning = []
         tab.perks_panel.effects_workspace.placement = SimpleNamespace(set_render_settings=effects_tuning.append)
 

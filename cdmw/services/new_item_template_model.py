@@ -144,6 +144,7 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
     selected_glass = {name.casefold() for name in (translucency.parts if translucency else ())}
     found_glow, found_glass = set(), set()
     side, geometry = {}, {}
+    notes = ["Template geometry and authored materials retained with explicit appearance/placement edits."]
     solid = None
     for path in paths:
         raise_if_cancelled(stop_event)
@@ -171,6 +172,12 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
             if name in selected_glass:
                 found_glass.add(name)
                 glass[name] = translucency.values_for(name)
+        if glass:
+            from cdmw.services.new_item_template_materials import bake_template_translucency
+
+            text, textures, baked_notes = bake_template_translucency(snapshot, text, path, glass, stop_event=stop_event)
+            side.update(textures)
+            notes.extend(baked_notes)
         if emission:
             text = rewrite_emission(text, emission)
         if glass:
@@ -182,4 +189,4 @@ def prepare_template_model(snapshot, paths, *, glow=None, translucency=None, tra
         raise NewItemPlanError("Template material bindings were not found: " + ", ".join(sorted(missing)))
     side.update({path: data for path, data in geometry.items() if path != paths[0]})
     return ModelFiles(pac_data=geometry[paths[0]], side_files=side, material_route="template",
-                      notes=("Template geometry and authored materials retained with explicit appearance/placement edits.",))
+                      notes=tuple(notes))

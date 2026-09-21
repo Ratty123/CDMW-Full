@@ -30,6 +30,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item now reaches Browse Archives' shared native texture cache in the assembled app, avoiding the slower fallback path and retaining template textures, glow and translucency in Perks & Effects.
+- Build plan converts selected layered template materials into textures for translucency instead of failing with "no base colour texture". Other parts keep their materials; the plan identifies baked parts and missing texture inputs.
 - Applying Glow or Translucency to a template in New Item no longer leaves a grey model when the Python preview decoder is used. Template textures are prepared and retained before appearance edits are applied.
 - Hair Tools no longer crashes when Show character bust is turned off before creating hair or when all hair is hidden. Empty scenes and meshes with no faces render safely, and the bust can be shown again without changing the hairstyle.
 - Hair Tools' Comb, Smooth, Curl and Clump brushes reach short and thin locks inside the brush circle, with Follow scalp on or off. Hair hidden behind the character or nearer locks remains protected.

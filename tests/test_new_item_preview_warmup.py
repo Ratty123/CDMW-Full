@@ -154,17 +154,17 @@ def test_tab_routes_warmup_to_the_same_native_cache_as_template_preview(tmp_path
     from cdmw.ui.new_item.tab import NewItemStudioTab
 
     app = QApplication.instance() or QApplication([])
-    window = SimpleNamespace(archive_cache_root=tmp_path / "archive-cache")
-    window.shell = window
-    window.archive = window
-    window.textures = window
+    window = SimpleNamespace(
+        archive=SimpleNamespace(archive_cache_root=tmp_path / "archive-cache"),
+        shell=SimpleNamespace(), textures=SimpleNamespace(),
+    )
     tab = NewItemStudioTab(window=window, get_package_root=lambda: str(tmp_path))
     tab._preview_cache_mode = cache_mode
     requests = []
     monkeypatch.setattr(tab.controller, "start_snapshot", lambda *args, **kwargs: requests.append(kwargs) or False)
     try:
         tab.start_snapshot()
-        expected = runtime_cache_layout(window.archive_cache_root).native_preview_root
+        expected = runtime_cache_layout(window.archive.archive_cache_root).native_preview_root
         assert requests[0]["native_preview_core_cache_root"] == (expected if cache_mode == "balanced" else None)
         assert requests[0]["preview_render_settings"] == tab._preview_render_settings
         assert tab._native_preview_core_cache_root() == expected

@@ -271,7 +271,7 @@ def plan_variant_files(planner):
             imported = choice is not None and choice.custom_model
             if imported and model is None:
                 raise ValueError(f"No applied model for {old}")
-            if imported:
+            if model is not None:
                 planner.summary.extend(f"  {old}: {note}" for note in model.notes)
                 planner.warnings.extend(f"{old}: {warning}" for warning in model.warnings)
             payload = model.pac_data if model is not None else snapshot.payload(old)

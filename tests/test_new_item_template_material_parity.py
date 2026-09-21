@@ -11,7 +11,7 @@ from cdmw.ui.new_item.item_preview import PlacementScene, build_item_preview_pac
 from tests.test_rust_preview_material_oracle_parity import _layer, _write_dds, _write_preview_core_package
 
 
-@pytest.mark.parametrize("surface", ["appearance", "appearance_edits", "placement", "effects"])
+@pytest.mark.parametrize("surface", ["appearance", "appearance_edits", "placement", "effects", "effects_edits"])
 def test_combined_template_retains_browse_archives_material_graph(tmp_path, monkeypatch, surface):
     native = tmp_path / "native"
     native.mkdir()
@@ -33,7 +33,7 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
     assert mesh_names_textures(template)
     monkeypatch.setattr(mesh_rust_authoring, "compile_mesh_dotnet_material_manifest",
                         lambda *_args, **_kwargs: pytest.fail("canonical template textures must not be synthesized again"))
-    if surface == "appearance_edits":
+    if surface.endswith("_edits"):
         from cdmw.domain.new_item.spec import GlowChoice
         from cdmw.domain.new_item.translucency import TranslucencyChoice
         from cdmw.services.new_item_materials import glow_preview_mesh
@@ -42,7 +42,7 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
         parts = (template.submeshes[0].material,)
         template = glow_preview_mesh(template, GlowChoice(parts, (0.0, 0.0, 1.0), 6.0))
         template = translucency_preview_mesh(template, TranslucencyChoice(parts, 0.1, 0.3))
-    if surface == "effects":
+    if surface.startswith("effects"):
         from cdmw.services.effect_placement_preview import build_effect_placement_package
         combined = build_effect_placement_package(template, (-1, -1, -1), (1, 1, 1),
             output_root=tmp_path / "effects", include_body=False, include_item_textures=True).package_dir
@@ -80,7 +80,7 @@ def test_combined_template_retains_browse_archives_material_graph(tmp_path, monk
     index = combined_manifest["preview_core_material_graph"]["materials"][0]["material_index"]
     presentation = next(row for row in combined_manifest["material_presentations"] if row["material_index"] == index)
     expected = archive_manifest["material_presentations"][0]
-    if surface == "appearance_edits":
+    if surface.endswith("_edits"):
         assert presentation["emissive_intensity"] == 6.0
         assert presentation["emissive_color"] == [0.0, 0.0, 1.0]
         assert presentation["translucency"] == [0.1, 0.3]

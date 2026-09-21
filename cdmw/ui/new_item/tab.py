@@ -435,7 +435,7 @@ class NewItemStudioTab(QWidget):
             self.open_model_source(model_path)
 
     def _native_preview_core_cache_root(self) -> Path | None:
-        archive_root = getattr(self._window, "archive_cache_root", None)
+        archive_root = getattr(getattr(self._window, "archive", None), "archive_cache_root", None)
         return runtime_cache_layout(archive_root).native_preview_root if archive_root is not None else None
 
     def _mount_panels(self) -> None:

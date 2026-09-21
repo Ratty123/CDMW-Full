@@ -184,6 +184,16 @@ Imported resident previews update without rebuilding geometry; template previews
 recompose their cached native material inputs. Both restore source defaults when the
 manual override is disabled. Effects previews carry the
 same settings. Switching to Builder clears the automatic glass preview.
+For layered `SkinnedMeshStandard_Ver2` / `SkinnedMeshEmissive_Ver2` templates
+without a base-colour map, Build plan bakes only the selected parts into Plain PBR
+textures before applying translucency. It uses the shared material combiner's
+colour layers, masks, tints, normal and surface maps, up to 2048px, with complete
+DDS mipmaps and game normal orientation. Authored emission masks and colours
+remain bound; explicit Glow overrides still apply. Unselected wrappers and source
+archives are unchanged. The plan summary identifies the baked parts: their dye
+colours become fixed in the textures. This conversion is approximate; in-game
+appearance remains unverified. Missing textures and decode failures identify the
+part and source path instead of exporting grey replacement textures.
 Dye previews use the same translucency choices as export. For prebuilt imports,
 manual translucency changes only the selected shaders and absorption values;
 existing glow, texture bindings, other parameters and unselected materials are kept.
@@ -210,6 +220,10 @@ produced by native Preview Core. Native template loading avoids a duplicate Pyth
 geometry decode. Its canonical material package is cached for Model & Placement and
 Perks & Effects, with texture resources leased until the consuming scene owns them.
 Effects uses the same archive render settings as the shared template viewport.
+New Item reads the cache root from the archive owner, just as Browse Archives does;
+warm-up, Model & Placement and Effects share that native cache. The shell's cache
+mode and viewport settings remain connected even though the shell and archive
+owners are separate objects.
 Native material failures are reported instead of silently switching material pipelines.
 With a resident archive session, `template_preview_dependencies.py` uses Browse
 Archives' bounded association/preparation provider for every selected model and
