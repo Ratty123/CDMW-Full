@@ -9,6 +9,77 @@ from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.services.new_item_planning import NewItemPlanError
 
 
+def encode_translucent_base(source, *, on_log=None) -> bytes | None:
+    """Encode glass colour from authored pixels, never from the Builder's BC1.
+
+    Existing standalone DDS inputs keep their authored compression. Atlas inputs
+    already require baking, so all tiles use their original pixels and factors.
+    Missing source metadata (prebuilt imports) leaves the existing texture alone.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from PIL import Image
+
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+    from cdmw.modding.material_texture_payloads import _source_slot_png_with_base_color_factor_path
+
+    atlas = source.atlas_section
+    parts = source.atlas_sources if atlas is not None else (source,)
+    if not any(part.base_slot is not None for part in parts):
+        return None
+    if atlas is None and source.base_slot.source_path.suffix.lower() == ".dds":
+        return None
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_glass_") as directory:
+        root = Path(directory)
+        prepared = {}
+        for index, part in enumerate(parts):
+            slot = part.base_slot
+            if slot is None:
+                raise NewItemPlanError(f"{part.name}: the source base colour for the translucent atlas is unavailable.")
+            try:
+                path = _source_slot_png_with_base_color_factor_path(slot, output_root=root)
+                with Image.open(path) as original:
+                    image = original.convert("RGBA")
+                if slot.alpha_mode.upper() == "OPAQUE":
+                    image.putalpha(255)
+                path = root / f"base_{index}.png"
+                image.save(path)
+                image.close()
+            except Exception as exc:
+                raise NewItemPlanError(f"{part.name}: cannot prepare the source colour for translucency: {exc}") from exc
+            prepared[part.name.lower()] = path
+        if atlas is not None:
+            from cdmw.modding.full_import_model_replacement import FULL_IMPORT_MODEL_REPLACEMENT_PROFILE
+            from cdmw.modding.material_profiles import get_complete_swap_material_profile
+            from cdmw.modding.material_rebuilt_payloads import _bake_complete_swap_material_atlas_png
+            from cdmw.modding.material_replacer import ReplacementTextureSet, ReplacementTextureSlot, TextureReplacementReport
+
+            report = TextureReplacementReport()
+            path = _bake_complete_swap_material_atlas_png(
+                target_name=f"{atlas.target_submesh_name}_plain_translucent", rects=atlas.atlas_rects,
+                texture_sets={name: ReplacementTextureSet(name, slots={"base": ReplacementTextureSlot(name, "base", path)})
+                              for name, path in prepared.items()},
+                slot_kind="base", padding=int(getattr(atlas, "atlas_padding", 8)), report=report,
+                material_profile=get_complete_swap_material_profile(FULL_IMPORT_MODEL_REPLACEMENT_PROFILE),
+            )
+            if path is None or report.errors:
+                raise NewItemPlanError(f"{source.name}: translucent colour atlas could not be preserved: {'; '.join(report.errors)}")
+        with Image.open(path) as image:
+            width, height = image.size
+        if on_log is not None:
+            on_log(f"Encoding {source.name} translucent base colour from source (BC7, full mipmaps)")
+        output = root / "base.dds"
+        report = encode_dds_with_directxtex(
+            path, output, dds_format="BC7_UNORM", width=width, height=height,
+            mip_count=max_mips_for_size(width, height), on_log=on_log,
+        )
+        if not report or not output.is_file() or not output.stat().st_size:
+            raise NewItemPlanError(f"{source.name}: the DDS encoder produced nothing for the translucent base colour.")
+        return output.read_bytes()
+
+
 def apply_prebuilt_translucency(files, route: MaterialRoute, choice: TranslucencyChoice | None, *, on_log=None):
     """Prebuilt materials already own their textures and glow; patch only the selection."""
     if choice is None:

@@ -20,7 +20,7 @@ import re
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, Mapping, Optional, Tuple
 
 from cdmw.core.pac_xml_standard_material import (
     PacXmlMaterialError,
@@ -30,6 +30,9 @@ from cdmw.core.pac_xml_standard_material import (
 )
 from cdmw.domain.new_item.spec import MaterialRoute
 from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError
+
+if TYPE_CHECKING:
+    from cdmw.modding.material_replacer import ReplacementTextureSlot
 
 _BASE_NAME_RE = re.compile(r"(_basecolor|_base_[0-9a-f]+)?\.dds$", re.I)
 _BOM = "\ufeff"
@@ -68,6 +71,8 @@ class SourceMaterialTextures:
     #: Positive glTF KHR_materials_transmission requires a glass shader, even
     #: when the user only overrides translucency on another part of the item.
     transmission_factor: float = 0.0
+    #: Uncompressed source and its factors, before the Builder's template DDS encode.
+    base_slot: Optional[ReplacementTextureSlot] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,9 +97,13 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
     """
 
     from cdmw.modding.scene_material_audit import ImportedMaterialBinding
+    from cdmw.modding.material_replacer import group_replacement_texture_sets
+    from cdmw.modding.material_source_driven import _specular_glossiness_runtime_base_slot
 
     bindings = {}
-    submeshes = tuple(getattr(getattr(scene, "mesh", None), "submeshes", ()) or ())
+    mesh = getattr(scene, "mesh", None)
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    texture_sets = group_replacement_texture_sets(getattr(scene, "discovered_texture_files", ()), obj_mesh=mesh)
     material_bindings = list(getattr(scene, "material_bindings", ()) or ())
     covered = {getattr(binding, "submesh_index", -1) for binding in material_bindings}
     # OBJ/DAE attach the same authored slots and parameters to their submeshes.
@@ -122,6 +131,9 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
             "alpha_mode": str(getattr(binding, "alpha_mode", "") or "").upper(),
             "double_sided": bool(getattr(binding, "double_sided", False)),
         }
+        texture_set = texture_sets.get(name.lower())
+        if texture_set is not None:
+            slots["base_slot"] = _specular_glossiness_runtime_base_slot(texture_set) or texture_set.slots.get("base")
         # the scalar factors the importer keeps on the submesh's preview parameters
         index = int(getattr(binding, "submesh_index", -1))
         if 0 <= index < len(submeshes):
@@ -644,7 +656,7 @@ def route_plain_pbr(
     """Rewrite import-owned wrappers to the plain shaders described by this module."""
 
     sources = dict(sources or {})
-    from cdmw.services.new_item_translucency import selected_translucency, source_translucency
+    from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency, source_translucency
 
     if translucency is not None:
         translucency.validate()
@@ -656,6 +668,7 @@ def route_plain_pbr(
     replacements: Dict[str, PlainMaterial] = {}
     new_files: Dict[str, bytes] = {}
     emissive_done: Dict[str, Tuple[str, str]] = {}
+    translucent_bases: Dict[str, str] = {}
     lines = list(files.notes)
     warnings = list(files.warnings)
     encoded = []
@@ -678,6 +691,18 @@ def route_plain_pbr(
         if source is not None and not is_atlas and source.normal is None:
             normal = ""
         source_name = source.name if source is not None else wrapper.submesh_name
+        if absorption is not None and source is not None:
+            # A base can be shared with an opaque part. Give the glass its own
+            # source-derived encode; transcoding the Builder's BC1 cannot restore
+            # the colour precision that absorption amplifies into visible noise.
+            precise_base = _sp_path_for(base, source.name).removesuffix("_sp.dds") + "_translucent_base.dds"
+            if precise_base not in translucent_bases:
+                data = encode_translucent_base(source, on_log=on_log)
+                translucent_bases[precise_base] = precise_base if data is not None else base
+                if data is not None:
+                    new_files[precise_base] = data
+                    encoded.append(precise_base)
+            base = translucent_bases[precise_base]
         if source is not None and source.name not in warned_sources:
             warned_sources.add(source.name)
             if absorption is not None and not matches:

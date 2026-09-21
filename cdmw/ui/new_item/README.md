@@ -141,6 +141,14 @@ its colour, and an unavailable declared emissive texture blocks export.
 The game's single emissive colour and intensity map
 cannot represent every multicoloured emissive image exactly.
 Blend and mask textures retain opacity precision in alpha-capable DDS output.
+For imported Plain PBR parts using translucency, Build plan encodes base colour
+directly from the source images as BC7 with full mipmaps. This reduces colour
+compression errors amplified by glass absorption; it cannot remove variation
+already present in the model's textures. Source colour/alpha factors and atlas
+regions are preserved. Opaque parts sharing the same image keep their existing
+texture, and standalone authored DDS inputs and prebuilt imports are retained.
+Rebuild the plan from the imported source to obtain the higher-precision output;
+converting an already compressed exported DDS cannot recover lost detail.
 The plain-PBR route reports unsupported alpha mode/cutoff and double-sided shader
 semantics explicitly: preserved alpha pixels do not establish matching game
 transparency. Imported glTF materials with positive `KHR_materials_transmission`

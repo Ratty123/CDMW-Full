@@ -107,6 +107,68 @@ def pixels(files, material, role="_baseColorTexture"):
         return np.asarray(image.convert("RGBA"))
 
 
+@pytest.mark.parametrize("authored_glass", [False, True])
+def test_translucent_colour_uses_source_precision_without_changing_shared_opaque_parts(tmp_path, authored_glass):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+    y, x = np.indices((32, 32))
+    source = np.stack((24 + x, 27 + y, 31 + (x + y) // 2), axis=-1).astype(np.uint8)
+    Image.fromarray(source).save(tmp_path / "colour.png")
+    materials = [{"name": name, "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}
+                 for name in ("Glass", "Opaque")]
+    if authored_glass:
+        materials[0]["extensions"] = {"KHR_materials_transmission": {"transmissionFactor": 0.5}}
+    _, files, wrappers = export_materials(
+        write_gltf(tmp_path, materials, ["colour.png"]), tmp_path, socket_attached=True,
+        translucency=None if authored_glass else TranslucencyChoice(("Glass",)),
+    )
+    glass, opaque = wrappers["Glass"], wrappers["Opaque"]
+    assert glass.textures["_baseColorTexture"] != opaque.textures["_baseColorTexture"]
+    for material, expected in ((glass, "BC7_UNORM"), (opaque, "BC1_UNORM")):
+        info = inspect_dds_native(files.side_files[material.textures["_baseColorTexture"]])
+        assert info.format_name == expected
+        assert (info.width, info.height, info.mip_count) == (32, 32, 6)
+    # Re-encoding the Builder's BC1 into BC7 would fail this precision check.
+    error = lambda material: np.abs(pixels(files, material)[:, :, :3].astype(float) - source).mean()
+    assert error(glass) < error(opaque) * 0.5
+    assert np.all(pixels(files, glass)[:, :, 3] == 255)
+    assert opaque.shader == "SkinnedMeshStandard"
+
+
+def test_translucent_atlas_bakes_original_colours_factors_and_alpha_once(tmp_path):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+    Image.new("RGBA", (16, 16), (200, 100, 50, 128)).save(tmp_path / "colour.png")
+    materials = [
+        {"name": "OpaqueSource", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}},
+        {"name": "GlassSource", "alphaMode": "BLEND",
+         "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "baseColorFactor": [0.25, 1, 1, 0.5]}},
+    ]
+    path = write_gltf(tmp_path, materials, ["colour.png"])
+    _, files, wrappers = export_materials(path, tmp_path, atlas=True,
+        translucency=TranslucencyChoice(("OpaqueSource", "GlassSource")))
+    material = next(iter(wrappers.values()))
+    assert inspect_dds_native(files.side_files[material.textures["_baseColorTexture"]]).format_name == "BC7_UNORM"
+    rgba = pixels(files, material)
+    h, w, _ = rgba.shape
+    np.testing.assert_allclose(rgba[h // 2, w // 4], [200, 100, 50, 255], atol=1)
+    np.testing.assert_allclose(rgba[h // 2, w * 3 // 4], [50, 100, 50, 64], atol=1)
+
+
+def test_standalone_authored_dds_is_not_recompressed_for_translucency(tmp_path):
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+
+    original = dds(b"DXT1")
+    (tmp_path / "colour.dds").write_bytes(original)
+    (tmp_path / "source.mtl").write_text("newmtl Glass\nKd 1 1 1\nmap_Kd colour.dds\n", encoding="utf-8")
+    path = tmp_path / "source.obj"
+    path.write_text("mtllib source.mtl\no Part\nusemtl Glass\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nf 1/1 2/2 3/3\n", encoding="utf-8")
+    _, files, wrappers = export_materials(path, tmp_path, translucency=TranslucencyChoice(("Glass",)))
+    material = wrappers["Glass"]
+    assert material.shader == "SkinnedMeshTranslucent"
+    assert files.side_files[material.textures["_baseColorTexture"]] == original
+
+
 @pytest.mark.parametrize("alpha_mode, expected_alpha", [("BLEND", 64), ("OPAQUE", 255)])
 def test_selected_translucency_keeps_source_alpha_through_import_and_export(tmp_path, alpha_mode, expected_alpha):
     from cdmw.domain.new_item.translucency import TranslucencyChoice
@@ -152,7 +214,7 @@ def test_authored_glass_shell_does_not_hide_or_recolour_the_emissive_gem(tmp_pat
     absorption = (0.05, 0.5) if "GemOutside" in selected_parts else (0.1, 0.3)
     assert float(shell.value("_thickness")) == absorption[0]
     assert float(shell.value("_extinctionCoefficient")) == absorption[1]
-    assert pixels(files, shell)[0, 0].tolist() == [255, 0, 0, 128]
+    np.testing.assert_allclose(pixels(files, shell)[0, 0], [255, 0, 0, 128], atol=1)
     gem = wrappers["GemInside"]
     assert gem.shader == "SkinnedMeshEmissive"
     assert gem.value("_emissiveColor") == "#FF0000FF"
@@ -215,7 +277,7 @@ def test_mesh_edit_rebinds_glass_and_emission_to_the_surviving_materials(tmp_pat
     assert {binding.material_name for binding in edited_scene.material_bindings} == {part.material for part in mesh.submeshes}
     _, files, wrappers = export_materials(path, tmp_path, scene=edited_scene, socket_attached=True)
     assert wrappers["Glass"].shader == "SkinnedMeshTranslucent"
-    assert pixels(files, wrappers["Glass"])[0, 0].tolist() == [255, 0, 0, 128]
+    np.testing.assert_allclose(pixels(files, wrappers["Glass"])[0, 0], [255, 0, 0, 128], atol=1)
     assert wrappers["Glow"].shader == "SkinnedMeshEmissive"
     assert wrappers["Glow"].value("_emissiveColor") == "#FF0000FF"
     assert float(wrappers["Glow"].value("_emissiveIntensity")) == 10

@@ -32,6 +32,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- New Item encodes imported translucent base colours from their source images as BC7, reducing compression colour noise amplified by glass absorption. Source factors, alpha and atlas regions are preserved without changing opaque parts that share an image.
 - Hair Tools' soft motion collides with the loaded body surface, including shoulders, chest and back, and prunes distant contact searches. Focus loss and resize now cancel unfinished hair strokes instead of leaving the editor busy.
 - New Item now reaches Browse Archives' shared native texture cache in the assembled app, avoiding the slower fallback path and retaining template textures, glow and translucency in Perks & Effects.
 - Build plan converts selected layered template materials into textures for translucency instead of failing with "no base colour texture". Other parts keep their materials; the plan identifies baked parts and missing texture inputs.
