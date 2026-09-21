@@ -821,14 +821,41 @@ class TabTests(_TabAuthoringMixin, _TabOutputMixin, _TabLifecycleMixin, unittest
                     self.app.processEvents()
                 page = tab.pages.currentWidget()
                 output = tab.output_panel
+                self.assertIs(page, output)
                 self.assertEqual(
-                    page.verticalScrollBar().maximum(),
+                    output.workflow_scroll.verticalScrollBar().maximum(),
                     0,
-                    f"Output has an outer scroll at {width}x{height}",
+                    f"Output workflow needs scrolling at {width}x{height}",
                 )
                 self.assertEqual(output.summary.minimumHeight(), 120)
                 self.assertTrue(output.actions.isVisibleTo(tab))
-                self.assertFalse(page.isAncestorOf(output.actions))
+                self.assertTrue(output.workspace_splitter.widget(0).isAncestorOf(output.actions))
+                self.assertFalse(output.workflow_scroll.isAncestorOf(output.actions))
+                self.assertTrue(output.log.isVisibleTo(tab))
+                left, right = (output.workspace_splitter.widget(i) for i in range(2))
+                self.assertGreater(right.x(), left.geometry().right())
+                self.assertGreater(output.log.height(), output.height() * 0.8)
+                output.workspace_splitter.setSizes((width, 0))
+                self.app.processEvents()
+                self.assertGreaterEqual(right.width(), 260)
+                self.assertTrue(output.log.isVisibleTo(tab))
+                output.workspace_splitter.setSizes((0, width))
+                self.app.processEvents()
+                self.assertLessEqual(
+                    output.workflow_scroll.widget().minimumSizeHint().width(),
+                    output.workflow_scroll.viewport().width(),
+                )
+                self.assertLessEqual(output.actions.minimumSizeHint().width(), left.width())
+                output.workspace_splitter.setSizes((720, 360))
+                self.app.processEvents()
+                log_geometry, action_geometry = output.log.geometry(), output.actions.geometry()
+                output.checklist.toggle.setChecked(True)
+                self.app.processEvents()
+                scroll = output.workflow_scroll.verticalScrollBar()
+                scroll.setValue(scroll.maximum())
+                self.assertEqual(output.log.geometry(), log_geometry)
+                self.assertEqual(output.actions.geometry(), action_geometry)
+                output.checklist.toggle.setChecked(False)
                 self.assertFalse(tab.continue_button.isVisibleTo(tab))
                 self.assertTrue(output.export_button.isVisibleTo(tab))
                 self.assertFalse(output.install_overlay_button.isVisibleTo(tab))

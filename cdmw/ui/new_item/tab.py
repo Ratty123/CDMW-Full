@@ -533,7 +533,6 @@ class NewItemStudioTab(QWidget):
         self.step_hint.setAlignment(Qt.AlignCenter)
         footer.addWidget(self.step_hint, 1)
         footer.addWidget(self.continue_button)
-        footer.addWidget(self.output_panel.actions)
         body_layout.addLayout(footer)
         self._layout.addWidget(body, 1)
         self._layout.removeWidget(self._bootstrap)
@@ -560,7 +559,7 @@ class NewItemStudioTab(QWidget):
         panel.setObjectName("new_item_step")
         panel.setTitle("")
         panel.setProperty("guidedPage", True)
-        if index in {1, 2, 4}:
+        if index in {1, 2, 4, 6}:
             panel.setProperty("guidedFullHeight", True)
             return panel
         page = QScrollArea()
@@ -660,7 +659,6 @@ class NewItemStudioTab(QWidget):
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
         self.continue_button.setVisible(row != 6)
-        self.output_panel.actions.setVisible(row == 6)
         self.continue_button.setEnabled(
             row < self.pages.count() - 1
             and not (row == 4 and self._has_staged_effect_changes())

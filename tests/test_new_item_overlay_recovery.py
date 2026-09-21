@@ -93,7 +93,7 @@ def test_mounted_registry_conflict_reports_install_failure_without_writes(old_se
         assert "Check game updates" in message and "does not repair" in message
         assert thread is app.thread()
         assert message in html.unescape(panel.busy_state.text()), "The failure must survive worker teardown."
-        assert message in panel.log.toPlainText() and panel.log_toggle.isChecked()
+        assert message in panel.log.toPlainText() and panel.log.isVisibleTo(panel)
         assert not panel.busy_bar.isVisible()
         assert controller.plan is plan and controller.has_current_plan
         assert panel.install_overlay_button.isEnabled()

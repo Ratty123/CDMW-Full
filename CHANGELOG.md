@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 
+- Create New Item's Output keeps the activity log visible on the right, with an adjustable divider and the workflow on the left. Draft tools is now Mod management, beside the output action below the plan review.
 - Shortened the Build Plan progress message in Create New Item.
 - Hair Tools draws and bends smoother hair cards with extra curve subdivisions and continuous shading, without adding physics guide points. Detail stays within the vertex budget, and older drawn hair is refined on its next grooming edit.
 - Hair Tools starts new hairstyles empty and removes the procedural hairstyle presets. Existing saved hair keeps its authored geometry.

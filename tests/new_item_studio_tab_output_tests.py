@@ -975,10 +975,11 @@ class _TabOutputMixin:
         tab.prefill_template(TEMPLATE)
         panel = tab.output_panel
         sections = {group.title(): group for group in panel.findChildren(QGroupBox)}
+        review_layout = panel.workflow_scroll.widget().layout()
         content = next(
-            panel.layout().itemAt(index).layout()
-            for index in range(panel.layout().count())
-            if panel.layout().itemAt(index).layout() is not None
+            review_layout.itemAt(index).layout()
+            for index in range(review_layout.count())
+            if review_layout.itemAt(index).layout() is not None
         )
 
         self.assertIsInstance(content, QGridLayout)
@@ -989,6 +990,14 @@ class _TabOutputMixin:
         self.assertEqual(positions[sections["1. Destination"]], (0, 0, 1, 1))
         self.assertEqual(positions[sections["2. Build the plan"]], (1, 0, 1, 1))
         self.assertEqual(positions[sections["3. Review the plan"]], (2, 0, 1, 1))
+        self.assertIs(panel.workspace_splitter.widget(1), sections["Activity log"])
+        self.assertTrue(sections["Activity log"].isAncestorOf(panel.log))
+        self.assertFalse(panel.workspace_splitter.childrenCollapsible())
+        self.assertTrue(panel.log.isReadOnly())
+        self.assertTrue(panel.log.isVisibleTo(panel))
+        self.assertEqual(panel.tools_button.text(), "Mod management")
+        self.assertIs(panel.tools_button.parentWidget(), panel.actions)
+        self.assertFalse(sections["1. Destination"].isAncestorOf(panel.tools_button))
         tab.show_step(6)
         self.assertTrue(panel.export_button.isVisibleTo(tab))
         self.assertFalse(panel.install_overlay_button.isVisibleTo(tab))
@@ -1001,7 +1010,7 @@ class _TabOutputMixin:
         self.assertFalse(panel.export_button.isVisibleTo(tab))
         self.assertTrue(panel.install_overlay_button.isVisibleTo(tab))
         self.assertFalse(panel.install_overlay_button.isEnabled())
-        self.assertFalse(panel.log.isVisibleTo(panel))
+        self.assertTrue(panel.log.isVisibleTo(panel))
         tab.controller.status_message.emit("Could not write the output.", True)
         self.assertTrue(panel.log.isVisibleTo(panel))
         self.assertIn("Could not write the output.", panel.log.toPlainText())
@@ -1016,11 +1025,18 @@ class _TabOutputMixin:
         recovery.trigger()
         self.assertEqual(requested, ["merge", "overlays"])
         self.assertTrue(panel.overlay_tools.isVisibleTo(panel))
+        self.assertTrue(panel.workspace_splitter.widget(0).isAncestorOf(panel.overlay_tools))
+        self.assertFalse(sections["1. Destination"].isAncestorOf(panel.overlay_tools))
         panel._busy_changed(True)
         self.assertFalse(panel.tools_button.isEnabled())
         self.assertFalse(panel.output_mode.isEnabled())
         self.assertFalse(panel.folder_controls.isEnabled())
         self.assertFalse(panel.install_overlay_button.isEnabled())
+        tab.show_step(0)
+        self.assertFalse(panel.actions.isVisibleTo(tab))
+        tab.show_step(6)
+        self.assertTrue(panel.actions.isVisibleTo(tab))
+        self.assertTrue(panel.log.isVisibleTo(tab))
         tab.close()
         tab.deleteLater()
 

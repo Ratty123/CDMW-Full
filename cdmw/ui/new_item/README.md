@@ -393,13 +393,15 @@ price and stat-block issues on **Stats & Prices**. Per-step tooltips and accessi
 text include the exact validation reasons. The Effects preview and in-game verification
 caveats stay in those details and the plan review; they do not mark applied effects
 as unfinished. Unapplied changes and actionable validation issues still mark the step.
-Its footer keeps Back, `Step N of 7` and Continue stable. Output replaces Continue
-with the selected **Write mod folder** or **Install as an overlay** action. Choose
-the destination and existing-mod base first, build the plan, then review its file
-changes and full details. Destination, manager, overlay number and base changes clear
-the plan, including an in-flight result. **Draft tools** contains Merge mods,
-Installed overlays and the Archive recovery fold; opening the menu or recovery fold
-never performs a write. The activity log starts folded and opens for failures.
+Its footer keeps Back, `Step N of 7` and Continue stable. Output hides Continue and
+places **Write mod folder** or **Install as an overlay** below the left workflow.
+Choose the destination and existing-mod base first, build the plan, then review its
+file changes and full details. Destination, manager, overlay number and base changes
+clear the plan, including an in-flight result. The **Mod management** menu beside
+the output action contains Merge mods, game-update checks, Installed overlays and
+Archive recovery; opening the menu or recovery controls never performs a write.
+The activity log stays visible in a full-height right pane with an adjustable divider.
+The left review area scrolls independently, keeping progress and output actions visible.
 An overlay installation failure also opens a warning and keeps the reason visible
 on Output after the worker stops; the plan remains available for review or retry.
 The confirmed install automatically handles a stale previous set whose folder is

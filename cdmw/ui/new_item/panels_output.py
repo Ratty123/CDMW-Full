@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSplitter,
     QTabWidget,
     QToolButton,
     QTreeView,
@@ -170,9 +172,18 @@ class OutputPanel(QGroupBox):
         self._review_lookup.completed.connect(self._review_ready)
         self._review_lookup.failed.connect(self._review_failed)
         self._install_error = ""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 6, 8, 6)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_splitter.setHandleWidth(6)
+        outer.addWidget(self.workspace_splitter)
+        workflow = QWidget()
+        workflow.setMinimumWidth(520)
+        layout = QVBoxLayout(workflow)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
+        self.workspace_splitter.addWidget(workflow)
         self.setToolTip("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.")
 
         self.busy_bar = QProgressBar()
@@ -214,11 +225,13 @@ class OutputPanel(QGroupBox):
         mode_row.addWidget(self.output_mode)
         mode_row.addStretch(1)
         self.tools_button = QToolButton()
-        self.tools_button.setText("Draft tools")
+        self.tools_button.setText("Mod management")
+        self.tools_button.setToolTip(
+            "Merge mods, check them after a game update, manage installed overlays, or open archive recovery."
+        )
         self.tools_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.tools_menu = QMenu(self.tools_button)
         self.tools_button.setMenu(self.tools_menu)
-        mode_row.addWidget(self.tools_button)
         write_layout.addLayout(mode_row)
         self.folder_controls = QWidget()
         export = QHBoxLayout(self.folder_controls)
@@ -292,7 +305,6 @@ class OutputPanel(QGroupBox):
         self.update_button.clicked.connect(self.update_requested.emit)
         self.update_button.hide()
         self.tools_menu.addAction(self.update_button.text(), self.update_button.click)
-        self._build_overlay_tools(write_layout)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",
@@ -300,32 +312,39 @@ class OutputPanel(QGroupBox):
         content.addWidget(write, 0, 0)
         content.setColumnStretch(0, 1)
         content.setRowStretch(2, 1)
-        layout.addLayout(content, 1)
-        layout.addWidget(self.checklist)
+        review = QWidget()
+        review_layout = QVBoxLayout(review)
+        review_layout.setContentsMargins(0, 0, 0, 0)
+        review_layout.setSpacing(6)
+        review_layout.addLayout(content, 1)
+        review_layout.addWidget(self.checklist)
+        self.workflow_scroll = QScrollArea()
+        self.workflow_scroll.setWidgetResizable(True)
+        self.workflow_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.workflow_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.workflow_scroll.setWidget(review)
+        layout.addWidget(self.workflow_scroll, 1)
+        self._build_overlay_tools(layout)
 
-        self.log_toggle = QToolButton()
-        self.log_toggle.setText("Activity log")
-        self.log_toggle.setCheckable(True)
-        self.log_toggle.setAutoRaise(True)
-        self.log_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.log_toggle.setArrowType(Qt.ArrowType.RightArrow)
-        layout.addWidget(self.log_toggle, 0, Qt.AlignmentFlag.AlignLeft)
+        log_group = QGroupBox("Activity log")
+        log_group.setMinimumWidth(260)
+        log_layout = QVBoxLayout(log_group)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setPlaceholderText("What happened: exports, installs, messages.")
-        self.log.setMaximumHeight(90)
-        layout.addWidget(self.log)
-        self.log.hide()
-        self.log_toggle.toggled.connect(self.log.setVisible)
-        self.log_toggle.toggled.connect(
-            lambda expanded: self.log_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
-        )
+        self.log.setPlaceholderText("Build progress, exports, installs, and other messages appear here.")
+        log_layout.addWidget(self.log)
+        self.workspace_splitter.addWidget(log_group)
+        self.workspace_splitter.setStretchFactor(0, 2)
+        self.workspace_splitter.setStretchFactor(1, 1)
+        self.workspace_splitter.setSizes((720, 360))
         self.actions = QWidget()
         actions = QHBoxLayout(self.actions)
         actions.setContentsMargins(0, 0, 0, 0)
+        actions.addWidget(self.tools_button)
+        actions.addStretch(1)
         actions.addWidget(self.export_button)
         actions.addWidget(self.install_overlay_button)
-        layout.addWidget(self.actions, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.actions)
         self.output_mode.currentIndexChanged.connect(self._output_mode_changed)
         self.manager.currentIndexChanged.connect(controller.invalidate_plan)
         self.overlay_directory.textChanged.connect(controller.invalidate_plan)
@@ -344,7 +363,7 @@ class OutputPanel(QGroupBox):
         controller.template_changed.connect(lambda _key: self._show_plan(None))
         self._busy_changed(False)
 
-    def _build_overlay_tools(self, write_layout: QVBoxLayout) -> None:
+    def _build_overlay_tools(self, layout: QVBoxLayout) -> None:
         self.overlay_removal_button = QPushButton("Installed overlays...", self)
         self.overlay_removal_button.setToolTip("View CDMW's installed overlays and remove an individual install while preserving the others.")
         self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
@@ -373,7 +392,7 @@ class OutputPanel(QGroupBox):
         )
         self.overlay_migration_button.clicked.connect(self.overlay_migration_requested.emit)
         overlay_row.addWidget(self.overlay_migration_button)
-        write_layout.addWidget(self.overlay_tools)
+        layout.addWidget(self.overlay_tools)
 
     # ------------------------------------------------------------------ actions
 
@@ -439,7 +458,6 @@ class OutputPanel(QGroupBox):
     def _operation_message(self, message: str, error: bool) -> None:
         if error:
             self.append_log(message)
-            self.log_toggle.setChecked(True)
 
     def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         self._install_error = ""
@@ -490,7 +508,6 @@ class OutputPanel(QGroupBox):
         self.summary.setPlainText("\n".join(lines))
         self.review_tabs.setCurrentWidget(self.summary)
         self.append_log("\n".join(lines))
-        self.log_toggle.setChecked(True)
         self.plan_state.set_note(f"Blocked: {message}", BLOCK)
 
     def _export_finished(self, result: object) -> None:
