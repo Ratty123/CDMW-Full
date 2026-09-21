@@ -255,13 +255,22 @@ materials should replace the originals; that mode requires their dependencies.
 Long status messages are available on hover and in the selectable **Details** view.
 
 For supported original PAC meshes at LOD0, **Mesh Data > Cloth** can reduce or
-disable existing cloth influence, fix vertices above a chosen height, and fade
-movement below it. The rule applies to every stored LOD and supports Undo/Redo,
-Restore, saved drafts and PAC output. These controls change render-vertex cloth
-influence; they do not move simulation anchors or edit collision shapes or physics
-profiles. The approximate cloth preview does not visualize the saved influence
-changes, and their behavior in game still needs verification. Keep the original
-asset or draft to restore bindings after exporting with cloth disabled.
+disable existing cloth influence, keep vertices above a chosen height fully
+skeletal, and fade movement below it. The rule applies to every stored LOD and
+supports Undo/Redo, Restore, saved drafts and PAC output. These controls change
+render-vertex cloth influence. The approximate preview reflects saved rules through
+Current, Original and Disabled comparisons; it does not establish game-equivalent
+motion. Keep the original asset or draft to restore bindings after exporting
+with cloth disabled.
+
+**Authored cloth profile > Edit profile for mod** edits captured raw physics
+settings for an explicit variant and shared assignment group. Apply/Restore,
+Undo/Redo, Finish and saved drafts retain these overrides. **Build Mod** includes
+the cloned profile, catalogue and sidecar companions; profile-only edits leave
+the PAC byte-identical. Preview tuning remains separate from exported raw values.
+A generated gravity override was verified in game on Canta Plate Cloak. New guide
+geometry, skeletal bones and physics bindings remain unsupported, and the preview
+does not reproduce every game collision or solver stage.
 
 Collapse Tools or Inspector from their header chevrons. Tools becomes an icon
 rail; Inspector keeps an edge handle for reopening. Several tool windows can

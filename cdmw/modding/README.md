@@ -1715,6 +1715,29 @@ and zero-total bindings can produce singular transforms. New-guide and new-bone
 binding output therefore remain unsupported; profile editing does not manufacture
 those structures.
 
+The traced 10-byte constraint consumer at `0x143CCB740` copies the four index
+words and tests **byte 8** at `0x143CCB927`. A nonzero value takes the hinge
+branch; zero checks the uint16 at byte 6 for `0xffff` to select triangle area, otherwise
+distance. Its source stride is ten bytes (`0x143CCBC77`), and byte 9 is not read
+by that preparation loop. The high byte therefore does not select this
+consumer's rest-geometry branch; its meaning elsewhere remains unresolved.
+The structural inspector remains conservative about
+unobserved source shapes and preserves the complete records.
+
+A local construction experiment created four guide vertices, two fixed guides,
+four distance records, one hinge, two area records, and complete per-vertex
+constraint references in an owned synthetic PAC. Sixteen new render bindings
+across four stored LODs reparsed with unchanged geometry and unrelated render
+lanes. The serialized palette resolved against a deliberately reordered skeleton;
+the preview preparation and skinning references reproduced both a controlled
+guide translation and the supplied bone-pose weights. This establishes a
+structural construction route for that fixture. Ordered groups and pins were
+explicit experiment inputs; arbitrary PAC metadata relocation, automatic guide
+generation, new skeletal bones, runtime admission and game behavior were not
+verified. The experiment does not add an editor command or enable new-binding
+export. Existing-palette binding and adding bones to a skeleton are separate
+authoring problems.
+
 Focused coverage: `tests/test_mesh_physics_profile_authoring.py`,
 `tests/test_mesh_physics_profile_output.py`, and Rust
 `headless_ui_tests::cloth_preview_tests::profiles` exercise commands, numeric
