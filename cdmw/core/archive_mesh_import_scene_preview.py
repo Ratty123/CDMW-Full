@@ -203,6 +203,8 @@ def _scene_material_channels(subtype: str) -> Tuple[str, ...]:
 
 def _scene_texture_group_key(path: Path) -> str:
     stem = _compact_scene_texture_name(path.stem)
+    for token in ("normalmapdirectx", "normaldirectx"):
+        stem = stem.replace(token, "")
     for token in ("metallicroughness", "roughnessmetallic", "occlusionroughnessmetallic", "basecolor", "basecolour", "diffuse", "albedo", "normalmap", "normalgl", "normaldx", "normal", "nrm", "bump", "roughness", "metallic", "metalness", "ambientocclusion", "occlusion", "mixedao", "ao", "thickness", "specular", "glossiness", "gloss", "heightmap", "height", "displacement", "disp", "depth", "emissive", "emission", "glow", "illumination", "illum", "opacity", "alpha", "orm", "rma", "mra", "arm", "mask", "color", "colour", "base"):
         stem = stem.replace(token, "")
     return stem or _compact_scene_texture_name(path.stem)

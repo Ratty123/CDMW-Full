@@ -21,14 +21,19 @@ import os
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Callable, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
+
+if TYPE_CHECKING:
+    from cdmw.models import ModelPreviewData
+    from cdmw.modding.scene_import_result_ops import SceneImportResult
 
 __all__ = [
     "FBX_EXTENSION",
     "BlenderConversion",
     "BlenderNotConfigured",
+    "apply_fbx_sibling_texture_factors",
     "convert_fbx_to_glb",
     "describe_blender",
     "is_blender_executable",
@@ -105,6 +110,77 @@ print("CDMW_FBX_RESULT " + json.dumps({
 
 class BlenderNotConfigured(RuntimeError):
     """Raised when an FBX needs converting and no Blender has been pointed at."""
+
+
+def apply_fbx_sibling_texture_factors(scene_result: SceneImportResult, preview_model: ModelPreviewData) -> None:
+    """Use loose PBR maps without multiplying them by converted legacy FBX scalars.
+
+    Compare the converted material with the resolved preview before its bindings
+    are copied back. Only newly attached colour/roughness/metallic channels get
+    identity factors; linked channels and materials without maps keep their values.
+    """
+    from cdmw.models import PreviewMaterialParameterInput
+    from cdmw.services.mesh_dotnet_material_channels import _dotnet_resolved_texture_channels
+
+    submeshes = tuple(scene_result.mesh.submeshes)
+    recovered_slots: dict[int, tuple[tuple[str, Path], ...]] = {}
+    for preview in preview_model.meshes:
+        index = preview.source_submesh_index
+        if not 0 <= index < len(submeshes):
+            continue
+        resolved = _dotnet_resolved_texture_channels(preview)
+        added_channels = resolved.keys() - _dotnet_resolved_texture_channels(submeshes[index]).keys()
+        slots = tuple(
+            (channel, Path(resolved[channel]))
+            for channel in ("base", "normal", "material", "roughness", "metallic", "emissive", "height", "occlusion")
+            if channel in added_channels
+            and not (channel in {"roughness", "metallic"} and resolved[channel] == resolved.get("material"))
+        )
+        if slots:
+            recovered_slots[index] = slots
+            submeshes[index].texture_slots = tuple(getattr(submeshes[index], "texture_slots", ()) or ()) + slots
+        replacements: dict[str, PreviewMaterialParameterInput] = {}
+        overrides = dict(getattr(preview, "preview_native_material_overrides", {}) or {})
+        if "base" in added_channels:
+            preview.preview_color = (1.0, 1.0, 1.0)
+            preview.preview_texture_tint = (1.0, 1.0, 1.0)
+            replacements["_baseColorFactor"] = PreviewMaterialParameterInput(
+                parameter_kind="color", parameter_name="_baseColorFactor",
+                value="#ffffff", color_value=(1.0, 1.0, 1.0),
+            )
+        for channel, parameter, override in (
+            ("roughness", "_roughnessFactor", "roughness"),
+            ("metallic", "_metallicFactor", "metalness"),
+        ):
+            if channel in added_channels:
+                overrides[override] = 1.0
+                replacements[parameter] = PreviewMaterialParameterInput(
+                    parameter_kind="float", parameter_name=parameter,
+                    value="1.000000", numeric_value=1.0,
+                )
+        if not replacements:
+            continue
+        preview.preview_native_material_overrides = overrides
+        parameters = tuple(getattr(preview, "preview_material_parameters", ()) or ())
+        preview.preview_material_parameters = tuple(
+            parameter for parameter in parameters if parameter.parameter_name not in replacements
+        ) + tuple(replacements.values())
+        # Texture inputs retain their own parameter copies for material baking.
+        preview.preview_material_texture_inputs = tuple(
+            replace(texture, material_parameters=tuple(
+                replacements.get(parameter.parameter_name, parameter)
+                for parameter in texture.material_parameters
+            ))
+            for texture in tuple(getattr(preview, "preview_material_texture_inputs", ()) or ())
+        )
+    # Preview recovery must also reach the Builder's source-material inventory.
+    scene_result.material_bindings = tuple(
+        replace(binding, texture_slots=binding.texture_slots + recovered_slots.get(binding.submesh_index, ()))
+        for binding in scene_result.material_bindings
+    )
+    scene_result.discovered_texture_files = tuple(dict.fromkeys(
+        (*scene_result.discovered_texture_files, *(path for slots in recovered_slots.values() for _channel, path in slots))
+    ))
 
 
 @dataclass(frozen=True, slots=True)

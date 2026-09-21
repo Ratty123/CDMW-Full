@@ -30,7 +30,11 @@ from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ArchiveEntry
-from cdmw.services.fbx_blender_conversion import FBX_EXTENSION, convert_fbx_to_glb
+from cdmw.services.fbx_blender_conversion import (
+    FBX_EXTENSION,
+    apply_fbx_sibling_texture_factors,
+    convert_fbx_to_glb,
+)
 from cdmw.services.preview_workflow_service import scene_import_normalizes_texture_v
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
@@ -1231,6 +1235,7 @@ def load_model_import_source(
     chosen = Path(chosen_path)
     owns_root = extract_root is None
     root = Path(extract_root) if extract_root is not None else Path(tempfile.mkdtemp(prefix="cdmw_new_item_model_"))
+    converted_fbx = False
     try:
         model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
         if model_path is None:
@@ -1239,6 +1244,7 @@ def load_model_import_source(
             # for when the result looks wrong.
             if chosen.suffix.casefold() == FBX_EXTENSION or _fbx_inside(chosen):
                 model_path = _fbx_converted_to_glb(chosen, root, blender_path, on_log, stop_event)
+                converted_fbx = model_path is not None
             if model_path is None:
                 raise ValueError(_nothing_to_import(chosen, root))
         raise_if_cancelled(stop_event)
@@ -1246,6 +1252,8 @@ def load_model_import_source(
         raise_if_cancelled(stop_event)
         preview_model = parsed_mesh_to_preview_model(scene.mesh)
         texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
+        if converted_fbx:
+            apply_fbx_sibling_texture_factors(scene, preview_model)
         from cdmw.services.mesh_workflow_service import copy_extra_submesh_attrs
 
         set_dotnet_preview_texture_flip_vertical(

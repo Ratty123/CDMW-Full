@@ -553,7 +553,13 @@ the camera. `panels_model.py` builds the preview and tabbed inspector while
 FBX conversion relinks an explicitly referenced missing image by exact basename
 from the extracted package's nearby texture folders; the shared preview then supplements an
 embedded base with clearly named Normal, AO, Roughness and Metallic maps without treating a
-Thickness map as colour. A textureless exported material still keeps its authored
+Thickness map as colour. DirectX normal-map suffixes remain in the same material
+group and retain their normal orientation. For converted FBX only, a newly matched
+loose colour, roughness or metallic map replaces that channel's legacy conversion
+factor with an identity multiplier. Explicitly linked channels and untextured
+materials retain their source factors, including gem colours, opacity and glow.
+The corrected factors follow the imported mesh into preview and output preparation.
+A textureless exported material still keeps its authored
 `TEXCOORD_0` channel instead of triggering an unnecessary auto-unwrap. Generated material
 synthesis is deduplicated across identical submesh inputs.
 Apply runs through the controller's cancellable progress lane; its spinner, current phase,

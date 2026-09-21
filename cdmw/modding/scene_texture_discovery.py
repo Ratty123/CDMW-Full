@@ -125,6 +125,8 @@ def _scene_texture_group_key(path: Path) -> str:
         "diffuse",
         "albedo",
         "colormap",
+        "normalmapdirectx",
+        "normaldirectx",
         "normalmap",
         "normalgl",
         "normaldx",
