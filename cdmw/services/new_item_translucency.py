@@ -1,15 +1,64 @@
 """Part selection and preview data for experimental New Item translucency."""
 
 import copy
+import hashlib
 import math
+import threading
+from collections import OrderedDict
 from dataclasses import replace
 
+from cdmw.domain.cancellation import RunCancelled, raise_if_cancelled
 from cdmw.domain.new_item.spec import MaterialRoute
 from cdmw.domain.new_item.translucency import TranslucencyChoice
 from cdmw.services.new_item_planning import NewItemPlanError
 
 
-def encode_translucent_base(source, *, on_log=None) -> bytes | None:
+_BASE_CACHE_MAX_BYTES = 64 * 1024 * 1024
+_BASE_CACHE_MAX_ENTRIES = 16
+_BASE_CACHE: OrderedDict[tuple, bytes] = OrderedDict()
+_BASE_CACHE_LOCK = threading.Lock()
+
+
+def _encode_prepared_base(path, output, name, width, height, *, on_log, stop_event):
+    from cdmw.core.texture_native import encode_dds_with_directxtex, native_texture_backend_identity
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    mip_count = max_mips_for_size(width, height)
+    # Hash the prepared image, including source factors, alpha and atlas baking.
+    # Paths/stat stamps alone would miss edits and change on every temporary build.
+    key = (hashlib.sha256(path.read_bytes()).digest(), width, height, mip_count,
+           "BC7_UNORM", native_texture_backend_identity())
+    raise_if_cancelled(stop_event)
+    while not _BASE_CACHE_LOCK.acquire(timeout=0.05):
+        raise_if_cancelled(stop_event)
+    try:
+        raise_if_cancelled(stop_event)
+        if key in _BASE_CACHE:
+            _BASE_CACHE.move_to_end(key)
+            if on_log is not None:
+                on_log(f"Reusing {name} translucent base colour (unchanged source and encoder).")
+            return _BASE_CACHE[key]
+        if on_log is not None:
+            on_log(f"Encoding {name} translucent base colour from source (BC7, full mipmaps)")
+        report = encode_dds_with_directxtex(
+            path, output, dds_format="BC7_UNORM", width=width, height=height,
+            mip_count=mip_count, on_log=on_log, stop_event=stop_event,
+        )
+        raise_if_cancelled(stop_event)
+        if not report or not output.is_file() or not output.stat().st_size:
+            raise NewItemPlanError(f"{name}: the DDS encoder produced nothing for the translucent base colour.")
+        data = output.read_bytes()
+        if len(data) <= _BASE_CACHE_MAX_BYTES:
+            while _BASE_CACHE and (len(_BASE_CACHE) >= _BASE_CACHE_MAX_ENTRIES
+                    or sum(map(len, _BASE_CACHE.values())) + len(data) > _BASE_CACHE_MAX_BYTES):
+                _BASE_CACHE.popitem(last=False)
+            _BASE_CACHE[key] = data
+        return data
+    finally:
+        _BASE_CACHE_LOCK.release()
+
+
+def encode_translucent_base(source, *, on_log=None, stop_event=None) -> bytes | None:
     """Encode glass colour from authored pixels, never from the Builder's BC1.
 
     Existing standalone DDS inputs keep their authored compression. Atlas inputs
@@ -21,10 +70,9 @@ def encode_translucent_base(source, *, on_log=None) -> bytes | None:
 
     from PIL import Image
 
-    from cdmw.core.texture_native import encode_dds_with_directxtex
-    from cdmw.domain.textures.output import max_mips_for_size
     from cdmw.modding.material_texture_payloads import _source_slot_png_with_base_color_factor_path
 
+    raise_if_cancelled(stop_event)
     atlas = source.atlas_section
     parts = source.atlas_sources if atlas is not None else (source,)
     if not any(part.base_slot is not None for part in parts):
@@ -35,11 +83,12 @@ def encode_translucent_base(source, *, on_log=None) -> bytes | None:
         root = Path(directory)
         prepared = {}
         for index, part in enumerate(parts):
+            raise_if_cancelled(stop_event)
             slot = part.base_slot
             if slot is None:
                 raise NewItemPlanError(f"{part.name}: the source base colour for the translucent atlas is unavailable.")
             try:
-                path = _source_slot_png_with_base_color_factor_path(slot, output_root=root)
+                path = _source_slot_png_with_base_color_factor_path(slot, output_root=root, stop_event=stop_event)
                 with Image.open(path) as original:
                     image = original.convert("RGBA")
                 if slot.alpha_mode.upper() == "OPAQUE":
@@ -47,6 +96,8 @@ def encode_translucent_base(source, *, on_log=None) -> bytes | None:
                 path = root / f"base_{index}.png"
                 image.save(path)
                 image.close()
+            except RunCancelled:
+                raise
             except Exception as exc:
                 raise NewItemPlanError(f"{part.name}: cannot prepare the source colour for translucency: {exc}") from exc
             prepared[part.name.lower()] = path
@@ -68,16 +119,9 @@ def encode_translucent_base(source, *, on_log=None) -> bytes | None:
                 raise NewItemPlanError(f"{source.name}: translucent colour atlas could not be preserved: {'; '.join(report.errors)}")
         with Image.open(path) as image:
             width, height = image.size
-        if on_log is not None:
-            on_log(f"Encoding {source.name} translucent base colour from source (BC7, full mipmaps)")
-        output = root / "base.dds"
-        report = encode_dds_with_directxtex(
-            path, output, dds_format="BC7_UNORM", width=width, height=height,
-            mip_count=max_mips_for_size(width, height), on_log=on_log,
+        return _encode_prepared_base(
+            path, root / "base.dds", source.name, width, height, on_log=on_log, stop_event=stop_event,
         )
-        if not report or not output.is_file() or not output.stat().st_size:
-            raise NewItemPlanError(f"{source.name}: the DDS encoder produced nothing for the translucent base colour.")
-        return output.read_bytes()
 
 
 def apply_prebuilt_translucency(files, route: MaterialRoute, choice: TranslucencyChoice | None, *, on_log=None):

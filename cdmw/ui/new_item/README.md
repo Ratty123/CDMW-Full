@@ -28,6 +28,25 @@ A stale ownership marker cannot take over a mount record replaced by a game upda
 Large overlay payload checksums use the existing cancellable native helper so
 building a mod does not occupy the UI's Python interpreter.
 
+Native DDS encoding runs at below-normal process priority on Windows so its
+parallel compression yields CPU time to the UI. Build plan reuses source-derived
+translucent BC7 bytes within the session: the key includes the prepared image
+(after factors, alpha and atlas baking), dimensions, mip count and encoder identity.
+The cache retains at most 16 entries and 64 MiB. Waiting for an encode and the encode
+itself are cancellable; failed or cancelled work is not cached. The first encode
+still performs the full-quality conversion.
+
+Overlay preparation checks source provenance once at the preparation boundary,
+including recovery retries. Dependency analysis and composition share decoded
+journals only within that call; composition still rechecks each reused journal's
+hash. Backups, conflict checks and rollback remain required. Early preparation
+stages appear in the operation log before composition begins. The post-install
+archive refresh remains a separate background operation.
+
+Perk search results use a prepared list model shared with the compatibility
+selector. Refresh preserves selection by item key without clearing native list
+items, and replaced models and selection models are released safely.
+
 The archive snapshot reads StatusInfo and EquipTypeInfo from either their legacy
 `gamedata/binary__/client/bin/*.pabgb` / `*.pabgh` pairs or the newer
 `gamedata/binarystaticinfo__/bin/*.staticinfobody` / `*.staticinfoheader` pairs.

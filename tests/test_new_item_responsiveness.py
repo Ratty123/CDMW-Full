@@ -410,6 +410,40 @@ def test_virtual_choices_localize_visible_rows_without_a_catalogue_walk(monkeypa
         combo.deleteLater()
 
 
+def test_perk_worker_refresh_replaces_models_and_keeps_selection_without_native_items(studio, capsys):
+    from PySide6.QtCore import QCoreApplication, QEvent, Qt
+    from PySide6.QtWidgets import QListView, QListWidget
+    from shiboken6 import isValid
+
+    app, tab = studio
+    panel = tab.perks_panel
+    panel._perk_lookup._synchronous = False
+    panel._perk_lookup.cancel()
+    panel.own_perks.setChecked(True)
+    assert isinstance(panel.perk_results, QListView)
+    assert not isinstance(panel.perk_results, QListWidget)
+    key = (id(tab.controller.snapshot), panel.perk_filter.text())
+    entries = ((1002791, "First perk", "First detail"), (1002812, "Second perk", "Second detail"))
+    panel._perk_lookup.request(key, lambda stop: entries)
+    pump(app, lambda: panel.catalogue.count() == 2 and not panel._perk_lookup.iter_shutdown_workers())
+    panel.catalogue.setCurrentIndex(1)
+    assert panel.perk_results.currentIndex().data(Qt.UserRole) == 1002812
+    old_model, old_selection = panel.perk_results.model(), panel.perk_results.selectionModel()
+    updated = ((1002812, "Updated perk", "Updated detail"), (1002791, "First perk", "First detail"))
+    panel._perk_lookup.request(key, lambda stop: updated)
+    pump(app, lambda: panel.catalogue.itemText(0) == "Updated perk" and not panel._perk_lookup.iter_shutdown_workers())
+    assert panel.perk_results.currentIndex().row() == 0
+    assert panel.catalogue.currentData() == 1002812
+    assert panel.perk_results.currentIndex().data(Qt.ToolTipRole) == "Updated detail"
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    assert not isValid(old_model) and not isValid(old_selection)
+    panel._perk_lookup.request(key, lambda stop: ())
+    pump(app, lambda: panel.catalogue.count() == 0 and not panel._perk_lookup.iter_shutdown_workers())
+    assert not panel.perk_results.currentIndex().isValid()
+    assert not panel.add_button.isEnabled()
+    assert "Traceback" not in capsys.readouterr().err
+
+
 def test_new_lookup_and_cleanup_threads_are_initialized_before_child_observers():
     from PySide6.QtCore import QEvent, QThread
     app = QApplication.instance() or QApplication([])

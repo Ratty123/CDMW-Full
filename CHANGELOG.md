@@ -34,6 +34,8 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item reuses unchanged translucent texture conversions when rebuilding a plan. Native texture encoding yields CPU time to the UI, and cancellation reaches the translucent conversion.
+- Overlay installation avoids repeated source validation and journal decoding while retaining freshness, backup and recovery checks. Perk catalogue refreshes replace prepared models safely instead of rebuilding native list items.
 - FBX imports retain sibling DirectX normal maps and use loose colour, roughness and metallic textures without the converted legacy material's tint or scalar multipliers suppressing them. Linked texture channels and untextured materials keep their authored settings.
 - Completed translations for translucency surface controls and related messages across all built-in languages.
 - Create New Item moves model prechecks, Mesh Editor preparation, catalogue filtering, effect compatibility checks and legacy recovery scans off the UI thread. Preview cleanup waits for renderer exit in the background, name edits reuse collision indexes, and large dropdowns and output reviews no longer populate all rows synchronously.

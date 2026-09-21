@@ -612,6 +612,7 @@ class NativeTextureBackendTests(unittest.TestCase):
             run_jobs = []
 
             def fake_run(command, **_kwargs):
+                self.assertIs(_kwargs.get("background"), True)
                 run_commands.append(command)
                 job_path = Path(command[2])
                 report_path = Path(command[3])

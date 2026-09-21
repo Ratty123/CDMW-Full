@@ -652,10 +652,10 @@ class _TabAuthoringMixin:
         perks.own_perks.setChecked(True)
         perks.perk_filter.setText("Swift")
         self.app.processEvents()
-        item = perks.perk_results.item(0)
-        self.assertIsNotNone(item)
-        self.assertNotIn("experimental", item.text().casefold(), "the III suffix already identifies the perk rank")
-        self.assertIn("experimental", item.toolTip().casefold(), "the evidence warning stays in the perk details")
+        item = perks.perk_results.model().index(0, 0)
+        self.assertTrue(item.isValid())
+        self.assertNotIn("experimental", item.data().casefold(), "the III suffix already identifies the perk rank")
+        self.assertIn("experimental", item.data(Qt.ToolTipRole).casefold(), "the evidence warning stays in the perk details")
         standalone_row = tab.controller.snapshot.rows[1002791]
         standalone_label = tab.controller._perk_label(
             1002791,
@@ -668,12 +668,12 @@ class _TabAuthoringMixin:
         QTest.mouseClick(
             perks.perk_results.viewport(),
             Qt.MouseButton.LeftButton,
-            pos=perks.perk_results.visualItemRect(item).center(),
+            pos=perks.perk_results.visualRect(item).center(),
         )
         QTest.mouseDClick(
             perks.perk_results.viewport(),
             Qt.MouseButton.LeftButton,
-            pos=perks.perk_results.visualItemRect(item).center(),
+            pos=perks.perk_results.visualRect(item).center(),
         )
         self.assertEqual(tuple(tab.controller.draft.socket_items or ()), (*before, 1002812))
         perks.chosen.setCurrentRow(perks.chosen.count() - 1)

@@ -5,12 +5,40 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.app.pyinstaller_runtime import pid_is_alive
 from cdmw.core.common import ProcessTimeoutExpired, hidden_subprocess_kwargs, run_process_with_cancellation
 
 
 class HiddenSubprocessTests(unittest.TestCase):
+    def test_background_priority_preserves_hidden_process_group_flags(self) -> None:
+        from cdmw.core.common import hidden_process_group_kwargs
+
+        for background in (False, True):
+            with self.subTest(background=background), patch("cdmw.core.common.subprocess.Popen") as popen:
+                popen.return_value.communicate.return_value = ("ok", "")
+                popen.return_value.returncode = 0
+                self.assertEqual((0, "ok", ""), run_process_with_cancellation(["owned-helper"], background=background))
+                actual = popen.call_args.kwargs
+                expected = hidden_process_group_kwargs().get("creationflags", 0)
+                if os.name == "nt" and background:
+                    expected |= subprocess.BELOW_NORMAL_PRIORITY_CLASS
+                self.assertEqual(expected, actual.get("creationflags", 0))
+
+    @unittest.skipUnless(os.name == "nt", "Windows process priority")
+    def test_background_child_starts_at_below_normal_priority(self) -> None:
+        # Check the real child priority, not just the Popen keyword.
+        code = (
+            "import ctypes; k=ctypes.windll.kernel32;"
+            "k.GetCurrentProcess.restype=ctypes.c_void_p;"
+            "k.GetPriorityClass.argtypes=[ctypes.c_void_p];"
+            "print(k.GetPriorityClass(k.GetCurrentProcess()))"
+        )
+        result, output, error = run_process_with_cancellation([sys.executable, "-c", code], background=True)
+        self.assertEqual((result, error), (0, ""))
+        self.assertEqual(int(output.strip()), subprocess.BELOW_NORMAL_PRIORITY_CLASS)
+
     def test_windows_hidden_subprocess_kwargs_hide_window(self) -> None:
         kwargs = hidden_subprocess_kwargs()
         if os.name != "nt":

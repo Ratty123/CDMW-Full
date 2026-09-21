@@ -96,7 +96,7 @@ def prepare_variant_models(spec, snapshot, models, scenes, *, on_log=None, stop_
             files = model_files_from_import(model, family=family)
             files = route_model_files(files, MaterialRoute(appearance.material_route), result=model,
                                       scene=scenes.get(appearance.identity), glow=appearance.glow_choice(),
-                                      translucency=appearance.translucency, on_log=on_log)
+                                      translucency=appearance.translucency, on_log=on_log, stop_event=stop_event)
         try:
             validate_variant_rig(snapshot, appearance.model_path, files.pac_data, prefab_path=appearance.prefab_path)
         except _SkinPaletteBoundsError:

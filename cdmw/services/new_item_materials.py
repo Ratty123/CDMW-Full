@@ -652,9 +652,12 @@ def route_plain_pbr(
     glow: object = None,
     translucency: object = None,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event=None,
 ) -> PlainPbrRoute:
     """Rewrite import-owned wrappers to the plain shaders described by this module."""
 
+    from cdmw.domain.cancellation import raise_if_cancelled
+    raise_if_cancelled(stop_event)
     sources = dict(sources or {})
     from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency, source_translucency
 
@@ -676,6 +679,7 @@ def route_plain_pbr(
     encoded = []
     warned_sources: set[str] = set()
     for wrapper in wrappers:
+        raise_if_cancelled(stop_event)
         owned = {name: path for name, path in wrapper.textures.items() if path.replace("\\", "/").casefold() in by_lower}
         if not owned:
             continue
@@ -702,7 +706,7 @@ def route_plain_pbr(
             # the colour precision that absorption amplifies into visible noise.
             precise_base = _sp_path_for(base, source.name).removesuffix("_sp.dds") + "_translucent_base.dds"
             if precise_base not in translucent_bases:
-                data = encode_translucent_base(source, on_log=on_log)
+                data = encode_translucent_base(source, on_log=on_log, stop_event=stop_event)
                 translucent_bases[precise_base] = precise_base if data is not None else base
                 if data is not None:
                     new_files[precise_base] = data
@@ -896,6 +900,7 @@ def route_model_files(
     glow: object = None,
     translucency: object = None,
     on_log: Optional[Callable[[str], None]] = None,
+    stop_event=None,
 ) -> ModelFiles:
     """`files` written the way `route` says: the Builder's as they are, or the plain-PBR
     rewrite with the source textures found through `result` and `scene` when given, and
@@ -903,7 +908,8 @@ def route_model_files(
 
     if route is MaterialRoute.PLAIN_PBR:
         sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
-        return route_plain_pbr(files, sources=sources, glow=glow, translucency=translucency, on_log=on_log).files
+        return route_plain_pbr(files, sources=sources, glow=glow, translucency=translucency,
+                               on_log=on_log, stop_event=stop_event).files
     if translucency is not None:
         raise NewItemPlanError("Enable Plain PBR materials to export translucency.")
     return ModelFiles(

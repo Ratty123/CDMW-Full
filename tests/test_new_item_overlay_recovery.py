@@ -205,14 +205,14 @@ def test_automatic_recovery_pins_the_history_during_preparation(old_set, monkeyp
     service, root, backups, _ = old_set
     plan = service.plan(shop_spec("NewAxe"), snapshot_of(root))
     compose = manager._compose
-    def change_before_capture(*args):
+    def change_before_capture(*args, **kwargs):
         if changed == "inventory":
             index = root / INDEX_PATH
             index.write_bytes(index.read_bytes() + b"\n")
         else:
             mount = root / "meta/0.papgt"
             mount.write_bytes(papgt_with_directory(mount.read_bytes(), "0099", 0))
-        return compose(*args)
+        return compose(*args, **kwargs)
     monkeypatch.setattr(manager, "_compose", change_before_capture)
     with pytest.raises(ValueError, match="overlay state changed after preparation"):
         service.install_overlay(plan, mutation_service=backups, confirmed=True, game_running=lambda: False)

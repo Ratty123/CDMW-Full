@@ -31,7 +31,7 @@ def variant_dye_preview_source(controller):
                            for value in choice.dyes or () if value.mask_path)
     token = ("variant-dye",identity,choice,id(result),mask_revisions)
 
-    def model_files():
+    def model_files(stop_event):
         from cdmw.services.new_item_planning import ModelFiles, model_files_from_import
         from cdmw.services.new_item_materials import route_model_files
         if result is None:
@@ -41,7 +41,7 @@ def variant_dye_preview_source(controller):
             return apply_prebuilt_translucency(result,MaterialRoute(choice.material_route),choice.translucency)
         files = model_files_from_import(result,family=variant_family(snapshot.family(template_key),choice))
         return route_model_files(files,MaterialRoute(choice.material_route),result=result,scene=scene,
-                                 glow=choice.glow_choice(),translucency=choice.translucency)
+                                 glow=choice.glow_choice(),translucency=choice.translucency,stop_event=stop_event)
 
     def geometry(stop_event):
         from cdmw.services.mesh_workflow_service import parse_pac
@@ -54,7 +54,7 @@ def variant_dye_preview_source(controller):
         raise_if_cancelled(stop_event)
         if context.get("output_root") is None or context.get("native_preview_core_cache_root") is None:
             raise ValueError("Dye-material preview requires the resident Preview Core.")
-        files = model_files()
+        files = model_files(stop_event)
         index = load_dye_index(snapshot,stop_event=stop_event)
         row = index.rows.get(choice.model_path.casefold())
         if row is None:

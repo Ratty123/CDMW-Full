@@ -391,6 +391,8 @@ def run_process_with_cancellation(
     timeout_seconds: Optional[float] = None,
     timeout_warning_interval_seconds: float = 30.0,
     on_timeout_warning: Optional[Callable[[float], None]] = None,
+    *,
+    background: bool = False,
 ) -> Tuple[int, str, str]:
     env: Optional[Dict[str, str]] = None
     if env_overrides:
@@ -402,6 +404,10 @@ def run_process_with_cancellation(
                 env[key] = value
 
     popen_kwargs = hidden_process_group_kwargs()
+    if background and os.name == "nt":
+        # Keep CPU-heavy helpers below the GUI without limiting their throughput
+        # when the foreground application is idle.
+        popen_kwargs["creationflags"] |= subprocess.BELOW_NORMAL_PRIORITY_CLASS
     proc = subprocess.Popen(
         list(cmd),
         stdout=subprocess.PIPE,

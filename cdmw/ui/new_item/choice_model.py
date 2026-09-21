@@ -1,6 +1,7 @@
 """Constant-time GUI publication of worker-prepared dropdown choices."""
 from PySide6.QtCore import QAbstractListModel, QModelIndex, Qt
 from PySide6.QtWidgets import QComboBox, QListView
+from shiboken6 import isValid
 
 
 class PreparedChoiceModel(QAbstractListModel):
@@ -18,6 +19,9 @@ class PreparedChoiceModel(QAbstractListModel):
             return self.rows[index.row()][0]
         if role == Qt.UserRole:
             return self.rows[index.row()][1]
+        if role == Qt.ToolTipRole:
+            row = self.rows[index.row()]
+            return row[2] if len(row) > 2 else None
         return None
 
     def removeRows(self, row, count, parent=QModelIndex()):
@@ -47,5 +51,6 @@ def set_choice_rows(combo, rows, selected=0):
     _install_python_model_localization(model)
     combo.setModel(model)
     combo.setCurrentIndex(selected if rows else -1)
-    if isinstance(previous, PreparedChoiceModel):
+    # QComboBox may already delete its previous child model in setModel().
+    if isinstance(previous, PreparedChoiceModel) and isValid(previous):
         previous.deleteLater()

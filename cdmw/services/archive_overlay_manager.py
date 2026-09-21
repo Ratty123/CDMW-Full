@@ -210,7 +210,7 @@ def _pack_changes(changes):
     return stream.getvalue()
 
 
-def _unpack_changes(root, layer, pending, stop_event):
+def _read_journal(root, layer, pending):
     relative = '.cdmw/overlays/' + layer['id'] + '.zip'
     path = _target(root, relative)
     if relative in pending:
@@ -221,6 +221,11 @@ def _unpack_changes(root, layer, pending, stop_event):
         raw = path.read_bytes()
     if _digest(raw) != layer['sha256']:
         raise ValueError(f"The journal for {layer['label']} changed. Restore its backup before changing overlays.")
+    return raw
+
+
+def _unpack_changes(root, layer, pending, stop_event):
+    raw = _read_journal(root, layer, pending)
     changes = {}
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         if archive.getinfo('changes.json').file_size > _MAX_STATE_BYTES:
@@ -527,11 +532,18 @@ def apply_overlay_retirement(preparation, *, confirmed, backup, restore_backup,
     return OverlayRetirementResult(_target(root, preparation.directory_name), preparation.labels, backup_dir, retired)
 
 
-def _compose(root, state, pending, label, removed_id, stop_event, on_log):
+def _compose(root, state, pending, label, removed_id, stop_event, on_log, *, decoded=None):
     layers = []
     baseline, flags, meta_paths = {}, {}, set()
     for layer in state['layers']:
-        changes = _unpack_changes(root, layer, pending, stop_event)
+        raise_if_cancelled(stop_event, 'Overlay composition cancelled.')
+        changes = decoded.pop(layer['id'], None) if decoded is not None else None
+        if changes is None:
+            changes = _unpack_changes(root, layer, pending, stop_event)
+        else:
+            # Keep the existing fresh journal hash check. Only inflation and
+            # per-payload decoding are reused within this preparation call.
+            _read_journal(root, layer, pending)
         layers.append((layer, changes))
         for path, change in changes.items():
             baseline.setdefault(path, change['before'])
@@ -592,8 +604,12 @@ def _compose(root, state, pending, label, removed_id, stop_event, on_log):
 
 def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=None, on_log=None, retirement=None):
     root = Path(package_root).resolve()
+    if on_log:
+        on_log('Validating the plan archive sources...')
     if plan.source_revision is not None:
         plan.source_revision.validate(stop_event)
+    if on_log:
+        on_log('Checking installed overlay state...')
     state, pending = _state_for_edit(root, directory_name, stop_event, retirement=retirement)
     mounted_path = _target(root, state['directory'] + '/0.pamt')
     mounted_entries = {str(entry.path).lower(): entry for entry in parse_archive_pamt(mounted_path)} if mounted_path.is_file() else {}
@@ -624,19 +640,26 @@ def prepare_item_overlay(plan, package_root, *, directory_name=None, stop_event=
     known_items = set(item_keys) | {int(plan.spec.item_key)}
     references = owned_item_references(changes) | {int(plan.spec.template_key)}
     dependencies = []
+    decoded = {}
+    if on_log:
+        on_log('Checking dependencies against installed overlays...')
     for layer in state['layers']:
         if not layer['active']:
             continue
         if known_items.intersection(layer['item_keys']):
             raise OverlayConflict(f"Item identity conflicts with {layer['label']}. Build a new plan from the current installed tables.")
-        if references.intersection(layer['item_keys']) or _uses_owned_assets(
-            plan, changes, _unpack_changes(root, layer, pending, stop_event)
-        ):
+        if references.intersection(layer['item_keys']):
+            dependencies.append(layer['id'])
+            continue
+        decoded[layer['id']] = _unpack_changes(root, layer, pending, stop_event)
+        if _uses_owned_assets(plan, changes, decoded[layer['id']]):
             dependencies.append(layer['id'])
     from cdmw.core.mod_compatibility import game_identity
+    if on_log:
+        on_log('Preparing overlay history...')
     _add_layer(state, pending, plan.spec.display_names.get('eng') or plan.spec.internal_name, changes,
         item_keys=tuple(sorted(known_items)), dependencies=dependencies, target_game=game_identity(root, stop_event))
-    prepared = _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log)
+    prepared = _compose(root, state, pending, plan.spec.internal_name, None, stop_event, on_log, decoded=decoded)
     if retirement is not None:
         before = dict(prepared.before)
         archived = '.cdmw/retired-overlays/' + retirement.retirement_id + '.json'

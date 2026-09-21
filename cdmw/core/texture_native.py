@@ -1150,6 +1150,7 @@ def encode_dds_batch_with_directxtex(
                 timeout_warning_interval_seconds=30.0,
                 on_timeout_warning=emit_heartbeat,
                 stop_event=stop_event,
+                background=True,
             )
         except RunCancelled:
             raise

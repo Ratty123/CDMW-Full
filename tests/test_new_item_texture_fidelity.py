@@ -169,6 +169,32 @@ def test_standalone_authored_dds_is_not_recompressed_for_translucency(tmp_path):
     assert files.side_files[material.textures["_baseColorTexture"]] == original
 
 
+def test_repeated_import_material_preparation_reuses_real_bc7_bytes(tmp_path, monkeypatch):
+    from collections import OrderedDict
+    from cdmw.core import texture_native
+    from cdmw.domain.new_item.translucency import TranslucencyChoice
+    from cdmw.services import new_item_translucency
+
+    monkeypatch.setattr(new_item_translucency, "_BASE_CACHE", OrderedDict())
+    Image.new("RGBA", (32, 32), (73, 91, 107, 255)).save(tmp_path / "colour.png")
+    path = write_gltf(tmp_path, [{"name": "Glass", "pbrMetallicRoughness": {
+        "baseColorTexture": {"index": 0}}}], ["colour.png"])
+    encode, calls = texture_native.encode_dds_with_directxtex, []
+
+    def counted(png, output, **kwargs):
+        if kwargs["dds_format"] == "BC7_UNORM":
+            calls.append(True)
+        return encode(png, output, **kwargs)
+
+    monkeypatch.setattr(texture_native, "encode_dds_with_directxtex", counted)
+    results = [export_materials(path, tmp_path, translucency=TranslucencyChoice(("Glass",))) for _ in range(2)]
+    payloads = [files.side_files[wrappers["Glass"].textures["_baseColorTexture"]] for _, files, wrappers in results]
+    assert len(calls) == 1
+    assert payloads[0] == payloads[1]
+    info = inspect_dds_native(payloads[1])
+    assert (info.format_name, info.width, info.height, info.mip_count) == ("BC7_UNORM", 32, 32, 6)
+
+
 @pytest.mark.parametrize("alpha_mode, expected_alpha", [("BLEND", 64), ("OPAQUE", 255)])
 def test_selected_translucency_keeps_source_alpha_through_import_and_export(tmp_path, alpha_mode, expected_alpha):
     from cdmw.domain.new_item.translucency import TranslucencyChoice

@@ -279,7 +279,8 @@ class NewItemService:
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
-            files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, translucency=allocated.translucency, on_log=on_log)
+            files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow,
+                                     translucency=allocated.translucency, on_log=on_log, stop_event=stop_event)
         elif allocated.glow is not None or allocated.translucency is not None or allocated.template_transform:
             from cdmw.services.new_item_template_model import prepare_template_model
 
@@ -500,8 +501,7 @@ class NewItemService:
             raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
         if not plan.patches and not plan.additions:
             raise NewItemInstallRefused("The plan changes nothing.")
-        if plan.source_revision is not None:
-            plan.source_revision.validate(stop_event)
+        # prepare_item_overlay owns source validation, including a recovery retry.
         if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
             raise NewItemInstallRefused("The archive mutation service is not available in this window.")
         package_root = _package_root_of(plan)
