@@ -13,10 +13,12 @@ The format is intentionally simple:
 
 ### Changed
 
+- Hair Tools starts new hairstyles empty and removes the procedural hairstyle presets. Existing saved hair keeps its authored geometry.
 - Create New Item moves model selection, import and preview controls into the right inspector so Model & Placement can use the full viewport height. Distribution's Item groups list fills the available page space.
 
 ### Added
 
+- Hair Tools has a Physics brush for painting static and moving regions along locks, with blue/orange feedback, selection and symmetry support, Undo/Redo and drafts. Static paint disables retained PAC cloth bindings in output; Physical keeps the template's physics.
 - New Item keeps independent translucency settings for each material part. New Item and Mesh Editor offer absorption presets and a Clear-to-Dense slider, with the original thickness/extinction controls under Advanced.
 - Create New Item supports template-only Move, Rotate, Scale, Glow and experimental Translucency. Changes follow the selected variant and are included in Build plan without importing a model.
 - Mesh Editor can create experimental cloth guides from a stored LOD of guide-free PAC parts, using existing bones and an adjustable pin height. Generated bindings cover every LOD and support preview, Restore, Undo/Redo, Finish, drafts and Build Mod. Optional skin-weight reduction is explicit. Adding skeletal bones remains unsupported, and generated guides have not been tested in game.
@@ -30,6 +32,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Hair Tools' soft motion collides with the loaded body surface, including shoulders, chest and back, and prunes distant contact searches. Focus loss and resize now cancel unfinished hair strokes instead of leaving the editor busy.
 - New Item now reaches Browse Archives' shared native texture cache in the assembled app, avoiding the slower fallback path and retaining template textures, glow and translucency in Perks & Effects.
 - Build plan converts selected layered template materials into textures for translucency instead of failing with "no base colour texture". Other parts keep their materials; the plan identifies baked parts and missing texture inputs.
 - Applying Glow or Translucency to a template in New Item no longer leaves a grey model when the Python preview decoder is used. Template textures are prepared and retained before appearance edits are applied.

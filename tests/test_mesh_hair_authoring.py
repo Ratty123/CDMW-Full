@@ -168,6 +168,71 @@ def editor(tmp_path):
         authority.close_edit_session(authoring.authoritative_session_id, force_without_saving=True)
 
 
+@pytest.mark.parametrize("mask", [[True], [False, 1], "static", [False, True, False]])
+def test_physics_paint_rejects_malformed_or_mismatched_masks(mask):
+    value = payload()
+    value["guides"][0]["pinned"] = mask
+    with pytest.raises(ValueError, match="physics paint"):
+        hair_state_from_payload(value)
+
+
+def test_physics_paint_metadata_survives_undo_redo_and_draft(editor, tmp_path):
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    live = service._session(sid)
+    before = live.hair_state
+    mesh = live.working_mesh
+    old = before.payload
+    painted = copy.deepcopy(old)
+    painted["guides"][0]["pinned"] = [False, True]
+    painted["revision"] += 1
+    reuse = ["groups", "bindings", "locks", "vertex_sources", "prepared_parts"]
+    update = {"hair": painted, "submeshes": [], "hair_update": {"version": 2,
+        "reference": old["scalp"]["identity"], "parts": [], "reuse": reuse, "base_hair_revision": old["revision"]}}
+    for field in ("scalp", "references", "collisions", *reuse):
+        painted.pop(field, None)
+    apply_hair_candidate(authoring, update, "Paint hair physics")
+    after = live.hair_state
+    assert after.payload["guides"][0]["pinned"] == [False, True]
+    assert all(a is b for a, b in zip(mesh.submeshes, live.working_mesh.submeshes))
+    service.undo(sid)
+    assert live.hair_state == before
+    service.redo(sid)
+    assert live.hair_state == after
+    project = tmp_path / "paint/project.json"
+    live.mesh_layer_project_path = project
+    service.retry_mesh_layer_autosave(sid)
+    loaded = load_mesh_layer_project(copy.deepcopy(live.base_mesh), project,
+                                    expected_source_asset_sha256=live.mesh_asset_source_hash)
+    assert loaded["hair_state"].payload["guides"][0]["pinned"] == [False, True]
+
+
+def test_hair_setup_retains_full_collision_body_separately_from_cropped_bust(editor):
+    from cdmw.services.mesh_rust_hair import prepare_hair_setup
+    _, authoring = editor
+    service, sid = authoring.shadow_service, authoring.shadow_session_id
+    head = service.working_mesh(sid, clone=True)
+    head.submeshes = head.submeshes[:1]
+    head.submeshes[0].vertices = [(-.1,1.5,0.), (.1,1.5,0.), (0.,1.8,0.)]
+    head.submeshes[0].faces = [(0,1,2)]
+    body = copy.deepcopy(head)
+    body.submeshes[0].vertices = [(-.1,1.49,.1),(.1,1.49,.1),(0.,1.3,.1),
+                                (-.2,.5,.1),(.2,.5,.1),(0.,0.,.1)]
+    body.submeshes[0].faces = [(0,1,2),(3,4,5)]
+    source_data = service._session(sid).original_data
+    args = dict(character="Damiane", _archive_snapshot=SimpleNamespace(mesh=head, original_data=source_data),
+        _archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/head/head/test.pac"),
+        _body_snapshot=SimpleNamespace(mesh=body, original_data=source_data),
+        _body_archive_entry=SimpleNamespace(path="character/model/1_pc/2_phw/nude/cd_phw_00_nude_test.pac"))
+    prepare_hair_setup(service, sid, args, None)
+    references = service._session(sid).hair_state.payload["references"]
+    bust = next(r for r in references if not r["identity"].startswith("collision:"))
+    collision = next(r for r in references if r["identity"].startswith("collision:body:"))
+    assert min(p[1] for p in bust["positions"]) == 1.3
+    assert min(p[1] for p in collision["positions"]) == 0.
+    assert len(collision["triangles"]) == 2
+
+
 def candidate(editor, *, topology=False):
     mesh = editor.shadow_service.working_mesh(editor.shadow_session_id, clone=True)
     state = editor.shadow_service._session(editor.shadow_session_id).hair_state.payload

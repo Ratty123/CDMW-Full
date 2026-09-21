@@ -166,8 +166,9 @@ finish. Start waits for the selected hairstyle's own check.
 Start prepares a complete replacement in isolation before the existing unsaved
 work confirmation and scene switch. Cancellation and failed preparation preserve
 the current scene; **Retry loading choices** restarts preparation. An active
-generated hairstyle can change presets as one undoable edit without reopening its
-archive target. Repeated Create requests use the same route.
+generated hairstyle can start empty as one undoable edit without reopening its
+archive target. Procedural hairstyle presets have been removed; existing saved
+hair keeps its geometry. Repeated Create requests use the same route.
 
 Select a visible lock and use **Move** to drag it. Ctrl-click toggles selection;
 drag empty space for a marquee. **Move reach** sets how much of the lock follows
@@ -192,6 +193,15 @@ Comb, Smooth, Curl and Clump use the highlighted brush region, restricted to the
 selection when one exists. They work with hair drawn with **Follow scalp** either
 on or off. Short and thin locks anywhere inside the brush circle can be groomed;
 the character reference and nearer hair still block edits to hidden locks.
+**Physics** paints regions along locks with **Static** or **Physical**. Blue marks
+fixed rows and orange marks moving rows. Roots always remain fixed. The brush
+affects visible hair, respects the current selection, and uses explicit symmetry
+pairs. Paint is retained in drafts and Undo/Redo and follows cuts and grooming.
+Static rows and their follower cards stay attached to the head during preview.
+Output disables retained PAC cloth bindings at static rows, including lower LODs
+through nearest-vertex transfer from LOD0. Physical restores the template's cloth
+bindings on rebuild; it does not create a game physics rig or change skeletal
+weights. Original sections need grooming roots before painting.
 Appearance controls width and generated follower
 cards. Symmetry uses explicit pairs created while drawing. Escape cancels a
 stroke; Ctrl-Z/Ctrl-Y undo or redo one completed action. Alt-drag orbits,
@@ -224,16 +234,23 @@ Wind are also available. Existing sections spanning too far from their guide
 cannot simulate safely: assign roots to smaller selections, or mark scalp sections
 rigid. Static editing remains available. The Rust XPBD solver drives the rendered cards and uses
 matching reference/root/collision transforms. Cached scalp-surface contacts check
-guide segments and card width while retaining neck and shoulder collision shapes.
+guide segments and card width. New reference setups retain the complete body
+surface for shoulder, chest and back contacts, independently of bust visibility;
+the neck uses the same blended pose for rendering and collisions. Older drafts
+use their saved bust until **Change references** loads the full body. Local
+contact searches avoid scanning distant surfaces during soft motion.
 Head contacts use the actual scalp surface, so starting Play does not push fitted
 hair outward to the head's larger bounding capsule.
 A rest-shape force preserves the groom while allowing softer tip movement; adjust
 **Shape softness** to change it. This is an editor preview, not a simulation of
-the donor's in-game rig or physics. Optional procedural fills remain in the editor.
+the donor's in-game rig or physics.
 A stroke pauses playback and resumes
 from the edited rest shape at the current pose. Reset is deterministic. Simulation
 frames never modify drafts, output or history. **Use settled shape** explicitly
 accepts the neutral-coordinate result as one undoable edit after motion has played.
+Losing focus or resizing cancels an unfinished stroke and clears its busy state.
+While a topology edit is finishing, another click reports that preparation is
+still running; completed edits remain ordered and bounded.
 
 **Open in Texture Editor** and **Apply edited DDS** retain the template's verified
 material slots, dimensions, compression and mip counts. Edits follow the selected

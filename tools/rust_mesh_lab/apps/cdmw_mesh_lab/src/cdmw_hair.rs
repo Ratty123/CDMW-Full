@@ -2,7 +2,7 @@
 use super::*;
 use cdmw_mesh::hair::locks::{self, LockKind};
 use cdmw_mesh::hair::{
-    self, Attachment, Groom, GroupMode, HairState, MotionSettings, Preset, Simulation,
+    self, Attachment, Groom, GroupMode, HairState, MotionSettings, Simulation,
 };
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,7 +10,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::thread;
 
 #[cfg(test)]
-use cdmw_mesh::hair::HairGroup;
+use cdmw_mesh::hair::{HairGroup, Preset};
 
 #[cfg(test)]
 #[path = "cdmw_hair_tests.rs"]
@@ -30,6 +30,7 @@ pub(super) enum HairTool {
     Clump,
     Move,
     Erase,
+    Physics,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +53,7 @@ enum Preparation {
     Metadata,
     Bind(u32),
     Rebind,
+    #[cfg(test)]
     Fill(u32, Preset, f32),
 }
 struct HairScene {
@@ -117,10 +119,9 @@ pub(super) struct HairEditor {
     last_tick: Instant,
     preview: Option<MeshDocument>,
     pub group: u32,
-    pub preset: Preset,
-    pub length: f32,
     pub radius: f32,
     pub strength: f32,
+    pub(super) paint_static: bool,
     pub symmetry: bool,
     pub width: f32,
     pub density: u32,
@@ -181,10 +182,9 @@ impl Default for HairEditor {
             last_tick: Instant::now(),
             preview: None,
             group: 0,
-            preset: Preset::Bob,
-            length: 0.3,
             radius: 35.0,
             strength: 0.25,
+            paint_static: true,
             symmetry: false,
             width: 0.01,
             density: 6,
@@ -221,7 +221,6 @@ pub(super) enum HairAction {
     Settings,
     Settle,
     Reset,
-    Fill,
     Registration,
 }
 
@@ -344,16 +343,14 @@ impl LabApplication {
                 self.hair.atlas = group.uv_rect;
             }
             if first {
-                let (minimum, maximum) = hair_bounds(hair);
                 self.camera
                     .set_standard_view(crate::camera::StandardView::Front);
-                self.hair.length = (maximum - minimum).max_element() * 0.9;
                 if let Some(rect) = self.viewport_rect {
                     let points =
                         hair.scalp
                             .positions
                             .iter()
-                            .chain(hair.references.iter().flat_map(|r| r.positions.iter()))
+                            .chain(hair.references.iter().filter(|r| !r.identity.starts_with("collision:")).flat_map(|r| r.positions.iter()))
                             .chain(self.document.iter().flat_map(|d| {
                                 d.lods.iter().take(1).flat_map(|l| {
                                     l.submeshes.iter().flat_map(|p| p.positions.iter())
@@ -367,19 +364,6 @@ impl LabApplication {
                 self.view_mode = ViewMode::TexturedSolid;
                 self.hair.pending_preset =
                     hair.revision == 0 && hair.guides.is_empty() && hair.locks.is_empty();
-                self.hair.preset = match hair.startup_preset.as_str() {
-                    "cropped" => Preset::Cropped,
-                    "long" => Preset::Long,
-                    "ponytail" => Preset::Ponytail,
-                    _ => Preset::Bob,
-                };
-                self.hair.length = (maximum - minimum).max_element()
-                    * match self.hair.preset {
-                        Preset::Cropped => 0.18,
-                        Preset::Bob => 0.7,
-                        Preset::Long => 1.4,
-                        Preset::Ponytail => 1.6,
-                    };
                 self.cdmw_orbit_mode = false;
             }
             if hair.converted {
@@ -486,31 +470,14 @@ impl LabApplication {
     pub(super) fn poll_hair(&mut self) {
         if self.hair_input_ready() && !self.hair.preparing() && !self.cdmw_busy() {
             if let Some(preset) = self.hair.requested_preset.take() {
-                if let Some(state) = self.hair.state.as_ref().filter(|s| {
+                if preset != "empty" {
+                    self.hair.feedback = "Hairstyle presets are no longer available. Use Draw to create hair.".into();
+                } else if self.hair.state.as_ref().is_some_and(|s| {
                     !s.converted && s.groups.iter().all(|g| g.mode == GroupMode::Generated)
                 }) {
-                    self.hair.preset = match preset.as_str() {
-                        "cropped" => Preset::Cropped,
-                        "long" => Preset::Long,
-                        "ponytail" => Preset::Ponytail,
-                        _ => Preset::Bob,
-                    };
-                    let (minimum, maximum) = hair_bounds(state);
-                    self.hair.length = (maximum - minimum).max_element()
-                        * match self.hair.preset {
-                            Preset::Cropped => 0.18,
-                            Preset::Bob => 0.7,
-                            Preset::Long => 1.4,
-                            Preset::Ponytail => 1.6,
-                        };
-                    self.run_hair_action(if preset == "empty" {
-                        HairAction::Empty
-                    } else {
-                        HairAction::Fill
-                    });
+                    self.run_hair_action(HairAction::Empty);
                 } else {
-                    self.hair.feedback =
-                        "Start a generated hairstyle before applying a preset.".into();
+                    self.hair.feedback = "Use Create Hair to start an empty hairstyle.".into();
                 }
             }
         }
@@ -531,10 +498,8 @@ impl LabApplication {
                     .any(|g| g.mode == GroupMode::Existing);
                 self.run_hair_action(if existing {
                     HairAction::Prepare
-                } else if self.hair.state.as_ref().unwrap().startup_preset == "empty" {
-                    HairAction::Empty
                 } else {
-                    HairAction::Fill
+                    HairAction::Empty
                 });
             }
         }
@@ -737,10 +702,6 @@ impl LabApplication {
                 HairAction::Rebind => operation = Preparation::Rebind,
                 HairAction::Prepare => operation = Preparation::Analyze,
                 HairAction::Empty => operation = Preparation::Empty,
-                HairAction::Fill => {
-                    operation =
-                        Preparation::Fill(self.hair.group, self.hair.preset, self.hair.length)
-                }
                 HairAction::Registration => {
                     state.style_name = self.hair.style_name.trim().to_owned();
                     operation = Preparation::Metadata;
@@ -809,7 +770,6 @@ impl LabApplication {
                 HairAction::Rebind => "Rebind hair roots",
                 HairAction::DeleteGuides => "Delete hair",
                 HairAction::Settings => "Change selected hair thickness and density",
-                HairAction::Fill => "Apply hairstyle preset",
                 HairAction::Empty => "Clear generated hairstyle",
                 HairAction::Prepare => "Prepare existing hair",
                 HairAction::Rigid => "Attach scalp section rigidly",
@@ -968,7 +928,7 @@ impl LabApplication {
             ui.horizontal_wrapped(|ui| {
                 for (tool,name) in [(HairTool::Select,"Select"),(HairTool::Move,"Move"),(HairTool::Guide,"Draw"),
                     (HairTool::Erase,"Erase"),(HairTool::Cut,"Cut"),(HairTool::Lengthen,"Lengthen"),
-                    (HairTool::Comb,"Comb"),(HairTool::Smooth,"Smooth"),(HairTool::Curl,"Curl"),(HairTool::Clump,"Clump")] {
+                    (HairTool::Comb,"Comb"),(HairTool::Smooth,"Smooth"),(HairTool::Curl,"Curl"),(HairTool::Clump,"Clump"),(HairTool::Physics,"Physics")] {
                     let enabled=generated || tool!=HairTool::Guide;
                     if ui.add_enabled(enabled,egui::Button::new(name).selected(self.hair.tool==Some(tool)))
                         .on_disabled_hover_text("Draw creates new cards in Create hairstyle. Existing hair preserves its original cards and UV layout.").clicked(){self.hair.tool=Some(tool);self.cdmw_orbit_mode=false;}
@@ -983,8 +943,17 @@ impl LabApplication {
                 Some(HairTool::Cut)=>"Point at a lock and click to remove hair beyond the cut marker.",
                 Some(HairTool::Lengthen)=>"Click a hair lock and drag to extend its tip. An existing selection stays selected.",
                 Some(HairTool::Root)=>"Click the scalp to attach the selected sections as one lock. Select sections sharing a material.",
+                Some(HairTool::Physics)=>"Paint where hair stays fixed or moves. Only visible hair is painted; an existing selection limits the brush. Roots stay fixed.",
                 _=>"Drag over highlighted hair. Only selected or brushed locks change."
             };ui.label(help);
+            if self.hair.tool == Some(HairTool::Physics) {
+                ui.horizontal_wrapped(|ui| {
+                    ui.selectable_value(&mut self.hair.paint_static, true, "Static");
+                    ui.selectable_value(&mut self.hair.paint_static, false, "Physical");
+                });
+                ui.colored_label(Color32::from_rgb(60, 190, 245), "Blue: static");
+                ui.colored_label(Color32::from_rgb(245, 155, 60), "Orange: physical");
+            }
             if self.hair.tool == Some(HairTool::Guide) {
                 ui.horizontal_wrapped(|ui| {
                     for (shape, label) in [(DrawShape::Freehand,"Freehand"), (DrawShape::Straight,"Straight"),
@@ -1011,7 +980,7 @@ impl LabApplication {
             }
             if !matches!(self.hair.tool,Some(HairTool::Select|HairTool::Move|HairTool::Cut|HairTool::Guide|HairTool::Root)) {
                 ui.add(egui::Slider::new(&mut self.hair.radius,5.0..=160.0).text("Brush size"));
-                ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text("Strength"));
+                if self.hair.tool != Some(HairTool::Physics) { ui.add(egui::Slider::new(&mut self.hair.strength,0.01..=1.0).text("Strength")); }
             }
             ui.checkbox(&mut self.hair.symmetry,"Symmetry");
             if self.hair.tool==Some(HairTool::Select) {ui.checkbox(&mut self.hair.select_through,"Select through");}
@@ -1040,15 +1009,6 @@ impl LabApplication {
                 ui.label("Hairstyle name");ui.text_edit_singleline(&mut self.hair.style_name);
                 if ui.button("Apply name").clicked(){actions.push(UiAction::Hair(HairAction::Registration));}
                 if generated {
-                    egui::ComboBox::from_label("Preset").selected_text(format!("{:?}",self.hair.preset)).show_ui(ui,|ui| {
-                        for preset in [Preset::Cropped,Preset::Bob,Preset::Long,Preset::Ponytail] {
-                            if ui.selectable_value(&mut self.hair.preset,preset,format!("{preset:?}")).changed(){
-                                self.hair.length=span*match preset {Preset::Cropped=>0.18,Preset::Bob=>0.7,Preset::Long=>1.4,Preset::Ponytail=>1.6};
-                            }
-                        }
-                    });
-                    ui.add(egui::Slider::new(&mut self.hair.length,span*0.02..=span*3.0).text("Preset length"));
-                    if ui.button("Apply preset (replace current hair)").clicked(){actions.push(UiAction::Hair(HairAction::Fill));}
                     if ui.button("Start empty").clicked(){actions.push(UiAction::Hair(HairAction::Empty));}
                 } else if ui.button("Prepare existing hair sections").clicked(){actions.push(UiAction::Hair(HairAction::Prepare));}
                 if ui.button("Change references…").clicked(){actions.push(UiAction::CdmwCommand{command:"hair_begin",arguments:json!({"change_references":true}),label:"Change hair references"});}
@@ -1080,7 +1040,7 @@ impl LabApplication {
         });
         ui.separator();
         ui.strong("Motion");
-        ui.weak("Editor motion preview. In-game movement depends on the donor's rig and physics; this preview does not simulate them.");
+        ui.weak("Editor motion preview. Static paint disables cloth in the output; physical areas retain the template's rig and physics.");
         let reason = self.hair_motion_reason().err();
         ui.horizontal(|ui| {
             if ui
@@ -1263,6 +1223,7 @@ fn build_scene(
     let mut head_reference_ranges = vec![];
     if reference {
         for mesh in std::iter::once(&state.scalp).chain(&state.references) {
+            if mesh.identity.starts_with("collision:") { continue; }
             let first = snapshot.positions.len() as u32;
             if std::ptr::eq(mesh, &state.scalp) || mesh.identity.starts_with("head:") {
                 head_reference_ranges.push(first as usize..first as usize + mesh.positions.len());

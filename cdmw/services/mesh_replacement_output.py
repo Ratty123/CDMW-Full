@@ -321,6 +321,9 @@ def prepare_replacement_output(snapshot) -> MeshReplacementOutput:
             raise ValueError("Jiggle editing is supported only for PAC meshes.")
         from cdmw.modding.pac_jiggle import apply_pac_jiggle_rules
         data = apply_pac_jiggle_rules(data, jiggle_rules, appearance=state.neutral_appearance)
+    if getattr(snapshot, "hair_state", None) is not None:
+        from cdmw.services.mesh_hair_output import apply_hair_physics_paint
+        data = apply_hair_physics_paint(data, snapshot)
     parsed = parse_mesh(data, state.target_path)
     if not parsed.submeshes or len(parsed.submeshes) != len(original.submeshes):
         raise ValueError("Replacement writer changed the required target section layout.")

@@ -361,6 +361,7 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         mesh = _head_component_scale(_scaled_reference(body, appearance, 1.0), head_scale,
             args.get("_body_skeleton"), appearance, body.original_data, body=True)
         vertices, faces = [], []
+        collision_vertices, collision_faces = [], []
         cutoff = bounds_min[1] - height * .9
         neck_top = bounds_min[1]
         scalp_bottom = bounds_max[1] - height * .02
@@ -378,9 +379,13 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
             triangles.extend([[scalp_map[i] for i in face] for face in scalp_faces])
             # Keep the lower body once; the face perimeter is joined below.
             scalp_face_set = set(tuple(face) for face in scalp_faces)
-            selected = [face for face in part.faces if tuple(face) not in scalp_face_set
-                        and all(part.vertices[i][1] >= cutoff for i in face)
-                        and sum(part.vertices[i][1] for i in face) / 3 <= neck_top]
+            body_faces = [face for face in part.faces if tuple(face) not in scalp_face_set
+                          and sum(part.vertices[i][1] for i in face) / 3 <= neck_top]
+            body_indices = sorted({i for face in body_faces for i in face})
+            body_map = {index: i + len(collision_vertices) for i, index in enumerate(body_indices)}
+            collision_vertices.extend([list(part.vertices[i]) for i in body_indices])
+            collision_faces.extend([[body_map[i] for i in face] for face in body_faces])
+            selected = [face for face in body_faces if all(part.vertices[i][1] >= cutoff for i in face)]
             indices = sorted({i for face in selected for i in face})
             mapping = {index: i + len(vertices) for i, index in enumerate(indices)}
             vertices.extend([list(part.vertices[i]) for i in indices])
@@ -388,7 +393,9 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         if not faces:
             raise ValueError("The selected body does not overlap the head's neck and shoulder area.")
         references = [dict(identity=body_path + ":" + hashlib.sha256(body.original_data).hexdigest(),
-                           positions=vertices, triangles=faces)]
+                           positions=vertices, triangles=faces),
+                      dict(identity="collision:body:" + body_path + ":" + hashlib.sha256(body.original_data).hexdigest(),
+                           positions=collision_vertices, triangles=collision_faces)]
         from cdmw.domain.mesh.hair_reference import join_face_reference
         positions, triangles = join_face_reference(positions, triangles, face_count, vertices, faces)
         identity = path + ":" + hashlib.sha256(incoming.original_data + body.original_data).hexdigest()
@@ -447,7 +454,7 @@ def prepare_hair_setup(service, session_id, args, stop_event, *, neutral_appeara
         payload = {
             "version": 2, "revision": 0, "converted": False,
             "locks": [], "next_lock_id": 1, "style_name": "My hairstyle",
-            "startup_preset": args.get("start_preset", "bob"),
+            "startup_preset": "empty",
             "scalp": {"identity": identity, "positions": positions, "triangles": triangles},
             "bound_reference": identity, "reference_parts": [],
             "template": {"path": str(session.working_mesh.path), "sha256": digest,

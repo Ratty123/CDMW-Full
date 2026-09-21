@@ -3332,6 +3332,19 @@ fn integrated_inspector_long_hair_part_names_keep_button_edges_clickable() -> Te
 }
 
 #[test]
+fn integrated_inspector_hair_physics_brush_exposes_static_and_physical_modes() -> TestResult {
+    use crate::cdmw_hair::HairTool;
+    let mut ui = integrated_hair_inspector(egui::vec2(1440.0, 980.0), 11.0, "normal");
+    ui.click("Physics")?;
+    assert_eq!(ui.application.hair.tool, Some(HairTool::Physics));
+    ui.click("Physical")?;
+    assert!(!ui.application.hair.paint_static);
+    ui.click("Static")?;
+    assert!(ui.application.hair.paint_static);
+    Ok(())
+}
+
+#[test]
 fn integrated_inspector_long_hair_textures_keep_button_edges_clickable() -> TestResult {
     use crate::cdmw_hair::HairTool;
     let texture = "cd_phw_00_hair_base_youth_0010_haircard_alpha_diffuse_original_texture.dds";

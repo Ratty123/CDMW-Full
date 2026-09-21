@@ -23,6 +23,7 @@ pub(super) fn prepare(
             .rebind_cancellable(state.scalp.clone(), cancelled)
             .map_err(|e| e.to_string())?;
     }
+    #[cfg(test)]
     if let Preparation::Fill(group, preset, length) = operation {
         let generated = state
             .groups
@@ -376,8 +377,13 @@ fn cut_lock(
         compact_part(state, document, lock.part, &remove);
     }
     let guide = &mut state.guides[gi as usize];
+    let tip_pinned = guide.is_pinned(segment + usize::from(t >= 0.5));
     guide.points.truncate(segment + 1);
     guide.points.push(tip);
+    if !guide.pinned.is_empty() {
+        guide.pinned.truncate(segment + 1);
+        guide.pinned.push(tip_pinned);
+    }
     for b in state.bindings.iter_mut().filter(|b| b.guide == gi) {
         if b.segment as usize >= segment {
             b.segment = segment as u32;

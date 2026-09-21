@@ -37,6 +37,64 @@ from cdmw.services.new_item_provenance import SourceTracker
 PBD_CONFIG = "character/descriptors/pbd/pbdconfig.xml"
 
 
+def apply_hair_physics_paint(data, snapshot):
+    """Disable retained cloth only at painted guide rows in the rebuilt PAC.
+
+    Physical paint restores the donor on the next rebuild. It never fabricates
+    cloth guides or changes skeletal weights, geometry, or material channels.
+    """
+    hair = getattr(snapshot, "hair_state", None)
+    if hair is None:
+        return data
+    state = hair.payload
+    painted = {i: guide for i, guide in enumerate(state["guides"]) if guide.get("pinned")}
+    if not painted:
+        return data
+    output = snapshot.replacement_state
+    indices = bound_part_indices(snapshot.mesh, output)
+    targets = {indices[part.part_id]: part.target_index for part in output.parts if part.included}
+    fixed = {}
+    for binding in state["bindings"]:
+        guide = painted.get(binding["guide"])
+        target = targets.get(binding["part"])
+        if guide is None or target is None:
+            continue
+        row = binding["segment"] + int(binding["t"] >= .5)
+        if row == 0 or guide["pinned"][row]:
+            fixed.setdefault(target, set()).add(binding["vertex"])
+    if not fixed:
+        return data
+    from cdmw.modding.pac_cloth import pac_cloth_binding, pac_cloth_lods
+    from cdmw.modding.mesh_parser import PAC_SKIN_EXTRA_INDEX_SENTINEL
+    from cdmw.modding.mesh_builder_common import _build_spatial_hash, _nearest_point_index
+    levels = pac_cloth_lods(data)
+    result = bytearray(data)
+    for target, vertices in fixed.items():
+        part = levels[0].submeshes[target]
+        source = next(index for index, mapped in targets.items() if mapped == target)
+        if (len(part.vertices) != len(snapshot.mesh.submeshes[source].vertices)
+                or any(not 0 <= vertex < len(part.vertices) for vertex in vertices)):
+            raise ValueError("Hair physics paint lost its output vertex mapping.")
+        cell, grid = _build_spatial_hash(part.vertices)
+        for lod, level in enumerate(levels):
+            current = level.submeshes[target]
+            # LOD0 has exact authored indices. Reduced LODs inherit the mask
+            # from their nearest LOD0 vertex, using the mesh transfer index.
+            selected = vertices if lod == 0 else {
+                i for i, point in enumerate(current.vertices)
+                if _nearest_point_index(point, part.vertices, cell, grid) in vertices}
+            for vertex in selected:
+                offset = current.source_vertex_offsets[vertex]
+                if pac_cloth_binding(data, offset) is None:
+                    continue
+                group = struct.unpack_from("<I", data, offset + 24)[0]
+                struct.pack_into("<I", result, offset + 24, group & 0xC00003FF)
+                result[offset + 12:offset + 16] = PAC_SKIN_EXTRA_INDEX_SENTINEL
+                result[offset + 32:offset + 36] = bytes(4)
+                result[offset + 39] = (data[offset + 39] & 0xC0) | 63
+    return bytes(result)
+
+
 def material_texture_paths(data):
     from cdmw.core.archive_model_texture_semantics import _is_placeholder_model_texture
     if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():

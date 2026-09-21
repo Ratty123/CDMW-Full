@@ -675,7 +675,7 @@ policy.exact_free_edit|exact_free_edit|executable|session_policy|true|
 // Create/Edit setup is owned by the shared Qt Hair Tools dialog; it is no
 // longer a pair of controls in the Rust panel.
 const PRODUCT_COMPILED_ANCHOR_ROWS: &str = r#"
-hair.preset|hair|"Apply preset (replace current hair)"|Preparation::Fill
+hair.physics|hair|"Physics"|HairTool::Physics
 hair.groom|hair|"Comb"|hair::groom
 hair.bind|hair|"Prepare existing hair sections"|locks::prepare_existing
 hair.root|hair|"Set root / group selected sections"|HairTool::Root

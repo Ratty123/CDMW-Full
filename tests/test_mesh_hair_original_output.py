@@ -29,6 +29,46 @@ def original_snapshot(authoring, *, prepared=True):
     return replace(snapshot, hair_state=hair_state_from_payload(state))
 
 
+def test_physics_paint_only_disables_selected_cloth_rows_and_physical_restores_donor(editor):
+    from cdmw.modding.pac_cloth import pac_cloth_lods, pac_cloth_binding
+    from cdmw.modding.mesh_parser import _decode_pac_skin_influences
+    snapshot = editor[1].shadow_service.capture_export_snapshot(editor[1].shadow_session_id)
+    data = bytearray(snapshot.original_data)
+    for level in pac_cloth_lods(data):
+        for i, offset in enumerate(level.submeshes[0].source_vertex_offsets):
+            if i == 1:
+                struct.pack_into("<3H", data, offset, 32767, 0, 0)
+            struct.pack_into("<2e", data, offset + 12, 3., 4.)
+            struct.pack_into("<I", data, offset + 24, 1 << 10 | 2 << 20 | 0xC0000000)
+            data[offset + 28:offset + 32] = bytes((255, 0, 0, 0))
+            data[offset + 32:offset + 36] = bytes((104, 82, 42, 27))
+            data[offset + 39] = 0xC0
+    dependencies = snapshot.replacement_state.dependencies
+    snapshot = replace(snapshot, original_data=bytes(data), mesh=parse_mesh(bytes(data), MESH), replacement_state=None)
+    output = initial_replacement_state(snapshot, dependencies=dependencies)
+    snapshot = replace(snapshot, replacement_state=output, mesh=mesh_with_part_ids(snapshot, output))
+    state = snapshot.hair_state.payload
+    state["template"]["sha256"] = hashlib.sha256(data).hexdigest()
+    state["groups"][0]["mode"] = "existing"
+    state["guides"][0]["points"] = [[0,0,0], [0,1,0], [0,2,0]]
+    state["guides"][0]["pinned"] = [False, True, False]
+    for binding in state["bindings"]:
+        binding["segment"], binding["t"] = (0 if binding["vertex"] == 1 else 1), 1.
+    painted = replace(snapshot, hair_state=hair_state_from_payload(state))
+    rebuilt = prepare_replacement_output(painted).data
+    for original, final in zip(pac_cloth_lods(data), pac_cloth_lods(rebuilt), strict=True):
+        for vertex, (before, after) in enumerate(zip(original.submeshes[0].source_vertex_offsets,
+                                                   final.submeshes[0].source_vertex_offsets, strict=True)):
+            assert _decode_pac_skin_influences(data, before) == _decode_pac_skin_influences(rebuilt, after)
+            if vertex == 1:
+                assert pac_cloth_binding(rebuilt, after) is None
+            else:
+                assert rebuilt[after:after+40] == data[before:before+40]
+    state["guides"][0]["pinned"] = [False, False, False]
+    restored = prepare_replacement_output(replace(snapshot, hair_state=hair_state_from_payload(state))).data
+    assert restored == bytes(data)
+
+
 @pytest.mark.parametrize("prepared", [False, True])
 def test_untouched_existing_hair_exports_identical_pac_without_guides(editor, prepared):
     snapshot = original_snapshot(editor[1], prepared=prepared)

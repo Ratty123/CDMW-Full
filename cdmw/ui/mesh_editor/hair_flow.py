@@ -29,7 +29,7 @@ def build_hair_entry_bar(tab, *, close_button=None):
     return bar
 
 
-def start_hair_workflow(tab, mode="generated", preset="bob", *, character=None, target_path=""):
+def start_hair_workflow(tab, mode="generated", preset="empty", *, character=None, target_path=""):
     """All entry points use the same choices, preflight, and explicit Start."""
     from cdmw.domain.hair_characters import unique_hair_character
     from cdmw.ui.mesh_editor.hair_setup_dialog import HairSetupDialog
@@ -61,7 +61,7 @@ def start_hair_workflow(tab, mode="generated", preset="bob", *, character=None, 
             tab.hair_entry_status.setText("Hair setup cancelled. The current scene is unchanged.")
             return
         target = dialog.selected_entry
-        chosen_mode, chosen_preset = dialog.mode.currentData(), dialog.preset.currentData()
+        chosen_mode, chosen_preset = dialog.mode.currentData(), "empty"
         live_target = getattr(tab, "_current_target_entry", lambda: None)()
         if dialog.prepared_result is None and getattr(tab, "standalone_rust_authoring_session", None) is not authoring:
             tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
@@ -73,7 +73,7 @@ def start_hair_workflow(tab, mode="generated", preset="bob", *, character=None, 
                 tab.hair_entry_status.setText("The Mesh Editor is not ready. Reopen Hair Tools to retry.")
                 return
             owner.shell._activate_tool_widget(tab)
-            tab.hair_entry_status.setText("Applying hairstyle preset…")
+            tab.hair_entry_status.setText("Starting empty hairstyle…")
             return
         # Same-target setup must still allow switching mode or character, and
         # use the existing unsaved-work confirmation before replacing a scene.
@@ -125,8 +125,8 @@ def begin_hair_context(tab, session, event):
             return
         args = {**dict(event.get("arguments") or {}), "_hair_context_ready": True,
                 "_target_entry": target, "_target_dependencies": dependencies}
-        args["start_preset"] = getattr(tab, "_pending_hair_preset", "bob")
-        tab._pending_hair_preset = "bob"
+        args["start_preset"] = "empty"
+        tab._pending_hair_preset = "empty"
         if context is not None:
             args.update(context.arguments())
         tab.standalone_rust_protocol_queue.insert(0, {**event, "arguments": args, "_hair_preparation_error": error})

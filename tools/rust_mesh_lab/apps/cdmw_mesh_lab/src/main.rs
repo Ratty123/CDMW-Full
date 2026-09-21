@@ -5961,7 +5961,7 @@ impl LabApplication {
     fn cancel_active_gesture(&mut self, reason: impl Into<String>) {
         self.cdmw_jiggle.preview.manual_drag = None;
         let reason = reason.into();
-        let mut cancelled = false;
+        let mut cancelled = self.cancel_hair_stroke();
         if let Some(gesture) = self.selection_gesture.take()
             && let Some(mesh) = &mut self.mesh
         {

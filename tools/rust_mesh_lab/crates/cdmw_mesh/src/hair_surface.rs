@@ -67,6 +67,16 @@ impl SurfaceIndex {
         indices: &[u32],
         point: Vec3,
     ) -> Option<(Vec3, Vec3)> {
+        self.nearest_within(positions, indices, point, f32::INFINITY)
+    }
+
+    fn nearest_within(
+        &self,
+        positions: &[[f32; 3]],
+        indices: &[u32],
+        point: Vec3,
+        reach: f32,
+    ) -> Option<(Vec3, Vec3)> {
         if self.nodes.is_empty() {
             return None;
         }
@@ -74,7 +84,7 @@ impl SurfaceIndex {
         // usize. Contact queries run thousands of times per solver step.
         let mut stack = [0_usize; usize::BITS as usize + 1];
         let mut pending = 1;
-        let mut best = f32::INFINITY;
+        let mut best = reach * reach;
         let mut result = None;
         while pending > 0 {
             pending -= 1;
@@ -135,6 +145,32 @@ impl SurfaceIndex {
         radius: f32,
         reach: f32,
     ) -> Vec3 {
+        self.resolve_contact(positions, indices, point, radius, reach, f32::INFINITY)
+    }
+
+    /// Motion only needs surfaces within the swept distance plus clearance.
+    /// Prune distant faces even when the point is inside the body's large AABB.
+    pub fn motion_contact(
+        &self,
+        positions: &[[f32; 3]],
+        indices: &[u32],
+        point: Vec3,
+        radius: f32,
+        travel: f32,
+    ) -> Vec3 {
+        let reach = radius + travel + 0.002;
+        self.resolve_contact(positions, indices, point, radius, radius, reach)
+    }
+
+    fn resolve_contact(
+        &self,
+        positions: &[[f32; 3]],
+        indices: &[u32],
+        point: Vec3,
+        radius: f32,
+        reach: f32,
+        nearest_reach: f32,
+    ) -> Vec3 {
         let Some(bounds) = self.nodes.first() else {
             return point;
         };
@@ -146,7 +182,7 @@ impl SurfaceIndex {
         // triangle the nearest surface. Resolve that new contact too, otherwise
         // an apparently clear guide can still carry its card into the crease.
         for _ in 0..4 {
-            let Some((surface, normal)) = self.nearest(positions, indices, corrected) else {
+            let Some((surface, normal)) = self.nearest_within(positions, indices, corrected, nearest_reach) else {
                 break;
             };
             let offset = corrected - surface;
@@ -375,6 +411,32 @@ impl SurfaceIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hair_motion_contact_queries_prune_empty_space_between_body_surfaces() {
+        let mut positions = vec![];
+        let mut indices = vec![];
+        for side in [-1.0, 1.0] {
+            for x in 0..32 { for z in 0..32 {
+                let x = side * (0.3 + x as f32 * 0.01);
+                let z = -0.16 + z as f32 * 0.01;
+                let first = positions.len() as u32;
+                positions.extend([[x,0.0,z],[x+side*0.009,0.0,z],[x,0.0,z+0.009]]);
+                indices.extend([first, first+2, first+1]);
+            }}
+        }
+        let surface = SurfaceIndex::new(&positions, &indices);
+        let points: Vec<_> = (0..500).map(|i| Vec3::new(0.0, 0.001, (i % 30) as f32 * 0.01 - 0.15)).collect();
+        let start = std::time::Instant::now();
+        let original: Vec<_> = points.iter().map(|p| surface.contact(&positions, &indices, *p, 0.002)).collect();
+        let unbounded = start.elapsed();
+        let start = std::time::Instant::now();
+        let bounded: Vec<_> = points.iter().map(|p| surface.motion_contact(&positions, &indices, *p, 0.002, 0.001)).collect();
+        let local = start.elapsed();
+        assert_eq!(original, bounded);
+        assert_eq!(bounded, points);
+        println!("500 contact queries: full nearest {unbounded:?}, bounded nearest {local:?}");
+    }
 
     #[test]
     fn hair_brush_frustum_prunes_distant_faces_and_follows_refits() {

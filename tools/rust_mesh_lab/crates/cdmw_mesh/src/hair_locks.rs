@@ -257,7 +257,7 @@ pub fn readiness(state: &HairState, parts: &[(u32, usize)]) -> Result<()> {
         if state.groups.iter().any(|g| g.mode == GroupMode::Existing) {
             "Prepare existing hair sections to preview motion. Unchanged original hair can still be exported."
         } else {
-            "Draw a lock or apply a preset before playing motion"
+            "Draw a lock before playing motion"
         },
     )?;
     require(
@@ -527,6 +527,7 @@ pub fn prepare_existing(
                 lock.guide = Some(state.guides.len() as u32);
                 lock.kind = LockKind::Bound;
                 state.guides.push(Guide {
+                    pinned: vec![],
                     root,
                     group,
                     points,

@@ -54,7 +54,7 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
         # Keep old geometry and guides. Existing attachments need explicit card
         # preparation; v1's nearest-guide guesses do not establish ownership.
         state.update(version=2, locks=[], next_lock_id=1, style_name="My hairstyle")
-    state.setdefault("startup_preset", "bob")
+    state.setdefault("startup_preset", "empty")
     if state["startup_preset"] not in ("cropped", "bob", "long", "ponytail", "empty"):
         raise ValueError("Unknown hairstyle preset.")
     state.setdefault("prepared_parts", [])
@@ -131,6 +131,10 @@ def _validated_hair_state(value: object, *, allow_unbound: bool = True):
         if not isinstance(guide, dict) or not integer(guide.get("group"), 2**32) or guide["group"] not in by_id:
             raise ValueError("Guide refers to a missing hair group.")
         points, root = guide.get("points"), guide.get("root", {})
+        pinned = guide.get("pinned", [])
+        if (not isinstance(pinned, list) or (pinned and (not isinstance(points, list) or len(pinned) != len(points)))
+                or any(type(value) is not bool for value in pinned)):
+            raise ValueError("Hair physics paint does not match its guide points.")
         if not isinstance(root, dict):
             raise ValueError("Invalid guide scalp attachment.")
         bary = root.get("barycentric")

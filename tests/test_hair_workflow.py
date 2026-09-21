@@ -316,7 +316,7 @@ def test_same_generated_style_uses_preset_message_and_no_archive_reopen(owner, m
     monkeypatch.setattr(hair_setup_dialog, "HairSetupDialog", Setup)
     dialog = hair_flow.start_hair_workflow(owner)
     dialog.accept()
-    assert not opened and sent == [{"event":"hair_preset", "request_id":0, "extra":{"preset":"long"}}]
+    assert not opened and sent == [{"event":"hair_preset", "request_id":0, "extra":{"preset":"empty"}}]
 
 
 def test_context_rejects_stale_preparation_failures_and_reports_catalogue_change(owner):

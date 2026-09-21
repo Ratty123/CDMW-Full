@@ -143,6 +143,18 @@ impl LabApplication {
                 *part,
                 &mut snapshot.normals[*first..first + count],
             );
+            // Fixed guide rows must also keep their follower cards still;
+            // neighboring moving rows can otherwise rotate their local frame.
+            let authored = self.hair.stroke.as_ref().unwrap_or(state);
+            for binding in bindings.iter().filter(|b| b.part == *part) {
+                let guide = &authored.guides[binding.guide as usize];
+                let row = binding.segment as usize + usize::from(binding.t >= 0.5);
+                if editing.is_none() && !guide.pinned.is_empty() && guide.is_pinned(row) {
+                    let index = first + binding.vertex as usize;
+                    snapshot.positions[index] = pose.head_point(Vec3::from(scene.rest.positions[index])).to_array();
+                    snapshot.normals[index] = (pose.head * Vec3::from(scene.rest.normals[index])).to_array();
+                }
+            }
             for lock in state
                 .locks
                 .iter()
@@ -169,9 +181,8 @@ impl LabApplication {
             {
                 1.0
             } else {
-                ((rest.y - pivot.y + height * 0.22) / (height * 0.34)).clamp(0.0, 1.0)
+                pose.fitting_weight(rest, height)
             };
-            let weight = weight * weight * (3.0 - 2.0 * weight);
             snapshot.positions[i] = pose
                 .body_point(rest)
                 .lerp(pose.head_point(rest), weight)
