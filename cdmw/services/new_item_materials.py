@@ -476,10 +476,10 @@ def appearance_preview_part_names(part: object) -> tuple[str, ...]:
 def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Dict[str, object], ...]:
     """The Glow choice as resident material parameter groups for the studio's viewport.
 
-    What the export writes as a solid map times a colour times a number, the resident
-    renderer draws from the same three values sent as parameter overrides, so the
-    preview and the shipped item agree by construction. `mesh` is the ParsedMesh the
-    preview package was built from, so the group indices are the package's own submesh
+    The resident renderer receives the export's chosen emission and, for imported
+    parts, its surface recolour. Game lighting and glass remain approximations.
+    `mesh` is the ParsedMesh the preview package was built from, so group indices
+    are the package's own submesh
     order. A ticked template part uses its exact PAC wrapper; imported parts match
     their material or name. It takes the reader's colour and strength; every other part goes
     back to the import's own emissive when it declares one, else its override is
@@ -521,6 +521,10 @@ def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Di
             }
         else:
             values = {"emissive_intensity": None, "emissive_color": None, "emissive_color_authoritative": None}
+        # Template Glow retains its layered shader's emission-only contract.
+        # Imported parts also replace the underlying hue, preserving value/alpha.
+        values["glow_surface_color"] = list(color) if wants_glow and not getattr(
+            submesh, "cdmw_native_source_submesh_name", "") else None
         key = tuple((name, repr(value)) for name, value in sorted(values.items()))
         if key not in buckets:
             buckets[key] = (values, [])
@@ -543,7 +547,7 @@ def glow_preview_mesh(mesh: object, glow: object = None) -> object:
     if glow is None or not tuple(getattr(glow, "parts", ()) or ()):
         return mesh
     updates: Dict[int, Dict[str, object]] = {}
-    parameter_names = ("emissive_intensity", "emissive_color", "emissive_color_authoritative")
+    parameter_names = ("emissive_intensity", "emissive_color", "emissive_color_authoritative", "glow_surface_color")
     for group in glow_preview_parameter_groups(mesh, glow):
         values = {name: group.get(name) for name in parameter_names}
         for index in group["source_submesh_indices"]:
@@ -665,6 +669,7 @@ def route_plain_pbr(
     raise_if_cancelled(stop_event)
     sources = dict(sources or {})
     from cdmw.services.new_item_translucency import encode_translucent_base, selected_translucency, source_translucency
+    from cdmw.services.new_item_glow_surface import encode_glow_surface, glow_surface_regions
 
     if translucency is not None:
         translucency.validate()
@@ -845,11 +850,22 @@ def route_plain_pbr(
                 # the source glows and the reader also said how: the map is the source's,
                 # the colour and the strength are theirs
                 color, intensity = glow_color, glow_intensity
+        regions = glow_surface_regions(source, wrapper.submesh_name, glow_parts)
+        if regions:
+            payload = new_files.get(base)
+            if payload is None:
+                payload = files.side_files[by_lower[base.replace("\\", "/").casefold()]]
+            identity = hashlib.sha256(payload + glow_color.encode() + repr(regions).encode()).hexdigest()[:16]
+            coloured_base = base.removesuffix(".dds") + f"_glow_{identity}.dds"
+            if coloured_base not in new_files:
+                new_files[coloured_base] = encode_glow_surface(payload, glow_color, regions,
+                    part_name=wrapper.submesh_name, stop_event=stop_event)
+                encoded.append(coloured_base)
+            base = coloured_base
         if absorption is not None and emissive:
             warnings.append(
                 f"{source_name}: translucent emission keeps the emissive map, colour and strength. "
-                "The game shader exposes the map and colour but may ignore the separate strength; "
-                "check glow brightness in game."
+                "The glass shader may ignore these emission inputs; check glow brightness in game."
             )
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,

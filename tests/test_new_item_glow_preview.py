@@ -1,8 +1,6 @@
 """New Item Studio: the Glow choice shown live in the step's viewport.
 
-The export writes a ticked part as a solid map times a colour times a number; the
-resident renderer draws the same three values sent as parameter overrides, so the
-preview shows what the shipped item will do. These tests cover the three seams:
+Selected imported parts receive surface and emission colour overrides. These tests cover:
 the groups a draft's glow becomes, the host call that sends groups with explicit
 nulls intact, and the panel sync that connects them.
 """
@@ -54,6 +52,7 @@ class GlowPreviewGroupTests(unittest.TestCase):
         self.assertEqual(blade["editor_role"], "replacement_preview")
         self.assertEqual(blade["emissive_intensity"], 6.0)
         self.assertEqual(blade["emissive_color"], [1.0, 0.25, 0.0])
+        self.assertEqual(blade["glow_surface_color"], [1.0, 0.25, 0.0])
         self.assertTrue(blade["emissive_color_authoritative"])
         # the ticked name matches the export's rule: the submesh's material, casefolded
         self.assertEqual(blade["source_submesh_indices"], [0])
@@ -68,10 +67,12 @@ class GlowPreviewGroupTests(unittest.TestCase):
         gem = _group_for(groups, 1)
         self.assertEqual(gem["emissive_intensity"], 2.0, "the import's own declared strength")
         self.assertEqual(gem["emissive_color"], [0.0, 1.0, 0.0], "the import's own declared colour")
+        self.assertIsNone(gem["glow_surface_color"])
         grip = _group_for(groups, 2)
         self.assertIsNone(grip["emissive_intensity"], "an explicit null clears the override")
         self.assertIsNone(grip["emissive_color"])
         self.assertIsNone(grip["emissive_color_authoritative"])
+        self.assertIsNone(grip["glow_surface_color"])
 
     def test_no_glow_is_a_complete_restore_statement(self) -> None:
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
@@ -97,6 +98,17 @@ class GlowPreviewGroupTests(unittest.TestCase):
         from cdmw.services.new_item_materials import glow_preview_parameter_groups
 
         self.assertEqual(glow_preview_parameter_groups(SimpleNamespace(submeshes=[]), None), ())
+
+    def test_template_glow_retains_its_layered_emission_only_contract(self) -> None:
+        from cdmw.domain.new_item.spec import GlowChoice
+        from cdmw.services.new_item_materials import glow_preview_parameter_groups
+
+        mesh = _mesh()
+        mesh.submeshes[0].cdmw_native_source_submesh_name = "part_0"
+        group = _group_for(glow_preview_parameter_groups(
+            mesh, GlowChoice(parts=("part_0",), color=(1.0, 0.0, 0.0))), 0)
+        self.assertEqual(group["emissive_color"], [1.0, 0.0, 0.0])
+        self.assertIsNone(group["glow_surface_color"])
 
 
 class GlowChoiceHelperTests(unittest.TestCase):
@@ -218,8 +230,13 @@ class EffectPreviewMeshRoutingTests(unittest.TestCase):
         overrides = planned.submeshes[0].preview_native_material_overrides
         self.assertEqual(overrides["roughness"], 0.7, "the import's other appearance authority remains")
         self.assertEqual(overrides["emissive_color"], [0.1, 0.8, 0.2])
+        self.assertEqual(overrides["glow_surface_color"], [0.1, 0.8, 0.2])
         self.assertTrue(overrides["emissive_color_authoritative"])
         self.assertEqual(overrides["emissive_intensity"], 9.0)
+        from cdmw.services.mesh_rust_authoring import _mesh_material_presentations
+
+        presentation = _mesh_material_presentations(planned)[0]
+        self.assertEqual(presentation["glow_surface_color"], [0.1, 0.8, 0.2], "fresh Effects package retains the surface colour")
         self.assertEqual(part.preview_native_material_overrides, {"roughness": 0.7}, "the live import remains reusable")
         controller.request_shutdown()
         self.assertIsNotNone(app)
@@ -303,6 +320,7 @@ class PanelGlowSyncTests(unittest.TestCase):
         blade = _group_for(sent[0], 0)
         self.assertEqual(blade["emissive_intensity"], 5.0)
         self.assertEqual(blade["emissive_color"], [1.0, 0.5, 0.0])
+        self.assertEqual(blade["glow_surface_color"], [1.0, 0.5, 0.0])
         self.assertTrue(panel._glow_preview_touched)
 
     def test_a_draft_that_never_glowed_sends_nothing(self) -> None:

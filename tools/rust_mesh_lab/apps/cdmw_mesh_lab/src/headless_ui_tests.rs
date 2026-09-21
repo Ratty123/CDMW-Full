@@ -7730,6 +7730,7 @@ fn inspector_paints_loaded_texture_relationship_provenance() -> TestResult {
             height_scale: Some(0.09),
             texture_tint: None,
             base_tint_strength: None,
+            glow_surface_color: None,
             alpha_cutoff: Some(0.08),
             alpha_blend: None,
             opacity: None,

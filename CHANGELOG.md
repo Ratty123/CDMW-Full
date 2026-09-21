@@ -35,6 +35,7 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Create New Item applies an explicit Glow colour to both the surface and emission of selected imported Plain PBR materials, preventing an authored cyan gem from remaining underneath a red glow. Texture detail, alpha and unselected material colours are retained in preview and newly built plans.
 - Create New Item applies template translucency, glow and surface controls to the correct PAC parts even when they share a material. Show the character now stays consistent through cached texture upgrades, template changes and rapid toggling.
 - Create New Item keeps the placement grid horizontal for helmets, armour, weapons and other model shapes. Camera framing adjusts independently without changing mesh placement or attachment alignment; cached previews refresh automatically.
 - Create New Item can prepare translucency for cloth, fur and other template materials with usable colour inputs across weapons, armour and shields. Materials with placeholder base maps use their authored layers, and converted base colours retain alpha in BC7 textures.

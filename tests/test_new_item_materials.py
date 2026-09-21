@@ -41,12 +41,16 @@ def dds(tag: bytes = b"DXT1") -> bytes:
     data = bytearray(128)
     data[:4] = b"DDS "
     struct.pack_into("<I", data, 4, 124)
+    struct.pack_into("<I", data, 8, 0xA1007)
     struct.pack_into("<II", data, 12, 16, 16)
     struct.pack_into("<I", data, 28, 5)
     struct.pack_into("<I", data, 76, 32)
     struct.pack_into("<I", data, 80, 4)
     data[84:88] = tag
-    return bytes(data) + bytes(64)
+    struct.pack_into("<I", data, 108, 0x401008)
+    block_size = 16 if tag in {b"BC5U", b"DXT5"} else 8
+    struct.pack_into("<I", data, 20, 16 * block_size)
+    return bytes(data) + bytes((16 + 4 + 1 + 1 + 1) * block_size)
 
 
 def builder_files() -> ModelFiles:

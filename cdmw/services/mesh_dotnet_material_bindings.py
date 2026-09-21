@@ -83,6 +83,7 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "base_tint_strength",
         "emissive_color",
         "emissive_color_authoritative",
+        "glow_surface_color",
         "emissive_intensity",
         "emissive_scalar_mask",
         "height_amount",

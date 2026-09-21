@@ -2893,6 +2893,11 @@ fn apply_preview_material_parameters(
             height_scale: optional_f32(group, "height_scale"),
             base_tint_strength: optional_f32(group, "base_tint_strength"),
             texture_tint: color3(group.get("texture_tint")),
+            glow_surface_color: match group.get("glow_surface_color").filter(|value| !value.is_null()) {
+                Some(value) => Some(serde_json::from_value::<[f32; 3]>(value.clone())
+                    .map_err(|_| "Glow surface color requires three numbers".to_owned())?),
+                None => None,
+            },
             emissive_color: color3(group.get("emissive_color")),
             emissive_intensity: optional_f32(group, "emissive_intensity"),
             translucency: match group.get("translucency").filter(|value| !value.is_null()) {
@@ -3728,6 +3733,82 @@ mod tests {
         assert!(apply_preview_material_parameters(None, &[], &conflicting, 1, 0).is_err());
         let invalid = json!({"groups": [{"source_submesh_indices": [0], "roughness": -1.0}]});
         assert!(apply_preview_material_parameters(None, &[], &invalid, 1, 0).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires a D3D12 adapter; no window or game files"]
+    fn glow_surface_offscreen_replaces_cyan_with_red_without_emission() {
+        use cdmw_render_wgpu::{HeadlessMaterialCaptureOptions, HeadlessMaterialCaptureOutput,
+            HeadlessMaterialFactors, HeadlessMaterialTexture, run_headless_material_capture};
+        let root = tempfile::tempdir().unwrap();
+        let snapshot = cdmw_mesh::DrawSnapshot {
+            mesh_identity: 1, draw_revision: 1, topology_generation: 1,
+            positions: vec![[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [0.0, 1.0, 0.0]],
+            normals: vec![[0.0, 0.0, -1.0]; 3],
+            uvs: vec![[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], indices: vec![0, 2, 1],
+            triangle_materials: vec![0], selected_vertices: vec![], fingerprint: "glow-colour-fixture".into(),
+        };
+        let owners = [vec![0]];
+        // One constant cyan BC1 block, as a real sampled source texture.
+        let mut dds = vec![0_u8; 136];
+        dds[..4].copy_from_slice(b"DDS ");
+        for (offset, value) in [(4, 124_u32), (8, 0x81007), (12, 4), (16, 4),
+            (20, 8), (28, 1), (76, 32), (80, 4), (108, 0x1000)] {
+            dds[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        dds[84..88].copy_from_slice(b"DXT1");
+        dds[128..130].copy_from_slice(&0x07f9_u16.to_le_bytes());
+        let textures = [HeadlessMaterialTexture { bytes: &dds,
+            role: cdmw_texture::TextureRole::BaseColor, material_indices_by_lod: &owners }];
+        for (label, colour) in [("authored", None), ("red", Some([1.0, 0.0, 0.0]))] {
+            let textured = root.path().join(format!("{label}-lit.bmp"));
+            let base = root.path().join(format!("{label}-base.bmp"));
+            let parts = root.path().join(format!("{label}-parts.bmp"));
+            let factors = [HeadlessMaterialFactors { material_indices_by_lod: &owners,
+                factors: MaterialPreviewFactors { glow_surface_color: colour,
+                    emissive_intensity: Some(0.0), roughness: Some(0.9), metalness: Some(0.0),
+                    ..MaterialPreviewFactors::default() } }];
+            let report = pollster::block_on(run_headless_material_capture(&snapshot, &textures, &factors,
+                HeadlessMaterialCaptureOptions { width: 64, height: 64, ..Default::default() },
+                HeadlessMaterialCaptureOutput { textured_bmp: &textured, base_color_bmp: &base,
+                    part_id_bmp: &parts, normal_map: None, material_response: None, layer_mask: None })).unwrap();
+            assert!(report.owner_coverage[0].pixel_count > 100);
+            let bytes = std::fs::read(base).unwrap();
+            let offset = u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize + (32 * 64 + 32) * 4;
+            let bgra = &bytes[offset..offset + 4];
+            if colour.is_some() {
+                assert!(bgra[2] > 240 && bgra[0] < 5 && bgra[1] < 5, "red surface: {bgra:?}");
+            } else {
+                assert!(bgra[1] > 240 && bgra[0] > 150 && bgra[2] < 5, "authored cyan: {bgra:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn glow_surface_updates_validate_and_restore_authored_colours() {
+        let ownership = vec![vec![0_u32]];
+        let authored = vec![(MaterialPreviewFactors {
+            texture_tint: Some([0.0, 1.0, 0.8]),
+            emissive_color: Some([0.0, 1.0, 0.0]),
+            ..MaterialPreviewFactors::default()
+        }, ownership.clone())];
+        let overrides = vec![(MaterialPreviewFactors {
+            glow_surface_color: Some([1.0, 0.0, 0.0]),
+            emissive_color: Some([1.0, 0.0, 0.0]),
+            ..MaterialPreviewFactors::default()
+        }, ownership)];
+        let changed = cdmw_render_wgpu::preview_material_factors(&authored, &overrides, 0).unwrap();
+        assert_eq!(changed[0].0.glow_surface_color, Some([1.0, 0.0, 0.0]));
+        assert_eq!(changed[0].0.texture_tint, Some([0.0, 1.0, 0.8]));
+        let restored = cdmw_render_wgpu::preview_material_factors(&authored, &[], 0).unwrap();
+        assert_eq!(restored[0].0.glow_surface_color, None);
+        assert_eq!(restored[0].0.emissive_color, Some([0.0, 1.0, 0.0]));
+        for (value, valid) in [(json!([1, 0, 0]), true), (Value::Null, true),
+            (json!([2, 0, 0]), false), (json!([-1, 0, 0]), false),
+            (json!([0, 1]), false), (json!([true, 0, 0]), false)] {
+            let parameters = json!({"groups": [{"source_submesh_indices": [0], "glow_surface_color": value}]});
+            assert_eq!(apply_preview_material_parameters(None, &[], &parameters, 1, 0).is_ok(), valid);
+        }
     }
 
     #[test]

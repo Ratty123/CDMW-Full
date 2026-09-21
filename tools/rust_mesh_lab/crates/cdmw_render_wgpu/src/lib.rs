@@ -58,6 +58,7 @@ struct MaterialUniform {
     surface_factors: vec4<f32>,
     relief_factors: vec4<f32>,
     texture_tint_and_strength: vec4<f32>,
+    glow_surface_color: vec4<f32>,
     translucency_factors: vec4<f32>,
     translucency_surface: vec4<f32>,
 };
@@ -409,7 +410,7 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
     }
     let has_emission = material.emissive_color_and_intensity.a > 0.0
         && any(material.emissive_color_and_intensity.rgb > vec3<f32>(0.0));
-    if material.flags == 0u && !has_emission {
+    if material.flags == 0u && !has_emission && material.glow_surface_color.a < 0.5 {
         if camera.view_mode == 8u {
             let part_id = f32(input.part_id) + 1.0;
             return present_srgb(fract(part_id * vec3<f32>(0.6180339, 0.3819660, 0.7548777)), 1.0);
@@ -463,6 +464,12 @@ fn shade_surface(input: VertexOut, front_facing: bool, transmission_only: bool) 
                 vec3<f32>(1.0));
             texel = vec4<f32>(mix(texel.rgb, tinted, tint_strength), texel.a);
         }
+    }
+    if material.glow_surface_color.a > 0.5 {
+        // Explicit imported Glow colour replaces the surface hue, including
+        // cyan under red emission. Match the export bake in linear space.
+        let value = max(texel.r, max(texel.g, texel.b));
+        texel = vec4<f32>(value * srgb_to_linear(material.glow_surface_color.rgb), texel.a);
     }
     var material_alpha = texel.a;
     if (material.flags & MATERIAL_OPACITY) != 0u {
@@ -1310,6 +1317,7 @@ struct MaterialUniform {
     surface_factors: [f32; 4],
     relief_factors: [f32; 4],
     texture_tint_and_strength: [f32; 4],
+    glow_surface_color: [f32; 4],
     translucency_factors: [f32; 4],
     translucency_surface: [f32; 4],
 }
@@ -1536,6 +1544,7 @@ pub struct MaterialPreviewFactors {
     pub height_scale: Option<f32>,
     pub texture_tint: Option<[f32; 3]>,
     pub base_tint_strength: Option<f32>,
+    pub glow_surface_color: Option<[f32; 3]>,
     pub alpha_cutoff: Option<f32>,
     pub alpha_blend: Option<bool>,
     pub opacity: Option<f32>,
@@ -4022,6 +4031,7 @@ fn validate_material_factor_ownership(
         && factors.height_scale.is_none()
         && factors.texture_tint.is_none()
         && factors.base_tint_strength.is_none()
+        && factors.glow_surface_color.is_none()
         && factors.alpha_cutoff.is_none()
         && factors.alpha_blend.is_none()
         && factors.opacity.is_none()
@@ -4041,7 +4051,9 @@ fn validate_material_factor_ownership(
             "material factor set contains no sampled value".to_owned(),
         ));
     }
-    if factors.emissive_color.is_some_and(|color| {
+    if factors.glow_surface_color.is_some_and(|color| {
+        color.into_iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
+    }) || factors.emissive_color.is_some_and(|color| {
         color
             .into_iter()
             .any(|value| !value.is_finite() || !(0.0..=1.0).contains(&value))
@@ -7966,6 +7978,9 @@ pub fn preview_material_factors(
         if changes.base_tint_strength.is_some() {
             target.base_tint_strength = changes.base_tint_strength;
         }
+        if changes.glow_surface_color.is_some() {
+            target.glow_surface_color = changes.glow_surface_color;
+        }
         if changes.alpha_cutoff.is_some() {
             target.alpha_cutoff = changes.alpha_cutoff;
         }
@@ -8066,6 +8081,14 @@ fn resolve_material_factors<'a>(
                     )));
                 }
                 resolved.base_tint_strength = Some(base_tint_strength);
+            }
+            if let Some(color) = factors.glow_surface_color {
+                if resolved.glow_surface_color.is_some_and(|existing| existing != color) {
+                    return Err(RenderError::Texture(format!(
+                        "material {material} has conflicting glow surface colors in LOD {lod_index}"
+                    )));
+                }
+                resolved.glow_surface_color = Some(color);
             }
             if let Some(intensity) = factors.emissive_intensity {
                 if resolved
@@ -8955,6 +8978,7 @@ fn create_material_bind_group(
     }
     let uniform = MaterialUniform {
         flags,
+        glow_surface_color: factors.glow_surface_color.map_or([0.0; 4], |c| [c[0], c[1], c[2], 1.0]),
         skin_detail_scale: factors.skin_detail_scale.unwrap_or(1.0),
         skin_detail_opacity: factors.skin_detail_opacity.unwrap_or(0.0),
         opacity: factors.opacity.unwrap_or(1.0),
@@ -9957,7 +9981,7 @@ mod tests {
 
     #[test]
     fn material_uniform_and_vertex_match_the_wgsl_layout_contracts() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 128);
         assert_eq!(std::mem::size_of::<GpuVertex>(), 68);
         assert_eq!(GpuVertex::ATTRIBUTES[5].shader_location, 5);
         assert_eq!(GpuVertex::ATTRIBUTES[5].format, wgpu::VertexFormat::Uint32);
@@ -10257,7 +10281,7 @@ mod tests {
 
     #[test]
     fn skin_detail_uses_authored_scale_mask_channel_and_support_maps() {
-        assert_eq!(std::mem::size_of::<MaterialUniform>(), 112);
+        assert_eq!(std::mem::size_of::<MaterialUniform>(), 128);
         assert_eq!(MATERIAL_SKIN_DETAIL_MASK, 524_288);
         assert_eq!(MATERIAL_SKIN_DETAIL_NORMAL, 1_048_576);
         assert_eq!(MATERIAL_SKIN_DETAIL_MATERIAL, 2_097_152);

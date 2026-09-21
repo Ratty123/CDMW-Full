@@ -499,6 +499,9 @@ def _rust_generated_presentation_overrides(
             )
             if texture_tint is not None:
                 overrides["texture_tint"] = texture_tint
+            glow_surface_color = _rust_material_optional_color(parameters, "glow_surface_color")
+            if glow_surface_color is not None:
+                overrides["glow_surface_color"] = glow_surface_color
             base_tint_strength = _rust_material_optional_scalar(
                 parameters,
                 "base_tint_strength",
@@ -5892,6 +5895,8 @@ def _append_rust_material_presentation(rows, source, fallback_index, submeshes, 
                 )
             ),
             "texture_tint": texture_tint,
+            "glow_surface_color": (_rust_material_optional_color(source, "glow_surface_color")
+                                   or _rust_material_optional_color(factor_parameters, "glow_surface_color")),
             "base_tint_strength": base_tint_strength,
             "hair_anisotropy": (
                 authored_anisotropy

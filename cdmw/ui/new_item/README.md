@@ -179,7 +179,13 @@ Selected gem glow stays on those materials; a source emissive map is retained
 even when the template has no emissive texture slot, with its authored colour
 multiplier and intensity. When source materials share a baked atlas, their emissive
 masks and relative strengths follow the same UV regions; non-emissive regions stay
-dark. Source glow strength takes precedence over the template, faint emission keeps
+dark. An explicit Glow colour on imported Plain PBR parts replaces both their
+surface hue and emission colour. The surface recolour retains texture value detail
+and alpha; atlas edits follow only the selected materials' cells. Shared textures
+receive a separate output so unselected parts retain their colours. Unticking a part
+restores its authored colours in preview and when rebuilding the plan. This does not
+remove lighting, metallic reflections or the experimental glass approximation.
+Source glow strength takes precedence over the template, faint emission keeps
 its colour, and an unavailable declared emissive texture blocks export.
 The game's single emissive colour and intensity map
 cannot represent every multicoloured emissive image exactly.
@@ -198,8 +204,8 @@ transparency. Imported glTF materials with positive `KHR_materials_transmission`
 use the experimental translucent route automatically, including glass shells
 around emissive gems. This keeps those shells from exporting as opaque surfaces
 when translucency is selected only on another part. Authored base colours and
-emission remain unchanged; a coloured base under an emissive layer is not recoloured
-to match the glow. Source transmission uses the default thickness and extinction
+emission remain unchanged unless the user explicitly selects a Glow override.
+Source transmission uses the default thickness and extinction
 below, not a conversion of the glTF transmission factor, alpha, or transmission
 texture. The export reports this approximation. Ordinary BLEND/MASK materials
 without transmission retain the unsupported-alpha warning. Existing exported or

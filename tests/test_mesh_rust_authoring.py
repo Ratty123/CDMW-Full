@@ -928,6 +928,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
                 "double_sided": True,
                 "parameters": {
                     "texture_tint": tint,
+                    "glow_surface_color": [1.0, 0.0, 0.0],
                     "base_tint_strength": 0.85,
                 },
             },
@@ -957,6 +958,7 @@ class RustMeshAuthoringTests(unittest.TestCase):
             )[0]
 
         self.assertEqual(tint, presentation["texture_tint"])
+        self.assertEqual([1.0, 0.0, 0.0], presentation["glow_surface_color"])
         self.assertAlmostEqual(0.85, presentation["base_tint_strength"])
         self.assertEqual("cutout", presentation["alpha_mode"])
         self.assertAlmostEqual(0.21, presentation["alpha_cutoff"])

@@ -455,6 +455,57 @@ def test_dim_blue_emission_keeps_its_hue(tmp_path):
 
 
 @pytest.mark.parametrize("atlas", [False, True])
+def test_explicit_glow_recolours_both_gems_and_preserves_unselected_shared_colour(tmp_path, atlas):
+    from cdmw.domain.new_item.spec import GlowChoice
+
+    image = Image.new("RGBA", (16, 16), (0, 255, 204, 128))
+    image.paste((0, 128, 100, 64), (0, 0, 8, 16))
+    image.save(tmp_path / "cyan.png")
+    materials = [{"name": name, "alphaMode": "BLEND", "pbrMetallicRoughness": {
+        "baseColorTexture": {"index": 0}, "metallicFactor": 0.8, "roughnessFactor": 0.9}}
+        for name in ("Gem_inside", "Gem_outside", "Blade")]
+    materials[0]["emissiveFactor"] = [1, 0, 0]
+    # The outer gem's authored glass must retain its alpha and absorption.
+    if not atlas:
+        materials[1]["extensions"] = {"KHR_materials_transmission": {"transmissionFactor": 0.5}}
+    path = write_gltf(tmp_path, materials, ["cyan.png"])
+    before = (tmp_path / "cyan.png").read_bytes()
+    _, original, original_rows = export_materials(path, tmp_path, atlas=atlas, socket_attached=True)
+    _, changed, rows = export_materials(path, tmp_path, atlas=atlas, socket_attached=True,
+        glow=GlowChoice(parts=("Gem_inside", "Gem_outside"), color=(1.0, 0.0, 0.0), intensity=7))
+    assert (tmp_path / "cyan.png").read_bytes() == before
+    if atlas:
+        row, old_row = next(iter(rows.values())), next(iter(original_rows.values()))
+        rgb, old = pixels(changed, row), pixels(original, old_row)
+        third = rgb.shape[1] // 3
+        np.testing.assert_allclose(rgb[:, 2 * third:], old[:, 2 * third:], atol=2)
+        selected, old_selected = rgb[:, :2 * third], old[:, :2 * third]
+    else:
+        blade, old_blade = rows["Blade"], original_rows["Blade"]
+        assert changed.side_files[blade.textures["_baseColorTexture"]] == original.side_files[old_blade.textures["_baseColorTexture"]]
+        assert rows["Gem_outside"].shader == "SkinnedMeshTranslucent"
+        assert rows["Gem_outside"].value("_thickness") == original_rows["Gem_outside"].value("_thickness")
+        selected = np.concatenate([pixels(changed, rows[name]) for name in ("Gem_inside", "Gem_outside")])
+        old_selected = np.concatenate([pixels(original, original_rows[name]) for name in ("Gem_inside", "Gem_outside")])
+        assert rows["Gem_inside"].value("_emissiveColor") == "#FF0000FF"
+        assert rows["Gem_outside"].value("_emissiveColor") == "#FF0000FF"
+    assert selected[:, :, 1:3].max() <= 2, "cyan must be replaced, not multiplied by red or left underneath"
+    np.testing.assert_allclose(selected[:, :, 0], old_selected[:, :, :3].max(axis=2), atol=2)
+    np.testing.assert_allclose(selected[:, :, 3], old_selected[:, :, 3], atol=2)
+    assert selected[:, :, 0].max() - selected[:, :, 0].min() > 100, "texture value detail remains"
+
+
+def test_glow_surface_atlas_uses_bottom_up_cells_and_keeps_alpha():
+    from cdmw.services.new_item_glow_surface import recolour_glow_pixels
+
+    image = Image.new("RGBA", (4, 4), (0, 128, 100, 77))
+    result = np.asarray(recolour_glow_pixels(image, (0.5, 0, 0), ((0, 0, 0.5, 0.5),)))
+    np.testing.assert_array_equal(result[:2], np.asarray(image)[:2])
+    np.testing.assert_array_equal(result[2:, 2:], np.asarray(image)[2:, 2:])
+    assert result[2, 0].tolist() == [61, 0, 0, 77], "use linear light value times linear chosen colour"
+
+
+@pytest.mark.parametrize("atlas", [False, True])
 def test_glow_override_keeps_the_source_mask_multiplier_with_or_without_an_atlas(tmp_path, atlas):
     from cdmw.domain.new_item.spec import GlowChoice
 

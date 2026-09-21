@@ -1886,6 +1886,7 @@ fn cdmw_material_preview_factors(
         height_scale: presentation.height_scale,
         texture_tint: presentation.texture_tint,
         base_tint_strength: presentation.base_tint_strength,
+        glow_surface_color: presentation.glow_surface_color,
         alpha_cutoff: if presentation.alpha_mode == "cutout" {
             presentation.alpha_cutoff
         } else {
@@ -1947,6 +1948,7 @@ fn loaded_cdmw_material_factor(
         height_scale: presentation.height_scale,
         texture_tint: presentation.texture_tint,
         base_tint_strength: presentation.base_tint_strength,
+        glow_surface_color: presentation.glow_surface_color,
         alpha_cutoff: if presentation.alpha_mode == "cutout" {
             presentation.alpha_cutoff
         } else {
@@ -3590,6 +3592,7 @@ impl LabApplication {
                         height_scale: factors.height_scale,
                         texture_tint: factors.texture_tint,
                         base_tint_strength: factors.base_tint_strength,
+                        glow_surface_color: factors.glow_surface_color,
                         alpha_cutoff: factors.alpha_cutoff,
                         alpha_blend: factors.alpha_blend,
                         opacity: factors.opacity,

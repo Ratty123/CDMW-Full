@@ -193,6 +193,7 @@ pub struct SessionMaterialPresentation {
     pub height_scale: Option<f32>,
     pub texture_tint: Option<[f32; 3]>,
     pub base_tint_strength: Option<f32>,
+    pub glow_surface_color: Option<[f32; 3]>,
     pub hair_anisotropy: bool,
     pub skin_detail_scale: Option<f32>,
     pub skin_detail_opacity: Option<f32>,
@@ -2046,6 +2047,11 @@ fn validate_material_presentations(
         validate_optional_factor(row.emissive_intensity, 0.0, 32.0, "emissive intensity")?;
         validate_optional_factor(row.height_scale, 0.0, 1.0, "height scale")?;
         validate_optional_factor(row.base_tint_strength, 0.0, 1.0, "base tint strength")?;
+        if let Some(color) = row.glow_surface_color {
+            for component in color {
+                validate_optional_factor(Some(component), 0.0, 1.0, "glow surface color")?;
+            }
+        }
         validate_optional_factor(row.skin_detail_scale, 0.001, 1.0, "skin detail scale")?;
         validate_optional_factor(row.skin_detail_opacity, 0.0, 1.0, "skin detail opacity")?;
         if row.emissive_color.is_some_and(|color| {
@@ -3328,6 +3334,7 @@ mod tests {
             height_scale: Some(0.08),
             texture_tint: Some([0.73, 0.44, 0.24]),
             base_tint_strength: Some(0.85),
+            glow_surface_color: Some([1.0, 0.0, 0.0]),
             hair_anisotropy: false,
             skin_detail_scale: None,
             skin_detail_opacity: None,
@@ -3404,6 +3411,7 @@ mod tests {
                 "height_scale": presentation.height_scale,
                 "texture_tint": presentation.texture_tint,
                 "base_tint_strength": presentation.base_tint_strength,
+                "glow_surface_color": presentation.glow_surface_color,
                 "hair_anisotropy": presentation.hair_anisotropy
             }],
             "texture_status": {"available": true},
@@ -4210,6 +4218,8 @@ mod tests {
                 row.gltf_metallic_roughness = true;
                 let factors = crate::cdmw_material_preview_factors(&row);
                 let loaded = crate::loaded_cdmw_material_factor(&row, 1);
+                assert_eq!(factors.glow_surface_color, Some([1.0, 0.0, 0.0]));
+                assert_eq!(loaded.glow_surface_color, factors.glow_surface_color);
                 assert_eq!(factors.opacity, Some(opacity));
                 assert_eq!(factors.gltf_metallic_roughness, Some(true));
                 assert_eq!(
@@ -4269,6 +4279,13 @@ mod tests {
         invalid_tint_strength.base_tint_strength = Some(1.01);
         manifest.material_presentations = vec![invalid_tint_strength];
         assert!(validate_material_presentations(&manifest, &document()).is_err());
+
+        for color in [[0.5, f32::NAN, 0.5], [1.01, 0.0, 0.0]] {
+            let mut invalid_glow = material_presentation();
+            invalid_glow.glow_surface_color = Some(color);
+            manifest.material_presentations = vec![invalid_glow];
+            assert!(validate_material_presentations(&manifest, &document()).is_err());
+        }
 
         let mut invalid_index = material_presentation();
         invalid_index.material_index = 1;
