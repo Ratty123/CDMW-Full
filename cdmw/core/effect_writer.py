@@ -23,13 +23,14 @@ def _text(value: str) -> bytes:
 
 
 class _Writer:
-    def __init__(self, types, base: int):
+    def __init__(self, types, base: int, original: ReflectNode):
         self.types = {t.type_name: (i, t) for i, t in enumerate(types)}
         if len(self.types) != len(types):
             raise EffectBinaryError("Effect type names must be unique.")
         self.base = base
         self.out = bytearray()
         self.nodes = 0
+        self.original_nodes = {node.offset: node for node in original.walk()}
 
     def node(self, node: ReflectNode, *, root=False, with_ids=False, depth=0):
         self.nodes += 1
@@ -53,8 +54,8 @@ class _Writer:
             elif member.flags not in CONTAINER_KINDS:
                 mask &= ~(1 << i)
         width = max(int(node.wire.get("width", 1)), max(1, (mask.bit_length() + 7) // 8))
-        if width > 8:
-            raise EffectBinaryError("Effect presence mask exceeds 64 fields.")
+        if width > 9:
+            raise EffectBinaryError("Effect presence mask exceeds 72 fields.")
         self.out += struct.pack("<H", width) + mask.to_bytes(width, "little") + struct.pack("<HB", type_index, node.override)
         if root:
             self.out += b"\x00"
@@ -77,6 +78,10 @@ class _Writer:
             if flag in CONTAINER_KINDS:
                 info = node.wire.get(key, {})
                 null = child is None if flag in (6, 7) else value is None or info.get("null", False)
+                original = self.original_nodes.get(node.offset)
+                original_info = original.wire.get(key, {}) if original is not None else {}
+                if null and (info.get("pairs") or original_info.get("pairs")):
+                    raise EffectBinaryError(f"{key} has a collection lookup table whose removal is not understood.")
                 self.out += bytes([int(null)])
                 if null:
                     continue
@@ -91,10 +96,21 @@ class _Writer:
                     pairs = info.get("pairs", b"")
                     if pairs and len(child) != info.get("count", len(child)):
                         raise EffectBinaryError(f"{key} has a collection lookup table whose resize is not understood.")
-                    if pairs and any(a >= len(child) or b >= len(child) for a, b in struct.iter_unpack('<II', pairs)):
-                        raise EffectBinaryError(f'{key} contains unrecognized collection lookup metadata.')
                     ids = info.get("with_ids", 0)
-                    self.out += struct.pack("<IBIII", len(child), ids, info.get("a", 0), info.get("b", 0), len(pairs) // 8) + pairs
+                    indices = info.get("indices", b"")
+                    if len(pairs) % 8 or len(indices) != (len(pairs) // 2 if ids else 0):
+                        raise EffectBinaryError(f"{key} contains invalid collection lookup metadata.")
+                    if pairs or original_info.get("pairs"):
+                        original_child = original.child(key) if original is not None else None
+                        # Preserve inherited-slot lookup data only while its
+                        # preamble and element identities/order remain intact.
+                        # The entries are not bounded by the override count.
+                        identity = lambda item: (item.offset, item.type_name, item.name, item.wire.get("element_id"))
+                        if (original is None or original.type_name != node.type_name or info != original_info
+                                or not isinstance(original_child, tuple)
+                                or tuple(map(identity, child)) != tuple(map(identity, original_child))):
+                            raise EffectBinaryError(f"{key} has a collection lookup table whose structural edits are not understood.")
+                    self.out += struct.pack("<IBIII", len(child), ids, info.get("a", 0), info.get("b", 0), len(pairs) // 8) + pairs + indices
                     for item in child:
                         self.node(item, with_ids=bool(ids), depth=depth + 1)
             elif mask & (1 << i):
@@ -141,7 +157,7 @@ def serialize_effect(source: bytes, document: EffectDocument) -> bytes:
         prefix += b"".join(_text(s) for s in document.string_pool)
     data_header = bytearray(source[original.blob_offset - 28:original.blob_offset])
     blob_start = len(prefix) + 28
-    writer = _Writer(document.types, blob_start)
+    writer = _Writer(document.types, blob_start, original.root)
     writer.node(document.root, root=True)
     struct.pack_into("<I", data_header, 4, blob_start + len(writer.out))
     struct.pack_into("<II", data_header, 20, blob_start, len(writer.out))

@@ -23,7 +23,8 @@ corpus obeys (6,855 of 6,855 effect and emitter files walk to the last byte,
               | kind 3   : u8 null | u32 count, count x value_size    (inline array)
               | kind 6/7 : u8 null | u32 count, preamble, count x element
               | kind 10  : u8 null | u32 count, count x (u32 len, chars)
-    preamble := u8 withIds, u32 a, u32 b, u32 n, n x (u32, u32)
+    preamble := u8 withIds, u32 a, u32 b, u32 n, n x u64,
+                (n x u32 if withIds)
 
 The presence mask gates every member except the container kinds (3, 6, 7, 10):
 those always write their null byte, and the byte alone says whether a count follows;
@@ -360,7 +361,8 @@ class _Walker:
     def read_header(self, what: str) -> Tuple[int, PrefabType, int]:
         start = self.pos
         width = self.u16()
-        if not 1 <= width <= 8:
+        # Current emitter script overrides include fields above bit 63.
+        if not 1 <= width <= 9:
             raise EffectBinaryError(f"{what} at 0x{start:x}: mask width {width}")
         self._need(width, "mask")
         mask = int.from_bytes(self.data[self.pos : self.pos + width], "little")
@@ -518,7 +520,14 @@ class _Walker:
         self._need(8 * extra, "preamble")
         pairs = self.data[self.pos:self.pos + 8 * extra]
         self.pos += 8 * extra
-        node.wire[member.name] = dict(null=False, with_ids=with_ids, a=a, b=b, pairs=pairs, count=count)
+        # Identified collections carry a parallel index array after their
+        # eight-byte lookup keys. Neither table is an index into just the
+        # override elements below: inherited slots can also be referenced.
+        index_bytes = 4 * extra if with_ids else 0
+        self._need(index_bytes, "collection lookup indices")
+        indices = self.data[self.pos:self.pos + index_bytes]
+        self.pos += index_bytes
+        node.wire[member.name] = dict(null=False, with_ids=with_ids, a=a, b=b, pairs=pairs, indices=indices, count=count)
         elements = tuple(
             self.read_element(f"{path}.{member.name}[{index}]", with_ids == 1, depth + 1) for index in range(count)
         )

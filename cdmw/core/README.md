@@ -40,8 +40,19 @@ confirmation, backup, rollback, or restore.
 
 `effect_binary.py` owns byte-complete `.pae` / `.paem` reflection decoding and
 offset-addressed values. `effect_edit.py` permits only fixed-size value changes
-and same-length reference renames. Approximate particle presentation belongs to
+and same-length reference renames. Presence masks support the installed nine-byte
+layout. Identified collections preserve both lookup keys and their parallel
+indices; inherited slots are not bounded by the number of local overrides.
+Structural serialization retains these tables only with unchanged metadata and
+element identities/order, and refuses unproven collection restructuring. Decoder
+changes invalidate the effect catalogue so incomplete cached results are rebuilt.
+Approximate particle presentation belongs to
 the effect services and resident Rust host, not to these binary owners.
+
+`mod_compatibility.decode_paver_build` shares binary PAVER version decoding with
+archive backup metadata and retains legacy text versions. Matching PAVER hashes
+take precedence over display-label changes; differing comparable hashes still
+mark the build as changed.
 
 `archive_model_texture_binding_selection.py` matches exact component/submesh
 identities and selects sidecar texture bindings. The semantics module preserves

@@ -148,6 +148,125 @@ class EffectDecodeTests(unittest.TestCase):
             decode_effect_binary(b"PARC" + b"\x00" * 40)
 
 
+class WidePresenceMaskTests(unittest.TestCase):
+    @staticmethod
+    def _payload() -> bytes:
+        from cdmw.core.prefab_binary import PrefabMember, PrefabType
+        from cdmw.core.prefab_component_graft import encode_prefab_type
+
+        kind = PrefabType("EffectData", tuple(
+            PrefabMember(f"_value{i}", "float", 0, 4, 0, 0) for i in range(72)
+        ), 0)
+        prefix = struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8) + struct.pack("<IH", 15, 1)
+        prefix += encode_prefab_type(kind) + struct.pack("<I", 0)
+        mask = (1 << 0) | (1 << 64) | (1 << 71)
+        blob = struct.pack("<H", 9) + mask.to_bytes(9, "little") + struct.pack("<HBB3f", 0, 0, 0, 1., 2., 3.)
+        offset = len(prefix) + 28
+        header = struct.pack("<IIIQII", 1, offset + len(blob), 0, 0xFFFFFFFFFFFFFFFF, offset, len(blob))
+        return b"PARC" + struct.pack("<IQ", 1, 0) + prefix + header + blob
+
+    def test_ninth_mask_byte_roundtrips_and_edits_high_fields(self) -> None:
+        from cdmw.core.effect_writer import serialize_effect, set_typed_value
+
+        source = self._payload()
+        doc = decode_effect_binary(source)
+        self.assertTrue(doc.walk_complete, doc.walk_note)
+        self.assertTrue(decode_effect_binary(source, metadata_only=True).walk_complete)
+        self.assertEqual([1., 2., 3.], [doc.root.value(f"_value{i}").value for i in (0, 64, 71)])
+        self.assertEqual(source, serialize_effect(source, doc))
+        self.assertTrue(set_typed_value(doc, doc.root, "_value71", 9.))
+        again = decode_effect_binary(serialize_effect(source, doc))
+        self.assertEqual(9., again.root.value("_value71").value)
+        self.assertEqual(2., again.root.value("_value64").value)
+        self.assertEqual(9, again.root.wire["width"])
+
+    def test_unproven_mask_widths_remain_blocked(self) -> None:
+        from cdmw.core.effect_writer import serialize_effect
+
+        source = self._payload()
+        doc = decode_effect_binary(source)
+        for width in (0, 10):
+            with self.subTest(width=width):
+                broken = bytearray(source)
+                struct.pack_into("<H", broken, doc.blob_offset, width)
+                result = decode_effect_binary(bytes(broken))
+                self.assertFalse(result.walk_complete)
+                self.assertIn("mask width", result.walk_note)
+        doc.root.wire["width"] = 10
+        with self.assertRaisesRegex(EffectBinaryError, "72 fields"):
+            serialize_effect(source, doc)
+
+
+class CollectionLookupTests(unittest.TestCase):
+    @staticmethod
+    def _payload(with_ids: bool) -> bytes:
+        from cdmw.core.prefab_binary import PrefabMember, PrefabType
+        from cdmw.core.prefab_component_graft import encode_prefab_type
+
+        types = (
+            PrefabType("EffectData", (PrefabMember("_items", "CurveData", 7, 0, 0, 0),), 0),
+            PrefabType("CurveData", (PrefabMember("_value", "float", 0, 4, 0, 0),), 0),
+        )
+        prefix = struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8) + struct.pack("<IH", 15, 2)
+        prefix += b"".join(encode_prefab_type(t) for t in types) + struct.pack("<I", 0)
+        base = len(prefix) + 28
+        blob = bytearray(struct.pack("<HBHBB", 1, 0, 0, 0, 0))
+        blob += struct.pack("<BIBIII", 0, 2, int(with_ids), 20, 0, 1)
+        # Slot 13 belongs to the inherited collection, not our two overrides.
+        blob += struct.pack("<Q", 0x000DA6117BEFFFFE) if with_ids else struct.pack("<II", 13, 0)
+        if with_ids:
+            blob += struct.pack("<I", 13)
+        for index in range(2):
+            blob += struct.pack("<HBHB", 1, 1, 1, 1)
+            if with_ids:
+                blob += struct.pack("<I", index + 3)
+            blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+            blob += struct.pack("<I", base + len(blob) + 4)
+            pointee = len(blob)
+            blob += struct.pack("<HHf", 0, 0, float(index + 1))
+            blob += struct.pack("<I", len(blob) - pointee)
+        header = struct.pack("<IIIQII", 1, base + len(blob), 0, 0xFFFFFFFFFFFFFFFF, base, len(blob))
+        return b"PARC" + struct.pack("<IQ", 1, 0) + prefix + header + blob
+
+    def test_inherited_lookup_tables_roundtrip_and_allow_value_edits(self) -> None:
+        from cdmw.core.effect_writer import serialize_effect, set_typed_value
+
+        for with_ids in (False, True):
+            with self.subTest(with_ids=with_ids):
+                source = self._payload(with_ids)
+                doc = decode_effect_binary(source)
+                self.assertTrue(doc.walk_complete, doc.walk_note)
+                self.assertEqual(source, serialize_effect(source, doc))
+                lookup = dict(doc.root.wire["_items"])
+                self.assertEqual(4 if with_ids else 0, len(lookup["indices"]))
+                set_typed_value(doc, doc.root.child("_items")[0], "_value", 4.)
+                after = decode_effect_binary(serialize_effect(source, doc))
+                self.assertEqual(4., after.root.child("_items")[0].value("_value").value)
+                self.assertEqual(lookup, after.root.wire["_items"])
+
+    def test_lookup_metadata_cannot_be_reordered_resized_or_rewritten(self) -> None:
+        from cdmw.core.effect_writer import serialize_effect
+
+        for with_ids in (False, True):
+            for change in ("reorder", "resize", "clear", "lookup", "remove_lookup"):
+                with self.subTest(with_ids=with_ids, change=change):
+                    source = self._payload(with_ids)
+                    doc = decode_effect_binary(source)
+                    children = doc.root.child("_items")
+                    if change == "reorder":
+                        doc.root.children = [("_items", tuple(reversed(children)))]
+                    elif change == "resize":
+                        doc.root.children = [("_items", children[:1])]
+                    elif change == "clear":
+                        doc.root.children = [("_items", None)]
+                    elif change == "lookup":
+                        doc.root.wire["_items"]["pairs"] = bytes(8)
+                    else:
+                        doc.root.wire["_items"].update(pairs=b"", indices=b"")
+                    with self.assertRaisesRegex(EffectBinaryError, "lookup table"):
+                        serialize_effect(source, doc)
+
+
 class ShippedEffectCorpusTests(unittest.TestCase):
     """Every effect and emitter the game ships walks to its last byte."""
 

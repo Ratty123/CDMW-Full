@@ -115,13 +115,30 @@ internal sealed class ArchiveCharacterReferences(
         try { return Parse(text.TrimStart('\uFEFF')); }
         catch (XmlException)
         {
+            // Some shipped wrinkle descriptors contain XML comments with "--"
+            // or a trailing hyphen. Repair only closed comments, leaving CDATA
+            // and processing instructions intact; malformed elements still fail.
+            var commentsRecovered = false;
+            var recovered = Regex.Replace(text,
+                @"<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--(?<body>[\s\S]*?)-->", match => {
+                    if (!match.Groups["body"].Success) return match.Value;
+                    var body = match.Groups["body"].Value;
+                    if (!body.Contains("--", StringComparison.Ordinal) && !body.EndsWith('-')) return match.Value;
+                    body = Regex.Replace(body, "-(?=-)", "- ");
+                    if (body.EndsWith('-')) body += " ";
+                    commentsRecovered = true;
+                    return "<!--" + body + "-->";
+                });
             // Only insert a missing separator after a quoted attribute inside a tag.
             // Attribute values and archive bytes are preserved.
-            var recovered = Regex.Replace(text, @"<[^>]+>", tag => Regex.Replace(tag.Value,
-                "(=[\"'][^\"']*[\"'])(?=[A-Za-z_][A-Za-z0-9_:.-]*\\s*=)", "$1 "));
-            if (recovered == text) throw;
-            var document = Parse(recovered.TrimStart('\uFEFF'));
-            evidence.Add("Recovered missing whitespace between XML attributes in memory.");
+            var separated = Regex.Replace(recovered,
+                @"<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|(?<tag><[^>]+>)",
+                match => match.Groups["tag"].Success ? Regex.Replace(match.Value,
+                    "(=[\"'][^\"']*[\"'])(?=[A-Za-z_][A-Za-z0-9_:.-]*\\s*=)", "$1 ") : match.Value);
+            if (separated == text) throw;
+            var document = Parse(separated.TrimStart('\uFEFF'));
+            if (commentsRecovered) evidence.Add("Recovered invalid XML comment hyphens in memory.");
+            if (separated != recovered) evidence.Add("Recovered missing whitespace between XML attributes in memory.");
             return document;
         }
     }

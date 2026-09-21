@@ -59,6 +59,11 @@ Symbolic PBD material names in model properties resolve through the exact
 paths, including profiles stored in other packages. Only referenced profiles
 are prepared; unrelated catalogue entries and same-basename files are excluded.
 Malformed XML or a reached traversal limit leaves the dependency set incomplete.
+The Body/Face character catalogue separately recovers malformed hyphens in closed
+XML comments in memory, including shipped wrinkle descriptors. It preserves CDATA
+and source bytes, records the recovery, and still rejects malformed elements and
+unclosed comments. Its cache revision forces existing incomplete catalogue results
+to rebuild after this parser update.
 It resolves only requested names without reconstructing the general
 `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.

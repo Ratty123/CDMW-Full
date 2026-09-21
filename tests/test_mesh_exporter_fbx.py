@@ -356,6 +356,7 @@ class FbxSkinExportTests(unittest.TestCase):
         mesh = _skinned_export_mesh()
         mesh.submeshes[0].morph_targets = {
             "jawOpen": [(0.0, 0.0, 0.0), (1.0, -0.25, 0.0), (0.0, 0.75, 0.0)],
+            "JawOpen": [(0.0, 0.0, 0.0), (1.0, -0.5, 0.0), (0.0, 0.5, 0.0)],
             "기본얼굴_비대칭": [(0.0, 0.0, 0.0), (1.0, -0.1, 0.0), (0.0, 0.9, 0.0)],
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -375,6 +376,7 @@ class FbxSkinExportTests(unittest.TestCase):
             b"BlendShapeChannel",
             b"FullWeights",
             b"jawOpen",
+            b"JawOpen",
             "기본얼굴_비대칭".encode("utf-8"),
         ):
             self.assertIn(node, payload, f"{node!r} missing from the facial FBX")

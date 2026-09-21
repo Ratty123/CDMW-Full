@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import re
+import struct
 import tempfile
 import zipfile
 from dataclasses import dataclass, field
@@ -52,6 +53,22 @@ def hash_file(path: Path, stop_event=None) -> str:
     return hasher.hexdigest()
 
 
+def decode_paver_build(raw: bytes) -> str:
+    """Read the binary version tuple, retaining legacy text PAVER support."""
+    try:
+        text = raw.decode("utf-8-sig", errors="strict")
+    except UnicodeDecodeError:
+        text = ""
+    if text and all(ch.isprintable() or ch in "\r\n\t" for ch in text):
+        return " ".join(text.split())[:240]
+    # The installed record is three little-endian u16 version fields followed
+    # by four opaque build bytes. The latter are not a printable build label.
+    if len(raw) == 10:
+        major, minor, patch = struct.unpack_from("<3H", raw)
+        return f"{major}.{minor:02}.{patch:02}"
+    return ""
+
+
 def game_identity(game_root: Path | None, stop_event=None) -> dict:
     """Keep mount-list changes separate from game build identity."""
     result = {"game": "Crimson Desert", "build": "", "paver_sha256": "", "executable_sha256": ""}
@@ -65,8 +82,7 @@ def game_identity(game_root: Path | None, stop_event=None) -> dict:
         result["paver_sha256"] = hash_file(paver, stop_event)
         with paver.open("rb") as stream:
             raw = stream.read(4096)
-        text = raw.decode("utf-8", errors="ignore")
-        result["build"] = " ".join("".join(ch if ch.isprintable() else " " for ch in text).split())[:240]
+        result["build"] = decode_paver_build(raw)
     executable = resolve_crimson_desert_executable(root)
     if executable is not None:
         result["executable_sha256"] = hash_file(executable, stop_event)
@@ -76,12 +92,21 @@ def game_identity(game_root: Path | None, stop_event=None) -> dict:
 def build_status(recorded: Mapping | None, current: Mapping) -> str:
     recorded = recorded if isinstance(recorded, Mapping) else {}
     compared = False
-    for key in ("executable_sha256", "paver_sha256", "build"):
+    matched_paver = False
+    for key in ("executable_sha256", "paver_sha256"):
         old, new = recorded.get(key), current.get(key)
         if isinstance(old, str) and isinstance(new, str) and old and new:
             compared = True
             if old != new:
                 return "changed"
+            if key == "paver_sha256":
+                matched_paver = True
+    if matched_paver:
+        # Identical version bytes can acquire a corrected display label.
+        return "same"
+    old, new = recorded.get("build"), current.get("build")
+    if isinstance(old, str) and isinstance(new, str) and old and new:
+        return "same" if old == new else "changed"
     return "same" if compared else "unknown"
 
 
@@ -262,5 +287,5 @@ def read_compatibility(root: Path, *, stop_event=None) -> ModCompatibility | Non
 
 
 __all__ = ["BASELINE_FILE", "COMPATIBILITY_FILE", "ModCompatibility", "build_label", "build_status",
-           "capture_patch_compatibility", "compatibility_from_payloads", "digest", "game_identity",
+           "capture_patch_compatibility", "compatibility_from_payloads", "decode_paver_build", "digest", "game_identity",
            "hash_file", "payload_path", "read_compatibility", "write_compatibility"]

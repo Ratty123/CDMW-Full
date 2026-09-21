@@ -118,6 +118,43 @@ def test_build_signatures_do_not_discard_patch_components():
     assert build_status({"executable_sha256": "a"}, {"executable_sha256": "b"}) == "changed"
 
 
+@pytest.mark.parametrize("payload,expected", [
+    (bytes.fromhex("0200030001005b5ed60c"), "2.03.01"),
+    (b"2.00.01\r\n", "2.00.01"),
+    (b"\xef\xbb\xbf2.00.01", "2.00.01"),
+    (b"", ""),
+    (bytes.fromhex("020003000100"), ""),
+])
+def test_paver_version_is_shared_by_mod_and_archive_metadata(tmp_path, payload, expected):
+    from cdmw.core.archive_patching import _detect_archive_game_metadata
+    from cdmw.core.mod_compatibility import game_identity
+
+    _service, _snapshot, entries = setup_game(tmp_path)
+    root = tmp_path / "game"
+    (root / "meta/0.paver").write_bytes(payload)
+    identity = game_identity(root)
+    assert identity["build"] == expected
+    import hashlib
+    assert identity["paver_sha256"] == hashlib.sha256(payload).hexdigest()
+    metadata = _detect_archive_game_metadata(entries[0])
+    if expected:
+        assert metadata["game_build"] == expected
+    else:
+        assert metadata["game_build"].startswith("0.papgt ")
+
+
+def test_corrected_build_label_does_not_override_hash_evidence():
+    old = {"build": "[^", "paver_sha256": "same", "executable_sha256": "exe"}
+    current = dict(old, build="2.03.01")
+    assert build_status(old, current) == "same"
+    assert build_status(old, dict(current, paver_sha256="changed")) == "changed"
+    assert build_status(old, dict(current, executable_sha256="changed")) == "changed"
+    assert build_status({"build": "2.03.01"}, {"build": "2.03.01"}) == "same"
+    # An unchanged executable alone cannot dismiss a changed legacy version.
+    assert build_status({"build": "2.03.00", "executable_sha256": "exe"},
+                        {"build": "2.03.01", "executable_sha256": "exe"}) == "changed"
+
+
 def test_tampered_baseline_is_rejected(tmp_path):
     evidence = compatibility_from_payloads({"a/b.pac": b"new"}, {"a/b.pac": b"old"})
     write_compatibility(tmp_path, evidence)

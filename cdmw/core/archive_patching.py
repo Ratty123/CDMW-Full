@@ -339,13 +339,13 @@ def _resolve_papgt_path(entry: ArchiveEntry) -> Path:
 
 
 def _read_printable_build_text(path: Path, *, limit: int = 4096) -> str:
+    from cdmw.core.mod_compatibility import decode_paver_build
+
     try:
         raw = path.read_bytes()[:limit]
     except OSError:
         return ""
-    text = raw.decode("utf-8", errors="ignore")
-    text = "".join(ch if ch.isprintable() or ch in "\r\n\t" else " " for ch in text)
-    return " ".join(text.split())[:240]
+    return decode_paver_build(raw)
 
 
 def _detect_archive_game_metadata(entry: ArchiveEntry) -> Dict[str, object]:

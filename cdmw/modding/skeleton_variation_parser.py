@@ -212,10 +212,11 @@ def parse_pamt_morph_target_set(data: bytes, filename: str = "") -> PamtMorphTar
             raise ValueError(f"PAMT target {target_index} name is truncated")
         name = data[offset : offset + name_length].decode("utf-8", "strict")
         offset += name_length
-        normalized_name = name.casefold()
-        if normalized_name in seen_names:
+        # Shipped facial sets distinguish JawOpen from jawOpen by both hash
+        # and transform. Keep authored case, as the mesh target map does.
+        if name in seen_names:
             raise ValueError(f"PAMT target name is duplicated: {name}")
-        seen_names.add(normalized_name)
+        seen_names.add(name)
         marker = struct.unpack_from("<H", data, offset)[0]
         offset += 2
         target_end = offset + bone_count * PAMT_BONE_TRANSFORM_STRIDE

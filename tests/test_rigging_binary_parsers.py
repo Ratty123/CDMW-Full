@@ -24,13 +24,15 @@ class RiggingBinaryParserTests(unittest.TestCase):
     def _transform(*, position: tuple[float, float, float]) -> tuple[float, ...]:
         return (1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, *position)
 
-    def _pamt_payload(self, expression_name: bytes = b"jawOpen") -> bytes:
+    def _pamt_payload(self, expression_name: bytes = b"jawOpen", *, extra_expression: bytes | None = None) -> bytes:
         root_hash = 0x11111111
         bone_name = b"Root"
-        targets = (
+        targets = [
             (0xAAAA0001, b"base", 0, self._transform(position=(0.0, 0.0, 0.0))),
             (0xAAAA0002, expression_name, 10, self._transform(position=(0.0, 2.0, 0.0))),
-        )
+        ]
+        if extra_expression is not None:
+            targets.append((0xAAAA0003, extra_expression, 20, self._transform(position=(0.0, 3.0, 0.0))))
         data = bytearray(b"PAR " + bytes(12))
         data.extend(struct.pack("<H", 1))
         data.extend(struct.pack("<IB", root_hash, len(bone_name)))
@@ -110,6 +112,18 @@ class RiggingBinaryParserTests(unittest.TestCase):
         )
 
         self.assertEqual(target_name, morphs.targets[1].name)
+
+    def test_pamt_parser_preserves_case_distinct_facial_targets(self) -> None:
+        morphs = parse_pamt_morph_target_set(self._pamt_payload(extra_expression=b"JawOpen"))
+
+        self.assertEqual(("base", "jawOpen", "JawOpen"), tuple(target.name for target in morphs.targets))
+        self.assertNotEqual(morphs.targets[1].name_hash, morphs.targets[2].name_hash)
+        self.assertEqual((0.0, 2.0, 0.0), morphs.targets[1].bone_transforms[0].global_transform.position)
+        self.assertEqual((0.0, 3.0, 0.0), morphs.targets[2].bone_transforms[0].global_transform.position)
+
+    def test_pamt_parser_still_rejects_exact_duplicate_target_names(self) -> None:
+        with self.assertRaisesRegex(ValueError, "target name is duplicated: jawOpen"):
+            parse_pamt_morph_target_set(self._pamt_payload(extra_expression=b"jawOpen"))
 
     def test_encrypted_in_archive_pamt_validates_as_a_compressed_par_payload(self) -> None:
         if lz4_block is None:
@@ -230,11 +244,13 @@ class RiggingBinaryParserTests(unittest.TestCase):
             skeleton,
             (0,),
             None,
-            morph_target_set=parse_pamt_morph_target_set(self._pamt_payload(), "creature.pamt"),
+            morph_target_set=parse_pamt_morph_target_set(self._pamt_payload(extra_expression=b"JawOpen"), "creature.pamt"),
         )
 
         self.assertEqual([(0.0, 0.0, 0.0)], deformed.submeshes[0].vertices)
         self.assertEqual([(0.0, 2.0, 0.0)], deformed.submeshes[0].morph_targets["jawOpen"])
+        self.assertEqual([(0.0, 3.0, 0.0)], deformed.submeshes[0].morph_targets["JawOpen"])
+        self.assertFalse(getattr(source.submeshes[0], "morph_targets", {}))
 
     def test_paa_parser_builds_clip_only_from_exact_hash_owned_tables(self) -> None:
         skeleton = Skeleton(

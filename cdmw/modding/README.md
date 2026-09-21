@@ -8,6 +8,11 @@ Keep PySide UI and archive mutation confirmation outside this package. UI
 packages collect user intent; services coordinate execution; archive patching
 and backup policy stay behind archive services/core paths.
 
+Facial PAMT targets retain their authored case, hashes and transforms through
+`skeleton_variation_parser.py` and mesh export. `JawOpen` and `jawOpen` are distinct
+game targets; exact duplicate names remain invalid. Presentation builds cloned
+mesh targets and never changes the source PAC or skeleton.
+
 `static_mesh_output_plan.py` keeps tiled-UV materials in dedicated existing runtime
 slots when an automatic complete-swap atlas is needed. Other material groups share
 the remaining slots, with the current UV transforms and per-draw vertex limit applied

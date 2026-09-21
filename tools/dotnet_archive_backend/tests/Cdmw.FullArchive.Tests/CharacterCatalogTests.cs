@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Cdmw.FullArchive.Contracts;
 using Cdmw.FullArchive.Core;
 
@@ -43,20 +45,30 @@ internal static class CharacterCatalogTests
         Xml(appearance, "<Appearance><Nude CharacterScale=\"1.1\"><Prefab Name=\"hero_body_0001\"Preview=\"true\"/></Nude><Head Name=\"hero_head_0001\"/><Customization File=\"hero_custom\"/></Appearance>");
         Xml("character/appearance/3_npc/shared.app_xml", "<Appearance><Nude Name=\"hero_body_0001\"/><Head Name=\"hero_head_0001\"/></Appearance>");
         Xml("character/appearance/3_npc/unresolved.app_xml", "<Appearance><Nude Name=\"missing_body\"/></Appearance>");
+        const string unclosedAppearance = "character/appearance/3_npc/unclosed.app_xml";
+        const string malformedAppearance = "character/appearance/3_npc/malformed.app_xml";
+        Xml(unclosedAppearance, "<Appearance><!-- unclosed <Nude Name=\"hero_body_0001\"/></Appearance>");
+        Xml(malformedAppearance, "<Appearance><!-- invalid -- comment --><Nude Name=\"hero_body_0001\"/></Wrong>");
         Xml("character/appearance/3_npc/ambiguous.app_xml", "<Appearance><Head Name=\"duplicate_head_0001\"/></Appearance>");
         Xml("character/appearance/2_mon/combined.app_xml", "<Appearance><Nude Name=\"orphan_body_0001\"/><Head Name=\"orphan_body_0001\"/></Appearance>");
         Xml("character/prefab/3_npc/cycle_a.prefabdata_xml", "<Prefab FileName=\"character/prefab/3_npc/cycle_b.prefabdata_xml\"/>");
         Xml("character/prefab/3_npc/cycle_b.prefabdata_xml", "<Prefab FileName=\"character/prefab/3_npc/cycle_a.prefabdata_xml\"/>");
         Add("character/customization/hero_custom.paccd", [9]);
-        Xml("character/modelproperty/1_pc/1_phm/nude/hero_body_0001.pac_xml", "<Header/>\n<Material FileName=\"character/texture/hero.dds\"/><Mesh _subMeshName=\"hero_head_01\"/><Mesh _subMeshName=\"hero_nude_01\"/>");
+        Xml("character/modelproperty/1_pc/1_phm/nude/hero_body_0001.pac_xml", "<Header/>\n<Material FileName=\"character/texture/hero.dds\"/><Mesh _subMeshName=\"hero_head_01\"/><Mesh _subMeshName=\"hero_nude_01\"/><Wrinkle FileName=\"character/descriptors/wrinkle/hero.xml\"/>");
         Add("character/texture/hero.dds", [10]);
+        const string wrinkleXml = "<Wrinkle><!-- authored -- comment ---><!-- keep -->"
+            + "<Texture FileName=\"character/texture/hero_wrinkle.dds\"/>"
+            + "<Note><![CDATA[<!-- literal -- text --->]]></Note></Wrinkle>";
+        var wrinkle = Xml("character/descriptors/wrinkle/hero.xml", wrinkleXml);
+        var wrinkleTexture = Add("character/texture/hero_wrinkle.dds", [10]);
         const string creatureRoot = "character/model/2_mon/test_creature/";
         var creature = Add(creatureRoot + "creature_0001.pac", [11]);
         var boots = Add(creatureRoot + "creature_foot_0040.pac", [12]);
         var bag = Add(creatureRoot + "creature_bag_0040.pac", [13]);
         var fur = Add(creatureRoot + "creature_0001_00_spline.pac", [14]);
         Xml("character/modelproperty/2_mon/test_creature/creature_0001.pac_xml",
-            "<Mesh _subMeshName=\"creature_body_01\"/>");
+            "<!-- authored -- comment --><Mesh _subMeshName=\"creature_body_01\"/>"
+            + "<Note><![CDATA[<Ignored Name=\"literal\"Other=\"text\"/>]]></Note>");
         Xml("character/modelproperty/2_mon/test_creature/creature_0001_00_spline.pac_xml",
             "<Mesh _subMeshName=\"creature_hair_01_spline\"/>");
         Xml("character/prefab/2_mon/test_creature/creature_nude_0001.prefabdata_xml",
@@ -110,6 +122,9 @@ internal static class CharacterCatalogTests
             Add($"character/model/1_pc/{family}/nude/cd_{prefix}_00_fuzz_00_0001.pac", [1]);
         }
         var snapshot = Build();
+        foreach (var invalid in new[] { unclosedAppearance, malformedAppearance })
+            Check(snapshot.Coverage.Any(row => row.Path == invalid && row.Resolution == "unresolved"),
+                "XML recovery accepted an unclosed comment or malformed element");
         var catalogue = new ArchiveCharacterCatalog(snapshot);
         foreach (var family in new[] { "1_phm", "5_pom" })
         {
@@ -130,8 +145,14 @@ internal static class CharacterCatalogTests
         Check(hero.Rows.Count == 2 && hero.Rows.All(row => row.Label == "Test Hero"), "validated multilingual character name join failed");
         var details = catalogue.GetRequired(hero.Rows.Single(row => row.Role == "body").Key);
         Check(details.Evidence.Any(line => line.Contains("Recovered missing whitespace")), "XML recovery was not reported");
+        Check(details.Evidence.Any(line => line.Contains("Recovered invalid XML comment")), "comment recovery was not reported");
+        Check(details.RelatedIds.Contains(wrinkleTexture.EntryId), "recovered wrinkle dependency was omitted");
+        Check(Encoding.UTF8.GetString(bytes[wrinkle.EntryId]) == wrinkleXml, "XML recovery changed source bytes");
         Check(details.Components.Single(c => c.Role == "body").Scale == 1.1, "authored scale lost");
         Check(details.Row.Resolution == "resolved", "multi-root model-property fragment was rejected");
+        var creatureDetails = catalogue.GetRequired("asset:" + creature.Path);
+        Check(creatureDetails.Evidence.Any(line => line.Contains("Recovered invalid XML comment")), "creature comment was not recovered");
+        Check(!creatureDetails.Evidence.Any(line => line.Contains("Recovered missing whitespace")), "CDATA contents were rewritten as XML attributes");
         Check(details.RelatedIds.Any(id => inventory[(int)id].Extension == ".paccd"), "customization context lost");
         Check(details.Components.SelectMany(c => c.ModelEntryIds).Contains(active.EntryId)
             && !details.Components.SelectMany(c => c.ModelEntryIds).Contains(shadowed.EntryId), "mount precedence/case identity failed");
@@ -224,9 +245,17 @@ internal static class CharacterCatalogTests
         }
         catch (OperationCanceledException) { }
         Check(!Directory.EnumerateFiles(sessions.GetRequired(session.SessionId).GenerationPath, "character-catalog*").Any(), "cancelled catalogue cache leaked");
+        var generation = sessions.GetRequired(session.SessionId).GenerationPath;
+        var mount = Path.Combine(fixture.Root, "meta", "0.papgt");
+        var signature = session.Fingerprint + ":" + (File.Exists(mount)
+            ? Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(mount))) : "unmounted");
+        var oldCache = new CharacterCatalogSnapshot(5, signature, [], [], []);
+        await File.WriteAllTextAsync(Path.Combine(generation, "character-catalog-v5.json"),
+            JsonSerializer.Serialize(oldCache, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }));
         var cold = await service.BuildAsync(new(session.SessionId), null, CancellationToken.None);
         var warm = await service.BuildAsync(new(session.SessionId), null, CancellationToken.None);
         Check(!cold.UsedCache && warm.UsedCache && warm.CandidateCount == cold.CandidateCount, "warm catalogue cache was not reused");
+        Check(cold.CandidateCount > 0, "old incomplete catalogue cache was reused");
         var refreshed = await sessions.RefreshAsync(new(fixture.Root), CancellationToken.None);
         var fresh = await service.BuildAsync(new(refreshed.SessionId), null, CancellationToken.None);
         Check(!fresh.UsedCache, "refresh reused stale catalogue generation");

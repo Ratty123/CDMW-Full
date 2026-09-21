@@ -302,20 +302,29 @@ class _WriteTestsMixin:
         self.assertEqual(plan.spec.item_key, 1990000)
 
     def test_removed_overlay_is_refreshed_before_a_snapshot_or_plan_uses_it(self) -> None:
-        from cdmw.services.archive_overlay_install import restore_last_overlay_install
+        from cdmw.services.archive_overlay_manager import (
+            apply_overlay_change, list_installed_overlays, prepare_overlay_removal,
+        )
         from cdmw.workers.new_item_workers import list_archive_entries
 
+        # This fixture has no original mount list. Keep recovery files outside
+        # its game root so the fallback scan cannot mistake them for packages.
+        backup_root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(patch("cdmw.core.archive_patching.ARCHIVE_PATCH_BACKUP_ROOT", backup_root))
         mutations = ArchiveMutationService()
         with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
             installed = self.service.install_overlay(self._plan(), mutation_service=mutations, confirmed=True)
         stale_entries = list_archive_entries(self.root, lambda _m: None, None)
         stale = self.service.build_snapshot(stale_entries, read_entry=_read)
         self.assertEqual(Path(stale.iteminfo.payload_entry.pamt_path).parent.name, installed.directory.name)
-        restore_last_overlay_install(
-            installed.receipt_path, confirmed=True,
+        overlay = list_installed_overlays(self.root)[0]
+        apply_overlay_change(
+            prepare_overlay_removal(self.root, overlay.id), confirmed=True,
+            backup=lambda paths, label: mutations.backup_files(paths, description=label),
             restore_backup=lambda path: mutations.restore_backup(path, confirmed=True),
             game_running=lambda: False,
         )
+        self.assertEqual(list_installed_overlays(self.root), ())
         self.assertTrue(stale.source_files_changed())
         logs = []
         spec = NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Refreshed_OneHandSword", display_names={"eng": "Refreshed"})

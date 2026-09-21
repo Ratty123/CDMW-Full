@@ -34,6 +34,10 @@ The format is intentionally simple:
 
 ### Fixed
 
+- Facial shape exports preserve case-distinct game targets such as `JawOpen` and `jawOpen`, including their different transforms.
+- Effect editing supports the installed nine-byte field masks and inherited collection lookup tables. Unchanged metadata round-trips exactly; unsupported structural edits remain blocked, and old effect catalogue results rebuild.
+- Body/Face Finder recovers malformed comments in shipped wrinkle XML without changing archive bytes, and refreshes its cached dependency results.
+- Mod compatibility and archive backup details display binary game versions correctly. Correcting a label does not mark an unchanged build as updated when its hashes still match.
 - Create New Item reuses unchanged translucent texture conversions when rebuilding a plan. Native texture encoding yields CPU time to the UI, and cancellation reaches the translucent conversion.
 - Overlay installation avoids repeated source validation and journal decoding while retaining freshness, backup and recovery checks. Perk catalogue refreshes replace prepared models safely instead of rebuilding native list items.
 - FBX imports retain sibling DirectX normal maps and use loose colour, roughness and metallic textures without the converted legacy material's tint or scalar multipliers suppressing them. Linked texture channels and untextured materials keep their authored settings.
